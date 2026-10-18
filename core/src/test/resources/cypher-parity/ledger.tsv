@@ -2853,8 +2853,8 @@ tck/expressions/temporal/Temporal1/[4] Should construct date #5	PASS	PASS
 tck/expressions/temporal/Temporal1/[4] Should construct date #6	PASS	PASS
 tck/expressions/temporal/Temporal1/[4] Should construct date #7	PASS	PASS
 tck/expressions/temporal/Temporal1/[4] Should construct date #8	PASS	PASS
-tck/expressions/temporal/Temporal1/[5] Should construct local time #1	PASS	REFUSED
-tck/expressions/temporal/Temporal1/[5] Should construct local time #2	PASS	REFUSED
+tck/expressions/temporal/Temporal1/[5] Should construct local time #1	PASS	PASS
+tck/expressions/temporal/Temporal1/[5] Should construct local time #2	PASS	PASS
 tck/expressions/temporal/Temporal1/[5] Should construct local time #3	PASS	PASS
 tck/expressions/temporal/Temporal1/[5] Should construct local time #4	PASS	PASS
 tck/expressions/temporal/Temporal1/[5] Should construct local time #5	PASS	PASS
@@ -2874,30 +2874,30 @@ tck/expressions/temporal/Temporal1/[6] Should construct time #11	PASS	PASS
 tck/expressions/temporal/Temporal1/[6] Should construct time #12	PASS	PASS
 tck/expressions/temporal/Temporal1/[6] Should construct time #13	PASS	PASS
 tck/expressions/temporal/Temporal1/[6] Should construct time #14	PASS	PASS
-tck/expressions/temporal/Temporal1/[7] Should construct local date time #1	PASS	REFUSED
-tck/expressions/temporal/Temporal1/[7] Should construct local date time #2	PASS	REFUSED
-tck/expressions/temporal/Temporal1/[7] Should construct local date time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal1/[7] Should construct local date time #1	PASS	PASS
+tck/expressions/temporal/Temporal1/[7] Should construct local date time #2	PASS	PASS
+tck/expressions/temporal/Temporal1/[7] Should construct local date time #3	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #4	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #5	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #6	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #7	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #8	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #9	PASS	PASS
-tck/expressions/temporal/Temporal1/[7] Should construct local date time #10	PASS	REFUSED
+tck/expressions/temporal/Temporal1/[7] Should construct local date time #10	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #11	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #12	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #13	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #14	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #15	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #16	PASS	PASS
-tck/expressions/temporal/Temporal1/[7] Should construct local date time #17	PASS	REFUSED
+tck/expressions/temporal/Temporal1/[7] Should construct local date time #17	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #18	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #19	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #20	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #21	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #22	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #23	PASS	PASS
-tck/expressions/temporal/Temporal1/[7] Should construct local date time #24	PASS	REFUSED
+tck/expressions/temporal/Temporal1/[7] Should construct local date time #24	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #25	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #26	PASS	PASS
 tck/expressions/temporal/Temporal1/[7] Should construct local date time #27	PASS	PASS
@@ -3198,13 +3198,13 @@ tck/expressions/temporal/Temporal3/[1] Should select date #4	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #5	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #6	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #7	PASS	PASS
-tck/expressions/temporal/Temporal3/[1] Should select date #8	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #9	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #10	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #11	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #12	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #13	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[1] Should select date #14	PASS	REFUSED
+tck/expressions/temporal/Temporal3/[1] Should select date #8	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #9	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #10	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #11	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #12	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #13	PASS	PASS
+tck/expressions/temporal/Temporal3/[1] Should select date #14	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #15	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #16	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #17	PASS	PASS
@@ -3212,9 +3212,9 @@ tck/expressions/temporal/Temporal3/[1] Should select date #18	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #19	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #20	PASS	PASS
 tck/expressions/temporal/Temporal3/[1] Should select date #21	PASS	PASS
-tck/expressions/temporal/Temporal3/[2] Should select local time #1	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[2] Should select local time #2	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[2] Should select local time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal3/[2] Should select local time #1	PASS	PASS
+tck/expressions/temporal/Temporal3/[2] Should select local time #2	PASS	PASS
+tck/expressions/temporal/Temporal3/[2] Should select local time #3	PASS	PASS
 tck/expressions/temporal/Temporal3/[2] Should select local time #4	PASS	PASS
 tck/expressions/temporal/Temporal3/[2] Should select local time #5	PASS	PASS
 tck/expressions/temporal/Temporal3/[2] Should select local time #6	PASS	PASS
@@ -3250,32 +3250,32 @@ tck/expressions/temporal/Temporal3/[4] Should select date into local date time #
 tck/expressions/temporal/Temporal3/[4] Should select date into local date time #4	PASS	PASS
 tck/expressions/temporal/Temporal3/[4] Should select date into local date time #5	PASS	PASS
 tck/expressions/temporal/Temporal3/[4] Should select date into local date time #6	PASS	PASS
-tck/expressions/temporal/Temporal3/[5] Should select time into local date time #1	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[5] Should select time into local date time #2	PASS	REFUSED
+tck/expressions/temporal/Temporal3/[5] Should select time into local date time #1	PASS	PASS
+tck/expressions/temporal/Temporal3/[5] Should select time into local date time #2	PASS	PASS
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #3	PASS	PASS
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #4	PASS	PASS
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #5	PASS	PASS
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #6	PASS	PASS
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #7	PASS	PASS
 tck/expressions/temporal/Temporal3/[5] Should select time into local date time #8	PASS	PASS
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #1	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #2	PASS	REFUSED
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #1	PASS	PASS
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #2	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #3	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #4	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #5	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #6	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #7	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #8	PASS	PASS
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #9	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #10	PASS	REFUSED
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #9	PASS	PASS
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #10	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #11	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #12	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #13	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #14	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #15	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #16	PASS	PASS
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #17	PASS	REFUSED
-tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #18	PASS	REFUSED
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #17	PASS	PASS
+tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #18	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #19	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #20	PASS	PASS
 tck/expressions/temporal/Temporal3/[6] Should select date and time into local date time #21	PASS	PASS
@@ -3439,12 +3439,12 @@ tck/expressions/temporal/Temporal6/[6] Should serialize duration #11	PASS	PASS
 tck/expressions/temporal/Temporal6/[7] Should serialize timezones correctly	PASS	REFUSED
 tck/expressions/temporal/Temporal7/[1] Should compare dates #1	PASS	PASS
 tck/expressions/temporal/Temporal7/[1] Should compare dates #2	PASS	PASS
-tck/expressions/temporal/Temporal7/[2] Should compare local times #1	PASS	REFUSED
-tck/expressions/temporal/Temporal7/[2] Should compare local times #2	PASS	REFUSED
+tck/expressions/temporal/Temporal7/[2] Should compare local times #1	PASS	PASS
+tck/expressions/temporal/Temporal7/[2] Should compare local times #2	PASS	PASS
 tck/expressions/temporal/Temporal7/[3] Should compare times #1	PASS	REFUSED
 tck/expressions/temporal/Temporal7/[3] Should compare times #2	PASS	REFUSED
-tck/expressions/temporal/Temporal7/[4] Should compare local date times #1	PASS	REFUSED
-tck/expressions/temporal/Temporal7/[4] Should compare local date times #2	PASS	REFUSED
+tck/expressions/temporal/Temporal7/[4] Should compare local date times #1	PASS	PASS
+tck/expressions/temporal/Temporal7/[4] Should compare local date times #2	PASS	PASS
 tck/expressions/temporal/Temporal7/[5] Should compare date times #1	PASS	PASS
 tck/expressions/temporal/Temporal7/[5] Should compare date times #2	PASS	PASS
 tck/expressions/temporal/Temporal7/[6] Should compare durations for equality #1	PASS	PASS
@@ -4273,6 +4273,22 @@ lite/multipattern/an_undirected_typed_relationship_from_a_label_less_node	PASS	P
 lite/multipattern/an_incoming_typed_relationship_from_a_label_less_node	PASS	PASS
 lite/multipattern/an_optional_pattern_repeating_a_type	PASS	PASS
 lite/multipattern/two_patterns_sharing_a_relationship_type_stay_distinct	PASS	PASS
+lite/nanoparts/local_times_and_date_times_returned	PASS	PASS
+lite/nanoparts/years_beyond_the_nanosecond_timestamps	PASS	PASS
+lite/nanoparts/fields_of_the_parts	PASS	PASS
+lite/nanoparts/texts_of_the_parts	PASS	PASS
+lite/nanoparts/compared_across_precisions	PASS	PASS
+lite/nanoparts/ordered_through_a_with	PASS	PASS
+lite/nanoparts/ordered_when_returned	PASS	PASS
+lite/nanoparts/selected_from_the_parts	PASS	PASS
+lite/nanoparts/carried_and_compared_after	PASS	PASS
+lite/nanoparts/distinct_over_the_parts	PASS	PASS
+lite/nanoparts/returned_distinct_and_ordered	PASS	PASS
+lite/nanoparts/grouped_by_the_parts	PASS	PASS
+lite/nanoparts/chosen_by_case_and_coalesce	PASS	PASS
+lite/nanoparts/a_clock_without_its_minute	BOTH_ERROR	BOTH_ERROR
+lite/nanoparts/a_date_time_without_its_day	BOTH_ERROR	BOTH_ERROR
+lite/nanoparts/a_date_without_its_month	BOTH_ERROR	BOTH_ERROR
 lite/nodes/node_of_one_class	PASS	PASS
 lite/nodes/nodes_of_every_class	PASS	PASS
 lite/nodes/node_with_order_and_limit	PASS	PASS
@@ -4745,7 +4761,7 @@ lite/temporal/nanos_arithmetic	PASS	REFUSED
 lite/temporal/nanos_between	PASS	REFUSED
 lite/temporal/nanos_zones	PASS	REFUSED
 lite/temporal/nanos_time_of_a_named_zone_datetime	PASS	REFUSED
-lite/temporal/nanos_year_outside_the_range_refused_by_name	REFUSED	REFUSED
+lite/temporal/nanos_year_outside_the_range_refused_by_name	PASS	PASS
 lite/temporal/nanos_duration_fields	PASS	REFUSED
 lite/temporal/nanos_component_of_the_row_refused_by_name	REFUSED	REFUSED
 lite/temporal/duration_fraction_of_a_month_cascades	PASS	PASS

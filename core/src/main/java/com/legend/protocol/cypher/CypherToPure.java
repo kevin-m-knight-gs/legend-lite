@@ -908,11 +908,12 @@ public final class CypherToPure {
             com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
         Col {
             if (detail instanceof Carried c && (c.printedFrom() != null || c.zone() != null
-                    && c.zone().read() != null)) {
+                    && c.zone().read() != null || c.parts() != null && c.parts().date() != null)) {
                 // (a column holds no expression of the scope it was computed in: a printed value's source stays
                 // behind, §12.74; so does an offset the database read, which a projection carries as its own
-                // column, §12.75)
-                detail = new Carried(c.zone() != null && c.zone().read() != null ? null : c.zone(), c.nanos());
+                // column, §12.75, and a split date-time's date, W13, whose column is DATE_PART's)
+                detail = new Carried(c.zone() != null && c.zone().read() != null ? null : c.zone(), c.nanos(), null,
+                        c.parts() == null ? null : new Parts(null));
             }
         }
 
@@ -6672,36 +6673,7 @@ public final class CypherToPure {
         // each non-aggregating item's scalar (a list or map returned is its Variant), or the shape it is carried as
         Map<String, Tx> scalars = new HashMap<>();
         Map<String, Val> carried = new LinkedHashMap<>();
-        for (Output out : outputs) {
-            Val v = out.value();
-            if (v == null) {
-                continue;
-            }
-            if (v instanceof Scalar s) {
-                scalars.put(out.name(), s.tx());
-            } else if (returning) {
-                scalars.put(out.name(), variant(v, pos));
-            } else if (!rowFree(v) && !grouped) {
-                // a list or map holding a value of the row, carried through WITH: the Variant the database builds
-                // (the study's §12.41), marked with its shape where its spelling says it (its elements' one kind, a
-                // map's entries), so what reads it after reads into it by type (the study's §12.43)
-                scalars.put(out.name(), variant(v, pos));
-            } else if (grouped || distinct) {
-                // a list or map among the grouping keys, or under DISTINCT (the study's §12.57): the Variant the
-                // database builds, equal as text when its elements are scalars, lists or maps of them; one holding
-                // a node or a relationship (equal by identity in Neo4j, which the text lacks), or elements of a
-                // shape the spelling does not say, is refused by name
-                Tx key = variant(v, pos);
-                if (!scalarShaped(key.detail())) {
-                    throw CypherErrors.unsupported((grouped ? "a list or map (" : "WITH DISTINCT over a list or map (")
-                            + out.name() + ") holding a node, a relationship or an element of unknown shape "
-                            + (grouped ? "among the grouping keys " : "") + "is not supported yet", pos);
-                }
-                scalars.put(out.name(), key);
-            } else {
-                carried.put(out.name(), v);
-            }
-        }
+        itemValues(outputs, returning, grouped, distinct, pos, scalars, carried);
         // the sort keys: an item (by its alias or its text), else an expression over the projected aliases first
         // (an alias shadows the variable it was computed from: the TCK's WithOrderBy4) and the scope before the
         // projection
@@ -6784,8 +6756,30 @@ public final class CypherToPure {
                     // only, and every arm keeps it, so the arms' columns agree)
                     continue;
                 }
+                if (split(sortTx)) {
+                    // a split value (W13): ordered by its parts, each a hidden key
+                    for (Tx part : partsOf(sortTx)) {
+                        sortKeys.add(new SortKey(hiddenSortKey(part, scope, names, hidden, keyed), o.descending(),
+                                true));
+                    }
+                    continue;
+                }
                 key = hiddenSortKey(sortTx, scope, names, hidden, keyed);
                 sortKeys.add(new SortKey(key, o.descending(), true));
+            } else if (scalars.get(key) instanceof Tx item && split(item) && !grouped) {
+                // a split item (W13) orders by its parts: through a WITH its columns (the date's beside it), when
+                // returned hidden keys of its parts beside its text
+                if (returning) {
+                    for (Tx part : partsOf(item)) {
+                        sortKeys.add(new SortKey(hiddenSortKey(part, scope, names, hidden, keyed), o.descending(),
+                                true));
+                    }
+                } else {
+                    if (item.kind() == Kind.DATETIME) {
+                        sortKeys.add(new SortKey(DATE_PART + key, o.descending(), false));
+                    }
+                    sortKeys.add(new SortKey(key, o.descending(), false));
+                }
             } else if (!oneArm || scalars.get(key) == null || !SqlToPure.isNullConstant(scalars.get(key))) {
                 sortKeys.add(new SortKey(key, o.descending(), false));
             }
@@ -6819,6 +6813,10 @@ public final class CypherToPure {
                     continue;
                 }
                 Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
+                if (returning && split(t)) {
+                    // a split value returned (W13): its ISO text, which the result reads as the value
+                    t = egress(t);
+                }
                 specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                 // (a zoned date-time's zone rides with its column, so the clauses after read its fields in it)
                 columns.add(new Col(out.name(), t.kind(), t.nullable(), null, columnDetail(t, oneArm)));
@@ -6871,6 +6869,10 @@ public final class CypherToPure {
                             : node.shape()));
                 } else if (out.agg() == null) {
                     Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
+                    if (returning && split(t)) {
+                        // (a split value returned as a grouping key: the epoch-nanosecond carriage until W13's leg 4)
+                        t = legacy(t);
+                    }
                     specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                     keys.add(new ColSpec(out.name(), null, null, null));
                     columns.add(new Col(out.name(), t.kind(), t.nullable(), null, columnDetail(t, oneArm)));
@@ -6890,6 +6892,42 @@ public final class CypherToPure {
         return new ArmProjection(vs, false, columns, sortKeys, hidden, afterGrouping, List.of(), List.of(), List.of(),
                 List.of(), List.of(), Map.of(), whereColumn, itemNames, returning ? List.copyOf(nodes.keySet())
                 : List.of());
+    }
+
+    /** Each non-aggregating item's scalar into {@code scalars} (a list or map returned is its Variant), or the shape
+     *  it is carried as into {@code carried} ({@link #projectArm}'s). */
+    private void itemValues(List<Output> outputs, boolean returning, boolean grouped, boolean distinct, Pos pos,
+            Map<String, Tx> scalars, Map<String, Val> carried) {
+        for (Output out : outputs) {
+            Val v = out.value();
+            if (v == null) {
+                continue;
+            }
+            if (v instanceof Scalar s) {
+                scalars.put(out.name(), s.tx());
+            } else if (returning) {
+                scalars.put(out.name(), variant(v, pos));
+            } else if (!rowFree(v) && !grouped) {
+                // a list or map holding a value of the row, carried through WITH: the Variant the database builds
+                // (the study's §12.41), marked with its shape where its spelling says it (its elements' one kind, a
+                // map's entries), so what reads it after reads into it by type (the study's §12.43)
+                scalars.put(out.name(), variant(v, pos));
+            } else if (grouped || distinct) {
+                // a list or map among the grouping keys, or under DISTINCT (the study's §12.57): the Variant the
+                // database builds, equal as text when its elements are scalars, lists or maps of them; one holding
+                // a node or a relationship (equal by identity in Neo4j, which the text lacks), or elements of a
+                // shape the spelling does not say, is refused by name
+                Tx key = variant(v, pos);
+                if (!scalarShaped(key.detail())) {
+                    throw CypherErrors.unsupported((grouped ? "a list or map (" : "WITH DISTINCT over a list or map (")
+                            + out.name() + ") holding a node, a relationship or an element of unknown shape "
+                            + (grouped ? "among the grouping keys " : "") + "is not supported yet", pos);
+                }
+                scalars.put(out.name(), key);
+            } else {
+                carried.put(out.name(), v);
+            }
+        }
     }
 
     /** An aggregating output's pieces: its argument's column before the grouping, its reduce, its finish (a sum of
@@ -7008,6 +7046,13 @@ public final class CypherToPure {
             } else {
                 Val value = val(e, scope);
                 outputs.add(new Output(name, value, null));
+                if (!returning && value instanceof Scalar sv && split(sv.tx()) && sv.tx().kind() == Kind.DATETIME) {
+                    // a split date-time through a WITH (W13): its date beside it, a column of the rows the clauses
+                    // after read it back from
+                    String column = DATE_PART + name;
+                    names.add(column);
+                    outputs.add(new Output(column, scalar(datePartOf(sv.tx())), null));
+                }
                 Zone zone = value instanceof Scalar s ? zoneOf(s.tx()) : null;
                 if (!returning && zone != null && zone.read() != null) {
                     // a zoned value whose offset the database read, through a WITH: the offset beside it (and its
@@ -7415,6 +7460,10 @@ public final class CypherToPure {
             requireNumeric(arg, c);
             return new Aggregate(freshName(names), arg, lambda("y", call("average", values)), Kind.FLOAT, true,
                     null);
+        }
+        if (fn.equals("min") || fn.equals("max") || fn.equals("collect")) {
+            // (a split value in the epoch-nanosecond carriage until W13's leg 4)
+            arg = legacy(arg);
         }
         if (fn.equals("min") || fn.equals("max")) {
             if (arg.kind() == Kind.BOOLEAN || arg.kind() == Kind.NULL || arg.kind() == Kind.OTHER) {
@@ -8618,6 +8667,18 @@ public final class CypherToPure {
                         // a typed null the projection computed: that null wherever it is read (§12.82)
                         return scalar(SqlToPure.nullOf(c.kind()));
                     }
+                    if (c.detail() instanceof Carried split && split.parts() != null) {
+                        // a split value (W13): its nanoseconds since midnight the column, a date-time's date the
+                        // column beside it its projection carried
+                        Tx clock = columnLike(new AppliedProperty(new Variable(row()), c.name()), Kind.INTEGER,
+                                c.nullable());
+                        if (c.kind() == Kind.TIME) {
+                            return scalar(splitTime(clock));
+                        }
+                        Col date = java.util.Objects.requireNonNull(column(DATE_PART + c.name()));
+                        return scalar(splitDateTime(columnLike(new AppliedProperty(new Variable(row()), date.name()),
+                                Kind.DATE, date.nullable()), clock));
+                    }
                     Tx read = columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
                             c.nullable());
                     Col zone = column(ZONE_PART + c.name());
@@ -9089,7 +9150,8 @@ public final class CypherToPure {
             case CypherAst.ListLit l -> {
                 List<Val> elements = new ArrayList<>();
                 for (Expr x : l.elements()) {
-                    elements.add(val(x, scope));
+                    // (a split value in a list: the epoch-nanosecond carriage until W13's leg 4)
+                    elements.add(legacy(val(x, scope), x.pos()));
                 }
                 yield new ListVal(elements);
             }
@@ -9422,6 +9484,11 @@ public final class CypherToPure {
         if (!sameType) {
             return l.nullable() || r.nullable() ? SqlToPure.strictTest(List.of(l, r), v -> new CBoolean(false))
                     : constant(false);
+        }
+        if ((l.kind() == Kind.TIME || l.kind() == Kind.DATETIME) && (split(l) || split(r))) {
+            // values of nanosecond precision compare by their parts (W13): equal when their dates and their
+            // nanoseconds since midnight are (another value read into the same parts)
+            return splitCompared(l, r, "equal", null);
         }
         if (l.kind() == Kind.TIME && (nanos(l) || nanos(r))) {
             // a nanosecond time of day is the date-time at it on the epoch day: both compare so
@@ -9762,11 +9829,40 @@ public final class CypherToPure {
             case GT -> SqlAst.BinaryOp.GT;
             default -> SqlAst.BinaryOp.GE;
         };
+        if ((l.kind() == Kind.TIME || l.kind() == Kind.DATETIME) && (split(l) || split(r))) {
+            // values of nanosecond precision order by their parts (W13): by date, then by the nanoseconds since
+            // midnight (another value read into the same parts)
+            boolean less = op == BinaryOp.LT || op == BinaryOp.LE;
+            return splitCompared(l, r, switch (op) {
+                case LT -> "lessThan";
+                case LE -> "lessThanEqual";
+                case GT -> "greaterThan";
+                case GE -> "greaterThanEqual";
+                default -> throw new IllegalStateException("unreachable: " + op);
+            }, less ? "lessThan" : "greaterThan");
+        }
         if (l.kind() == Kind.TIME) {
             // Pure orders no StrictTime: two times of day order as the date-times at them on one day
             return SqlToPure.compare(sqlOp, atEpoch(l), atEpoch(r));
         }
         return SqlToPure.compare(sqlOp, l, r);
+    }
+
+    /** Two times of day or two date-times compared by their parts (W13) with Pure's {@code fn} ({@code equal} or an
+     *  order): a time of day by its nanoseconds since midnight; a date-time by its date, then, on the same date, by
+     *  its nanoseconds since midnight -- for an order, {@code byDate} the strict order between the dates (null for
+     *  equality). Null when either is null. */
+    private static Tx splitCompared(Tx l, Tx r, String fn, @com.legend.base.Nullable String byDate) {
+        Tx ls = asSplit(l);
+        Tx rs = asSplit(r);
+        if (l.kind() == Kind.TIME) {
+            return SqlToPure.strictTest(List.of(ofDay(ls), ofDay(rs)), v -> call(fn, v.get(0), v.get(1)));
+        }
+        // (an order holds strictly between the dates, or on the same date between the clocks)
+        return SqlToPure.strictTest(List.of(datePartOf(ls), ofDay(ls), datePartOf(rs), ofDay(rs)), v -> {
+            ValueSpecification sameDay = call("and", call("equal", v.get(0), v.get(2)), call(fn, v.get(1), v.get(3)));
+            return byDate == null ? sameDay : call("or", call(byDate, v.get(0), v.get(2)), sameDay);
+        });
     }
 
     private static boolean comparable(Kind a, Kind b) {
@@ -9899,7 +9995,8 @@ public final class CypherToPure {
      *  equals it otherwise. A scalar among literal scalars of its kind is Pure's {@code in}; any other list of known
      *  shape is unrolled into a disjunction of equalities (nulls, nested lists and maps among the members). */
     private Tx in(CypherAst.Binary b, Scope scope) {
-        Val l = val(b.left(), scope);
+        // (a split value against a list: the epoch-nanosecond carriage until W13's leg 4)
+        Val l = legacy(val(b.left(), scope), b.left().pos());
         Val r = asCollection(val(b.right(), scope));
         if (r instanceof Scalar rs) {
             if (rs.tx().kind() == Kind.NULL) {
@@ -10775,6 +10872,18 @@ public final class CypherToPure {
 
     /** {@code coalesce(a, b, ...)}: the first value that is not null; the arguments after one that is never null are
      *  never read. The arguments must share a type in PR1 (Cypher's are any). */
+    /** One part of the first present of split values ({@link #coalesce}), each value's presence its nanoseconds'. */
+    private static Tx coalescedPart(List<Tx> values, java.util.function.UnaryOperator<Tx> part, Kind kind,
+            boolean nullable) {
+        ValueSpecification tail = SqlToPure.valueOf(part.apply(values.get(values.size() - 1)));
+        for (int i = values.size() - 2; i >= 0; i--) {
+            ValueSpecification present = SqlToPure.valueOf(ofDay(values.get(i)));
+            tail = call("if", call("isEmpty", present), thunk(tail), thunk(SqlToPure.valueOf(part.apply(
+                    values.get(i)))));
+        }
+        return Tx.value(nullable ? tail : call("toOne", tail), kind, nullable);
+    }
+
     private static Tx coalesce(CypherAst.Call c, List<Tx> arguments) {
         if (arguments.isEmpty()) {
             throw CypherErrors.invalid("Insufficient parameters for function 'coalesce'", c.pos());
@@ -10809,6 +10918,14 @@ public final class CypherToPure {
         boolean nullable = true;
         for (Tx a : args) {
             nullable &= a.nullable();
+        }
+        if ((kind == Kind.TIME || kind == Kind.DATETIME) && args.stream().anyMatch(CypherToPure::split)) {
+            // a split value among the arguments (W13): each part the first present argument's, the presence read
+            // off the nanoseconds since midnight (present exactly when the value is)
+            List<Tx> parts = args.stream().map(CypherToPure::asSplit).toList();
+            Tx clock = coalescedPart(parts, CypherToPure::ofDay, Kind.INTEGER, nullable);
+            return kind == Kind.TIME ? splitTime(clock) : splitDateTime(coalescedPart(parts,
+                    CypherToPure::datePartOf, Kind.DATE, nullable), clock);
         }
         ValueSpecification tail = SqlToPure.valueOf(args.get(args.size() - 1));
         for (int i = args.size() - 2; i >= 0; i--) {
@@ -10871,6 +10988,12 @@ public final class CypherToPure {
         if (kind == Kind.NULL) {
             return SqlToPure.nullOf(Kind.STRING);
         }
+        if ((kind == Kind.TIME || kind == Kind.DATETIME) && results.stream().anyMatch(CypherToPure::split)) {
+            // a split value among the results (W13): each part the CASE of that part
+            Tx clock = chosen(tests, results, r -> ofDay(asSplit(r)), Kind.INTEGER);
+            return kind == Kind.TIME ? splitTime(clock) : splitDateTime(chosen(tests, results,
+                    r -> datePartOf(asSplit(r)), Kind.DATE), clock);
+        }
         boolean nullable = last.nullable();
         ValueSpecification vs = last.kind() == Kind.NULL ? SqlToPure.nullOf(kind).vs() : SqlToPure.valueOf(last);
         for (int i = results.size() - 2; i >= 0; i--) {
@@ -10895,6 +11018,22 @@ public final class CypherToPure {
                 first = false;
             }
             return Tx.value(vs, kind, nullable, detail);
+        }
+        return Tx.value(vs, kind, nullable);
+    }
+
+    /** A CASE's choice of one part of its results ({@code tests} the WHEN conditions, the last result the ELSE's),
+     *  a null result the part's null. */
+    private static Tx chosen(List<ValueSpecification> tests, List<Tx> results,
+            java.util.function.UnaryOperator<Tx> part, Kind kind) {
+        java.util.function.UnaryOperator<Tx> read = r -> r.kind() == Kind.NULL ? SqlToPure.nullOf(kind) : part.apply(r);
+        Tx last = read.apply(results.get(results.size() - 1));
+        boolean nullable = last.nullable();
+        ValueSpecification vs = SqlToPure.valueOf(last);
+        for (int i = results.size() - 2; i >= 0; i--) {
+            Tx r = read.apply(results.get(i));
+            nullable |= r.nullable();
+            vs = call("if", tests.get(i), thunk(SqlToPure.valueOf(r)), thunk(vs));
         }
         return Tx.value(vs, kind, nullable);
     }
@@ -11041,7 +11180,13 @@ public final class CypherToPure {
             case Scalar s -> s.tx();
             case Coll c -> Tx.value(collVariant(c, pos), Kind.JSON, false, shapeOf(c));
             case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false, shapeOf(l));
-            case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
+            case MapVal m -> {
+                // (a split value in a map's Variant: the epoch-nanosecond carriage until W13's leg 4)
+                Map<String, Val> entries = new LinkedHashMap<>();
+                m.entries().forEach((k, e) -> entries.put(k, legacy(e, pos)));
+                MapVal held = new MapVal(entries);
+                yield Tx.value(call("fromJson", jsonTextOf(held, pos)), Kind.JSON, false, shapeOf(held));
+            }
         };
     }
 
@@ -12667,6 +12812,10 @@ public final class CypherToPure {
      *  its class's primary key as text; what Cypher compares nodes by. */
     private static final String ELEMENT_ID = "meta::legend::lite::elementId";
     private static final String AT_TIME = "meta::legend::lite::atTime";
+    /** Lite's temporal values in text carriage ({@code Pure.Lite.DATE_TIME_OF_TEXT}, {@code TIME_OF_TEXT}): the
+     *  date-time or time of day the database's text spells, what a split value leaves the database as (W13). */
+    private static final String DATE_TIME_OF_TEXT = "meta::legend::lite::dateTimeOfText";
+    private static final String TIME_OF_TEXT = "meta::legend::lite::timeOfText";
 
     private static ValueSpecification days() {
         return new EnumValue(DURATION_UNIT, "DAYS");
@@ -12823,9 +12972,32 @@ public final class CypherToPure {
     private record Carried(@com.legend.base.Nullable Zone zone, boolean nanos,
             /** the zoned value a text is the printing of ({@code toString}), what a parse of the text reads back:
              *  print then parse is the identity (the study's §12.74); null for any other value */
-            @com.legend.base.Nullable Tx printedFrom) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+            @com.legend.base.Nullable Tx printedFrom,
+            /** a value of nanosecond precision carried as its parts (W13): its date beside the translation's own
+             *  value, its nanoseconds since midnight; null for a value carried whole */
+            @com.legend.base.Nullable Parts parts) implements com.legend.protocol.sql.InputDialect.TypeDetail {
         Carried(@com.legend.base.Nullable Zone zone, boolean nanos) {
-            this(zone, nanos, null);
+            this(zone, nanos, null, null);
+        }
+
+        Carried(@com.legend.base.Nullable Zone zone, boolean nanos, @com.legend.base.Nullable Tx printedFrom) {
+            this(zone, nanos, printedFrom, null);
+        }
+    }
+
+    /**
+     * A value of nanosecond precision as its parts (docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13, the user's
+     * decision of 2026-10-18): java.time's shape, a local date-time a {@code LocalDate} and a {@code LocalTime}. The
+     * translation's own value is the nanoseconds since midnight (an Integer, the database's BIGINT); a date-time's
+     * date (a StrictDate, the database's DATE) rides here, present exactly when the value is. Every database computes
+     * both exactly, over every year its DATE holds; a time of day has no date.
+     */
+    private record Parts(@com.legend.base.Nullable Tx date,
+            /** the year a date-time's spelling writes (a literal's, a spelled year component's), null when the row
+             *  computes it: what the epoch-nanosecond carriage's range is checked against (§12.12) */
+            @com.legend.base.Nullable Long year) {
+        Parts(@com.legend.base.Nullable Tx date) {
+            this(date, null);
         }
     }
 
@@ -12993,6 +13165,269 @@ public final class CypherToPure {
                 t.body());
     }
 
+    // ------------------------------------------------------------------ nanoseconds as parts (W13)
+
+    /** The nanoseconds of a day. */
+    private static final long DAY_NANOS = 86_400L * 1_000_000_000L;
+
+    /** Whether a value is carried as its parts ({@link Parts}). */
+    private static boolean split(Tx t) {
+        return t.detail() instanceof Carried c && c.parts() != null;
+    }
+
+    /** A local time of nanosecond precision from its nanoseconds since midnight. */
+    private static Tx splitTime(Tx ofDay) {
+        return new Tx(ofDay.vs(), Kind.TIME, ofDay.nullable(), null, new Carried(null, true, null, new Parts(null)),
+                ofDay.guard(), ofDay.body());
+    }
+
+    /** A local date-time of nanosecond precision from its date and its nanoseconds since midnight (each present
+     *  exactly when the other is). */
+    private static Tx splitDateTime(Tx date, Tx ofDay) {
+        return splitDateTime(date, ofDay, null);
+    }
+
+    /** {@link #splitDateTime(Tx, Tx)} of the written year {@code year} (null when the row computes it). */
+    private static Tx splitDateTime(Tx date, Tx ofDay, @com.legend.base.Nullable Long year) {
+        return new Tx(ofDay.vs(), Kind.DATETIME, ofDay.nullable() || date.nullable(), null, new Carried(null, true,
+                null, new Parts(date, year)), ofDay.guard(), ofDay.body());
+    }
+
+    /** A time of day's or a date-time's nanoseconds since midnight, an Integer: a split value's own; a microsecond
+     *  one's (Pure's StrictTime, DateTime) its microseconds since its day's start a thousandfold; an epoch-nanosecond
+     *  one's (§12.12, the carriage W13 retires) its nanoseconds since its day's start. All the database's. */
+    private static Tx ofDay(Tx t) {
+        if (split(t)) {
+            return new Tx(t.vs(), Kind.INTEGER, t.nullable(), null, null, t.guard(), t.body());
+        }
+        boolean fine = nanos(t);
+        boolean time = t.kind() == Kind.TIME && !fine;
+        return SqlToPure.strict(Kind.INTEGER, List.of(t), x -> {
+            ValueSpecification dt = time ? atEpoch(x.get(0)) : x.get(0);
+            return fine ? call("dateDiff", call("datePart", dt), dt, unit("NANOSECONDS"))
+                    : times(1000, call("dateDiff", call("datePart", dt), dt, unit("MICROSECONDS")));
+        });
+    }
+
+    /** A date-time's date, a StrictDate: a split one's own, another's its date part (the database's). */
+    private static Tx datePartOf(Tx t) {
+        if (t.detail() instanceof Carried c && c.parts() != null) {
+            return java.util.Objects.requireNonNull(c.parts().date());
+        }
+        return SqlToPure.strict(Kind.DATE, List.of(t), x -> call("datePart", x.get(0)));
+    }
+
+    /** A split value's parts in their order: a date-time's date, then the nanoseconds since midnight. */
+    private static List<Tx> partsOf(Tx t) {
+        return t.kind() == Kind.TIME ? List.of(ofDay(t)) : List.of(datePartOf(t), ofDay(t));
+    }
+
+    /** A local time or date-time as its parts, whatever its precision (a microsecond value read into them: what an
+     *  operation over a split value reads the other operand as). */
+    private static Tx asSplit(Tx t) {
+        if (split(t)) {
+            return t;
+        }
+        return t.kind() == Kind.TIME ? splitTime(ofDay(t)) : splitDateTime(datePartOf(t), ofDay(t));
+    }
+
+    /** A split value as the epoch-nanosecond value §12.12 carries (the database's TIMESTAMP_NS: DuckDB's, 1678 to
+     *  2261; a time of day the date-time at it on the epoch day), for an operation W13 has not re-spelled yet; any
+     *  other value as it is. */
+    private static Tx legacy(Tx t) {
+        if (!split(t)) {
+            return t;
+        }
+        boolean time = t.kind() == Kind.TIME;
+        List<Tx> parts = time ? List.of(ofDay(t)) : List.of(datePartOf(t), ofDay(t));
+        Tx whole = SqlToPure.strict(Kind.DATETIME, parts, x -> call("adjust", time ? epochInstant() : call(AT_TIME,
+                x.get(0), MIDNIGHT), x.get(parts.size() - 1), unit("NANOSECONDS")));
+        return new Tx(whole.vs(), t.kind(), whole.nullable(), null, new Carried(null, true), whole.guard(),
+                whole.body());
+    }
+
+    /** A value with its split scalar ({@link #legacy(Tx)}) in the epoch-nanosecond carriage, a written year beyond
+     *  that carriage's refused by name; any other as it is. */
+    private static Val legacy(Val v, Pos pos) {
+        if (!(v instanceof Scalar s) || !split(s.tx())) {
+            return v;
+        }
+        if (s.tx().detail() instanceof Carried c && c.parts() != null && c.parts().year() instanceof Long year) {
+            nanosRange(year, pos);
+        }
+        return new Scalar(legacy(s.tx()), s.literal(), s.constant());
+    }
+
+    /** Midnight, Pure's time literal. */
+    private static final ValueSpecification MIDNIGHT = new com.legend.protocol.spec.CTime(
+            new com.legend.values.PureTimeLiteral.TimeWithSecond(0, 0, 0), "00:00:00", null);
+
+    /** The nanoseconds since midnight a clock spells, each part an Integer the database multiplies and adds: hours,
+     *  minutes, seconds, and the nanoseconds past the second (null parts are none). */
+    private static ValueSpecification clockNanos(ValueSpecification h, ValueSpecification mi, ValueSpecification s,
+            @com.legend.base.Nullable ValueSpecification fraction) {
+        ValueSpecification sum = plus(scaled(3_600L * NANOS, h), scaled(60L * NANOS, mi), scaled(NANOS, s));
+        return integer(fraction == null ? sum : plus(sum, fraction));
+    }
+
+    /** {@code unit * x} as an Integer: over a literal the database's float product cast back (exact below 2^53: the
+     *  databases type two small integer literals 32 bits wide, and their product overflows, measured on DuckDB, as
+     *  {@link #durationTextOf} found), else the integer product. */
+    private static ValueSpecification scaled(long unit, ValueSpecification x) {
+        return x instanceof CInteger ? integer(AppliedFunction.infixRun("times", List.of(new CFloat((double) unit),
+                x))) : times(unit, x);
+    }
+
+    /** The nanoseconds since midnight a clock's components spell over a base time's nanoseconds since midnight (or
+     *  none), as timeParts reads them: each of hour, minute and second as written, else the base's, else 0; the
+     *  fraction of the second the base's unless a sub-second field is written, else the written ones' sum. With no
+     *  clock component written, the base's own (0 without one). */
+    private static ValueSpecification clockOf(@com.legend.base.Nullable ValueSpecification base,
+            Map<Component, ValueSpecification> p) {
+        boolean clocked = p.keySet().stream().anyMatch(Component::time);
+        if (!clocked) {
+            return base != null ? base : lit(0);
+        }
+        ValueSpecification zero = lit(0);
+        ValueSpecification h = p.containsKey(Component.HOUR) ? p.get(Component.HOUR) : base != null
+                ? quotient(base, 3_600L * NANOS) : zero;
+        ValueSpecification mi = p.containsKey(Component.MINUTE) ? p.get(Component.MINUTE) : base != null
+                ? quotient(past(base, 3_600L * NANOS), 60L * NANOS) : zero;
+        ValueSpecification s = p.containsKey(Component.SECOND) ? p.get(Component.SECOND) : base != null
+                ? quotient(past(base, 60L * NANOS), NANOS) : zero;
+        boolean sub = p.containsKey(Component.MILLISECOND) || p.containsKey(Component.MICROSECOND)
+                || p.containsKey(Component.NANOSECOND);
+        ValueSpecification fraction = sub ? plus(times(1_000_000L, p.getOrDefault(Component.MILLISECOND, zero)),
+                times(1000L, p.getOrDefault(Component.MICROSECOND, zero)), p.getOrDefault(Component.NANOSECOND,
+                zero)) : base != null ? past(base, NANOS) : null;
+        return clockNanos(h, mi, s, fraction);
+    }
+
+    /** Neo4j's check of a date's components written with no date to take them from (its builders'
+     *  assertDefinedInOrder): each form's fields in order, a later one never without an earlier ({@code day cannot
+     *  be specified without month}); with a clock written and no time to take it from ({@code whole}), every field
+     *  of the form ({@code day must be specified}). */
+    private static void checkDate(Set<Component> keys, boolean whole, Pos pos) {
+        if (!keys.contains(Component.YEAR)) {
+            throw CypherErrors.invalid("year must be specified", pos);
+        }
+        List<Component> form = keys.contains(Component.WEEK) || keys.contains(Component.DAY_OF_WEEK)
+                ? List.of(Component.YEAR, Component.WEEK, Component.DAY_OF_WEEK)
+                : keys.contains(Component.QUARTER) || keys.contains(Component.DAY_OF_QUARTER)
+                ? List.of(Component.YEAR, Component.QUARTER, Component.DAY_OF_QUARTER)
+                : keys.contains(Component.ORDINAL_DAY) ? List.of(Component.YEAR, Component.ORDINAL_DAY)
+                : List.of(Component.YEAR, Component.MONTH, Component.DAY);
+        List<@com.legend.base.Nullable String> written = new ArrayList<>();
+        for (Component k : form) {
+            written.add(keys.contains(k) ? fieldName(k) : null);
+        }
+        definedInOrder(written, form.stream().map(CypherToPure::fieldName).toList(), pos);
+        if (whole) {
+            for (Component k : form) {
+                if (!keys.contains(k)) {
+                    throw CypherErrors.invalid(fieldName(k) + " must be specified", pos);
+                }
+            }
+        }
+    }
+
+    /** Neo4j's check of a clock's components written with no time to take them from: the hour written, then the
+     *  minute, the second and the sub-second fields in order ({@code subsecond cannot be specified without
+     *  minute}). */
+    private static void checkClock(Set<Component> keys, Pos pos) {
+        if (!keys.contains(Component.HOUR)) {
+            throw CypherErrors.invalid("hour must be specified", pos);
+        }
+        boolean sub = keys.contains(Component.MILLISECOND) || keys.contains(Component.MICROSECOND)
+                || keys.contains(Component.NANOSECOND);
+        List<String> names = List.of("hour", "minute", "second", "subsecond");
+        List<@com.legend.base.Nullable String> written = new ArrayList<>();
+        written.add("hour");
+        written.add(keys.contains(Component.MINUTE) ? "minute" : null);
+        written.add(keys.contains(Component.SECOND) ? "second" : null);
+        written.add(sub ? "subsecond" : null);
+        definedInOrder(written, names, pos);
+    }
+
+    /** Neo4j's assertDefinedInOrder: past the first field not written ({@code written}'s first null), any field
+     *  written is its error, named after that first gap. */
+    private static void definedInOrder(List<@com.legend.base.Nullable String> written, List<String> names,
+            Pos pos) {
+        int gap = written.indexOf(null);
+        if (gap < 0) {
+            return;
+        }
+        for (int i = gap + 1; i < written.size(); i++) {
+            if (written.get(i) != null) {
+                throw CypherErrors.invalid(names.get(i) + " cannot be specified without " + names.get(gap), pos);
+            }
+        }
+    }
+
+    /** A component's name as Neo4j's messages spell it ({@code dayOfWeek}). */
+    private static String fieldName(Component k) {
+        return switch (k) {
+            case DAY_OF_WEEK -> "dayOfWeek";
+            case DAY_OF_QUARTER -> "dayOfQuarter";
+            case ORDINAL_DAY -> "ordinalDay";
+            case YEAR, MONTH, DAY, WEEK, QUARTER, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, DATE,
+                    DATETIME, TIME, TIMEZONE -> k.cypher;
+        };
+    }
+
+    /** The components {@code keys} read from a strict operation's values, the first at {@code from}. */
+    private static Map<Component, ValueSpecification> components(Set<Component> keys, List<ValueSpecification> v,
+            int from) {
+        Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
+        int i = from;
+        for (Component k : keys) {
+            p.put(k, v.get(i++));
+        }
+        return p;
+    }
+
+    /** The whole {@code unit}s of a non-negative Integer below 2^53 (a time of day's nanoseconds are below 2^47):
+     *  the floor of the database's float quotient, exact there (the quotient's rounding error is below
+     *  {@code n / unit} times 2^-53, under the {@code 1 / unit} a fraction is from the next whole number), the
+     *  Integer read once. */
+    private static ValueSpecification quotient(ValueSpecification n, long unit) {
+        return unit == 1 ? n : call("floor", call("divide", n, lit(unit)));
+    }
+
+    /** What is left of a non-negative Integer past its whole {@code unit}s. */
+    private static ValueSpecification past(ValueSpecification n, long unit) {
+        return integer(call("rem", n, lit(unit)));
+    }
+
+    /** The ISO text of a split value's parts, every digit the database's: {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn} for a
+     *  date-time, the clock alone for a time of day; what a result leaves the database as ({@link #egress}). */
+    private static ValueSpecification isoText(@com.legend.base.Nullable ValueSpecification date,
+            ValueSpecification ofDay) {
+        ValueSpecification clock = plus(two(quotient(ofDay, 3_600L * NANOS)), new CString(":"),
+                two(quotient(past(ofDay, 3_600L * NANOS), 60L * NANOS)), new CString(":"),
+                two(quotient(past(ofDay, 60L * NANOS), NANOS)), new CString("."),
+                call("substring", call("toString", plus(past(ofDay, NANOS), lit(NANOS))), new CInteger(2L)));
+        if (date == null) {
+            return clock;
+        }
+        ValueSpecification dateText = plus(call("substring", call("toString", plus(call("year", date), lit(10000))),
+                new CInteger(2L)), new CString("-"), two(call("monthNumber", date)), new CString("-"),
+                two(call("dayOfMonth", date)));
+        return plus(dateText, new CString("T"), clock);
+    }
+
+    /** A split value as a result's cell: its ISO text, which the database writes, carried to the caller as the
+     *  date-time or time of day it spells (lite's {@code dateTimeOfText}, {@code timeOfText}: the executor reads the
+     *  text into the value, nine digits of the second and all). */
+    private static Tx egress(Tx t) {
+        boolean time = t.kind() == Kind.TIME;
+        List<Tx> parts = time ? List.of(ofDay(t)) : List.of(datePartOf(t), ofDay(t));
+        Tx text = SqlToPure.strict(Kind.STRING, parts, x -> time ? isoText(null, x.get(0)) : isoText(x.get(0),
+                x.get(1)));
+        return Tx.value(call(time ? TIME_OF_TEXT : DATE_TIME_OF_TEXT, SqlToPure.valueOf(text)), t.kind(),
+                text.nullable());
+    }
+
     // ------------------------------------------------------------------ nanoseconds (the study's §12.12)
 
     /** The nanoseconds since the epoch, the database's ({@code dateDiff} with {@code NANOSECONDS}: exact where the
@@ -13017,6 +13452,10 @@ public final class CypherToPure {
     /** The time of day of a date-time (Pure's StrictTime; of nanosecond precision, the date-time at it on the epoch
      *  day). */
     private static Tx timeOf(Tx dt) {
+        if (split(dt)) {
+            // a split date-time's nanoseconds since midnight, a split time of day (W13)
+            return splitTime(ofDay(dt));
+        }
         boolean nanos = nanos(dt);
         return withNanos(SqlToPure.strict(Kind.TIME, List.of(dt), x -> nanos ? timeOfNanos(x.get(0))
                 : call(TIME_OF, x.get(0))), nanos);
@@ -13031,20 +13470,21 @@ public final class CypherToPure {
         }
     }
 
+    /** A written fraction of a second as its nanoseconds (its nine digits, the missing ones zeros: the digits
+     *  split, nothing computed). */
+    private static long fractionNanos(String fraction) {
+        return Long.parseLong((fraction + "000000000").substring(0, 9));
+    }
+
     /** A date-time literal's sub-microsecond digits as nanoseconds: 0 when it has none. */
     private static long subMicro(String fraction) {
         return fraction.length() <= 6 ? 0 : Long.parseLong((fraction.substring(6) + "000").substring(0, 3));
     }
 
-    /** {@code lit}, a literal to the microsecond, moved by the sub-microsecond digits the text wrote: the database's
-     *  nanosecond step over it (the translator splits the written digits, computing nothing). */
-    private static Tx finer(ValueSpecification lit, long subMicro, Kind kind) {
-        return withNanos(Tx.value(call("adjust", lit, new CInteger(subMicro), unit("NANOSECONDS")), kind, false),
-                true);
-    }
 
     /** {@code t}, an instant, as a zoned date-time of zone {@code z}. */
     private static Tx zoned(Tx t, Zone z) {
+        t = legacy(t);
         return new Tx(t.vs(), Kind.ZONED, t.nullable(), t.whenFalse(), new Carried(z, nanos(t)), t.guard(),
                 t.body());
     }
@@ -13059,6 +13499,8 @@ public final class CypherToPure {
     /** The instant a wall time names in a zone, as a zoned date-time of that zone (a zone whose region the
      *  database reads, of the offset the region has at that instant). */
     private static Tx instantOf(Tx local, Zone z) {
+        // (a split wall time in the epoch-nanosecond carriage until W13's zoned leg)
+        local = legacy(local);
         boolean nanos = nanos(local);
         Tx instant = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(local), x -> toInstant(x.get(0), z, nanos)),
                 nanos);
@@ -13146,6 +13588,9 @@ public final class CypherToPure {
      *  column: what the clauses after read the value's zone from. */
     private static final String ZONE_PART = SYNTHETIC + "zone_offset_";
 
+    /** Beside a split date-time carried through a projection (W13), the hidden column holding its date. */
+    private static final String DATE_PART = SYNTHETIC + "date_";
+
     /** Beside {@link #ZONE_PART}, the hidden column holding a zoned value's read region. */
     private static final String REGION_PART = SYNTHETIC + "zone_region_";
 
@@ -13227,6 +13672,8 @@ public final class CypherToPure {
 
     /** A zoned time of day from its wall time (Pure's StrictTime) in an offset: the instant on the epoch day. */
     private static Tx zonedTimeOf(Tx wall, Zone z) {
+        // (a split wall time in the epoch-nanosecond carriage until W13's zoned leg)
+        wall = legacy(wall);
         boolean nanos = nanos(wall);
         return zonedTime(withNanos(SqlToPure.strict(Kind.DATETIME, List.of(wall), x -> shifted(nanos ? x.get(0)
                 : atEpoch(x.get(0)), z, -1, nanos)), nanos), z);
@@ -13969,6 +14416,9 @@ public final class CypherToPure {
      *  its instant. */
     private Tx durationArithmetic(CypherAst.Binary b, Tx l, Tx r) {
         BinaryOp op = b.op();
+        // (split values in the epoch-nanosecond carriage until W13's duration leg)
+        l = legacy(l);
+        r = legacy(r);
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return Tx.value(SqlToPure.empty(), Kind.DURATION, true);
         }
@@ -14113,8 +14563,9 @@ public final class CypherToPure {
         if (!(a instanceof Scalar sa) || !(b instanceof Scalar sb)) {
             throw CypherErrors.invalid("Type mismatch: expected temporal values", c.pos());
         }
-        Tx x = sa.tx();
-        Tx y = sb.tx();
+        // (split values in the epoch-nanosecond carriage until W13's duration leg)
+        Tx x = legacy(sa.tx());
+        Tx y = legacy(sb.tx());
         Zone ztx = x.kind() == Kind.ZONED_TIME ? zoneKnown(x, c.pos()) : null;
         Zone zty = y.kind() == Kind.ZONED_TIME ? zoneKnown(y, c.pos()) : null;
         if (ztx != null && zty != null) {
@@ -14348,8 +14799,7 @@ public final class CypherToPure {
                 }
                 yield a;
             }
-            case Scalar s when s.tx().kind() == Kind.DATETIME -> withTime ? a
-                    : scalar(SqlToPure.strict(Kind.DATE, List.of(s.tx()), x -> call("datePart", x.get(0))));
+            case Scalar s when s.tx().kind() == Kind.DATETIME -> withTime ? a : scalar(datePartOf(s.tx()));
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, String, Date, LocalDateTime or"
                     + " DateTime but was " + cypherType(s.tx().kind()), c.pos());
             case MapVal m -> temporalFromComponents(c, m, withTime, result);
@@ -14452,9 +14902,15 @@ public final class CypherToPure {
         Zone offset = tt.zoneText() == null ? null : zone(tt.zoneText(), true, c.pos());
         Zone named = tt.zoneName() == null ? null : zone(tt.zoneName(), false, c.pos());
         Val wall = dateTimeOfText(c, tt, text);
-        if (!(wall instanceof Scalar ws)) {
+        if (!(wall instanceof Scalar written)) {
             return wall;
         }
+        Long writtenYear = tt.date().get(Component.YEAR);
+        if (split(written.tx()) && writtenYear != null) {
+            // (a zoned value of nanosecond precision: the epoch-nanosecond carriage until W13's zoned leg)
+            nanosRange(writtenYear, c.pos());
+        }
+        Scalar ws = new Scalar(legacy(written.tx()), written.literal(), written.constant());
         Zone in = offset != null ? offset : named != null ? named : Zone.UTC;
         Tx instant = instantOf(ws.tx(), in);
         if (named == null || offset == null) {
@@ -14522,6 +14978,10 @@ public final class CypherToPure {
         Val local = temporalFromComponents(c, new MapVal(wall), true, Kind.DATETIME);
         if (!(local instanceof Scalar ls) || ls.tx().kind() == Kind.NULL) {
             return local;
+        }
+        if (split(ls.tx()) && m.entries().get("year") instanceof Scalar year && year.tx().vs() instanceof CInteger y) {
+            // (a zoned value of nanosecond precision: the epoch-nanosecond carriage until W13's zoned leg)
+            nanosRange(y.value().longValue(), c.pos());
         }
         Tx instant = instantOf(ls.tx(), baseZone != null ? baseZone : result);
         return scalar(written != null && baseZone != null ? zoned(instant, written) : instant);
@@ -14617,10 +15077,9 @@ public final class CypherToPure {
      *  microsecond moved by the sub-microsecond digits, on the epoch day (a nanosecond time of day). */
     private static Tx timeValue(com.legend.values.PureTimeLiteral lit) {
         if (lit instanceof com.legend.values.PureTimeLiteral.TimeWithSubsecond sub && sub.subsecond().length() > 6) {
-            com.legend.values.PureTimeLiteral micro = new com.legend.values.PureTimeLiteral.TimeWithSubsecond(
-                    sub.hour(), sub.minute(), sub.second(), sub.subsecond().substring(0, 6));
-            return finer(atEpoch(new com.legend.protocol.spec.CTime(micro, micro.toEngineString(), null)),
-                    subMicro(sub.subsecond()), Kind.TIME);
+            // finer than a microsecond: its nanoseconds since midnight (W13), the database's sum of the written clock
+            return splitTime(Tx.value(clockNanos(lit(sub.hour()), lit(sub.minute()), lit(sub.second()),
+                    lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false));
         }
         return Tx.value(new com.legend.protocol.spec.CTime(lit, lit.toEngineString(), null), Kind.TIME, false);
     }
@@ -14722,8 +15181,8 @@ public final class CypherToPure {
                 }
             }
         }
-        if (base == null && !parts.containsKey(Component.HOUR)) {
-            throw CypherErrors.invalid("hour must be specified", c.pos());
+        if (base == null) {
+            checkClock(parts.keySet(), c.pos());
         }
         boolean nanosComponent = nanosComponent(parts.get(Component.NANOSECOND), c.pos());
         if (base != null && parts.isEmpty()) {
@@ -14739,6 +15198,16 @@ public final class CypherToPure {
         boolean baseNanos = base != null && nanos(base);
         boolean fine = baseNanos || nanosComponent;
         Set<Component> keys = parts.keySet();
+        if (fine && (base == null || !baseNanos || split(base))) {
+            // of nanosecond precision: the nanoseconds since midnight the components spell over the base's (W13; a
+            // base in the epoch-nanosecond carriage keeps it until W13's stored leg)
+            List<Tx> clockInputs = new ArrayList<>(parts.values());
+            if (base != null) {
+                clockInputs.add(0, ofDay(base));
+            }
+            return scalar(splitTime(SqlToPure.strict(Kind.INTEGER, clockInputs, v -> clockOf(hasBase ? v.get(0)
+                    : null, components(keys, v, hasBase ? 1 : 0)))));
+        }
         return scalar(withNanos(SqlToPure.strict(Kind.TIME, inputs, v -> {
             Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
             int i = hasBase ? 1 : 0;
@@ -14870,12 +15339,13 @@ public final class CypherToPure {
      *  the microsecond moved by the sub-microsecond digits (a nanosecond date-time). */
     private static Tx dateTimeValue(com.legend.values.PureDateLiteral lit, Kind kind, Pos pos) {
         if (lit instanceof com.legend.values.PureDateLiteral.DateWithSubsecond sub && sub.subsecond().length() > 6) {
-            nanosRange(sub.year(), pos);
-            com.legend.values.PureDateLiteral micro = new com.legend.values.PureDateLiteral.DateWithSubsecond(
-                    sub.year(), sub.month(), sub.day(), sub.hour(), sub.minute(), sub.second(),
-                    sub.subsecond().substring(0, 6));
-            return finer(new com.legend.protocol.spec.CDate(micro, micro.toEngineString(), null),
-                    subMicro(sub.subsecond()), kind);
+            // finer than a microsecond: its parts (W13), the date as written and the nanoseconds since midnight the
+            // database adds up from the written clock
+            com.legend.values.PureDateLiteral.StrictDate day = new com.legend.values.PureDateLiteral.StrictDate(
+                    sub.year(), sub.month(), sub.day());
+            return splitDateTime(Tx.value(new com.legend.protocol.spec.CDate(day, day.toEngineString(), null),
+                    Kind.DATE, false), Tx.value(clockNanos(lit(sub.hour()), lit(sub.minute()), lit(sub.second()),
+                    lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false), (long) sub.year());
         }
         return Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null), kind, false);
     }
@@ -15226,8 +15696,8 @@ public final class CypherToPure {
                         throw CypherErrors.invalid("Type mismatch: date must be a Date but was "
                                 + cypherType(t.kind()), c.pos());
                     }
-                    base = t.kind() == Kind.DATE ? t : Tx.value(call("datePart", SqlToPure.valueOf(t)), Kind.DATE,
-                            t.nullable());
+                    base = t.kind() == Kind.DATE ? t : split(t) ? datePartOf(t) : Tx.value(call("datePart",
+                            SqlToPure.valueOf(t)), Kind.DATE, t.nullable());
                 }
                 case DATETIME -> {
                     if (t.kind() != Kind.DATETIME) {
@@ -15262,6 +15732,12 @@ public final class CypherToPure {
         if (!withTime && anyTime) {
             throw CypherErrors.invalid("Cannot assign a time component to a Date", c.pos());
         }
+        if (base == null) {
+            checkDate(parts.keySet(), anyTime && timeBase == null, c.pos());
+        }
+        if (anyTime && timeBase == null && !baseHasTime) {
+            checkClock(parts.keySet(), c.pos());
+        }
         boolean nanosComponent = withTime && nanosComponent(parts.get(Component.NANOSECOND), c.pos());
         // the date: the components the database reads, in order
         List<Tx> inputs = new ArrayList<>(parts.values());
@@ -15278,12 +15754,35 @@ public final class CypherToPure {
         boolean timeBaseNanos = timeBase != null && nanos(timeBase);
         boolean baseNanos = timeBase != null ? timeBaseNanos : baseHasTime && base != null && nanos(base);
         boolean fine = withTime && (baseNanos || nanosComponent);
-        if (fine && parts.get(Component.YEAR) != null && parts.get(Component.YEAR).vs() instanceof CInteger y) {
-            nanosRange(y.value().longValue(), c.pos());
-        }
         Set<Component> keys = parts.keySet();
         if (hasBaseTime && keys.isEmpty() && !hasTimeBase) {
             return scalar(java.util.Objects.requireNonNull(base));
+        }
+        Tx clockSource = timeBase != null ? timeBase : hasBaseTime ? base : null;
+        if (fine && (clockSource == null || !nanos(clockSource) || split(clockSource))) {
+            // of nanosecond precision: its parts (W13), the date the components spell over the base's date, the
+            // nanoseconds since midnight they spell over the base time's (a base in the epoch-nanosecond carriage
+            // keeps it until W13's stored leg)
+            Tx dateBase = base == null ? null : base.kind() == Kind.DATE ? base : datePartOf(base);
+            Tx clockBase = timeBase != null ? ofDay(timeBase) : hasBaseTime ? ofDay(java.util.Objects.requireNonNull(
+                    base)) : null;
+            List<Tx> dateInputs = new ArrayList<>(parts.values());
+            if (dateBase != null) {
+                dateInputs.add(0, dateBase);
+            }
+            List<Tx> clockInputs = new ArrayList<>(parts.values());
+            if (clockBase != null) {
+                clockInputs.add(0, clockBase);
+            }
+            Tx date = SqlToPure.strict(Kind.DATE, dateInputs, v -> dateOf(c, hasBase ? v.get(0) : null,
+                    components(keys, v, hasBase ? 1 : 0)));
+            boolean clocked = clockBase != null;
+            Tx clock = SqlToPure.strict(Kind.INTEGER, clockInputs, v -> clockOf(clocked ? v.get(0) : null,
+                    components(keys, v, clocked ? 1 : 0)));
+            Tx yearPart = parts.get(Component.YEAR);
+            Long year = !hasBase && yearPart != null && yearPart.vs() instanceof CInteger y ? y.value().longValue()
+                    : null;
+            return scalar(splitDateTime(date, clock, year));
         }
         if (hasBase && !hasBaseTime && timeBaseIsTime && keys.isEmpty()) {
             // localdatetime({date: d, time: t}): the date-time at that time of that day (a nanosecond time's
@@ -15426,8 +15925,13 @@ public final class CypherToPure {
             return zoneField(t, field, zoneKnown(t, pos), pos);
         }
         // a time of day's fields are read off the date-time at it; a zoned date-time's off its wall time
-        Tx x = t.kind() == Kind.TIME ? atEpoch(t) : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t, zoneKnown(t, pos))
-                : t.kind() == Kind.ZONED ? localOf(t, zoneKnown(t, pos)) : t;
+        Tx x = t.kind() == Kind.TIME && !split(t) ? atEpoch(t) : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t,
+                zoneKnown(t, pos)) : t.kind() == Kind.ZONED ? localOf(t, zoneKnown(t, pos)) : t;
+        if (split(x)) {
+            // of nanosecond precision: read off its parts (W13), the date's fields its date's, the clock's the
+            // database's quotients of its nanoseconds since midnight
+            return splitField(x, field, name, dateTime || time, pos);
+        }
         return switch (field) {
             case YEAR -> field(x, v -> call("year", v));
             case QUARTER -> field(x, v -> call("quarterNumber", v));
@@ -15474,6 +15978,26 @@ public final class CypherToPure {
         };
     }
 
+    /** A field of a split value (W13): a date field of its date, a clock field a quotient of its nanoseconds since
+     *  midnight (the millisecond and microsecond the whole ones of the second's nanoseconds). */
+    private static Tx splitField(Tx x, TemporalField field, String name, boolean clocked, Pos pos) {
+        if (field.compareTo(TemporalField.HOUR) < 0) {
+            return temporalField(datePartOf(x), name, pos);
+        }
+        if (!clocked) {
+            throw CypherErrors.invalid("No such field: " + name + " (a Date has no time)", pos);
+        }
+        return field(ofDay(x), v -> switch (field) {
+            case HOUR -> quotient(v, 3_600L * NANOS);
+            case MINUTE -> quotient(past(v, 3_600L * NANOS), 60L * NANOS);
+            case SECOND -> quotient(past(v, 60L * NANOS), NANOS);
+            case MILLISECOND -> quotient(past(v, NANOS), 1_000_000L);
+            case MICROSECOND -> quotient(past(v, NANOS), 1000L);
+            case NANOSECOND -> past(v, NANOS);
+            default -> throw new IllegalStateException("not a clock field: " + field);
+        });
+    }
+
     /** A zoned date-time's zone fields: the zone's name or offset as Neo4j prints them (a spelled zone's are
      *  spelled; a named zone's offset is the database's, the instant against its wall time), the epoch distances
      *  the database's. */
@@ -15514,10 +16038,16 @@ public final class CypherToPure {
         Zone zone = t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME ? zoneKnown(t, pos) : null;
         boolean fine = nanos(t);
         boolean time = t.kind() == Kind.TIME || t.kind() == Kind.ZONED_TIME;
-        Tx wall = t.kind() == Kind.TIME ? atEpoch(t)
+        Tx wall = t.kind() == Kind.TIME ? split(t) ? t : atEpoch(t)
                 : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t, java.util.Objects.requireNonNull(zone))
                 : t.kind() == Kind.ZONED ? localOf(t, java.util.Objects.requireNonNull(zone)) : t;
         boolean named = zone != null && zone.named();
+        if (split(wall) && !named) {
+            // of nanosecond precision: spelled from its parts (W13)
+            Tx printed = withNanos(splitText(wall, zone, time), true);
+            return zone != null ? printedFrom(printed, t) : printed;
+        }
+        wall = legacy(wall);
         // (the text of a nanosecond value is marked as one: a parse of it reads the digits past the microsecond)
         Tx printed = withNanos(SqlToPure.strict(Kind.STRING, named ? List.of(wall, t) : List.of(wall), x -> {
             ValueSpecification v = x.get(0);
@@ -15553,6 +16083,36 @@ public final class CypherToPure {
         }), fine);
         // (a zoned value's text read back by a parse is the value itself, §12.74)
         return zone != null ? printedFrom(printed, t) : printed;
+    }
+
+    /** {@link #temporalText} of a split wall time (W13) in a zone the text spells (none for a local value): the clock
+     *  the database's quotients of its nanoseconds since midnight, the fraction their remainder trimmed of its
+     *  trailing zeros (none when zero), the date its date's fields. */
+    private static Tx splitText(Tx wall, @com.legend.base.Nullable Zone zone, boolean time) {
+        List<Tx> parts = time ? List.of(ofDay(wall)) : List.of(datePartOf(wall), ofDay(wall));
+        return SqlToPure.strict(Kind.STRING, parts, x -> {
+            ValueSpecification n = x.get(x.size() - 1);
+            ValueSpecification offset = zone == null ? new CString("") : zone.region() != null
+                    ? plus(zone.offsetSpelled(), call("if", call("isEmpty", zone.region()), thunk(new CString("")),
+                            thunk(plus(new CString("["), call("toOne", zone.region()), new CString("]")))))
+                    : zone.offsetSpelled();
+            ValueSpecification ns = past(n, NANOS);
+            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
+                    lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
+            ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
+                    thunk(plus(new CString("."), digits)));
+            ValueSpecification clock = plus(two(quotient(n, 3_600L * NANOS)), new CString(":"),
+                    two(quotient(past(n, 3_600L * NANOS), 60L * NANOS)), new CString(":"),
+                    two(quotient(past(n, 60L * NANOS), NANOS)), fraction, offset);
+            if (time) {
+                return clock;
+            }
+            ValueSpecification d = x.get(0);
+            ValueSpecification date = plus(call("substring", call("toString", plus(call("year", d), lit(10000))),
+                    new CInteger(2L)), new CString("-"), two(call("monthNumber", d)), new CString("-"),
+                    two(call("dayOfMonth", d)));
+            return plus(date, new CString("T"), clock);
+        });
     }
 
     /** A text of the row parsed to a date-time ({@code micro} characters hold its microsecond form); a text marked
@@ -15706,7 +16266,8 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: expected Date, LocalDateTime or DateTime but was " + (source
                     instanceof Scalar s ? cypherType(s.tx().kind()) : "a list or map"), c.args().get(1).pos());
         }
-        Tx t = ((Scalar) source).tx();
+        // (a split value in the epoch-nanosecond carriage until W13's truncation leg)
+        Tx t = legacy(((Scalar) source).tx());
         if (unit.time() && t.kind() == Kind.DATE) {
             throw CypherErrors.invalid("Unit too small for truncation: " + chronoName(unit), c.args().get(1).pos());
         }

@@ -542,7 +542,7 @@ Database types planned with it: Postgres.
 | `CURRENT_USER_FN` | spelled | `current_user` |  | 2 |
 | `LIST_LENGTH` | emulated | `listOf: cardinality(…)` |  | 27 |
 | `LIST_ZIP` | refused | `collections over the jsonb carrier are leg P4 reached Postgres:` |  | 0 |
-| `LIST_DISTINCT` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM unnest(…) WITH ORDINALI...` | `via Postgres.listCall` | 0 |
+| `LIST_DISTINCT` | emulated | `unnest: (CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM … WITH ORDINALITY AS __...` | `via Postgres.listCall` | 0 |
 | `LIST_APPEND` | emulated | `encode: array_append(…, …)` | `via Postgres.listCall` | 8 |
 | `LIST_SUM` | emulated | `overReduce: …sum()` | `via Postgres.listCall` | 0 |
 | `LIST_MIN` | emulated | `overReduce: …bool_and(min()` | `via Postgres.listCall` | 58 |

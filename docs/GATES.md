@@ -11806,3 +11806,21 @@ counted BOTH_ERROR beside Neo4j's errors; now Neo4j's type mismatch and Floating
 `lite/errors.yaml` (22). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3886 / REFUSED 267 /
 BOTH_ERROR 764 / SKIP 56; Postgres PASS 3474 / REFUSED 679 / BOTH_ERROR 764 / SKIP 56, of 4973 cases), TCK agreement
 unchanged (DuckDB 3571, Postgres 3190); the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-third landing — nanosecond values as a date and a time of day, the spike
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.85, the plan's W13 (the user's decision of
+2026-10-18: §12.12's `TIMESTAMP_NS` carriage replaced by one every dialect computes, S71 overturned, the egress
+row S87). A local time of nanosecond precision is its nanoseconds since midnight and a local date-time its date and
+those: literals, construction, selection, fields, `toString`, comparison, ordering, CASE and coalesce, carriage
+through WITH, grouping and DISTINCT, all integer and date arithmetic the database computes, over every year its DATE
+holds; a returned value is the ISO text the database writes, carried by two lite natives (`dateTimeOfText`,
+`timeOfText`: the `TEMPORAL_TEXT` label) and read by the executor as the value (a time of day by the column's Pure
+type). What the leg does not re-spell takes the old carriage through a bridge. Neo4j's checks of a temporal value's
+components, found by the leg's own cases, raised as Neo4j raises them. `lite/nanoparts.yaml` (16 cases). Both lanes
+in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3900 / REFUSED 266 / BOTH_ERROR 767 / SKIP 56; Postgres PASS 3518
+/ REFUSED 648 / BOTH_ERROR 767 / SKIP 56, of 4989 cases), TCK agreement DuckDB 3571 (unchanged), Postgres 3190 → 3220;
+the oracle check 0 problems; the chain's 40 guard targets green (the pins moved with dated notes: INTERNAL_DESUGAR
+26 → 28, NOT_UPSTREAM 54 → 56, the FQN literals 332 → 334; the generated catalog, claims and ratchets regenerated,
+with them two generated files earlier legs left stale: the dialect-capability tables' `LIST_DISTINCT` row and
+parser-equivalence's measured `own_corpus.matched`).

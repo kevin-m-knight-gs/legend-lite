@@ -583,7 +583,7 @@ Postgres	Postgres	call	DECODE_BASE64	emulated	convert_from(decode(…, 'base64')
 Postgres	Postgres	call	CURRENT_USER_FN	spelled	current_user		2
 Postgres	Postgres	call	LIST_LENGTH	emulated	listOf: cardinality(…)		27
 Postgres	Postgres	call	LIST_ZIP	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
-Postgres	Postgres	call	LIST_DISTINCT	emulated	(CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM unnest(…) WITH ORDINALI...	via Postgres.listCall	0
+Postgres	Postgres	call	LIST_DISTINCT	emulated	unnest: (CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM … WITH ORDINALITY AS __...	via Postgres.listCall	0
 Postgres	Postgres	call	LIST_APPEND	emulated	encode: array_append(…, …)	via Postgres.listCall	8
 Postgres	Postgres	call	LIST_SUM	emulated	overReduce: …sum()	via Postgres.listCall	0
 Postgres	Postgres	call	LIST_MIN	emulated	overReduce: …bool_and(min()	via Postgres.listCall	58

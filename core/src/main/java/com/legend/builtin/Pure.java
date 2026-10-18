@@ -436,6 +436,13 @@ public final class Pure {
          *  the wall time of an instant in it. Emitted by the Cypher translator only. */
         public static final String INSTANT_IN = PKG + "instantIn";
         public static final String LOCAL_IN = PKG + "localIn";
+        /** A temporal value in text carriage (2026-10-18, the Cypher island's nanosecond values as a date and a time
+         *  of day, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): {@code dateTimeOfText(text)} is the date-time,
+         *  {@code timeOfText(text)} the time of day, the database's ISO text spells, carried to the caller as that
+         *  text (the TEMPORAL_TEXT label, the executor's decode): a value finer than every database's date-time
+         *  type leaves the database so. Emitted by the Cypher translator only, at a result's columns. */
+        public static final String DATE_TIME_OF_TEXT = PKG + "dateTimeOfText";
+        public static final String TIME_OF_TEXT = PKG + "timeOfText";
         /** The #TDS literal's desugar target (SpecParser spells this
          *  FQN literally — the parser stays free of this class). */
         public static final String TDS = PKG + "tds";
@@ -567,7 +574,7 @@ public final class Pure {
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN,
                     Lite.LOCAL_IN,
-                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY)
+                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -1004,6 +1011,12 @@ public final class Pure {
     public static final NativeFunctionDefinition LITE_MAX_BY__ROW_MAPPER_MANY = signature("native function meta::legend::lite::maxBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::String>[*]):T[0..1];");
     public static final NativeFunctionDefinition TIME_OF__DATE_1 = signature("native function meta::legend::lite::timeOf(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1];");
     public static final NativeFunctionDefinition AT_TIME__DATE_1__STRICT_TIME_1 = signature("native function meta::legend::lite::atTime(d:meta::pure::metamodel::type::Date[1], t:meta::pure::metamodel::type::StrictTime[1]):meta::pure::metamodel::type::DateTime[1];");
+    /** A temporal value in text carriage ({@link Lite#DATE_TIME_OF_TEXT}, {@link Lite#TIME_OF_TEXT}): the
+     *  date-time or time of day the database's ISO text spells, the text itself the cell (the TEMPORAL_TEXT label,
+     *  a cast that never renders), the executor's decode the value; null of a null text. Lite's own, no upstream
+     *  counterpart: legend-engine carries a date-time in the database's own type. */
+    public static final NativeFunctionDefinition DATE_TIME_OF_TEXT__STRING_0_1 = signature("native function meta::legend::lite::dateTimeOfText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::DateTime[0..1];");
+    public static final NativeFunctionDefinition TIME_OF_TEXT__STRING_0_1 = signature("native function meta::legend::lite::timeOfText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::StrictTime[0..1];");
     /** A named time zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16,
      *  docs/CYPHER_STUDY_2026_10_15.md §12.8): {@code instantIn} is the instant a wall time names in a zone,
      *  {@code localIn} the wall time of an instant in a zone — each two of the database's zone conversions (the
@@ -2415,6 +2428,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DATE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(DATE_TIME_OF_TEXT__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
@@ -2445,6 +2459,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(TIME_OF_TEXT__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);

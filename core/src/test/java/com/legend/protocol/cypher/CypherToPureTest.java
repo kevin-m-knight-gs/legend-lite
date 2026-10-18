@@ -756,23 +756,27 @@ class CypherToPureTest {
     }
 
     @Test
-    void aNanosecondValueIsTheLiteralToTheMicrosecondMovedOverTheNanosecondEpoch() {
-        // the translator splits the written digits: the literal to the microsecond, then the sub-microsecond
-        // digits as the database's nanosecond step; every later operation on the value is spelled over the
-        // nanosecond epoch (dateDiff/adjust with NANOSECONDS: DuckDB's epoch_ns and make_timestamp_ns)
-        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[d:r|%1984-10-11T12:31:14.645876"
-                        + "->adjust(123, meta::pure::functions::date::DurationUnit.NANOSECONDS),"
-                        + " n:r|%1984-10-11T12:31:14.645876->adjust(123, meta::pure::functions::date::DurationUnit.NANOSECONDS)"
-                        + "->firstMillisecondOfSecond()->dateDiff(%1984-10-11T12:31:14.645876"
-                        + "->adjust(123, meta::pure::functions::date::DurationUnit.NANOSECONDS),"
-                        + " meta::pure::functions::date::DurationUnit.NANOSECONDS)])->select(~[d, n])",
-                pure("RETURN localdatetime('1984-10-11T12:31:14.645876123') AS d,"
-                        + " localdatetime('1984-10-11T12:31:14.645876123').nanosecond AS n"));
-        // refused by name: a nanosecond component of the row, a nanosecond value outside the database's range
+    void aNanosecondValueIsItsDateAndItsNanosecondsSinceMidnight() {
+        // W13 (docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md): a value finer than a microsecond is its parts, the date
+        // as written and the nanoseconds since midnight the database adds up from the written clock (a float
+        // product over a literal: two 32-bit literals' product overflows); returned, the ISO text the database
+        // writes of them, which the result reads as the date-time (lite's dateTimeOfText); a field the database's
+        // remainder or quotient of the nanoseconds. No nanosecond epoch: every database computes it.
+        String p = pure("RETURN localdatetime('1984-10-11T12:31:14.645876123') AS d,"
+                + " localdatetime('1984-10-11T12:31:14.645876123').nanosecond AS n");
+        assertTrue(p.contains("~[d:r|meta::legend::lite::dateTimeOfText("), p);
+        assertTrue(p.contains("year(%1984-10-11)"), p);
+        assertTrue(p.contains("(1.0E9 * 14)->cast(@Integer)) + 645876123"), p);
+        assertTrue(p.contains("->rem(1000000000)->cast(@Integer)])"), p);
+        assertFalse(p.contains("NANOSECONDS"), p);
+        // a time of day is its nanoseconds since midnight alone, returned through lite's timeOfText
+        assertTrue(pure("RETURN localtime('12:31:14.645876123') AS t").contains("meta::legend::lite::timeOfText("));
+        // a year beyond the databases' nanosecond timestamps is a date like any other
+        assertTrue(pure("RETURN localdatetime({year: 1, month: 1, day: 1, hour: 1, minute: 1, second: 1,"
+                + " nanosecond: 1}) AS t").contains("dateTimeOfText"));
+        // refused by name: a nanosecond component of the row
         unsupported("UNWIND [1] AS i RETURN localtime({hour: 12, minute: 0, second: 0, nanosecond: i}) AS t",
                 "a nanosecond component that is not a spelled number");
-        unsupported("RETURN localdatetime({year: 1, month: 1, day: 1, hour: 1, minute: 1, second: 1, nanosecond: 1}) AS t",
-                "a nanosecond value of the year 1");
     }
 
     @Test

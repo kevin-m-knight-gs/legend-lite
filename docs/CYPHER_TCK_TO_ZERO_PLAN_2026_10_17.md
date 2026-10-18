@@ -410,6 +410,71 @@ maps and nodes, the pattern comprehension over rows.
   literals (the island's stale guard lifted: the dialects cast `toFloat` of one to a double now) and a parameter the
   text did not bind as Neo4j's ParameterMissing (Call1/[11]).
 
+### W13. Nanosecond values as a date and a time of day (the user's decision, 2026-10-18)
+
+The decision: "Let's do it" (the user, 2026-10-18), on the recommendation to replace the nanosecond leg's
+`TIMESTAMP_NS` path (§12.12) with a representation every dialect computes, starting with a spike. It overturns S71
+(the Postgres lane refusing nanoseconds by name, the user's 2026-10-16 decision) and adds a register row for how a
+nanosecond value leaves the database. Why: the same temporal semantics on every database (DuckDB's `TIMESTAMP_NS`
+holds only 1678 to 2261, Postgres has no nanosecond type, `timestamp9` is a C extension with the same range and no
+arithmetic); the redesign REPLACES the `TIMESTAMP_NS` path, never runs beside it (two nanosecond paths in one
+translator is the cost the decision weighed against).
+
+**The representation.** A value of microsecond precision is unchanged: the database's `TIME`, `TIMESTAMP` (S68,
+S70's microsecond half). A value of nanosecond precision is java.time's shape, `LocalDateTime` = `LocalDate` +
+`LocalTime`:
+
+- a local time: its nanoseconds since midnight, an Integer (the database's `BIGINT`);
+- a local date-time: its date (StrictDate, the database's `DATE`) and its nanoseconds since midnight;
+- a zoned date-time: the UTC date and the UTC nanoseconds of day, the zone beside as today (§12.8);
+- a zoned time: its UTC nanoseconds of day, the offset beside as today (§12.11).
+
+**The operations**, each the database's, the translator spelling them (compare, never compute):
+
+- a calendar step (months, days) on the DATE, as a microsecond value's is;
+- time arithmetic in integers with a day carry: `t + s * 10^9 + n`, the whole days of it (floor division by
+  86,400 × 10^9) added to the DATE, the rest the new time of day; a time of day's arithmetic wraps (mod);
+- fields as integer quotients (hour, minute, second, millisecond, microsecond, nanosecond); truncation as the
+  integer floored to the unit, a calendar truncation on the DATE;
+- comparison and ordering lexicographic on (date, nanoseconds), a microsecond value read into the same parts;
+- a fixed offset as integer arithmetic with the day carry; a named zone through a microsecond timestamp for the
+  region's offset at that instant, the sub-microsecond digits kept (as §12.12 keeps them after a calendar step);
+- the epoch functions in integers; `duration.between` by whole months and days on the dates and the rest in
+  nanoseconds.
+
+**Carriage.** A projection carries both parts (the date a hidden column beside the value, as a zone's offset rides,
+§12.75); grouping, DISTINCT and the sort keys read both; a list or `collect` holds the value's ISO text inside the
+Variant, read back by its kind; a stored value is a value class of the two parts (W5's embedded classes).
+
+**The egress (the register row).** A returned nanosecond value is one cell: the database writes its ISO text and a
+lite native carries it to the caller as the temporal it spells (the `TEMPORAL_TEXT` label, the executor's one
+decode seam, which already parses a temporal in text carriage), so the result is the plan's date-time or time with
+its nine digits; the Java side carries and parses, the database computes (C1).
+
+**What it lifts:** the 26 DuckDB rows outside 1678 to 2261 (6 refusals, 20 harness skips) and about 417 Postgres
+rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (beyond every database's DATE).
+
+**The legs:**
+
+1. The spike: the representation, literals, construction, fields, comparison, ordering, text output and the
+   egress, for local date-times and times, on both lanes. **Checkpoint:** if the egress is unclean or the two-part
+   shape unmanageable in the translator, stop and report to the user before leg 2.
+2. Duration arithmetic, truncation, `duration.between`.
+3. Zoned values: offsets, named zones, the epoch functions.
+4. Carrying through WITH, grouping and DISTINCT, lists and `collect`.
+5. Storage and the harness's seeding (a value class), which lifts the 20 skips.
+6. The Postgres lane in full, S71 revised, the register row, and the island's `TIMESTAMP_NS` path retired.
+
+- Leg 1 LANDED 2026-10-18 (the study's §12.85, GATES' eighty-third landing; TCK agreement DuckDB 3571 → 3571,
+  Postgres 3190 → 3220; DuckDB PASS 3886 → 3900, Postgres 3474 → 3518): the parts (`Parts` on the detail, a WITH's
+  hidden date column), literals, construction and selection, fields, `toString`, comparison and ordering, CASE and
+  coalesce, grouping and DISTINCT through WITH, sort keys; the egress (`dateTimeOfText`, `timeOfText`: the
+  `TEMPORAL_TEXT` label, register row S87); a bridge to the old carriage for what is not re-spelled yet; Neo4j's
+  checks of a temporal value's components (found by the leg's cases). **Checkpoint met:** the egress is clean and the
+  two-part shape contained, so the legs go on. Next, leg 2: truncation (Temporal9's 262 Postgres rows, most of zoned
+  values, so the zoned leg follows close), duration arithmetic, `duration.between`; with it the rename of
+  `lite/temporal/nanos_year_outside_the_range_refused_by_name`, which passes now.
+
 ## 3. Decisions asked of the user
 
 1. **W1:** adopt Neo4j's schema-optional reads (null, no rows) for the island, overturning S58? (Proposed: yes.)
@@ -665,6 +730,13 @@ questions, no PRs; a blocker is logged in §5 and the line moves to the next ite
 
 What got stuck, where, and why, for later; each entry names the cases it holds back.
 
+- **2026-10-18, W13 leg 1 (§12.85) — a temporal value's field of another form.** `date({year: 2000, week: 2, month:
+  1})` is Neo4j's `Cannot assign month to week date.`, `date({year: 2000, quarter: 2, day: 3})` its `Cannot assign
+  quarter to calendar date.`: the field named is the one Neo4j's builder meets second, in its map's order (measured:
+  `{quarter, dayOfQuarter, month}` names dayOfQuarter, `{quarter, day}` quarter), which the island does not know; it
+  builds a value where Neo4j rejects one. No TCK case is held back (the lanes found none); Neo4j's other checks of the
+  components (order, completeness, the hour) are raised since §12.85.
+
 - **2026-10-18, W12 (§12.84) — a percentile read from the rows.** `RETURN percentileDisc(0.90, deg), deg`
   (Aggregation6/[5]): the percentile is the grouping key `deg`, so Neo4j raises at run time where it falls outside 0
   to 1 ("Invalid input '3.0' is not a valid argument"). The island spells a percentile the database takes as a
@@ -678,7 +750,9 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   database's TIMESTAMP_NS (§12.12), which DuckDB holds from 1678 to 2261 and Postgres not at all. Physically out of
   the native types' reach; an encoding of lite's own would carry them (a microsecond timestamp and the nanoseconds
   past it, epoch arithmetic in 128-bit integers), every nanosecond operation re-spelled over it: a design decision
-  for the user, not taken here.
+  for the user, not taken here. TAKEN 2026-10-18: W13 (a date and the nanoseconds of the day, on every dialect);
+  since its leg 1 a local value of any year its DATE holds is carried and returned on both lanes, the zoned values,
+  lists and stored values still in the old carriage until their legs.
 - **2026-10-17, W5 (§12.74) — years beyond the databases' dates.** `duration.between(date('-999999999-01-01'),
   date('+999999999-12-31'))` (Temporal10/[9], [10]): DuckDB's dates end near year 5,881,580, Postgres's near
   5,874,897; Neo4j's years reach 999,999,999. Physically out of reach of the databases' date types.

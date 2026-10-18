@@ -136,7 +136,14 @@ class NativeCatalogGovernanceTest {
         // none; what Cypher's unbounded variable-length pattern walks. legend-pure has no recursion over a relation
         // (its Pure functions recurse in the host, which the execution tenet forbids). Emitted by the Cypher
         // translator only, by FQN. 26 -> 27; 27 -> 26 for random (above).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 26,
+        // +2 2026-10-18 (the Cypher island's nanosecond values as a date and a time of day, the user's decision,
+        // docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): dateTimeOfText / timeOfText — a temporal value in text
+        // carriage, the database's ISO text labelled TEMPORAL_TEXT (a cast that never renders) and read by the
+        // executor as the date-time or time of day it spells: a value finer than every database's date-time type
+        // (Postgres keeps microseconds, DuckDB's TIMESTAMP_NS holds 1678 to 2261) leaves the database so.
+        // legend-engine carries a date-time in the database's own type, so neither has an upstream counterpart.
+        // Emitted by the Cypher translator only, by FQN, at a result's columns. 26 -> 28.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 28,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

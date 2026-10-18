@@ -5298,3 +5298,71 @@ Match7/[19] moves to PASS on both lanes; TCK agreement DuckDB 3570 → 3571, Pos
 The TCK's rows keep their statuses (agreement DuckDB 3571, Postgres 3190); 22 of the 23 BOTH_ERROR rows a refusal
 stood behind now stand behind Neo4j's error, on both lanes. The 19 cases of `lite/errors.yaml`: 7 PASS and 12
 BOTH_ERROR on each lane, as Neo4j answers them.
+
+### 12.85 Nanosecond values as a date and a time of day, leg 1: the spike (W13, 2026-10-18)
+
+- **The decision.** The user's ("Let's do it", 2026-10-18), on the plan's W13: replace §12.12's `TIMESTAMP_NS`
+  carriage with one every dialect computes, the spike first; it overturns S71 (Postgres refusing nanoseconds by name)
+  and adds a register row for how such a value leaves the database (S87).
+- **The representation.** A local time of nanosecond precision is its nanoseconds since midnight, an Integer (the
+  database's BIGINT); a local date-time is its date (a StrictDate, the database's DATE) and those: java.time's shape,
+  `LocalDateTime` a `LocalDate` and a `LocalTime`. The translation's own value is the nanoseconds; the date rides on
+  its detail (`Parts`), present exactly when the value is. Every database computes both exactly, over every year its
+  DATE holds: the year 1 and the year 9999 (WithOrderBy1's) are dates like any other. A microsecond value is
+  unchanged (the database's TIME and TIMESTAMP).
+- **What leg 1 spells over the parts.**
+  - Literals and texts: the date as written, the clock a sum the database adds (a float product over a literal:
+    both databases type two small integer literals 32 bits wide, and their product overflowed, measured).
+  - Construction from components, over a base time's nanoseconds where one is given (a field written over it, the
+    base's fraction kept unless a sub-second field is written, as §12.7 reads them); selection (`localtime(d)`,
+    `localdatetime({date, time})`, `date(d)`).
+  - The fields: a date's of its date, the clock's the quotients of the nanoseconds (the floor of the database's
+    float quotient, exact below 2^53; a day's nanoseconds are below 2^47; the exact integer quotient the island
+    used before repeats its argument six times, and the texts it fed grew without bound).
+  - `toString`, Neo4j's spelling from the parts.
+  - Comparison and ordering: a time of day by its integer, a date-time by its date then its integer, a microsecond
+    value read into the same parts.
+  - CASE and coalesce, part by part (a choice of the whole value would keep one part only: measured, a CASE
+    returned the bare integer).
+  - Carriage through WITH: the date a hidden column beside the value (`DATE_PART`, as a zone's offset rides,
+    §12.75), read back by the row scope; WITH DISTINCT and a WITH's grouping keys over both columns; sort keys over
+    both parts, hidden keys beside a returned value.
+- **The egress (S87).** A returned split value is the ISO text the database writes of its parts
+  (`yyyy-MM-ddTHH:mm:ss.nnnnnnnnn`, the clock alone for a time of day), carried by lite's `dateTimeOfText` and
+  `timeOfText` (two natives, INTERNAL_DESUGAR 26 → 28, each one lowering rule): the text itself is the cell, under
+  the `TEMPORAL_TEXT` label (a cast that never renders), and the executor reads it as the date-time or time of day
+  it spells, a time of day's by the column's Pure type (StrictTime). The result is the plan's date-time with its nine
+  digits on both lanes; the Java side parses the database's text, as it parses every temporal cell; the database
+  computes.
+- **The bridge.** What leg 1 does not re-spell takes a split value in §12.12's epoch-nanosecond carriage (`legacy`:
+  DuckDB's, 1678 to 2261, a written year beyond it refused by name as before): duration arithmetic, truncation,
+  `duration.between`, zoned values, lists, a map's Variant, `collect`, `min` and `max`, a returned grouping key. A
+  value already in that carriage (a stored one, a zoned value's wall time) keeps its paths. The bridge goes as the
+  legs land.
+- **Found by the leg's own cases: Neo4j's checks of a temporal value's components.** A date's fields in order (`day
+  cannot be specified without month`), the date whole when a clock is written with no time to take it from (`day
+  must be specified`), the hour, then the clock's fields in order (`subsecond cannot be specified without minute`):
+  the island built a value Neo4j rejects (Neo4j's builders' `assertDefinedInOrder`, measured on the server). Not
+  spelled: a field of another form (`Cannot assign month to week date.`), whose message follows Neo4j's map order
+  (plan §5).
+- **The checkpoint.** W13 asked the spike two questions. The egress: clean (one label and the decode seam the
+  executor already had; the judge reads nine digits on both lanes). The two-part shape: contained (one record on the
+  detail, one hidden column, one read-back, the sort keys, CASE and coalesce, about 600 lines with the bridge). So
+  the legs go on: leg 2 (durations, truncation, `duration.between`), then the zoned values.
+- **Pinned.** `lite/nanoparts.yaml`'s 16 cases, each judged by Neo4j; CypherToPureTest's
+  `aNanosecondValueIsItsDateAndItsNanosecondsSinceMidnight`.
+
+#### 12.85.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4989 | 3900 (from 3,886) | 0 | 0 | 0 | 266 (from 267) | 767 (from 764) | 56 |
+| Postgres | 4989 | 3518 (from 3,474) | 0 | 0 | 0 | 648 (from 679) | 767 (from 764) | 56 |
+
+TCK agreement: DuckDB 3571 (unchanged: the TCK's local nanosecond rows passed there already, through the old
+carriage), Postgres 3190 → 3220, the 30 rows of local construction, selection and comparison that reach no zoned
+value, duration or truncation (Temporal1/[5], [7]; Temporal3/[1], [2], [5], [6]; Temporal7/[2], [4]). Nothing
+moved back on either lane. The 16 cases of `lite/nanoparts.yaml`: 13 PASS and 3 BOTH_ERROR on each lane, as Neo4j
+answers them; `lite/temporal/nanos_year_outside_the_range_refused_by_name` (the year 1) passes on both lanes now,
+its name a leftover of §12.74 (renamed with leg 2's run). The rest of Postgres's nanosecond refusals (358 at render,
+38 at seeding) wait on the legs after: truncation (Temporal9, 262 rows) above all, most of it of zoned values.

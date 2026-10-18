@@ -2376,6 +2376,15 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_AT_TIME) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_AT_TIME, args));
         }
+        // a temporal value in text carriage (lite's dateTimeOfText and timeOfText): the database's ISO text, the
+        // TEMPORAL_TEXT label the executor reads it by as the temporal it spells -- the Cypher island's nanosecond
+        // values as a date and a time of day, 2026-10-18 (docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_DATE_TIME_OF_TEXT) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.TEMPORAL_TEXT));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TIME_OF_TEXT) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.TEMPORAL_TEXT));
+        }
         // a named zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16): the
         // convertTimeZone pair below — timezone(zone, naive) reads a wall time in the zone (its instant), and
         // timezone('UTC', instant) is that instant as the naive UTC date-time the platform carries; the other way
