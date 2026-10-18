@@ -11928,6 +11928,25 @@ the island stands. Both lanes in update mode, FAIL/BUG/ERROR at zero, the same c
 chain's 40 guard targets green. What the TCK holds outside the write clauses (and the control queries of their
 scenarios) on either lane: the 2 signed years past every database's dates.
 
+## 2026-10-18 — `#Cypher{...}#`: the ninety-first landing — the independent review's findings, fixed before the PR
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.93. Before the branch's PR two review agents read
+it apart from the lanes (the platform outside the island; W13's parts and the Postgres remainder); each finding was
+measured, then fixed and pinned (the user: "Fix them before PR"). The island: a split nanosecond value keeps its parts
+around an aggregate expression, `count(DISTINCT)`, an ORDER BY after a grouping or a DISTINCT, a comprehension, an
+UNWIND with a null and a UNION across precisions; a year past 9999 spelled `+YYYYY` in a text, a year before 1
+raised (S88, decided ERROR on both lanes); truncation with written fields; `duration.between` as Java's `until`;
+row clocks range-checked; a CASE choosing a split value by `rand()` refused by name (`lite/review.yaml`, 21 cases
+judged by Neo4j). The platform: `UserCallInliner` refuses a bound `random()` or `generateGuid()` read twice or per
+row; Postgres's exact float `REM` inline with its NULL arm; H2's `TIME(9)`; `random()` in `[0, 1)` on SQLite
+(measured: the old formula reached 1.0) and Snowflake; the streamed JSON rows carry a hidden sort key; a partial
+date's year of four digits in date arithmetic (Postgres read `DATE '5-01-01'` as 2001-05-01); the to-many
+`elementId` lambda typed by its function type; procedure overloads refused; `fromName` reads `TIMESTAMP_NS`. Both
+lanes in update mode, FAIL/BUG/ERROR at zero, the same census on both (PASS 3997 / REFUSED 260 / BOTH_ERROR 772 /
+SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on both; the oracle check 0 problems;
+the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
+regenerated; the local gate below.
+
 ## 2026-10-17 — The dialect program's Phase 6, part 1: the tests' databases are test backends (the ninth line)
 
 Branch `claude/gracious-edison-jcsvzm`, from main 6f2a0f8 (#51); PR neema2/legend-lite#52. Commits:

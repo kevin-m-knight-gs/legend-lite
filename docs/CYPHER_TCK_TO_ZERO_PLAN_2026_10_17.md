@@ -526,6 +526,11 @@ rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (be
   3597 → 3600 on both lanes): the oracle runs a setup statement under `CYPHER 5` (the TCK's setups are openCypher 9's
   text, which Cypher 25 narrows); Neo4j passes WithSkipLimit1/[1], WithSkipLimit2/[2] and With2/[1], and so do both
   lanes. Outside the write clauses the TCK holds only the 2 signed years.
+- The independent review of the branch, before its PR, 2026-10-18 (the study's §12.93, GATES' ninety-first landing):
+  the island's findings (W13's parts in seven places, years outside 1 to 9999 in texts, truncation with written
+  fields, `duration.between`, row clocks' ranges) and the platform's (the inliner's draws, Postgres's `REM` under a
+  grouping, H2's `TIME`, `random()`'s range on SQLite and Snowflake, the streamed rows' hidden key, a partial
+  date's year) fixed and pinned; `lite/review.yaml`'s 21 cases; the TCK unchanged at 3600 on both lanes.
 
 ## 3. Decisions asked of the user
 

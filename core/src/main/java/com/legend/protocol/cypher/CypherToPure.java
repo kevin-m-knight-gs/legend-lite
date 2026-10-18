@@ -6871,47 +6871,8 @@ public final class CypherToPure {
         ValueSpecification vs;
         List<Col> columns = new ArrayList<>();
         if (!grouped) {
-            List<ColSpec> specs = new ArrayList<>();
-            for (Output out : outputs) {
-                Val shape = carried.get(out.name());
-                if (shape != null) {
-                    columns.add(new Col(out.name(), Kind.JSON, false, shape));
-                    continue;
-                }
-                NodeCarry node = nodes.get(out.name());
-                if (node != null) {
-                    // the node's columns, then the node itself under its name (a virtual column; a relationship's
-                    // shape is its type column)
-                    specs.addAll(node.specs());
-                    columns.addAll(node.columns());
-                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship() ? node.relShape()
-                            : node.shape()));
-                    continue;
-                }
-                Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
-                com.legend.protocol.sql.InputDialect.TypeDetail detail = columnDetail(t, oneArm);
-                if (returning && split(t)) {
-                    // a split value returned (W13): its ISO text, which the result reads as the value (and a sort
-                    // after a DISTINCT reads back as the parts)
-                    detail = egressed(t, pos);
-                }
-                Tx cell = detail instanceof SortableText st && st.returned() ? splitSortable(t) : t;
-                specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(cell)), null, null));
-                // (a zoned date-time's zone rides with its column, so the clauses after read its fields in it)
-                columns.add(new Col(out.name(), t.kind(), t.nullable(), null, detail));
-            }
-            if (specs.isEmpty()) {
-                // every item carried: the rows stay (one per row in hand), under a column nothing names
-                String keep = freshName(names);
-                specs.add(new ColSpec(keep, lambda(scope.row(), new CInteger(1L)), null, null));
-                columns.add(new Col(keep, Kind.INTEGER, false));
-            }
-            specs.addAll(hidden);
-            vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
-                    : reproject((Rows) state, specs);
-            if (!keyed.isEmpty()) {
-                vs = call("extend", vs, new ColSpecArray(keyed));
-            }
+            vs = ungroupedProjection(outputs, carried, nodes, scalars, returning, oneArm, pos, scope, names, hidden,
+                    keyed, state, columns);
         } else {
             // the keys and the aggregates' arguments as columns, then the grouping
             List<ColSpec> specs = new ArrayList<>();
@@ -6987,6 +6948,57 @@ public final class CypherToPure {
         return new ArmProjection(vs, false, columns, sortKeys, hidden, afterGrouping, List.of(), List.of(), List.of(),
                 List.of(), List.of(), Map.of(), whereColumn, itemNames, returning ? List.copyOf(nodes.keySet())
                 : List.of());
+    }
+
+    /** {@link #projectArm}'s projection without a grouping: each item's columns into {@code columns} (a carried
+     *  shape's, a node's and the node under its name, a scalar's; a split value returned its ISO text), the hidden
+     *  columns after them, over the graph or the rows in hand, and the Variant sort keys' orderability keys beside. */
+    private ValueSpecification ungroupedProjection(List<Output> outputs, Map<String, Val> carried,
+            Map<String, NodeCarry> nodes, Map<String, Tx> scalars, boolean returning, boolean oneArm, Pos pos,
+            Scope scope, Set<String> names, List<ColSpec> hidden, List<ColSpec> keyed, State state,
+            List<Col> columns) {
+        List<ColSpec> specs = new ArrayList<>();
+        for (Output out : outputs) {
+            Val shape = carried.get(out.name());
+            if (shape != null) {
+                columns.add(new Col(out.name(), Kind.JSON, false, shape));
+                continue;
+            }
+            NodeCarry node = nodes.get(out.name());
+            if (node != null) {
+                // the node's columns, then the node itself under its name (a virtual column; a relationship's
+                // shape is its type column)
+                specs.addAll(node.specs());
+                columns.addAll(node.columns());
+                columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship() ? node.relShape()
+                        : node.shape()));
+                continue;
+            }
+            Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
+            com.legend.protocol.sql.InputDialect.TypeDetail detail = columnDetail(t, oneArm);
+            if (returning && split(t)) {
+                // a split value returned (W13): its ISO text, which the result reads as the value (and a sort
+                // after a DISTINCT reads back as the parts)
+                detail = egressed(t, pos);
+            }
+            Tx cell = detail instanceof SortableText st && st.returned() ? splitSortable(t) : t;
+            specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(cell)), null, null));
+            // (a zoned date-time's zone rides with its column, so the clauses after read its fields in it)
+            columns.add(new Col(out.name(), t.kind(), t.nullable(), null, detail));
+        }
+        if (specs.isEmpty()) {
+            // every item carried: the rows stay (one per row in hand), under a column nothing names
+            String keep = freshName(names);
+            specs.add(new ColSpec(keep, lambda(scope.row(), new CInteger(1L)), null, null));
+            columns.add(new Col(keep, Kind.INTEGER, false));
+        }
+        specs.addAll(hidden);
+        ValueSpecification vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
+                : reproject((Rows) state, specs);
+        if (!keyed.isEmpty()) {
+            vs = call("extend", vs, new ColSpecArray(keyed));
+        }
+        return vs;
     }
 
     /** Each non-aggregating item's scalar into {@code scalars} (a list or map returned is its Variant), or the shape

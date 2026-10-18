@@ -5661,3 +5661,59 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
   `MATCH` by its `WHERE`, §12.44). No setup of the TCK is refused now; outside the write clauses
   (and the control queries of their scenarios) the TCK holds, on either lane, only the 2 signed years past every
   database's dates.
+
+### 12.93 The independent review of the branch, before its PR (2026-10-18)
+
+- **What it was.** Before the branch's PR, two reviewers read it apart from the lanes: one the platform outside the
+  island, one W13's nanosecond parts and the Postgres remainder. Each finding was measured (a probe, Neo4j's answer, a
+  unit test) before it was fixed; the user: "Fix them before PR". The TCK did not move (it held none of them); the
+  island's findings are `lite/review.yaml`'s 21 cases, each a reviewer's query judged by Neo4j.
+- **The island (W13).** A split value (a nanosecond date-time, time or zoned value as its parts, §12.85) left the
+  parts' carriage in seven places where a whole value was expected: an aggregate inside an expression
+  (`max(t) + duration('PT1S')`, returned or through a WITH), `count(DISTINCT t)` (counted by its parts together), an
+  ORDER BY after a grouping or a DISTINCT that reads a field of the value, a list comprehension mapping to one, an
+  UNWIND of a list holding a null, and a UNION whose arms carry it as parts beside a whole microsecond value. Each now
+  carries the parts through (the returned text built at the final projection, `egressed`). A year past 9999 is
+  spelled `+10000` in a text, as Neo4j and Java spell it; a year before 1 raises by name, the databases counting those
+  years apart (S88, decided ERROR on both lanes). Truncation to the millisecond or microsecond with written fields
+  keeps Neo4j's rule (a written sub-second field replaces the truncated digits below the unit, the others kept).
+  `duration.between` follows Java's `until`: the months by the packed date, a day stepped back where the clocks
+  cross; zoned values by their wall times in the first value's zone, the remainder by instants across a named zone's
+  change of offset. A clock's field the row computes, and an epoch nanosecond count, are checked against their range
+  (Neo4j's error where out of it). A CASE choosing a split value by a `rand()` test is refused by name: each part
+  is a CASE of its own, so the test would draw once per part and the parts could come from different branches (the
+  database shares no expression); `a_case_choosing_by_a_random_test` pins the refusal.
+- **The platform.** Each a finding measured, then fixed and pinned:
+  - **The inliner (G½).** A bound `random()` or `generateGuid()` read twice, or read once per row under a lambda,
+    is refused by name (`UserCallInliner.readOnce`): the substitution writes the bound term at each read and the
+    database draws at each place, so `let r = random(); $r == $r` answered false. A user call whose parameter binds one
+    does not reduce; it stands, as a recursive call does, and SQL walls naming the function. `UserCallInlinerTest`.
+  - **Postgres's exact float remainder (§12.90)** is written inline (no scalar subquery, which Postgres refuses over a
+    grouped computed key: "subquery uses ungrouped column"), with its NULL arm; 4,000 pairs of doubles again matched
+    `fmod`, and the SQL of the largest case fell from 2.1 MB to 190 KB.
+  - **H2's `TIME`** keeps no fraction of a second (its default precision is 0, measured 2.1.214): casts and DDL write
+    `TIME(9)`.
+  - **`random()` in `[0, 1)`.** SQLite's formula (its signed 64-bit `random()` shifted by 2^63 as a REAL and scaled)
+    answered exactly 1.0 for a draw within 1024 of the top (measured): the low 53 bits over 2^53. Snowflake's
+    `UNIFORM` is inclusive: an integer of 53 bits over 2^53.
+  - **The streamed JSON rows** (`Render.jsonWireRows`) read a sort key among the outputs it shows, and refused the
+    hidden one an ORDER BY of an unreturned expression adds (§12.53); they read the inner relation's outputs, as the
+    snapshot's hoist does. `CypherIslandIntegrationTest`.
+  - **A partial date in date arithmetic** (`%5->dateDiff(...)`) was written `DATE '5-01-01'`, which Postgres reads as
+    2001-05-01 (measured): four digits, as `MatchFold` writes a date literal's. `PostgresDialectTest`.
+  - **`elementId` over several instances** (§12.46) typed its lambda by the identity's type, not by its function
+    type `{C[1]->String[1]}`.
+  - **Small ones.** A procedure name with several overloads is refused by name, not answered by the first; a
+    procedure's parameter of a non-primitive type is named by its type's name for the refusal, not by the record's
+    text; `RelationalDataType.fromName` reads `TIMESTAMP_NS` as it reads `TIME`.
+- **Kept, with the reason written.** The graph profile's check stays exact (`GraphEdges.checkProfile`): the path
+  names the graph project's one profile, so fewer stereotypes is an older declaration, and one beyond them would be read
+  as nothing. The engine text's `TIMESTAMP_NS` (`DdlSpelling.engineText`) stays the metamodel's type text, as `OTHER`
+  is: H2 refuses the column at execution, loudly.
+- **The lanes.** Both lanes in update mode, FAIL/BUG/ERROR at zero, the same census on both (PASS 3997 / REFUSED 260 /
+  BOTH_ERROR 772 / SKIP 33, of 5062 cases: the 21 new cases are 18 PASS, one of them decided by S88, 2 BOTH_ERROR, the
+  clock field and the epoch count out of range, and 1 REFUSED, the CASE over a random test); no case moved against the
+  branch's head, and the TCK holds 3600 of 3880 on both lanes; the oracle check 0 problems; the guards green (four
+  tests' pins of the translator's text moved with the year-range texts and the delayed egress, `CypherToPureTest`; `projectArm`
+  back under the 250-line ceiling by its ungrouped projection, `ungroupedProjection`; the native claims regenerated,
+  `UserCallInliner` reading `random` and `generateGuid`).
