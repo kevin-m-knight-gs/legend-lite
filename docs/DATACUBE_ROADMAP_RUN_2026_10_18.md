@@ -29,7 +29,7 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | 2 | Command program stage 2: one page state, page-level undo | `claude/datacube-page-state` | done, audited |
 | 3 | Command program stage 3: the live channel between Python and an open page | `claude/datacube-live-commands` | done, audited |
 | 4 | Graph mode: design note, then the G0 spike over main's Cypher island | `claude/datacube-graph-mode` | done, audited |
-| 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | | |
+| 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | `claude/datacube-charts-stats` | done, audited |
 | 6 | Charts batch 5: maps | | |
 | 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | | |
 | 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | | |
@@ -74,3 +74,17 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   audit: seven findings, all taken (the headless roster, the note's claims on identities, `USE` and paths corrected
   against main, the spike's G1 case through `plan`). **For the user / the Cypher line:** the note's questions (an
   identity a drawing can key by within the study's decision C5; which graphs G1 lists); G1-G4 are not built.
+- **Phase 5** (`docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`, Batch 4): the quartiles (`percentile25`, `percentile75`)
+  as aggregates of the grid and of a chart, and the box plot -- one number column's five figures per category, the
+  database's -- with a Statistics sheet (box plots and a histogram) on the "more kinds" example page; Python's
+  `GridView` reads a `Number` column's exact decimal as a `Decimal`. Its audit: seven findings, all taken with a test
+  each (checked to fail without it): the box column read from the chart's own calculations too; a click on a batch 3
+  kind's period or bin filters to its range (it threw on a range or box plot by month, and on a calendar's day);
+  leaving a box plot keeps its median, and a pie, a lollipop, a KPI and a heatmap refuse a second value by name; the
+  five figures compared by column and aggregate, another order and a value's own mark or axis refused in their own
+  words; no "Show values" on a box plot; the doc corrected; a pivot cell's quartile planned on DuckDB. **Skipped, to
+  come back to:** `corr`, `covar*` and `maxBy`/`minBy` (each reads a second column per measure, which a measure has no
+  slot for -- the correlation heatmap, the trend line and the candlestick wait on it, the candlestick also on a
+  `prices` sample); percentile reference lines (a percentile window, a new `WindowFunction`); the ECDF (a `cumeDist`
+  show-as); the violin, error bars, hexbin and KPI change. Noticed, not changed: "Show values" also does nothing on a
+  radar, parallel coordinates, a polar bar, a Sankey, a streamgraph and a calendar.
