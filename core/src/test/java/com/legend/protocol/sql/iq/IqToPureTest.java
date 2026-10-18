@@ -828,11 +828,12 @@ class IqToPureTest {
                 .contains("['T.id +1', 'COALESCE( T.sm,0)', 'case when T.id > 1 then   T.id   +1 else 0 end']"));
         // SQL Anywhere's own folding of a constant test over a table names the item otherwise: not named here
         assertTrue(refusal("SELECT IF 1 = 3 THEN vc ELSE 'b' ENDIF FROM " + T).getMessage().contains("needs an"));
-        // IQ island, 2026-10-17 (measured on IQ 17.1): a derived table's column by its definition, a base table's
-        // column under an alias (t.it as x+1); any other definition is not rendered
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a plain derived table's column by its definition (t.it as x+1,
+        // t.it+2 as x+1); a CAST's definition is not rendered yet
         assertTrue(pure("SELECT x + 1 FROM (SELECT id AS x FROM " + T + ") d").contains(" as x+1"));
-        assertTrue(refusal("SELECT x + 1 FROM (SELECT id + 2 AS x FROM " + T + ") d").getMessage().contains("needs an"
-                + " alias"));
+        assertTrue(pure("SELECT x + 1 FROM (SELECT id + 2 AS x FROM " + T + ") d").contains("+2 as x+1"));
+        assertTrue(refusal("SELECT x + 1 FROM (SELECT CAST(id AS SMALLINT) AS x FROM " + T + ") d").getMessage()
+                .contains("needs an alias"));
         // a name no one sees (an EXISTS subquery's item) is never refused
         pure("SELECT id FROM " + T + " a WHERE EXISTS (SELECT b.sm + b.id FROM " + T + " b WHERE b.id = a.id)");
         // IQ island, 2026-10-14 (review 7's M1): an enclosing query's column read there is (the planner's pending fix)

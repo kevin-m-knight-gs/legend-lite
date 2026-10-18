@@ -649,7 +649,7 @@ lite/corpus_gaps/grouped_items_named_as_written_under_iqs_engine@iq17-default	PA
 lite/corpus_gaps/grouped_qualified_items_named_as_written_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/aggregates_named_as_written_under_iqs_engine@iq17-default	PASS	PASS
 lite/corpus_gaps/grouped_derived_items_named_as_written_under_iqs_engine@iq17-default	PASS	PASS
-lite/corpus_gaps/grouped_items_of_the_front_end_named_as_group_by_and_having_read_them@iq17-default	REFUSED	REFUSED
+lite/corpus_gaps/grouped_items_of_the_front_end_named_as_group_by_and_having_read_them@iq17-default	PASS	PASS
 lite/corpus_gaps/distinct_order_by_an_ambiguous_column_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/distinct_order_by_an_alias_of_an_ambiguous_name@iq17-default	PASS	PASS
 lite/corpus_gaps/distinct_order_by_a_unique_column_selected@iq17-default	PASS	PASS
@@ -1224,6 +1224,11 @@ lite/corpus_gaps/a_row_value_compared@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_parenthesized_value_in_a_subquery@iq17-default	PASS	PASS
 lite/corpus_gaps/a_wide_numeric_cast_to_fewer_places@iq17-default	PASS	PASS
 lite/corpus_gaps/a_wide_numeric_constant_cast_to_fewer_places@iq17-default	PASS	PASS
+lite/corpus_gaps/names_over_derived_columns_by_their_definitions@iq17-default	PASS	PASS
+lite/corpus_gaps/names_over_nested_derived_columns@iq17-default	PASS	PASS
+lite/corpus_gaps/names_over_derived_columns_in_aggregates@iq17-default	PASS	PASS
+lite/corpus_gaps/names_over_grouped_and_set_derived_columns@iq17-default	PASS	PASS
+lite/corpus_gaps/names_over_a_cte_of_sums@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR

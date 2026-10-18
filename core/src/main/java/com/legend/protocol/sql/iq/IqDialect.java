@@ -677,12 +677,15 @@ public final class IqDialect implements InputDialect {
 
     /**
      * IQ island, 2026-10-17 (the corpus lane's canonical TPC-DS: round(sat_sales1/sat_sales2, 2) over a CTE; measured
-     * on IQ 17.1): inside an unaliased item's name IQ renders a derived table's column by its definition -- {@code x}
-     * of {@code (SELECT it AS x FROM t)} as {@code t.it as x}, so {@code round(x/y,2)} is {@code round(t.it as x/t.sm as
-     * y,2)}. Read for a column defined as a base table's column under an alias; keyed by the derived table's
-     * correlation name and the column's (lower case), a key two derived tables of the statement share dropped.
+     * on IQ 17.1): inside an unaliased item's name IQ renders a plain derived table's column (not grouped, no set
+     * operation) by its definition, in an aggregate's arguments too -- the definition's own rendering and, under an
+     * alias, {@code as} the alias: {@code x} of {@code (SELECT it AS x FROM t)} is {@code t.it as x}, of {@code (SELECT
+     * it + 1 AS x ...)} {@code t.it+1 as x}, of a derived table over another {@code t.it as x as z}, an unaliased column
+     * {@code t.it}, {@code SUM(t.it as x)}. Keyed by the derived table's correlation name and the column's (lower case),
+     * a key two derived tables of the statement share dropped; a definition not rendered here (a CAST, a subquery, a
+     * column two FROM items may hold) left out.
      */
-    private static Map<String, String> derivedRenderings(SqlAst.Statement statement) {
+    private Map<String, String> derivedRenderings(SqlAst.Statement statement) {
         Map<String, String> out = new java.util.HashMap<>();
         Set<String> shared = new java.util.HashSet<>();
         for (SqlAst.Statement q : queries(statement)) {
@@ -692,34 +695,21 @@ public final class IqDialect implements InputDialect {
             for (SqlAst.FromItem f : s.from()) {
                 for (SqlAst.FromItem leaf : leaves(f)) {
                     if (!(leaf instanceof SqlAst.SubqueryFrom d) || d.alias() == null
-                            || !(d.query() instanceof SqlAst.Select ds) || !d.columnAliases().isEmpty()) {
+                            || !(d.query() instanceof SqlAst.Select ds) || !d.columnAliases().isEmpty()
+                            || IqAggregates.grouped(ds)) {
                         continue;
                     }
                     String alias = IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
-                    List<SqlAst.FromItem> sources = new ArrayList<>();
-                    ds.from().forEach(x -> sources.addAll(leaves(x)));
-                    for (SqlAst.SelectItem item : ds.items()) {
-                        if (!(item instanceof SqlAst.SelectExpr x) || x.alias() == null
-                                || !(x.expr() instanceof SqlAst.ColumnRef r) || r.parts().size() > 2) {
+                    for (int i = 0; i < ds.items().size(); i++) {
+                        String name = itemName(ds, i, List.of());
+                        String rendering = name == null || !(ds.items().get(i) instanceof SqlAst.SelectExpr x) ? null
+                                : definition(x, ds, 0);
+                        if (rendering == null) {
                             continue;
                         }
-                        SqlAst.Ident only = sources.size() == 1 && !(sources.get(0) instanceof SqlAst.SubqueryFrom)
-                                ? correlation(sources.get(0)) : null;
-                        String correlation = r.parts().size() == 2 ? r.parts().get(0).text()
-                                : only != null ? only.text() : null;
-                        if (correlation == null || r.parts().size() == 2 && sources.stream().anyMatch(
-                                l -> l instanceof SqlAst.SubqueryFrom sd && sd.alias() != null && IqLexer.lower(
-                                java.util.Objects.requireNonNull(sd.alias()).text()).equals(IqLexer.lower(
-                                r.parts().get(0).text())))) {
-                            continue;
-                        }
-                        String column = r.parts().get(r.parts().size() - 1).text();
-                        String rendering = correlation + "." + (IqLexer.reserved(column) ? "\"" + column + "\""
-                                : column) + " as " + java.util.Objects.requireNonNull(x.alias()).text();
-                        String key = alias + "." + IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text());
-                        String before = out.putIfAbsent(key, rendering);
+                        String before = out.putIfAbsent(alias + "." + name, rendering);
                         if (before != null && !before.equals(rendering)) {
-                            shared.add(key);
+                            shared.add(alias + "." + name);
                         }
                     }
                 }
@@ -727,6 +717,67 @@ public final class IqDialect implements InputDialect {
         }
         shared.forEach(out::remove);
         return out;
+    }
+
+    /** How IQ renders the column item {@code x} of plain derived select {@code ds} defines ({@link #derivedRenderings}),
+     *  or null; {@code depth} bounds the derived tables followed inside it. */
+    private @com.legend.base.Nullable String definition(SqlAst.SelectExpr x, SqlAst.Select ds, int depth) {
+        if (depth > 8 || x.expr() instanceof SqlAst.Cast) {
+            return null;
+        }
+        List<SqlAst.FromItem> sources = new ArrayList<>();
+        ds.from().forEach(f -> sources.addAll(leaves(f)));
+        IqNames.Columns inner = (ref, inAggregate) -> innerColumn(ref, sources, depth);
+        String body = x.expr() instanceof SqlAst.ColumnRef r ? inner.rendering(r, false)
+                : IqNames.name(x.text(), settings, inner);
+        if (body == null) {
+            return null;
+        }
+        return x.alias() == null ? body : body + " as " + java.util.Objects.requireNonNull(x.alias()).text();
+    }
+
+    /** How IQ renders {@code ref}, a column of a derived select whose FROM items are {@code sources}, inside its
+     *  definition ({@link #definition}): qualified by the item it reads, a plain derived table's column by its own
+     *  definition, a grouped one's by its correlation name; null where not known. */
+    private @com.legend.base.Nullable String innerColumn(SqlAst.ColumnRef ref, List<SqlAst.FromItem> sources,
+            int depth) {
+        if (ref.parts().size() > 2) {
+            return null;
+        }
+        String column = ref.parts().get(ref.parts().size() - 1).text();
+        String shown = IqLexer.reserved(column) ? "\"" + column + "\"" : column;
+        SqlAst.FromItem source = null;
+        if (ref.parts().size() == 2) {
+            String qualifier = IqLexer.lower(ref.parts().get(0).text());
+            for (SqlAst.FromItem l : sources) {
+                SqlAst.Ident c = correlation(l);
+                if (c != null && IqLexer.lower(c.text()).equals(qualifier)) {
+                    source = l;
+                }
+            }
+        } else if (sources.size() == 1) {
+            source = sources.get(0);
+        }
+        if (source == null) {
+            return null;
+        }
+        if (!(source instanceof SqlAst.SubqueryFrom sd)) {
+            SqlAst.Ident c = correlation(source);
+            return c == null ? null : (ref.parts().size() == 2 ? ref.parts().get(0).text() : c.text()) + "." + shown;
+        }
+        if (sd.alias() == null || !(sd.query() instanceof SqlAst.Select inner) || !sd.columnAliases().isEmpty()) {
+            return null;
+        }
+        if (IqAggregates.grouped(inner)) {
+            return java.util.Objects.requireNonNull(sd.alias()).text() + "." + shown;
+        }
+        for (int i = 0; i < inner.items().size(); i++) {
+            if (IqLexer.lower(column).equals(itemName(inner, i, List.of()))
+                    && inner.items().get(i) instanceof SqlAst.SelectExpr x) {
+                return definition(x, inner, depth + 1);
+            }
+        }
+        return null;
     }
 
     /** The error IQ raises for {@code statement} after every other ({@link #executed}): a ROLLUP's or a CUBE's DISTINCT
@@ -1803,7 +1854,7 @@ public final class IqDialect implements InputDialect {
         read.placeheld.addAll(placeheldHere);
         read.claims(placement, recursives.get(statement));
         read.lateClaimed(lateClaim(statement, chosen));
-        read.derivedRenderings.putAll(derivedRenderings(statement));
+        read.derivedRenderings.putAll(read.derivedRenderings(statement));
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.Expr e : expressions(s)) {
@@ -5110,9 +5161,12 @@ public final class IqDialect implements InputDialect {
                 return ref.parts().get(0).text() + "." + ref.parts().get(1).text() + "." + shown;
             }
             SqlAst.Ident table = tables.table(ref);
-            if (table != null && derived.contains(IqLexer.lower(table.text())) && !inAggregate) {
-                // a derived table's column by its definition (derivedRenderings), where it is read
-                return derivedRenderings.get(IqLexer.lower(table.text()) + "." + IqLexer.lower(column));
+            if (table != null && derived.contains(IqLexer.lower(table.text()))) {
+                // IQ island, 2026-10-17 (measured on IQ 17.1): a grouped or set-operation derived table's column by its
+                // correlation name (d.s/2), a plain one's by its definition (derivedRenderings), in an aggregate too
+                return setDerived.contains(IqLexer.lower(table.text())) ? (ref.parts().size() == 2
+                        ? ref.parts().get(0).text() : table.text()) + "." + shown
+                        : derivedRenderings.get(IqLexer.lower(table.text()) + "." + IqLexer.lower(column));
             }
             if (table == null || derived.contains(IqLexer.lower(table.text())) && !(inAggregate
                     && setDerived.contains(IqLexer.lower(table.text())))) {

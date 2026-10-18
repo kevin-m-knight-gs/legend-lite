@@ -2206,6 +2206,25 @@ tests:
     sql: "SELECT CAST(nm * 123456789.1234 AS NUMERIC(25,2)) AS a, CAST(-nm * 98765432.5555 AS NUMERIC(25,1)) AS b FROM t ORDER BY id"
     profile: iq17-default
 
+  # ---- an unaliased item over a derived table's columns (IQ island, 2026-10-17; the corpus lane's canonical TPC-DS,
+  # measured on IQ 17.1): a plain derived table's column by its definition (t.it+1 as x, t.it as x as z, an aggregate's
+  # argument too), a grouped or set-operation one's by its correlation name
+  - id: names_over_derived_columns_by_their_definitions
+    sql: "SELECT x * 2, round(x / y, 2), upper(v) || 'x' FROM (SELECT it + 1 AS x, sm AS y, LEFT(vc, 2) AS v FROM t WHERE id = 1) d"
+    profile: iq17-default
+  - id: names_over_nested_derived_columns
+    sql: "SELECT z + 1, it + 1 FROM (SELECT x AS z, it FROM (SELECT it AS x, it FROM t WHERE id = 1) d1) d2"
+    profile: iq17-default
+  - id: names_over_derived_columns_in_aggregates
+    sql: "SELECT SUM(x), SUM(x + 1) FROM (SELECT it AS x FROM t) d"
+    profile: iq17-default
+  - id: names_over_grouped_and_set_derived_columns
+    sql: "SELECT s / 2, c + 1 FROM (SELECT SUM(id) AS s, COUNT(*) AS c FROM t) d"
+    profile: iq17-default
+  - id: names_over_a_cte_of_sums
+    sql: "WITH c AS (SELECT SUM(CASE WHEN id > 2 THEN it ELSE 0 END) AS s1, SUM(sm) AS s2 FROM t) SELECT round(s1/s2, 2) FROM c"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where
