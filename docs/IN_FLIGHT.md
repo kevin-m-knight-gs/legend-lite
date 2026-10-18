@@ -2082,7 +2082,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   store holds as an integer prints the integer), `lowering/Render.java`
   (the relation toString's cell, the JSON rows wire's hidden order column), `lowering/WireRender.java`
   (`hasDynamicPivot`; a statement's CTEs at its head, a UNION ALL wrapped branch by branch), `sql/ScanOrder.java` and
-  `sql/dialect/StableScanOrder.java` (a table naming a frame is no scan), `WireRowsTest` (new), the corpus rosters named in GATES (the H2 fail roster and database-gained register -1 each, the DuckDB
+  `sql/dialect/StableScanOrder.java` (a table naming a frame is no scan), `WireRowsTest` (new),
+  **The plan and the result ratified 2026-10-18** (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`): governs step 7 on; the corpus rosters named in GATES (the H2 fail roster and database-gained register -1 each, the DuckDB
   host-mode engine-order register -13), `rcorpus/MinimalCorpusTest.java` (the gate pins no engine-order register), `exec/CanonicalDivergence.java` (the judged and unjudged counts), `exec/PrepTrace.java`,
   the guard pins named in GATES, channel B's five suites (the agreement gate, the unjudged ceilings),
   `rcorpus/CorpusOne.java` (`both`), `OutputMatrixTest` (the TDS-text reference). Next: step 7, the query

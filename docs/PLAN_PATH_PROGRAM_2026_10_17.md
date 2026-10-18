@@ -266,7 +266,10 @@ could: it drops the one and keeps the other) -- a null is kept, measured by the 
 7. **The query service**: the wire and streaming paths plan and run; `Execution.executeWire` / `executeStreaming`,
    `Execution`'s `wireOn` / `streamOn`, `PureV1Api.boundParameters` and `ConnectionResolver`'s reading of the compiled
    model are DELETED (the boundary program's step 4, rule 15). The differential between the two paths is the gate, and
-   is itself deleted with the old path.
+   is itself deleted with the old path. **Built on `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`** (ratified
+   2026-10-18): the typed session seam, the result as a stream with sinks, per-row formatting for every text format,
+   the engine-protocol plan as a rendering of the one plan record; its §8 measurement precedes the design's final
+   form, its §9 says what lands in which step.
 8. **The test runners**: `PureTestRunner` and `ServiceTestRunner` emit a sequence of plans per body; `CsvLoad` a DML
    plan; the small seams follow.
 9. **The PCT lanes**: `PctBackend.throughThePlan` for every lane, the DuckDB lane first (its shadow run agreed on 81%
@@ -294,6 +297,16 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-18, the plan and the result ratified** (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`, with the user): one
+  plan record and three renderers (the tree only when asked; JSON stays, no binary format, compression only with a
+  measured number); one result model, a stream of rows (typed cells, a text row, a document) consumed by one sink,
+  the runner accumulating nothing; the session seam text in, rows out (D12 amended); per-row formatting for every
+  text format, the whole-text wires retired; the fast path with no plan JSON and no data held; the judges onto the
+  typed seam as step 7's first landing; the §8 measurement before the design's final form. Found on the way, from
+  the channel A shadow run on DuckDB (2,621 cases, 74% textual agreement, about 91% once the text carrier's own
+  spellings are read as values): the Float text writes `nan.0` for NaN, and a dynamic pivot through the TDS text
+  output has no template for its columns; both go into step 7's first landing. Step 7 is announced when its
+  first landing is cut.
 - **2026-10-18, step 6 landed: both judges on plans, the agreement gate** (GATES "step 6, both judges on plans"): the
   runner's typed rows, the verdict a plan's row, each host side a plan's result, `JudgeMode.BOTH` with its gate;
   channel B under the gate found two of step 2's unjudged cuts (a TDS DateTime cell's three digits, a sort key the JSON

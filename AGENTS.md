@@ -367,6 +367,7 @@ otherwise, which is how it drifted:
 |---|---|
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
+| `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
