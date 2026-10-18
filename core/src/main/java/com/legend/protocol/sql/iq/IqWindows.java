@@ -903,8 +903,23 @@ final class IqWindows {
                 }
                 yield new SqlAst.TypeName(family, List.of(type.size()), d.pos());
             }
-            default -> throw SqlTranslationException.unsupported(upper + "'s default for a " + type.spelling()
-                    + " is not supported yet", d.pos());
+            default -> {
+                BigInteger n = d instanceof SqlAst.IntegerLit l ? l.value() : d instanceof SqlAst.Unary u
+                        && u.op() == SqlAst.UnaryOp.MINUS && u.operand() instanceof SqlAst.IntegerLit l
+                        ? l.value().negate() : null;
+                if (!type.spelling().equals("UNSIGNED BIGINT") || n == null) {
+                    throw SqlTranslationException.unsupported(upper + "'s default for a " + type.spelling()
+                            + " is not supported yet", d.pos());
+                }
+                // IQ island, 2026-10-17 (the corpus lane's JOB: LAG(cast_count, 1, 0) of a COUNT; measured on IQ
+                // 17.1): a COUNT's default is an integer constant read as its UNSIGNED BIGINT, a negative one IQ's
+                // -1009145 whether or not a row takes it
+                if (n.signum() < 0) {
+                    throw SqlTranslationException.invalid(upper + "'s default " + n + " is no UNSIGNED BIGINT"
+                            + IqDialect.code(-1009145, "QFA2E"), d.pos());
+                }
+                yield new SqlAst.TypeName("BIGINT", List.of(), d.pos());
+            }
         };
         return at.tx(new SqlAst.Cast(d, target, d.pos()));
     }

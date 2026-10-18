@@ -1213,6 +1213,10 @@ lite/corpus_gaps/greater_beside_an_integer_past_its_range@iq17-default	BOTH_ERRO
 lite/corpus_gaps/an_unread_coalesce_of_string_agg_is_dropped@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/an_unread_length_of_concat_is_dropped@iq17-default	PASS	PASS
 lite/corpus_gaps/a_read_coalesce_of_string_agg@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/filter_after_a_call_inside_a_call@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/lag_default_of_a_count@iq17-default	PASS	PASS
+lite/corpus_gaps/lead_negative_default_of_a_count@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/coalesce_of_a_list@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR

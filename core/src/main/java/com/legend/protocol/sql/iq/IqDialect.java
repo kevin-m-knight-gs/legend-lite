@@ -8276,7 +8276,9 @@ public final class IqDialect implements InputDialect {
                     if (f.equals("CHAR")) {
                         charLengths.add(t.size());
                         family = family == null ? "CHAR" : family;
-                    } else if (f.equals("VARCHAR")) {
+                    } else if (f.equals("VARCHAR") || f.equals("LONG VARCHAR")) {
+                        // IQ island, 2026-10-17 (the corpus lane's JOB: COALESCE(LIST(...), '{}'); measured on IQ
+                        // 17.1): a LONG VARCHAR (a LIST's) beside strings is a VARCHAR
                         family = "VARCHAR";
                     } else {
                         throw SqlTranslationException.unsupported(what + " of a " + t.spelling() + " is not supported"

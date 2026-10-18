@@ -2164,6 +2164,22 @@ tests:
     sql: "SELECT d.k, d.names FROM (SELECT k, COALESCE(STRING_AGG(DISTINCT s, ', '), 'none') AS names FROM g GROUP BY k) d ORDER BY d.k"
     profile: iq17-default
 
+  # ---- the corpus lane's JOB, measured on IQ 17.1 (IQ island, 2026-10-17): FILTER after a call inside a call is
+  # -131; a COUNT's LAG or LEAD default is read as its UNSIGNED BIGINT (a negative one -1009145); a LIST beside
+  # strings is a VARCHAR
+  - id: filter_after_a_call_inside_a_call
+    sql: "SELECT k, COALESCE(STRING_AGG(DISTINCT s, ', ') FILTER (WHERE s IS NOT NULL), 'Unknown') AS a FROM g GROUP BY k"
+    profile: iq17-default
+  - id: lag_default_of_a_count
+    sql: "SELECT d.k, LAG(d.c, 1, 0) OVER (ORDER BY d.k) AS p, LEAD(d.c, 2, 7) OVER (ORDER BY d.k) AS q FROM (SELECT k, COUNT(*) AS c FROM g GROUP BY k) d ORDER BY d.k"
+    profile: iq17-default
+  - id: lead_negative_default_of_a_count
+    sql: "SELECT d.k, LEAD(d.c, 1, -1) OVER (ORDER BY d.k) AS q FROM (SELECT k, COUNT(*) AS c FROM g GROUP BY k) d ORDER BY d.k"
+    profile: iq17-default
+  - id: coalesce_of_a_list
+    sql: "SELECT k, COALESCE(LIST(s ORDER BY s), 'none') || '!' AS l, LENGTH(COALESCE(LIST(s ORDER BY s), '')) AS n FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where
