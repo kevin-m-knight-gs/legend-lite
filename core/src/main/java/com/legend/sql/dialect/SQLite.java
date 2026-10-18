@@ -3074,6 +3074,11 @@ public final class SQLite extends AnsiSqlRenderer {
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
+            // (the store writes: refused by the base until SQLite's spelling is measured)
+            case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
+            case com.legend.sql.SqlDml.Update u -> super.render(u);
+            case com.legend.sql.SqlDml.DeleteWhere dw -> super.render(dw);
+            case com.legend.sql.SqlDml.Merge m -> super.render(m);
         };
     }
 
