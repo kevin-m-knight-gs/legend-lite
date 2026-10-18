@@ -484,10 +484,15 @@ final class CreateClass {
             LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>(value.fields());
             fields.put("element", Json.str(store));
             Json.Obj spec = value.getObjOr("datasourceSpecification", null);
-            if (spec != null && "duckDB".equals(spec.getStringOr("_type", "")) && !spec.has("path")) {
-                // a host's own DuckDB (a table model names no path: the host runs the SQL on its engine): the tab's
-                // is in memory, and upstream's DuckDB names its database
-                fields.put("datasourceSpecification", with(spec, "path", Json.str(":memory:")));
+            String declared = value.getStringOr("databaseType", null);
+            if (spec != null && !spec.has("path") && declared != null) {
+                // a host's own database (a table model names no path: the host runs the SQL on its engine) is in memory:
+                // the project names it as its database does, where legend-engine must be given a path
+                String inMemory = com.legend.database.Databases.dialect(com.legend.database.Databases.named(declared))
+                        .inMemoryPath();
+                if (inMemory != null) {
+                    fields.put("datasourceSpecification", with(spec, "path", Json.str(inMemory)));
+                }
             }
             m.put(renamed(Json.obj(), place.pkg() + "::connection", place.name(), Map.of("_type", Json.str("connection"),
                     "connectionValue", new Json.Obj(fields))));

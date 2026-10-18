@@ -66,6 +66,18 @@ public final class DuckDb extends AnsiSqlRenderer {
         return DuckDbHostOperations.INSTANCE;
     }
 
+    /** DuckDB's own name for an in-memory database: a connection's path ({@code jdbc:duckdb::memory:}, which
+     *  legend-engine's DuckDB opens) and an {@code ATTACH}'s. */
+    static final String IN_MEMORY = ":memory:";
+
+    /** {@inheritDoc} DuckDB's own name for an in-memory database: legend-engine's DuckDB opens
+     *  {@code jdbc:duckdb:<path>}, and its datasource refuses a specification with no path (it puts the path into a
+     *  {@code Properties}, which holds no null). */
+    @Override
+    public String inMemoryPath() {
+        return IN_MEMORY;
+    }
+
     /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
      *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
     @Override
