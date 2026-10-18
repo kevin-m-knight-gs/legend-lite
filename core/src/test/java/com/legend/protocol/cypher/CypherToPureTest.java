@@ -571,7 +571,7 @@ class CypherToPureTest {
     }
 
     @Test
-    void neo4jsOwnErrorsWhereTheTranslatorRefused() {
+    void theErrorsRaisedWhereTheTranslatorRefused() {
         // (the study's §12.84) a conversion of a value it does not take is Neo4j's TypeError, the database's raise on
         // the rows that hold one; a literal argument is Neo4j's type mismatch at compile time
         String raised = pure("MATCH (p:Person) RETURN [x IN [1, p] | toInteger(x)] AS l");

@@ -1,6 +1,6 @@
 # Neo4j's built-in functions on the pinned release (SHOW FUNCTIONS), lower-cased, one per line: written by
 # tools/neo4j-oracle/snap.sh --functions, checked by every --check; CypherParityTest holds
-# com.legend.protocol.cypher.Neo4jFunctions to this file.
+# com.legend.protocol.cypher.CypherFunctions to this file.
 abs
 acos
 all

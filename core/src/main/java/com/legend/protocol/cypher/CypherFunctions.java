@@ -10,12 +10,12 @@ import java.util.Set;
  * from a function it does not implement yet, so that a name Neo4j does not define is Neo4j's own error, {@code
  * Unknown function 'foo'}, and one it does is refused by name (docs/CYPHER_STUDY_2026_10_15.md §12.84). Spec by
  * verification: the names are Neo4j's {@code SHOW FUNCTIONS} on the pinned release, snapped into
- * {@code cypher-parity/neo4j-functions.txt} ({@code tools/neo4j-oracle/snap.sh --functions}, checked by every
+ * {@code cypher-parity/cypher-functions.txt} ({@code tools/neo4j-oracle/snap.sh --functions}, checked by every
  * {@code --check}), and {@code CypherParityTest} holds this list to that file.
  */
-public final class Neo4jFunctions {
+public final class CypherFunctions {
 
-    private Neo4jFunctions() {
+    private CypherFunctions() {
     }
 
     private static final Set<String> NAMES = Set.of(

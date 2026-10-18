@@ -2,9 +2,9 @@
 
   snap.sh --write [--only GLOB]   run the cases, write core/src/test/resources/cypher-parity/neo4j-answers.jsonl
   snap.sh --check [--only GLOB]   run the cases, report DRIFT, UNSNAPPED, STALE and GONE (and FUNCTIONS when the
-                                  server's function names are not neo4j-functions.txt's); exit 1 on any
-  snap.sh --functions             write core/src/test/resources/cypher-parity/neo4j-functions.txt: the server's
-                                  function names (SHOW FUNCTIONS), lower-cased, which Neo4jFunctions must list
+                                  server's function names are not cypher-functions.txt's); exit 1 on any
+  snap.sh --functions             write core/src/test/resources/cypher-parity/cypher-functions.txt: the server's
+                                  function names (SHOW FUNCTIONS), lower-cased, which CypherFunctions must list
 
 The cases are the openCypher TCK's scenarios (core/src/test/resources/cypher-parity/tck, Apache 2.0, read by the
 Gherkin subset below, which the Java reader CypherTck mirrors step for step: the two must produce the same keys and
@@ -494,7 +494,7 @@ def connect(url):
 
 FUNCTIONS_HEADER = ("# Neo4j's built-in functions on the pinned release (SHOW FUNCTIONS), lower-cased, one per line:"
                     " written by\n# tools/neo4j-oracle/snap.sh --functions, checked by every --check; CypherParityTest"
-                    " holds\n# com.legend.protocol.cypher.Neo4jFunctions to this file.\n")
+                    " holds\n# com.legend.protocol.cypher.CypherFunctions to this file.\n")
 
 
 def function_names(driver):
@@ -689,7 +689,7 @@ def main():
             kinds[k] = kinds.get(k, 0) + 1
         print(len(cases), "cases", kinds)
         return 0
-    functions_file = os.path.join(args.parity, "neo4j-functions.txt")
+    functions_file = os.path.join(args.parity, "cypher-functions.txt")
     if args.functions:
         driver = connect(args.url)
         names = function_names(driver)

@@ -5273,8 +5273,8 @@ Match7/[19] moves to PASS on both lanes; TCK agreement DuckDB 3570 → 3571, Pos
   clause inside EXISTS (ExistentialSubquery2/[3]) is the parser's InvalidClauseComposition.
 - **A function Neo4j does not define** (Return2/[18]): `Unknown function 'foo'`, Neo4j's error, where the island
   refused every function it does not read by name. The island tells the two apart by Neo4j's own list of its
-  functions (`Neo4jFunctions`, 173 names lower-cased): spec by verification, the oracle's `snap.sh --functions`
-  snapping `SHOW FUNCTIONS` into `cypher-parity/neo4j-functions.txt`, every `--check` comparing it with the server,
+  functions (`CypherFunctions`, 173 names lower-cased): spec by verification, the oracle's `snap.sh --functions`
+  snapping `SHOW FUNCTIONS` into `cypher-parity/cypher-functions.txt`, every `--check` comparing it with the server,
   and `CypherParityTest` holding the constant to the file. A name Neo4j defines that the island does not read
   stays a refusal by name.
 - **Two crashes behind BOTH_ERROR, fixed** (found scanning lite's errors beside Neo4j's): `size()` of a path
@@ -5285,8 +5285,8 @@ Match7/[19] moves to PASS on both lanes; TCK agreement DuckDB 3570 → 3571, Pos
 - **Left (the plan's §5):** `percentileDisc(0.90, deg)` with the percentile read from the rows (Aggregation6/[5]):
   Neo4j raises at run time where the percentile falls outside 0 to 1; the island spells a percentile the database
   takes as a constant only.
-- **Pinned.** `lite/neo4jerrors.yaml`'s 19 cases, each judged by Neo4j; CypherToPureTest's
-  `neo4jsOwnErrorsWhereTheTranslatorRefused`.
+- **Pinned.** `lite/errors.yaml`'s 19 cases, each judged by Neo4j; CypherToPureTest's
+  `theErrorsRaisedWhereTheTranslatorRefused`.
 
 #### 12.84.1 The ledger
 
@@ -5296,5 +5296,5 @@ Match7/[19] moves to PASS on both lanes; TCK agreement DuckDB 3570 → 3571, Pos
 | Postgres | 4970 | 3473 (from 3,466) | 0 | 0 | 0 | 679 | 762 (from 750) | 56 |
 
 The TCK's rows keep their statuses (agreement DuckDB 3571, Postgres 3190); 22 of the 23 BOTH_ERROR rows a refusal
-stood behind now stand behind Neo4j's error, on both lanes. The 19 cases of `lite/neo4jerrors.yaml`: 7 PASS and 12
+stood behind now stand behind Neo4j's error, on both lanes. The 19 cases of `lite/errors.yaml`: 7 PASS and 12
 BOTH_ERROR on each lane, as Neo4j answers them.

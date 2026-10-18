@@ -10683,9 +10683,9 @@ public final class CypherToPure {
     }
 
     /** A function the translator does not read: Neo4j's own error where Neo4j defines no function of the name
-     *  ({@link Neo4jFunctions}), else a refusal by name. */
+     *  ({@link CypherFunctions}), else a refusal by name. */
     private static com.legend.protocol.sql.SqlTranslationException unknownOrUnsupported(CypherAst.Call c) {
-        return Neo4jFunctions.defines(c.name())
+        return CypherFunctions.defines(c.name())
                 ? CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos())
                 : CypherErrors.invalid("Unknown function '" + c.name() + "'", c.pos());
     }

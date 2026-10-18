@@ -2,7 +2,7 @@
 # §12.84): a conversion of a value it does not take (Neo4j's TypeError, raised by the database on the rows that
 # hold the value), toBoolean of an integer and toInteger of a boolean (which Neo4j takes), size() of a pattern and a
 # property of a path (Neo4j's static errors), an update inside EXISTS. Each case is judged by Neo4j's answer in
-# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/neo4jerrors/*'), keyed lite/neo4jerrors/<id>.
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/errors/*'), keyed lite/errors/<id>.
 tests:
   - id: to_boolean_of_a_float_in_a_list
     graph: |

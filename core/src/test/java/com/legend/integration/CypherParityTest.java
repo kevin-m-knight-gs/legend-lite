@@ -117,7 +117,7 @@ class CypherParityTest {
     }
 
     @Test
-    void theTranslatorKnowsNeo4jsFunctionsByName() throws Exception {
+    void theTranslatorKnowsCyphersFunctionsByName() throws Exception {
         // (the study's §12.84) a name Neo4j does not define is its error, Unknown function, and one it does is refused
         // by name where the translator does not implement it: the names are the oracle's snap of SHOW FUNCTIONS
         List<String> snapped = new ArrayList<>();
@@ -127,8 +127,8 @@ class CypherParityTest {
             }
         }
         assertEquals(new java.util.TreeSet<>(snapped), new java.util.TreeSet<>(
-                com.legend.protocol.cypher.Neo4jFunctions.names()), "Neo4jFunctions is not the snapped list"
-                + " (cypher-parity/neo4j-functions.txt, tools/neo4j-oracle/snap.sh --functions)");
+                com.legend.protocol.cypher.CypherFunctions.names()), "CypherFunctions is not the snapped list"
+                + " (cypher-parity/cypher-functions.txt, tools/neo4j-oracle/snap.sh --functions)");
     }
 
     @Test

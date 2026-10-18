@@ -11786,8 +11786,8 @@ counted BOTH_ERROR only because the island refused by name what Neo4j rejects; 2
 
 1. **What lands.** Conversions of values they do not take as the database's raise (Neo4j's TypeError), `toBoolean`
    of an integer and `toInteger` of a boolean, `size()` of a pattern, a property of a path and an update inside
-   EXISTS as Neo4j's static errors, an unknown function as Neo4j's (`Neo4jFunctions`, the snapped list of its
-   functions, checked by the oracle and held by CypherParityTest); the 19 cases of `lite/neo4jerrors.yaml`. DuckDB
+   EXISTS as Neo4j's static errors, an unknown function as Neo4j's (`CypherFunctions`, the snapped list of its
+   functions, checked by the oracle and held by CypherParityTest); the 19 cases of `lite/errors.yaml`. DuckDB
    PASS 3,878 → 3885, Postgres 3,466 → 3473; TCK agreement unchanged (DuckDB 3571, Postgres 3190): the rows
    were BOTH_ERROR before and are now.
 2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3885 / REFUSED 267 / BOTH_ERROR 762 / SKIP 56; Postgres PASS 3473 / REFUSED 679 /
@@ -11803,6 +11803,6 @@ counted BOTH_ERROR only because the island refused by name what Neo4j rejects; 2
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.84. `size()` of a path (List6/[5]) threw a
 NullPointerException and a float literal beyond the largest double (Literals5/[27]) a NumberFormatException, both
 counted BOTH_ERROR beside Neo4j's errors; now Neo4j's type mismatch and FloatingPointOverflow. Three cases join
-`lite/neo4jerrors.yaml` (22). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3886 / REFUSED 267 /
+`lite/errors.yaml` (22). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3886 / REFUSED 267 /
 BOTH_ERROR 764 / SKIP 56; Postgres PASS 3474 / REFUSED 679 / BOTH_ERROR 764 / SKIP 56, of 4973 cases), TCK agreement
 unchanged (DuckDB 3571, Postgres 3190); the oracle check 0 problems; the chain's 40 guard targets green.
