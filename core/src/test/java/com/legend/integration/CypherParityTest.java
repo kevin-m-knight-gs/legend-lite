@@ -5,6 +5,8 @@ package com.legend.integration;
 
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
 import com.legend.testcases.CypherGraph;
 import com.legend.testcases.CypherParity;
@@ -14,7 +16,6 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * rewrite this lane's column.
  */
 class CypherParityTest {
+
+    /** The platform's own engine: the island's session, its tables and the connection its model declares. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
 
     /** The showcase's queries (docs/CYPHER_SHOWCASE.md): {@code lite/basics.yaml}'s {@code showcase_main} (pinned at
      *  the showcase directory's root), {@code showcase_easy} and {@code showcase_hard} (each in its own directory),
@@ -116,7 +120,7 @@ class CypherParityTest {
     }
 
     @Test
-    void everyCaseHasItsLedgerStatusOnDuckDB() throws Exception {
+    void everyCaseHasItsLedgerStatusOnThePlatform() throws Exception {
         List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
                 Runfile.property("cypher.parity.lite").getParent());
         CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
@@ -125,22 +129,22 @@ class CypherParityTest {
         List<String> problems = new ArrayList<>(CypherAnswers.guards(cases, answers, CypherParity.PINNED_SERVER));
         problems.addAll(CypherParity.decisionGuards(cases, Runfile.property("cypher.parity.decisions")));
         Map<String, SqlParity.Outcome> outcomes;
-        try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection session = PLATFORM.open()) {
             QueryService service = new QueryService();
             outcomes = CypherParity.run(cases, answers.answers(), decisions, new CypherParity.Lane() {
                 @Override
                 public String connection() {
-                    return "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;";
+                    return PLATFORM.connectionBody();
                 }
 
                 @Override
                 public void seed(List<SqlParity.Table> tables) throws Exception {
-                    SqlParity.seed(duckdb, tables, false);
+                    SqlParity.seed(PLATFORM, session, tables);
                 }
 
                 @Override
                 public ExecutionResult run(String model, String island) throws Exception {
-                    return service.execute(model, island, CypherGraph.RUNTIME, duckdb);
+                    return service.execute(model, island, CypherGraph.RUNTIME, session);
                 }
             });
         }

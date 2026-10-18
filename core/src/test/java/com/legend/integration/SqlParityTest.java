@@ -4,13 +4,14 @@
 package com.legend.integration;
 
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlParity;
 import com.legend.testing.Runfile;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,32 +34,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SqlParityTest {
 
     @Test
-    void everyUpstreamCaseHasItsLedgerStatusOnDuckDB() throws Exception {
+    void everyUpstreamCaseHasItsLedgerStatusOnThePlatform() throws Exception {
         Path dir = Runfile.property("sql.parity.schema").getParent();
         List<SqlParity.Case> cases = new java.util.ArrayList<>(SqlParity.cases(dir));
         cases.addAll(SqlParity.cases(Runfile.property("sql.parity.lite").getParent(), "lite/"));
         List<SqlParity.Table> tables = SqlParity.schema(dir);
         Set<String> names = SqlParity.tableNames(tables);
         Map<String, SqlParity.Answer> answers = SqlParity.readAnswers(Runfile.property("sql.parity.answers"));
-        String model = SqlParity.model(tables, "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;");
+        TestBackend platform = TestBackends.platform();
+        String model = SqlParity.model(tables, platform.connectionBody());
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
-        try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
-            SqlParity.seed(duckdb, tables, false);
+        try (Connection session = platform.open()) {
+            SqlParity.seed(platform, session, tables);
             QueryService service = new QueryService();
             for (SqlParity.Case c : cases) {
                 outcomes.put(SqlParity.key(c), SqlParity.outcome(c, answers.get(SqlParity.key(c)), names,
-                        island -> service.execute(model, island, SqlParity.RUNTIME, duckdb)));
+                        island -> service.execute(model, island, SqlParity.RUNTIME, session)));
             }
         }
         String update = System.getProperty("sql.parity.update");
-        List<String> problems = SqlParity.ratchet(cases, outcomes, Runfile.property("sql.parity.ledger"), "duckdb",
+        List<String> problems = SqlParity.ratchet(cases, outcomes, Runfile.property("sql.parity.ledger"), platform.name(),
                 update == null ? null : Path.of(update));
         assertTrue(problems.isEmpty(), problems.size() + " cases differ from the ledger:\n"
                 + String.join("\n", problems));
     }
 
     @Test
-    void aTextCellComparesAsJsonOnlyWherePostgresWroteItAsJsonb() {
+    void aTextCellComparesAsJsonOnlyWhereTheSnappedAnswerWroteItAsJsonb() {
         // the independent review of PR neema2/legend-lite#32: jsonb's spelling (", ", ": ", keys shorter first) proves
         // the text is a jsonb value's; any other text is compared as text
         assertTrue(SqlParity.cellEquals("{\"b\": [1, 2], \"aa\": true}", "{\"aa\":true,\"b\":[1,2]}"));
@@ -67,7 +69,7 @@ class SqlParityTest {
     }
 
     @Test
-    void aSnappedAnswerAgreesWithPostgresOnAnotherPlatformInItsLastDigitsOnly() {
+    void aSnappedAnswerAgreesAcrossPlatformsInItsLastDigitsOnly() {
         // cbrt(-0.1) from Postgres on Linux and on Windows: their C libraries differ in the last place
         // (2026-10-12, PR neema2/legend-lite#28's CI)
         assertTrue(SqlParity.agrees(oneCell(-0.46415888336127786), oneCell(-0.464158883361278)));

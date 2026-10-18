@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  *       ({@code InProcessBackend}, {@code ServerBackend}, {@code CloudBackend}) name none;</li>
  *   <li>a <b>test named for a database</b> (any test source whose class is named for one: a test, {@code
  *       DuckDbRenderTest}, {@code PostgresArmTest}, a PCT lane's {@code Test_LegendLite_Postgres_*}, or a harness,
- *       {@code H2Verify}; Phase 6, 2026-10-16): that database and its parent class's, in its code and its strings, as a
+ *       {@code H2ExtensionFunctions}; Phase 6, 2026-10-16): that database and its parent class's, in its code and its strings, as a
  *       connector is held to its own. A test that is about no one database names none: it runs on the platform's
  *       engine or on every database ({@code testbackend.TestBackends});</li>
  *   <li>an <b>input language</b> (the SQL a user writes, {@code protocol/sql/}, D11): {@code PostgresDialect} and

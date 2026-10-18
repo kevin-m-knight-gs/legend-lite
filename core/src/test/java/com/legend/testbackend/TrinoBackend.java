@@ -6,6 +6,10 @@ package com.legend.testbackend;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testing.EmbeddedTrino;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+
 /** Trino's sessions: this JVM's embedded Trino 483, a new session on its memory catalog's {@code default} schema. */
 final class TrinoBackend extends ServerBackend {
 
@@ -24,9 +28,11 @@ final class TrinoBackend extends ServerBackend {
         return "trino";
     }
 
+    /** The launcher's session: the platform opens none on Trino (its connector's opening is {@code notOpened}), so
+     *  there is no platform route to hold it to. */
     @Override
-    String url() {
-        return EmbeddedTrino.shared().jdbcUrl(database());
+    Connection session(String database) throws SQLException {
+        return DriverManager.getConnection(EmbeddedTrino.shared().jdbcUrl(database));
     }
 
     @Override
@@ -42,7 +48,7 @@ final class TrinoBackend extends ServerBackend {
     /** The coordinates of the session {@link #open} opens, declared as Trino's own specification. */
     @Override
     public String specificationAndAuth() {
-        return "specification: Trino { host: '127.0.0.1'; port: " + port() + "; catalog: 'memory'; schema: '"
+        return "specification: Trino { host: '" + HOST + "'; port: " + port() + "; catalog: 'memory'; schema: '"
                 + database() + "'; };\n  auth: Test";
     }
 }

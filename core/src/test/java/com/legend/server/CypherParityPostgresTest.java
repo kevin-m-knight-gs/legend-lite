@@ -7,6 +7,7 @@ import com.legend.exec.ExecutionResult;
 import com.legend.testcases.CypherAnswers;
 import com.legend.testcases.CypherGraph;
 import com.legend.testcases.CypherParity;
+import com.legend.testcases.PostgresSeed;
 import com.legend.testcases.SqlParity;
 import com.legend.testing.EmbeddedPostgres;
 import com.legend.testing.Runfile;
@@ -58,7 +59,7 @@ class CypherParityPostgresTest {
 
                 @Override
                 public void seed(List<SqlParity.Table> tables) throws Exception {
-                    SqlParity.seed(admin, tables, true);
+                    PostgresSeed.seed(admin, tables);
                     grantToThisAccount(admin, tables);
                 }
 

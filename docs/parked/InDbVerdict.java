@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * mapping encodes decodes by a JOIN to the mapping's pairs (model metadata
  * as a VALUES relation), not by a Java map over cells.
  *
- * <p>Declines (an {@link H2Verify.Unverifiable}) keep their historical
+ * <p>Declines (an {@link RefereeVerify.Unverifiable}) keep their historical
  * bucket texts: column arity, a JDBC type the transfer cannot carry.
  */
 final class InDbVerdict {
@@ -66,24 +66,24 @@ final class InDbVerdict {
             }
             transfer(session, table, rs, n, jdbcTypes, enumDecode);
         } catch (SQLException e) {
-            throw new H2Verify.Unverifiable("golden execution: " + e.getMessage(), e);
+            throw new RefereeVerify.Unverifiable("golden execution: " + e.getMessage(), e);
         }
         try {
             int ourArity = arity(session, ourSql);
             if (ourArity != n) {
                 if (n == 1 && goldenSql.toLowerCase(java.util.Locale.ROOT)
                         .startsWith("select distinct")) {
-                    throw new H2Verify.Unverifiable("population statement of a"
+                    throw new RefereeVerify.Unverifiable("population statement of a"
                             + " chained plan — no counterpart statement in our"
                             + " one-statement plan", null);
                 }
-                throw new H2Verify.Unverifiable("column arity differs: golden " + n
+                throw new RefereeVerify.Unverifiable("column arity differs: golden " + n
                         + " vs frame " + ourArity, null);
             }
             if (ORDERED.matcher(goldenSql).find()) {
                 // an ordered golden judges as a multiset today (the keyed
                 // positional rule is the follow-up) — counted, never silent
-                H2Verify.verdict("ord-multiset");
+                RefereeVerify.verdict("ord-multiset");
             }
             String golden = goldenSelect(table, n, enumDecode, valueFrame);
             String ours = valueFrame && n == 1

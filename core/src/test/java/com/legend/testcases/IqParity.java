@@ -9,6 +9,7 @@ import com.legend.protocol.sql.iq.IqDialect;
 import com.legend.protocol.sql.iq.IqLexer;
 import com.legend.protocol.sql.iq.IqParser;
 import com.legend.protocol.sql.iq.IqProfile;
+import com.legend.testbackend.TestBackend;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -406,34 +407,54 @@ public final class IqParity {
         };
     }
 
-    /** An IQ type of the schema as the lane's database declares it: a BIT is a boolean (the relational store's BIT is
-     *  Pure's Boolean), a CHAR(n) a VARCHAR(n), holding the value as written (DuckDB's CHAR is its text; Postgres's
-     *  bpchar would pad it, which is the IQ engine's rule to apply -- D-S1, the island's read -- not the store's). */
-    private static String databaseType(String iqType, boolean postgres) {
+    /** An IQ type of the schema as the lane's table declares it, for its dialect to spell: a BIT is a boolean (the
+     *  relational store's BIT is Pure's Boolean), a CHAR(n) a VARCHAR(n), holding the value as written (a padded CHAR
+     *  is the IQ engine's rule to apply -- D-S1, the island's read -- not the store's), a TINYINT a SMALLINT, a FLOAT a
+     *  DOUBLE, a NUMERIC a DECIMAL. */
+    private static com.legend.sql.SqlDdl.ColumnType columnType(String iqType) {
         String t = relationalType(iqType);
-        if (t.startsWith("CHAR(")) {
-            return "VARCHAR" + t.substring("CHAR".length());
+        Matcher sized = Pattern.compile("(CHAR|VARCHAR)\\((\\d+)\\)").matcher(t);
+        if (sized.matches()) {
+            return new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", Integer.parseInt(sized.group(2)));
         }
-        return switch (t) {
-            case "BIT" -> "BOOLEAN";
-            case "DOUBLE", "FLOAT" -> postgres ? "DOUBLE PRECISION" : "DOUBLE";
-            case "TINYINT" -> "SMALLINT";
-            default -> t.startsWith("NUMERIC") ? "DECIMAL" + t.substring("NUMERIC".length()) : t;
-        };
+        Matcher scaled = Pattern.compile("(NUMERIC|DECIMAL)\\((\\d+),(\\d+)\\)").matcher(t);
+        if (scaled.matches()) {
+            return new com.legend.sql.SqlDdl.ColumnType.Scaled("DECIMAL", Integer.parseInt(scaled.group(2)),
+                    Integer.parseInt(scaled.group(3)));
+        }
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(switch (t) {
+            case "BIT" -> com.legend.sql.SqlDdl.ColumnType.Kind.BIT;
+            case "DOUBLE", "FLOAT" -> com.legend.sql.SqlDdl.ColumnType.Kind.DOUBLE;
+            case "TINYINT", "SMALLINT" -> com.legend.sql.SqlDdl.ColumnType.Kind.SMALLINT;
+            case "INTEGER" -> com.legend.sql.SqlDdl.ColumnType.Kind.INTEGER;
+            case "BIGINT" -> com.legend.sql.SqlDdl.ColumnType.Kind.BIGINT;
+            case "REAL" -> com.legend.sql.SqlDdl.ColumnType.Kind.REAL;
+            case "DATE" -> com.legend.sql.SqlDdl.ColumnType.Kind.DATE;
+            case "TIMESTAMP" -> com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP;
+            default -> throw new IllegalStateException("no column type for the schema's " + iqType);
+        });
     }
 
-    /** Creates and fills the schema's tables: each value bound by its column's type, a quoted value read by it. */
-    public static void seed(Connection c, List<SqlParity.Table> tables, boolean postgres) throws SQLException {
+    /** Whether {@code name} is declared quoted: a name that is not a plain identifier, or that a lane's database
+     *  reserves ({@link #quoted}'s rule). */
+    private static boolean declaredQuoted(String name) {
+        return !quoted(name).equals(name);
+    }
+
+    /** Creates and fills the schema's tables on {@code backend}'s database, each rendered by its dialect: each value
+     *  bound by its column's type, a quoted value read by it. */
+    public static void seed(TestBackend backend, Connection c, List<SqlParity.Table> tables) throws SQLException {
+        com.legend.sql.dialect.SqlDialect dialect = backend.dialect();
         for (SqlParity.Table t : tables) {
-            StringBuilder ddl = new StringBuilder("CREATE TABLE " + quoted(t.name()) + " (");
-            for (int i = 0; i < t.columns().size(); i++) {
-                SqlParity.Column col = t.columns().get(i);
-                ddl.append(i > 0 ? ", " : "").append(quoted(col.name())).append(' ').append(databaseType(col.type(),
-                        postgres));
+            com.legend.sql.NameQuoting quoting = new com.legend.sql.NameQuoting(false, declaredQuoted(t.name()));
+            List<com.legend.sql.SqlDdl.Column> columns = new ArrayList<>();
+            for (SqlParity.Column col : t.columns()) {
+                columns.add(new com.legend.sql.SqlDdl.Column(col.name(), declaredQuoted(col.name()),
+                        columnType(col.type()), false, false));
             }
             try (Statement s = c.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS " + quoted(t.name()));
-                s.execute(ddl.append(')').toString());
+                s.execute(dialect.render(new com.legend.sql.SqlDdl.DropTable(null, t.name(), quoting)));
+                s.execute(dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, t.name(), quoting, columns)));
             }
             if (t.rows().isEmpty()) {
                 continue;

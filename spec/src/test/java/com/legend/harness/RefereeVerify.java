@@ -8,7 +8,6 @@ import com.legend.exec.Row;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -17,24 +16,18 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * The ADVISORY SECOND TARGET (#67): golden engine SQL executes on a real
- * in-memory H2 — the engine's own dialect — over the SAME raw seed
- * statements the test ran (recorded verbatim at the RawSqlBoundary,
- * which is H2-flavored BY DEFINITION), and its rows verify against the
- * rows our pipeline produced on DuckDB. Row-set equality is the
- * contract; a divergence is an honest FAIL naming both sides. H2 is a
- * TEST-SCOPED dependency of the corpus harness only — this class detects
- * the driver reflectively and reports {@link #ready()} false without it,
- * leaving golden-SQL asserts advisory exactly as before.
- *
- * <p>Connection settings are the engine's own H2 2.1.214 server
- * VERBATIM (H2Connector.SETTINGS = H2Defaults; convergence batch C) — the old
- * DATABASE_TO_UPPER/CASE_INSENSITIVE leniency died when our emitters
- * learned to spell identifiers the engine's way.
+ * The ADVISORY SECOND TARGET (#67), the replay referee's verification: golden engine SQL executes on the referee's
+ * database ({@code testbackend.TestBackends.referee()}, the engine's own) over the SAME raw seed statements the test ran
+ * (recorded verbatim at the RawSqlBoundary, in the referee's spelling BY DEFINITION), and its rows verify against the
+ * rows our pipeline produced on the corpus lane's database. Row-set equality is the contract; a divergence is an honest
+ * FAIL naming both sides. The referee's driver is a TEST-SCOPED dependency of the corpus harness only: without it
+ * {@link #ready()} is false, leaving golden-SQL asserts advisory exactly as before. (Named H2Verify until 2026-10-17, the
+ * dialect program's Phase 6: the referee's database and its sessions are its test backend's, this class the comparison,
+ * which names none.)
  */
-public final class H2Verify {
+public final class RefereeVerify {
 
-    private H2Verify() {
+    private RefereeVerify() {
     }
 
     /** Verification could not run (driver absent, seed replay failed,
@@ -71,16 +64,7 @@ public final class H2Verify {
         }
     }
 
-    private static final boolean READY = detect();
-
-    private static boolean detect() {
-        try {
-            Class.forName("org.h2.Driver");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
-    }
+    private static final boolean READY = com.legend.testbackend.TestBackends.referee().available();
 
     public static boolean ready() {
         return READY;
@@ -227,12 +211,6 @@ public final class H2Verify {
         }
         return r.length() > 70 ? r.substring(0, 70) : r;
     }
-
-    /** The engine's H2 session settings — the OWNER is
-     * {@link com.legend.exec.H2Connector} (F1.1: nothing outside the
-     * harness depends on the harness); this alias keeps in-package
-     * readers stable. */
-    public static final String SETTINGS = com.legend.exec.H2Connector.SETTINGS;
 
     /** The JSON carrier has NO temporal types — a Date-family element
      * arrives as its ISO text. The DECLARED pure type drives the
@@ -1375,7 +1353,12 @@ public final class H2Verify {
             // holds nanos — digits 7-9 of an H2 golden cell cannot exist
             // on our side of the referee (witness: testLessThan seed
             // '15:22:23.123456789' vs our read '…123456'). Divergence at
-            // micro or coarser still fails.
+            // micro or coarser still fails. A rule of the referee's
+            // comparison, not one lane's database (2026-10-17, the dialect
+            // program's Phase 6): it fires on the H2 lane too, where both
+            // sides are H2 (7 tests on each lane, MinimalCorpusTest's
+            // leniency ceilings), so a per-database precision would
+            // change H2's verdicts.
             int nano = ldt.getNano() / 1000 * 1000;
             if (nano != ldt.getNano()) {
                 leniency("micro-floor");

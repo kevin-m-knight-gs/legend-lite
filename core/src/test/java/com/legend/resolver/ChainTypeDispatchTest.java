@@ -1,11 +1,6 @@
 package com.legend.resolver;
 
 import com.legend.testbackend.TestBackends;
-import com.legend.Compiler;
-import com.legend.compiler.NameResolver;
-import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.lowering.Lowerer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -79,12 +74,7 @@ class ChainTypeDispatchTest {
     }
 
     private static String sqlOf(String chain) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
-                com.legend.testing.Own.spec("|" + chain + "->from(rt::M, rt::RT)")));
-        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
-                new StoreResolver(ctx, specs).resolve(body, null)));
+        return ResolvedSql.of(MODEL, "|" + chain + "->from(rt::M, rt::RT)");
     }
 
     private static List<String> rows(String chain) throws SQLException {

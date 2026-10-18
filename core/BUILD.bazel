@@ -387,6 +387,7 @@ legend_java_library(
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
+            "src/test/java/com/legend/FixtureAsidePostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
@@ -575,10 +576,10 @@ junit_test(
     name = "corpus_differential_test",
     memory_mb = 768,
     data = [
-        "//scripts/corpus:diff/seed.sql",
+        "//scripts/corpus:diff/seed.json",
         "//scripts/corpus:gen_differential",
     ],
-    jvm_flags = ["-Dcorpus.differential.seed=$(rlocationpath //scripts/corpus:diff/seed.sql)"],
+    jvm_flags = ["-Dcorpus.differential.seed=$(rlocationpath //scripts/corpus:diff/seed.json)"],
     select = ["--select-class=com.legend.integration.CorpusDifferentialTest"],
     runtime_deps = [
         ":core_tests_lib",
@@ -632,8 +633,8 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
-        "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
@@ -662,6 +663,29 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# a clashing fixture set aside in a Postgres corpus workspace survives the rollback of the test body's attempt it was
+# set in (the dialect program's defect 5), on the embedded Postgres 16
+junit_test(
+    name = "fixture_aside_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/FixtureAsidePostgresTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.FixtureAsidePostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # the #SQL{...}# island's cases on a real Postgres (docs/LEGEND_SQL_STUDY_2026_10_11.md §3): Postgres is the spec, so
 # each case's recorded answer is checked against Postgres itself, and each island through the Postgres dialect; the
 # same cases run on DuckDB in core_tests_integration (SqlIslandIntegrationTest)
@@ -680,6 +704,7 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -720,6 +745,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -794,6 +820,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -843,6 +870,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//json",
         "//testing",
@@ -865,6 +893,7 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -937,6 +966,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -1003,6 +1033,8 @@ legend_java_library(
     srcs = glob(["src/test/java/com/legend/testcases/*.java"]),
     deps = [
         ":core",
+        # the cases' tables are created on a test backend's database, by its dialect
+        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
@@ -1020,6 +1052,8 @@ legend_java_library(
     deps = [
         ":core",
         "//testing",
+        # DuckDB's corpus workspaces duplicate a connection (DuckDbWorkspaces)
+        "@duckdb_jdbc//jar",
     ],
 )
 

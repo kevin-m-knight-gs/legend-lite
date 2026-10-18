@@ -4,13 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.testbackend.TestBackends;
-import com.legend.Compiler;
-import com.legend.compiler.NameResolver;
-import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
-import com.legend.sql.SqlQuery;
 import com.legend.testing.Rows;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -198,13 +192,7 @@ class ResolveUnionV4ProbeTest {
     }
 
     private static String sqlOf(String model, String query) {
-        var ctx = Compiler.compileModel(model);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
-        return TestBackends.platform().dialect().render(plan);
+        return ResolvedSql.of(model, query);
     }
 
     @Test

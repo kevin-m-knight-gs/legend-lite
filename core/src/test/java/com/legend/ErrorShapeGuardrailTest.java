@@ -145,7 +145,7 @@ class ErrorShapeGuardrailTest {
             // 4 -> 5 (slice 3 equality half, reviewed): evalSideText's
             // counted-decline boundary — the F2.3 catch inherited from
             // the deleted ExecCallFinder.sideSqlText, same discipline
-            // (every failure lands in the H2Verify decline census)
+            // (every failure lands in the RefereeVerify decline census)
             Map.entry("QuotedSpecParser.java", 1),
             // Typer.java's one catch moved with the overload machinery (2026-09-29, plan W1.6)
             Map.entry("Overloads.java", 1),
