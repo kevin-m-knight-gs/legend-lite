@@ -605,9 +605,15 @@ public final class CypherValues {
                 }
             }
         }
-        long total = nanos.longValueExact();
-        long seconds = Math.floorDiv(total, 1_000_000_000L);
-        long rest = Math.floorMod(total, 1_000_000_000L);
+        // The seconds and their nanoseconds apart: a duration across the millennia (9998 years and more, the year 1's
+        // date-time to the year 9999's) is past a long's nanoseconds, its seconds well inside one.
+        java.math.BigDecimal[] split = nanos.divideAndRemainder(java.math.BigDecimal.valueOf(1_000_000_000L));
+        long seconds = split[0].longValueExact();
+        long rest = split[1].longValueExact();
+        if (rest < 0) {
+            seconds--;
+            rest += 1_000_000_000L;
+        }
         return new long[] {months, days, seconds, rest};
     }
 

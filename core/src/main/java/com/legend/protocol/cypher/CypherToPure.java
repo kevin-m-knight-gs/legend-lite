@@ -14416,9 +14416,6 @@ public final class CypherToPure {
      *  its instant. */
     private Tx durationArithmetic(CypherAst.Binary b, Tx l, Tx r) {
         BinaryOp op = b.op();
-        // (split values in the epoch-nanosecond carriage until W13's duration leg)
-        l = legacy(l);
-        r = legacy(r);
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return Tx.value(SqlToPure.empty(), Kind.DURATION, true);
         }
@@ -14479,6 +14476,10 @@ public final class CypherToPure {
                 && kind != Kind.ZONED_TIME) {
             throw CypherErrors.invalid("Type mismatch: a duration can be added to a temporal value, not a "
                     + cypherType(kind), b.pos());
+        }
+        if ((kind == Kind.DATETIME || kind == Kind.TIME) && (split(temporal) || !nanos(temporal) && nanos(d))) {
+            // of nanosecond precision (W13): over the parts
+            return splitMoved(asSplit(temporal), d, subtract);
         }
         Zone zone = kind == Kind.ZONED || kind == Kind.ZONED_TIME ? zoneKnown(temporal, b.pos()) : null;
         boolean temporalNanos = nanos(temporal);
@@ -14544,6 +14545,36 @@ public final class CypherToPure {
         return kind == Kind.ZONED ? zoned(out, after(java.util.Objects.requireNonNull(zone), out)) : out;
     }
 
+    /** A split value moved by a duration (W13): the months then the days on the date (a time of day has none to
+     *  move), the seconds and nanoseconds on the clock -- the seconds' whole days apart, so no product overflows --
+     *  and the clock's whole days carried into the date; a time of day wraps within its day (Neo4j's). */
+    private Tx splitMoved(Tx t, Tx d, boolean subtract) {
+        java.util.function.BiFunction<ValueSpecification, String, ValueSpecification> part = (dur, name) -> {
+            ValueSpecification v = slot(dur, name);
+            return subtract ? minus(lit(0), v) : v;
+        };
+        // the clock and the duration's seconds and nanoseconds past whole days: within three days of nanoseconds (the
+        // seconds' nanoseconds a float product cast back, exact below a day's: a literal-built slot is 32 bits on
+        // DuckDB, and its integer product with a billion overflowed, measured, as durationTextOf found)
+        java.util.function.BinaryOperator<ValueSpecification> total = (n, dur) -> integer(plus(n,
+                integer(AppliedFunction.infixRun("times", List.of(new CFloat(1.0e9), call("mod",
+                        part.apply(dur, "seconds"), lit(86_400L))))), part.apply(dur, "nanoseconds")));
+        Tx clock = SqlToPure.strict(Kind.INTEGER, List.of(ofDay(t), d), v -> integer(call("mod", total.apply(v.get(0),
+                v.get(1)), lit(DAY_NANOS))));
+        if (t.kind() == Kind.TIME) {
+            return splitTime(clock);
+        }
+        Tx date = SqlToPure.strict(Kind.DATE, List.of(datePartOf(t), ofDay(t), d), v -> {
+            ValueSpecification dur = v.get(2);
+            ValueSpecification months = day(call("adjust", v.get(0), integer(part.apply(dur, "months")),
+                    unit("MONTHS")));
+            ValueSpecification carried = plus(part.apply(dur, "days"), quotient(part.apply(dur, "seconds"), 86_400L),
+                    quotient(total.apply(v.get(1), dur), DAY_NANOS));
+            return day(call("adjust", months, integer(carried), days()));
+        });
+        return splitDateTime(date, clock);
+    }
+
     /** {@code duration.between(a, b)}, {@code inMonths}, {@code inDays}, {@code inSeconds}: Neo4j's split, the
      *  database's — the whole months from a to b (the calendar count, one back when the month's end overshoots),
      *  then the whole days from there, then the seconds and the nanoseconds of the rest; {@code inMonths} stops at
@@ -14563,7 +14594,14 @@ public final class CypherToPure {
         if (!(a instanceof Scalar sa) || !(b instanceof Scalar sb)) {
             throw CypherErrors.invalid("Type mismatch: expected temporal values", c.pos());
         }
-        // (split values in the epoch-nanosecond carriage until W13's duration leg)
+        boolean local = sa.tx().kind() == Kind.TIME ? sb.tx().kind() == Kind.TIME
+                : (sa.tx().kind() == Kind.DATE || sa.tx().kind() == Kind.DATETIME)
+                && (sb.tx().kind() == Kind.DATE || sb.tx().kind() == Kind.DATETIME);
+        if (local && (split(sa.tx()) || split(sb.tx()))) {
+            // of nanosecond precision, two local values (W13): over the parts
+            return scalar(splitBetween(member, sa.tx(), sb.tx(), cls));
+        }
+        // (split values in the epoch-nanosecond carriage until W13's zoned leg)
         Tx x = legacy(sa.tx());
         Tx y = legacy(sb.tx());
         Zone ztx = x.kind() == Kind.ZONED_TIME ? zoneKnown(x, c.pos()) : null;
@@ -14672,6 +14710,67 @@ public final class CypherToPure {
             ValueSpecification nanos = times(1000, minus(micros, times(1_000_000, seconds)));
             return duration(cls, months, days, seconds, nanos);
         }), fine));
+    }
+
+    /** {@link #between} of two local values of which one is split (W13), over the parts: the whole months from a to
+     *  b (the calendar count, one back where stepping it overshoots b), then the whole days from there, then the
+     *  rest's seconds and nanoseconds -- the days' and the clocks' apart, so no nanosecond count of a long span
+     *  overflows; two times of day, the clocks' difference alone. A date is its midnight. */
+    private Tx splitBetween(TemporalMember member, Tx x, Tx y, String cls) {
+        boolean times = x.kind() == Kind.TIME;
+        Tx a = asSplit(times ? x : asDateTime(x));
+        Tx b = asSplit(times ? y : asDateTime(y));
+        List<Tx> inputs = times ? List.of(ofDay(a), ofDay(b)) : List.of(datePartOf(a), ofDay(a), datePartOf(b),
+                ofDay(b));
+        return SqlToPure.strict(Kind.DURATION, inputs, v -> {
+            if (times) {
+                ValueSpecification rest = integer(minus(v.get(1), v.get(0)));
+                return member == TemporalMember.BETWEEN || member == TemporalMember.IN_SECONDS
+                        ? duration(cls, lit(0), lit(0), quotient(rest, NANOS), integer(call("mod", rest, lit(NANOS))))
+                        : duration(cls, lit(0), lit(0), lit(0), lit(0));
+            }
+            ValueSpecification from = v.get(0);
+            ValueSpecification clock = v.get(1);
+            ValueSpecification toDate = v.get(2);
+            ValueSpecification toClock = v.get(3);
+            ValueSpecification months = lit(0);
+            if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_MONTHS) {
+                months = wholeOfParts(from, clock, toDate, toClock, "MONTHS");
+                from = day(call("adjust", from, integer(months), unit("MONTHS")));
+            }
+            if (member == TemporalMember.IN_MONTHS) {
+                return duration(cls, months, lit(0), lit(0), lit(0));
+            }
+            ValueSpecification days = lit(0);
+            if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_DAYS) {
+                days = wholeOfParts(from, clock, toDate, toClock, "DAYS");
+                from = day(call("adjust", from, integer(days), days()));
+            }
+            if (member == TemporalMember.IN_DAYS) {
+                return duration(cls, lit(0), days, lit(0), lit(0));
+            }
+            ValueSpecification clocks = integer(minus(toClock, clock));
+            ValueSpecification seconds = integer(plus(times(86_400L, call("dateDiff", from, toDate, days())),
+                    quotient(clocks, NANOS)));
+            return duration(cls, months, days, seconds, integer(call("mod", clocks, lit(NANOS))));
+        });
+    }
+
+    /** {@link #wholeUnits} over parts: the calendar count of {@code unit} from the date {@code from} to {@code to},
+     *  one back when stepping it from {@code from} (at {@code clock}) passes {@code to} (at {@code toClock})
+     *  forward, one on when it falls short backward. */
+    private static ValueSpecification wholeOfParts(ValueSpecification from, ValueSpecification clock,
+            ValueSpecification to, ValueSpecification toClock, String unitName) {
+        ValueSpecification count = call("dateDiff", from, to, unit(unitName));
+        ValueSpecification stepped = day(call("adjust", from, integer(count), unit(unitName)));
+        ValueSpecification past = call("or", call("greaterThan", stepped, to), call("and", call("equal", stepped, to),
+                call("greaterThan", clock, toClock)));
+        ValueSpecification under = call("or", call("lessThan", stepped, to), call("and", call("equal", stepped, to),
+                call("lessThan", clock, toClock)));
+        ValueSpecification onward = call("or", call("greaterThan", to, from), call("and", call("equal", to, from),
+                call("greaterThanEqual", toClock, clock)));
+        return call("if", onward, thunk(call("if", past, thunk(minus(count, lit(1))), thunk(count))),
+                thunk(call("if", under, thunk(plus(count, lit(1))), thunk(count))));
     }
 
     private static boolean isDateLike(Kind k) {
@@ -16266,14 +16365,13 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: expected Date, LocalDateTime or DateTime but was " + (source
                     instanceof Scalar s ? cypherType(s.tx().kind()) : "a list or map"), c.args().get(1).pos());
         }
-        // (a split value in the epoch-nanosecond carriage until W13's truncation leg)
-        Tx t = legacy(((Scalar) source).tx());
+        Tx t = ((Scalar) source).tx();
         if (unit.time() && t.kind() == Kind.DATE) {
             throw CypherErrors.invalid("Unit too small for truncation: " + chronoName(unit), c.args().get(1).pos());
         }
         Zone sourceZone = Zone.UTC;
         if (t.kind() == Kind.TIME) {
-            t = atEpoch(t);
+            t = split(t) ? t : atEpoch(t);
         } else if (t.kind() == Kind.ZONED) {
             sourceZone = zoneKnown(t, c.args().get(1).pos());
             t = localOf(t, sourceZone);
@@ -16324,13 +16422,22 @@ public final class CypherToPure {
                 over.put(k, s.tx());
             }
         }
+        Kind result = toTime ? Kind.TIME : withTime ? Kind.DATETIME : Kind.DATE;
+        boolean sourceNanos = nanos(t);
+        boolean nanosField = nanosComponent(over.get(Component.NANOSECOND), c.pos());
+        if (sourceNanos || nanosField) {
+            // of nanosecond precision (W13): truncated over the wall time's parts (a zoned value's wall time read
+            // into them), the result split, a zoned one's instant converted after
+            Tx parts = splitTruncated(unit, asSplit(t), over, result);
+            if (toZonedTime) {
+                return scalar(zonedTimeOf(parts, written != null ? written : sourceZone));
+            }
+            return scalar(toZoned ? instantOf(parts, written != null ? written : sourceZone) : parts);
+        }
         List<Tx> inputs = new ArrayList<>();
         inputs.add(t);
         inputs.addAll(over.values());
         Set<Component> keys = over.keySet();
-        Kind result = toTime ? Kind.TIME : withTime ? Kind.DATETIME : Kind.DATE;
-        boolean sourceNanos = nanos(t);
-        boolean nanosField = nanosComponent(over.get(Component.NANOSECOND), c.pos());
         Tx truncated = withNanos(SqlToPure.strict(result, inputs, v -> {
             ValueSpecification x = v.get(0);
             Map<Component, ValueSpecification> o = new java.util.EnumMap<>(Component.class);
@@ -16380,6 +16487,73 @@ public final class CypherToPure {
             return scalar(zonedTimeOf(truncated, written != null ? written : sourceZone));
         }
         return scalar(toZoned ? instantOf(truncated, written != null ? written : sourceZone) : truncated);
+    }
+
+    /** A truncation of a split wall time (W13), as {@link #truncate} reads one: a unit of a day or more on the date
+     *  (the unit's start, a day of the week, quarter or year written over it as that many days on, the year, month
+     *  and day written over), the clock from midnight; a smaller unit on the clock, floored to the unit (a
+     *  millisecond's or microsecond's start keeping its fraction, written fields aside), its hour, minute and second
+     *  written over; the sub-second fields written added. A date is the date alone, a time of day the clock alone. */
+    private Tx splitTruncated(TruncateUnit unit, Tx wall, Map<Component, Tx> over, Kind result) {
+        List<Component> keys = new ArrayList<>(over.keySet());
+        boolean fine = unit == TruncateUnit.MILLISECOND || unit == TruncateUnit.MICROSECOND;
+        List<Tx> clockInputs = new ArrayList<>(List.of(ofDay(wall)));
+        clockInputs.addAll(over.values());
+        Tx clock = SqlToPure.strict(Kind.INTEGER, clockInputs, v -> {
+            Map<Component, ValueSpecification> o = components(new java.util.LinkedHashSet<>(keys), v, 1);
+            ValueSpecification n = v.get(0);
+            ValueSpecification zero = lit(0);
+            ValueSpecification start = !unit.time() ? zero : integer(minus(n, past(n, unitNanos(unit))));
+            ValueSpecification out = fine ? start : clockNanos(
+                    o.getOrDefault(Component.HOUR, unit.time() ? quotient(start, 3_600L * NANOS) : zero),
+                    o.getOrDefault(Component.MINUTE, unit == TruncateUnit.MINUTE || unit == TruncateUnit.SECOND
+                            ? quotient(past(start, 3_600L * NANOS), 60L * NANOS) : zero),
+                    o.getOrDefault(Component.SECOND, unit == TruncateUnit.SECOND
+                            ? quotient(past(start, 60L * NANOS), NANOS) : zero), null);
+            return integer(plus(out, scaled(1_000_000L, o.getOrDefault(Component.MILLISECOND, zero)),
+                    scaled(1000L, o.getOrDefault(Component.MICROSECOND, zero)), o.getOrDefault(Component.NANOSECOND,
+                    zero)));
+        });
+        if (result == Kind.TIME) {
+            return splitTime(clock);
+        }
+        List<Tx> dateInputs = new ArrayList<>(List.of(datePartOf(wall)));
+        dateInputs.addAll(over.values());
+        Tx date = SqlToPure.strict(Kind.DATE, dateInputs, v -> {
+            Map<Component, ValueSpecification> o = components(new java.util.LinkedHashSet<>(keys), v, 1);
+            ValueSpecification d = v.get(0);
+            if (fine) {
+                return d;
+            }
+            ValueSpecification start = unit.time() ? d : truncated(unit, d, false);
+            // a day of the week, quarter or year written over the unit's start: that many days on
+            for (Component positional : List.of(Component.DAY_OF_WEEK, Component.DAY_OF_QUARTER,
+                    Component.ORDINAL_DAY)) {
+                if (o.containsKey(positional)) {
+                    start = day(call("adjust", start, integer(minus(o.get(positional), lit(1))), days()));
+                }
+            }
+            if (!o.containsKey(Component.YEAR) && !o.containsKey(Component.MONTH) && !o.containsKey(Component.DAY)) {
+                return unit == TruncateUnit.DAY ? start : call("datePart", start);
+            }
+            return call("date", integer(o.getOrDefault(Component.YEAR, call("year", start))),
+                    integer(o.getOrDefault(Component.MONTH, call("monthNumber", start))),
+                    integer(o.getOrDefault(Component.DAY, call("dayOfMonth", start))));
+        });
+        return result == Kind.DATE ? date : splitDateTime(date, clock);
+    }
+
+    /** A clock unit's nanoseconds. */
+    private static long unitNanos(TruncateUnit unit) {
+        return switch (unit) {
+            case HOUR -> 3_600L * NANOS;
+            case MINUTE -> 60L * NANOS;
+            case SECOND -> NANOS;
+            case MILLISECOND -> 1_000_000L;
+            case MICROSECOND -> 1000L;
+            case MILLENNIUM, CENTURY, DECADE, YEAR, WEEK_YEAR, QUARTER, MONTH, WEEK, DAY ->
+                    throw new IllegalStateException("not a clock unit: " + unit);
+        };
     }
 
     /** The start of a value's unit, as the database computes it. */

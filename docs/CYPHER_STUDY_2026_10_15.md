@@ -5366,3 +5366,60 @@ moved back on either lane. The 16 cases of `lite/nanoparts.yaml`: 13 PASS and 3 
 answers them; `lite/temporal/nanos_year_outside_the_range_refused_by_name` (the year 1) passes on both lanes now,
 its name a leftover of §12.74 (renamed with leg 2's run). The rest of Postgres's nanosecond refusals (358 at render,
 38 at seeding) wait on the legs after: truncation (Temporal9, 262 rows) above all, most of it of zoned values.
+
+### 12.86 Nanosecond values as a date and a time of day, leg 2: durations, truncation, between (W13, 2026-10-18)
+
+- **What leg 2 spells over the parts** (§12.85's representation: a time of day its nanoseconds since midnight, a
+  date-time its date and those), each the database's integer and date arithmetic, over every year its DATE holds:
+  - **A duration added or subtracted** (`splitMoved`): the months, then the days on the date (a time of day has no
+    date to move); the seconds and nanoseconds on the clock, the seconds' whole days apart so no product overflows
+    (the seconds past whole days times a billion, a float product cast back: exact below 2^53, and DuckDB types a
+    literal-built slot 32 bits wide, whose integer product with a billion overflowed, measured); the clock's whole
+    days carried into the date (the floor of the database's float quotient, exact below 2^53, as §12.85's fields);
+    a time of day wrapping within its day, as Neo4j's does. A microsecond value moved by a nanosecond duration is
+    read into the parts first.
+  - **Truncation** (`splitTruncated`): a unit of a day or more on the date (the unit's start, as a microsecond
+    value's: §12.10), a day of the week, quarter or year written over it as that many days on, the year, month and
+    day written over it, the clock from midnight; a smaller unit on the clock, floored to the unit (the millisecond's
+    and microsecond's starts as the nanoseconds less their remainder), its hour, minute and second written over; the
+    sub-second fields written added. A zoned value's wall time is read into the parts, truncated, and its instant
+    converted after through the old carriage (the zoned values are leg 3's).
+  - **`duration.between`, `inMonths`, `inDays`, `inSeconds` of two local values, one of them split**
+    (`splitBetween`): the whole months from a to b (the calendar count, one back where stepping it from a passes b,
+    by date then clock), then the whole days from there, then the rest's seconds and nanoseconds -- the days' and the
+    clocks' apart (86,400 times the dates' distance in days, plus the clocks' difference's whole seconds), so no
+    nanosecond count of a long span overflows: from the year 1 to the year 9999 is 3.2e20 nanoseconds, past a long,
+    and 315,537,897,599 seconds, well inside one. Two times of day, the clocks' difference alone. A date is its
+    midnight.
+- **Found by the leg's own cases.**
+  - **Postgres read the year 1 as 2001.** A StrictDate literal reached the SQL as Pure spells it (`DATE
+    '1-01-01'`), and Postgres reads a leading field of fewer than three digits as no four-digit year (`'1-01-01'` as
+    2001-01-01, `'10-01-01'` as 2001-10-01, measured on the scratch server); DuckDB reads it as the year 1. The
+    lowering's date and timestamp literals (`MatchFold.dateLit`) write the year in ISO's four digits now (0 to 9999;
+    a year beyond keeps Pure's spelling). No other row needed it: the only cases writing a year below 1000 into SQL on
+    Postgres are nanosecond values (§12.74's), refused there until now.
+  - **The judge overflowed a long.** `CypherValues.durationSlots` summed a duration text's units as nanoseconds in a
+    long; Neo4j's `P9998Y11M30DT23H59M59.999999998S` is fine, but `PT87649415H59M59.999999998S` is 3.2e20
+    nanoseconds. The seconds and nanoseconds are split from the exact sum now (BigDecimal's division), each a long.
+- **What the bridge still carries** (§12.85's `legacy`): the zoned values and their arithmetic, truncation and
+  `between` (leg 3); lists, a map's Variant, `collect`, `min` and `max`, a returned grouping key, `IN` (leg 4).
+- **Pinned.** `lite/nanoparts.yaml`'s six new cases (truncation to each unit, with fields written over; durations,
+  at the years' ends; between, across the millennia), each judged by Neo4j; `lite/temporal`'s year-1 case renamed
+  `nanos_in_the_year_one` (it passes on both lanes since §12.85).
+
+#### 12.86.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 4995 | 3906 (from 3,900) | 0 | 0 | 0 | 266 | 767 | 56 |
+| Postgres | 4995 | 3602 (from 3,518) | 0 | 0 | 0 | 570 (from 648) | 767 | 56 |
+
+TCK agreement: DuckDB 3571 (unchanged: the TCK's local nanosecond rows passed there already, through the old
+carriage), Postgres 3220 → 3296, the 76 rows of local truncation and arithmetic: Temporal9/[1], [3], [4] (70: the
+truncation of local date-times and times to each unit, with fields written over), Temporal8/[2], [4] (6: local
+date-times and times moved by durations). Nothing moved back on either lane. The six new cases of
+`lite/nanoparts.yaml` PASS on each lane; on Postgres `lite/temporal/nanos_ordering` and `nanos_duration_fields`
+pass now too (a duration step and a `between` of local values). The rest of Postgres's nanosecond refusals of the TCK (250
+at render, 24 at seeding, 6 by year) are of zoned values above all (Temporal9's 192 zoned truncations, and zoned
+construction, selection, arithmetic and comparison in Temporal1, 3, 5, 6, 7 and 8), then lists and stored values
+(WithOrderBy1 and 2's 32): legs 3, 4 and 5. DuckDB's TCK refusals are the writes and the 8 by year.

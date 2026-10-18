@@ -3458,15 +3458,15 @@ tck/expressions/temporal/Temporal7/[6] Should compare durations for equality #8	
 tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #1	PASS	PASS
 tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #2	PASS	PASS
 tck/expressions/temporal/Temporal8/[1] Should add or subtract duration to or from date #3	PASS	PASS
-tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #1	PASS	REFUSED
-tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #2	PASS	REFUSED
-tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #1	PASS	PASS
+tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #2	PASS	PASS
+tck/expressions/temporal/Temporal8/[2] Should add or subtract duration to or from local time #3	PASS	PASS
 tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #1	PASS	REFUSED
 tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #2	PASS	REFUSED
 tck/expressions/temporal/Temporal8/[3] Should add or subtract duration to or from time #3	PASS	REFUSED
-tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #1	PASS	REFUSED
-tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #2	PASS	REFUSED
-tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #3	PASS	REFUSED
+tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #1	PASS	PASS
+tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #2	PASS	PASS
+tck/expressions/temporal/Temporal8/[4] Should add or subtract duration to or from local date time #3	PASS	PASS
 tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #1	PASS	REFUSED
 tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #2	PASS	REFUSED
 tck/expressions/temporal/Temporal8/[5] Should add or subtract duration to or from date time #3	PASS	REFUSED
@@ -3486,53 +3486,53 @@ tck/expressions/temporal/Temporal9/[1] Should truncate date #1	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #2	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #3	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #4	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #5	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #6	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #5	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #6	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #7	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #8	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #9	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #10	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #11	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #12	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #11	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #12	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #13	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #14	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #15	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #16	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #17	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #18	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #17	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #18	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #19	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #20	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #21	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #22	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #23	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #24	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #23	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #24	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #25	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #26	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #27	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #28	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #29	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #30	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #29	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #30	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #31	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #32	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #33	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #34	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #35	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #36	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #35	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #36	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #37	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #38	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #39	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #40	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #41	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #42	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #41	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #42	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #43	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #44	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #45	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[1] Should truncate date #46	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #47	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #48	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #47	PASS	PASS
+tck/expressions/temporal/Temporal9/[1] Should truncate date #48	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #49	PASS	PASS
 tck/expressions/temporal/Temporal9/[1] Should truncate date #50	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[1] Should truncate date #51	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[1] Should truncate date #51	PASS	PASS
 tck/expressions/temporal/Temporal9/[2] Should truncate datetime #1	PASS	PASS
 tck/expressions/temporal/Temporal9/[2] Should truncate datetime #2	PASS	PASS
 tck/expressions/temporal/Temporal9/[2] Should truncate datetime #3	PASS	PASS
@@ -3642,118 +3642,118 @@ tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #1	PASS	PAS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #2	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #3	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #4	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #5	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #6	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #5	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #6	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #7	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #8	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #9	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #10	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #11	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #12	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #11	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #12	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #13	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #14	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #15	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #16	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #17	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #18	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #17	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #18	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #19	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #20	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #21	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #22	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #23	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #24	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #23	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #24	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #25	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #26	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #27	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #28	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #29	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #30	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #29	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #30	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #31	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #32	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #33	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #34	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #35	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #36	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #35	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #36	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #37	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #38	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #39	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #40	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #41	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #42	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #41	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #42	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #43	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #44	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #45	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #46	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #47	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #48	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #49	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #47	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #48	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #49	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #50	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #51	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #52	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #53	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #54	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #53	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #54	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #55	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #56	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #57	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #58	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #57	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #58	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #59	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #60	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #61	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #62	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #61	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #62	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #63	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #64	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #65	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #66	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #65	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #66	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #67	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #68	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #69	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #70	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #69	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #70	PASS	PASS
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #71	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #72	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #73	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #74	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #1	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #2	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #3	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #4	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #73	PASS	PASS
+tck/expressions/temporal/Temporal9/[3] Should truncate localdatetime #74	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #1	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #2	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #3	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #4	PASS	PASS
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #5	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #6	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #7	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #8	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #9	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #10	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #7	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #8	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #9	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #10	PASS	PASS
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #11	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #12	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #13	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #14	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #15	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #16	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #17	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #18	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #15	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #16	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #17	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #18	PASS	PASS
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #19	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #20	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #21	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #22	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #23	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #24	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #25	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #26	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #23	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #24	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #25	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #26	PASS	PASS
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #27	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #28	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #29	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #30	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #31	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #32	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #33	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #34	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #31	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #32	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #33	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #34	PASS	PASS
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #35	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #36	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #37	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #38	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #39	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #40	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #41	PASS	REFUSED
-tck/expressions/temporal/Temporal9/[4] Should truncate localtime #42	PASS	REFUSED
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #39	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #40	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #41	PASS	PASS
+tck/expressions/temporal/Temporal9/[4] Should truncate localtime #42	PASS	PASS
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #43	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[4] Should truncate localtime #44	PASS	REFUSED
 tck/expressions/temporal/Temporal9/[5] Should truncate time #1	PASS	REFUSED
@@ -4289,6 +4289,12 @@ lite/nanoparts/chosen_by_case_and_coalesce	PASS	PASS
 lite/nanoparts/a_clock_without_its_minute	BOTH_ERROR	BOTH_ERROR
 lite/nanoparts/a_date_time_without_its_day	BOTH_ERROR	BOTH_ERROR
 lite/nanoparts/a_date_without_its_month	BOTH_ERROR	BOTH_ERROR
+lite/nanoparts/truncated_to_each_unit	PASS	PASS
+lite/nanoparts/truncated_with_fields_written_over	PASS	PASS
+lite/nanoparts/moved_by_durations	PASS	PASS
+lite/nanoparts/moved_at_the_years_ends	PASS	PASS
+lite/nanoparts/between_the_parts	PASS	PASS
+lite/nanoparts/between_across_the_millennia	PASS	PASS
 lite/nodes/node_of_one_class	PASS	PASS
 lite/nodes/nodes_of_every_class	PASS	PASS
 lite/nodes/node_with_order_and_limit	PASS	PASS
@@ -4756,13 +4762,13 @@ lite/temporal/nanos_fields	PASS	REFUSED
 lite/temporal/nanos_selection	PASS	REFUSED
 lite/temporal/nanos_truncate	PASS	REFUSED
 lite/temporal/nanos_comparison	PASS	REFUSED
-lite/temporal/nanos_ordering	PASS	REFUSED
+lite/temporal/nanos_ordering	PASS	PASS
 lite/temporal/nanos_arithmetic	PASS	REFUSED
 lite/temporal/nanos_between	PASS	REFUSED
 lite/temporal/nanos_zones	PASS	REFUSED
 lite/temporal/nanos_time_of_a_named_zone_datetime	PASS	REFUSED
-lite/temporal/nanos_year_outside_the_range_refused_by_name	PASS	PASS
-lite/temporal/nanos_duration_fields	PASS	REFUSED
+lite/temporal/nanos_in_the_year_one	PASS	PASS
+lite/temporal/nanos_duration_fields	PASS	PASS
 lite/temporal/nanos_component_of_the_row_refused_by_name	REFUSED	REFUSED
 lite/temporal/duration_fraction_of_a_month_cascades	PASS	PASS
 lite/temporal/duration_fraction_of_days_and_weeks	PASS	PASS

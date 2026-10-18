@@ -11824,3 +11824,17 @@ the oracle check 0 problems; the chain's 40 guard targets green (the pins moved 
 26 → 28, NOT_UPSTREAM 54 → 56, the FQN literals 332 → 334; the generated catalog, claims and ratchets regenerated,
 with them two generated files earlier legs left stale: the dialect-capability tables' `LIST_DISTINCT` row and
 parser-equivalence's measured `own_corpus.matched`).
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-fourth landing — nanosecond values as their parts, leg 2: durations, truncation, between
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.86, the plan's W13 leg 2. Over §12.85's parts (a
+time of day its nanoseconds since midnight, a date-time its date and those): a duration added or subtracted (the
+months and days on the date, the seconds and nanoseconds on the clock, its whole days carried), truncation to every
+unit with fields written over, `duration.between` and its `in` forms of two local values (the days' and the clocks'
+distances apart, so a span of 9998 years overflows nothing). Found by the leg's cases and fixed: the lowering's date
+and timestamp literals write a year below 1000 in ISO's four digits (Postgres read `DATE '1-01-01'` as 2001), and
+the judge's duration slots no longer sum nanoseconds in a long. `lite/nanoparts.yaml` (22 cases, 6 new);
+`lite/temporal`'s year-1 case renamed `nanos_in_the_year_one`. Both lanes in update mode, FAIL/BUG/ERROR at zero
+(DuckDB PASS 3906 / REFUSED 266 / BOTH_ERROR 767 / SKIP 56; Postgres PASS 3602 / REFUSED 570 / BOTH_ERROR 767 / SKIP
+56, of 4995 cases), TCK agreement DuckDB 3571 (unchanged), Postgres 3220 → 3296 (Temporal9's local truncations,
+Temporal8's local arithmetic); the oracle check 0 problems; the chain's 40 guard targets green.

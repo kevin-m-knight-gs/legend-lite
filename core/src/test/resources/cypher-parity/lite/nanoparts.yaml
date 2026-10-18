@@ -1,7 +1,8 @@
 # The #Cypher{...}# island's local times and date-times of nanosecond precision as their parts (the TCK-to-zero plan's
-# W13, leg 1, docs/CYPHER_STUDY_2026_10_15.md §12.85): a time of day its nanoseconds since midnight, a date-time its
-# date and those, every operation the database's integer and date arithmetic, so every lane computes them, over every
-# year its DATE holds; a returned value the ISO text the database writes, read as the value it spells. Each case is
+# W13, legs 1 and 2, docs/CYPHER_STUDY_2026_10_15.md §12.85, §12.86): a time of day its nanoseconds since midnight, a
+# date-time its date and those, every operation the database's integer and date arithmetic (durations, truncation and
+# duration.between among them), so every lane computes them, over every year its DATE holds; a returned value the ISO
+# text the database writes, read as the value it spells. Each case is
 # judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/nanoparts/*'),
 # keyed lite/nanoparts/<id>.
 tests:
@@ -37,3 +38,15 @@ tests:
     cypher: "RETURN localdatetime({year: 2000, month: 1, hour: 1, minute: 0, second: 0, nanosecond: 1}) AS d"
   - id: a_date_without_its_month
     cypher: "RETURN date({year: 2000, day: 5}) AS d"
+  - id: truncated_to_each_unit
+    cypher: "WITH localdatetime('2017-10-11T12:31:14.645876123') AS d RETURN localdatetime.truncate('millennium', d) AS a, localdatetime.truncate('century', d) AS b, localdatetime.truncate('decade', d) AS c, localdatetime.truncate('year', d) AS e, localdatetime.truncate('weekYear', d) AS f, localdatetime.truncate('quarter', d) AS g, localdatetime.truncate('month', d) AS h, localdatetime.truncate('week', d) AS i, localdatetime.truncate('day', d) AS j, localdatetime.truncate('hour', d) AS k, localdatetime.truncate('minute', d) AS l, localdatetime.truncate('second', d) AS m, localdatetime.truncate('millisecond', d) AS n, localdatetime.truncate('microsecond', d) AS o"
+  - id: truncated_with_fields_written_over
+    cypher: "WITH localdatetime('2017-10-11T12:31:14.645876123') AS d, localtime('12:31:14.645876123') AS t RETURN localdatetime.truncate('week', d, {dayOfWeek: 2, nanosecond: 2}) AS a, localdatetime.truncate('hour', d, {minute: 5, nanosecond: 7}) AS b, localtime.truncate('second', t, {millisecond: 3}) AS c, localtime.truncate('day', t, {nanosecond: 2}) AS e, date.truncate('month', d) AS f, localtime.truncate('microsecond', d) AS g, localdatetime.truncate('month', d, {day: 5}) AS h"
+  - id: moved_by_durations
+    cypher: "WITH localdatetime('1984-10-11T23:59:59.999999999') AS d, localtime('23:59:59.999999999') AS t RETURN d + duration({nanoseconds: 1}) AS a, d - duration({days: 1, nanoseconds: 999999999}) AS b, d + duration({months: 4, seconds: -86401}) AS c, t + duration({nanoseconds: 2}) AS e, t - duration({hours: 25}) AS f, localdatetime('2000-01-31T00:00:00.000000001') + duration({months: 1}) AS g"
+  - id: moved_at_the_years_ends
+    cypher: "RETURN localdatetime({year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, nanosecond: 1}) + duration({days: 1, nanoseconds: 2}) AS a, localdatetime({year: 9999, month: 12, day: 31, hour: 23, minute: 59, second: 59, nanosecond: 999999998}) - duration({hours: 47, nanoseconds: 999999999}) AS b"
+  - id: between_the_parts
+    cypher: "WITH localdatetime('1984-10-11T12:31:14.645876123') AS a, localdatetime('2015-07-21T21:40:32.142000009') AS b, localtime('12:31:14.645876123') AS t, localtime('09:00:00.000000001') AS u RETURN duration.between(a, b) AS d, duration.inMonths(a, b) AS m, duration.inDays(a, b) AS e, duration.inSeconds(a, b) AS s, duration.between(b, a) AS r, duration.between(t, u) AS tu, duration.inSeconds(u, t) AS ut, duration.between(date('1984-10-11'), a) AS da"
+  - id: between_across_the_millennia
+    cypher: "RETURN duration.inSeconds(localdatetime({year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, nanosecond: 1}), localdatetime({year: 9999, month: 12, day: 31, hour: 23, minute: 59, second: 59, nanosecond: 999999999})) AS s, duration.between(localdatetime('0001-01-01T00:00:00.000000001'), localdatetime('9999-12-31T23:59:59.999999999')) AS d"

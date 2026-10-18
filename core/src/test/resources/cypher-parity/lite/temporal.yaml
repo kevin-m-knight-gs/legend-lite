@@ -278,7 +278,7 @@ tests:
     cypher: "WITH datetime('2017-03-26T01:30:00.123456789+01:00[Europe/Stockholm]') AS z RETURN z.nanosecond AS n, z.hour AS h, localdatetime({datetime: z}) AS l, datetime({datetime: z, timezone: '+05:00'}) AS c, datetime.truncate('day', z) AS t, z.epochSeconds AS e, z.offsetMinutes AS o, localtime(z) AS lt"
   - id: nanos_time_of_a_named_zone_datetime
     cypher: "RETURN time(datetime('2017-03-26T01:30:00.123456789+01:00[Europe/Stockholm]')) AS tt"
-  - id: nanos_year_outside_the_range_refused_by_name
+  - id: nanos_in_the_year_one
     cypher: "RETURN localdatetime({year: 1, month: 1, day: 1, hour: 1, minute: 1, second: 1, nanosecond: 1}) AS a"
   - id: nanos_duration_fields
     cypher: "WITH duration({seconds: 1, nanoseconds: 1}) AS d RETURN d.nanoseconds, d.nanosecondsOfSecond, d.microsecondsOfSecond, duration('PT1.000000001S') = d AS eq, duration.between(localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('1984-10-11T12:31:14.645876124')).nanosecondsOfSecond AS one"

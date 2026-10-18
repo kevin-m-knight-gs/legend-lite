@@ -474,6 +474,15 @@ rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (be
   two-part shape contained, so the legs go on. Next, leg 2: truncation (Temporal9's 262 Postgres rows, most of zoned
   values, so the zoned leg follows close), duration arithmetic, `duration.between`; with it the rename of
   `lite/temporal/nanos_year_outside_the_range_refused_by_name`, which passes now.
+- Leg 2 LANDED 2026-10-18 (the study's §12.86, GATES' eighty-fourth landing; TCK agreement DuckDB 3571 → 3571,
+  Postgres 3220 → 3296; DuckDB PASS 3900 → 3906, Postgres 3518 → 3602): over the parts, a duration added or
+  subtracted (the months and days on the date, the seconds and nanoseconds on the clock, its whole days carried),
+  truncation to every unit with fields written over, `duration.between` and its `in` forms of two local values (the
+  days' and the clocks' distances apart: 9998 years overflow nothing). Found by its cases: Postgres read a year below
+  1000 written in fewer digits as another (`DATE '1-01-01'` as 2001; the lowering writes ISO's four digits now), and
+  the judge's duration slots overflowed a long. The year-1 case renamed `nanos_in_the_year_one`. Next, leg 3: the
+  zoned values (Temporal9's 192 zoned truncations on Postgres above all), their offsets, named zones and the epoch
+  functions, over UTC parts with the zone beside.
 
 ## 3. Decisions asked of the user
 
