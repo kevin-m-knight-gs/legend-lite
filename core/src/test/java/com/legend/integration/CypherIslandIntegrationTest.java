@@ -193,6 +193,14 @@ class CypherIslandIntegrationTest {
         assertEquals(List.of("Alice|Bob", "Bob|Alice"), rows(run("MATCH (a:Person)-[:firm]->(f:Firm),"
                 + " (b:Person)-[:firm]->(g:Firm) WHERE f = g AND a <> b RETURN a.name AS an, b.name AS bn"
                 + " ORDER BY an")));
+        // (2026-10-18, the writes judge's read-back, the study's §12.94) elementId(x) returns it: a node's, an
+        // association relationship's ordered pair of its ends' (S74), null for a node an OPTIONAL MATCH never found
+        assertEquals(List.of("test::Person:1|firm:test::Person:1>test::Firm:1|test::Firm:1",
+                        "test::Person:3|firm:test::Person:3>test::Firm:2|test::Firm:2"),
+                rows(run("MATCH (p:Person)-[r:firm]->(f:Firm) WHERE p.name IN ['Alice', 'Charlie'] RETURN"
+                        + " elementId(p) AS p, elementId(r) AS r, elementId(f) AS f ORDER BY p")));
+        assertEquals(List.of("Diana|null"), rows(run("MATCH (p:Person {name: 'Diana'}) OPTIONAL MATCH"
+                + " (p)-[:firm]->(f:Firm) RETURN p.name AS n, elementId(f) AS f")));
         // a class with neither key has no identity: a compile error naming it
         String keyless = MODEL.replace("Table T_CITY (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))",
                 "Table T_CITY (ID INTEGER, NAME VARCHAR(100))");

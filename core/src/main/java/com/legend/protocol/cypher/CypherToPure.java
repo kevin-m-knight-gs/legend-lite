@@ -10418,6 +10418,17 @@ public final class CypherToPure {
         if (family != null) {
             return temporalCall(c, fn, family, scope);
         }
+        if (fn.equals("elementid") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var v) {
+            // of a node or a relationship: lite's identity of it (S76: '<class>:<key>' of a node or an edge class's
+            // instance; S74: '<type>:<source>><target>' of a relationship over a property or association), null for
+            // one an OPTIONAL MATCH never found; the text is lite's, as Neo4j's is its store's, so the two agree as
+            // identities and never as texts (the writes judge reads a graph back by it, the study's §12.94). One
+            // without an identity of its own (a relationship of a to-many hop) is refused by name below
+            Tx id = scope.identity(v);
+            if (id != null) {
+                return scalar(id);
+            }
+        }
         if (fn.equals("type") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var v) {
             // of a relationship: its type, a text (the study's §12.19)
             Tx type = scope.relType(v);
