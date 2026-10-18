@@ -267,6 +267,41 @@ export const DEFAULT_MAX_ROWS = 1000;
  * --ag-font-size. The cell font comes from the column's own font
  * configuration and is a point smaller than the chrome around it.
  */
+/**
+ * EVERY SETTING BY NAME: a grid's, a column's and the grid's appearance's -- what a host's patch may set (headless
+ * configure refuses any other, never keeping it). The compiler holds each list to its type, both ways: a setting added
+ * to the type and not here, or a name here the type has not, fails the build.
+ */
+export const CUBE_SETTINGS = {
+  reportTitle: true, showRootAggregation: true, showGroupedColumns: true, showDragZones: true, showTitleBar: true,
+  showLeafCount: true, leafCountMode: true, treeColumnSort: true, initialExpandToLevel: true, maxRows: true,
+  showTruncationWarning: true, appearance: true, showSelectionStats: true, pivotStatisticColumnName: true,
+  pivotStatisticColumnPlacement: true, pivotMeasuresFirst: true, dimensions: true, columns: true, columnOrder: true,
+} as const satisfies Record<keyof CubeConfiguration, true>;
+
+/** The settings a configuration always has (its type's required keys): cleared, each takes its product default
+ *  (withSettings), and a saved cube never unsets one (readCube). The compiler holds the list to the type, both ways. */
+type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T];
+export const REQUIRED_SETTINGS = {
+  showRootAggregation: true, showGroupedColumns: true, showDragZones: true, showTitleBar: true, showLeafCount: true,
+  treeColumnSort: true, showTruncationWarning: true, appearance: true, showSelectionStats: true, columns: true,
+} as const satisfies Record<RequiredKeys<CubeConfiguration>, true>;
+
+export const COLUMN_SETTINGS = {
+  displayName: true, kind: true, aggregateFn: true, aggregationParameters: true, hidden: true, blurred: true,
+  pinned: true, widthMode: true, width: true, minWidth: true, maxWidth: true, format: true, appearance: true,
+  heatmap: true, excludedFromPivot: true, pivotSortDirection: true, pivotStatisticColumnFunction: true,
+  displayAsLink: true, linkLabelParameter: true,
+} as const satisfies Record<keyof ColumnConfiguration, true>;
+
+export const APPEARANCE_SETTINGS = {
+  fontFamily: true, fontSize: true, bold: true, italic: true, underline: true, strikethrough: true, textAlign: true,
+  fontCase: true, normalForeground: true, negativeForeground: true, zeroForeground: true, errorForeground: true,
+  normalBackground: true, negativeBackground: true, zeroBackground: true, errorBackground: true,
+  showHorizontalGridLines: true, showVerticalGridLines: true, gridLineColor: true, alternateRowsStandardMode: true,
+  alternateRows: true, alternateRowsColor: true, alternateRowsCount: true,
+} as const satisfies Record<keyof GridAppearance, true>;
+
 export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   /*
    * OFF, as theirs is (DataCubeConfiguration.showRootAggregation =
@@ -371,7 +406,29 @@ export function withSettings(
   config: CubeConfiguration,
   patch: Patch<CubeConfiguration>,
 ): CubeConfiguration {
-  return prune<CubeConfiguration>({ ...config, ...patch });
+  const next = prune<CubeConfiguration>({ ...config, ...patch });
+  // a setting every grid has, cleared, is its product default again: unset, every reader would take it as off
+  const keys = Object.keys(REQUIRED_SETTINGS) as (keyof typeof REQUIRED_SETTINGS)[];
+  const restored = Object.fromEntries(keys.filter((k) => next[k] === undefined).map((k) => [k, DEFAULT_CONFIGURATION[k]]));
+  return { ...next, ...restored };
+}
+
+/**
+ * A configuration patch as a host applies one (CubeApp.applyConfiguration, Python's Grid.configure): its settings by
+ * withSettings, the grid-wide appearance by withAppearance and each column's by withColumn, each merged into what it
+ * has. `columns` and `appearance` are split out rather than passed through: withSettings prunes undefined keys and
+ * replaces the rest, so `columns: undefined` would delete the column map, and a part of the appearance would replace
+ * all of it. Neither is cleared whole -- a grid always has an appearance; each setting is cleared by its own undefined.
+ */
+export function withConfiguration(
+  config: CubeConfiguration,
+  patch: Patch<CubeConfiguration>,
+): CubeConfiguration {
+  const { columns, appearance, ...settings } = patch;
+  let next = Object.keys(settings).length > 0 ? withSettings(config, settings) : config;
+  if (appearance !== undefined) next = withAppearance(next, appearance);
+  for (const [name, cfg] of Object.entries(columns ?? {})) next = withColumn(next, name, cfg);
+  return next;
 }
 
 /** Apply a patch to the grid-wide appearance. */
@@ -638,8 +695,11 @@ export function applyToSnapshot(
 ): CubeSnapshot {
   const columns: ColumnSpec[] = snapshot.columns.map((spec) => {
     const c = columnConfig(config, spec.name);
+    // kept out of the pivot as the aggregate is: the configuration's alone, so a setting cleared there (Column
+    // Properties' box unticked) leaves the query too -- each change is folded into the query folded before it
+    const { excludedFromPivot: _previous, ...rest } = withoutAggregate(spec);
     const next: ColumnSpec = {
-      ...withoutAggregate(spec),
+      ...rest,
       ...(c.kind !== undefined ? { kind: c.kind } : {}),
       ...(c.excludedFromPivot !== undefined
         ? { excludedFromPivot: c.excludedFromPivot }
@@ -655,7 +715,8 @@ export function applyToSnapshot(
     ...aggregateOf(columnConfig(config, d.name)),
   }));
   const {
-    maxRows: _previousLimit, pivotTotal: _previousTotal, pivotSort: _previousSort, ...unlimited
+    maxRows: _previousLimit, pivotTotal: _previousTotal, pivotSort: _previousSort, keepGroupedColumns: _previousKeep,
+    ...unlimited
   } = snapshot;
   // Horizontal Pivots > each key's direction: the order of its VALUES
   // across the header, which the values query asks the database for.

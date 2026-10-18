@@ -14,10 +14,11 @@
 // an expensive way to find out.
 
 import type { Dimension } from '../dimensions.ts';
+import { groupableColumns } from '../grid-edits.ts';
 import { button, textInput } from './form.ts';
 import {
-  groupableColumns,
   panelShell,
+  selectable,
   selectorInto,
   type PanelBuilder,
 } from './panel-kit.ts';
@@ -159,7 +160,7 @@ export const dimensionsPanel: PanelBuilder = (ctx) => {
 
     const selector = selectorInto(
       ctx,
-      { all: groupableColumns(draft), selected: active.columns },
+      { all: selectable(groupableColumns(draft)), selected: active.columns },
       (columns) => {
         ctx.setDimensions(live().map((d, i) => (i === cursor.index ? { ...d, columns: [...columns] } : d)));
         // the list's count follows the hierarchy (the panel is not rebuilt)

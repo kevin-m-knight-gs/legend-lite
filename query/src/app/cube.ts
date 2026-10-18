@@ -79,7 +79,7 @@ export async function openCube(app: AppContext, session: Session, host: HTMLElem
   }
   const columns = await sourceColumns((rows.planner ?? rows.runner)!, source);
   const snapshot: CubeSnapshot = {
-    source: { query: source }, columns, derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1,
+    source: { query: source }, columns, derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
   };
   return new CubeApp(host, snapshot, {
     ...rows,

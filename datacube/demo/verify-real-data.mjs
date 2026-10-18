@@ -40,15 +40,10 @@ const EXPECT = fixture ? fixture.expect : JSON.parse(process.env.EXPECT ?? '{}')
 
 /** A Parquet file of the demo's eight columns, and DuckDB's per-region total of notional. */
 async function buildFixture() {
-  const { engineClientRequire } = await import('../../engine-client/src/node-require.ts');
+  const { startNodeDuckDb } = await import('../../engine-client/src/node-require.ts');
+  const { runfilesFromEnv } = await import('../../tools/js/runfiles.mts');
   const path = await import('node:path');
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   const conn = db.connect();
   // regions the demo never generates, so the grid cannot pass by showing the demo's own rows
   conn.query(`CREATE TABLE t AS SELECT
@@ -130,14 +125,16 @@ try {
     // column, when shown, must say the same. Money renders to whole dollars, so each cell is
     // off by under a dollar: the tolerance is a dollar per cell.
     const money = (t) => Number(t.replace(/[$,()]/g, '')) * (/^\(/.test(t) ? -1 : 1);
-    const years = row.filter((c) => /^\d{4}__\|__/.test(c.column));
+    // notional's cells: the pivot spreads every measure column (a grid's aggregates are its Column Properties), and
+    // DuckDB's total is notional's
+    const years = row.filter((c) => /^\d{4}__\|__notional(~\d+)?$/.test(c.column));
     const sum = years.reduce((a, c) => a + money(c.text), 0);
     const tolerance = Math.max(2, years.length);
     const ok = years.length > 0 && Math.abs(sum - total) <= tolerance;
     console.log(`  ${ok ? 'MATCH ' : 'DIFFER'} ${region}: grid ${sum} over ${years.length} years`
       + ` vs duckdb ${total}`);
     if (!ok) failed = true;
-    const shown = row.find((c) => c.column.startsWith('__pivot_total__|__'));
+    const shown = row.find((c) => c.column === '__pivot_total__|__notional');
     if (shown && Math.abs(money(shown.text) - total) > tolerance) {
       console.log(`FAIL: ${region}'s Total column says ${shown.text}, duckdb ${total}`);
       failed = true;

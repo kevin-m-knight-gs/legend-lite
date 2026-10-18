@@ -6,18 +6,18 @@
 // looking at the answer.
 
 import assert from 'node:assert/strict';
-import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
-import path from 'node:path';
+import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../../src/app.ts';
-import { DEFAULT_CONFIGURATION } from '../../src/config.ts';
+import { DEFAULT_CONFIGURATION, applyToSnapshot, fromSnapshot } from '../../src/config.ts';
+import { measuresAsColumns } from '../../src/grid-edits.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
 import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import type { CubeSnapshot } from '../../src/snapshot.ts';
+import type { QuerySnapshot, Measure, } from '../../src/snapshot.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { PlanError } from '../../src/planner.ts';
 import { catalogColumns } from '../../src/upload.ts';
@@ -26,7 +26,7 @@ import { familyOf } from '../../../engine-client/src/types.ts';
 import { toCsv } from '../../src/export.ts';
 import { selectionStats } from '../../src/selection.ts';
 import { accessor, col, fn, lambda, lit, times, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
+import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -108,7 +108,7 @@ async function quiet(engine: Watched): Promise<void> {
   }
 }
 
-async function openCube(snapshot: CubeSnapshot, configuration = DEFAULT_CONFIGURATION): Promise<{
+async function openCube(snapshot: QuerySnapshot, configuration = DEFAULT_CONFIGURATION): Promise<{
   app: CubeApp; engine: Watched; errors: string[]; root: HTMLElement; dom: JSDOM;
   downloads: [string, string, string | Uint8Array][];
 }> {
@@ -119,10 +119,16 @@ async function openCube(snapshot: CubeSnapshot, configuration = DEFAULT_CONFIGUR
   const engine = new Watched(new DuckDbEngine(conn));
   const errors: string[] = [];
   const downloads: [string, string, string | Uint8Array][] = [];
-  const app = new CubeApp(root, snapshot, {
+  // the measures as a grid holds them -- its columns' Aggregation and calculated columns of their own names
+  // (grid-edits.ts measuresAsColumns, as a cube saved with a list is made on open), folded as an opener takes them
+  // its settings read back first, as the app opens a snapshot (app.ts: fromSnapshot -- a row cap the cube carries)
+  const { measures = [], ...grid } = snapshot;
+  const made = measuresAsColumns({ snapshot: grid, config: fromSnapshot(grid, configuration) }, measures);
+  assert.equal(made.made.length, measures.length, made.notes.join('; '));
+  const app = new CubeApp(root, applyToSnapshot(made.draft.snapshot, made.draft.config), {
     engine,
     planner,
-    configuration,
+    configuration: made.draft.config,
     onStatus: (text, kind) => { if (kind === 'error') errors.push(text); },
     download: (n, m, t) => downloads.push([n, m, t]),
   });
@@ -132,7 +138,7 @@ async function openCube(snapshot: CubeSnapshot, configuration = DEFAULT_CONFIGUR
 }
 
 const SOURCE = accessor('typed::DB', 'T');
-const COLUMNS: CubeSnapshot['columns'] = [
+const COLUMNS: QuerySnapshot['columns'] = [
   { name: 'region', type: 'String', kind: 'dimension' },
   { name: 'qty', type: 'Integer', kind: 'measure' },
   { name: 'big', type: 'Integer', kind: 'measure' },
@@ -144,13 +150,7 @@ const COLUMNS: CubeSnapshot['columns'] = [
 ];
 
 before(async () => {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   conn = db.connect() as ArrowishConnection;
   const local = new DuckDbEngine(conn);
   await local.run(`CREATE TABLE T (region VARCHAR(32), qty INTEGER, big BIGINT, amount DECIMAL(10,2),
@@ -201,7 +201,9 @@ describe('step 1: types from the compiler', () => {
         { name: 'sum_qty', column: 'qty', fn: 'sum' },
         { name: 'sum_amount', column: 'amount', fn: 'sum' },
         { name: 'avg_price', column: 'price', fn: 'average' },
-        { name: 'n', column: 'flag', fn: 'count' },
+        // a count is offered on a number column only (Aggregation's offer, offers.ts takesAggregate); a group's rows
+        // are counted by "Show leaf count"
+        { name: 'n', column: 'big', fn: 'count' },
         { name: 'last_day', column: 'day', fn: 'max' },
       ],
       sorts: [],
@@ -293,7 +295,7 @@ describe('a source\'s columns come from the compiler', () => {
 });
 
 /** A flat cube over one source, its columns typed by the compiler, opened for real. */
-async function flat(source: ValueSpecification, filter?: CubeSnapshot['filter']) {
+async function flat(source: ValueSpecification, filter?: QuerySnapshot['filter']) {
   return openCube({
     source: { query: source },
     columns: await sourceColumns(planner, source),
@@ -380,14 +382,14 @@ describe('T7: one formatter on compiler types', () => {
     probe.style.color = token[1]!.trim();
     return probe.style.color;
   };
-  const grouped = (measures: CubeSnapshot['measures'], only?: string) => openCube({
+  const grouped = (measures: readonly Measure[], only?: string) => openCube({
     source: { query: P },
     columns: ([
       { name: 'region', type: 'String', kind: 'dimension' },
       { name: 'qty', type: 'Integer', kind: 'measure' },
       { name: 'pnl', type: 'Decimal', kind: 'measure' },
       { name: 'big', type: 'Integer', kind: 'measure' },
-    ] as CubeSnapshot['columns']).filter((c) => only === undefined || c.name === 'region' || c.name === only),
+    ] as QuerySnapshot['columns']).filter((c) => only === undefined || c.name === 'region' || c.name === only),
     derived: [], rows: ['region'], pivotOn: [], measures, sorts: [], epoch: 1,
   });
 
@@ -465,7 +467,9 @@ describe('T7: one formatter on compiler types', () => {
     assert.deepEqual(o.errors, []);
     const pivot = (o.app.view?.pivot?.columns ?? [])
       .filter((c) => c.tuple !== null).map((c) => c.name).sort();
-    assert.deepEqual(pivot, ['1__|__pnl', '2__|__pnl', '3__|__pnl'], 'the pivot happened');
+    // every measure column the pivot does not keep out is spread (a grid's aggregates are its columns'): big and pnl
+    assert.deepEqual(pivot, ['1__|__big', '1__|__pnl', '2__|__big', '2__|__pnl', '3__|__big', '3__|__pnl'],
+      'the pivot happened');
   });
 
   it('an Integer that STARTED as a measure, made a dimension, GROUPS -- alone, and beside a pivot', async () => {

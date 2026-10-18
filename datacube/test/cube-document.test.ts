@@ -12,9 +12,11 @@ import {
   derivedReads,
   difference,
   fileSource,
+  gridCapped,
   merge,
   openCube,
   readCube,
+  rebuilt,
   sha256,
   writeCube,
   type FileSource,
@@ -23,7 +25,7 @@ import {
   type RemoteSource,
   type WarehouseSource,
 } from '../src/cube-document.ts';
-import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from '../src/config.ts';
 import type { ColumnSpec, CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
@@ -70,7 +72,6 @@ const EVERY: Required<CubeSnapshot> = {
   keepGroupedColumns: true,
   leafCount: true,
   childCount: true,
-  measures: [{ name: 'notional', column: 'notional', fn: 'sum' }, { name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' }],
   sorts: [{ column: 'region', direction: 'desc' }],
   window: { offset: 50, limit: 100 },
   treeColumnSort: 'desc',
@@ -189,13 +190,13 @@ describe('a cube over a warehouse table, or a remote file: where it is, never ho
     assert.deepEqual(readCube(cubeToJson(over(REMOTE))).source, REMOTE);
   });
 
-  it('reads a warehouse table saved before catalogs were named as main, the only catalog then', () => {
-    const before = JSON.parse(cubeToJson(over(TABLE)));
-    delete before.source.catalog;
-    assert.equal((readCube(before).source as WarehouseSource).catalog, 'main');
+  it('refuses a warehouse table with no catalog: every cube of this version names it', () => {
+    const none = JSON.parse(cubeToJson(over(TABLE)));
+    delete none.source.catalog;
+    assert.throws(() => readCube(none), /has no catalog/);
     const empty = JSON.parse(cubeToJson(over(TABLE)));
     empty.source.catalog = '';
-    assert.throws(() => readCube(empty), /empty catalog/);
+    assert.throws(() => readCube(empty), /has no catalog/);
   });
 
   it('refuses one missing a part, or one carrying a credential', () => {
@@ -264,11 +265,8 @@ describe('opening a cube over its file as it is now', () => {
     assert.match(text, /no longer in the file: notional/);
     assert.match(text, /left out calculated column scaled \(it uses notional\)/);
     assert.match(text, /left out calculated column doubled/);
-    assert.match(text, /left out measure notional/);
-    assert.match(text, /left out measure w/);
     assert.equal(opened.changed, true);
     assert.deepEqual(opened.snapshot.derived, []);
-    assert.deepEqual(opened.snapshot.measures, []);
     assert.deepEqual(opened.snapshot.rows, ['region'], 'what does not use it stays');
     assert.ok(opened.snapshot.filter, 'the filter on region and qty stays');
   });
@@ -292,6 +290,24 @@ describe('opening a cube over its file as it is now', () => {
     const opened = openCube(doc(), RELATION, now([['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
     assert.deepEqual(opened.snapshot.rows, []);
     assert.equal(opened.tree.isOpen(['EMEA']), false);
+  });
+
+  // NO OLDER CUBE IS READ (the user, 2026-10-17): a version 1 cube -- every cube saved before a grid's aggregates became
+  // its columns' Aggregation (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md) -- is refused by its version, and a
+  // measures list in a cube of this one by name: never converted, never opened showing other numbers than it showed
+  it('refuses a calculated column whose lambda the protocol cannot read, as the document it is in', () => {
+    const broken = JSON.parse(cubeToJson(doc()));
+    broken.query.derived[0].lambda.body = 'oops';
+    assert.throws(() => readCube(broken), (e: unknown) => e instanceof CubeDocumentError
+      && /calculated column "scaled"'s lambda: .*body/.test(e.message));
+  });
+
+  it('refuses a cube saved before a grid\'s aggregates were its columns\' Aggregation, and a measures list', () => {
+    assert.throws(() => readCube(cubeToJson({ ...doc(), version: 1 })), /an older version \(1 < 2\).*no longer read/);
+    const listed = JSON.parse(cubeToJson(doc()));
+    listed.query.measures = [{ name: 'notional', column: 'notional', fn: 'sum' }];
+    assert.throws(() => readCube(listed), /'query\.measures': a grid carries no measures list/);
+    assert.equal('measures' in doc().query, false, 'a cube written carries none');
   });
 });
 
@@ -317,5 +333,21 @@ describe('the pieces', () => {
     const d = difference(value, base);
     assert.deepEqual(d, { b: { c: 5 }, e: [1, 2, 3], f: null });
     assert.deepEqual(merge(base, d), value);
+  });
+});
+
+describe("a new grid is capped when it is not its page's only grid (gridCapped, counting it)", () => {
+  const fresh = (gridsOnPage: number) =>
+    rebuilt(undefined, accessor('db', 'T'), [{ name: 'a', type: 'Integer' }], 'T', gridCapped(gridsOnPage)).configuration;
+
+  it("a page's only grid is not capped: a new page, a source opened in place, a reopened page of one", () => {
+    assert.equal(gridCapped(1), false);
+    assert.equal(fresh(1).maxRows, undefined);
+  });
+
+  it('the first grid added beside it is capped at the row limit, as is every grid of a reopened page of several', () => {
+    assert.equal(gridCapped(2), true);
+    assert.equal(gridCapped(3), true);
+    assert.equal(fresh(2).maxRows, DEFAULT_MAX_ROWS);
   });
 });

@@ -26,13 +26,17 @@ import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
-import { type Bands, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
+import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { followCube, GRID_MARKS, measureName } from '../chart-spec.ts';
+import { chartValuesAsColumns, followCube, GRID_MARKS, type ChartSpec } from '../chart-spec.ts';
+import { applyToSnapshot, type CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
-import { FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews } from '../page-document.ts';
-import { withoutConditions, type AggregateFn, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
+import {
+  FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews,
+} from '../page-document.ts';
+import { givenName } from '../page-names.ts';
+import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -47,6 +51,8 @@ const GRID = 'grid';
 export interface ChartSource {
   /** The grid's query as it is now. */
   readonly snapshot: CubeSnapshot;
+  /** The grid's configuration as it is now: its Column Properties among it. */
+  readonly configuration: CubeConfiguration;
   /** Run a query the grid did not plan, through the grid's own runner. */
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
   /** A value as the grid writes it. */
@@ -91,6 +97,8 @@ export interface SpawnOptions {
   readonly sheets?: () => { readonly locked: boolean; readonly others: readonly { readonly id: string; readonly label: string }[] };
   /** Its Move to Sheet: onto `sheet`, or -- null -- onto a new one. */
   readonly onMoveToSheet?: (sheet: string | null) => void;
+  /** Its configuration, when not the spawning grid's: Open in Grid's, the chart's values as its Column Properties. */
+  readonly configuration?: CubeConfiguration;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -296,9 +304,8 @@ export class CubePage {
         },
       } : {}),
     });
-    // a new sheet fits its window (the user, 2026-10-09: fit by default) -- and scrolls once its bands are too many to
-    // fit (bands.ts draw's floor)
-    board.setLayout({ fit: true, bands: [] });
+    // a new sheet's board (bands.ts NEW_SHEET): it fits its window, and scrolls once its bands are too many to fit
+    board.setLayout(NEW_SHEET);
     board.setEditing(this.#editing);
     const sheet: Sheet = { id, name, host, board, steps };
     this.#sheets.push(sheet);
@@ -376,7 +383,9 @@ export class CubePage {
   /** A sheet's name: its own (trimmed), or -- empty or undefined -- named again after what it shows. */
   renameSheet(id: string, name: string | undefined): void {
     const sheet = this.#sheets.find((s) => s.id === id);
-    const own = name?.trim() || undefined;
+    // the one rule (page-names.ts givenName): trimmed, a blank none of its own (named after its first grid)
+    const given = givenName('sheet', name ?? '');
+    const own = 'name' in given ? given.name : undefined;
     if (!sheet || sheet.name === own) return;
     sheet.name = own;
     this.#options.onChange();
@@ -777,7 +786,7 @@ export class CubePage {
     body.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       const spec = panel.spec;
-      const editable = panel.frozen && spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark);
+      const editable = panel.frozen && editableInGrid(spec);
       this.#menuFor = (item) => {
         if (item.id === 'tile.options') panel.toggleForm();
         if (item.id === 'tile.edit') this.#openEditor(id);
@@ -1000,6 +1009,7 @@ export class CubePage {
     const runs = kept.chartSource();
     return {
       snapshot: detached.snapshot,
+      get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
       format: (value, column, type) => runs.format(value, column, type),
       unit: (column) => runs.unit?.(column),
@@ -1114,26 +1124,22 @@ export class CubePage {
       return;
     }
     const spec = chart.panel.spec;
-    if (!spec || spec.mark === 'scatter' || GRID_MARKS.has(spec.mark) || spec.x === undefined) return;
+    if (!editableInGrid(spec)) return;
     const source = this.#sourceOf(chart.link);
     const tile = `edit-${chartId}`;
     const host = this.#doc.createElement('div');
     host.className = 'dc-chart-editor';
-    const used = new Set<string>();
-    // a group-level column plotted as it is is the grid's already (its groupDerived comes with the snapshot)
-    const measures = spec.y.filter((m): m is typeof m & { fn: AggregateFn } => m.fn !== 'value').map((m): Measure => {
-      // the grid's own measure of that column and aggregate keeps its name (its format)
-      const own = source.snapshot.measures.find((c) => c.column === m.column && c.fn === m.fn);
-      const name = own?.name ?? (used.has(m.column) ? measureName(m) : m.column);
-      used.add(name);
-      return { name, column: m.column, fn: m.fn };
-    });
-    const grid = source.spawn(host, {
-      ...source.snapshot,
-      rows: [spec.x, ...(spec.split !== undefined ? [spec.split] : [])],
-      pivotOn: [],
-      measures,
-    });
+    // THE CHART'S VALUES AS THE GRID'S COLUMN PROPERTIES (chart-spec.ts chartValuesAsColumns, by grid-edits.ts
+    // measuresAsColumns): so the editing grid shows, in Column Properties, what the chart plots, and Update reads each
+    // value back from the column that carries it
+    const made = chartValuesAsColumns({
+      snapshot: { ...source.snapshot, rows: [spec.x, ...(spec.split !== undefined ? [spec.split] : [])], pivotOn: [] },
+      config: source.configuration,
+    }, spec.y);
+    const carriedBy = made.carriedBy;
+    // folded: the grid reads its query back over its configuration (fromSnapshot), and the source grid's query carries
+    // its own Aggregations, which would replace the chart's
+    const grid = source.spawn(host, applyToSnapshot(made.draft.snapshot, made.draft.config), { configuration: made.draft.config });
     const chartTitle = this.title(chartId) ?? 'the chart';
     const update = this.#button(`Update ${chartTitle}`, 'Give the chart this grid\'s grouping, and close this grid.');
     update.addEventListener('click', () => {
@@ -1155,7 +1161,7 @@ export class CubePage {
         chart.link.detached = { snapshot: grid.snapshot, from: own };
         this.#releaseKept();
       }
-      chart.panel.setSpec({ ...followCube(following, grid.snapshot), frozen: true });
+      chart.panel.setSpec({ ...followCube(following, grid.snapshot, carriedBy), frozen: true });
       this.#closeEditor(chartId);
       this.#options.onChange();
     });
@@ -1221,6 +1227,14 @@ export class CubePage {
 
 /** Pages made so far: each its own crosshair group. */
 let crosshairs = 0;
+
+/**
+ * Whether Open in grid can edit a chart: its grouping is a column across (a gauge has none, nor a KPI without a trend),
+ * and it is not a scatter's rows nor the grid as shown. The one rule: the menu offers the entry exactly when it opens a grid.
+ */
+function editableInGrid(spec: ChartSpec | null): spec is ChartSpec & { readonly x: string } {
+  return spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark) && spec.x !== undefined;
+}
 
 /** `layout` without the tiles `leave` names: each one's place closed by its neighbours, as a removal closes it. */
 function without(layout: Bands, leave: (id: string) => boolean): Bands {

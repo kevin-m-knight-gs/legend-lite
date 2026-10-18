@@ -31,12 +31,11 @@ import {
 import { numberDefaults, withColumn } from '../config.ts';
 import {
   AGGREGATE_FNS,
-  kindOf,
   rowColumns,
   type AggregateFn,
   type ColumnKind,
 } from '../snapshot.ts';
-import { takesAggregate } from '../offers.ts';
+import { allColumns, columnKind, offeredAggregates, setColumn } from '../grid-edits.ts';
 import { defaultKind } from '../../../engine-client/src/types.ts';
 import type { CellAppearance, ColourSet } from '../style.ts';
 import type { PinPlacement } from '../grid/columns.ts';
@@ -54,8 +53,7 @@ import { colourGrid, fontControls } from './panel-general.ts';
 import { dataTypeOf } from './filter-editor.ts';
 import { docHint } from './docs.ts';
 import {
-  SORT_DIRECTIONS,
-  allColumns,
+  SORT_DIRECTION_OPTIONS,
   panelShell,
   type PanelBuilder,
 } from './panel-kit.ts';
@@ -88,16 +86,12 @@ const AGGREGATE_LABELS: Readonly<Record<AggregateFn, string>> = {
 export const AGGREGATES: readonly { value: AggregateFn; label: string }[] =
   AGGREGATE_FNS.map((value) => ({ value, label: AGGREGATE_LABELS[value] }));
 
-/**
- * The aggregates a column of this type can take, as the compiler answers them
- * (`takesAggregate`, src/offers.ts). An untyped column (a calculated one not yet typed):
- * all, the compiler judging it on Apply.
- */
+/** The aggregates Aggregation offers a column of this type (grid-edits.ts offeredAggregates), with their labels. */
 export function aggregatesFor(
   type: string | undefined,
 ): readonly { value: AggregateFn; label: string }[] {
-  if (type === undefined) return AGGREGATES;
-  return AGGREGATES.filter((a) => takesAggregate(a.value, type));
+  const offered = offeredAggregates(type);
+  return AGGREGATES.filter((a) => offered.includes(a.value));
 }
 
 const FORMAT_KINDS: readonly { value: FormatKind; label: string }[] = [
@@ -168,9 +162,9 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
   // reopened -- must not leave the panel bound to nothing.
   if (
     uiState.chosen === null ||
-    !columns.some((c) => c.name === uiState.chosen)
+    !columns.includes(uiState.chosen)
   ) {
-    uiState.chosen = (columns[0] as { name: string }).name;
+    uiState.chosen = columns[0] as string;
   }
   const name = uiState.chosen;
   const spec = draft.snapshot.columns.find((c) => c.name === name);
@@ -210,10 +204,11 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
   chooser.append(chosenName, badge(doc, spec?.type ?? derivedRow?.type ?? ''));
 
   const c = cfg();
-  // the declared kind, else the default for the compiler's type (a calculated
-  // column's declared kind counts: it was ignored, every one read as a measure)
-  const kind = c.kind ?? (spec ? kindOf(spec)
-    : (derivedRow && 'kind' in derivedRow && derivedRow.kind) || defaultKind(derivedRow?.type));
+  // the kind the grid groups and aggregates by (grid-edits.ts columnKind): a source column's as set here, a
+  // calculated column's as its editor declared it -- a group-level one's too, which exists only after grouping
+  const groupLevel = (draft.snapshot.groupDerived ?? []).find((d) => d.name === name);
+  const kind = columnKind(draft, name) ?? groupLevel?.kind ?? defaultKind(groupLevel?.type);
+  const calculated = spec === undefined;
   const isMeasure = kind === 'measure';
   // The type decides which sections apply: the compiler's (a calculated column's is
   // typed before its first query, by the refresh's step 0).
@@ -241,19 +236,17 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
           // setExcludedFromPivot(kind === DIMENSION)). Clearing it
           // instead left measure -> dimension -> measure excluded: the
           // query keeps an exclusion the configuration merely stops
-          // naming (applyToSnapshot), so the pivot spread `count`.
+          // naming (applyToSnapshot), so the pivot spread `count`. The one rule: grid-edits.ts setColumn.
           if (v === undefined || v === kind) return;
-          patch({
-            kind: v,
-            excludedFromPivot: v === 'dimension',
-          });
+          ctx.setConfig(setColumn(ctx.draft(), name, { kind: v }).config);
           ctx.refresh();
         },
-        { width: 160, disabled: pivoted },
+        // a calculated column's kind is its editor's, which every query reads: set here, it was saved and read by none
+        { width: 160, disabled: pivoted || calculated },
       ),
       pivoted,
     ),
-    docHint(doc, 'data-cube.column-configuration.kind'),
+    calculated ? badge(doc, 'Set in its editor') : docHint(doc, 'data-cube.column-configuration.kind'),
   );
   const identity = section(
     doc,
@@ -283,12 +276,14 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
         c.aggregateFn,
         withCurrent(aggregatesFor(type), c.aggregateFn),
         (aggregateFn) => {
-          patch({ aggregateFn });
+          ctx.setConfig(setColumn(ctx.draft(), name, { aggregate: aggregateFn ?? null }).config);
           ctx.refresh();
         },
-        { allowNone: true, width: 200, disabled: !isMeasure },
+        // a group-level column is computed after grouping: an Aggregation set here was saved and read by no query
+        { allowNone: true, width: 200, disabled: !isMeasure || groupLevel !== undefined },
       ),
-      isMeasure ? doc.createElement('span') : badge(doc, 'Dimensions only'),
+      !isMeasure ? badge(doc, 'Dimensions only')
+        : groupLevel !== undefined ? badge(doc, 'Computed after grouping') : doc.createElement('span'),
     ),
     field(
       doc,
@@ -296,11 +291,9 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.aggregationParameters?.[0],
-        columns.map((x) => ({ value: x.name, label: x.name })),
-        (weight) =>
-          patch({
-            aggregationParameters: weight === undefined ? undefined : [weight],
-          }),
+        // a column the rows have (setColumn's rule): a group-level column exists only after grouping
+        rowColumns(draft.snapshot).map((x) => ({ value: x.name, label: x.name })),
+        (weight) => ctx.setConfig(setColumn(ctx.draft(), name, { weight: weight ?? null }).config),
         {
           allowNone: true,
           width: 200,
@@ -343,7 +336,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.pivotSortDirection,
-        SORT_DIRECTIONS,
+        SORT_DIRECTION_OPTIONS,
         (pivotSortDirection) => patch({ pivotSortDirection }),
         { allowNone: true, width: 140 },
       ),
@@ -589,7 +582,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
   form.append(...parts);
   const split = doc.createElement('div');
   split.className = 'dc-pe-split';
-  split.append(columnList(ctx, uiState, columns.map((c) => c.name), name), form);
+  split.append(columnList(ctx, uiState, columns, name), form);
   return panelShell(doc, 'Column Properties', split);
 };
 

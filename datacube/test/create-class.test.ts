@@ -15,6 +15,8 @@ import { pageGrids } from '../src/model-actions.ts';
 import { PlanAndRun } from '../src/runner.ts';
 import { isPackage, isPureName, suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../src/model-names.ts';
 import { classLambda, duplicateLambda, sampleLambda, storeTableOf } from '../src/query.ts';
+import { createClassOf } from '../src/create-class.ts';
+import { SampleRefusal } from '../src/sample-rows.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
 describe('the names DataCube offers', () => {
@@ -66,15 +68,19 @@ describe("the grid's rows, as a class's", () => {
   });
 
   it('a grouped grid: its groups', () => {
-    const json = toJson(classLambda(snapshot({ rows: ['region'], measures: [{ column: 'notional', fn: 'sum', name: 'notional' }] } as Partial<CubeSnapshot>)));
+    // its measure columns each on its Aggregation (Column Properties): a grid asks no aggregate of its own
+    const json = toJson(classLambda(snapshot({ rows: ['region'] })));
     assert.match(json, /"groupBy"/);
     assert.doesNotMatch(json, /"sort"|"limit"|"slice"/, json);
   });
 
-  it('refused in words: a pivot, a total of no group', () => {
+  it('refused in words: a pivot', () => {
     assert.throws(() => classLambda(snapshot({ pivotOn: ['region'] })), /take the pivot off first/);
-    assert.throws(() => classLambda(snapshot({ measures: [{ column: 'notional', fn: 'sum', name: 'notional' }] } as Partial<CubeSnapshot>)),
-      /group by a column first/);
+  });
+
+  it('a grid grouped by nothing: its rows', () => {
+    const json = toJson(classLambda(snapshot({})));
+    assert.doesNotMatch(json, /"groupBy"/);
   });
 
   it('a source read from its store, and its sample', () => {
@@ -107,6 +113,24 @@ describe("the grid's rows, as a class's", () => {
     await grid.rows.host.planAndRun(grid.made.sample, 0);
     assert.equal(asked.length, 1);
     assert.match(asked[0]!, /"limit"/);
+  });
+
+  it('Create a Class… writes its sample by the one writer: a NaN refused, naming its column and row, before a window opens', async () => {
+    // the window's own path (create-class.ts) held its own copy of the writer, which wrote a NaN as null (found by the
+    // round's audit, 2026-10-16): it asks sample-rows.ts sampleOf now, as model-actions.ts and Python's gridClass do
+    const host = {
+      name: 'tab',
+      planner: {} as never,
+      planAndRun: async () => ({
+        plan: { sql: 'SELECT 1', columns: [] },
+        rows: { columns: [{ name: 'rate', type: 'Float', values: [1.5, Number.NaN] }], rowCount: 2, epoch: 0, elapsedMs: 0 },
+      }),
+      stream: async () => undefined,
+    };
+    await assert.rejects(createClassOf({
+      query: classLambda(snapshot()) as never, table: { database: 'local::DB', schema: 'default', table: 'trades_2' },
+      sample: sampleLambda(SOURCE, 10), rows: new PlanAndRun(host as never), model: undefined,
+    } as never), (e: unknown) => e instanceof SampleRefusal && /the sample's rate in row 2 is NaN/.test(e.message));
   });
 
   it('the model\'s writer is the one that answers the three routes', () => {

@@ -34,7 +34,6 @@ const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: [],
   pivotOn: [],
-  measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -180,7 +179,7 @@ describe('snapping goes through the planner', () => {
     // freshly opened table -- and the planner refused `select(~[])`.
     const planner = new RecordingPlanner();
     const c = new CubeController(new RecordingEngine(), planner, { snapTarget: snapInto() });
-    const ran: CubeSnapshot = { ...SNAPSHOT, measures: [], columns: [...SNAPSHOT.columns, { name: 'trade date', type: 'StrictDate' }] };
+    const ran: CubeSnapshot = { ...SNAPSHOT, columns: [...SNAPSHOT.columns, { name: 'trade date', type: 'StrictDate' }] };
     await c.run(at(ran));
     planner.queries.length = 0;
     await c.snap(ran, 'test');

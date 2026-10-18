@@ -44,7 +44,6 @@ async function snapshotFor(fn, source, columns, parse) {
     derived: [{ name: 'calc', lambda: await parse(`x|${fn.example}`) }],
     rows: [],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   };

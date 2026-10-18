@@ -86,9 +86,10 @@ describe('the band board', () => {
     const board = new BandBoard(host);
     board.add(tile('a'));
     board.add(tile('b'), 'a');
-    assert.deepEqual(box('b'), { x: 504, y: 0, w: 496, h: 300 }, 'beside it: two fit in 1000px');
+    // the first band is the whole screen (bands.ts FIRST_BAND_HEIGHT), a band below half of one
+    assert.deepEqual(box('b'), { x: 504, y: 0, w: 496, h: 600 }, 'beside it: two fit in 1000px');
     board.add(tile('c'), 'b');
-    assert.deepEqual(box('c'), { x: 0, y: 308, w: 1000, h: 300 }, 'below: three would be under 360px each');
+    assert.deepEqual(box('c'), { x: 0, y: 608, w: 1000, h: 300 }, 'below: three would be under 360px each');
     host = dom.window.document.createElement('div');
     sized(1500, 600);
     const wide = new BandBoard(host);
@@ -468,12 +469,15 @@ describe('the band board', () => {
     board.add(tile('b'));
     board.setFit(true);
     assert.ok(host.classList.contains('dc-bands-fit'));
-    assert.deepEqual([box('a').h, box('b').y + box('b').h], [296, 600]);
+    // the first band the whole screen, the next half of one: two thirds and a third of the window, as a page started
+    // on the screen and one started in Python share it
+    const was = box('a').h;
+    assert.deepEqual([was, box('b').y + box('b').h], [395, 600]);
     const edges = host.querySelectorAll<HTMLElement>('.dc-band-edge');
     assert.equal(edges.length, 1, 'between the bands only');
-    pointer(edges[0]!, 'pointerdown', 500, 300);
-    pointer(edges[0]!, 'pointerup', 500, 360);
-    assert.ok(box('a').h > 350);
+    pointer(edges[0]!, 'pointerdown', 500, was + 4);
+    pointer(edges[0]!, 'pointerup', 500, was + 64);
+    assert.ok(box('a').h > was + 50);
     assert.equal(box('a').h + 8 + box('b').h, 600);
     wellFormed(board);
   });

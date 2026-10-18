@@ -9,12 +9,12 @@ import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { QueryRunner } from '../src/runner.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 
-import { renameColumnReferences, totalOrderSorts, type CubeSnapshot } from '../src/snapshot.ts';
+import { renameColumnReferences, totalOrderSorts, type QuerySnapshot } from '../src/snapshot.ts';
 import { withChildAggregates } from '../src/treeview.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { printChildren, printLevel } from './lite-compiler.ts';
 
-const CUBE: CubeSnapshot = {
+const CUBE: QuerySnapshot = {
   source: { query: element('t') },
   columns: [
     { name: 'region', type: 'String' }, { name: 'desk', type: 'String' },

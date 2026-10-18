@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type {
-  CubeSnapshot,
+  QuerySnapshot,
   FilterOperator,
 } from '../src/snapshot.ts';
 import { totalOrderSorts } from '../src/snapshot.ts';
@@ -43,12 +43,12 @@ const YEARS: PivotFacts = { tuples: [['2023'], ['2024']] };
  * about something else does not give its own (the default cube pivots on
  * year). The one test of the refusal calls `printLevel` itself.
  */
-function level(s: CubeSnapshot, scope?: LevelScope, facts?: PivotFacts): Promise<string> {
+function level(s: QuerySnapshot, scope?: LevelScope, facts?: PivotFacts): Promise<string> {
   return printLevel(s, scope, facts ?? (s.pivotOn.length > 0 ? YEARS : undefined));
 }
 
 /** A minimal trades cube, overridable per test. */
-function snap(over: Partial<CubeSnapshot> = {}): CubeSnapshot {
+function snap(over: Partial<QuerySnapshot> = {}): QuerySnapshot {
   return {
     source: { query: variable('trades') },
     columns: [
@@ -69,6 +69,51 @@ function snap(over: Partial<CubeSnapshot> = {}): CubeSnapshot {
 }
 
 describe('a level query', () => {
+  it('refuses a measure named as another column where the level writes it under its name, and two of one name', async () => {
+    // one rule at the level's top (calc.ts measureNameProblem): a grouped level writes every measure beside the keys
+    const key = (over: Partial<QuerySnapshot> = {}) => snap({ measures: [{ name: 'region', column: 'qty', fn: 'sum' }], ...over });
+    await assert.rejects(async () => level(key({ pivotOn: [] }), { level: 1, parent: [] }), /'region' is already a column/);
+    await assert.rejects(async () => level(key({ pivotOn: [] }), { level: 1, parent: [] }),
+      /the measure sum\(qty\) takes a name of its own/);
+    // pivoted, a measure spread under each pivot value writes `<value>__|__region`: no column of the level is its name
+    assert.match(await level(key(), undefined, YEARS), /2024__\|__region/);
+    // kept out of the pivot (its column excluded), it is written beside the keys under its own name
+    const keptOut = key({ columns: snap().columns.map((c) => (c.name === 'qty' ? { ...c, excludedFromPivot: true } : c)) });
+    await assert.rejects(async () => level(keptOut, undefined, YEARS), /'region' is already a column/);
+    // two measures of one name, pivoted or not
+    const twice = (over: Partial<QuerySnapshot> = {}) => snap({
+      measures: [{ name: 'total', column: 'notional', fn: 'sum' }, { name: 'total', column: 'qty', fn: 'sum' }], ...over });
+    await assert.rejects(async () => level(twice(), undefined, YEARS), /'total' is already a measure's name: the measure sum\(qty\)/);
+    await assert.rejects(async () => level(twice({ pivotOn: [] }), { level: 1, parent: [] }), /'total' is already a column/);
+  });
+
+  it('a grouped level sorts by what it writes; a sort on a column its measure renamed is the detail rows\' alone', async () => {
+    const s = snap({ rows: ['region'], pivotOn: [], measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
+      sorts: [{ column: 'notional', direction: 'desc' }] });
+    const grouped = await level(s, { level: 1, parent: [] });
+    assert.equal(/notional->descending/.test(grouped), false, grouped);
+    // the detail rows beneath a group, read as the tree reads them (treeview.ts)
+    const rows = detailSnapshot(s, ['EMEA']);
+    const detail = await level(rows, { level: rows.rows.length, parent: [] });
+    assert.match(detail, /~notional->descending\(\)/, detail);
+  });
+
+  it('keeps every measure of a grouped cube, two of one column and one of a grouping column too', async () => {
+    // keyed by column, the grouped aggregates kept a column's last measure alone and skipped a grouping column's
+    // (found 2026-10-16, PR neema2/legend-lite#47): each measure is a column of the level, under its own name
+    const out = await level(snap({
+      rows: ['region'], pivotOn: [],
+      measures: [
+        { name: 'total', column: 'notional', fn: 'sum' },
+        { name: 'avg_n', column: 'notional', fn: 'average' },
+        { name: 'trades', column: 'region', fn: 'count' },
+      ],
+    }), { level: 1, parent: [] });
+    assert.match(out, /total:x\|\$x\.notional:y\|\$y->sum\(\)/, out);
+    assert.match(out, /avg_n:x\|\$x\.notional:y\|\$y->average\(\)/, out);
+    assert.match(out, /trades:x\|1:y\|\$y->count\(\)/, out);
+  });
+
   it('writes a pivot as ONE groupBy, a conditional aggregate per value', async () => {
     // Each cell is its measure over exactly the rows of its value, and
     // the other columns are carried on their own aggregate in the same
@@ -349,17 +394,19 @@ describe('a level query', () => {
   });
 
   it('appends row dimensions to make the sort a total order', async () => {
-    // Unpivoted: a pivot consumes `notional`, and a sort on a column the
-    // query does not make is dropped (P2-6), not sent.
-    const s = snap({ pivotOn: [], sorts: [{ column: 'notional', direction: 'desc' }] });
+    // Unpivoted: a pivot consumes `qty`, and a sort on a column the query does not make is dropped (P2-6), not sent.
+    // On `qty`, which the grouped level writes on its own aggregate: this case sorted on `notional` once, which the
+    // level writes as its measure `total` -- the printed query sorted on a column the groupBy did not keep (found
+    // 2026-10-16: the level now sorts by what it writes, the detail rows by the rest).
+    const s = snap({ pivotOn: [], sorts: [{ column: 'qty', direction: 'desc' }] });
     assert.deepEqual(totalOrderSorts(s), [
-      { column: 'notional', direction: 'desc' },
+      { column: 'qty', direction: 'desc' },
       { column: 'region', direction: 'asc' },
       { column: 'country', direction: 'asc' },
     ]);
     assert.match(
       (await level(s)),
-      /sort\(\[~notional->descending\(\), ~region->ascending\(\), ~country->ascending\(\)\]\)/,
+      /sort\(\[~qty->descending\(\), ~region->ascending\(\), ~country->ascending\(\)\]\)/,
     );
   });
 
@@ -839,7 +886,7 @@ describe('drilling into a TEMPORAL group', () => {
   // with `String(date)` -- the locale form -- then fed back into the
   // next level's query as a filter value. So the group appeared and
   // opening it failed, while the grid kept the previous answer.
-  const TEMPORAL: CubeSnapshot = {
+  const TEMPORAL: QuerySnapshot = {
     source: { query: element('t') },
     columns: [
       { name: 'booked_at', type: 'DateTime' },
@@ -901,7 +948,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   // no grouping columns, so a guard meant for the grand total threw
   // away its sort and its row cap as well. The simplest grid was the
   // one that honoured neither.
-  const DETAIL: CubeSnapshot = {
+  const DETAIL: QuerySnapshot = {
     source: { query: element('t') },
     columns: [
       { name: 'region', type: 'String' },
@@ -920,7 +967,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   });
 
   it('includes derived columns in the projection', async () => {
-    const withDerived: CubeSnapshot = {
+    const withDerived: QuerySnapshot = {
       ...DETAIL,
       derived: [{ name: 'net', lambda: (await row('$x.notional * 2')) }],
     };
@@ -928,7 +975,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   });
 
   it('HONOURS its sort', async () => {
-    const sorted: CubeSnapshot = {
+    const sorted: QuerySnapshot = {
       ...DETAIL,
       sorts: [{ column: 'region', direction: 'asc' }],
     };
@@ -941,7 +988,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   });
 
   it('caps AFTER sorting, so the first page is the first page', async () => {
-    const sorted: CubeSnapshot = {
+    const sorted: QuerySnapshot = {
       ...DETAIL,
       sorts: [{ column: 'notional', direction: 'desc' }],
     };
@@ -955,7 +1002,7 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
   it('still leaves the GRAND TOTAL unsorted and uncapped', async () => {
     // One row: sorting and limiting it is noise. This is the case
     // the old guard was written for, and it must keep working.
-    const total: CubeSnapshot = {
+    const total: QuerySnapshot = {
       ...DETAIL,
       measures: [{ name: 'n', column: 'notional', fn: 'sum' }],
       sorts: [{ column: 'region', direction: 'asc' }],
@@ -979,11 +1026,11 @@ describe('a calculated column aggregates as DECLARED', () => {
     epoch: 1,
   } as const;
 
-  it('sums a column the user called a measure', async () => {
+  it('sums a numeric column the user called a measure', async () => {
     const out = (await level({
       ...base,
       derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')),
-        kind: 'measure' }],
+        kind: 'measure', type: 'Float' }],
       rows: ['region'],
     }));
     assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
@@ -1004,18 +1051,33 @@ describe('a calculated column aggregates as DECLARED', () => {
       assert.doesNotMatch(out, /bucket:x\|\$x\.bucket:y\|\$y->sum\(\)/);
     });
 
-  it('sums on the FIRST query, before any type is known', async () => {
-    // The point of asking. With the kind inferred from a learned
-    // type, the first query over a grouped cube aggregated a numeric
-    // calculated column as `unique` -- a blank column -- and only
-    // corrected itself after a second round trip.
+  it('does NOT sum a declared measure that is no number: its unique value (query.ts defaultAggregate)', async () => {
+    // The column editor starts a new column a measure whatever its type,
+    // and a saved cube can declare one: `sum` refused a Boolean or a
+    // String measure (sum(Boolean)), so grouping broke the grid.
+    const out = (await level({
+      ...base,
+      derived: [
+        { name: 'big', lambda: (await row('$x.notional > 50')), kind: 'measure', type: 'Boolean' },
+        { name: 'tag', lambda: (await row("$x.region + '!'")), kind: 'measure', type: 'String' },
+      ],
+      rows: ['region'],
+    }));
+    assert.match(out, /big:x\|\$x\.big:y\|\$y->uniqueValueOnly\(\)/);
+    assert.match(out, /tag:x\|\$x\.tag:y\|\$y->uniqueValueOnly\(\)/);
+  });
+
+  it('does not sum an UNTYPED column, declared a measure or not: no number is guessed', async () => {
+    // The default's documented contract. Every column is typed before a
+    // query reads it -- a refresh's step 0 and a compile's (plan.ts
+    // typeColumns) -- so only a runner that types nothing leaves one.
     const out = (await level({
       ...base,
       derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')),
         kind: 'measure' }],
       rows: ['region'],
     }));
-    assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
+    assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->uniqueValueOnly\(\)/);
   });
 
   it('falls back to the type when no kind was declared', async () => {
@@ -1074,9 +1136,18 @@ describe('C3: a column pivot carries CALCULATED measures', () => {
   it('aggregates a row-stage calculated measure in the pivot', async () => {
     const q = (await level(snap({
       rows: [], measures: [],
-      derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')), kind: 'measure' }],
+      derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')), kind: 'measure', type: 'Float' }],
     }), undefined, YEARS));
     assert.match(q, /'2023__\|__uplift':x\|if\(\$x\.year == 2023, \|\$x\.uplift, \|\[\]\):y\|\$y->sum\(\)/);
+  });
+
+  it('spreads a declared text measure as its unique value, never a sum (query.ts defaultAggregate)', async () => {
+    const q = (await level(snap({
+      rows: [], measures: [],
+      derived: [{ name: 'tag', lambda: (await row("$x.region + '!'")), kind: 'measure', type: 'String' }],
+    }), undefined, YEARS));
+    assert.match(q, /'2023__\|__tag':x\|if\(\$x\.year == 2023, \|\$x\.tag, \|\[\]\):y\|\$y->uniqueValueOnly\(\)/);
+    assert.doesNotMatch(q, /__tag':[^,]*,[^:]*:y\|\$y->sum\(\)/);
   });
 });
 
@@ -1124,7 +1195,7 @@ describe('drilling into a JSON group', () => {
   // Grouping by a Variant column worked and opening a group returned
   // nothing: the key came back as `$x.customer == '{...}'`, which
   // compares the document to a JSON STRING holding its text.
-  const ORDERS: CubeSnapshot = {
+  const ORDERS: QuerySnapshot = {
     source: { query: element('t') },
     columns: [
       { name: 'region', type: 'String' },

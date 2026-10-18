@@ -5,15 +5,17 @@
 // by bending this one. So this document is the cube's own definition:
 //
 //   source         where the rows come from, by identity (step 1: a file, by fingerprint)
-//   query          the cube: columns, calculated columns, grouping, pivot, measures,
-//                  filter, sorts, limits -- read WHOLE, never through an allow-list (the
+//   query          the cube: columns, calculated columns, grouping, pivot, filter, sorts,
+//                  limits -- read WHOLE, never through an allow-list (the
 //                  old saved view dropped every field its reader did not list: P2-71)
 //   configuration  only what differs from the product's defaults, so a default changed
 //                  later reaches every cube that never touched it
 //   tree           the open rows, as typed paths
 //
 // Three rules, from the saved-view format this replaces:
-//  - VERSIONED: a newer document is refused with a message; an older one is read forward.
+//  - VERSIONED: a document of another version is refused with a message, a newer one to be
+//    upgraded to, an older one as no longer read (the user, 2026-10-17: nothing older is read
+//    forward).
 //  - UNKNOWN FIELDS ARE KEPT: a field this reader does not know is written back verbatim,
 //    so an older client never silently deletes a newer one's settings.
 //  - A document that cannot be read fails LOUDLY, saying what was wrong.
@@ -24,12 +26,15 @@
 
 import {
   ExactNumber,
+  ProtocolError,
   fromJson,
   readLambda,
   toJson as protocolJson,
+  type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { DEFAULT_CONFIGURATION, type CubeConfiguration } from './config.ts';
+import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, REQUIRED_SETTINGS, type CubeConfiguration } from './config.ts';
 import type {
+  AggregateFn,
   ColumnSpec,
   CubeSnapshot,
   DerivedColumn,
@@ -43,7 +48,11 @@ import type { SharedQuery } from '../../query-store/src/share.ts';
 /** What this document is, so a file of anything else is refused by name. */
 export const CUBE_KIND = 'datacube.cube';
 /** Bumped whenever the shape changes in a way a reader must handle. */
-export const CUBE_VERSION = 1;
+/**
+ * 2 (2026-10-17): a grid carries no measures list -- its aggregates are its columns' Aggregation, Column Properties
+ * (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md). A version 1 cube is not read.
+ */
+export const CUBE_VERSION = 2;
 
 /**
  * A file the cube was built over, by IDENTITY: the model is derived from the file itself
@@ -129,7 +138,9 @@ export interface FrameSource {
 /** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe. */
 export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource;
 
-/** The cube's definition: a snapshot without its runtime state (source relation, epoch, row window). */
+/**
+ * The cube's definition: a snapshot without its runtime state (source relation, epoch, row window).
+ */
 export type SavedQuery = Omit<CubeSnapshot, 'source' | 'epoch' | 'window'>;
 
 export interface CubeDocument {
@@ -175,12 +186,14 @@ export function writeCube(o: WriteOptions): CubeDocument {
     source: o.source,
     query,
     configuration: (difference(o.configuration, DEFAULT_CONFIGURATION) ?? {}) as Record<string, unknown>,
-    tree: {
-      open: o.tree.openPaths.map(parsePathKey),
-      showTotals: o.tree.showTotals,
-    },
+    tree: treeDocument(o.tree),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
+}
+
+/** The open rows as a cube document holds them: typed paths, and whether totals show. */
+export function treeDocument(tree: TreeState): CubeDocument['tree'] {
+  return { open: tree.openPaths.map(parsePathKey), showTotals: tree.showTotals };
 }
 
 /**
@@ -226,6 +239,10 @@ export function readCube(input: string | unknown): CubeDocument {
   if (version > CUBE_VERSION) {
     throw new CubeDocumentError(`written by a newer version (${version} > ${CUBE_VERSION}); upgrade to open it`);
   }
+  if (version < CUBE_VERSION) {
+    throw new CubeDocumentError(`saved by an older version (${version} < ${CUBE_VERSION}), before a grid's aggregates were `
+      + "its columns' Aggregation: it is no longer read");
+  }
   if (typeof raw['name'] !== 'string') throw new CubeDocumentError("missing 'name'");
 
   const unknown: Record<string, unknown> = {};
@@ -233,6 +250,9 @@ export function readCube(input: string | unknown): CubeDocument {
 
   const configuration = plain(raw['configuration'] ?? {});
   if (!isObject(configuration)) throw new CubeDocumentError("'configuration' is not an object");
+  // a setting every grid has is never unset: no writer writes its null (a cleared one is its default again)
+  const unset = Object.keys(REQUIRED_SETTINGS).find((k) => configuration[k] === null);
+  if (unset !== undefined) throw new CubeDocumentError(`'configuration.${unset}' is null: every grid has that setting`);
 
   return {
     kind: CUBE_KIND,
@@ -287,11 +307,10 @@ function readWarehouseSource(s: Record<string, unknown>): WarehouseSource {
   }
   if (!hasColumns(s)) throw new CubeDocumentError('the warehouse table source has no columns');
   if ('password' in s || 'token' in s) throw new CubeDocumentError('the warehouse table source carries a credential: it is refused');
-  if ('catalog' in s && (typeof s['catalog'] !== 'string' || s['catalog'] === '')) {
-    throw new CubeDocumentError('the warehouse table source has an empty catalog');
+  if (typeof s['catalog'] !== 'string' || s['catalog'] === '') {
+    throw new CubeDocumentError('the warehouse table source has no catalog');
   }
-  // saved before catalogs were named: `main`, the only catalog DataCube opened then (WarehouseSource.catalog)
-  return { ...s, catalog: typeof s['catalog'] === 'string' ? s['catalog'] : 'main' } as unknown as WarehouseSource;
+  return s as unknown as WarehouseSource;
 }
 
 function readRemoteSource(s: Record<string, unknown>): RemoteSource {
@@ -335,8 +354,11 @@ function readQuery(raw: unknown): SavedQuery {
     if (k === 'derived' || k === 'groupDerived') continue;
     out[k] = plain(v);
   }
-  for (const k of ['columns', 'rows', 'pivotOn', 'measures', 'sorts']) {
+  for (const k of ['columns', 'rows', 'pivotOn', 'sorts']) {
     if (!Array.isArray(out[k])) throw new CubeDocumentError(`'query.${k}' is not a list`);
+  }
+  if ('measures' in out) {
+    throw new CubeDocumentError("'query.measures': a grid carries no measures list, its aggregates are its columns' Aggregation");
   }
   out['derived'] = calculated(raw['derived'], 'derived');
   if (raw['groupDerived'] !== undefined) out['groupDerived'] = calculated(raw['groupDerived'], 'groupDerived');
@@ -351,7 +373,14 @@ function calculated(raw: unknown, field: string): DerivedColumn[] {
     if (!isObject(item)) throw new CubeDocumentError(`an entry of 'query.${field}' is not an object`);
     const { lambda, ...rest } = item;
     const fields = plain(rest) as Omit<DerivedColumn, 'lambda'>;
-    return lambda === undefined ? fields : { ...fields, lambda: readLambda(lambda) };
+    if (lambda === undefined) return fields;
+    try {
+      return { ...fields, lambda: readLambda(lambda) };
+    } catch (e) {
+      // the protocol's refusal, said as the document's: a page that cannot be read fails as one, in its words
+      if (!(e instanceof ProtocolError)) throw e;
+      throw new CubeDocumentError(`calculated column ${JSON.stringify(fields.name ?? null)}'s lambda: ${e.message}`);
+    }
   });
 }
 
@@ -418,8 +447,36 @@ export function openCube(
     gone.add(d.name);
     return false;
   });
-  const derived = keepDerived(q.derived);
-  const groupDerived = q.groupDerived === undefined ? undefined : keepDerived(q.groupDerived);
+  const kept = keepDerived(q.derived);
+  const keptGroup = q.groupDerived === undefined ? undefined : keepDerived(q.groupDerived);
+
+  // A weighted average weighted by a gone column: its Aggregation left out (the column takes its kind's own) and
+  // named -- in the configuration and on the query both, as fromSnapshot reads the query's back.
+  const weightGone = new Map<string, string>();
+  for (const [name, c] of Object.entries(configuration.columns)) {
+    const weight = c.aggregationParameters?.[0];
+    if (c.aggregateFn === 'wavg' && weight !== undefined && gone.has(weight) && !gone.has(name)) weightGone.set(name, weight);
+  }
+  for (const c of [...q.columns, ...kept, ...(keptGroup ?? [])]) {
+    const weight = c.aggregateWeight;
+    if (c.aggregate === 'wavg' && weight !== undefined && gone.has(weight) && !gone.has(c.name)) weightGone.set(c.name, weight);
+  }
+  if (weightGone.size > 0) {
+    const cols = { ...configuration.columns };
+    for (const [name, weight] of weightGone) {
+      notes.push(`left out ${name}'s weighted average (it is weighted by ${weight})`);
+      const { aggregateFn: _fn, aggregationParameters: _weight, ...rest } = cols[name] ?? {};
+      cols[name] = rest;
+    }
+    configuration = { ...configuration, columns: cols };
+  }
+  const unweighted = <T extends { name: string; aggregate?: AggregateFn; aggregateWeight?: string }>(c: T): T => {
+    if (!weightGone.has(c.name)) return c;
+    const { aggregate: _a, aggregateWeight: _w, ...rest } = c;
+    return rest as T;
+  };
+  const derived = kept.map(unweighted);
+  const groupDerived = keptGroup?.map(unweighted);
 
   const using = (what: string) => (name: string): boolean => {
     if (!gone.has(name)) return true;
@@ -428,12 +485,6 @@ export function openCube(
   };
   const rows = q.rows.filter(using('grouping by'));
   const pivotOn = q.pivotOn.filter(using('pivoting on'));
-  const measures = q.measures.filter((m) => {
-    const lost = [m.column, m.weight].filter((n): n is string => n !== undefined && gone.has(n));
-    if (lost.length === 0) return true;
-    notes.push(`left out measure ${m.name} (it uses ${lost.join(', ')})`);
-    return false;
-  });
   const sorts = q.sorts.filter((s) => using('sorting by')(s.column));
   const filter = q.filter === undefined ? undefined : pruneFilter(q.filter, gone, notes);
 
@@ -441,13 +492,13 @@ export function openCube(
   const specs: ColumnSpec[] = columns.map((c) => {
     const was = saved.get(c.name);
     if (!was) return c;
-    const { name: _n, type: _t, ...settings } = was;
+    const { name: _n, type: _t, ...settings } = unweighted(was);
     return { ...c, ...settings, name: c.name, type: c.type };
   });
 
-  const shapeChanged = rows.length !== q.rows.length || pivotOn.length !== q.pivotOn.length;
+  const shapeChanged = groupingChanged(q, { rows, pivotOn });
   const {
-    columns: _c, derived: _d, groupDerived: _g, rows: _r, pivotOn: _p, measures: _m, sorts: _s,
+    columns: _c, derived: _d, groupDerived: _g, rows: _r, pivotOn: _p, sorts: _s,
     filter: _f, pivotValues, ...rest
   } = q;
   const snapshot: CubeSnapshot = {
@@ -460,15 +511,68 @@ export function openCube(
     pivotOn,
     // pinned pivot values belong to the keys they were pinned on
     ...(pivotValues !== undefined && pivotOn.length === q.pivotOn.length ? { pivotValues } : {}),
-    measures,
     sorts,
     ...(filter !== undefined ? { filter } : {}),
     epoch: 0,
   };
   // The open rows are paths through the saved grouping; a different grouping has none.
   const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
+  // changed: a part left out -- the cube held is not the one saved
   const changed = notes.some((n) => n.startsWith('left out'));
   return { snapshot, configuration, tree, notes, changed };
+}
+
+/**
+ * Whether a cube's grouping changed -- its row groups or its pivot, by name and order. Its open rows are paths through
+ * the grouping it had, so a changed one has none: a cube reopened over a source that lost a grouping column (openCube).
+ */
+export function groupingChanged(
+  was: Pick<CubeSnapshot, 'rows' | 'pivotOn'>, now: Pick<CubeSnapshot, 'rows' | 'pivotOn'>,
+): boolean {
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((n, i) => n === b[i]);
+  return !same(was.rows, now.rows) || !same(was.pivotOn, now.pivotOn);
+}
+
+/** A source's rows as they are: grouped by nothing, up to the row cap (a person builds the cube up). */
+export function rawRows(query: ValueSpecification, columns: CubeSnapshot['columns']): CubeSnapshot {
+  return { source: { query }, columns, derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1 };
+}
+
+/**
+ * WHETHER A NEW GRID'S ROWS ARE CAPPED at the row limit: when its page holds more than one grid, counting it
+ * (`gridsOnPage`) -- a page's only grid shows its rows, one beside others its first rows (the user, 2026-10-01: "showing
+ * the max rows configured (1000 default)"). The one rule: a source added from the picker, a saved page reopened, a
+ * host's grid made headless (headless/grid.ts gridCube) each ask it.
+ */
+export function gridCapped(gridsOnPage: number): boolean {
+  return gridsOnPage > 1;
+}
+
+/**
+ * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
+ * configuration, the groups it had open, what it had that the source no longer has (`changed`: a part left out, as
+ * openCube says) -- or a fresh one: its rows as they are, grouped by nothing; `capped` (gridCapped: a grid beside
+ * others), up to the row limit. Moved here from app/sources.ts (2026-10-15) so a host's own pages make their grids by it
+ * too, headless (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 2).
+ */
+export function rebuilt(saved: CubeDocument | undefined, relation: ValueSpecification, columns: CubeSnapshot['columns'],
+  label: string, capped: boolean,
+): {
+  snapshot: CubeSnapshot; configuration: CubeConfiguration; tree?: TreeState; notes: readonly string[]; changed: boolean;
+} {
+  if (!saved) {
+    return {
+      snapshot: rawRows(relation, columns),
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) },
+      notes: [],
+      changed: false,
+    };
+  }
+  const cube = openCube(saved, { query: relation }, columns);
+  return {
+    snapshot: cube.snapshot, configuration: cube.configuration, ...(cube.tree ? { tree: cube.tree } : {}),
+    notes: cube.notes, changed: cube.changed,
+  };
 }
 
 /** The source and calculated columns a calculated column reads. */
@@ -527,6 +631,14 @@ function pruneFilter(node: FilterNode, gone: ReadonlySet<string>, notes: string[
 }
 
 // ---------------------------------------------------------------- the file source
+
+/** A dataframe's source as a page records it (Python's ll.Page): its name on the engine that serves it, and its columns
+ *  as the compiler typed them when the cube was opened over it. */
+export function frameSource(
+  name: string, columns: readonly { readonly name: string; readonly type: string }[],
+): FrameSource {
+  return { _type: 'frame', name, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+}
 
 /** A file's identity: its name, format, size and SHA-256, and the columns it held. */
 export async function fileSource(

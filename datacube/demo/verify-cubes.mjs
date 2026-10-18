@@ -141,12 +141,16 @@ async function waitMessage(re) {
     document.querySelector('#cubelib .dc-lib-message')?.textContent ?? ''), re.source, { timeout: 60_000 });
   return libMessage();
 }
-/** Shape the cube: grouped by region, notional summed. Setup only -- what is tested is the save. */
+/** Shape the cube: grouped by region, the largest notional first -- a part that names notional, so a file that loses
+ *  the column loses a part of the cube (a grid's aggregates are its Column Properties: summed by default, named by
+ *  nothing). Setup only -- what is tested is the save. */
 async function shape() {
   const before = await statusNow();
   await page.evaluate(async () => {
     const app = window.__dataCube;
-    await app.change((s) => ({ ...s, snapshot: { ...s.snapshot, rows: ['region'], measures: [{ name: 'notional', column: 'notional', fn: 'sum' }] } }));
+    await app.change((s) => ({
+      ...s, snapshot: { ...s.snapshot, rows: ['region'], sorts: [{ column: 'notional', direction: 'desc' }] },
+    }));
   });
   await landed(before);
 }
@@ -290,8 +294,12 @@ try {
     await row.locator('.dc-lib-button', { hasText: 'Delete' }).click();
     await page.locator('#cubelib .dc-lib-confirm .dc-lib-button', { hasText: 'Delete' }).click();
     await waitMessage(/deleted/);
+    // the window says it before it reads its list again (cube-library.ts #confirmDelete): the row goes when the list is
+    // read, so wait for that rather than read the rows the moment the message shows (a busy machine read the old list)
+    await page.waitForFunction(() => ![...document.querySelectorAll('#cubelib .dc-lib-row')]
+      .some((r) => (r.textContent ?? '').includes('Sample trades')), undefined, { timeout: 30_000 })
+      .catch(() => { throw new Error('still listed'); });
     const rows = await page.locator('#cubelib .dc-lib-row').allTextContents();
-    if (rows.some((r) => r.includes('Sample trades'))) throw new Error('still listed');
     return `${rows.length} left`;
   });
 
@@ -509,6 +517,23 @@ try {
   });
   let saved = '';
 
+  await check('New ▸ Data Source… on a blank page: its only grid, not capped; the next, beside it, capped', async () => {
+    await load();
+    page.once('dialog', (d) => { void d.accept(); });
+    await burger('Blank Page');
+    await page.locator('.dc-blank').waitFor({ state: 'visible' });
+    // the picker's "add", the page empty: the grid it makes is the page's only one (cube-document.ts gridCapped)
+    await addSample('trades', 200);
+    await page.locator('[data-tile="grid-1"] .dc-row').first().waitFor({ timeout: 60_000 });
+    await addSample('dates', 80);
+    await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
+    const doc = await page.evaluate(() => window.__dataPage.document('Caps'));
+    // a capped grid's configuration holds the row limit (rebuilt); an uncapped one, none
+    const caps = doc.cubes.map((c) => `${c.id}: ${c.cube.configuration.maxRows ?? 'none'}`).join(', ');
+    if (caps !== 'grid-1: none, grid-2: 1000') throw new Error(`the grids' row limits: ${caps}`);
+    return caps;
+  });
+
   await check('a page of two sources, a chart of the second, its FIRST grid removed: saved as one page', async () => {
     await load();
     const before = await statusNow();
@@ -710,6 +735,37 @@ try {
     if (front !== one) throw new Error(`it reopened on ${front}, not its first tab ${one}`);
     await unchanged();
     return `${two} stacked on ${one}; saved and reopened as the stack, on ${one}`;
+  });
+
+  await check('a page file saved before a grid\'s aggregates were its columns\' (cube version 1) is refused, said, the grid as it was', async () => {
+    // no older page is read (the user, 2026-10-17: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md): Open… says why
+    // one answer to any question ("open over unsaved changes?" -- yes): earlier checks' one-shot answers that never fired
+    // are taken off first, so no question is answered twice
+    page.removeAllListeners('dialog');
+    const answer = (d) => { void d.accept(); };
+    page.on('dialog', answer);
+    try {
+      await load();
+      const before = await statusNow();
+      await pickSample('trades', 500);
+      await landed(before);
+      await shape();
+      const want = await typed();
+      // Export > Page File (JSON), as a person keeps one -- then marked as written before: its cube version 1
+      const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
+      const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
+      doc.cubes[0].cube.version = 1;
+      const legacy = join(dir, 'legacy-version.page.json');
+      await writeFile(legacy, JSON.stringify(doc));
+      await showWin('cubeswin', 'Open\u2026');
+      await page.setInputFiles('#cubelib .dc-lib-import', legacy);
+      const message = await waitMessage(/no longer read/);
+      const got = await typed();
+      if (stamp(got) !== stamp(want)) throw new Error(`the grid shown changed: ${differs(want, got)}`);
+      return message.replace(/\s+/g, ' ').slice(0, 160);
+    } finally {
+      page.off('dialog', answer);
+    }
   });
 
   await check('no page errors', async () => {

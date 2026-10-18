@@ -73,6 +73,11 @@ export type Drop =
 
 /** A band's height when nothing says otherwise: half a screen. */
 export const BAND_HEIGHT = 0.5;
+/**
+ * The first band's height, on a board with none: the whole screen, as a page starts (page-document.ts startingViews) --
+ * so the screen's first grid, its re-add onto an emptied board and Python's first grid lay out alike (2026-10-16).
+ */
+export const FIRST_BAND_HEIGHT = 1;
 /** A part's least share of its split, and a band's least height: a divider stops there. */
 export const MIN_SHARE = 0.1;
 export const MIN_BAND_HEIGHT = 0.15;
@@ -80,6 +85,12 @@ export const MIN_BAND_HEIGHT = 0.15;
 export const MAX_COLUMNS = 4;
 
 export const EMPTY: Bands = { fit: false, bands: [] };
+/**
+ * A NEW SHEET'S BOARD: empty, fitting its window (the user, 2026-10-09: fit by default) -- and scrolling once its bands
+ * are too many to fit (draw's floor). A page's first sheet (page-document.ts startingViews), a sheet added on the screen
+ * (page/cube-page.ts) and one added in Python (headless layout.ts layoutNew) each start as it.
+ */
+export const NEW_SHEET: Bands = { fit: true, bands: [] };
 
 const isTile = (node: Node): node is TileNode => 'tile' in node;
 const isStack = (node: Node): node is StackNode => 'stack' in node;
@@ -281,10 +292,12 @@ export function remove(layout: Bands, tile: string): Bands {
 /**
  * A NEW TILE, placed where it is wanted (smart placement): beside `near` -- the tile it came from -- while `near`'s band
  * is a row of fewer than `columns` columns (MAX_COLUMNS, or fewer where the board is too narrow for them to be
- * readable), otherwise as a band of its own below `near`'s; with no `near`, a band at the bottom of the page.
+ * readable), otherwise as a band of its own below `near`'s; with no `near`, a band at the bottom of the page. On a board
+ * with no band, the page's first band: the whole screen (FIRST_BAND_HEIGHT).
  */
 export function add(layout: Bands, tile: string, near?: string, columns = MAX_COLUMNS): Bands {
   if (tiles(layout).includes(tile)) return layout;
+  if (layout.bands.length === 0) return { fit: layout.fit, bands: [{ height: FIRST_BAND_HEIGHT, node: { tile } }] };
   const at = near === undefined ? -1 : bandOf(layout, near);
   if (at < 0) return { fit: layout.fit, bands: [...layout.bands, { height: BAND_HEIGHT, node: { tile } }] };
   const band = layout.bands[at]!;
@@ -351,6 +364,21 @@ export function drop(layout: Bands, tile: string, where: Drop): Bands {
       : where.edge === 'top' ? split('column', [moved, target])
         : split('column', [target, moved]);
   return withBand(rest, at, { height: band.height, node: replaced(band.node, where.onto, pair) });
+}
+
+/**
+ * TILES STACKED WHERE THE FIRST ONE IS (a page made in code: Python's `page.stack`): each tile after the first, then
+ * the tiles stacked with any of those, dropped onto the first's middle one at a time, as a drag drops one (`drop`'s
+ * `stack`; no second rule) -- so the first's place keeps its own tabs first, the others follow in the order given, and
+ * the first is in front. A tile not in the layout is passed over, as a drop passes it.
+ */
+export function stackTiles(layout: Bands, given: readonly string[]): Bands {
+  const [first, ...rest] = given;
+  if (first === undefined || leafOf(layout, first) === undefined) return layout;
+  const own = stackOf(layout, first);
+  const moving = [...new Set([...rest, ...rest.flatMap((tile) => stackOf(layout, tile))])]
+    .filter((tile) => !own.includes(tile));
+  return bringToFront(moving.reduce((at, tile) => drop(at, tile, { stack: first }), layout), first);
 }
 
 /**
@@ -548,11 +576,37 @@ function runs(ids: readonly string[], counts: readonly number[]): string[][] {
   return out;
 }
 
+/** A preset `arrange` does not name (its one refusal), by its name. */
+export class NotALayout extends Error {
+  constructor(preset: string) {
+    super(`not a layout: ${preset}`);
+    this.name = 'NotALayout';
+  }
+}
+
 /** The counts a 'rows:' or 'columns:' preset names, refused by name when it names none. */
 function countsOf(preset: string): number[] {
   const list = preset.slice(preset.indexOf(':') + 1).split('-').map(Number);
-  if (list.length === 0 || list.some((n) => !Number.isInteger(n) || n < 1)) throw new Error(`not a layout: ${preset}`);
+  if (list.length === 0 || list.some((n) => !Number.isInteger(n) || n < 1)) throw new NotALayout(preset);
   return list;
+}
+
+/** The presets named outright, each once (the others are 'rows:' and 'columns:' with their counts): a Record over
+ *  exactly those, so a preset added to Preset and not here, or here and not there, is a compile error. */
+const NAMED: { readonly [K in Exclude<Preset, `rows:${string}` | `columns:${string}`>]: true } = {
+  'side-by-side': true,
+  stacked: true,
+  'focus-left': true,
+  'focus-right': true,
+  'focus-top': true,
+  'focus-bottom': true,
+};
+const NAMED_PRESETS: ReadonlySet<string> = new Set(Object.keys(NAMED));
+
+/** `preset`, refused by name when `arrange` does not name it -- whatever the page holds, an empty one included. */
+function checkedPreset(preset: Preset): void {
+  if (preset.startsWith('rows:') || preset.startsWith('columns:')) countsOf(preset);
+  else if (!NAMED_PRESETS.has(preset)) throw new NotALayout(String(preset));
 }
 
 /**
@@ -561,6 +615,8 @@ function countsOf(preset: string): number[] {
  * goes on (rows of 2 and 2 continue in rows of 2). Fewer: the preset closes up. The page's fit is kept.
  */
 export function arrange(layout: Bands, preset: Preset, order: readonly string[] = tiles(layout)): Bands {
+  // a preset it does not name is refused before anything is arranged: a page of one place, or none, too
+  checkedPreset(preset);
   // each tile's place, once: a stack's first tile named brings the stack
   const units: Leaf[] = [];
   for (const tile of order) {
@@ -601,7 +657,7 @@ export function arrange(layout: Bands, preset: Preset, order: readonly string[] 
     const one = { height, node: leaf(first!) };
     bands = preset === 'focus-top' ? [one, ...others] : [...others, one];
   } else {
-    throw new Error(`not a layout: ${String(preset)}`);
+    throw new NotALayout(String(preset));
   }
   return { fit: layout.fit, bands };
 }
@@ -891,56 +947,6 @@ export function cells(layout: Bands, cols = 24, rows = 24): { readonly cols: num
     y += heights[i]!;
   });
   return { cols: width, rows: y, tiles: out };
-}
-
-/**
- * A PAGE SAVED BEFORE BANDS (tiles on a grid `cols` wide, `rows` to a screenful), read as bands: cut where no tile
- * crosses -- across the page into bands, then inside each band down into columns or across into parts, as often as a
- * straight cut divides what is left -- each part's share its span. Tiles no straight cut divides (four round a middle)
- * are read side by side, in order across, each its width's share. Every tile is kept; the page scrolls, as it did.
- */
-export function fromCells(tiles: readonly Cell[], rows: number): Bands {
-  /** `rects` in groups no line across `axis` crosses, in order along it. */
-  const cut = (rects: readonly Cell[], axis: 'x' | 'y'): Cell[][] => {
-    const size = axis === 'x' ? 'w' : 'h';
-    const sorted = [...rects].sort((a, b) => a[axis] - b[axis] || a.id.localeCompare(b.id));
-    const groups: Cell[][] = [];
-    let end = -Infinity;
-    // in order along the axis, the furthest any rect so far reaches: one starting at or past it starts a new group
-    for (const rect of sorted) {
-      if (rect[axis] >= end) groups.push([rect]);
-      else groups[groups.length - 1]!.push(rect);
-      end = Math.max(end, rect[axis] + rect[size]);
-    }
-    return groups;
-  };
-  const span = (rects: readonly Cell[], axis: 'x' | 'y'): number => {
-    const size = axis === 'x' ? 'w' : 'h';
-    return Math.max(...rects.map((r) => r[axis] + r[size])) - Math.min(...rects.map((r) => r[axis]));
-  };
-  const nodeOf = (rects: readonly Cell[]): Node => {
-    if (rects.length === 1) return { tile: rects[0]!.id };
-    for (const [axis, direction] of [['x', 'row'], ['y', 'column']] as const) {
-      const groups = cut(rects, axis);
-      if (groups.length > 1) {
-        const spans = groups.map((g) => span(g, axis));
-        const sum = spans.reduce((a, b) => a + b, 0);
-        return split(direction, groups.map(nodeOf), spans.map((s) => s / sum));
-      }
-    }
-    const across = [...rects].sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id));
-    const sum = across.reduce((a, r) => a + r.w, 0);
-    return split('row', across.map((r) => ({ tile: r.id })), across.map((r) => r.w / sum));
-  };
-  const unique = tiles.filter((t, i) => tiles.findIndex((u) => u.id === t.id) === i);
-  if (unique.length === 0) return EMPTY;
-  return {
-    fit: false,
-    bands: cut(unique, 'y').map((group) => ({
-      height: Math.max(MIN_BAND_HEIGHT, span(group, 'y') / Math.max(1, rows)),
-      node: nodeOf(group),
-    })),
-  };
 }
 
 /** Where a divider snaps, as a share of its split: quarters, thirds and the half (§3.3). */
