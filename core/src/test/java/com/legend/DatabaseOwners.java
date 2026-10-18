@@ -187,7 +187,10 @@ final class DatabaseOwners {
         if (BACKEND.matcher(rel).matches()) {
             return new Owner(Kind.BACKEND, ownAndParent(rel, source));
         }
-        if (rel.contains("/src/test/") && !named(className(rel)).isEmpty()) {
+        // a test, or (2026-10-18, the dialect program's Phase 7) a test database's launcher in the shared test support,
+        // testing/ (EmbeddedPostgres and the rest)
+        if ((rel.contains("/src/test/") || rel.startsWith("testing/src/main/java/"))
+                && !named(className(rel)).isEmpty()) {
             return new Owner(Kind.NAMED_TEST, ownAndParent(rel, source));
         }
         if (INPUT_LANGUAGES.containsKey(rel)) {

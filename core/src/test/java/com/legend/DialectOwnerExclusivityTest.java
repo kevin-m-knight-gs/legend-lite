@@ -55,6 +55,11 @@ class DialectOwnerExclusivityTest {
                     "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
             // (2026-10-18, the dialect program's Phase 7: the warehouse's two crossings, its Postgres catalog tests
             // naming DuckDB, left this list: the warehouse is a host owner, its engine DuckDB (DatabaseOwners).)
+            // 2026-10-18 (registered as measured, the dialect program's Phase 7, when the guards first read testing/):
+            // MySQL's test server is reached through MariaDB's driver, the one driver both lanes load, as MySQL's
+            // connector extends MariaDB's in the product
+            new Crossing("testing/src/main/java/com/legend/testing/EmbeddedMySql.java", "MariaDB", 1,
+                    "MySQL's test server is opened by MariaDB Connector/J, the one driver both lanes load"),
             // 2026-10-16 (registered as measured, the dialect program's Phase 6, the audit of the branch): two DuckDB
             // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
             // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
@@ -79,7 +84,8 @@ class DialectOwnerExclusivityTest {
         // the tests too (2026-10-16, the dialect program's Phase 6): the test backends, and every test named for a
         // database, are owners there
         for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.get(1), "core/src/test/java", "pct/src/test/java",
-                "spec/src/test/java", "parser-equivalence/src", "warehouse/src/main/java", "warehouse/src/test/java")) {
+                "spec/src/test/java", "parser-equivalence/src", "warehouse/src/main/java", "warehouse/src/test/java",
+                "wasm/src/main/java/planner", "native/src/main/java", "testing/src/main/java")) {
             String rel = SourceFiles.path(f);
             if (!rel.endsWith(".java")) {
                 continue;

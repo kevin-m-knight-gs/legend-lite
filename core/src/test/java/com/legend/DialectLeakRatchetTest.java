@@ -44,10 +44,16 @@ class DialectLeakRatchetTest {
 
     private static final String LEDGER = "core/src/test/resources/dialect-leaks/ledger.tsv";
 
-    /** The Java sources the census target declares (core, the modules that test it, and since 2026-10-18 the
-     *  warehouse's own code, a host owner: DatabaseOwners). */
-    private static final List<String> ROOTS = List.of("core/src", "pct/src", "spec/src", "parser-equivalence/src",
-            "warehouse/src/main/java", "warehouse/src/test/java");
+    /** The Java sources the census target declares: core, the modules that test it, and since 2026-10-18 (the program's
+     *  Phase 7) every other module that plans, renders or runs SQL on a database: the warehouse (a host owner:
+     *  DatabaseOwners), the tab's and Python's planner boundary (wasm's planner, native) and the test databases'
+     *  launchers (testing). Not read: the build's tools and the other products (sdlc-server, depot-server,
+     *  query-store, json, base, site, datacube's tools), whose hits, measured that day, were two false positives
+     *  ({@code Sha1}'s {@code h2}, {@code Bump}'s {@code engineArchive}), the census renderer (a census tool, naming
+     *  every dialect by design) and a tool named for Postgres ({@code AppPostgres}). */
+    static final List<String> ROOTS = List.of("core/src", "pct/src", "spec/src", "parser-equivalence/src",
+            "warehouse/src/main/java", "warehouse/src/test/java", "wasm/src/main/java/planner", "native/src/main/java",
+            "testing/src/main/java");
 
     private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2Modern|H2|Postgres|Snowflake|Databricks|BigQuery"
             + "|SQLite|MariaDb|MySql|Trino|ClickHouse|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";

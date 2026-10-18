@@ -198,6 +198,16 @@ public interface SqlDialect {
                 + "' is not implemented for " + getClass().getSimpleName());
     }
 
+    /** THE CATALOG QUESTION for one table: the statement whose rows are the table's columns as {@link CatalogModel}
+     *  reads them (each column's name, its own type name, its canonical type, a decimal's precision and scale, whether
+     *  it holds no null: {@link #catalogType}'s input), {@code schema} and {@code table} written in as this database's
+     *  string literals. Refused, naming the dialect, where the platform does not ask the catalog itself (an attached
+     *  database's tables are listed by their host). The dialect program's Phase 7, 2026-10-18: the tab's planner read
+     *  DuckDB's question off its class until then. */
+    default String catalogColumnsQuery(String schema, String table) {
+        throw new UnsupportedOperationException("the platform asks no catalog question of " + getClass().getSimpleName());
+    }
+
     /** Whether a store that declares the catalog's name {@code catalogName} BARE reaches the object the catalog
      *  names (CatalogModel declares the name quoted where it does not): a database that matches names
      *  case-insensitively always does; one that folds a bare name (Postgres, decision D8) only when the name is its

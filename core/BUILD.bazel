@@ -369,8 +369,11 @@ _CENSUS_READS = _CORE_READS + [
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",
+    "//native:main_java",
+    "//testing:main_java",
     "//warehouse:main_java",
     "//warehouse:test_java",
+    "//wasm:planner_java",
 ]
 
 # core's tests, compiled ONCE; every lane below runs from this library.
