@@ -36,7 +36,8 @@ import {
   FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews,
 } from '../page-document.ts';
 import { givenName } from '../page-names.ts';
-import { chartTitle, gridTitle, nextPageId, type PageCommand } from '../page-commands.ts';
+import { chartTitle, gridTitle, nextPageId } from '../page-ids.ts';
+import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument } from '../cube-document.ts';
 import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';

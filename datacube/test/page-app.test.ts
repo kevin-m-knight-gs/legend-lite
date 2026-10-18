@@ -18,6 +18,7 @@ import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-a
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
+import { CubeRefusal } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 
 let dom: JSDOM;
@@ -594,6 +595,35 @@ describe('a page of its own', () => {
     const replayed = applyPageCommands({ page: start, held: idsOf(start) }, told).draft.page;
     assert.deepEqual({ views: replayed.views, sheets: replayed.sheets }, page.views());
     assert.deepEqual(replayed.cubes.map((c) => c.id), page.cubes, 'the grid that went took its cube');
+  });
+
+  it('follows another editor\'s page commands: applied to the page as it is, a grid added by its maker and none made again, its history started again; refused, nothing changed', async () => {
+    // (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) Python's change, as the commands it was
+    newPage({ confirm: () => true });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(page.undoLabel, 'Add Sheet', "the screen's own edit: a step");
+    const second = page.sheets[1]!;
+    const commands: PageCommand[] = [
+      { kind: 'renameSheet', sheet: second, name: 'From Python' },
+      { kind: 'addGrid', id: 'grid-7', document: page.document('Q3')!.cubes[0]!.cube, sheet: second, near: null, title: 'Orders', columns: null },
+      { kind: 'renameTile', tile: a, title: 'Trades' },
+    ];
+    const expected = applyPageCommands(page.state, commands).draft.page;
+    const madeBefore = made.length;
+    await page.follow(commands, new Map([['grid-7', over('orders.csv')]]));
+    await settle();
+    assert.deepEqual(page.views(), { views: expected.views, sheets: expected.sheets });
+    assert.deepEqual(made.slice(madeBefore), [['grid-7', false]], 'one grid made, the one added: none made again');
+    assert.equal(tile('grid-7').querySelector('.dc-tile-title')?.textContent, 'Orders');
+    assert.equal(page.undoLabel, undefined, "its history starts again from the other editor's change");
+    assert.deepEqual(page.state.page, page.document('Q3'), 'the state is the page on screen');
+    // a command naming a tile closed here: refused in its words, nothing changed
+    const before = page.views();
+    await assert.rejects(page.follow([{ kind: 'removeTile', tile: 'grid-9' }], new Map()), CubeRefusal);
+    assert.deepEqual(page.views(), before);
   });
 
   it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {

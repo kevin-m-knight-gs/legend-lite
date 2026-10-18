@@ -584,8 +584,13 @@ try {
   await seen('a page built with ll.Page opens in a tab: its sheets, its grid over its frame and the chart beside it',
     `(${String(sheetNames)})() === 'pytrades|Desks' && document.querySelector('[data-tile="grid-1"]')?.innerText.includes('EMEA')
       && document.querySelector('[data-tile="chart-1"]') !== null`);
+  // (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) followed by the commands Python made: the page is not opened again, so
+  // a mark on its grid's tile stays
+  await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
   await python('py-page-sheet');
   await seen('a sheet added to it in Python shows on the open page', `(${String(sheetNames)})() === 'pytrades|Desks|Added in Python'`);
+  await seen('followed by its command: the page not opened again (its grid\'s tile the same)',
+    () => document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
   await tabbed.locator('.dc-sheet-tab', { hasText: 'Desks' }).dblclick();
   await tabbed.locator('.dc-sheet-tab input').fill('Renamed in DataCube');
   await tabbed.locator('.dc-sheet-tab input').press('Enter');
@@ -603,6 +608,11 @@ try {
   })();
   console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is in page.read() in Python${read ? ` (${read.join(', ')})` : ''}`);
   if (!read) failed = true;
+  // a grid's edit in Python, applied to that grid on the open page as its grid command: grouped by desk, not opened again
+  await python('py-page-group');
+  await seen('a grid grouped in Python is grouped on the open page by its grid command, the page not opened again',
+    () => document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') !== null
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
 
   // SAVED FROM PYTHON (D, B6): page.save() keeps the page in this user's saved pages by the rules the tab's own Save
   // keeps it by; DataCube's Open… lists it, and it opens -- its sheets as Python saved them, its grid over its frame

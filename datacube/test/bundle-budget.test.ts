@@ -195,8 +195,13 @@ const BUDGET = 288_500;
  *  271,000 -> 272,500 (2026-10-18, the command program's stage 1, step 3: as the grid's -- the screen applies its edits
  *  as grid commands, by the one function Python's calls are applied by). Measured 272,184.
  *  272,500 -> 273,500 (2026-10-18, stage 1's step 3b and its review: as the grid's). Measured 272,761.
- *  273,500 -> 275,500 (2026-10-18, the command program's stage 2: page-level undo, as the grid's). Measured 274,868. */
-const ENGINE_BUDGET = 275_500;
+ *  273,500 -> 275,500 (2026-10-18, the command program's stage 2: page-level undo, as the grid's). Measured 274,868.
+ *  275,500 -> 278,500 (2026-10-18, the command program's stage 3, the roadmap run's phase 3:
+ *  docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): this is the page Python shows, which now follows Python's changes by
+ *  their commands -- the live page's changes (python-host.ts, the grid command reader with them) and the app applying
+ *  them (datacube-app.ts followLive). The page commands' rules come only with the first commands (a chunk of their
+ *  own: page-ids.ts keeps the screen's ids apart from them). Measured 277,563. */
+const ENGINE_BUDGET = 278_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -278,8 +283,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  290,000 -> 291,000 (2026-10-18, the command program's stage 1: the screen applies its edits as grid commands, the
  *  Properties window's Apply among them -- the grid's notes of the same date). Measured 290,232.
  *  291,000 -> 293,000 (2026-10-18, the command program's stage 2: page-level undo -- the grid's notes of the same date).
- *  Measured 292,353. */
-const WIDGET_BUDGET = 293_000;
+ *  Measured 292,353.
+ *  293,000 -> 296,000 (2026-10-18, the command program's stage 3: a notebook's page follows Python's changes by their
+ *  commands -- the engine page's note of the same date). Measured 295,033. */
+const WIDGET_BUDGET = 296_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

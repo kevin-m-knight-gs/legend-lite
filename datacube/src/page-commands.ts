@@ -15,6 +15,7 @@ import {
   type PageView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
+import { chartTitle, nextPageId } from './page-ids.ts';
 import type { PageState } from './page-state.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from './snapshot.ts';
 
@@ -68,21 +69,9 @@ export interface PageApplied {
   readonly command: PageCommand;
 }
 
-// ---------------------------------------------------------------- ids and titles
+// ---------------------------------------------------------------- ids and titles (page-ids.ts: the screen's too)
 
-/** The number an id ends with (`chart-3`: 3), or 0. */
-const numberOf = (id: string): number => Number(/-(\d+)$/.exec(id)?.[1] ?? 0);
-
-/** A new id of `kind` (`chart-4`): after every one of its kind the page has held, so never one a handle had. */
-export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'sheet'): string {
-  return `${kind}-${Math.max(0, ...held.filter((h) => h.startsWith(`${kind}-`)).map(numberOf)) + 1}`;
-}
-
-/** A new chart's title, as the screen titles one: its number (`chart-4`: "Chart 4"). */
-export const chartTitle = (id: string): string => `Chart ${numberOf(id)}`;
-
-/** A page of its own's new grid's title, unless given one: its number. A grid's made title is not written. */
-export const gridTitle = (id: string): string => `Grid ${numberOf(id)}`;
+export { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
 
 // ---------------------------------------------------------------- applying
 

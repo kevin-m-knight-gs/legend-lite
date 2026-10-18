@@ -945,6 +945,14 @@ export class CubeApp {
     return refused ?? refusal(outcome);
   }
 
+  /**
+   * ANOTHER EDITOR'S GRID COMMANDS (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), applied
+   * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
+   */
+  applyGridCommands(commands: readonly GridCommand[], label: string): Promise<string | null> {
+    return this.#apply(commands, label);
+  }
+
   /** #apply's change, `then` its tree (the Properties window's settings move it: #applyDraft), and how it ended: a
    *  refusal of the commands in their words, or the change's outcome. */
   async #applyCommands(commands: readonly GridCommand[], label: string,

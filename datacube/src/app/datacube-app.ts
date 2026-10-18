@@ -39,7 +39,8 @@ import type { MenuItem } from '../ui/menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
-import type { Sample, Services, Versions } from './services.ts';
+import type { LiveCommand, Sample, Services, Versions } from './services.ts';
+import type { PageCommand } from '../page-commands.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
@@ -1199,6 +1200,64 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       return undefined;
     }
 
+    /**
+     * THE OTHER EDITOR'S CHANGE FOLLOWED BY ITS COMMANDS (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): what moved its page
+     * since the version on screen, applied to the page as it is here -- no grid made again, none queried again but those
+     * a command changes, what was changed here meanwhile kept. When the editor says the page instead (a change by no
+     * command), or its commands do not apply here (a tile closed meanwhile, an id given since), the page is opened again
+     * as the editor has it, as every move was followed before. Undefined, or why it was not followed.
+     */
+    async function followLive(): Promise<string | undefined> {
+      const editor = live?.page;
+      if (!editor || liveShown === undefined) return openLive();
+      let moved: Awaited<ReturnType<typeof editor.changes>>;
+      try {
+        moved = await editor.changes(liveShown);
+      } catch {
+        return openLive();
+      }
+      if (!('commands' in moved)) return openLive();
+      // nothing reported while they apply: what the page says is of the version they move it to
+      liveShown = undefined;
+      try {
+        await applyLive(moved.commands);
+      } catch {
+        return openLive();
+      }
+      liveShown = moved.version;
+      // the page as it is now, said once it settles: what the editor's page.read() takes
+      liveChanged();
+      return undefined;
+    }
+
+    /** The editor's commands, in order: each run of page commands to the page, each run of one grid's to that grid. */
+    async function applyLive(commands: readonly LiveCommand[]): Promise<void> {
+      for (let i = 0; i < commands.length;) {
+        const first = commands[i]!;
+        if ('page' in first) {
+          const run: PageCommand[] = [];
+          for (let c = commands[i]; c && 'page' in c; c = commands[++i]) run.push(c.page);
+          // each grid it adds, made by the host's maker for its cube, as a saved page's grids are
+          const makers = new Map<string, GridMaker>();
+          for (const command of run) {
+            if (command.kind !== 'addGrid' || command.id === undefined || command.document === null) continue;
+            const o = await sources.reopened(command.document, [], gridCapped(page.cubes.length + makers.size + 1), current.model?.tables[command.id]);
+            if (!o) throw new Error(`${command.document.source.name} was not opened`);
+            makers.set(command.id, o.make);
+          }
+          await page.follow(run, makers);
+          continue;
+        }
+        const grid = first.grid;
+        const run = [];
+        for (let c = commands[i]; c && 'grid' in c && c.grid === grid; c = commands[++i]) run.push(c.command);
+        const cube = madeCubes.get(grid);
+        if (!cube) throw new Error(`no grid ${grid} on the page`);
+        const refused = await cube.applyGridCommands(run, 'Python');
+        if (refused !== null) throw new Error(refused);
+      }
+    }
+
     /** One frame in place of the page, the page named by it as Python named it (`ll.show(df, name)`): not a change. */
     async function openFrame(name: string, replacing: boolean): Promise<void> {
       await inPlace(() => sources.openedFrame(name), name, replacing);
@@ -1252,7 +1311,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await openFrame(start.name, true);
           return undefined;
         }
-        if (now.version !== undefined && liveShown !== undefined && now.version !== liveShown) return openLive();
+        if (now.version !== undefined && liveShown !== undefined && now.version !== liveShown) return followLive();
         for (const [frame, version] of Object.entries(now.frames)) {
           if (disposed) return undefined;
           const read = sources.frameVersion(frame);

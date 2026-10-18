@@ -45,11 +45,12 @@ import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
 import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
 import { PlanAndRun, QueryFailure } from '../runner.ts';
+import { readGridCommand } from '../grid-commands.ts';
 import type { InferredModel } from '../infer.ts';
 import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
-  BrowserService, DatabaseService, FrameModel, LivePage, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
+  BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
   QueryService, Services, Versions, WarehouseService,
 } from '../app/services.ts';
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
@@ -545,12 +546,33 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
 /** The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays. */
 function livePage(link: PythonLink, key: string): LivePage {
   const at = `page.json?page=${encodeURIComponent(key)}`;
+  /** The page as Python serves it now, read from the answer's exact JSON. */
+  const read = (text: string): { version: number; page: PageDocument } => {
+    const said = fromJson(text) as { version: unknown; page: unknown };
+    const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
+    if (!Number.isSafeInteger(version)) throw new Error('the engine said no version of the page');
+    return { version, page: readPage(said.page) };
+  };
   return {
-    read: async () => {
-      const said = fromJson(await asked(link, at)) as { version: unknown; page: unknown };
-      const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
-      if (!Number.isSafeInteger(version)) throw new Error('the engine said no version of the page');
-      return { version, page: readPage(said.page) };
+    read: async () => read(await asked(link, at)),
+    // what moved it since (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): each command read by its own reader, a grid
+    // added's cube from the answer's exact numbers (a calculated column's 12.30 kept); the page's rules fetched with
+    // the first commands, not with the page
+    changes: async (since) => {
+      const text = await asked(link, `${at}&since=${since}`);
+      const plain = JSON.parse(text) as { version: number; commands?: unknown[] };
+      if (plain.commands === undefined) return read(text);
+      const exact = (fromJson(text) as { commands: Record<string, Record<string, unknown>>[] }).commands;
+      const { readPageCommand } = await import('../page-commands.ts');
+      const commands = plain.commands.map((c, i): LiveCommand => {
+        const o = c as { page?: Record<string, unknown>; grid?: unknown; command?: unknown };
+        if (o.page !== undefined) {
+          return { page: readPageCommand(o.page['kind'] === 'addGrid' ? { ...o.page, document: exact[i]!['page']!['document'] } : o.page) };
+        }
+        if (typeof o.grid !== 'string') throw new Error(`the engine said a command of no page and no grid: ${JSON.stringify(c)}`);
+        return { grid: o.grid, command: readGridCommand(o.command) };
+      });
+      return { version: plain.version, commands };
     },
     report: async (version: number, page: PageDocument) => {
       const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}`, {

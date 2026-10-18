@@ -708,6 +708,35 @@ export class PageApp {
     return this.#state.draft;
   }
 
+  /**
+   * ANOTHER EDITOR'S CHANGE (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): its page commands
+   * applied to the page as it is open -- what was changed here meanwhile kept -- and the screen put at the page they
+   * make, a grid they add made by its maker in `makers` (its host's, for its cube document). The editor's change is no
+   * step of this page's own: its history starts again from it (an undo past it would take it back unseen). Refused in
+   * the commands' words (CubeRefusal) when they do not apply here -- a tile closed meanwhile, an id given since -- with
+   * nothing changed.
+   */
+  async follow(commands: readonly PageCommand[], makers: ReadonlyMap<string, GridMaker>): Promise<void> {
+    // the page commands' rules, fetched with the first commands another editor sends (the screen's page has none)
+    const { applyPageCommands } = await import('../page-commands.ts');
+    if (this.#disposed) return;
+    const from = this.#state.draft.page;
+    const to = applyPageCommands(this.#state.draft, commands).draft.page;
+    const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
+    this.#syncing = true;
+    try {
+      this.#page.sync(views(to), views(from), (grid) => {
+        const make = makers.get(grid);
+        return this.#remake(grid) ?? (make ? this.#maker(make) : undefined);
+      });
+    } finally {
+      this.#syncing = false;
+    }
+    this.#state = new PageState(this.#seen());
+    this.#paintSheets();
+    this.#paintEmpty();
+  }
+
   #move(way: 'undo' | 'redo'): void {
     // a locked page: nothing moves
     if (!this.#page.editing || this.#disposed) return;

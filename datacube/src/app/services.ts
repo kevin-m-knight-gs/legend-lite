@@ -21,6 +21,8 @@ import type { CubeStore } from '../cube-store.ts';
 import type { FileHandles } from '../file-handles.ts';
 import type { InferredModel, TableModels } from '../infer.ts';
 import type { PageDocument } from '../page-document.ts';
+import type { PageCommand } from '../page-commands.ts';
+import type { GridCommand } from '../grid-commands.ts';
 import type { ModelOptions } from '../planner.ts';
 import type { S3Credentials } from '../remote.ts';
 import type { ModelWriter } from '../model-writer.ts';
@@ -202,10 +204,22 @@ export interface LiveService {
   readonly page?: LivePage;
 }
 
+/** One command the editor made (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): the page's, or a grid's, by its tile's id. */
+export type LiveCommand =
+  | { readonly page: PageCommand }
+  | { readonly grid: string; readonly command: GridCommand };
+
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {
   /** The page as the editor says it is now, at its version; refused with the editor's reason. */
   read(): Promise<{ readonly version: number; readonly page: PageDocument }>;
+  /**
+   * What moved the page since version `since` (the one open): the commands the editor made, in order -- or, when it
+   * keeps none for a version since (a change by no command, a version long gone), the page as it is now.
+   */
+  changes(since: number): Promise<
+    | { readonly version: number; readonly commands: readonly LiveCommand[] }
+    | { readonly version: number; readonly page: PageDocument }>;
   /** The page as it is now, said back with the version it opened (what it says of a version replaced is refused). */
   report(version: number, page: PageDocument): Promise<void>;
 }

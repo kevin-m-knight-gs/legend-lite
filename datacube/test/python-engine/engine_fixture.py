@@ -5,7 +5,8 @@ source, the rows (the page loads the same rows into the tab's DuckDB), and each 
 the test's commands until its standard input closes: `update`, `columns`, `widget-update`, `page <json>` (a page of
 its frames served, as `q3`), `page-again` (that page served again, its second sheet renamed), `desks-update` (the second
 frame a row more), `py-page` (a page built with ll.Page and shown; answered `done py-page <its link as JSON>`),
-`py-page-sheet` (a sheet added to it in Python), `widget-page-sheet` (a sheet added to the notebook's page),
+`py-page-sheet` (a sheet added to it in Python), `py-page-group` (its first grid grouped by desk in Python),
+`widget-page-sheet` (a sheet added to the notebook's page),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
 page.read() says them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
@@ -185,8 +186,8 @@ def main() -> None:
             elif command == 'py-page':
                 # a page built in Python (ll.Page), as a person builds one, and shown (the test opens the tab)
                 pypage = ll.Page('Built in Python')
-                grid = pypage.grid(frame, name='pytrades', rows=['region'], measures={'notional': 'sum'})
-                grid.chart('bar', x='region', y=[('notional', 'sum')], title='By region')
+                pygrid = pypage.grid(frame, name='pytrades', rows=['region'], measures={'notional': 'sum'})
+                pygrid.chart('bar', x='region', y=[('notional', 'sum')], title='By region')
                 pypage.sheet('Desks').add(pypage.grid(lambda: desks['now'], name='pydesks'))
                 # (show() says its link to a person, on standard output: here the test's line is the answer)
                 with contextlib.redirect_stdout(io.StringIO()):
@@ -194,6 +195,8 @@ def main() -> None:
                 command = f'py-page {json.dumps(shown_page.url)}'
             elif command == 'py-page-sheet':
                 pypage.sheet('Added in Python')
+            elif command == 'py-page-group':
+                pygrid.group('desk')
             elif command == 'show-closing':
                 with contextlib.redirect_stdout(io.StringIO()):
                     closing = ll.show(frame.slice(0, 2), name='closing', browser=False)
