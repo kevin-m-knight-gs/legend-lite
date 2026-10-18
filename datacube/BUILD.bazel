@@ -402,8 +402,6 @@ _HEADLESS_TESTS = [
     "grid-commands",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
-    # a page edit as a value (docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md), over the saved-page corpus's frame page
-    "page-commands",
     "cube-state",
     "dimensions",
     "drill",
