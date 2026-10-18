@@ -2126,6 +2126,31 @@ tests:
     sql: "SELECT id, CASE WHEN id > 1 THEN nm ELSE it END AS a, GREATER(nm, sm) AS b, LESSER(nm, 1) AS c FROM t ORDER BY id"
     profile: sqla17-default
 
+  # ---- GREATER and LESSER send the statement to SQL Anywhere's front end (IQ island, 2026-10-17; the differential
+  # fuzzer's fifth round, measured on IQ 17.1): read anywhere -- the select list, WHERE, a subquery -- but in a derived
+  # table's column no one reads
+  - id: lesser_beside_a_ceiling
+    sql: "SELECT id, LESSER(nm, 1) AS a, CEILING(nm) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_beside_a_sign_of_a_double
+    sql: "SELECT id, GREATER(sm, 0) AS a, SIGN(dbl) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: lesser_beside_a_numeric_quotient
+    sql: "SELECT id, LESSER(nm, 1) AS a, nm / 7 AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_beside_a_round_past_its_type
+    sql: "SELECT id, GREATER(sm, 0) AS a, ROUND(nm, -1) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_in_where_beside_a_ceiling
+    sql: "SELECT id, CEILING(nm) AS b FROM t WHERE GREATER(sm, 0) > 0 ORDER BY id"
+    profile: iq17-default
+  - id: greater_in_an_unread_derived_column
+    sql: "SELECT d.b FROM (SELECT id, CEILING(nm) AS b, GREATER(sm, 0) AS g FROM t) d ORDER BY d.b"
+    profile: iq17-default
+  - id: greater_beside_an_integer_past_its_range
+    sql: "SELECT id, it + 1 AS b, GREATER(1, 2) AS g FROM t ORDER BY id"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

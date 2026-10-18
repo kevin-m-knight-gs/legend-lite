@@ -581,6 +581,13 @@ The user asked for real queries that push the island hard. Their corpora, data a
   - Measured, not built: IQ's engine writes a DOUBLE as text (`||`, CAST, STRING) with 18 significant digits and
     trailing zeros kept, C's `%#.18g` (`-0.100000000000000006`, `1.00000000000000005e+300`), zero as `'0'`. DuckDB's
     printf could write it; Postgres has no such format.
+    - GREATER and LESSER: a statement over IQ tables that reads either one anywhere (select list, WHERE, ORDER BY, a
+      subquery) runs in SQL Anywhere's front end, whole: beside one `CEILING(nm)` is a DOUBLE, `it + 1` past 2^31 - 1
+      and an INTEGER SUM past its range are -158, `ROUND(nm, -1)` past NUMERIC(10,2) is -158. A derived table's
+      column no one reads does not count (IQ drops it first); in a window's keys they are -1001025. Read so, made
+      possible by the front end's NUMERIC unification, measured on SQL Anywhere 17 (D-N1 there: integers below a
+      BIGINT are NUMERIC(10,0), a BIGINT NUMERIC(20,0)).
+    - ROLLUP or CUBE beside a DISTINCT aggregate: -1001030, raised after the names' and the conversions' errors.
   - IQ's own quirk, not copied: `ROW_NUMBER() OVER (ORDER BY bg - bg, id)` over BIGINT extremes does not honor the
     `id` tiebreak (RANK sees the rows equal).
   - Measured, not built: `1 + v = v + 1` is two-valued too (IQ reads the sum in either order), and lite keeps it
@@ -592,14 +599,6 @@ The user asked for real queries that push the island hard. Their corpora, data a
   - BIGINT arithmetic past 64 bits. IQ's engine answers a NUMERIC(20,0) (`bg + 7` over 2^63 - 1). Lite types from the
     column, so it keeps a BIGINT and the database's overflow raises. That is D-N3: IQ sizes from the data, and
     widening every BIGINT operation would mistype every realistic one.
-  - GREATER and LESSER: a statement over IQ tables that reads either one anywhere (select list, WHERE, ORDER BY, a
-    subquery) runs in SQL Anywhere's front end, whole. Measured 2026-10-17 (fuzz round 5): beside one, `CEILING(nm)`
-    is a DOUBLE (alone a NUMERIC(11,2)), `it + 1` past 2^31 - 1 is -158, an INTEGER SUM past its range is -158, and
-    `ROUND(nm, -1)` past NUMERIC(10,2) is -158 (alone IQ answers a NUMERIC(11,2)). A derived table's column no one
-    reads does not count, since IQ drops it first; in a window's keys they are -1001025 (built). Routing such
-    statements to lite's front-end reading is the fix, but that reading refuses a CASE of a NUMERIC (D-N1, not
-    verified on SQL Anywhere), so `GREATER(nm, sm)`, which passes now, would be refused. It waits on SQL Anywhere's
-    NUMERIC unification being measured.
   - A sum far past its declared type (a triple join's fan-out, 2e20) defeats lite's type-sized division steps, and the
     database raises; IQ answers. A ROUND of a quotient whose declared type is narrower than IQ's data-sized one raises
     lite's range check, where IQ answers (both D-N3).

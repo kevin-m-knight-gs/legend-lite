@@ -308,8 +308,16 @@ public final class IqDialect implements InputDialect {
     /** The engine IQ runs {@code statement} in under {@code settings}: SQL Anywhere's front end when no query of it
      *  (a set operation's branch, a derived table, a subquery) reads a table, IQ's otherwise (a table of the island's
      *  is an IQ table; the research's D-E1 gives a mix to IQ). A {@code sqla17-*} profile is a SQL Anywhere database:
-     *  no IQ engine there, whatever the FROM. */
+     *  no IQ engine there, whatever the FROM. IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured
+     *  on IQ 17.1): a statement over IQ tables that reads GREATER or LESSER anywhere runs in the front end too
+     *  ({@link #readsFrontEndFunction}: CEILING(nm) beside one is a DOUBLE, it + 1 past an INTEGER its -158). */
     public static Engine engineOf(SqlAst.Statement statement, IqSettings settings) {
+        Engine store = storeOf(statement, settings);
+        return store == Engine.IQ && readsFrontEndFunction(statement) ? Engine.SA : store;
+    }
+
+    /** The engine of the store {@code statement}'s tables are in ({@link #engineOf} but for its functions). */
+    static Engine storeOf(SqlAst.Statement statement, IqSettings settings) {
         if (!settings.iqDatabase()) {
             return Engine.SA;
         }
@@ -325,6 +333,66 @@ public final class IqDialect implements InputDialect {
             }
         }
         return Engine.SA;
+    }
+
+    /** Whether {@code statement} reads GREATER or LESSER: in any expression of any query of it but a derived table's
+     *  column its enclosing query does not read (IQ drops that first: measured on IQ 17.1, 2026-10-17). */
+    private static boolean readsFrontEndFunction(SqlAst.Statement statement) {
+        Set<SqlAst.Expr> unread = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select outer)) {
+                continue;
+            }
+            for (SqlAst.FromItem f : outer.from()) {
+                for (SqlAst.FromItem leaf : leaves(f)) {
+                    if (!(leaf instanceof SqlAst.SubqueryFrom d) || !(d.query() instanceof SqlAst.Select ds)) {
+                        continue;
+                    }
+                    String alias = d.alias() == null ? null
+                            : IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
+                    if (outer.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns a && (a.qualifier() == null
+                            || IqLexer.lower(java.util.Objects.requireNonNull(a.qualifier()).text()).equals(alias)))) {
+                        continue;
+                    }
+                    Set<String> read = new java.util.HashSet<>();
+                    for (SqlAst.Expr e : readExpressions(outer)) {
+                        namesRead(e, alias, read);
+                        List<SqlAst.Statement> subs = new ArrayList<>();
+                        subqueries(e, subs);
+                        for (SqlAst.Statement sub : subs) {
+                            for (SqlAst.Statement inner : queries(sub)) {
+                                if (inner instanceof SqlAst.Select is) {
+                                    readExpressions(is).forEach(x -> namesRead(x, alias, read));
+                                }
+                            }
+                        }
+                    }
+                    for (int i = 0; i < ds.items().size(); i++) {
+                        String name = itemName(ds, i, d.columnAliases());
+                        if (name != null && !read.contains(name) && ds.items().get(i) instanceof SqlAst.SelectExpr x) {
+                            unread.add(x.expr());
+                        }
+                    }
+                }
+            }
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : readExpressions(s)) {
+                    if (!unread.contains(e) && callsComparisonFunction(e)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code e} calls GREATER or LESSER outside its subqueries. */
+    private static boolean callsComparisonFunction(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && Set.of("greater", "lesser").contains(IqLexer.lower(
+                f.name().get(f.name().size() - 1).text())) || children(e).stream().anyMatch(
+                IqDialect::callsComparisonFunction);
     }
 
     /** Whether {@code item} is one of SQL Anywhere's own relations, which IQ's front end reads (the research's
@@ -605,7 +673,8 @@ public final class IqDialect implements InputDialect {
      *  null for none. */
     private @com.legend.base.Nullable SqlTranslationException lateClaim(SqlAst.Statement statement, Engine chosen) {
         SqlTranslationException distinct = rolledDistinct.get(statement);
-        return distinct != null ? distinct : chosen == Engine.IQ ? windowKeyComparisons(statement) : null;
+        return distinct != null ? distinct : (engine != null ? engine : storeOf(statement, settings)) == Engine.IQ
+                ? windowKeyComparisons(statement) : null;
     }
 
     /** IQ island, 2026-10-17 (the differential fuzzer's sixth round; measured on IQ 17.1): under IQ's engine a ROLLUP or
