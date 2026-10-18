@@ -1071,3 +1071,40 @@ class Live(Paged):
         page.sheet('More')
         self.assertEqual(self.said(page, stale, version=1), 409)
         self.assertEqual([s.name for s in page.read().sheets], [None, 'More'])
+
+
+class CorpusPage(unittest.TestCase):
+    """THE SAVED-PAGE CORPUS (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 3): the corpus's frame page,
+    written by DataCube's own writers (datacube/test/fixtures/pages/make.ts), loaded in Python over its frame with
+    nothing to say, and written again as the same document -- the page DataCube saved is the page Python keeps."""
+
+    def setUp(self):
+        self._site = os.environ.get('LEGEND_LITE_SITE')
+        os.environ['LEGEND_LITE_SITE'] = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
+        datacube._session = datacube._Session()
+
+    def tearDown(self):
+        for view in list(datacube._session.pages):
+            view.close()
+        if self._site is None:
+            os.environ.pop('LEGEND_LITE_SITE', None)
+        else:
+            os.environ['LEGEND_LITE_SITE'] = self._site
+
+    def test_the_frame_page_loads_with_nothing_to_say_and_is_written_as_it_was(self):
+        saved = json.loads(Path(os.environ['LEGEND_LITE_CORPUS_PAGE']).read_text('utf-8'))
+        # the frame the page was made over, typed as its cubes record it: text, a date, a float and an integer
+        frame = pd.DataFrame({
+            'region': ['EMEA', 'EMEA', 'AMER', 'APAC'],
+            'desk': ['Rates', 'FX', 'Rates', 'FX'],
+            'traded': [datetime.date(2024, 1, 2), datetime.date(2024, 2, 3), datetime.date(2024, 3, 4), datetime.date(2024, 4, 5)],
+            'notional': [100.5, 20.25, 300.75, 4.5],
+            'qty': [1, 2, 3, 4],
+        })
+        with warnings.catch_warnings(record=True) as said:
+            warnings.simplefilter('always')
+            page = ll.Page.load(saved, frames={'trades': frame})
+        self.assertEqual([str(w.message) for w in said], [], 'DataCube opens each cube with nothing to say')
+        self.assertEqual(page.to_dict(), saved)
+        self.assertEqual([g.title for g in page.grids], ['Positions', 'By desk'])
+        self.assertEqual(len(page.charts), 2)
