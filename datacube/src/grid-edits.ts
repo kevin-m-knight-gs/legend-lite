@@ -97,11 +97,17 @@ function checkGroupable(draft: GridDraft, names: readonly string[], had: readonl
  * What a header sorts by (setSorts) and what a header's own presentation is set on (grid-commands.ts configure).
  */
 export function pivotHeaderMeasure(draft: GridDraft, column: string): string | undefined {
-  if (draft.snapshot.pivotOn.length === 0) return undefined;
   const at = column.lastIndexOf(PIVOT_SEPARATOR);
   if (at <= 0) return undefined;
   const measure = column.slice(at + PIVOT_SEPARATOR.length).replace(/~\d+$/, '');
-  return spreadMeasures(applyToSnapshot(draft.snapshot, draft.config)).some((m) => m.name === measure) ? measure : undefined;
+  return spreadMeasureNames(draft).includes(measure) ? measure : undefined;
+}
+
+/** The measures the grid's pivot spreads (query.ts spreadMeasures: its measure columns, or the count a pivot of none
+ *  fills with), by name; none when it does not pivot. */
+export function spreadMeasureNames(draft: GridDraft): string[] {
+  if (draft.snapshot.pivotOn.length === 0) return [];
+  return spreadMeasures(applyToSnapshot(draft.snapshot, draft.config)).map((m) => m.name);
 }
 
 /**

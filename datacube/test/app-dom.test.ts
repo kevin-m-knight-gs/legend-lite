@@ -677,6 +677,30 @@ describe('the app', () => {
       { kind: 'clickTreeSort', chained: true }, { kind: 'clickTreeSort', chained: false }]);
   });
 
+  it('tells a host only the commands the cube kept: a change undone as it runs is never told, one carried is, in order', async () => {
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const click = (): void => {
+      (root.querySelector('.dc-th[data-column="notional"]') as HTMLElement)
+        .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    };
+    const notional: GridCommand = { kind: 'clickSort', column: 'notional', first: 'desc', chained: false };
+    // a click, undone while its query runs: cancelled, its command never told
+    click();
+    await app.undo();
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, []);
+    assert.deepEqual(commands, []);
+    // two clicks, the second laid on the first while it runs (it carries it): both told, in order, when it lands
+    click();
+    click();
+    assert.deepEqual(commands, [], 'nothing told while the change runs');
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'asc' }]);
+    assert.deepEqual(commands, [notional, notional]);
+  });
+
   it('adds and removes a heatmap from the menu', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
     pick('Add Heatmap to notional');

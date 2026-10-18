@@ -81,19 +81,28 @@ Python sends it and the stage-3 live channel can carry it.
   - `readGridCommand` refuses an unknown kind and a misspelt field, each in words.
 - **The parity file is unchanged** (`datacube/test/fixtures/parity/parity.json`). Its 29 documents must still match on
   both sides, so moving to commands changes no edit.
-- **Commands are compared too.** Each case action that is one edit on both sides (a header click, an added sort, an
-  Aggregation, a heatmap, a hidden column, a cell's filter, a calculated column) also holds the command both sides
-  must build. The screen's comes from `onCommand`, and Python's from its `_apply`. A case action that is two steps on
-  the screen and one call in Python (`group region, desk`: two menu entries, one `group` call) is held to the document
-  alone.
+- **Commands are compared too.** Each case action that is one edit on both sides -- a sort added, a heatmap, a hidden
+  column, a calculated column, a grouping or a pivot on one column, a column's Aggregation, kind or weighted average --
+  also holds the command both sides must build (`command`, written from the screen's by PARITY_UPDATE). The screen's
+  comes from `onCommand`, Python's from what its page records. Held to the document alone: an action that is two
+  steps on the screen and one call in Python (`group region, desk`: two menu entries, one `group` call), and one that
+  is a different call on each side (a header click, which Python makes as an added sort; a cell's filter, added on the
+  screen and set whole by Python).
 - **The round trips** generate commands instead of calling grid-edits directly, and read each one back from its JSON
-  (`readGridCommand`) as the same command.
+  (`readGridCommand`) as the same command: rebuilt field by field for every kind but `configure`, whose patch is
+  judged when it is applied (its setting names, its columns), never when it is read.
 
 ### Where it stands (2026-10-18)
 
 - Steps 1 to 4 are on the branch: the module and its tests; headless `gridApply` and Python's calls; the screen's
   `#apply` and `onCommand`; the parity file's commands (45 actions, each built alike by the screen and by Python, Column
   Properties' among them since step 3b's Properties Apply) and the round trips over commands.
+- `onCommand` tells a command once the cube keeps it (stage 1's review, 2026-10-18): a change in flight's when it
+  commits; a presentation change's at once; never one refused or cancelled, nor one carried by a change refused or
+  cancelled (`app.ts #followCommands`, the owner's events).
+- A command read from JSON is read field by field (the review): a filter's condition by its operator's operand, a
+  calculated column as a formula's (name, lambda, kind, type) -- a window or child-aggregate column is not read from
+  JSON yet.
 - A command read from JSON keeps JSON's numbers: a calculated column's lambda sent as JSON (none is today: Python's
   `calculate` sends its text, parsed headless) would carry plain numbers where a parsed lambda carries exact ones. Safe
   for the integers and short decimals an expression holds; one past 2^53 is not, and the live channel (stage 3) reads

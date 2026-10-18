@@ -157,8 +157,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the screen applies its edits as grid commands (grid-commands.ts applyGridCommand, the one function Python's calls are
  *  applied by), so it carries every command's rule -- the configure command's checks and setting lists, the measures
  *  command's measureAsColumn -- though it builds only some; and #57's header clicks (no bump of their own here).
- *  Measured 284,959. */
-const BUDGET = 285_500;
+ *  Measured 284,959.
+ *  285,500 -> 286,500 (2026-10-18, stage 1's step 3b and its review): the Properties window's Apply as grid commands
+ *  (grid-commands.ts draftCommands, the three-way merge it replaced gone), commands told as the cube keeps them
+ *  (app.ts #followCommands), and a command read from JSON field by field (its filter by its operators' operands).
+ *  Measured 285,529. */
+const BUDGET = 286_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -184,8 +188,9 @@ const BUDGET = 285_500;
  *  clickTreeSort), the header's marks from the order the query applies (headerSorts), and a child group's aggregate
  *  refused as a sort). Measured 270,114.
  *  271,000 -> 272,500 (2026-10-18, the command program's stage 1, step 3: as the grid's -- the screen applies its edits
- *  as grid commands, by the one function Python's calls are applied by). Measured 272,184. */
-const ENGINE_BUDGET = 272_500;
+ *  as grid commands, by the one function Python's calls are applied by). Measured 272,184.
+ *  272,500 -> 273,500 (2026-10-18, stage 1's step 3b and its review: as the grid's). Measured 272,761. */
+const ENGINE_BUDGET = 273_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -263,8 +268,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  chunks (widget-chunks/), which the loader fetches over the channel when the cube first needs each and imports with
  *  their specifiers rewritten -- ECharts and the chart code, the page's sheets, the saved pages' windows, the model
  *  actions. What a cube fetches before it shows: the module, the chunks it imports statically and its styles, measured
- *  281,797 (all the chunks 410,466). */
-const WIDGET_BUDGET = 290_000;
+ *  281,797 (all the chunks 410,466).
+ *  290,000 -> 291,000 (2026-10-18, the command program's stage 1: the screen applies its edits as grid commands, the
+ *  Properties window's Apply among them -- the grid's notes of the same date). Measured 290,232. */
+const WIDGET_BUDGET = 291_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

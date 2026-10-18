@@ -208,9 +208,10 @@ export interface CubeAppBaseOptions {
    */
   readonly onChange?: () => void;
   /**
-   * Each grid command the cube kept (grid-commands.ts: what a header click, a drag in the zones, a menu entry or the
-   * column editor's Add built -- the commands Python's calls build for the same edits), in order, once its change
-   * landed or was taken over by the next; one refused, or cancelled, is not told.
+   * Each grid command the cube kept (grid-commands.ts: what a header click, a drag in the zones, a menu entry, Column
+   * Properties or the column editor's Add built -- the commands Python's calls build for the same edits), in order, as
+   * its change committed: a presentation change's at once (it is laid over the change in flight too), a change in
+   * flight's when it lands. One refused or cancelled -- or carried by a change refused or cancelled -- is never told.
    */
   readonly onCommand?: (command: GridCommand) => void;
   /** The groups to open on (a saved cube's), instead of the configuration's expand level. */
@@ -516,6 +517,12 @@ export class CubeApp {
   /** Where the grid lives when there is no board. */
   #middle: HTMLElement | null = null;
   #newColumns = 0;
+  /** The grid commands being applied, while the owner takes their change (#applyCommands): whether an event of the
+   *  owner's took them. */
+  #applying: { readonly commands: readonly GridCommand[]; taken: boolean } | null = null;
+  /** Grid commands in the change in flight, not yet in a committed state: told when it commits, dropped when it is
+   *  refused or cancelled (#followCommands). */
+  #untold: GridCommand[] = [];
   /** Alerts are many and untitled, so each gets its own window key. */
   #alerts = 0;
   /**
@@ -948,25 +955,68 @@ export class CubeApp {
   async #applyCommands(commands: readonly GridCommand[], label: string,
     then: (s: CubeState) => CubeState = (s) => s): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
-    const out = this.#change((s) => {
-      try {
-        const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration }, commands);
-        return then({ ...s, snapshot: d.snapshot, configuration: d.config });
-      } catch (e) {
-        if (!(e instanceof CubeRefusal)) throw e;
-        refused = e.message;
-        return s;
-      }
-    }, { label });
+    const applying = { commands, taken: false };
+    this.#applying = applying;
+    let out: Promise<Outcome>;
+    try {
+      out = this.#change((s) => {
+        try {
+          const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration }, commands);
+          return then({ ...s, snapshot: d.snapshot, configuration: d.config });
+        } catch (e) {
+          if (!(e instanceof CubeRefusal)) throw e;
+          refused = e.message;
+          return s;
+        }
+      }, { label });
+    } finally {
+      this.#applying = null;
+    }
     if (refused !== null) {
       this.#status(refused, 'warn');
       return { refused, outcome: await out };
     }
-    const outcome = await out;
-    if (outcome.kind !== 'refused' && outcome.kind !== 'cancelled') {
-      for (const command of commands) this.#options.onCommand?.(command);
+    // no event took them: they changed nothing -- told now, or after the change in flight they were laid on
+    if (!applying.taken) {
+      if (this.#owner.busy) this.#untold.push(...commands);
+      else this.#tell(commands);
     }
-    return { refused, outcome };
+    return { refused, outcome: await out };
+  }
+
+  /**
+   * THE COMMANDS A HOST IS TOLD, AS THE CUBE KEEPS THEM (onCommand): the owner's events say what became of a change.
+   * The ones being applied join the change in flight (pending) or are kept at once (a presentation change, laid over the
+   * committed state too; a deferred one, committed with what was in flight); the change in flight's are kept when it
+   * commits, and dropped when it is refused or cancelled (an undo while it runs) -- with every change it carried.
+   */
+  #followCommands(event: OwnerEvent): void {
+    const applying = this.#applying;
+    if (applying) applying.taken = event.kind === 'pending' || event.kind === 'presentation' || event.kind === 'deferred';
+    switch (event.kind) {
+      case 'pending':
+        if (applying) this.#untold.push(...applying.commands);
+        return;
+      case 'presentation':
+        if (applying) this.#tell(applying.commands);
+        return;
+      case 'deferred':
+        this.#tell([...this.#untold, ...(applying?.commands ?? [])]);
+        this.#untold = [];
+        return;
+      case 'committed':
+        this.#tell(this.#untold);
+        this.#untold = [];
+        return;
+      case 'refused':
+      case 'cancelled':
+        this.#untold = [];
+        return;
+    }
+  }
+
+  #tell(commands: readonly GridCommand[]): void {
+    for (const command of commands) this.#options.onCommand?.(command);
   }
 
   /**
@@ -979,6 +1029,7 @@ export class CubeApp {
    * (P2-102, P2-108).
    */
   #onState(event: OwnerEvent): void {
+    this.#followCommands(event);
     this.#setBusy(this.#owner.busy);
     this.#paintState();
     // the Filters window follows the filter the cube HAS

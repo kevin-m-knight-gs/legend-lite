@@ -10,11 +10,15 @@ import {
 } from './config.ts';
 import {
   addSort, allColumns, clickSort, clickTreeSort, measureAsColumn, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
-  setSorts, type ColumnChange, type GridDraft,
+  setSorts, spreadMeasureNames, type ColumnChange, type GridDraft,
 } from './grid-edits.ts';
+import type { Lambda } from '../../pure-protocol/src/index.ts';
+import { operandKind } from './filter-operators.ts';
 import {
-  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, isPivotTotalColumn, pivotTotalColumn,
-  type AggregateFn, type ColumnKind, type DerivedColumn, type FilterNode, type Measure, type SortDirection, type SortSpec,
+  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, isJsonValue, isPivotTotalColumn,
+  isRelativeDate, pivotTotalColumn,
+  type AggregateFn, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
+  type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
@@ -224,13 +228,17 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
   for (const [name, c] of Object.entries(columns)) {
     const named = allColumns(d);
     // a pivot total is a column of its own (its heatmap, width, hiding: the screen's menu offers them), of a measure
-    // column the grid has; so is a pivot value's column while the grid pivots (its hiding), and the tree column (its
-    // width, hiding) -- each its presentation alone: a header's kind and Aggregation are its measure's
+    // column the grid has or of the count a pivot of no measure fills with; so is that count (its heatmap, which its
+    // pivot's columns show), a pivot value's column while the grid pivots (its hiding), and the tree column (its width,
+    // hiding) -- each its presentation alone: a header's kind and Aggregation are its measure's
     const own = named.includes(name);
+    const spread = spreadMeasureNames(d);
+    const filled = !own && spread.includes(name);
     const total = !own && isPivotTotalColumn(name) ? name.slice(pivotTotalColumn('').length) : undefined;
-    const header = !own && total === undefined ? pivotHeaderMeasure(d, name) : undefined;
+    const header = !own && !filled && total === undefined ? pivotHeaderMeasure(d, name) : undefined;
     const tree = !own && name === TREE_COLUMN;
-    if (!own && (total === undefined || !named.includes(total)) && header === undefined && !tree) {
+    const totalled = total !== undefined && (named.includes(total) || spread.includes(total));
+    if (!own && !filled && !totalled && header === undefined && !tree) {
       throw new CubeRefusal(`'${name}' is not a column of the grid (${named.join(', ')})`);
     }
     if (!isObject(c)) throw new CubeRefusal(`a column's settings are an object, not ${JSON.stringify(c)}`);
@@ -238,10 +246,11 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
     const { kind, aggregateFn, aggregationParameters, excludedFromPivot, ...presentation } = c;
     if (!own && [kind, aggregateFn, aggregationParameters, excludedFromPivot].some((x) => x !== undefined)) {
       const of = total ?? header;
-      throw new CubeRefusal(of === undefined
-        ? `${name} is the grid's tree column: it has no kind, Aggregation or pivot exclusion`
-        : `${name} is ${total !== undefined ? 'the pivot total' : 'a pivot column'} of '${of}': its kind, Aggregation `
-          + `and pivot exclusion are '${of}''s, set on '${of}'`);
+      throw new CubeRefusal(of !== undefined
+        ? `${name} is ${total !== undefined ? 'the pivot total' : 'a pivot column'} of '${of}': its kind, Aggregation `
+          + `and pivot exclusion are '${of}''s, set on '${of}'`
+        : `${name} is ${tree ? "the grid's tree column" : 'the count a pivot of no measure fills with'}: it has no kind, `
+          + 'Aggregation or pivot exclusion');
     }
     if (kind === null) {
       throw new CubeRefusal(`${name}'s kind is set, never cleared: 'dimension' or 'measure' (Column Properties > Column Kind)`);
@@ -312,9 +321,81 @@ function directionFrom(v: unknown): SortDirection {
 }
 
 /** A command's fields, exactly: a field it does not take is refused, never passed over. */
-function fields(o: Record<string, unknown>, kind: string, allowed: readonly string[]): void {
+function fields(o: Record<string, unknown>, kind: string, allowed: readonly string[], what = `a '${kind}' command`): void {
   const odd = Object.keys(o).filter((k) => k !== 'kind' && !allowed.includes(k));
-  if (odd.length > 0) throw new CubeRefusal(`a '${kind}' command takes ${allowed.join(', ') || 'nothing more'}, not ${odd.join(', ')}`);
+  if (odd.length > 0) throw new CubeRefusal(`${what} takes ${allowed.join(', ') || 'nothing more'}, not ${odd.join(', ')}`);
+}
+
+/** A filter value, or why not: text, a number, true or false, a date relative to today or now, or a JSON document. */
+function filterValueFrom(v: unknown): FilterValue {
+  if (typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))
+    || isRelativeDate(v) || isJsonValue(v)) return v;
+  throw new CubeRefusal(`a filter's value is text, a number, true or false, {relative} or {json}, not ${JSON.stringify(v)}`);
+}
+
+/**
+ * A filter read field by field -- a condition (its operator one of DataCube's, its operand the one the operator takes:
+ * none, a value, a list, another column), a group of them, a not -- or why not. What it names (a column the grid has)
+ * is the apply's to judge.
+ */
+function filterFrom(v: unknown): FilterNode {
+  if (!isObject(v)) throw new CubeRefusal(`a filter is a condition, a group or a not, not ${JSON.stringify(v)}`);
+  switch (v['kind']) {
+    case 'condition': {
+      fields(v, 'condition', ['column', 'operator', 'value', 'rightColumn'], 'a condition');
+      const operator = v['operator'];
+      if (typeof operator !== 'string' || !FILTER_OPERATORS.includes(operator as FilterOperator)) {
+        throw new CubeRefusal(`a condition's operator is one of ${FILTER_OPERATORS.join(', ')}, not ${JSON.stringify(operator)}`);
+      }
+      const op = operator as FilterOperator;
+      const takes = operandKind(op);
+      const { value, rightColumn } = v;
+      const fits = takes === 'none' ? value === undefined && rightColumn === undefined
+        : takes === 'single' ? value !== undefined && !Array.isArray(value) && rightColumn === undefined
+          : takes === 'list' ? Array.isArray(value) && rightColumn === undefined
+            : rightColumn !== undefined && value === undefined;
+      if (!fits) {
+        const operand = { none: 'no operand', single: 'a value', list: 'a list of values', column: 'another column (rightColumn)' };
+        throw new CubeRefusal(`'${op}' takes ${operand[takes]}`);
+      }
+      return {
+        kind: 'condition', column: textFrom(v['column'], "a condition's column"), operator: op,
+        ...(value !== undefined ? { value: Array.isArray(value) ? value.map(filterValueFrom) : filterValueFrom(value) } : {}),
+        ...(rightColumn !== undefined ? { rightColumn: textFrom(rightColumn, "a condition's other column") } : {}),
+      };
+    }
+    case 'and':
+    case 'or': {
+      fields(v, v['kind'], ['children'], 'a group');
+      if (!Array.isArray(v['children'])) throw new CubeRefusal("a group's children are a list of filters");
+      return { kind: v['kind'], children: v['children'].map(filterFrom) };
+    }
+    case 'not':
+      fields(v, 'not', ['child'], 'a not');
+      return { kind: 'not', child: filterFrom(v['child']) };
+    default:
+      throw new CubeRefusal(`a filter is a condition, an and, an or or a not, not ${JSON.stringify(v['kind'])}`);
+  }
+}
+
+/**
+ * A calculated column read from JSON: a formula's -- its name (trimmed, as the editor takes one), its lambda (the
+ * protocol's, its body the planner's to judge), its kind -- or why not. A window or child-aggregate column is the
+ * screen's column editor's; none is read from JSON yet.
+ */
+function calculatedFrom(v: unknown): DerivedColumn {
+  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda, kind}, not ${JSON.stringify(v)}`);
+  fields(v, 'column', ['name', 'lambda', 'kind', 'type'], 'a calculated column from JSON');
+  const lambda = v['lambda'];
+  if (!isObject(lambda) || lambda['_type'] !== 'lambda' || !Array.isArray(lambda['body'])) {
+    throw new CubeRefusal(`a calculated column's lambda is the protocol's {_type: 'lambda', body, parameters}, not ${JSON.stringify(lambda)}`);
+  }
+  return {
+    name: textFrom(v['name'], "a calculated column's name").trim(),
+    lambda: lambda as unknown as Lambda,
+    ...(v['kind'] !== undefined ? { kind: kindFrom(v['kind']) } : {}),
+    ...(v['type'] !== undefined ? { type: textFrom(v['type'], "a calculated column's type") } : {}),
+  };
 }
 
 /**
@@ -375,19 +456,17 @@ export function readGridCommand(given: unknown): GridCommand {
       return { kind, patch: o['patch'] };
     case 'filter':
       fields(o, kind, ['filter']);
-      if (o['filter'] !== null && !isObject(o['filter'])) throw new CubeRefusal(`a filter is a condition or a group, or null, not ${JSON.stringify(o['filter'])}`);
-      return { kind, filter: o['filter'] as FilterNode | null };
+      return { kind, filter: o['filter'] === null ? null : filterFrom(o['filter']) };
     case 'addFilter':
       fields(o, kind, ['condition']);
       if (!isObject(o['condition']) || o['condition']['kind'] !== 'condition') {
         throw new CubeRefusal(`a filter added is one condition, not ${JSON.stringify(o['condition'])}`);
       }
-      return { kind, condition: o['condition'] as unknown as FilterNode };
+      return { kind, condition: filterFrom(o['condition']) };
     case 'calculate':
       fields(o, kind, ['level', 'column']);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);
-      if (!isObject(o['column']) || typeof o['column']['name'] !== 'string') throw new CubeRefusal('a calculated column is a column of a name');
-      return { kind, level: o['level'], column: o['column'] as unknown as DerivedColumn };
+      return { kind, level: o['level'], column: calculatedFrom(o['column']) };
     case 'measures': {
       fields(o, kind, ['measures']);
       if (!Array.isArray(o['measures'])) throw new CubeRefusal('the measures are a list');

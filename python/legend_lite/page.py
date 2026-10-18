@@ -1008,6 +1008,7 @@ class Page:
             served, new = table.name, False
         else:
             served, new = session.register(frame, name, mode), True
+        recorded = len(self._commands)
         try:
             # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
             cube, _, _ = self._frame_cube(served, len(self._doc['cubes']) + 1)
@@ -1034,9 +1035,10 @@ class Page:
                 if filter is not None:
                     grid.filter(filter)
         except BaseException:
-            # the grid taken off again, and a frame served for it served no more
+            # the grid taken off again, the commands it was given with it, and a frame served for it served no more
             self._doc['cubes'] = [c for c in self._doc['cubes'] if c['id'] != id]
             self._doc['views'] = [v for v in self._doc['views'] if v['id'] != id]
+            del self._commands[recorded:]
             self._forget({id})
             if new:
                 session.unregister(served)

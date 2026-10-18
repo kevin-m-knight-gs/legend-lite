@@ -13,7 +13,8 @@ import {
   GRID_COMMAND_KINDS, applyGridCommand, applyGridCommands, draftCommands, readGridCommand, type GridCommand,
 } from '../src/grid-commands.ts';
 import {
-  addSort, clickSort, clickTreeSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
+  addSort, clickSort, clickTreeSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, spreadMeasureNames,
+  type GridDraft,
 } from '../src/grid-edits.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type DerivedColumn } from '../src/snapshot.ts';
 import { TREE_COLUMN } from '../src/treeview.ts';
@@ -95,6 +96,19 @@ describe('each command gives what the screen\'s own edit gives', () => {
     assert.deepEqual(applyGridCommand(d, hide(TREE_COLUMN)).config.columns[TREE_COLUMN], { hidden: true });
     refused(() => applyGridCommand(d, { kind: 'configure', patch: { columns: { [TREE_COLUMN]: { kind: 'measure' } } } }),
       /the grid's tree column: it has no kind/);
+  });
+
+  it('configure sets the presentation of the count a pivot of no measure fills with, and its total\'s (the menu\'s heatmap, hide)', () => {
+    const dims = setPivot(draft({ columns: [{ name: 'region', type: 'String' }, { name: 'desk', type: 'String' }] }), ['desk']);
+    assert.deepEqual(spreadMeasureNames(dims), ['count'], 'a pivot of no measure fills with a count');
+    const heatmap = { from: '#ffffff', to: '#ff8a65' };
+    assert.deepEqual(applyGridCommand(dims, { kind: 'configure', patch: { columns: { count: { heatmap } } } }).config.columns['count'],
+      { heatmap });
+    const total = pivotTotalColumn('count');
+    assert.deepEqual(applyGridCommand(dims, { kind: 'configure', patch: { columns: { [total]: { hidden: true } } } }).config.columns[total],
+      { hidden: true });
+    refused(() => applyGridCommand(dims, { kind: 'configure', patch: { columns: { count: { aggregateFn: 'max' } } } }),
+      /the count a pivot of no measure fills with: it has no kind/);
   });
 
   it('filter sets the filter whole, and null takes it off', () => {
@@ -208,6 +222,11 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'column', name: 'qty', change: { kind: 'dimension', aggregate: null, weight: null } },
     { kind: 'configure', patch: { columns: { qty: { heatmap: null } } } },
     { kind: 'filter', filter: null },
+    { kind: 'filter', filter: { kind: 'and', children: [
+      { kind: 'condition', column: 'region', operator: 'in', value: ['EMEA', 'APAC'] },
+      { kind: 'not', child: { kind: 'condition', column: 'qty', operator: 'greaterThanColumn', rightColumn: 'notional' } },
+      { kind: 'condition', column: 'desk', operator: 'isEmpty' },
+    ] } },
     { kind: 'addFilter', condition: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } },
     { kind: 'calculate', level: 'row', column: double },
     { kind: 'measures', measures: [{ name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' }] },
@@ -228,6 +247,23 @@ describe('a command read from JSON is the same command, and what DataCube does n
       /a column's properties are kind, aggregate and weight, not aggregateFn/);
     refused(() => readGridCommand({ kind: 'column', name: 'qty', change: { aggregate: 'mean' } }), /"mean" is not one of DataCube's aggregates/);
     refused(() => readGridCommand({ kind: 'addFilter', condition: { kind: 'and', children: [] } }), /one condition/);
+    // a filter, field by field: a field misspelt, an operator DataCube has not, an operand the operator does not take
+    const condition = (c: Record<string, unknown>): unknown => ({ kind: 'filter', filter: { kind: 'condition', ...c } });
+    refused(() => readGridCommand(condition({ colum: 'region', operator: 'equal', value: 'EMEA' })),
+      /a condition takes column, operator, value, rightColumn, not colum/);
+    refused(() => readGridCommand(condition({ column: 'region', operator: 'bogus', value: 'EMEA' })), /a condition's operator is one of/);
+    refused(() => readGridCommand(condition({ column: 'region', operator: 'equal' })), /'equal' takes a value/);
+    refused(() => readGridCommand(condition({ column: 'region', operator: 'in', value: 'EMEA' })), /'in' takes a list of values/);
+    refused(() => readGridCommand(condition({ column: 'region', operator: 'equal', value: { at: 1 } })), /a filter's value is/);
+    refused(() => readGridCommand({ kind: 'filter', filter: { kind: 'xor', children: [] } }), /a filter is a condition, an and/);
+    // a calculated column, a formula's fields: its lambda the protocol's, its kind one of DataCube's, its name trimmed
+    const calc = (c: Record<string, unknown>): unknown => ({ kind: 'calculate', level: 'row', column: c });
+    refused(() => readGridCommand(calc({ name: 'x', lambda: 42 })), /lambda is the protocol's/);
+    refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, kind: 'bogus' })), /a column's kind is/);
+    refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, window: {} })),
+      /a calculated column from JSON takes name, lambda, kind, type, not window/);
+    const read = readGridCommand(calc({ name: '  pad  ', lambda: double.lambda }));
+    assert.equal(read.kind === 'calculate' ? read.column.name : undefined, 'pad');
     refused(() => readGridCommand(['group']), /a grid's command is \{kind, \.\.\.\}/);
   });
 });

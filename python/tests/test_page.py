@@ -764,11 +764,14 @@ class Document(Paged):
     def test_a_grid_refused_leaves_the_page_and_the_frames_as_they_were(self):
         page, _, _ = self.built()
         before = page.to_dict()
+        commands = list(page._commands)
+        # the last: its grouping applied, then its filter refused -- the grouping's command taken back with the grid
         for given in ({'rows': ['nope']}, {'measures': {'head': 'total'}}, {'filter': ('head', 'nope', 1)},
-                      {'sort': [('head', 'sideways')]}):
+                      {'sort': [('head', 'sideways')]}, {'rows': ['desk'], 'filter': ('head', 'nope', 1)}):
             with self.assertRaises(ValueError):
                 page.grid(desks(), name='desks', **given)
             self.assertEqual(page.to_dict(), before)
+            self.assertEqual(page._commands, commands, 'no command of the grid refused is kept')
             self.assertNotIn('desks', datacube._session.frames, 'a frame served for the grid refused is served no more')
         self.assertEqual(page.grid(desks(), name='desks').id, 'grid-2', 'the ids go on as if nothing was refused')
 

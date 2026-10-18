@@ -969,9 +969,10 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   (new), `grid-edits.ts` (`pivotHeaderMeasure`), `app.ts` (`#apply`, `onCommand`), `ui/menu.ts` (`menuCommand`),
   `ui/column-editor.ts` (`add`), `headless/grid.ts` and `headless/entry.ts` (`gridApply` for `gridEdit`),
   `python/legend_lite/page.py` (each call a command), their tests, the parity file (each one-edit action's command),
-  `test/bundle-budget.test.ts` (the grid page 283,500 -> 285,500, the engine page 271,000 -> 272,500, dated), and
-  `test/guardrails.test.ts` (`menuCommand(`, dated). Not yet commands (its step 3b): the Properties window's Apply, the
-  column editor's edit, rename and delete, the columns panel's settings. Still not touched: the SQL plan's ground.
+  `test/bundle-budget.test.ts` (the grid page 283,500 -> 286,500, the engine page 271,000 -> 273,500, the notebook
+  module 290,000 -> 291,000, each dated), and `test/guardrails.test.ts` (`menuCommand(`, dated). The Properties
+  window's Apply is commands too (`draftCommands`; `mergeDraft` gone). Not yet commands: the column editor's edit,
+  rename and delete, the columns panel's settings. Still not touched: the SQL plan's ground.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
