@@ -30,12 +30,14 @@ public record ExecuteOptions(boolean tdsText,
     }
 
     /** The assert judge of a RUN (docs/JUDGING_TWO_MODES): HOST — the
-     * verdict of record, judged in Java over fetched values; DATABASE —
+     * verdict of record, judged in Java over each side's plan result; DATABASE —
      * both sides planned and the database returns the verdict row
-     * (VerdictSql). One mode per run, carried on the run's options — never
-     * a JVM global (the lean ladder and a corpus lane are different runs in
-     * one JVM). */
-    public enum JudgeMode { HOST, DATABASE }
+     * (VerdictSql, a plan whose one row is the verdict); BOTH — the agreement
+     * gate (the plan path program's step 6, 2026-10-18): both judges, the host's
+     * verdict of record, a disagreement a failure naming both (AgreementArm). One
+     * mode per run, carried on the run's options — never a JVM global (the lean
+     * ladder and a corpus lane are different runs in one JVM). */
+    public enum JudgeMode { HOST, DATABASE, BOTH }
 
     public ExecuteOptions(boolean tdsText,
             com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,

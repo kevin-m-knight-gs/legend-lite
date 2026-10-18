@@ -235,6 +235,23 @@ in-query computation World 2's, neither reimplements the other. Both judges stay
   (a verdict statement's composition bug, a host decode misreading a carrier), never a quiet wrong pass. This is the
   parallel-referee role the host judge's javadoc already describes, stronger with both arms on plans.
 
+**As built (2026-10-18, step 6).** A typed-rows plan (`ExecutionPlan.TdsResult`, the three-fact `Column`) is a
+statement that writes each row as one JSON object; the runner decodes each cell by the plan's column alone
+(`exec.RowDecode`). The database judge's verdict statement is such a plan whose one row is the verdict (`JudgePlans`,
+`VerdictBatch.Runner`); the host judge's sides are such plans too (`JudgePlans.evalSide`: the legacy executor still
+PLANS a side exactly as its host route prepared it -- the let prefix, the inliner's splice, the natives' staging, the
+store resolution, no wire reconciliation, a literal folded only where that route folded -- until step 8's runners emit
+plan sequences and step 11 deletes it), written in the JSON rows wire's CARRIER spelling (each cell as its slot holds
+it), decoded by the plan's columns (the slot first; a string token under a numeric slot is the column's own text
+unless the Pure type is numeric: a store may declare a column INT over a VARCHAR, and the engine's test store does)
+and shaped as the executor shaped them. The byte channel that rode the host side's query (V11's canon rider) is retired:
+every side declines it by name, the database judge is the referee. The gate is `ExecuteOptions.JudgeMode.BOTH`
+(`AgreementArm`): the host's verdict of record; the database's must agree; a disagreement fails the assert naming both;
+a decline, an UNJUDGED outcome or the database arm's own wall is told to the listener and the host decides; a database
+statement that errors is a failure. Named residue: a host side whose plan holds a dynamic pivot keeps the legacy route
+(step 9); the Any lane cannot tell a SQL NULL cell from a present JSON null in a row's text (the legacy executor
+could: it drops the one and keeps the other) -- a null is kept, measured by the corpus at step 10.
+
 ## 7. The callers (R1): the order, and what is deleted
 
 1. **Types in the plan** (§3): the three facts per column, the engine renderer on `store`, the typed tree in the lite
@@ -277,6 +294,21 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-18, step 6 landed: both judges on plans, the agreement gate** (GATES "step 6, both judges on plans"): the
+  runner's typed rows, the verdict a plan's row, each host side a plan's result, `JudgeMode.BOTH` with its gate;
+  channel B under the gate found two of step 2's unjudged cuts (a TDS DateTime cell's three digits, a sort key the JSON
+  rows wire dropped) and one raw wall of the database judge, all fixed. The corpus lanes on DuckDB and H2 (host and database passes) and `//gates:core`,
+  the Postgres targets and the four PCT lanes are green on the final build; the gate on DuckDB is EXACT with 0
+  disagreements, on H2 it loses the database arm's registered H2 errors (GATES). Next: step 7, the query
+  service (§7).
+- **2026-10-18, step 6 announced: both judges on plans, the agreement gate** (§6): the runner reads typed rows
+  (`ExecutionPlan.TdsResult` on the three-fact `Column`: each row one JSON object the database writes, decoded by
+  the plan's columns in `exec.RowDecode`, format 6); the database judge's verdict statement is such a plan whose one
+  row is the verdict (`JudgePlans`, `VerdictBatch.Runner`); the host judge receives each side as a plan's result
+  decoded by its declared types (`JudgePlans.evalSide`, the legacy executor still planning the side); the agreement
+  gate is `ExecuteOptions.JudgeMode.BOTH` (`AgreementArm`: the host's verdict of record, the database's must agree,
+  a disagreement a failure naming both). Judges: `RowDecodeTest`, `AgreementArmTest`, `JudgesOnPlansTest` (both
+  judges on DuckDB and H2), the core targets, channel B's lanes, the corpus in `both` mode measured.
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
 - **2026-10-18, step 5 landed: the lets** (GATES "step 5, the lets"): dissolution measured as the rule already in

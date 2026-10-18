@@ -306,6 +306,16 @@ public final class Render {
      */
     private static SqlExpr jsonRow(String rowAlias, List<OutputCol> cols, List<Type.@com.legend.base.Nullable Column> relCols,
             WireRender.Spelling spelling) {
+        List<SqlExpr> cells = new ArrayList<>(cols.size());
+        for (OutputCol col : cols) {
+            cells.add(SqlExpr.Column.of(rowAlias, col));
+        }
+        return jsonRowOf(cells, cols, relCols, spelling);
+    }
+
+    /** {@link #jsonRow} over the cells' own expressions ({@code cells.get(i)} the value of {@code cols.get(i)}). */
+    private static SqlExpr jsonRowOf(List<SqlExpr> cells, List<OutputCol> cols,
+            List<Type.@com.legend.base.Nullable Column> relCols, WireRender.Spelling spelling) {
         List<SqlExpr> parts = new ArrayList<>();
         parts.add(new SqlExpr.StringLit("{"));
         for (int i = 0; i < cols.size(); i++) {
@@ -315,8 +325,7 @@ public final class Render {
             parts.add(jsonToken(new SqlExpr.StringLit(cols.get(i).name())));
             parts.add(new SqlExpr.StringLit(":"));
             Type.Column typed = relCols.get(i);
-            parts.add(jsonCell(SqlExpr.Column.of(rowAlias, cols.get(i)), typed == null ? null : typed.type(),
-                    cols.get(i).type(), spelling));
+            parts.add(jsonCell(cells.get(i), typed == null ? null : typed.type(), cols.get(i).type(), spelling));
         }
         parts.add(new SqlExpr.StringLit("}"));
         return cat(parts.toArray(new SqlExpr[0]));
@@ -330,7 +339,24 @@ public final class Render {
             WireRender.Spelling spelling) {
         boolean engine = spelling == WireRender.Spelling.ENGINE;
         SqlExpr token;
-        if (t == Type.Primitive.FLOAT) {
+        boolean carrier = spelling == WireRender.Spelling.CARRIER || spelling == WireRender.Spelling.CARRIER_GRID;
+        if (carrier && carriedAsItsOwnToken(slot)) {
+            // the judges' typed rows: a JSON, a structured or a literal-labelled slot's own token, which the decode
+            // reads by the plan's column (the label is the decode instruction: the legacy executor's own rule)
+            token = jsonToken(c);
+        } else if (carrier && (t != null && dateKind(t) || slot == SqlType.Scalar.DATE
+                || slot == SqlType.Scalar.TIMESTAMP || slot == SqlType.Scalar.TIMESTAMPTZ)) {
+            // the carrier's date, by the database's own type of the cell (a DATE a day; anything else timed: a
+            // midnight is no day, and a column declared DATE may hold timestamps -- the canon's own dispatch), at
+            // nine digits for a grid's cell and the value's text for a value root
+            SqlExpr timedText = spelling == WireRender.Spelling.CARRIER_GRID
+                    ? SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(DateFmt.ISO_NANO))
+                    : dateTimeText(c);
+            token = jsonToken(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.TYPEOF, c),
+                            new SqlExpr.TypeNameLit(SqlType.Scalar.DATE)),
+                    strictDateText(c))), timedText));
+        } else if (t == Type.Primitive.FLOAT) {
             token = engine ? LiteralSpelling.floatPrintJava(c) : Scalars.pureToString(t, c);
         } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             token = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
@@ -343,6 +369,15 @@ public final class Render {
                 SqlExpr.Call.of(SqlFn.IS_NULL, c), new SqlExpr.StringLit("null"))), token);
     }
 
+    /** A slot whose cell the carrier spelling writes as the database's own token: JSON and the structured slots
+     *  (the structure is the value), the literal-labelled texts ({@code LITERAL}, {@code DECIMAL_TEXT},
+     *  {@code TEMPORAL_TEXT}: the decode reads the label). */
+    private static boolean carriedAsItsOwnToken(SqlType slot) {
+        return slot == SqlType.Scalar.JSON || slot == SqlType.Scalar.LITERAL || slot == SqlType.Scalar.DECIMAL_TEXT
+                || slot == SqlType.Scalar.TEMPORAL_TEXT || slot instanceof SqlType.Array || slot instanceof SqlType.Struct
+                || slot instanceof SqlType.Map;
+    }
+
     /** {@code x}'s JSON token as the database's JSON writer spells it: a one-element JSON array's text without its
      *  brackets (the escaping, the quoting and the spelling the database's own). */
     private static SqlExpr jsonToken(SqlExpr x) {
@@ -353,9 +388,19 @@ public final class Render {
     }
 
     static SqlSelect jsonWireRows(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias) {
+        return jsonWireRows(inner, relCols, rowAlias, WireRender.Spelling.PURE);
+    }
+
+    static SqlSelect jsonWireRows(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias,
+            WireRender.Spelling spelling) {
         List<OutputCol> cols = inner.outputs();
-        SqlExpr obj = jsonRow(rowAlias, cols, relCols, WireRender.Spelling.PURE);
+        SqlExpr obj = jsonRow(rowAlias, cols, relCols, spelling);
         List<SqlSelect.SortKey> lifted = new ArrayList<>();
+        // a sort key that is no output (a sort by an expression, or by a column the select drops; the plan path
+        // program's step 6, 2026-10-18): carried as a hidden column of the inner select, ordered by outside, never
+        // written into the row
+        List<SqlSelect.Projection> hidden = new ArrayList<>();
+        List<OutputCol> hiddenOut = new ArrayList<>();
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
                     : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
@@ -363,15 +408,33 @@ public final class Render {
                     .filter(oc -> oc.name().equals(out)).findFirst()
                     .orElse(null);
             if (outCol == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "json wire over an ordered relation whose sort key"
-                        + " is not an output column");
+                if (!(k.expr().type() instanceof com.legend.sql.TypeFact.Typed typed)) {
+                    throw new com.legend.error.NotImplementedException("json wire over an ordered relation whose sort"
+                            + " key is not an output column and carries no typed slot");
+                }
+                if (inner.projections().isEmpty() || inner.distinct()) {
+                    throw new com.legend.error.NotImplementedException("json wire over an ordered relation whose sort"
+                            + " key is not an output column, under a " + (inner.distinct() ? "DISTINCT" : "star")
+                            + " select: a hidden order column would change its rows");
+                }
+                String oname = "_ord" + hidden.size();
+                outCol = new OutputCol(oname, typed.type(), true);
+                hidden.add(new SqlSelect.Projection(k.expr(), oname, outCol));
+                hiddenOut.add(outCol);
             }
             lifted.add(new SqlSelect.SortKey(
                     SqlExpr.Column.of(rowAlias, outCol), k.ascending(),
                     k.nullOrder(), null));
         }
-        return SqlSelect.starOf(new SqlSource.Subselect(inner, rowAlias, null))
+        SqlSelect source = inner;
+        if (!hidden.isEmpty()) {
+            List<SqlSelect.Projection> ps = new ArrayList<>(inner.projections());
+            ps.addAll(hidden);
+            List<OutputCol> outs = new ArrayList<>(inner.outputs());
+            outs.addAll(hiddenOut);
+            source = inner.withProjections(ps, outs);
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(source, rowAlias, null))
                 .withProjections(List.of(new SqlSelect.Projection(obj, "_wire_row",
                         new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false))))
                 .withOrderBy(lifted);
@@ -746,8 +809,9 @@ public final class Render {
                 || t == Type.Primitive.DATE) {
             // the missing arm the drift hid (witness testExtendMax/
             // MinDate: raw '2026-01-07 00:00:00' where pure prints the
-            // ISO+ms+0000 form)
-            rendered = dateTimeText(c);
+            // ISO+ms+0000 form): a TDS cell's DateTime text has at least
+            // three fraction digits (LiteralSpelling.dateTimeTextTds)
+            rendered = LiteralSpelling.dateTimeTextTds(c);
         } else if ((t == Type.Primitive.NUMBER
                         && (slot == null
                                 || slot instanceof SqlType.Decimal
@@ -1233,7 +1297,11 @@ public final class Render {
             rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.DATE) {
-            rendered = dateTimeText(c);
+            // a VALUE root's one cell (quoteStrings: the reader reads it as the value) is the value's own text; a
+            // relation's cell has at least three fraction digits, as Pure prints a relation
+            // (LiteralSpelling.dateTimeTextTds; measured 2026-10-18 both ways: the MongoDB lane's greatest/least of
+            // DateTimes read as values, channel B's relation texts)
+            rendered = quoteStrings ? dateTimeText(c) : LiteralSpelling.dateTimeTextTds(c);
         } else if (t == Type.Primitive.FLOAT) {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
         } else if (t == Type.Primitive.STRING

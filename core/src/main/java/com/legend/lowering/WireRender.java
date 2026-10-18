@@ -29,7 +29,17 @@ public final class WireRender {
      *  {@code PURE}, interpreted Pure's own print forms, on lite's own outputs; {@code ENGINE}, legend-engine's
      *  conventions -- a Float as Java prints a double, a DateTime with nine fraction digits -- on the engine's API
      *  ({@code pure/v1} execute, served and hosted). The VALUES are Pure's either way. */
-    public enum Spelling { PURE, ENGINE }
+    /** The JSON wire's text of a value: Pure's ({@code PURE}), legend-engine's ({@code ENGINE}: the pure/v1 API), or
+     *  the CARRIER's -- each cell as its slot holds it, for a decode by the plan's column (the judges' typed rows,
+     *  the plan path program's step 6, 2026-10-18): a JSON or literal-labelled slot's own token, a timestamp slot
+     *  always timed (a midnight is no day), a Float's and a Decimal's text by their Pure type. */
+    public enum Spelling {
+        PURE, ENGINE, CARRIER,
+        /** The carrier of a GRID's cells: a temporal cell by the database's own type -- a DATE a day, anything else
+         *  nine fraction digits, the canon the legacy host route decoded a grid's cell from (the setup's DDL can
+         *  diverge from the store's declaration, so the slot does not say). */
+        CARRIER_GRID
+    }
 
     private WireRender() {
     }
@@ -56,7 +66,7 @@ public final class WireRender {
      *  the CSV is lite's own and has one. */
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema, Format format, Spelling spelling) {
         SqlSelect inner = asSelect(plan);
-        boolean dynamicPivot = TdsTextWrap.pivots(plan).stream().anyMatch(p -> p.in().isEmpty());
+        boolean dynamicPivot = hasDynamicPivot(plan);
         if (format == Format.JSON) {
             // a dynamic pivot's rows are their own JSON (the database's tokens: the plan path program's step 4,
             // 2026-10-18; Pure's Float text on such a wire is a named residue)
@@ -95,8 +105,32 @@ public final class WireRender {
      * JDBC row (order preserved on the wrapper) — the executor writes
      * only the array punctuation. */
     public static SqlQuery rows(SqlQuery plan, Type.RelationType schema) {
+        return rows(plan, schema, Spelling.PURE);
+    }
+
+    /** {@link #rows(SqlQuery, Type.RelationType)} with each cell's token in {@code spelling}. */
+    public static SqlQuery rows(SqlQuery plan, Type.RelationType schema, Spelling spelling) {
+        // A statement's own CTEs stay at its head, the wire taken over the body (the plan path program's step 6,
+        // 2026-10-18): H2 parses a derived table's text again for each plan it weighs, and a verdict statement's
+        // WITH wrapped inside two of them exhausted its heap on the corpus's cross-database bodies, where the same
+        // statement sent bare had run. The body itself keeps its projections (the dialects' rewrites find an UNNEST,
+        // a list or a variant navigation at a projection's root, never inside the row's text) and is wrapped once.
+        if (plan instanceof com.legend.sql.SqlWith w) {
+            return w.with(w.ctes(), rows(w.body(), schema, spelling));
+        }
+        // a UNION ALL's branches each wrapped once (the fused verdict batch), where every branch is a select with no
+        // order of its own (an ORDER BY inside a union branch is no SQL); else the union is wrapped whole
+        if (plan instanceof com.legend.sql.SqlUnion u && u.all()
+                && u.branches().stream().allMatch(b -> b instanceof SqlSelect bs && bs.orderBy().isEmpty())) {
+            List<SqlQuery> branches = new ArrayList<>(u.branches().size());
+            for (SqlQuery b : u.branches()) {
+                SqlSelect bs = (SqlSelect) b;
+                branches.add(Render.jsonWireRows(bs, typedOrNull(bs, schema), "_wire1", spelling));
+            }
+            return com.legend.sql.SqlUnion.ofBranches(branches, true);
+        }
         SqlSelect inner = asSelect(plan);
-        return Render.jsonWireRows(inner, typedOrNull(inner, schema), "_wire1");
+        return Render.jsonWireRows(inner, typedOrNull(inner, schema), "_wire1", spelling);
     }
 
     /** Each output's typed column, or null where the schema names none (a pivot's generated column): the JSON wires
@@ -111,6 +145,11 @@ public final class WireRender {
             out.add(byName.get(oc.name()));
         }
         return out;
+    }
+
+    /** Does {@code plan} hold a pivot whose columns the database names (no {@code IN} list)? */
+    public static boolean hasDynamicPivot(SqlQuery plan) {
+        return TdsTextWrap.pivots(plan).stream().anyMatch(p -> p.in().isEmpty());
     }
 
     private static SqlSelect asSelect(SqlQuery plan) {

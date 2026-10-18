@@ -718,7 +718,8 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsModelFree() {
-        String runner = "com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)(\\$.*)?";
+        // RowDecode (2026-10-18, the plan path program's step 6): the runner's typed-row decode, by the plan's columns
+        String runner = "com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|RowDecode|BulkLoads?)(\\$.*)?";
         noClasses()
             .that().haveNameMatching(runner)
             .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage(
@@ -772,7 +773,10 @@ final class ArchitectureTest {
             java.util.Map.entry("SetupRunner", 3),
             java.util.Map.entry("SqlReplayReferee", 1),
             java.util.Map.entry("SystemDatabase", 3),
-            java.util.Map.entry("VerdictBatch", 4),
+            // 4 -> 1 (2026-10-18, the plan path program's step 6): the batch sends its statements as plans through
+            // a Runner the plan side gives it (JudgePlans) -- no dialect, no shape, no executor; the one reference
+            // left is the dialect's refusal it counts as UNJUDGED
+            java.util.Map.entry("VerdictBatch", 1),
             java.util.Map.entry("WireTypes", 3));
 
     /** {@code c}'s top-level class's name: a nested class's is its top-level class's, an array's its element's. */
@@ -1088,12 +1092,15 @@ final class ArchitectureTest {
     void spellingDecodeIsLabelDriven() {
         noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.exec.Executor")
+            // 2026-10-18 (the plan path program's step 6): the runner's typed-row decode has the same arm -- a cell
+            // whose plan column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.RowDecode")
             .and().doNotHaveFullyQualifiedName("com.legend.values.LiteralText")
             .should().dependOnClassesThat().haveFullyQualifiedName(
                 "com.legend.values.LiteralText")
             .as("SNIFF-STOP: LiteralText.parse is reachable only from the"
-                    + " Executor's label-dispatch funnel (unwrap's LITERAL"
-                    + " arm) — decode by declared label, never by value"
+                    + " label-dispatch funnels (Executor.unwrap's LITERAL"
+                    + " arm, RowDecode's LITERAL slot arm) — decode by declared label, never by value"
                     + " shape")
             .check(CORE_PROD_CLASSES);
     }

@@ -49,8 +49,15 @@ class OutputMatrixTest {
             Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
             """;
 
-    /** A kind: its name, the expression as a value root, the same value as a column, and interpreted Pure's text. */
-    private record Kind(String name, String value, String column, String pure) {
+    /** A kind: its name, the expression as a value root, the same value as a column, interpreted Pure's text of the
+     *  value, and a relation cell's text in Pure's TDS text ({@code tds}; the one difference: a DateTime cell's three
+     *  fraction digits at least, legend-engine's {@code testDayOfWeek_Relation} -- {@code LiteralSpelling
+     *  .dateTimeTextTds}, 2026-10-18; a value root's one cell keeps the value's own text, which the reader reads as
+     *  the value). */
+    private record Kind(String name, String value, String column, String pure, String tds) {
+        Kind(String name, String value, String column, String pure) {
+            this(name, value, column, pure, pure);
+        }
     }
 
     private static final String T = "#>{s::DB.T}#->extend(~v: r|";
@@ -66,7 +73,7 @@ class OutputMatrixTest {
             new Kind("decimal_times_decimal", "|1.50D * 2.50D", "|" + T + "1.50D * 2.50D)->select(~[v])",
                     "3.7500"),
             new Kind("datetime_whole", "|%2024-01-02T10:30:00", "|" + T + "%2024-01-02T10:30:00)->select(~[v])",
-                    "2024-01-02T10:30:00+0000"),
+                    "2024-01-02T10:30:00+0000", "2024-01-02T10:30:00.000+0000"),
             new Kind("datetime_millis", "|%2024-01-02T10:30:00.123",
                     "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123+0000"),
             new Kind("datetime_nanos", "|%2024-01-02T10:30:00.123456789",
@@ -107,7 +114,9 @@ class OutputMatrixTest {
                         }
                         String pinned = pins.remove(key);
                         String verdict;
-                        if (cell.equals(kind.pure())) {
+                        String reference = output == TypedQuery.Output.TDS_TEXT && form.equals("column")
+                                ? kind.tds() : kind.pure();
+                        if (cell.equals(reference)) {
                             verdict = pinned == null ? "pure" : "PIN STALE";
                             if (pinned != null) {
                                 failures.add(key + " writes Pure's text now: delete its pin");
@@ -119,9 +128,9 @@ class OutputMatrixTest {
                             failures.add(key + " writes '" + cell + "', pinned as '" + pinned + "'");
                         } else {
                             verdict = "DEVIATES";
-                            failures.add(key + " writes '" + cell + "' where Pure writes '" + kind.pure() + "'");
+                            failures.add(key + " writes '" + cell + "' where Pure writes '" + reference + "'");
                         }
-                        table.add(key + "\t" + kind.pure() + "\t" + cell + "\t" + verdict);
+                        table.add(key + "\t" + reference + "\t" + cell + "\t" + verdict);
                     }
                 }
             }

@@ -115,13 +115,18 @@ final class PlanMaker {
         return text(text, relation(schema, lowered), WireRender.wrap(lowered, schema, format), dialect, target);
     }
 
-    private static ExecutionPlan.TextResult text(ExecutionPlan.Format format, ExecutionPlan.ResultType type,
+    static ExecutionPlan.TextResult text(ExecutionPlan.Format format, ExecutionPlan.ResultType type,
             SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
+        return new ExecutionPlan.TextResult(format, type, sql(statement, dialect, target));
+    }
+
+    /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
+     *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6). */
+    static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
         RenderedStatement rendered = dialect.renderStatement(statement);
         List<ExecutionPlan.Slot> slots = rendered.binds().stream()
                 .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();
-        return new ExecutionPlan.TextResult(format, type, new ExecutionPlan.Sql(rendered.sql(), slots, target,
-                statement));
+        return new ExecutionPlan.Sql(rendered.sql(), slots, target, statement);
     }
 
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */
@@ -164,7 +169,7 @@ final class PlanMaker {
         return new ExecutionPlan.Relation(com.legend.plan.PlanColumns.of(schema, lowered));
     }
 
-    private static ExecutionPlan.Value objects(ExprType root) {
+    static ExecutionPlan.Value objects(ExprType root) {
         var m = root.multiplicity().requireBounded("a graph fetch's result");
         return new ExecutionPlan.Value(root.type().typeName(), new ExecutionPlan.Multiplicity(m.lower(), m.upper()));
     }

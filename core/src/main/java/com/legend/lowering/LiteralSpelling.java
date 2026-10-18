@@ -550,6 +550,18 @@ public final class LiteralSpelling {
      * exponent form.
      */
     public static SqlExpr floatPrint(SqlExpr x) {
+        // A Float the STORE holds as an integer -- a physical column the store declares integral under a Float
+        // property (legend-engine's test tradeTable.quantity INT under the validation showcase's Float) -- prints the
+        // integer the database holds, as legend-engine's cast of the column does ('Quantity not in range: 1000000',
+        // measured on the corpus 2026-10-18, step 6 of the plan path program). The store's fact, read off the scan's
+        // own column (origin PHYSICAL), never inferred; a computed Float, and a projected one read back through a
+        // frame, keep Pure's text (the output layer's step 5: a whole Float's .0 on every database).
+        if (x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
+                && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
+                        || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
+                && isIntegral(t.type())) {
+            return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+        }
         SqlExpr s = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
         // FRACTION-FREE values render through HUGEINT — exact plain digits
         // for the whole [1e16, 1e38) band where the DECIMAL(38,18) cast
@@ -596,6 +608,11 @@ public final class LiteralSpelling {
                 new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed),
                 new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0")))), s);
+    }
+
+    /** Whether {@code t} is one of the integral SQL kinds. */
+    private static boolean isIntegral(SqlType t) {
+        return t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.HUGEINT;
     }
 
     /** Decimal PRINT form: the value's cast text with the {@code D}
@@ -694,6 +711,33 @@ public final class LiteralSpelling {
                         SqlExpr.Call.of(SqlFn.STRFTIME, x,
                                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
                         fraction),
+                new SqlExpr.StringLit("+0000"));
+    }
+
+    /**
+     * A DateTime cell's text in Pure's TDS text (a relation's {@code toString}, the TDS_TEXT output): as
+     * {@link #dateTimeText}, with AT LEAST THREE fraction digits -- {@code 2024-01-02T10:30:00.000+0000} for a whole
+     * second, {@code .123} for a millisecond, {@code .123456789} for a nanosecond, finer trailing zeros trimmed. The
+     * reference is legend-engine's own test (core_functions_standard/date/extract/dayOfWeek.pure,
+     * {@code testDayOfWeek_Relation}): a TDS literal's {@code 1985-01-12T06:30:00Z} prints
+     * {@code 1985-01-12T06:30:00.000+0000} in the relation's text, where the value's own text (interpreted Pure's
+     * {@code toString} of {@code %1985-01-12T06:30:00}) has no fraction. Measured 2026-10-18 (the plan path
+     * program's step 6, channel B's relation and standard suites: 35 goldens spell the three digits), correcting
+     * step 2's one trimmed text for every cell.
+     */
+    public static SqlExpr dateTimeTextTds(SqlExpr x) {
+        SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, x,
+                new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO)));
+        SqlExpr three = SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(1), new SqlExpr.IntLit(3));
+        SqlExpr finer = SqlExpr.Call.of(SqlFn.RTRIM,
+                SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(4), new SqlExpr.IntLit(6)),
+                new SqlExpr.StringLit("0"));
+        return SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
+                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
+                        SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), three),
+                                finer)),
                 new SqlExpr.StringLit("+0000"));
     }
 

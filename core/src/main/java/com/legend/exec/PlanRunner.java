@@ -37,16 +37,84 @@ public final class PlanRunner {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         switch (plan.root()) {
             case ExecutionPlan.TextResult text -> text(text, checked, sessions, out);
-            case ExecutionPlan.TdsResult tds -> throw new com.legend.error.NotImplementedException("a plan whose rows"
-                    + " the runner decodes (a TDS result) is not run yet: phase 3 of the execution plan program");
+            case ExecutionPlan.TdsResult tds -> throw new IllegalArgumentException("a plan whose answer is typed rows"
+                    + " (a tabular result) is run by rows(...), which decodes them; run(...) writes a text");
             case ExecutionPlan.Sequence sequence -> throw new com.legend.error.NotImplementedException("a plan of"
                     + " several steps is not run yet: phase 2 of the execution plan program");
         }
     }
 
+    /** A plan's typed rows: the columns, with their three type facts, and each row's cells decoded by them. */
+    public record Rows(List<ExecutionPlan.Column> columns, List<List<Object>> rows) {
+        public Rows {
+            columns = List.copyOf(columns);
+            rows = List.copyOf(rows);
+        }
+    }
+
+    /**
+     * Runs {@code plan}, whose answer is typed rows ({@link ExecutionPlan.TdsResult}; the plan path program's step 6,
+     * 2026-10-18), with {@code values}, on a session of {@code sessions}: each row the database writes, one JSON
+     * object, decoded into cells by the plan's columns ({@link RowDecode}).
+     */
+    public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions)
+            throws IOException {
+        Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
+        return switch (plan.root()) {
+            case ExecutionPlan.TdsResult tds -> {
+                List<List<Object>> out = new java.util.ArrayList<>();
+                send(tds.sql(), checked, sessions, row -> {
+                    if (row == null) {
+                        throw new IllegalStateException("the plan's statement wrote no object for a row");
+                    }
+                    out.add(RowDecode.cells(row, tds.columns()));
+                });
+                yield new Rows(tds.columns(), out);
+            }
+            case ExecutionPlan.TextResult text -> throw new IllegalArgumentException("a plan whose answer is a text"
+                    + " is run by run(...), which writes it; rows(...) decodes typed rows");
+            case ExecutionPlan.Sequence sequence -> throw new com.legend.error.NotImplementedException("a plan of"
+                    + " several steps is not run yet: phase 2 of the execution plan program");
+        };
+    }
+
     private static void text(ExecutionPlan.TextResult text, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, Writer out) throws IOException {
-        ExecutionPlan.Sql sql = text.sql();
+        switch (text.format()) {
+            case CSV, JSON, TDS_TEXT -> {
+                boolean[] written = {false};
+                send(text.sql(), checked, sessions, row -> {
+                    if (!written[0]) {
+                        written[0] = true;
+                        out.write(row == null ? "" : row);
+                    }
+                });
+                if (!written[0]) {
+                    throw new IllegalStateException("the plan's statement wrote no text: no row");
+                }
+            }
+            case JSON_PER_ROW -> {
+                // one JSON object per row: the array's brackets and commas are the runner's
+                out.write('[');
+                boolean[] first = {true};
+                send(text.sql(), checked, sessions, row -> {
+                    if (!first[0]) {
+                        out.write(',');
+                    }
+                    first[0] = false;
+                    out.write(row != null ? row : "null");
+                    out.flush();
+                });
+                out.write(']');
+            }
+        }
+        out.flush();
+    }
+
+    /** {@code sql} sent on a session of {@code sessions}: the slots bound to the checked values, the type holes
+     *  filled, each row's text handed to {@code rows}. */
+    private static void send(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> checked,
+            PlanSessions.Source sessions, Statements.Rows rows) throws IOException {
         // every null type checked before any session is opened: a plan whose null is of no type is refused whole
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
@@ -70,35 +138,7 @@ public final class PlanRunner {
             }
             String statement = statement(sql, checked);
             StatementOrigin.sent(statement);
-            switch (text.format()) {
-                case CSV, JSON, TDS_TEXT -> {
-                    boolean[] written = {false};
-                    st.query(statement, sql.slots(), values, row -> {
-                        if (!written[0]) {
-                            written[0] = true;
-                            out.write(row == null ? "" : row);
-                        }
-                    });
-                    if (!written[0]) {
-                        throw new IllegalStateException("the plan's statement wrote no text: no row");
-                    }
-                }
-                case JSON_PER_ROW -> {
-                    // one JSON object per row: the array's brackets and commas are the runner's
-                    out.write('[');
-                    boolean[] first = {true};
-                    st.query(statement, sql.slots(), values, row -> {
-                        if (!first[0]) {
-                            out.write(',');
-                        }
-                        first[0] = false;
-                        out.write(row != null ? row : "null");
-                        out.flush();
-                    });
-                    out.write(']');
-                }
-            }
-            out.flush();
+            st.query(statement, sql.slots(), values, rows);
         }
     }
 

@@ -14,7 +14,6 @@ import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
-import com.legend.executionplan.ExecutionPlan.TdsColumn;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
 import com.legend.executionplan.ExecutionPlan.TextResult;
 import com.legend.executionplan.ExecutionPlan.Value;
@@ -43,8 +42,10 @@ public final class PlanJson {
      *  runner's plans (step 3) — each slot's binding (one value with its null's type and, where the statement names the
      *  value's type, its type hole; or a list as one array); 5 since 2026-10-17: a text result's column's three type
      *  facts -- its multiplicity, the SQL type of its slot, its store's declared type or null -- and the typed SQL
-     *  tree, every MIR variant its own tag ({@link MirJson}; docs/PLAN_PATH_PROGRAM_2026_10_17.md §3). */
-    public static final int VERSION = 5;
+     *  tree, every MIR variant its own tag ({@link MirJson}; docs/PLAN_PATH_PROGRAM_2026_10_17.md §3); 6 since
+     *  2026-10-18: a tabular result's columns carry the same three type facts (the plan path program's step 6: the
+     *  runner decodes typed rows by them), where they carried a name, a type and a SQL type. */
+    public static final int VERSION = 6;
 
     private PlanJson() {
     }
@@ -134,13 +135,16 @@ public final class PlanJson {
         return o;
     }
 
-    private static List<Object> columns(List<TdsColumn> columns) {
+    /** The columns with their three type facts (format 5's relation columns; a tabular result's since format 6). */
+    private static List<Object> columns(List<ExecutionPlan.Column> columns) {
         List<Object> cols = new ArrayList<>();
-        for (TdsColumn c : columns) {
+        for (ExecutionPlan.Column c : columns) {
             Map<String, Object> co = new LinkedHashMap<>();
             co.put("name", c.name());
             co.put("type", c.type());
-            co.put("sqlType", c.sqlType());
+            co.put("multiplicity", multiplicity(c.multiplicity()));
+            co.put("slot", c.slot());
+            co.put("store", c.store());   // null: computed, no declared type
             cols.add(co);
         }
         return cols;
@@ -151,17 +155,7 @@ public final class PlanJson {
         switch (type) {
             case Relation r -> {
                 o.put("_type", ResultTypeTag.relation.name());
-                List<Object> cols = new ArrayList<>();
-                for (ExecutionPlan.Column c : r.columns()) {
-                    Map<String, Object> co = new LinkedHashMap<>();
-                    co.put("name", c.name());
-                    co.put("type", c.type());
-                    co.put("multiplicity", multiplicity(c.multiplicity()));
-                    co.put("slot", c.slot());
-                    co.put("store", c.store());   // null: computed, no declared type
-                    cols.add(co);
-                }
-                o.put("columns", cols);
+                o.put("columns", columns(r.columns()));
             }
             case Value v -> {
                 o.put("_type", ResultTypeTag.value.name());
@@ -464,7 +458,7 @@ public final class PlanJson {
                 }
                 yield new Sequence(steps);
             }
-            case tdsResult -> new TdsResult(readColumns(o.getArr("columns")), readSql(o.getObj("sql")));
+            case tdsResult -> new TdsResult(readRelationColumns(o.getArr("columns")), readSql(o.getObj("sql")));
             case textResult -> new TextResult(named(Format.class, o.getString("format"), "text result format"),
                     readResultType(o.getObj("type")), readSql(o.getObj("sql")));
         };
@@ -476,15 +470,6 @@ public final class PlanJson {
             Json.Obj c = (Json.Obj) n;
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
                     readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null)));
-        }
-        return cols;
-    }
-
-    private static List<TdsColumn> readColumns(Json.Arr columns) {
-        List<TdsColumn> cols = new ArrayList<>();
-        for (Json.Node n : columns.items()) {
-            Json.Obj c = (Json.Obj) n;
-            cols.add(new TdsColumn(c.getString("name"), c.getString("type"), c.getString("sqlType")));
         }
         return cols;
     }

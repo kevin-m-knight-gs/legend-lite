@@ -68,16 +68,20 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
-    /** A tabular result: the statement's rows, with these columns (legend-engine's {@code relationalTdsInstantiation}). */
-    public record TdsResult(List<TdsColumn> columns, Sql sql) implements Node {
+    /**
+     * A tabular result the runner reads as TYPED ROWS (legend-engine's {@code relationalTdsInstantiation}; the plan
+     * path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6, 2026-10-18): the statement writes each row as
+     * ONE JSON OBJECT, its keys the columns' names and each cell's token as the JSON wire spells the cell's Pure type
+     * (a Float's Pure text, a Decimal's own scale, a date kind's text, the database's token for the rest, {@code null}
+     * for a null cell), and the runner decodes each cell by its column's declared type and slot
+     * ({@code exec.RowDecode}) -- the plan's own type facts, no model. A session carries text in and text out
+     * (docs/MONGODB_PLAN_2026_10_16.md D12), so this is the one form a typed row crosses in.
+     */
+    public record TdsResult(List<Column> columns, Sql sql) implements Node {
         public TdsResult {
             columns = List.copyOf(columns);
             Objects.requireNonNull(sql, "sql");
         }
-    }
-
-    /** A column of a tabular result: its Pure type and the SQL type the database answers with. */
-    public record TdsColumn(String name, String type, String sqlType) {
     }
 
     /** A result the DATABASE writes as finished text; the runner passes it on (lite's own node — legend-engine builds

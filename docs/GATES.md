@@ -10653,6 +10653,145 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 6, both judges on plans: the verdict a plan's row, each side a plan's result, the agreement gate
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §6 (R2; its "as built" paragraph written at this landing) and §7
+step 6. The line: `docs/IN_FLIGHT.md`, the thirteenth line.
+
+What changed:
+1. **The runner reads typed rows.** `ExecutionPlan.TdsResult` carries the three-fact `Column` (the lite JSON's format
+   6); its statement writes each row as one JSON object (the JSON rows wire), and `PlanRunner.rows` decodes each cell
+   by the plan's column alone (`exec.RowDecode`, model-free: the Z2 ruling's carrier-decode bridge at the plan
+   boundary -- the SLOT decides the carrier first, as the legacy executor's label-driven unwrap read a driver's cell
+   by the output's SQL type: an integral slot a `long`, a floating one a `double`, a decimal one its exact
+   `BigDecimal`, a date or timestamp slot a `PureDateLiteral`, the labels `LITERAL`, `DECIMAL_TEXT` and
+   `TEMPORAL_TEXT` their own arms; a string token under a numeric slot the column's OWN text unless the Pure type is
+   itself numeric -- the legacy executor kept a driver's String under an integral label: legend-engine's test store
+   declares `interactionTable.ID INT` over a column its DDL creates VARCHAR, and the String-typed `Interaction.id`
+   reads `'7'` (four corpus bodies, `tds::distinct::testSimpleDistinct`, `testSimpleDistinctWithFilter`,
+   `filter::in::testInWithDynaFunction`, `dynajoin::testSelfJoinWithAggregateFunction`, lost to a slot-first decode
+   on the first measured run and regained); the declared Pure type decides where the slot is none, JSON or a
+   structure's: a class instance the structure its object spells). `RowDecodeTest` (new).
+2. **The database judge's verdict is a plan** whose one row is the verdict: `JudgePlans.rowsPlan` over `VerdictSql`'s
+   statement, on the body's own session (`PlanSessions.given`); `VerdictBatch` sends each statement -- one, or the
+   fused batch -- through a `Runner` the plan side gives it, and holds no dialect, no shape and no executor (its
+   references into planning 4 -> 1: the dialect's refusal it counts as UNJUDGED). Every typed-rows statement keeps
+   its CTEs at its head, the wire taken over the body, which is wrapped once with its projections kept
+   (`WireRender.rows`; a UNION ALL of unordered selects, the fused batch, branch by branch): found by
+   `//spec:corpus_h2`'s database pass, whose heap the first wire exhausted on the cross-database bodies (H2 parses
+   a derived table's text again for each plan it weighs; a verdict's WITH wrapped inside two of them, where the
+   legacy sent it bare), and by the H2 pass under the gate the same way. Two forms tried and refused by the
+   lanes: the row's object written in place from the projections' own expressions (an UNNEST, a list or a variant
+   navigation nested in the row's text is past the dialects' rewrites, which find them at a projection's root:
+   `JudgesOnPlansTest` on H2, and 152 such refusals in H2's database pass); and the CTEs at the head with the
+   test-lane scan-order pass keying every table source of the wrapped body -- a verdict's one-row sides and the
+   referee's parsed CTE text name their CTEs as table sources, which have no rowid (`ScanOrder.stabilize` now
+   takes the statement's frame names and keys no table that names one; `StableScanOrder` hands it the root WITH's:
+   the four `postProcessor::cteExtraction` row legs and 200 verdicts under the gate on DuckDB). A side's plan
+   carries the verdict batch's frame definitions at its head in database mode, as the legacy executor's render
+   did (`JudgePlans.withFrames`: 660 row legs of `//spec:corpus_h2`'s database pass read a frame that was not
+   there). `WireRowsTest` (new) pins the wire's shapes.
+3. **The host judge receives each side as a plan's result**: `JudgePlans.evalSide`, the 23 side evaluations of
+   `HostJudge`, `AssertVerdicts` and `SqlTextVerdicts` -- the side planned by the legacy executor exactly as its
+   host route prepared it (`StatementExecutor.planHostSide`: no canon rider, the identity lane where asked, the
+   typer's own slots with no wire reconciliation so the literal channel's label survives to the decode, a
+   literal-only side folded only at the sites the legacy folded -- the sites that rode a rider never did, and the
+   rider's lane was the identity lane), run as a typed-rows plan in the JSON rows wire's CARRIER spelling (each cell
+   as the database holds it: a JSON or literal-labelled slot's own token; a temporal cell by the database's OWN type,
+   a DATE a day and anything else timed -- a column declared DATE may hold timestamps, as the milestoning tests'
+   setup does -- at the value's text for a value root and at nine digits for a grid's cell, the canon the legacy
+   host route decoded a grid's cell from; `WireRender.Spelling.CARRIER` and `CARRIER_GRID`) or as a graph fetch's
+   JSON text, decoded by the plan's columns, shaped as the executor shaped it (a scalar, a collection, a grid; the
+   to-one reader's check). Under `LEGEND_LITE_DUMP_SQL=1` each side also prints its plan's columns and the cells
+   the decode gave, with their carriers (`[side]`, the SQL dump's companion).
+   The corpus in `both` mode measured each of these (its first run: 15 bodies lost to the host side's preparation
+   differing from the legacy's -- a reconciled slot printing an Integer as text and a Number as a Float, a folded
+   DateTime golden keeping nine digits, a midnight timestamp printed as a day; the second run: 6 bodies, the four of item 1's decode and the two of (d), all regained; then, with the
+   assert-boundary order (e) and the head-CTE wire, `//spec:corpus_duckdb` and `//spec:corpus_h2` themselves, host
+   and database passes: every verdict file 0, the DuckDB fail roster EXACT (108 of 2613) in host and database mode
+   and under the gate, the H2 fail roster -1 (f), the engine-order registers the lanes' measured files, all twelve
+   lane tests green on the recheck. Under the gate: DuckDB EXACT, 0 disagreements (engine-order 992 printed); H2
+   loses 63 bodies, the 62 of `h2-database-lost-register.txt` (the database arm's own H2 errors, which the gate
+   names as disagreements by design) and `testFullOuterJoinSimple`, whose database arm walls on the FULL OUTER
+   JOIN emulation's sort key as the host side used to, so the gate on H2 is the register's complement until
+   those arms are fixed).
+   The byte channel that rode the side query (V11's canon rider) declines by name on every side:
+   the database judge is the referee, and the rider's wrap machinery in `HostJudge` is dead by construction until
+   step 11 deletes it. One named residue: a side whose plan holds a DYNAMIC PIVOT keeps the legacy route (its columns
+   are named by the database; a typed-rows plan carries no column it cannot name -- step 9's templates).
+4. **The agreement gate**: `ExecuteOptions.JudgeMode.BOTH` and `AgreementArm` -- both arms over the same sides, the
+   host's verdict of record, the database's must agree; a disagreement fails the assert naming both verdicts; a
+   database decline, an UNJUDGED outcome or its arm's own wall is told to the listener and the host decides; a
+   database statement that errors is a failure. `AgreementArmTest` (new, every outcome pair). `JudgesOnPlansTest`
+   (new): 31 bodies on DuckDB and H2 -- a literal against a computed value of every primitive kind, scalars read
+   through a store, grids against TDS literals, a keyless and a keyed class instance -- every assert judged twice, in
+   agreement, none UNJUDGED. Channel B runs under the gate (`ChannelB`); the corpus lane takes
+   `-Dlegend.judge.mode=both` (`MinimalCorpus`; the corpus itself is step 10's). Under the gate the corpus pins
+   every roster and register the host pass pins but the engine-order register, which is per CI pass (host,
+   database): the gate's statements are both arms', and the database arm's verdict statement over a grid the host
+   arm ordered at the assert boundary is changed by the test-lane pass on its own (measured: 992, the host pass's
+   986 and 6 inheritance bodies), so the gate prints the count and pins none; step 10 pins the gate's register
+   when the lane runs under it (`MinimalCorpusTest`).
+5. **Found by the gate, fixed**: (a) a DateTime cell in Pure's TDS text -- a relation's `toString()`, the TDS_TEXT
+   output -- has AT LEAST THREE fraction digits: the reference's own `testDayOfWeek_Relation` (legend-engine's
+   `dayOfWeek.pure`) prints `1985-01-12T06:30:00.000+0000` from a TDS literal's `06:30:00Z`; step 2's one trimmed
+   text had taken them away, and channel B (35 goldens, its relation and standard suites) was in none of the step
+   chains that judged it. `LiteralSpelling.dateTimeTextTds`, for a RELATION's cells; a value root's one cell in the
+   TDS text keeps the value's own text, which the reader reads as the value (the MongoDB lane's `greatest` and `least`
+   of DateTimes, `%2025-02-10T20:10:20+0000`, which `.000` would make another value: measured the same day). The
+   output matrix's TDS-text reference for the whole-second DateTime column is `.000+0000`; its value text unchanged.
+   (b) The JSON rows wire over a relation sorted by a key that is no
+   output (`testSimpleSortShared`): a hidden order column of the inner select, never written into the row. (c) The
+   database judge's `instanceOf` wall (a kind undecidable statically, `testHashCode`) surfaced as a raw error: under
+   the gate its arm's own wall is UNJUDGED by name. (d) Found by the corpus, step 2's: a Float the STORE holds as an
+   integer -- a physical column declared `INT` under a Float property, the validation showcase's `tradeTable.quantity`
+   -- printed `1000000.0` where legend-engine's cast of the column prints `1000000` (`validation::showcase::
+   standalone::validateAllConstraints` and `validateAllConstraintsWithPostTDSOperation2`, lost at step 2's `.0`
+   rule, which no step-2 chain ran the corpus against, and regained): `LiteralSpelling.floatPrint` reads the scan's
+   own column's fact (origin PHYSICAL, an integral type) and prints the integer the database holds; a computed Float,
+   and a projected one read back through a frame, keep Pure's `.0`. (e) Found by the corpus's engine-order register
+   (the test lane's, exact per lane): the assert-boundary order (user design 2026-08-29: a grid under assertion is
+   deterministically ordered even when the test forgot to sort, a feature of the assert surface, always on) was the
+   legacy TDS canon wrap's, which a plan-path side no longer rides, so the corpus lane's test-only scan-order pass
+   added the same `ORDER BY rowid` itself and COUNTED it on eight inheritance bodies (`inheritance::relational::
+   testFilterProject` and seven like it: the register would have moved for an accounting change, the statements
+   identical). `JudgePlans.tabular` applies `ScanOrder.stabilize` to EVERY grid side's statement (the feature as
+   designed: every grid under assertion, not only the sides the wrap had accepted), so the register MOVES the other
+   way: 13 rows leave the host-mode register (`rcorpus/duckdb-engine-order-register.txt`, 993 -> 986 with the six
+   below) and the same 13 the database-mode register (`duckdb-database-engine-order-register.txt`, 885 -> 872: the
+   row legs the database pass reads through the same side plans), the bodies
+   whose grid the legacy had run without the wrap -- an `assertSameSQL` row verdict's own relation
+   (`projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives`, probed: the legacy's root select
+   took its `ORDER BY t0.rowid, t1.rowid` from the test-lane pass, counted; the plan path's inner select carries
+   the same keys from the boundary, re-exported through the wire's hidden order columns, and the pass changes
+   nothing), the `sqlstring` optional-property bodies, the `milestoning::businessdate` derived-date bodies,
+   `relationalMapper::testRelationalMapperTwoDBs`, `postProcessor::testToSqlStringReplaceTablesPostProcessor`; and
+   six rows join the host-mode register, bodies whose wrapped side the pass keys now that the statement's CTEs
+   stand at its head (its base table's rowid, the CTE skipped): `fromMapping::
+   testMappingFromQueriesViaMappingWithAssociationsOnly`, `query::routing::testCompositionInUnion` and the four
+   `validation::tests::milestoning::testValidateQueryWithMilestoning*`. Both registers are the lanes' own measured
+   files (`//spec:corpus_duckdb`'s update tests). No verdict moved on DuckDB: the fail roster is EXACT in both
+   modes. (f) One verdict GAINED on H2:
+   `tds::tdsJoin::testFullOuterJoinSimple` passes in host mode (`rcorpus/h2-fail-roster.txt` -1, and its row of
+   `h2-database-gained-register.txt`, which named it as judged in database mode alone, -1): the host side of its
+   row verdict is a plan over the let's relation as one frame whose body keeps every output, the shape the database
+   mode already had, so H2's FULL OUTER JOIN emulation sorts on the key it has (the register's own reason for the
+   database-mode gain, 2026-09-20) instead of walling on a pasted frame that read `[value]` alone.
+6. **Pins moved, each with its reason**: `ErrorShapeGuardrailTest` (24 -> 26: `AgreementArm.databaseOutcome`'s two
+   arms are the gate's designed sentinel; its one broad catch); `ArchitectureTest` (VerdictBatch 4 -> 1; `RowDecode`
+   joins the runner's model-free guard; the SNIFF-STOP pin admits `RowDecode`'s LITERAL slot arm); the byte channel's
+   pins rewritten to the gate (`LiteralChannelTest.mixedClaims`, `InstanceIdentityTest.pairOfPairsKeys`,
+   `AssertVerdictsTest.enumUnderAnyDeclinesToHost`: the database judge JUDGES each pair, never names it unjudged);
+   channel B's five `sqlDeclinedCount() <= 0` pins retired (the declines are the retired channel's own; the database
+   judge's judged and unjudged counts printed per suite).
+
+What judges it: `//core:core_tests_root` (`JudgesOnPlansTest`, `AgreementArmTest`, `OutputMatrixTest`,
+`PlanJsonTest`), `//core:core_tests_exec` (`RowDecodeTest`, the rewritten pins), `//core:guardrails`, the rest of the
+twelve core targets, `//pct:pct_channel_b` (the agreement gate on DuckDB's five suites), `//pct:pct_duckdb`,
+`//pct:pct_h2`, `//pct:pct_mongodb` (the TDS text's DateTime cell). All green on the final build (2026-10-18): `//gates:core` 39 of 39 (the six Postgres targets as an
+unprivileged user), the four PCT lanes 17 of 17 suites, `//spec:corpus_duckdb` and `//spec:corpus_h2` 12 of 12,
+`corpus_one duckdb both` EXACT.
+
 ## 2026-10-18 — The plan path program, step 5, the lets: dissolved by the inliners, the one undissolvable case refused
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §5 (R11; its "as built" paragraph written at this landing) and §7

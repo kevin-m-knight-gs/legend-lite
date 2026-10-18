@@ -280,14 +280,11 @@ final class StatementExecutor {
         return BodyCompiler.execute(stmts, letPrefix, specs, env0);
     }
 
-    /** The body's verdict batch: the fusion (flat WITH + UNION ALL), its shape, the
-     * one-row verdict shape, the judge. */
-    static com.legend.exec.VerdictBatch newVerdictBatch() {
-        return new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch,
-                new com.legend.compiler.element.type.ExprType(
-                        com.legend.lowering.VerdictSql.batchSchema(),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
-                AssertVerdicts.ONE_ROW, DatabaseJudge::verdictOf);
+    /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
+     * statement as a plan (JudgePlans, step 6). */
+    static com.legend.exec.VerdictBatch newVerdictBatch(ExecEnv env) {
+        return new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch, DatabaseJudge::verdictOf,
+                JudgePlans.runner(env));
     }
 
     /** A statement at VALUE position, PREPARED — the compile phases only (helper
@@ -2538,7 +2535,9 @@ final class StatementExecutor {
      * pipeline ANSWERED without a plan (a host constant — database mode
      * binds a primitive one as a literal side). */
     record PlannedValue(@com.legend.base.Nullable WrappedSide side,
-            @com.legend.base.Nullable ExecutionResult answered) {
+            @com.legend.base.Nullable ExecutionResult answered,
+            @com.legend.base.Nullable TypedSpec root) {
+        /** The planned root, for a planned side (the to-one reader's check reads it). */
     }
 
     /** Plan a VALUE the way {@link #evalValue} would execute it, stopping
@@ -2548,16 +2547,51 @@ final class StatementExecutor {
     static PlannedValue planValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.CanonRider rider,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        BarePlan b = planBare(value, letPrefix, specs, env, rider, hook);
+        return planned(planBare(value, letPrefix, specs, env, rider, hook), rider);
+    }
+
+    /** The host judge's side on the plan path (the plan path program's step 6, 2026-10-18): planned exactly as
+     *  {@link #executeTyped} prepared it for the legacy host route -- no canon rider, the identity lane when
+     *  {@code identity} asks, the plan's slots the typer's own (no wire reconciliation: the literal channel's label
+     *  survives to the decode) -- and, when {@code fold} (the sites the legacy folded: a rider-less evaluation), a
+     *  literal-only side folded to its constant with nothing sent. The sites that rode a canon rider never folded: a
+     *  literal there evaluates in the database, exactly as before (a DateTime golden's written precision meets the
+     *  read value's as the database holds both). The plan JudgePlans runs. */
+    static PlannedValue planHostSide(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env, boolean identity, boolean fold,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
+        java.util.List<TypedSpec> inlined = inlinedSide(value, letPrefix, specs, env, hook);
+        ExecutionResult constant = fold ? foldedSide(inlined.get(inlined.size() - 1),
+                inlined.subList(0, inlined.size() - 1)) : null;
+        if (constant != null) {
+            return new PlannedValue(null, constant, null);
+        }
+        BarePlan b;
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+            b = planStaged(stagedSide(inlined, specs, env), value, env, null, identity, true);
+        }
+        if (fold && b.answered() == null) {
+            // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
+            ExecutionResult folded = LiteralFold.fold(b.root());
+            if (folded != null) {
+                return new PlannedValue(null, folded, null);
+            }
+        }
+        return planned(b, null);
+    }
+
+    private static PlannedValue planned(BarePlan b, com.legend.exec.@com.legend.base.Nullable CanonRider rider) {
         if (b.answered() != null) {
-            return new PlannedValue(null, b.answered());
+            return new PlannedValue(null, b.answered(), null);
         }
         WrappedSide ws = wrapSide(b.plan(), b.root(), b.declaredInfo(), rider, b.env());
         return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),
-                ws.connection(), b.storeFree()), null);
+                ws.connection(), b.storeFree()), null, b.root());
     }
 
     /** A value's plan before the canon wrap: the plan, its root, the
@@ -2602,12 +2636,20 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        java.util.List<TypedSpec> body = sideBody(value, letPrefix, specs, env, hook);
+        return planStaged(sideBody(value, letPrefix, specs, env, hook), value, env, rider, false, false);
+    }
+
+    /** {@link #planBare} over a side already inlined, staged and resolved ({@code body}); {@code identityLane} the
+     *  identity lane without a rider (a rider implies it); {@code hostSide} the legacy host route's preparation
+     *  ({@link #executeTyped}'s: the identity lane's flag alone, no wire reconciliation) where the database judge's
+     *  side takes the verdict lane's. */
+    private static BarePlan planStaged(java.util.List<TypedSpec> body, TypedSpec value, ExecEnv env,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
         java.util.Set<String> stores = new java.util.TreeSet<>();
         for (TypedSpec n : body) {
             collectStores(n, stores);
         }
-        Prelude p = prelude(body, env, rider, false);
+        Prelude p = prelude(body, env, rider, identityLane);
         if (p.answered() != null) {
             return new BarePlan(p.answered(), com.legend.sql.SqlSelect.starOf(
                     new com.legend.sql.SqlSource.Dual()), value, null, env, true);
@@ -2615,7 +2657,7 @@ final class StatementExecutor {
         ExecEnv penv = p.plannedEnv();
         TypedSpec root = p.plannedRoot();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), penv, penv.ctx(),
-                penv.dialect(), penv.connection(), true);
+                penv.dialect(), penv.connection(), hostSide ? identityLane : true);
         if (rider != null && rider.canonicalJsonKeys()) {
             // the verdict plan's JSON objects with keys SORTED — one IR
             // pass over the plan, the builders untouched
@@ -2628,7 +2670,7 @@ final class StatementExecutor {
                         .requireBounded("result shape").isMany()
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type());
-        if (!stores.isEmpty()) {
+        if (!stores.isEmpty() && !hostSide) {
             // leg 3.3: a store-reading side's wire-decided kinds are the
             // database's (a store declaration is not a cast); a store-free
             // side's stamp is the compiler's own fact

@@ -10,7 +10,8 @@ import java.nio.file.Path;
 /**
  * One corpus pass on demand, scoped to a test when one is named (Bazel workplan P2-15: the lane's passes are cached
  * build actions, so a scoped run is a program):
- * {@code bazel run //spec:corpus_one -- <duckdb|h2> <host|database> [<test fqn>]}. It prints the pass's log and exits
+ * {@code bazel run //spec:corpus_one -- <duckdb|h2> <host|database|both> [<test fqn>]} ({@code both}: the agreement
+ * gate, the plan path program's step 6, 2026-10-18). It prints the pass's log and exits
  * with JUnit's code. A scoped database pass runs the database judge on its tests alone: no host verdict, no join.
  */
 public final class CorpusOne {
@@ -18,8 +19,8 @@ public final class CorpusOne {
     private CorpusOne() {}
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 2 || args.length > 3 || !args[0].matches("duckdb|h2") || !args[1].matches("host|database")) {
-            throw new IllegalArgumentException("corpus_one <duckdb|h2> <host|database> [<test fqn>]");
+        if (args.length < 2 || args.length > 3 || !args[0].matches("duckdb|h2") || !args[1].matches("host|database|both")) {
+            throw new IllegalArgumentException("corpus_one <duckdb|h2> <host|database|both> [<test fqn>]");
         }
         if (args[1].equals("database") && args.length == 2) {
             throw new IllegalArgumentException("a whole database pass needs the host pass's outputs: bazel test"

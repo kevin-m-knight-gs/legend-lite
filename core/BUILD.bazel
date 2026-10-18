@@ -189,7 +189,7 @@ legend_java_library(
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -233,7 +233,7 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
-        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
+        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )

@@ -2069,4 +2069,21 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `jsonWireOfRows`; `TdsTextWrap`, `WireRender`, `PlanMaker`; the rewriters' and renderers' arms; `MirJson`;
   `AGENTS.md`'s MIR table). **Step 5 landed 2026-10-18** (GATES "step 5, the lets"): the dissolution measured as
   the rule in force (`compiler/spec/UserCallInliner.java`: `refuseUndissolvable`, the one `generateGuid` case),
-  `LetsTest` (new), the dialect-leak ledger's row. Next: step 6, both judges on plans (the program's §6).
+  `LetsTest` (new), the dialect-leak ledger's row. **Step 6 announced 2026-10-18: both judges on plans, the agreement
+  gate** (the program's §6): `executionplan/ExecutionPlan.java` (`TdsResult` on the three-fact `Column`),
+  `executionplan/PlanJson.java` (format 6), `exec/RowDecode.java` (new: the typed-row decode by the plan's columns),
+  `exec/PlanRunner.java` (`rows`), `exec/VerdictBatch.java` (its statements through a `Runner`), `JudgePlans.java`
+  (new: the judges' plans and the host judge's side results), `AgreementArm.java` (new: `JudgeMode.BOTH`),
+  `StatementExecutor.java` (`planHostSide`), `HostJudge.java`, `AssertVerdicts.java`, `SqlTextVerdicts.java`,
+  `DatabaseJudge.java`, `BodyCompiler.java`, `PlanMaker.java`, `ExecuteOptions.java`; `RowDecodeTest`,
+  `AgreementArmTest`, `JudgesOnPlansTest` (new); the corpus lane's `both` mode (`MinimalCorpus`). **Step 6 landed
+  2026-10-18** (GATES "step 6, both judges on plans"): files touched beyond the announced list:
+  `lowering/LiteralSpelling.java` (`dateTimeTextTds`: a TDS cell's three digits at least; `floatPrint`: a Float the
+  store holds as an integer prints the integer), `lowering/Render.java`
+  (the relation toString's cell, the JSON rows wire's hidden order column), `lowering/WireRender.java`
+  (`hasDynamicPivot`; a statement's CTEs at its head, a UNION ALL wrapped branch by branch), `sql/ScanOrder.java` and
+  `sql/dialect/StableScanOrder.java` (a table naming a frame is no scan), `WireRowsTest` (new), the corpus rosters named in GATES (the H2 fail roster and database-gained register -1 each, the DuckDB
+  host-mode engine-order register -13), `rcorpus/MinimalCorpusTest.java` (the gate pins no engine-order register), `exec/CanonicalDivergence.java` (the judged and unjudged counts), `exec/PrepTrace.java`,
+  the guard pins named in GATES, channel B's five suites (the agreement gate, the unjudged ceilings),
+  `rcorpus/CorpusOne.java` (`both`), `OutputMatrixTest` (the TDS-text reference). Next: step 7, the query
+  service (the program's §7).

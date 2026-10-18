@@ -15,7 +15,6 @@ import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
-import com.legend.executionplan.ExecutionPlan.TdsColumn;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
 import com.legend.executionplan.ExecutionPlan.TextResult;
 import com.legend.executionplan.ExecutionPlan.Value;
@@ -72,7 +71,7 @@ class PlanJsonTest {
                         new Parameter("ids", "Integer", new Multiplicity(0, null), List.of()),
                         new Parameter("status", "model::Status", new Multiplicity(1, 1), List.of("ACTIVE", "CLOSED"))),
                 new Sequence(List.of(
-                        new TdsResult(List.of(new TdsColumn("name", "String", "VARCHAR(100)")),
+                        new TdsResult(List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)")),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
                                                 new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
@@ -161,14 +160,14 @@ class PlanJsonTest {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":5,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":6,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v5 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v6 plan"), refused.getMessage());
     }
 
     @Test
@@ -182,7 +181,7 @@ class PlanJsonTest {
 
     @Test
     void anEarlierVersionIsRefused() {
-        for (int version = 1; version <= 4; version++) {
+        for (int version = 1; version <= 5; version++) {
             int v = version;
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
                     "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));
