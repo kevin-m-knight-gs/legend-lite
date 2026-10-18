@@ -2388,3 +2388,22 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
   line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
   by `Scalars`' cell reader would still be written as Pure spells it.
+- **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
+- **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
+  user). There are two kinds of graph:
+  - a domain model, written through direct (1-1) mappings only;
+  - a native graph store, a platform-owned schema of node, label, property and relationship rows, schemaless as
+    Neo4j is.
+
+  The design puts store writes (`write`, `update`, `delete`, `merge`) under both, and the `#SQL` island's DML lands
+  on the store writes directly.
+- **Files of other lines it will touch, each announced here as it lands:**
+  - the database owner's: `sql/SqlDml.java` (`InsertSelect`, `Update`, `DeleteWhere`, `Merge`), `sql/SqlDdl.java`
+    (an identity column), every dialect's `render(SqlDml)` and a new `renderStatement(SqlDml)` (DuckDB, Postgres and
+    H2 first, the others refusing by name), and the lowering (`write` lowered for real; a `LoweredStatement`);
+  - the execution seam: `Execution.executeWrite` and `exec/` (one transaction per statement, rollback on error);
+  - the `#SQL` island's parser and translator, for INSERT, UPDATE, DELETE, ON CONFLICT and RETURNING (the seventh
+    line's; asked before it lands).
+
+  Leg 1 is harness-only: the judge (`tools/neo4j-oracle/snap.py`, `testcases/CypherParity`, `CypherTck` and
+  `CypherGraph`).
