@@ -261,7 +261,8 @@ class PostgresDialectTest {
                 IS NULL THEN NULL ELSE ARRAY(SELECT "e" FROM unnest((SELECT CAST(ARRAY[1, 2, 3] AS BIGINT[]))) \
                 WITH ORDINALITY AS __u("e", __o) WHERE ("t0".qty IS NOT NULL AND "e" > "t0".qty) ORDER BY __o) END))) \
                 WITH ORDINALITY AS __u("x", __o) WHERE "x" IS NOT NULL ORDER BY __o) END)), 0) AS "n"
-                FROM trades AS "t0\"""", sql);
+                FROM trades AS "t0"\
+                """, sql);
         assertFalse(sql.matches("(?s).*unnest\\((?!\\(SELECT ).*"), "an unnest whose argument is not held: " + sql);
     }
 
