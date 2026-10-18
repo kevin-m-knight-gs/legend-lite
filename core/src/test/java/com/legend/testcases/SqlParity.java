@@ -221,7 +221,9 @@ public final class SqlParity {
         } else if (val instanceof Boolean b) {
             ps.setBoolean(i, b);
         } else if (type.contains("DATE") && !type.contains("TIMESTAMP")) {
-            ps.setDate(i, java.sql.Date.valueOf(val.toString()));
+            // (the JDK's LocalDate, its proleptic Gregorian calendar: java.sql.Date's is Julian before 1582, so the
+            // year 1 would move)
+            ps.setObject(i, java.time.LocalDate.parse(val.toString()));
         } else if (type.equals("TIMESTAMP_NS")) {
             // its text, cast by the database (seed)
             ps.setString(i, val.toString());

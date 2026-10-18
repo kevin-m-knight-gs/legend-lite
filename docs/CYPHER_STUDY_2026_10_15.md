@@ -5550,3 +5550,36 @@ TCK agreement: DuckDB 3571 → 3577 (WithOrderBy1's six rows of the years 1 and 
 lane, and `lite/temporallists`' four on Postgres. The TCK's nanosecond refusals left: none at render on either lane;
 Postgres's 24 at seeding (a stored value's `TIMESTAMP_NS` column, leg 5) and DuckDB's 20 harness skips of the same
 values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every database's DATE).
+
+### 12.89 Nanosecond values as their parts, leg 5: stored values (W13, 2026-10-18)
+
+- **A stored value of nanosecond precision is an embedded instance of a value class of its parts.** A model holds a
+  node's local date-time of nanosecond precision as a class `LocalDateTime { date: StrictDate[1]; nanosOfDay:
+  Integer[1]; }`, a time of day as `LocalTime { nanosOfDay: Integer[1]; }`, a zoned date-time as `ZonedDateTime
+  { date; nanosOfDay; offsetSeconds; zone? }` (the instant's UTC date and nanoseconds since midnight, §12.87) and a
+  zoned time as `ZonedTime { nanosOfDay; offsetSeconds; }` (its UTC nanoseconds from the epoch day's midnight),
+  each slot a column of the node's table through the property mapping's embedded block, as §12.59's Duration and
+  §12.65's zoned classes are. The island knows the classes by their simple names and slots (`partsKind`; a zoned
+  class with an `instant` slot stays §12.65's), and reads the property as the split value its slots spell
+  (`storedParts`: the date slot the parts' date, the nanoseconds the clock, the offset and region slots the zone,
+  as §12.75 reads a stored zone; null where an OPTIONAL MATCH's binding found none). The database's `DATE` and
+  `BIGINT` hold every year 1 to 9999 on every lane, so the `TIMESTAMP_NS` column (§12.64) and its 1678 to 2261 are
+  no longer a node property's.
+- **Carried with its node.** A node carried through WITH writes a split property as its parts' columns (the
+  nanoseconds under the property's column with the parts' mark, a date-time's date under `DATE_PART` beside, the
+  zone's columns as §12.75's), null in an arm whose class lacks it (a label-less node's arms, §12.13); read back as
+  the parts wherever the node is read after (its property, its JSON value, a second WITH that carries it again, a
+  variable-length pattern's chains, which carry the date column too); the node's value spells the property as the
+  oracle's text of its parts (§12.88).
+- **The harness's seeding.** `CypherGraph` declares the value classes and seeds a node's nanosecond value as its
+  parts (the scenario's text read by the harness: its date as written, its clock's nanoseconds; a zoned value's
+  instant's), so a node of any year is seeded on both lanes: Postgres's 24 seeding refusals (no `TIMESTAMP_NS`) and
+  DuckDB's 20 harness skips (years outside 1678 to 2261) pass. A relationship's property (no embedded value on an
+  edge class) keeps §12.64's `TIMESTAMP_NS` column: leg 6. Found by the seeding: `java.sql.Date` binds a date by
+  the Julian calendar before 1582, so the year 1's dates would move; a `DATE` is bound as the JDK's `LocalDate`,
+  the proleptic Gregorian calendar the databases and Neo4j count.
+- **Found by the leg's cases: a date-time text without its time.** Neo4j reads `localdatetime('1984-10-12')` and
+  `datetime('1984-10-12')` as midnight of the date (its pattern makes the time optional and puts a zone only after
+  it; measured, the compact, week and ordinal forms too); the island refused the text. Now read at midnight; a zone
+  without a time stays the parse error Neo4j raises.
+- **Pinned.** `lite/nanostored.yaml`'s 12 cases, each judged by Neo4j.

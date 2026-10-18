@@ -326,9 +326,14 @@ public final class CypherToPure {
             for (NodeProp p : shape.props().values()) {
                 specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
                         null, null));
-                columns.add(new Col(p.column(), p.kind(), p.nullable(), null, p.detail()));
-                // (a zoned property's zone columns, kept under their names: the study's §12.75)
-                for (String part : List.of(ZONE_PART + p.column(), REGION_PART + p.column())) {
+                // (a split property keeps its parts' mark, W13 leg 5)
+                Col own = rs.column(p.column());
+                columns.add(new Col(p.column(), p.kind(), p.nullable(), null, own != null
+                        && own.detail() instanceof Carried cp && cp.parts() != null ? cp : p.detail()));
+                // (a zoned property's zone columns, a split one's date column, kept under their names: the study's
+                // §12.75)
+                for (String part : List.of(ZONE_PART + p.column(), REGION_PART + p.column(),
+                        DATE_PART + p.column())) {
                     Col zc = rs.column(part);
                     if (zc != null) {
                         specs.add(new ColSpec(part, lambda("r", new AppliedProperty(new Variable("r"), part)), null,
@@ -483,8 +488,19 @@ public final class CypherToPure {
             if (t.kind() == Kind.NULL) {
                 continue;
             }
-            ValueSpecification v = SqlToPure.valueOf(t);
             ValueSpecification key = new CString("," + com.legend.json.Json.toCompact(p.getKey()) + ":");
+            if (split(t)) {
+                // of nanosecond precision (W13 leg 5): the oracle's spelling the database writes of the parts
+                Tx spelled = splitSpelled(t);
+                ValueSpecification sv = SqlToPure.valueOf(spelled);
+                ValueSpecification quoted = plus(key, new CString("\""), spelled.nullable() ? call("toOne", sv) : sv,
+                        new CString("\""));
+                ValueSpecification piece = spelled.nullable() ? call("if", call("isEmpty", sv), thunk(new CString("")),
+                        thunk(quoted)) : quoted;
+                text = text == null ? piece : plus(text, piece);
+                continue;
+            }
+            ValueSpecification v = SqlToPure.valueOf(t);
             ValueSpecification piece = t.nullable()
                     ? call("if", call("isEmpty", v), thunk(new CString("")),
                             thunk(plus(key, jsonText(call("toOne", v), t.kind(), nanos(t), p.getKey(), pos))))
@@ -2669,6 +2685,22 @@ public final class CypherToPure {
         return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(mergedShapes(chainColumns)));
     }
 
+    /** The parts' mark a chain of {@code every} carries on {@code v}'s property {@code prop} (W13 leg 5: a split
+     *  value's columns), else none. */
+    private static @com.legend.base.Nullable Carried partsIn(List<Rows> every, String v, String prop) {
+        for (Rows o : every) {
+            Col oc = column(o, v);
+            Map<String, NodeProp> props = oc == null ? Map.of() : oc.detail() instanceof NodeShape n ? n.props()
+                    : oc.detail() instanceof RelShape r ? r.props() : Map.of();
+            NodeProp np = props.get(prop);
+            Col own = np == null ? null : column(o, np.column());
+            if (own != null && own.detail() instanceof Carried cp && cp.parts() != null) {
+                return cp;
+            }
+        }
+        return null;
+    }
+
     /**
      * One chain's rows projected to the variables every chain carries, under the same columns in every chain
      * (the fresh-name counter reset before each, as the arms' union does): a node as its labels, the union of its
@@ -2710,6 +2742,25 @@ public final class CypherToPure {
                         : k.getValue() == Kind.JSON && np.kind() != Kind.JSON && np.kind() != Kind.NULL
                         ? SqlToPure.valueOf(asVariant(columnLike(read, np.kind(), np.nullable()), pos)) : read;
                 boolean nullable = np == null || np.nullable() || every.size() > 1;
+                Carried parts = partsIn(every, v, k.getKey());
+                if (parts != null) {
+                    // a split property (W13 leg 5): its nanoseconds and, for a date-time, its date column beside,
+                    // null where this chain's shape lacks it
+                    computed.add(new ColSpec(column, lambda(row, np == null ? SqlToPure.nullOf(Kind.INTEGER).vs()
+                            : read), null, null));
+                    columns.add(new Col(column, k.getValue(), nullable, null, parts));
+                    selected.add(new ColSpec(column, null, null, null));
+                    if (k.getValue() == Kind.DATETIME || k.getValue() == Kind.ZONED) {
+                        computed.add(new ColSpec(DATE_PART + column, lambda(row, np == null
+                                ? SqlToPure.nullOf(Kind.DATE).vs()
+                                : new AppliedProperty(new Variable(row), DATE_PART + np.column())), null, null));
+                        columns.add(new Col(DATE_PART + column, Kind.DATE, true));
+                        selected.add(new ColSpec(DATE_PART + column, null, null, null));
+                    }
+                    props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, np == null || np.absent(),
+                            np != null && np.nanos()));
+                    continue;
+                }
                 computed.add(new ColSpec(column, lambda(row, value), null, null));
                 columns.add(new Col(column, k.getValue(), nullable, null, np == null ? null : np.detail()));
                 selected.add(new ColSpec(column, null, null, null));
@@ -8105,6 +8156,13 @@ public final class CypherToPure {
                 for (Map.Entry<String, Kind> k : unionKinds(acrossArms, pos).entrySet()) {
                     String column = freshName(names);
                     boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), acrossArms);
+                    if (CypherToPure.this.partsDeclared(k.getKey(), acrossArms)) {
+                        // (a nanosecond value's parts, W13 leg 5: null, its date column beside)
+                        partsColumns(column, splitNull(k.getValue()), true, specs, columns);
+                        props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true, nanos));
+                        zoneColumns(column, null, k, acrossArms, specs, columns);
+                        continue;
+                    }
                     specs.add(new ColSpec(column, lambda(g.row(), nullOfStored(k.getValue(), nanos).vs()), null,
                             null));
                     columns.add(new Col(column, k.getValue(), true, null, nanos ? new Carried(null, true) : null));
@@ -8139,6 +8197,15 @@ public final class CypherToPure {
                 String column = freshName(names);
                 boolean lacks = CypherToPure.this.property(cls, k.getKey()) == null;
                 boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), classes);
+                if (CypherToPure.this.partsDeclared(k.getKey(), classes)) {
+                    // a nanosecond value's parts (W13 leg 5): its nanoseconds the column, its date beside
+                    Tx t = lacks ? splitNull(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                    boolean nullable = classes.size() > 1 || t.nullable() || optional;
+                    partsColumns(column, t, nullable, specs, columns);
+                    props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks, nanos));
+                    zoneColumns(column, lacks ? null : zoneOf(t), k, classes, specs, columns);
+                    continue;
+                }
                 Tx t = lacks ? nullOfStored(k.getValue(), nanos)
                         : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                 boolean nullable = classes.size() > 1 || t.nullable() || optional;
@@ -8154,6 +8221,18 @@ public final class CypherToPure {
             columns.add(new Col(identity, Kind.STRING, id.nullable() || optional));
             return new NodeCarry(new NodeShape(labels, props, false, identity, classes.size() == 1 ? cls : null),
                     specs, columns);
+        }
+
+        /** A carried node's split property (W13 leg 5): its nanoseconds under {@code column}, the parts' mark on it,
+         *  a date-time's date under {@link #DATE_PART} beside (its zone, where it has one, {@link #zoneColumns}'). */
+        private void partsColumns(String column, Tx t, boolean nullable, List<ColSpec> specs, List<Col> columns) {
+            specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(ofDay(t))), null, null));
+            columns.add(new Col(column, t.kind(), nullable, null, new Carried(null, true, null, new Parts(null))));
+            if (t.kind() == Kind.DATETIME || t.kind() == Kind.ZONED) {
+                specs.add(new ColSpec(DATE_PART + column, lambda(g.row(), SqlToPure.valueOf(datePartOf(t))), null,
+                        null));
+                columns.add(new Col(DATE_PART + column, Kind.DATE, true));
+            }
         }
 
         /** Beside a carried node's zoned property's column {@code column}, its zone as the database read it (the
@@ -8385,7 +8464,8 @@ public final class CypherToPure {
                 // the property is where a class declares it
                 Kind elsewhere = b.node() ? candidateKind(name, null, b.path().isEmpty(), pos) : null;
                 if (elsewhere != null) {
-                    return nullOfStored(elsewhere, CypherToPure.this.nanosDeclared(name, g.candidates()));
+                    return CypherToPure.this.partsDeclared(name, g.candidates()) ? splitNull(elsewhere)
+                            : nullOfStored(elsewhere, CypherToPure.this.nanosDeclared(name, g.candidates()));
                 }
                 if (open) {
                     // an open graph (the study's §12.45): a property no class declares is Neo4j's null
@@ -8414,6 +8494,11 @@ public final class CypherToPure {
             Kind kind = valueKind != null ? valueKind : kindOf(prop, pos);
             List<String> path = new ArrayList<>(b.path());
             path.add(name);
+            if (prop.classTyped() && CypherToPure.this.partsKind(prop.type()) != null) {
+                // a stored value of nanosecond precision as its parts (W13 leg 5): an embedded instance of the value
+                // class of them, read as the split value its slots spell
+                return storedParts(b, navigate(g.row(), path), prop, kind, pos);
+            }
             ValueSpecification v = valueKind == Kind.DURATION
                     ? CypherToPure.this.storedDuration(prop.type(), navigate(g.row(), path))
                     : valueKind != null ? storedZoned(navigate(g.row(), path)) : navigate(g.row(), path);
@@ -8438,6 +8523,41 @@ public final class CypherToPure {
             // value as a Variant, so the arms agree
             return b.node() && b.path().isEmpty() && candidateKind(name, kind, true, pos) == Kind.JSON
                     ? asVariant(own, pos) : own;
+        }
+
+        /** A stored value of nanosecond precision, {@code holder} its embedded instance of the value class of its
+         *  parts (W13 leg 5): its nanoseconds slot the value, a date-time's date slot beside, a zoned one's offset
+         *  (and region) slot its zone; null where an OPTIONAL MATCH's binding found none. */
+        private Tx storedParts(Binding b, ValueSpecification holder, Property prop, Kind kind, Pos pos) {
+            boolean nullable = prop.optional() || b.optional() || b.guard() != null;
+            java.util.function.BiFunction<String, Kind, Tx> slot = (name, k) -> {
+                ValueSpecification v = new AppliedProperty(holder, name);
+                if (b.guard() != null) {
+                    v = call("if", absent(b), thunk(SqlToPure.nullOf(k).vs()), thunk(v));
+                }
+                return columnLike(v, k, nullable);
+            };
+            Tx clock = slot.apply(NANOS_SLOT, Kind.INTEGER);
+            Zone zone = null;
+            if (kind == Kind.ZONED || kind == Kind.ZONED_TIME) {
+                ValueSpecification offset = new AppliedProperty(holder, ZONED_SLOTS.get(1));
+                ValueSpecification region = CypherToPure.this.regionSlot(prop.type())
+                        ? new AppliedProperty(holder, ZONE_SLOT) : null;
+                zone = Zone.read(nullable ? call("toOne", offset) : offset, region);
+            }
+            Tx own = switch (kind) {
+                case TIME -> splitTime(clock);
+                case ZONED_TIME -> splitZonedTime(clock, zone);
+                case DATETIME -> splitDateTime(slot.apply(DATE_SLOT, Kind.DATE), clock);
+                case ZONED -> splitZoned(splitDateTime(slot.apply(DATE_SLOT, Kind.DATE), clock), zone);
+                default -> throw new IllegalStateException("not a kind of parts: " + kind);
+            };
+            if (b.node() && b.path().isEmpty() && candidateKind(prop.name(), kind, true, pos) == Kind.JSON) {
+                // typed two ways across the classes a label-less root may be (the study's §12.62): a temporal is
+                // no Variant's kind
+                return asVariant(own, pos);
+            }
+            return own;
         }
 
         /** The kind the candidate classes (an arm's every class) give the scalar property {@code name}, from
@@ -8694,29 +8814,8 @@ public final class CypherToPure {
                                 Kind.STRING, c.nullable()), st.kind()));
                     }
                     if (c.detail() instanceof Carried split && split.parts() != null) {
-                        // a split value (W13): its nanoseconds since midnight the column, a date-time's date the
-                        // column beside it its projection carried; a zoned one's zone the column's when spelled,
-                        // else the offset (and region) its projection carried beside it (§12.75)
-                        Tx clock = columnLike(new AppliedProperty(new Variable(row()), c.name()), Kind.INTEGER,
-                                c.nullable());
-                        Zone zone = split.zone();
-                        Col offsetColumn = column(ZONE_PART + c.name());
-                        if (zone == null && offsetColumn != null) {
-                            ValueSpecification offset = new AppliedProperty(new Variable(row()), offsetColumn.name());
-                            Col region = column(REGION_PART + c.name());
-                            zone = Zone.read(offsetColumn.nullable() ? call("toOne", offset) : offset, region == null
-                                    ? null : new AppliedProperty(new Variable(row()), region.name()));
-                        }
-                        if (c.kind() == Kind.TIME) {
-                            return scalar(splitTime(clock));
-                        }
-                        if (c.kind() == Kind.ZONED_TIME) {
-                            return scalar(splitZonedTime(clock, zone));
-                        }
-                        Col date = java.util.Objects.requireNonNull(column(DATE_PART + c.name()));
-                        Tx parts = splitDateTime(columnLike(new AppliedProperty(new Variable(row()), date.name()),
-                                Kind.DATE, date.nullable()), clock);
-                        return scalar(c.kind() == Kind.ZONED ? splitZoned(parts, zone) : parts);
+                        // a split value (W13): its columns read back as the parts
+                        return scalar(carriedParts(c.name(), c.kind(), c.nullable()));
                     }
                     Tx read = columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
                             c.nullable());
@@ -8737,6 +8836,43 @@ public final class CypherToPure {
                 }
             }
             throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
+        }
+
+        /** A carried node's or relationship's property read from its column: a split value's columns read back as
+         *  the parts (W13 leg 5), any other the column as its kind. */
+        private Tx carriedProp(NodeProp np) {
+            Col own = column(np.column());
+            if (own != null && own.detail() instanceof Carried cp && cp.parts() != null) {
+                return carriedParts(np.column(), np.kind(), np.nullable());
+            }
+            return withNanos(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
+                    np.nullable()), np.nanos());
+        }
+
+        /** A split value carried as columns (W13): its nanoseconds since midnight under {@code name}, a date-time's
+         *  date under {@link #DATE_PART} beside; a zoned one's zone the column's when spelled, else the offset (and
+         *  region) its projection carried beside it (§12.75). */
+        private Tx carriedParts(String name, Kind kind, boolean nullable) {
+            Col c = java.util.Objects.requireNonNull(column(name));
+            Tx clock = columnLike(new AppliedProperty(new Variable(row()), name), Kind.INTEGER, nullable);
+            Zone zone = c.detail() instanceof Carried cc ? cc.zone() : null;
+            Col offsetColumn = column(ZONE_PART + name);
+            if (zone == null && offsetColumn != null) {
+                ValueSpecification offset = new AppliedProperty(new Variable(row()), offsetColumn.name());
+                Col region = column(REGION_PART + name);
+                zone = Zone.read(offsetColumn.nullable() ? call("toOne", offset) : offset, region == null ? null
+                        : new AppliedProperty(new Variable(row()), region.name()));
+            }
+            if (kind == Kind.TIME) {
+                return splitTime(clock);
+            }
+            if (kind == Kind.ZONED_TIME) {
+                return splitZonedTime(clock, zone);
+            }
+            Col date = java.util.Objects.requireNonNull(column(DATE_PART + name));
+            Tx parts = splitDateTime(columnLike(new AppliedProperty(new Variable(row()), date.name()), Kind.DATE,
+                    date.nullable()), clock);
+            return kind == Kind.ZONED ? splitZoned(parts, zone) : parts;
         }
 
         @Override
@@ -8777,9 +8913,7 @@ public final class CypherToPure {
         NodeParts relParts(RelShape shape, Pos pos) {
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
-                NodeProp np = p.getValue();
-                props.add(Map.entry(p.getKey(), withNanos(columnLike(new AppliedProperty(new Variable(row()),
-                        np.column()), np.kind(), np.nullable()), np.nanos())));
+                props.add(Map.entry(p.getKey(), carriedProp(p.getValue())));
             }
             Col type = java.util.Objects.requireNonNull(column(shape.type()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.type());
@@ -8817,9 +8951,7 @@ public final class CypherToPure {
         NodeParts parts(NodeShape shape) {
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
-                NodeProp np = p.getValue();
-                props.add(Map.entry(p.getKey(), withNanos(columnLike(new AppliedProperty(new Variable(row()),
-                        np.column()), np.kind(), np.nullable()), np.nanos())));
+                props.add(Map.entry(p.getKey(), carriedProp(p.getValue())));
             }
             Col labels = java.util.Objects.requireNonNull(column(shape.labels()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.labels());
@@ -8890,9 +9022,15 @@ public final class CypherToPure {
                     throw CypherErrors.invalid("the node " + v.name() + " has no property " + p.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", p.pos());
                 }
+                Col own = column(np.column());
+                boolean parts = own != null && own.detail() instanceof Carried cp && cp.parts() != null;
                 if (np.absent()) {
                     // (the class this arm reads lacks it: the known null, which a comparison folds)
-                    return scalar(nullOfStored(np.kind(), np.nanos()));
+                    return scalar(parts ? splitNull(np.kind()) : nullOfStored(np.kind(), np.nanos()));
+                }
+                if (parts) {
+                    // a carried split property (W13 leg 5): its columns read back as the parts
+                    return scalar(carriedParts(np.column(), np.kind(), np.nullable()));
                 }
                 Tx read = withNanos(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
                         np.nullable()), np.nanos());
@@ -14361,12 +14499,79 @@ public final class CypherToPure {
         return classes;
     }
 
-    /** The model's value classes: the Duration class and the zoned ones; never nodes. */
+    /** The model's value classes: the Duration class, the zoned ones and those of a nanosecond value's parts;
+     *  never nodes. */
     private List<String> valueClasses() {
         List<String> out = new ArrayList<>(durationClasses());
         out.addAll(zonedClasses("ZonedTime"));
         out.addAll(zonedClasses("ZonedDateTime"));
+        for (String simple : PARTS_CLASSES.values()) {
+            for (String cls : model.classesOf(simple)) {
+                if (partsKind(cls) != null) {
+                    out.add(cls);
+                }
+            }
+        }
         return out;
+    }
+
+    /** The slots of a stored value of nanosecond precision as its parts (W13 leg 5): a date-time's date and its
+     *  nanoseconds since midnight, a time of day's nanoseconds; a zoned one's UTC parts (a zoned time's UTC
+     *  nanoseconds from the epoch day's midnight) beside its offset ({@link #ZONED_SLOTS}' second) and, for a
+     *  date-time, its region ({@link #ZONE_SLOT}). */
+    private static final String DATE_SLOT = "date";
+    private static final String NANOS_SLOT = "nanosOfDay";
+
+    /** The kind a value class of a nanosecond value's parts holds (W13 leg 5), by its simple name and slots
+     *  ({@code LocalDateTime} its date and nanoseconds, {@code LocalTime} its nanoseconds, {@code ZonedDateTime}
+     *  and {@code ZonedTime} those beside an offset); null for any other class. */
+    private @com.legend.base.Nullable Kind partsKind(String cls) {
+        for (Map.Entry<Kind, String> named : PARTS_CLASSES.entrySet()) {
+            Kind kind = named.getKey();
+            boolean dated = kind == Kind.DATETIME || kind == Kind.ZONED;
+            boolean zoned = kind == Kind.ZONED || kind == Kind.ZONED_TIME;
+            if (model.classesOf(named.getValue()).contains(cls) && slot(cls, NANOS_SLOT, "Integer")
+                    && dated == slot(cls, DATE_SLOT, "StrictDate") && zoned == slot(cls, ZONED_SLOTS.get(1), "Integer")
+                    && property(cls, ZONED_SLOTS.get(0)) == null) {
+                return kind;
+            }
+        }
+        return null;
+    }
+
+    /** The simple names of the value classes of a nanosecond value's parts, by the kind each holds (in the kinds'
+     *  order). */
+    private static final Map<Kind, String> PARTS_CLASSES = java.util.Collections.unmodifiableMap(
+            new java.util.EnumMap<>(Map.of(Kind.DATETIME, "LocalDateTime", Kind.TIME, "LocalTime", Kind.ZONED,
+                    "ZonedDateTime", Kind.ZONED_TIME, "ZonedTime")));
+
+    /** Whether {@code cls} declares the slot {@code name} as one {@code type}, required. */
+    private boolean slot(String cls, String name, String type) {
+        Property p = property(cls, name);
+        return p != null && p.type().equals(type) && !p.many() && !p.optional();
+    }
+
+    /** Whether a class of {@code classes} holds its property {@code name} as a nanosecond value's parts. */
+    private boolean partsDeclared(String name, List<String> classes) {
+        for (String c : classes) {
+            Property p = property(c, name);
+            if (p != null && p.classTyped() && !p.many() && partsKind(p.type()) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** No value of a split kind (W13): its parts' nulls (a zoned one's zone not carried). */
+    private static Tx splitNull(Kind kind) {
+        Tx clock = SqlToPure.nullOf(Kind.INTEGER);
+        return switch (kind) {
+            case TIME -> splitTime(clock);
+            case ZONED_TIME -> splitZonedTime(clock, null);
+            case DATETIME -> splitDateTime(SqlToPure.nullOf(Kind.DATE), clock);
+            case ZONED -> splitZoned(splitDateTime(SqlToPure.nullOf(Kind.DATE), clock), null);
+            default -> throw new IllegalStateException("not a split kind: " + kind);
+        };
     }
 
     /** The kind a class-typed property holds as a VALUE (an embedded instance of a value class): a duration, a zoned
@@ -14375,6 +14580,10 @@ public final class CypherToPure {
         if (!p.classTyped() || p.many()) {
             return null;
         }
+        Kind parts = partsKind(p.type());
+        if (parts != null) {
+            return parts;
+        }
         return durationClasses().contains(p.type()) ? Kind.DURATION : zonedClasses("ZonedTime").contains(p.type())
                 ? Kind.ZONED_TIME : zonedClasses("ZonedDateTime").contains(p.type()) ? Kind.ZONED : null;
     }
@@ -14382,6 +14591,9 @@ public final class CypherToPure {
     /** Whether a stored property's values are of nanosecond precision: its own marks, or its zoned value class's
      *  instant slot's. */
     private boolean nanosOf(Property p) {
+        if (p.classTyped() && partsKind(p.type()) != null) {
+            return true;
+        }
         if (p.classTyped()) {
             Property instant = property(p.type(), ZONED_SLOTS.get(0));
             return instant != null && instant.nanos();
@@ -16000,10 +16212,10 @@ public final class CypherToPure {
      * ({@code 2015-W30-2}, {@code 2015W302}, {@code 2015-W30}, {@code 2015W30}), the ordinal forms ({@code 2015-202},
      * {@code 2015202}), the quarter forms ({@code 2015-Q2-60}, {@code 2015Q260}, {@code 2015-Q2}, {@code 2015Q2});
      * a time ({@code 21:40:32.142}, {@code 214032.142}, {@code 21:40}, {@code 2140}, {@code 21}) after a {@code T},
-     * or alone; a zone ({@code Z}, an offset, a region's name in brackets) after the time. Null when the text is
-     * none of these. The parts are the digits as written; what they spell is the database's. (Package-private:
-     * its one construction is inside its own body, which the dead-code guard would read as no use of a private
-     * one.)
+     * or alone (a date-time's, when not written, midnight); a zone ({@code Z}, an offset, a region's name in
+     * brackets) after the time. Null when the text is none of these. The parts are the digits as written; what they
+     * spell is the database's. (Package-private: its one construction is inside its own body, which the dead-code
+     * guard would read as no use of a private one.)
      */
     record TemporalText(Map<Component, Long> date, boolean calendar, @com.legend.base.Nullable Integer hour,
             @com.legend.base.Nullable Integer minute, @com.legend.base.Nullable Integer second, String fraction,
@@ -16026,13 +16238,21 @@ public final class CypherToPure {
             }
             String datePart = null;
             String timePart = null;
+            boolean midnight = false;
             if (wantDate && wantTime) {
                 int t = rest.indexOf('T');
                 if (t < 0) {
-                    return null;
+                    // a date alone: the time midnight (Neo4j's pattern makes the time optional, a zone only after
+                    // it; measured: localdatetime('1984-10-12') is 1984-10-12T00:00)
+                    if (zoneName != null) {
+                        return null;
+                    }
+                    datePart = rest;
+                    midnight = true;
+                } else {
+                    datePart = rest.substring(0, t);
+                    timePart = rest.substring(t + 1);
                 }
-                datePart = rest.substring(0, t);
-                timePart = rest.substring(t + 1);
             } else if (wantDate) {
                 datePart = rest;
             } else {
@@ -16072,6 +16292,10 @@ public final class CypherToPure {
                 minute = parts > 1 ? hms[1] : 0;
                 second = parts > 2 ? hms[2] : 0;
                 fraction = frac[0] == null ? "" : frac[0];
+            } else if (midnight) {
+                hour = 0;
+                minute = 0;
+                second = 0;
             }
             return new TemporalText(date, calendar, hour, minute, second, fraction, zoneText, zoneName);
         }

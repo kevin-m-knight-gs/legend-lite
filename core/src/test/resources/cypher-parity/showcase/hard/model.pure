@@ -16,6 +16,15 @@ Class g::values::ZonedDateTime
     instant: DateTime[1];
     offsetSeconds: Integer[1];
 }
+Class g::values::LocalDateTime
+{
+    date: StrictDate[1];
+    nanosOfDay: Integer[1];
+}
+Class g::values::LocalTime
+{
+    nanosOfDay: Integer[1];
+}
 Class g::City
 {
     name: String[0..1];
@@ -89,5 +98,5 @@ DataSpace <<graph::graph.Open>> g::Graph
     }
   ];
   defaultExecutionContext: 'default';
-  elements: [ g::City, g::Firm, g::Person, g::values::Duration, g::values::ZonedDateTime, g::values::ZonedTime ];
+  elements: [ g::City, g::Firm, g::Person, g::values::Duration, g::values::LocalDateTime, g::values::LocalTime, g::values::ZonedDateTime, g::values::ZonedTime ];
 }

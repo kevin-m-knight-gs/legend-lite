@@ -11868,3 +11868,20 @@ Found by the leg's cases: Postgres's 100 arguments to a function, past which the
 nanolists.yaml` (11 cases). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3936 / REFUSED 259 /
 BOTH_ERROR 769 / SKIP 56; Postgres PASS 3896 / REFUSED 299 / BOTH_ERROR 769 / SKIP 56, of 5020 cases), TCK agreement
 DuckDB 3571 → 3577, Postgres 3540 → 3552; the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-seventh landing — nanosecond values as their parts, leg 5: stored values
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.89, the plan's W13 leg 5. A node's stored temporal
+value of nanosecond precision is an embedded instance of a value class of its parts (`LocalDateTime`, `LocalTime`;
+a zoned value's instant's UTC parts beside its offset, `ZonedDateTime`, `ZonedTime`), read by the island as the split
+value its slots spell, carried with its node through WITH (a second WITH, a label-less node's arms, an OPTIONAL
+MATCH, a variable-length pattern's chains) and spelled in the node's value as the oracle's text of its parts; the
+harness declares the classes and seeds the parts, so a node of any year is seeded on both lanes (a `DATE` bound as
+the JDK's proleptic `LocalDate`). Found by the leg's cases: a date-time text without its time, which Neo4j reads at
+midnight. `lite/nanostored.yaml` (12 cases); the S66 decision of `lite/stored/a_stored_zoned_time_compared_with_a_
+zoned_literal` now on the Postgres lane too, which seeds it; the showcase's pinned models declare the two parts
+classes. Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3968 / REFUSED 259 / BOTH_ERROR 769 / SKIP
+36; Postgres PASS 3966 / REFUSED 261 / BOTH_ERROR 769 / SKIP 36, of 5032 cases), TCK agreement DuckDB 3577 → 3597,
+Postgres 3552 → 3596; the oracle check 0 problems; the chain's 40 guard targets green. What the TCK still holds
+outside the write clauses (and the control queries of their scenarios) on either lane: the 2 signed years past every
+database's dates, 3 setups Neo4j refuses, and on Postgres one remainder of a float.

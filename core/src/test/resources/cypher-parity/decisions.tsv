@@ -27,4 +27,6 @@ lite/temporal/time_comparison	S66	[["false", "true", "false", "true", "false", "
 lite/temporal/time_offset_with_seconds	S69	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]
 tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #2	S69	[["Time('12:34:56.000000000+02:05:59')"]]	[["Time('12:34:56.000000000+02:05:59')"]]
 tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #3	S69	[["Time('12:34:56.000000000-02:05:07')"]]	[["Time('12:34:56.000000000-02:05:07')"]]
-lite/stored/a_stored_zoned_time_compared_with_a_zoned_literal	S66	[["'a'", "true", "true"], ["'b'", "false", "false"]]	-
+# 2026-10-18, W13 leg 5 (docs/CYPHER_STUDY_2026_10_15.md §12.89): the Postgres lane seeds this case now (a stored
+# nanosecond zoned time as its parts, no TIMESTAMP_NS column), so S66 decides it there as on DuckDB
+lite/stored/a_stored_zoned_time_compared_with_a_zoned_literal	S66	[["'a'", "true", "true"], ["'b'", "false", "false"]]	[["'a'", "true", "true"], ["'b'", "false", "false"]]
