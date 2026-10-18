@@ -1,0 +1,46 @@
+# The DataCube roadmap run (2026-10-18)
+
+The user, 2026-10-18: "run the whole roadmap in this session with each phase audited and stacked on next here, and do
+not stop until whole roadmap is done; if you can't figure something out or don't know what to do, skip it, make a
+note and we'll come back to it at the end."
+
+This file is the run's ledger: the order, each phase's branch and state, and every item skipped with why. It is kept
+on the newest branch of the stack and updated as each phase lands on its branch.
+
+## How each phase is run
+
+- **Its own branch, stacked on the one before**, pushed with no PR: CI is contended, and a branch with no PR runs no
+  CI (the user, 2026-10-18). Nothing goes to `main`; nothing merges without the user.
+- **A short design note first** where the phase has choices to make, then steps, one commit each, each with its
+  tests (a fix with a test that fails without it).
+- **Checked locally before the push:** the suites the phase touches (`//datacube/...` and `//python/...` for the
+  DataCube line; `verify_app` as an unprivileged user).
+- **Audited:** an independent reviewer that wrote none of it reads the phase's diff before the next phase starts;
+  its findings are fixed, or answered here.
+
+## The order
+
+| # | Phase | Branch | State |
+|---|---|---|---|
+| — | #57: header sorting, pivot totals (PR open, green) | `claude/epic-rubin-ay7upl` | waiting on the user's merge |
+| — | Command program stage 1a: the test foundation | `claude/datacube-command-tests` | done, audited |
+| — | Command program stage 1: the grid half | `claude/datacube-commands` | done, audited |
+| 1 | Command program stage 1: the page half (page parity tests first) | `claude/datacube-page-commands` | in progress |
+| 2 | Command program stage 2: one page state, page-level undo | | |
+| 3 | Command program stage 3: the live channel between Python and an open page | | |
+| 4 | Graph mode: design note, then the G0 spike over main's Cypher island | | |
+| 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | | |
+| 6 | Charts batch 5: maps | | |
+| 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | | |
+| 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | | |
+| 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | | |
+
+## Skipped, to come back to at the end
+
+- **Previews (hosted per branch):** needs the user's Netlify account and the two repository secrets, and deleting the
+  stale `preview` branch (the session's proxy refuses branch deletion).
+- **"Get SQL out of clients":** its design waits on the user's go.
+- **D5b (Snap's queries become Pure):** on the other DataCube line's own branch, and in the SQL plan's ground this
+  line was told to leave alone (`engine.py` snap/frames/project-data, `_headless._query`, `warehouse.py`).
+
+## Notes as the run goes

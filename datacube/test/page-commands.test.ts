@@ -1,0 +1,161 @@
+// A PAGE EDIT AS A VALUE (src/page-commands.ts; docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md): each command gives the
+// page the screen's rules give it -- ids after every one held, a new chart titled by its number, a removed grid taking
+// its following charts and leaving a frozen one detached, a chart's selection taken off its grid's filter, a move onto
+// a tile's own sheet doing nothing -- and a command read from JSON is the same command, or refused in words.
+
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import { tiles } from '../src/layout/bands.ts';
+import {
+  PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, idsOf, nextPageId, readPageCommand,
+  type PageCommand, type PageDraft,
+} from '../src/page-commands.ts';
+import type { ChartView, PageDocument } from '../src/page-document.ts';
+import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
+import { corpus } from './fixtures/pages/make.ts';
+
+// the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) stacked with chart-2 (frozen, of
+// grid-2) on sheet-1 beside grid; grid-2 alone on sheet-2
+const trades = (await corpus())['trades.page.json']!;
+const draft = (page: PageDocument = trades): PageDraft => ({ page, held: idsOf(page) });
+const apply = (command: PageCommand, d: PageDraft = draft()): PageDraft => applyPageCommand(d, command).draft;
+const refused = (f: () => unknown, words: RegExp): void => {
+  assert.throws(f, (e: unknown) => e instanceof CubeRefusal && words.test(e.message), String(words));
+};
+const sheet = (page: PageDocument, id: string) => page.sheets.find((s) => s.id === id)!;
+const view = (page: PageDocument, id: string) => page.views.find((v) => v.id === id);
+
+describe('ids and titles: one allocator, after every id the page has held', () => {
+  it('a new id follows the largest of its kind held, and a removed one is not given out again', () => {
+    assert.equal(nextPageId(idsOf(trades), 'chart'), 'chart-3');
+    assert.equal(nextPageId(idsOf(trades), 'grid'), 'grid-3');
+    assert.equal(nextPageId(idsOf(trades), 'sheet'), 'sheet-3');
+    const gone = apply({ kind: 'removeTile', tile: 'chart-2' });
+    assert.equal(nextPageId(gone.held, 'chart'), 'chart-3', 'chart-2 was held: never given out again');
+    assert.equal(chartTitle('chart-12'), 'Chart 12');
+  });
+
+  it('a command that makes a tile carries the id it was given, as applied (what a live channel replays)', () => {
+    const { draft: d, applied } = applyPageCommands(draft(), [
+      { kind: 'addSheet', name: 'More' },
+      { kind: 'addChart', near: 'grid-2', spec: (view(trades, 'chart') as ChartView).spec, title: null, columns: null },
+    ]);
+    assert.deepEqual(applied.map((c) => ('id' in c ? c.id : undefined)), ['sheet-3', 'chart-3']);
+    // replayed, they give the same page; an id the page has held is refused
+    assert.deepEqual(applyPageCommands(draft(), applied).draft, d);
+    refused(() => apply({ kind: 'addSheet', id: 'sheet-2', name: null }), /'sheet-2' is an id the page has held already/);
+  });
+});
+
+describe('each command gives the page the screen\'s rules give it', () => {
+  it('a new chart goes beside its grid, titled by its number, of its grid\'s cube', () => {
+    const spec = (view(trades, 'chart') as ChartView).spec;
+    const page = apply({ kind: 'addChart', near: 'grid-2', spec, title: null, columns: null }).page;
+    assert.deepEqual(view(page, 'chart-3'), { id: 'chart-3', kind: 'chart', cube: 'grid-2', title: 'Chart 3', spec });
+    assert.deepEqual(tiles(sheet(page, 'sheet-2').layout), ['grid-2', 'chart-3']);
+    refused(() => apply({ kind: 'addChart', near: 'chart', spec, title: null, columns: null }), /a chart is of a grid/);
+  });
+
+  it('a removed grid takes its following charts; a frozen one stays, detached, its cube kept for it', () => {
+    const page = apply({ kind: 'removeTile', tile: 'grid' }).page;
+    assert.deepEqual(page.views.map((v) => v.id), ['grid-2', 'chart-2'], 'chart followed grid: gone with it');
+    assert.deepEqual(page.cubes.map((c) => c.id), ['grid-2']);
+    assert.deepEqual(tiles(sheet(page, 'sheet-1').layout), ['chart-2']);
+    const detached = apply({ kind: 'removeTile', tile: 'grid-2' }).page;
+    assert.deepEqual(detached.views.map((v) => v.id), ['grid', 'chart', 'chart-2'], 'chart-2 frozen: it stays');
+    assert.deepEqual(detached.cubes.map((c) => c.id), ['grid', 'grid-2'], 'its cube kept for the detached chart');
+  });
+
+  it('a chart removed takes its selection off its grid\'s filter (the screen\'s cleanup Python missed)', () => {
+    const pick: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' };
+    const cube = trades.cubes.find((c) => c.id === 'grid')!;
+    const had = cube.cube.query.filter!;
+    const selected: PageDocument = {
+      ...trades,
+      cubes: trades.cubes.map((c) => (c.id === 'grid' ? { ...c, cube: { ...c.cube, query: { ...c.cube.query, filter: { kind: 'and', children: [had, pick] } } } } : c)),
+      views: trades.views.map((v) => (v.id === 'chart' ? { ...v, selection: [pick] } : v)),
+    };
+    const page = apply({ kind: 'removeTile', tile: 'chart' }, draft(selected)).page;
+    assert.deepEqual(page.cubes.find((c) => c.id === 'grid')?.cube.query.filter, had);
+  });
+
+  it('a tile moved onto another sheet goes to its bottom; onto its own, nothing', () => {
+    assert.deepEqual(apply({ kind: 'moveTile', tile: 'grid', sheet: 'sheet-1', columns: null }).page, trades);
+    const page = apply({ kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null }).page;
+    assert.deepEqual(tiles(sheet(page, 'sheet-2').layout), ['grid-2', 'chart']);
+    assert.deepEqual(tiles(sheet(page, 'sheet-1').layout), ['grid', 'chart-2']);
+  });
+
+  it('sheets: added, named, moved, removed with their tiles; the last one stays', () => {
+    let d = apply({ kind: 'addSheet', name: '  Extra  ' });
+    assert.deepEqual(sheet(d.page, 'sheet-3'), { id: 'sheet-3', name: 'Extra', layout: { kind: 'bands', fit: true, bands: [] } });
+    d = apply({ kind: 'renameSheet', sheet: 'sheet-1', name: '' }, d);
+    assert.equal('name' in sheet(d.page, 'sheet-1'), false, "a blank: named after its first grid");
+    d = apply({ kind: 'moveSheet', sheet: 'sheet-3', to: 0 }, d);
+    assert.deepEqual(d.page.sheets.map((s) => s.id), ['sheet-3', 'sheet-1', 'sheet-2']);
+    const gone = apply({ kind: 'removeSheet', sheet: 'sheet-1' }, d).page;
+    assert.deepEqual(gone.sheets.map((s) => s.id), ['sheet-3', 'sheet-2']);
+    // grid went with sheet-1, and its following chart; chart-2, frozen, of grid-2, went with sheet-1 too
+    assert.deepEqual(gone.views.map((v) => v.id), ['grid-2']);
+    let one = draft();
+    one = apply({ kind: 'removeSheet', sheet: 'sheet-2' }, one);
+    refused(() => apply({ kind: 'removeSheet', sheet: 'sheet-1' }, one), /a page has one sheet at least/);
+  });
+
+  it('titles by the one rule (givenName): a chart keeps one, a grid\'s comes off, a blank is refused', () => {
+    assert.equal(view(apply({ kind: 'renameTile', tile: 'chart', title: ' Qty ' }).page, 'chart')?.title, 'Qty');
+    assert.equal('title' in view(apply({ kind: 'renameTile', tile: 'grid', title: null }).page, 'grid')!, false);
+    refused(() => apply({ kind: 'renameTile', tile: 'chart', title: null }), /a chart has a title/);
+    refused(() => apply({ kind: 'renameTile', tile: 'grid', title: '  ' }), /a tile's name is not blank/);
+  });
+
+  it("the page's name is each cube's too (writePageOf's rule), written by no rule of its own", () => {
+    const page = apply({ kind: 'renamePage', name: 'Desk view' }).page;
+    assert.equal(page.name, 'Desk view');
+    assert.deepEqual(page.cubes.map((c) => c.cube.name), ['Desk view', 'Desk view']);
+  });
+
+  it('stack, arrange and a whole layout, by bands.ts, each refused in its words', () => {
+    const stacked = apply({ kind: 'stack', tiles: ['grid', 'chart'] }).page;
+    assert.deepEqual(tiles(sheet(stacked, 'sheet-1').layout), ['grid', 'chart', 'chart-2']);
+    refused(() => apply({ kind: 'stack', tiles: ['grid', 'grid-2'] }), /on one sheet/);
+    const side = apply({ kind: 'arrange', sheet: 'sheet-1', preset: 'stacked', order: null }).page;
+    assert.equal(sheet(side, 'sheet-1').layout.bands.length, 2);
+    refused(() => apply({ kind: 'layout', sheet: 'sheet-2', layout: sheet(trades, 'sheet-1').layout }), /holds its tiles, each once/);
+    const same = apply({ kind: 'layout', sheet: 'sheet-1', layout: sheet(side, 'sheet-1').layout }, draft()).page;
+    assert.deepEqual(sheet(same, 'sheet-1').layout, sheet(side, 'sheet-1').layout);
+  });
+});
+
+describe('a page command read from JSON is the same command, and what DataCube does not know is refused', () => {
+  const spec = (view(trades, 'chart') as ChartView).spec;
+  const every: PageCommand[] = [
+    { kind: 'renamePage', name: 'P' },
+    { kind: 'addSheet', name: null },
+    { kind: 'renameSheet', sheet: 'sheet-1', name: 'S' },
+    { kind: 'moveSheet', sheet: 'sheet-1', to: 1 },
+    { kind: 'removeSheet', sheet: 'sheet-2' },
+    { kind: 'renameTile', tile: 'grid', title: null },
+    { kind: 'addGrid', id: 'grid-3', document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: 'grid', title: null, columns: 2 },
+    { kind: 'addChart', near: 'grid', spec, title: 'T', columns: null },
+    { kind: 'setChart', chart: 'chart', spec },
+    { kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null },
+    { kind: 'stack', tiles: ['grid', 'chart'] },
+    { kind: 'removeTile', tile: 'chart' },
+    { kind: 'arrange', sheet: 'sheet-1', preset: 'rows:1-1', order: ['grid', 'chart'] },
+    { kind: 'layout', sheet: 'sheet-2', layout: sheet(trades, 'sheet-2').layout },
+  ];
+
+  it('every kind, through JSON and back', () => {
+    assert.deepEqual([...new Set(every.map((c) => c.kind))].sort(), [...PAGE_COMMAND_KINDS].sort(), 'every kind is here');
+    for (const c of every) assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c, c.kind);
+  });
+
+  it('an unknown kind, a misspelt field and a field of the wrong type, each in words', () => {
+    refused(() => readPageCommand({ kind: 'addTab', name: null }), /'addTab' is not a page's command/);
+    refused(() => readPageCommand({ kind: 'removeTile', tiles: 'x' }), /a 'removeTile' command takes tile, not tiles/);
+    refused(() => readPageCommand({ kind: 'moveTile', tile: 'x', sheet: 'sheet-1', columns: 0 }), /columns is a whole number/);
+    refused(() => readPageCommand({ kind: 'renameTile', tile: 'x', title: 3 }), /a tile's title is text/);
+  });
+});
