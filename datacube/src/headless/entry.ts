@@ -11,9 +11,9 @@ import {
   gridApply, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView,
 } from './grid.ts';
 import { forget, ingest, mount, remoteAccess } from './data-in.ts';
-import { classDuplicate, pageModelKept, pageModelNames } from './model.ts';
-import { layoutAdd, layoutArrange, layoutNew, layoutRemove, layoutStack } from './layout.ts';
-import { nameGiven, pageNew, pageRead } from './page.ts';
+import { classDuplicate, pageModelNames } from './model.ts';
+import { layoutBands, layoutTiles } from './layout.ts';
+import { nameGiven, pageApply, pageNew, pageRead } from './page.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -30,18 +30,19 @@ export { gridApply, gridCalculate, gridChart, gridClass, gridCube, gridExport, g
  *  checks what it names). */
 export { forget, ingest, mount, remoteAccess };
 
-/** The page's model as DataCube names it, a class's key's facts (B4), and the model a page keeps for the cubes it still
- *  holds: what Python asks beside the generic library. */
-export { classDuplicate, pageModelKept, pageModelNames };
+/** The page's model as DataCube names it, and a class's key's facts (B4): what Python asks beside the generic library.
+ *  (The model a page keeps for the cubes it still holds is the page commands' rule: pageApply.) */
+export { classDuplicate, pageModelNames };
 
-/** A sheet's layout edited by DataCube's own rules (layout/bands.ts): a new sheet's, a tile placed, taken off, the
- *  places arranged, tiles stacked -- what Python's pages ask, so they place nothing by rules of their own. */
-export { layoutAdd, layoutArrange, layoutNew, layoutRemove, layoutStack };
+/** A sheet's layout read by DataCube's own rules (layout/bands.ts): its tiles, and bands of tiles as the layout
+ *  picker's shape -- what Python's pages ask, so they walk no layout by rules of their own (a layout is edited by page
+ *  commands: pageApply). */
+export { layoutBands, layoutTiles };
 
 /** A page document read as DataCube reads it (its own version, every rule held) and written as DataCube writes
  *  it: what Python's pages ask when one is loaded, read back, laid out or saved. And a new page as DataCube starts one:
- *  what Python's ll.Page() asks. */
-export { pageNew, pageRead };
+ *  what Python's ll.Page() asks. And a page edited by commands (page-commands.ts): what Python's page edits send. */
+export { pageApply, pageNew, pageRead };
 
 /** A page's, a tile's or a sheet's name as a person gives it, by DataCube's one rule: what Python's names ask. */
 export { nameGiven };

@@ -51,20 +51,38 @@ it: what a host records, and what a live channel would carry, replays exactly.
 - Python: `Page.sheet`, `Page.stack`, `Page.remove`, `Sheet.add`/`Tile.move_to`, `Tile.title`, `Sheet.name`,
   `Page.name`, `Sheet.layout`/`arrange`/`layout_from`, `Grid.chart`, `Chart.plot`/`options` and `Page.grid`'s placing
   build commands. `_next`, the remove cascade, and the copies of `bands.ts`'s walkers go.
-- The screen (`page/cube-page.ts`): its ids from `nextPageId`, its chart titles by the same rule, and an
-  `onPageCommand` option telling a host each page edit as a command. Applying them onto one page state is stage 2.
+- The screen (`page/cube-page.ts`, `page/page-app.ts`): its ids from `nextPageId` and its titles by the same rules,
+  and an `onPageCommand` option telling a host each structural edit as its command -- a sheet added, renamed, moved or
+  removed; a tile renamed, moved to another sheet or removed; a sheet's layout changed by hand (a drag, a resize, a
+  stack, an arrangement, a layout undone or redone: `layout`, whole). Applying commands onto one page state is stage 2.
+- Headless: `pageApply`, and `layoutTiles` and `layoutBands` (a sheet's tiles; Python's bands as the picker's rows
+  shape). `layoutNew`, `layoutAdd`, `layoutRemove`, `layoutStack`, `layoutArrange` and `pageModelKept` are gone: the
+  page commands are those rules now.
 
 ## How it is tested
 
 - Unit tests of every command and rule (`page-commands.test.ts`).
-- **The screen replays**: what the screen reports, applied by `applyPageCommand` to the page it started as, is the page
-  it shows (`views()`) -- so the screen and the function cannot drift before stage 2 makes the function the screen's.
+- **The screen replays** (`page-app.test.ts`): what the screen tells, applied by `applyPageCommand` to the page it
+  started as, is the page it writes (`views()`, and its cubes) -- so the screen and the function cannot drift before
+  stage 2 makes the function the screen's. Checked to fail when the screen leaves a command untold.
 - Python's existing page tests, and its page commands recorded.
+
+## Behaviour changes, each the screen's rule now everyone's
+
+- **Python:** a tile moved onto its own sheet stays where it is (it went to the bottom). A layout leaving a tile out
+  is refused by the layout command's words ("a sheet's layout holds its tiles, each once"), not the page reader's.
+- **The screen:** a new id comes after every id the page holds, as Python's always did: on a reopened page whose
+  grid-2 was removed before it was saved, the next grid is grid-4, not grid-2 again.
 
 ## Not in this phase
 
 - **One page state on the screen, and page-level undo:** stage 2.
 - **The cube app's own page** (a cube with charts beside it) titles its added grids by count ("Grid 2" for the first),
   where a page of its own titles them by id; Python makes only pages of their own. Left as it is.
+- **The screen telling a chart or a grid added, and a chart's spec,** as `addChart`, `addGrid` and `setChart`: a
+  chart's spec is made by its panel after it is placed, and a grid's cube document by its host; stage 2's one page
+  state holds both, and tells them.
+- **A chart with problems** (the homework's §8): Python refuses one (`_made`), the screen keeps it and shows the words.
+  Which is the one rule is a product choice, recorded in the run's ledger for the user.
 - **Python's refusal to empty a shown page** stays: a page with no cube is one DataCube does not read, and Python
   serves a shown page again on every change. The screen's page is not read again, so it may empty.

@@ -3,11 +3,15 @@
 // layout, saved or written out -- a page of DataCube's own version, every one of its rules held
 // (readPage), written as DataCube writes it (pageToJson) -- so Python checks and writes no page by rules of its own.
 
-import { CubeDocumentError } from '../cube-document.ts';
+import { CubeDocumentError, readCube } from '../cube-document.ts';
 import {
   PageDocumentError, PageNoCubeError, pageToJson, readPage, startingViews, writePageOf,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
+import { applyPageCommands, readPageCommand } from '../page-commands.ts';
+import { CubeRefusal } from '../snapshot.ts';
+import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
+import type { PageDocument } from '../page-document.ts';
 
 /**
  * A page document (JSON text) as DataCube reads it and would write it again. JSON: `{page}`, the page's text as
@@ -47,4 +51,43 @@ export function nameGiven(part: string, text: string): string {
   if (!PARTS.includes(part as NamedPart)) throw new Error(`a name is a page's, a tile's or a sheet's, not a ${part}'s`);
   const given = givenName(part as NamedPart, text);
   return JSON.stringify('refused' in given ? { problems: [given.refused] } : { name: given.name ?? null });
+}
+
+/**
+ * A PAGE EDITED BY COMMANDS (page-commands.ts: the one function the screen's page edits are judged by --
+ * docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md): `page`, its document as Python holds it (JSON, its numbers exact),
+ * `held`, every tile and sheet id it has held (a JSON list), and `commands`, a JSON list, each read by readPageCommand
+ * (an unknown kind or field refused in words). Applied in order, the first refusal stopping them. JSON:
+ * `{page, held, commands}` -- the page as DataCube writes it, the ids held now, the commands as applied (an id a
+ * command left out allocated, so Python names its new tile by DataCube's rule) -- or `{problems}`, in DataCube's words.
+ */
+export function pageApply(page: string, held: string, commands: string): string {
+  let read;
+  try {
+    const doc = heldPage(page);
+    read = (JSON.parse(commands) as unknown[]).map(readPageCommand);
+    const done = applyPageCommands({ page: doc, held: JSON.parse(held) as string[] }, read);
+    return `{"page":${JSON.stringify(pageToJson(done.draft.page))},"held":${JSON.stringify(done.draft.held)},`
+      + `"commands":[${done.applied.map((c) => toJson(c)).join(',')}]}`;
+  } catch (e) {
+    if (!(e instanceof CubeRefusal) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
+ * A page as Python holds it, read as the page commands take it: written by DataCube's writers (pageNew, pageRead,
+ * gridApply), so its parts are read as they are -- a new page has no cube yet, which readPage refuses -- but each cube
+ * by its own reader (readCube: a calculated column's numbers exact, every other number plain, as DataCube holds a
+ * cube), and the fields a newer writer added kept aside, as the page's own reader keeps them (`unknown`).
+ */
+function heldPage(text: string): PageDocument {
+  const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
+  const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
+  const { kind, version, name, views, sheets, model, ...unknown } = rest;
+  return {
+    kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}),
+    cubes: cubes.map((c, i) => ({ id: c.id, cube: readCube(exact[i]!.cube) })),
+    ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
+  } as unknown as PageDocument;
 }

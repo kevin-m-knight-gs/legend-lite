@@ -806,12 +806,13 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     await settle();
     assert.deepEqual(pg().grids, [g1]);
     assert.deepEqual(pg().cubes, [g1, g3], 'grid-3 kept for its chart');
-    // Copy of Grid, twice: grid-2 is free again; grid-3 is the kept grid's, so the next is grid-4
+    // Copy of Grid, twice: after every id the page holds (page-commands.ts nextPageId, the rule Python's ids are given
+    // by too, 2026-10-18) -- grid-3, the kept grid's, never taken
     gridMenuItem(g1, 'Copy of Grid').click();
     await settle();
     gridMenuItem(g1, 'Copy of Grid').click();
     await settle();
-    assert.deepEqual(pg().grids.slice().sort(), ['grid-1', 'grid-2', 'grid-4']);
+    assert.deepEqual(pg().grids.slice().sort(), ['grid-1', 'grid-4', 'grid-5']);
     assert.equal(pill(chart!), 'Detached');
     assert.equal(chartView(chart!)!.cube, g3, 'the detached chart still reads its kept grid');
   });

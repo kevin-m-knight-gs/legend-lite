@@ -235,9 +235,14 @@ export class BandBoard {
     // a divider's or an edge's drag ends first (undone): it would end on a layout from before this tile
     this.#gesture?.end(false);
     this.#tiles.set(tile.id, this.#make(tile));
+    this.#commit(add(this.#layout, tile.id, near, this.columns));
+  }
+
+  /** How many tiles fit side by side at a readable width, as wide as the board is now; undefined while it has no width
+   *  (bands.ts add then takes its most): what a placing command says it placed by (page-commands.ts `columns`). */
+  get columns(): number | undefined {
     const { width } = this.#size();
-    const columns = width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
-    this.#commit(add(this.#layout, tile.id, near, columns));
+    return width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
   }
 
   /**

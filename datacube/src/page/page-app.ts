@@ -27,6 +27,7 @@ import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import { pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
+import type { PageCommand } from '../page-commands.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
 import type { CubeDocument } from '../cube-document.ts';
@@ -74,6 +75,8 @@ export interface PageAppOptions {
   readonly onRename?: (name: string) => void;
   /** A question to answer yes or no (a sheet deleted with its tiles): the browser's `confirm` unless given. */
   readonly confirm?: (question: string) => boolean;
+  /** Each edit of the page's structure as its page command (page/cube-page.ts onPageCommand; page-commands.ts). */
+  readonly onPageCommand?: (command: PageCommand) => void;
   /** The host's own menu entries (Save, Open, Share, where the planner runs), by their `section`. */
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
@@ -638,6 +641,7 @@ export class PageApp {
       sheetLabel: (id) => this.sheetLabel(id),
       onSheets: () => this.#onSheets(),
       sheetTabs: { at: (x, y) => this.#sheetTabs.at(x, y), hover: (id) => this.#sheetTabs.hover(id) },
+      ...(this.#options.onPageCommand ? { onPageCommand: this.#options.onPageCommand } : {}),
     });
   }
 

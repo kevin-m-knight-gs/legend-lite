@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { cubeToJson, writeCube, type FileSource } from '../src/cube-document.ts';
+import { cubeToJson, frameSource, rawRows, writeCube, type FileSource } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import {
   FIRST_SHEET,
@@ -20,16 +20,16 @@ import {
   readSaved,
   startingViews,
   writePage,
+  type PageDocument,
   type PageLayout,
   type PageViews,
 } from '../src/page-document.ts';
 import { givenName } from '../src/page-names.ts';
-import { layoutAdd } from '../src/headless/layout.ts';
-import { pageNew } from '../src/headless/page.ts';
+import { pageApply, pageNew } from '../src/headless/page.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
+import { accessor, col, element, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 
 const SOURCE: FileSource = {
   _type: 'file', name: 'trades.csv', format: 'csv', size: 120, sha256: 'ab'.repeat(32),
@@ -317,9 +317,14 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     assert.deepEqual(startingViews(), { views: [], sheets: [{ id: FIRST_SHEET, layout: { kind: 'bands', fit: true, bands: [] } }] });
   });
 
-  it("is the page Python starts and lays its first grid on, by the same add (headless pageNew, layoutAdd)", () => {
-    const started = JSON.parse(JSON.parse(pageNew('Q3 review')).page as string) as { sheets: { layout: unknown }[] };
-    const laid = JSON.parse(layoutAdd(JSON.stringify(started.sheets[0]!.layout), 'grid-1', null)) as unknown;
+  it("is the page Python starts and lays its first grid on, by the same add (headless pageNew, pageApply's addGrid)", () => {
+    const started = JSON.parse(JSON.parse(pageNew('Q3 review')).page as string) as PageDocument;
+    const cube = writeCube({ name: 'q', source: frameSource('q', [{ name: 'a', type: 'String' }]),
+      snapshot: rawRows(element('q'), [{ name: 'a', type: 'String' }]), configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty() });
+    const applied = JSON.parse(pageApply(JSON.stringify(started), '["sheet-1"]', JSON.stringify([
+      { kind: 'addGrid', document: cube, sheet: 'sheet-1', near: null, title: null, columns: null },
+    ]))) as { page: string };
+    const laid = (JSON.parse(applied.page) as PageDocument).sheets[0]!.layout;
     assert.deepEqual(laid, startingViews({ id: 'grid-1', cube: 'grid-1' }).sheets[0]!.layout);
   });
 });

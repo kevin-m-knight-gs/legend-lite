@@ -17,6 +17,7 @@ import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
+import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 
 let dom: JSDOM;
@@ -557,6 +558,42 @@ describe('a page of its own', () => {
     tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!;
     assert.equal(last.getAttribute('aria-disabled'), 'true', 'the last sheet stays');
+  });
+
+  it('tells each edit of its structure as its page command: applyPageCommand gives for them the page it saves', async () => {
+    // (docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md) the screen and the one function cannot drift before stage 2 makes the
+    // function the screen's: what the screen told, applied to the page it started as, is the page it writes
+    const told: PageCommand[] = [];
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const b = page.addGrid(over('orders.csv'));
+    await settle();
+    const start = page.document('Q3')!;
+    told.length = 0;
+    // a sheet added; the second grid moved onto it from its menu; the chart removed from its menu; the first sheet
+    // deleted with its grid
+    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    clickTab(tabs()[0]!);
+    await settle();
+    gridMenuItem(b, 'Sheet 2').click();
+    await settle();
+    const [first, second] = page.sheets;
+    (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
+      .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove')!.click();
+    await settle();
+    tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!.click();
+    await settle();
+    assert.deepEqual(told.map((c) => c.kind), ['addSheet', 'moveTile', 'removeTile', 'removeSheet']);
+    assert.deepEqual(told[0], { kind: 'addSheet', id: second, name: null });
+    assert.deepEqual(told[3], { kind: 'removeSheet', sheet: first });
+    const replayed = applyPageCommands({ page: start, held: idsOf(start) }, told).draft.page;
+    assert.deepEqual({ views: replayed.views, sheets: replayed.sheets }, page.views());
+    assert.deepEqual(replayed.cubes.map((c) => c.id), page.cubes, 'the grid that went took its cube');
   });
 
   it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {

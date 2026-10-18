@@ -6,8 +6,7 @@
 
 import { fn, toJson } from '../../../pure-protocol/src/index.ts';
 import { suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
-import { keptFor } from '../page-document.ts';
-import { PAGE_WORKSPACE, pageProject, type PageModelRef } from '../page-model.ts';
+import { PAGE_WORKSPACE, pageProject } from '../page-model.ts';
 import { duplicateLambda } from '../query.ts';
 
 /** A page's model as the windows name it before its first class: its package, its data space, its project to make
@@ -26,13 +25,4 @@ export function pageModelNames(pageName: string): string {
  */
 export function classDuplicate(relationFunction: string, column: string): string {
   return toJson(duplicateLambda(fn(relationFunction), column));
-}
-
-/**
- * A page's model as the page writes it, for the cubes it still holds (page-document.ts `keptFor`): a grid removed takes
- * its table's name and its class with it, as DataCube's reader holds every kept name to a cube of the page -- what
- * Python's `page.remove(grid)` asks, so a page written in Python opens. JSON.
- */
-export function pageModelKept(model: string, cubes: string): string {
-  return JSON.stringify(keptFor(JSON.parse(model) as PageModelRef, (JSON.parse(cubes) as string[]).map((id) => ({ id }))));
 }

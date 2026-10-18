@@ -32,7 +32,6 @@ import datetime
 import json
 import math
 import numbers
-import re
 import uuid
 import warnings
 from collections.abc import Mapping, Sequence
@@ -81,11 +80,6 @@ def _carried(value: Any) -> Any:
     """Any value as JSON carries it, whatever its shape: what a chart is told goes to DataCube as given, for DataCube's
     reader to judge in its own words (_made)."""
     return _plain(_json.loads(_json.dumps(value)))
-
-
-def _number(id: str) -> int:
-    match = re.search(r'-(\d+)$', id)
-    return int(match.group(1)) if match else 0
 
 
 # -- filters ----------------------------------------------------------------------------------------------------------
@@ -139,35 +133,6 @@ def _given_filter(node: Any) -> dict[str, Any]:
     return condition
 
 
-# -- a sheet's bands, read: DataCube edits them (datacube/src/layout/bands.ts, asked headless: Page._layout) ---------
-
-def _is_leaf(node: dict[str, Any]) -> bool:
-    return 'tile' in node or 'stack' in node
-
-
-def _leaf_tiles(node: dict[str, Any]) -> list[str]:
-    return [node['tile']] if 'tile' in node else list(node['stack'])
-
-
-def _leaves(layout: dict[str, Any]) -> list[dict[str, Any]]:
-    """A layout's places in reading order: each a tile or a stack."""
-    out: list[dict[str, Any]] = []
-
-    def walk(node: dict[str, Any]) -> None:
-        if _is_leaf(node):
-            out.append(node)
-        else:
-            for part in node['parts']:
-                walk(part['node'])
-    for band in layout['bands']:
-        walk(band['node'])
-    return out
-
-
-def _tiles(layout: dict[str, Any]) -> list[str]:
-    return [t for leaf in _leaves(layout) for t in _leaf_tiles(leaf)]
-
-
 # -- the handles ------------------------------------------------------------------------------------------------------
 
 class Tile:
@@ -204,20 +169,18 @@ class Tile:
 
     @title.setter
     def title(self, title: str | None) -> None:
-        view = self._view
-        if title is None:
-            if self._kind == 'chart':
-                raise ValueError('a chart has a title')
-            view.pop('title', None)
-        else:
-            view['title'] = _given_name(self._page._session, 'tile', title, 'a title')
-        self._page._changed()
+        _ = self._view
+        if title is not None and not isinstance(title, str):
+            raise ValueError(f'a title is a name, not {title!r}')
+        # by the command the screen's rename builds (a chart has a title; a grid's None takes its own off)
+        self._page._apply_page([{'kind': 'renameTile', 'tile': self._id, 'title': title}], 'a title')
 
     @property
     def sheet(self) -> Sheet:
         """The sheet it is on."""
         _ = self._view
-        return next(self._page._sheet(s['id']) for s in self._page._doc['sheets'] if self._id in _tiles(s['layout']))
+        return next(self._page._sheet(s['id']) for s in self._page._doc['sheets']
+                    if self._id in self._page._tiles(s['layout']))
 
     def move_to(self, sheet: Sheet) -> None:
         """Onto another sheet of its page, in a band of its own at the bottom (its charts stay where they are)."""
@@ -490,12 +453,12 @@ class Grid(Tile):
         # made as DataCube makes a new chart (what is not given is its own default), and judged as it will draw it: what
         # DataCube would refuse to draw is refused here, in its words, before the chart is kept
         spec = _made(self._page, self._view['cube'], given)
-        named = None if title is None else _given_name(self._page._session, 'tile', title, 'a title')
-        id = self._page._next('chart')
-        self._page._doc['views'].append({'id': id, 'kind': 'chart', 'cube': self._view['cube'],
-                                         'title': named or f'Chart {_number(id)}', 'spec': spec})
-        self._page._place(id, self.sheet, near=self._id)
-        return self._page._tile(id, Chart)
+        if title is not None and not isinstance(title, str):
+            raise ValueError(f'a title is a name, not {title!r}')
+        # beside this grid, titled by its number unless given one, as the screen adds a chart (page-commands.ts addChart)
+        applied = self._page._apply_page([{'kind': 'addChart', 'near': self._id, 'spec': spec, 'title': title,
+                                           'columns': None}], 'a title')
+        return self._page._tile(applied[0]['id'], Chart)
 
     @property
     def charts(self) -> list[Chart]:
@@ -645,16 +608,16 @@ class Chart(Tile):
                  **({'y': _measures(y)} if y is not _KEEP else {}),
                  **({'split': split} if split is not _KEEP else {}),
                  **({'frozen': True if frozen else None} if frozen is not None else {})}
-        view['spec'] = _made(self._page, view['cube'], given, view['spec'])
-        self._page._changed()
+        self._page._apply_page([{'kind': 'setChart', 'chart': self._id,
+                                 'spec': _made(self._page, view['cube'], given, view['spec'])}])
         return self
 
     def options(self, settings: Mapping[str, Any]) -> Chart:
         """The chart's Options (``orientation``, ``stack``, ``sort``, ``limit``, ``labels``, ``legend``), in its spec's own
         keys; one left out is the chart's default. DataCube makes the edit and judges it (_made)."""
         view = self._view
-        view['spec'] = _made(self._page, view['cube'], {'options': _carried(settings)}, view['spec'])
-        self._page._changed()
+        self._page._apply_page([{'kind': 'setChart', 'chart': self._id,
+                                 'spec': _made(self._page, view['cube'], {'options': _carried(settings)}, view['spec'])}])
         return self
 
     def __repr__(self) -> str:
@@ -692,61 +655,46 @@ class Sheet:
 
     @name.setter
     def name(self, name: str | None) -> None:
-        sheet = self._doc
-        own = None if name is None else _given_name(self._page._session, 'sheet', name, "a sheet's name")
-        if own is None:
-            sheet.pop('name', None)
-        else:
-            sheet['name'] = own
-        self._page._changed()
+        _ = self._doc
+        if name is not None and not isinstance(name, str):
+            raise ValueError(f"a sheet's name is a name, not {name!r}")
+        self._page._apply_page([{'kind': 'renameSheet', 'sheet': self._id, 'name': name}], "a sheet's name")
 
     @property
     def tiles(self) -> list[Tile]:
         """Its tiles in reading order, a stack's in its tabs' order."""
-        return [self._page._tile_of(t) for t in _tiles(self._doc['layout'])]
+        return [self._page._tile_of(t) for t in self._page._tiles(self._doc['layout'])]
 
     def add(self, *tiles: Tile) -> Sheet:
-        """Puts ``tiles`` on this sheet, each in a band of its own at the bottom (from the sheet it was on)."""
+        """Puts ``tiles`` on this sheet, each at its bottom, from the sheet it was on, as the screen's Move to Sheet
+        moves a tile (page-commands.ts moveTile): one already on this sheet stays where it is."""
         _ = self._doc
         for tile in tiles:
             if tile._page is not self._page:
                 raise ValueError(f'{tile!r} is another page\'s')
             _ = tile._view
-        with self._page._batch():
-            for tile in tiles:
-                self._page._unplace(tile._id)
-                self._page._place(tile._id, self)
+        self._page._apply_page([{'kind': 'moveTile', 'tile': t._id, 'sheet': self._id, 'columns': None} for t in tiles])
         return self
 
     def layout(self, *bands: Sequence[Tile]) -> Sheet:
         """Its places laid out in bands, top to bottom, each band's places side by side and alike, as the layout picker
         lays them out: ``sheet.layout([grid, chart], [other])``. Every tile on the sheet is in one band; a stack is named
         by any of its tiles. (``layout_from`` takes any layout DataCube draws: splits, sizes, heights.)"""
-        leaves = {t: leaf for leaf in _leaves(self._doc['layout']) for t in _leaf_tiles(leaf)}
-        chosen: list[list[dict[str, Any]]] = []
-        used: set[str] = set()
         for band in bands:
             if isinstance(band, Tile) or not band:
                 raise ValueError('a band is a list of tiles, one at least: sheet.layout([grid, chart], [other])')
-            row = []
             for tile in band:
-                if isinstance(tile, Tile):
-                    _ = tile._view
-                leaf = leaves.get(tile._id) if isinstance(tile, Tile) else None
-                if leaf is None:
-                    raise ValueError(f'{tile!r} is not on the sheet {self._id}')
-                if used & set(_leaf_tiles(leaf)):
-                    raise ValueError(f'{tile!r} (or a tile stacked with it) is in the layout twice')
-                used.update(_leaf_tiles(leaf))
-                row.append(leaf)
-            chosen.append(row)
-        if used != set(leaves):
-            raise ValueError(f'every tile on the sheet is in the layout: {", ".join(sorted(set(leaves) - used))} not')
-        if not chosen:
+                if not isinstance(tile, Tile):
+                    raise ValueError(f'a band is a list of tiles, not {tile!r}')
+                _ = tile._view
+        # the bands as DataCube's layout picker lays them out (headless layoutBands: its rows shape, the places in order)
+        said = json.loads(self._page._session.headless().call(
+            'layoutBands', _json.dumps(self._doc['layout']), json.dumps([[t._id for t in band] for band in bands])))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        if said['preset'] is None:
             return self  # a sheet with no tiles, laid out in no bands: as it is (no shape names no bands)
-        # a band of each list's places side by side: DataCube's rows preset, the bands' counts and the places in order
-        return self._arranged('rows:' + '-'.join(str(len(row)) for row in chosen),
-                              [tile._id for band in bands for tile in band])
+        return self._arranged(said['preset'], said['order'])
 
     def arrange(self, shape: str) -> Sheet:
         """Its places arranged as one of DataCube's layout picker's shapes, in reading order (a stack is one place):
@@ -758,15 +706,12 @@ class Sheet:
         return self._arranged(shape, None)
 
     def _arranged(self, preset: str, order: list[str] | None) -> Sheet:
-        """Its places arranged as DataCube arranges them (bands.ts arrange, asked headless), in ``order`` (their tiles;
-        None: reading order)."""
-        said = json.loads(self._page._session.headless().call(
-            'layoutArrange', _json.dumps(self._doc['layout']), preset, None if order is None else _json.dumps(order)))
-        if 'problems' in said:
-            raise ValueError(f'{"; ".join(said["problems"])} (a shape as the layout picker names it, or '
-                             f'sheet.layout(...) band by band)')
-        self._doc['layout'] = said['layout']
-        self._page._changed()
+        """Its places arranged as the screen's layout picker arranges them (page-commands.ts arrange), in ``order`` (their
+        tiles; None: reading order)."""
+        try:
+            self._page._apply_page([{'kind': 'arrange', 'sheet': self._id, 'preset': preset, 'order': order}])
+        except ValueError as e:
+            raise ValueError(f'{e} (a shape as the layout picker names it, or sheet.layout(...) band by band)') from None
         return self
 
     def layout_from(self, layout: Mapping[str, Any]) -> Sheet:
@@ -775,11 +720,9 @@ class Sheet:
         "parts": [{"node": ..., "size": share}]}`` -- as ``page.to_dict()`` shows a sheet's. Every tile on the sheet is in
         it once, and only they: the page with it is read as DataCube reads one, and refused in its words."""
         _ = self._doc  # a sheet no longer on its page refused, as every sheet call refuses one
-        page = self._page
-        doc = _copied(page._doc)
-        next(s for s in doc['sheets'] if s['id'] == self._id)['layout'] = _copied(layout)
-        page._doc = _read_page(doc, page._session)
-        page._changed()
+        if not isinstance(layout, Mapping):
+            raise ValueError(f"a sheet's layout is {{'kind': 'bands', 'fit': ..., 'bands': [...]}}, not {layout!r}")
+        self._page._apply_page([{'kind': 'layout', 'sheet': self._id, 'layout': _copied(layout)}])
         return self
 
     def __repr__(self) -> str:
@@ -808,6 +751,8 @@ class Page:
         self._doc: dict[str, Any] = _plain(_json.loads(said['page']))
         # every grid command DataCube applied for this page's grids, in order, as the screen would have built them
         self._commands: list[dict[str, Any]] = []
+        # every page command DataCube applied to this page, in order, as applied (page-commands.ts)
+        self._page_commands: list[dict[str, Any]] = []
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
         # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
@@ -954,11 +899,10 @@ class Page:
     def name(self, name: str) -> None:
         if name is None:
             raise ValueError('a page has a name')
-        name = _given_name(self._session, 'page', name, "a page's name")
-        self._doc['name'] = name
-        for cube in self._doc['cubes']:
-            cube['cube']['name'] = name
-        self._changed()
+        if not isinstance(name, str):
+            raise ValueError(f"a page's name is a name, not {name!r}")
+        # the page's name is each cube's too: DataCube writes them (page-commands.ts renamePage), as the screen does
+        self._apply_page([{'kind': 'renamePage', 'name': name}], "a page's name")
 
     @property
     def sheets(self) -> list[Sheet]:
@@ -997,7 +941,6 @@ class Page:
         _ = target._doc
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
-        id = self._next('grid')
         session = self._session
         if name is not None and name in session.frames:
             table = session.frames[name]
@@ -1008,12 +951,18 @@ class Page:
             served, new = table.name, False
         else:
             served, new = session.register(frame, name, mode), True
-        recorded = len(self._commands)
+        # the page as it was, to go back to when the grid is refused
+        was = (self._doc, set(self._ids), len(self._page_commands), len(self._commands))
+        id = None
         try:
             # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
             cube, _, _ = self._frame_cube(served, len(self._doc['cubes']) + 1)
-            self._doc['cubes'].append({'id': id, 'cube': cube})
-            self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
+            # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band at
+            # the bottom, told nothing yet
+            with self._batch(tell=False):
+                applied = self._apply_page([{'kind': 'addGrid', 'document': cube, 'sheet': target.id, 'near': None,
+                                             'title': title, 'columns': None}], 'a title')
+            id = applied[0]['id']
             grid = self._tile(id, Grid)
             # set before it is placed, nothing told meanwhile: its query's parts as one, as DataCube sets them (a new
             # grid's cube has none: nothing to ask when none is given)
@@ -1035,28 +984,26 @@ class Page:
                 if filter is not None:
                     grid.filter(filter)
         except BaseException:
-            # the grid taken off again, the commands it was given with it, and a frame served for it served no more
-            self._doc['cubes'] = [c for c in self._doc['cubes'] if c['id'] != id]
-            self._doc['views'] = [v for v in self._doc['views'] if v['id'] != id]
-            del self._commands[recorded:]
-            self._forget({id})
+            # the page as it was (the grid, its id and the commands it was given gone), and a frame served for it served
+            # no more
+            self._doc, self._ids = was[0], was[1]
+            del self._page_commands[was[2]:]
+            del self._commands[was[3]:]
+            if id is not None:
+                self._forget({id})
             if new:
                 session.unregister(served)
             raise
-        self._place(id, target)
+        self._changed()
         return grid
 
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
-        if name is not None:
-            name = _given_name(self._session, 'sheet', name, "a sheet's name")
-        id = self._next('sheet')
-        # its layout as DataCube starts a sheet's (headless layoutNew: bands.ts NEW_SHEET, as the screen's new sheet)
-        self._doc['sheets'].append({'id': id, **({'name': name} if name else {}),
-                                    'layout': json.loads(self._session.headless().call('layoutNew'))})
-        self._ids.add(id)
-        self._changed()
-        return self._sheet(id)
+        if name is not None and not isinstance(name, str):
+            raise ValueError(f"a sheet's name is a name, not {name!r}")
+        # as the screen adds one (page-commands.ts addSheet): its id after every one the page has held
+        applied = self._apply_page([{'kind': 'addSheet', 'name': name}], "a sheet's name")
+        return self._sheet(applied[0]['id'])
 
     def stack(self, *tiles: Tile) -> None:
         """``tiles`` in one place, as tabs, one shown at a time, where the first one is: all on one sheet. Stacked as
@@ -1070,11 +1017,9 @@ class Page:
             raise ValueError('a stack is two tiles or more')
         if any(t._page is not self for t in tiles):
             raise ValueError('the tiles of a stack are of this page')
-        sheet = tiles[0].sheet
-        if any(t.sheet is not sheet for t in tiles):
-            raise ValueError('the tiles of a stack are on one sheet (put them there first: sheet.add(tile))')
-        sheet._doc['layout'] = self._layout('layoutStack', sheet._doc['layout'], _json.dumps([t._id for t in tiles]))
-        self._changed()
+        for t in tiles:
+            _ = t._view
+        self._apply_page([{'kind': 'stack', 'tiles': [t._id for t in tiles]}])
 
     def remove(self, tile: Tile) -> None:
         """A tile off the page, its neighbours closing over its place: a grid with its charts, but a frozen one, which
@@ -1082,25 +1027,19 @@ class Page:
         if tile._page is not self:
             raise ValueError(f'{tile!r} is another page\'s')
         _ = tile._view
-        gone = {tile._id} | ({c._id for c in tile.charts if not c._view['spec'].get('frozen')} if isinstance(tile, Grid) else set())
-        views = [v for v in self._doc['views'] if v['id'] not in gone]
-        # a cube stays while a view shows it (a frozen chart's, its grid gone)
-        cubes = [c for c in self._doc['cubes'] if any(v['cube'] == c['id'] for v in views)]
-        if not cubes and self._shown:
-            raise ValueError('a page that is shown has a grid at least (DataCube shows no empty page): add another '
-                             'first, or close it')
-        # its model's tables and classes for the cubes it still holds, as DataCube writes a page (its keptFor, headless):
-        # a grid removed takes its table's name and its class with it, or DataCube would never open the page again --
-        # asked before anything changes, so a refusal leaves the page as it was
-        model = None if 'model' not in self._doc else _json.loads(self._session.headless().call(
-            'pageModelKept', _json.dumps(self._doc['model']), _json.dumps([c['id'] for c in cubes])))
-        self._doc['views'], self._doc['cubes'] = views, cubes
-        if model is not None:
-            self._doc['model'] = model
-        for id in gone:
-            self._unplace(id)
-        self._forget(gone)
-        self._changed()
+        before = {v['id'] for v in self._doc['views']}
+
+        def shown(page: dict[str, Any]) -> None:
+            # a cube stays while a view shows it (a frozen chart's, its grid gone); a page with none is one DataCube does
+            # not read, and a shown page is served again: refused before anything changes
+            if not page['cubes'] and self._shown:
+                raise ValueError('a page that is shown has a grid at least (DataCube shows no empty page): add another '
+                                 'first, or close it')
+
+        # as the screen removes one (page-commands.ts removeTile): a grid with the charts following it, a frozen one
+        # staying detached; a chart's selection taken off its grid's filter; the model kept for the cubes still held
+        self._apply_page([{'kind': 'removeTile', 'tile': tile._id}], check=shown)
+        self._forget(before - {v['id'] for v in self._doc['views']})
 
     # -- the document --------------------------------------------------------------------------------------------------
 
@@ -1235,9 +1174,32 @@ class Page:
 
     # -- the document's parts ------------------------------------------------------------------------------------------
 
-    def _next(self, kind: str) -> str:
-        """A new id of ``kind`` (``grid-3``): after every one the page has held, so never one a handle had."""
-        return f'{kind}-{max((_number(t) for t in self._ids if t.startswith(kind + "-")), default=0) + 1}'
+    def _apply_page(self, commands: list[dict[str, Any]], what: str | None = None,
+                    check: Any = None) -> list[dict[str, Any]]:
+        """The page edited by commands, each the one DataCube's screen builds for the same edit (page-commands.ts:
+        docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md), applied by DataCube's own function (headless pageApply): refused in
+        DataCube's words (``what`` before them), nothing changed; ``check`` may refuse the page they make, before it is
+        kept. Else the page as DataCube leaves it, the ids it has held, and the commands as applied -- an id DataCube
+        allocated in each that made a tile or a sheet -- recorded and returned."""
+        said = json.loads(self._session.headless().call(
+            'pageApply', _json.dumps(self._doc), json.dumps(sorted(self._ids)), _json.dumps(commands)))
+        if 'problems' in said:
+            words = '; '.join(said['problems'])
+            raise ValueError(f'{what}: {words}' if what else words)
+        page = _plain(_json.loads(said['page']))
+        if check is not None:
+            check(page)
+        self._doc = page
+        self._ids = set(said['held'])
+        applied = [_plain(c) for c in said['commands']]
+        self._page_commands.extend(applied)
+        self._changed()
+        return applied
+
+    def _tiles(self, layout: dict[str, Any]) -> list[str]:
+        """A sheet's tiles in reading order, a stack's in its tabs' order, as DataCube reads its layout (bands.ts tiles,
+        asked headless)."""
+        return json.loads(self._session.headless().call('layoutTiles', _json.dumps(layout)))
 
     def _forget(self, ids: set[str]) -> None:
         """The handles of tiles and sheets gone, refused from now on."""
@@ -1266,25 +1228,6 @@ class Page:
 
     def _sheet(self, id: str) -> Sheet:
         return self._tile(id, Sheet)
-
-    def _place(self, id: str, sheet: Sheet, near: str | None = None) -> None:
-        """A place for tile ``id`` on ``sheet``, as DataCube places a new tile (bands.ts add): beside ``near`` while its
-        band has room, otherwise in a band of its own below it; with no ``near``, a band at the bottom."""
-        self._ids.add(id)
-        sheet._doc['layout'] = self._layout('layoutAdd', sheet._doc['layout'], id, near)
-        self._changed()
-
-    def _unplace(self, id: str) -> None:
-        """Tile ``id`` off the sheet it is on, as DataCube takes one off (bands.ts remove): its place closed by its
-        neighbours, a band it emptied gone."""
-        for sheet in self._doc['sheets']:
-            if id in _tiles(sheet['layout']):
-                sheet['layout'] = self._layout('layoutRemove', sheet['layout'], id)
-
-    def _layout(self, call: str, layout: dict[str, Any], *args: Any) -> dict[str, Any]:
-        """A sheet's layout edited by DataCube's own rules (datacube/src/layout/bands.ts), asked headless (``call``: its
-        layoutAdd, layoutRemove or layoutStack): the layout as a page saves it."""
-        return json.loads(self._session.headless().call(call, _json.dumps(layout), *args))
 
     def _update(self, name: str, frame: Any, mode: str | None) -> None:
         """Frame ``name`` served again over ``frame``: each grid's cube over it reopened over the frame as the compiler

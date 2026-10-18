@@ -44,3 +44,9 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   line was told to leave alone (`engine.py` snap/frames/project-data, `_headless._query`, `warehouse.py`).
 
 ## Notes as the run goes
+
+- **Phase 1, a choice for the user:** a chart with problems -- Python's `grid.chart(...)` refuses it in DataCube's
+  words; the screen keeps it and shows the words on the chart (the homework's §8). One of the two should be the rule;
+  left as it is until the user says which.
+- **Phase 1, left to stage 2:** the screen tells `addChart`, `addGrid` and `setChart` once one page state holds a
+  chart's spec and a grid's cube document as they are made.

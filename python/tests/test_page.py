@@ -193,6 +193,26 @@ class Document(Paged):
             with self.assertRaisesRegex(ValueError, 'no longer on its page'):
                 gone.title = 'again'
 
+    def test_each_page_edit_is_the_command_datacubes_screen_builds_and_its_ids_are_datacubes(self):
+        # (docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md) each page edit is a page command applied by DataCube (headless
+        # pageApply): the page records each as applied, the id DataCube gave a new tile or sheet in it
+        page, grid, chart = self.built()
+        done = len(page._page_commands)
+        again = grid.chart('line', title='again')
+        extra = page.sheet('Extra')
+        chart.title = 'Renamed'
+        made = page._page_commands[done:]
+        self.assertEqual([c['kind'] for c in made], ['addChart', 'addSheet', 'renameTile'])
+        self.assertEqual((made[0]['id'], made[0]['near'], made[1]['id']), (again.id, grid.id, extra.id))
+        self.assertEqual(made[2], {'kind': 'renameTile', 'tile': chart.id, 'title': 'Renamed'})
+        # a tile moved onto its own sheet stays where it is, as the screen's Move to Sheet does (it moved it to the bottom)
+        before = page.to_dict()['sheets']
+        page.sheets[0].add(grid)
+        self.assertEqual(page.to_dict()['sheets'], before)
+        # a chart taken off and a new one made: never under the id the old one had
+        page.remove(again)
+        self.assertNotEqual(grid.chart('pie', x='region', title='later').id, again.id)
+
     def test_a_sheet_is_arranged_as_datacube_arranges_it(self):
         # DataCube's own arrangements (bands.ts arrange, headless): the layout picker's every shape, in reading order
         page, grid, chart = self.built()
@@ -284,7 +304,8 @@ class Document(Paged):
                 {'node': {'tile': grid.id}, 'size': 0.7}, {'node': {'tile': other.id}, 'size': 0.7}]}},
                 {'height': 1, 'node': {'split': 'row', 'parts': [{'node': {'tile': added.id}, 'size': 0.5},
                                                                  {'node': {'tile': heads.id}, 'size': 0.5}]}}]})
-        with self.assertRaisesRegex(ValueError, 'no sheet has a place for'):
+        # a layout leaving a tile of the sheet out, refused by the layout command (page-commands.ts): every tile once
+        with self.assertRaisesRegex(ValueError, "a sheet's layout holds its tiles, each once"):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'tile': grid.id}}]})
 
     def test_a_sheet_gone_is_refused_its_layout_and_an_empty_one_laid_out_in_no_bands_is_as_it_was(self):

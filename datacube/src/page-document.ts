@@ -181,7 +181,7 @@ export function writePageOf(o: {
  * The page's model as the page writes it: its tables and classes kept for the cubes the page holds, and only those --
  * a grid removed since its class was made takes its table's name and its class with it, as the reader holds every
  * kept name to a cube of the page (the audit's B1: a page written otherwise would never open again). Python's page asks
- * it too, headless, when a grid leaves (headless/model.ts pageModelKept): the one rule.
+ * it too, through the page command that removes a tile (page-commands.ts removeTile, headless pageApply): the one rule.
  */
 export function keptFor(model: PageModelRef, cubes: readonly { readonly id: string }[]): PageModelRef {
   const ids = new Set(cubes.map((c) => c.id));

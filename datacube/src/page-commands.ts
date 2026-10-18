@@ -149,8 +149,9 @@ function unselected(page: PageDocument, chart: ChartView): PageDocument {
 
 /**
  * A TILE OFF THE PAGE, as the screen takes one: a grid takes the charts following it, and each frozen one stays,
- * detached -- reading the grid's cube, kept for it -- its selection taken off; a chart takes its selection off its
- * grid's filter. A cube stays while a view reads it; the page's model keeps what its cubes still need (keptFor).
+ * detached -- reading the grid's cube as it was, kept for it -- with no selection of its own (the screen clears it and
+ * leaves the kept cube's filter as the grid had it); a chart takes its selection off its grid's filter (the screen's
+ * #select(id, null)). A cube stays while a view reads it; the page's model keeps what its cubes still need (keptFor).
  */
 function withoutTile(page: PageDocument, tile: string): PageDocument {
   const view = viewNamed(page, tile);
@@ -160,8 +161,12 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
     next = unselected(next, view);
   } else {
     for (const chart of next.views.filter((v): v is ChartView => v.kind === 'chart' && v.cube === view.cube)) {
-      if (chart.spec.frozen) next = unselected(next, chart);
-      else gone.add(chart.id);
+      if (!chart.spec.frozen) {
+        gone.add(chart.id);
+      } else if (chart.selection) {
+        const { selection: _cleared, ...detached } = chart;
+        next = { ...next, views: next.views.map((v) => (v.id === chart.id ? detached : v)) };
+      }
     }
   }
   const views = next.views.filter((v) => !gone.has(v.id));
