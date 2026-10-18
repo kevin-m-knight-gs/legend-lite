@@ -169,8 +169,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return switch (t) {
             case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
                 case OTHER, DISTINCT -> true;
-                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE,
-                        JSON, VARCHAR, ARRAY, OBJECT -> false;
+                case BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE, TIME,
+                        TIMESTAMP_NS, JSON, VARCHAR, ARRAY, OBJECT -> false;
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized ignored -> false;
             case com.legend.sql.SqlDdl.ColumnType.Scaled ignored -> false;
@@ -779,7 +779,31 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * row-value divergence on join misses (testQualifierWithVariableArg). Nested concats splice into one call.
      */
     protected final SqlWriter concatFlat(SqlWriter writer, List<SqlExpr> a) {
-        return writer.append("concat(").list(flattenConcat(a)).append(")");
+        return concatOf(writer, flattenConcat(a));
+    }
+
+    /** {@code concat} of the arguments, at most {@link #maxFunctionArguments} to one call: past them, a concat of
+     *  the concats of runs of them (the database's concat never yields NULL, so the nesting keeps its value). */
+    private SqlWriter concatOf(SqlWriter writer, List<SqlExpr> args) {
+        int max = maxFunctionArguments();
+        if (args.size() <= max) {
+            return writer.append("concat(").list(args).append(")");
+        }
+        int run = (args.size() + max - 1) / max;
+        writer.append("concat(");
+        for (int from = 0; from < args.size(); from += run) {
+            if (from > 0) {
+                writer.append(", ");
+            }
+            concatOf(writer, args.subList(from, Math.min(args.size(), from + run)));
+        }
+        return writer.append(")");
+    }
+
+    /** The most arguments one function call takes on this database: no limit in the base; Postgres's
+     *  is 100 ({@code FUNC_MAX_ARGS}). */
+    protected int maxFunctionArguments() {
+        return Integer.MAX_VALUE;
     }
 
     /** {@code NOT x}, parenthesized under an operator that binds tighter. */

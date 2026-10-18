@@ -365,6 +365,8 @@ public final class DuckDb extends AnsiSqlRenderer {
                 case BIT -> "BOOLEAN";
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
+                case TIMESTAMP_NS -> "TIMESTAMP_NS";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
@@ -440,6 +442,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            // the database's random float in [0, 1), once per row
+            case RANDOM -> writer.append("random()");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case DATE_TRUNC -> dateTruncArm(writer, c);
@@ -964,10 +968,15 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     /**
-     * A Variant's elements (toMany(@Variant)): an array's, a JSON null element kept as JSON's null -- a cast to JSON[]
-     * makes it SQL's NULL, which a list reads as no element (2026-10-12, the #SQL{}# line: jsonb_array_elements and
-     * an array's length disagreed with Postgres's); NULL for SQL's NULL or JSON's null; any other value is the error
-     * Pure's toMany raises (PCT testToManyFromNonArray), as the cast's was.
+     * A Variant's elements (toMany(@Variant)): an array's, a JSON null element kept as JSON's null -- a cast of the
+     * ARRAY to JSON[] makes it SQL's NULL, which a list reads as no element (2026-10-12, the #SQL{}# line:
+     * jsonb_array_elements and an array's length disagreed with Postgres's); NULL for SQL's NULL or JSON's null; any
+     * other value is the error Pure's toMany raises (PCT testToManyFromNonArray), as the cast's was. The wildcard's
+     * list is spelled {@code CAST(json_extract(.., '$[*]') AS JSON[])} (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md
+     * §12.62): DuckDB's binder types {@code json_extract}'s wildcard over a constant NULL input as JSON, not a list,
+     * and {@code list_transform} over the CASE then fails to bind; the cast of a list to its own type is the
+     * identity, and the Cypher island's typed null Variant ({@code CAST(NULL AS JSON)}, a class lacking a property
+     * typed two ways) is such a constant.
      */
     @Override
     protected SqlWriter variantElements(SqlWriter writer, List<SqlExpr> args) {
@@ -980,10 +989,10 @@ public final class DuckDb extends AnsiSqlRenderer {
             }
             w.append(" AS JSON)");
         };
-        return writer.append("(CASE WHEN json_type(").piece(json).append(") = 'ARRAY' THEN json_extract(").piece(json)
-                .append(", '$[*]') WHEN ").piece(json).append(" IS NULL OR json_type(").piece(json)
-                .append(") = 'NULL' THEN NULL ELSE error('Expect variant that contains an ''ARRAY'', but got ''' ||")
-                .append(" json_type(").piece(json).append(") || '''') END)");
+        return writer.append("(CASE WHEN json_type(").piece(json).append(") = 'ARRAY' THEN CAST(json_extract(")
+                .piece(json).append(", '$[*]') AS JSON[]) WHEN ").piece(json).append(" IS NULL OR json_type(")
+                .piece(json).append(") = 'NULL' THEN NULL ELSE error('Expect variant that contains an ''ARRAY'',")
+                .append(" but got ''' || json_type(").piece(json).append(") || '''') END)");
     }
 
     @Override
