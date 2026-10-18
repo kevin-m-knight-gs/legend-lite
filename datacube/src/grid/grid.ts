@@ -144,9 +144,9 @@ export interface GridOptions {
     value: Scalar,
   ) => string | null;
   /**
-   * A header was clicked (or Enter pressed on it): sort by it, alone or
-   * `chained` after the other sorts (Ctrl, or Cmd on a Mac). The host
-   * decides the direction (grid-edits.ts clickSort).
+   * A header was clicked: sort by it, alone or `chained` after the other
+   * sorts (Ctrl, or Cmd on a Mac). The host decides the direction
+   * (grid-edits.ts clickSort). With none, a click selects the column.
    */
   readonly onHeaderSort?: (column: string, chained: boolean) => void;
   /** A column's right edge was dragged to a new width. */
@@ -240,7 +240,6 @@ export class DataGrid {
   #frame = 0;
   /** The sorts the header marks. */
   #sorts: readonly HeaderSort[] = [];
-  #treeSort: 'asc' | 'desc' | undefined;
   /** Live widths while a column edge is being dragged. */
   readonly #dragWidths = new Map<string, number>();
   /** Ends the resize drag in progress, if any: its column, where it started, where it got to. */
@@ -472,12 +471,11 @@ export class DataGrid {
 
 
   /**
-   * The sorts to mark on the header: an arrow, and a position when several. `tree` is the tree column's own direction:
-   * it orders the groups, always, so its header always shows it, with no position (it comes after every sort).
+   * The sorts to mark on the header, in their order: an arrow, and a position when several. The host marks only what
+   * the rows are ordered by (grid-edits.ts headerSorts).
    */
-  setSorts(sorts: readonly HeaderSort[], tree?: 'asc' | 'desc'): void {
+  setSorts(sorts: readonly HeaderSort[]): void {
     this.#sorts = sorts;
-    this.#treeSort = tree;
     this.#renderHeader();
   }
 
@@ -816,49 +814,39 @@ export class DataGrid {
 
   /**
    * A header click SORTS by the column (the user, 2026-10-18): alone, or chained after the other sorts with Ctrl (Cmd
-   * on a Mac, where Ctrl-click is a right click); Enter on a header does the same. Shift-click SELECTS the column, and a
-   * second Shift-click every column between. A click on the resize grip does neither, and a drag (reordering, or onto a
-   * drop zone) is no click. The header says how the column sorts: an arrow, and its place in the sort when there are
-   * several; the tree column's arrow is the groups' order, which every sort ends with.
+   * on a Mac, where Ctrl-click is a right click). Shift-click SELECTS the column, and a second Shift-click every column
+   * between; a grid that does not sort (Ad Hoc's) selects on any click. A click on the resize grip does neither, and a
+   * drag (reordering, or onto a drop zone) is no click. The header says how the column sorts: an arrow, and its place
+   * in the sort when there are several. aria-sort names the first sort alone, as ARIA asks of a table.
    */
   #sortable(el: HTMLElement, leaf: LeafColumn, col: number): void {
     const at = this.#sorts.findIndex((x) => x.column === leaf.name);
-    const sort: HeaderSort | undefined = leaf.name === TREE_COLUMN && this.#treeSort !== undefined
-      ? { column: leaf.name, direction: this.#treeSort }
-      : this.#sorts[at];
-    el.setAttribute('aria-sort', sort === undefined ? 'none'
+    const sort = this.#sorts[at];
+    el.setAttribute('aria-sort', sort === undefined || at > 0 ? 'none'
       : sort.direction === 'asc' ? 'ascending' : 'descending');
     if (sort !== undefined) {
       const mark = el.ownerDocument.createElement('span');
       mark.className = 'dc-sort-mark';
       mark.setAttribute('aria-hidden', 'true');
       mark.textContent = (sort.direction === 'asc' ? '\u2191' : '\u2193')
-        + (at >= 0 && this.#sorts.length > 1 ? String(at + 1) : '');
+        + (this.#sorts.length > 1 ? String(at + 1) : '');
       el.append(mark);
     }
     const onSort = this.#options.onHeaderSort;
     el.classList.add('dc-sortable');
-    // focusable by a click, kept out of the Tab order (the body's cells are the grid's stops)
-    el.tabIndex = -1;
     el.addEventListener('click', (event) => {
       const target = event.target as { closest?: unknown } | null;
       if (target && typeof target.closest === 'function'
         && (target as Element).closest('.dc-col-resize')) return;
-      if (event.shiftKey) {
+      if (event.shiftKey || onSort === undefined) {
         this.#selectColumn(col);
         return;
       }
-      onSort?.(leaf.name, event.ctrlKey || event.metaKey);
-    });
-    el.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      event.stopPropagation();
-      onSort?.(leaf.name, event.ctrlKey || event.metaKey);
+      onSort(leaf.name, event.ctrlKey || event.metaKey);
     });
   }
 
-  /** A Shift-click on column `col`'s header: select it, or, with columns selected, every column from the first to it. */
+  /** A selecting click on column `col`'s header: select it, or, with columns selected, every column from the first to it. */
   #selectColumn(col: number): void {
     const last = this.#totalRows - 1;
     if (last < 0) return;

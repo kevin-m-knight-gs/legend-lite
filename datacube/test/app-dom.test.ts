@@ -653,15 +653,19 @@ describe('the app', () => {
     assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'asc' }]);
     await click('notional');
     assert.deepEqual(app.snapshot.sorts, []);
-    // the groups turned by a click on the tree header; a chained one keeps a sort before it
+    // a measure orders the groups: its header says so, and the tree's says nothing (the audit of #57)
     await click('notional');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark'), null);
+    // a chained click on the tree chains the first group after it, and the tree shows its place
     await click(TREE_COLUMN, true);
-    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }]);
-    assert.equal(app.configuration.treeColumnSort, 'desc');
-    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2193');
-    // a plain click on the tree header: the groups alone are the sort
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+    assert.equal(head('notional').querySelector('.dc-sort-mark')?.textContent, '\u21931');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u21912');
+    // a plain click on the tree header: the groups alone, the other way from what it showed
     await click(TREE_COLUMN);
     assert.deepEqual(app.snapshot.sorts, []);
+    assert.equal(app.configuration.treeColumnSort, 'desc');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2193');
   });
 
   it('adds and removes a heatmap from the menu', () => {

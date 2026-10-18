@@ -54,10 +54,11 @@ import type { CubeConfiguration } from '../config.ts';
  * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
  * menu that shows it raw asks the user to read the separator. It
  * reads back as "2021 / notional", the same presentation the sorts
- * panel uses.
+ * panel uses; a pivot total's as its header names it, `total`
+ * (Properties' Pivot Statistic Column Name, Total unless renamed).
  */
-export function columnLabel(name: string): string {
-  return name.split(PIVOT_SEPARATOR).map((part) => (part === PIVOT_TOTAL_KEY ? 'Total' : part)).join(' / ');
+export function columnLabel(name: string, total?: string): string {
+  return name.split(PIVOT_SEPARATOR).map((part) => (part === PIVOT_TOTAL_KEY ? total ?? 'Total' : part)).join(' / ');
 }
 
 export interface MenuContext {
@@ -72,6 +73,8 @@ export interface MenuContext {
   readonly hasExpanded?: boolean;
   /** Whether the column under the pointer already has a heatmap. */
   readonly hasHeatmap?: boolean;
+  /** What a pivot total's header is named (Properties' Pivot Statistic Column Name), when it is renamed. */
+  readonly totalLabel?: string;
   /**
    * Whether the column may be grouped or pivoted by at all.
    *
@@ -441,9 +444,9 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const { snapshot: s } = ctx;
   // A pivot total is a column of the level's query like any other (an aggregate over the group's every pivot value),
-  // so it is offered what a pivot's cell is: a sort, a heatmap and a width as its measure's, hiding, copying. What it
-  // is not offered it is not, as a cell is not: a dimension to group or pivot by (canGroup), a value to filter by (a
-  // filter runs on source rows, before any total), a pin (a pivot's result, pivotBase).
+  // so it is offered what a pivot's cell is: a sort, a heatmap of its own, a width, hiding, copying. What it is not
+  // offered it is not, as a cell is not: a dimension to group or pivot by (canGroup), a value to filter by (a filter
+  // runs on source rows, before any total), a pin (a pivot's result, pivotBase).
   const column = ctx.column;
   const sortColumn = ctx.column;
   const groups: MenuGroup[] = [];
@@ -479,7 +482,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'copy.column',
           label: column
-            ? `Column ${columnLabel(column)} as Plain Text`
+            ? `Column ${columnLabel(column, ctx.totalLabel)} as Plain Text`
             : 'Selected Column as Plain Text',
           disabled: !column,
           ...(column ? { column } : {}),
@@ -538,7 +541,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.vertical',
           label: groupable
-            ? `Vertical Pivot on ${columnLabel(column)}`
+            ? `Vertical Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Vertical Pivot',
           disabled: !groupable,
           ...(column ? { column } : {}),
@@ -546,7 +549,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.addVertical',
           label: groupable
-            ? `Add Vertical Pivot on ${columnLabel(column)}`
+            ? `Add Vertical Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Add Vertical Pivot',
           disabled: !groupable || isVertical,
           ...(column ? { column } : {}),
@@ -554,7 +557,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.removeVertical',
           label: groupable
-            ? `Remove Vertical Pivot on ${columnLabel(column)}`
+            ? `Remove Vertical Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Remove Vertical Pivot',
           disabled: !isVertical,
           ...(column ? { column } : {}),
@@ -567,7 +570,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.horizontal',
           label: groupable
-            ? `Horizontal Pivot on ${columnLabel(column)}`
+            ? `Horizontal Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Horizontal Pivot',
           disabled: !groupable,
           ...(column ? { column } : {}),
@@ -575,7 +578,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.addHorizontal',
           label: groupable
-            ? `Add Horizontal Pivot on ${columnLabel(column)}`
+            ? `Add Horizontal Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Add Horizontal Pivot',
           disabled: !groupable || isHorizontal,
           ...(column ? { column } : {}),
@@ -583,7 +586,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.removeHorizontal',
           label: groupable
-            ? `Remove Horizontal Pivot on ${columnLabel(column)}`
+            ? `Remove Horizontal Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Remove Horizontal Pivot',
           disabled: !isHorizontal,
           ...(column ? { column } : {}),
@@ -595,7 +598,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           && !ctx.excludedFromPivot && s.pivotOn.length > 0
           ? [{
             id: 'pivot.exclude' as const,
-            label: `Exclude Column ${columnLabel(ctx.pivotBase)} from Horizontal Pivot`,
+            label: `Exclude Column ${columnLabel(ctx.pivotBase, ctx.totalLabel)} from Horizontal Pivot`,
             column: ctx.pivotBase,
           }]
           : []),
@@ -603,7 +606,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           && ctx.excludedFromPivot && s.pivotOn.length > 0
           ? [{
             id: 'pivot.include' as const,
-            label: `Include Column ${columnLabel(column)} in Horizontal Pivot`,
+            label: `Include Column ${columnLabel(column, ctx.totalLabel)} in Horizontal Pivot`,
             column,
           }]
           : []),
@@ -629,7 +632,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   // Upstream's entries and wording (DataCubeGridMenuBuilder): add one,
   // seed one from the column under the pointer, and edit or delete
   // the one under the pointer when it is itself calculated.
-  const named = column === undefined ? '' : columnLabel(column);
+  const named = column === undefined ? '' : columnLabel(column, ctx.totalLabel);
   push('', [
     {
       label: 'Extended Columns',
@@ -707,7 +710,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     },
     {
       id: 'column.hide',
-      label: column ? `Hide ${columnLabel(column)}` : 'Hide',
+      label: column ? `Hide ${columnLabel(column, ctx.totalLabel)}` : 'Hide',
       disabled: !column,
       ...(column ? { column } : {}),
     },
@@ -722,7 +725,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'heatmap.add',
           label: column
-            ? `Add Heatmap to ${columnLabel(column)}`
+            ? `Add Heatmap to ${columnLabel(column, ctx.totalLabel)}`
             : 'Add Heatmap',
           disabled: !column || Boolean(ctx.hasHeatmap),
           ...(column ? { column } : {}),
@@ -789,7 +792,7 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
         const more = operators.filter((op) => op !== 'equal');
         if (more.length > 0) {
           items.push({
-            label: `More Filters on ${columnLabel(column)}...`,
+            label: `More Filters on ${columnLabel(column, ctx.totalLabel)}...`,
             submenu: more.map((op) => filterItem(column, op, value)),
           });
         }

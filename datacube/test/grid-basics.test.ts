@@ -64,17 +64,10 @@ describe('a header click sorts; Ctrl or Cmd chains it; Shift-click selects (the 
     assert.equal(g.selection, null, 'a sorting click selects nothing');
   });
 
-  it('Enter on a header sorts too, Ctrl+Enter chained; the header takes focus by a click, not by Tab', () => {
-    const clicked: string[] = [];
-    grid({ onHeaderSort: (c, chained) => clicked.push(`${c}${chained ? ' chained' : ''}`) });
-    const key = (el: HTMLElement, init: { key: string; ctrlKey?: boolean }): void => {
-      el.dispatchEvent(new dom.window.KeyboardEvent('keydown', { bubbles: true, ...init }));
-    };
-    key(header('notional'), { key: 'Enter' });
-    key(header('region'), { key: 'Enter', ctrlKey: true });
-    key(header('settled'), { key: 'a' });
-    assert.deepEqual(clicked, ['notional', 'region chained']);
-    assert.equal(header('notional').tabIndex, -1);
+  it('a grid that does not sort (Ad Hoc\'s) selects the column on a plain click, as it did', () => {
+    const g = grid();
+    click(header('notional'));
+    assert.deepEqual(g.selection, { anchor: { row: 0, col: 1 }, focus: { row: 1, col: 1 } });
   });
 
   it('the header marks each sort with an arrow, and its place when there are several', () => {
@@ -83,7 +76,9 @@ describe('a header click sorts; Ctrl or Cmd chains it; Shift-click selects (the 
       { column: 'region', direction: 'asc' },
       { column: 'notional', direction: 'desc' },
     ]);
-    assert.equal(header('notional').getAttribute('aria-sort'), 'descending');
+    // aria-sort names the first sort alone, as ARIA asks of a table; the marks show the chain
+    assert.equal(header('region').getAttribute('aria-sort'), 'ascending');
+    assert.equal(header('notional').getAttribute('aria-sort'), 'none');
     assert.equal(header('notional').querySelector('.dc-sort-mark')?.textContent, '↓2');
     assert.equal(header('region').querySelector('.dc-sort-mark')?.textContent, '↑1');
     assert.equal(header('settled').getAttribute('aria-sort'), 'none');

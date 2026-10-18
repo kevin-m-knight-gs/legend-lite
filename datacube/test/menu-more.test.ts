@@ -150,7 +150,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     ]);
   });
 
-  it('a pivot total is offered what a pivot\'s cell is: hidden, copied, sized and heat-mapped as its measure; never pinned', () => {
+  it('a pivot total is offered what a pivot\'s cell is: hidden, copied, sized and a heatmap of its own; never pinned', () => {
     // the app's context for a total (2026-10-18): its measure the pivot's base, no dimension to group by
     const total = pivotTotalColumn('notional');
     const ctx: MenuContext = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' } }, column: total, pivotBase: 'notional',
@@ -162,8 +162,10 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     }
     // a pivot's result is not pinned, as upstream's
     for (const label of ['Pin Left', 'Pin Right']) assert.equal(find(ctx, label)?.disabled, true, label);
-    // with its measure's heatmap on, the total's menu offers to take it off
+    // with its own heatmap on (the app's hasHeatmap: heatmapSetting, a total's alone), its menu offers to take it off
     assert.equal(find({ ...ctx, hasHeatmap: true }, 'Remove Heatmap')?.disabled, false);
+    // named as its header names it: Properties' Pivot Statistic Column Name, when renamed
+    assert.equal(find({ ...ctx, totalLabel: 'All years' }, 'Hide All years / notional')?.column, total);
     // nothing about it as a calculated column (the app finds no stage for it: calcStageOf), nor as a dimension
     assert.deepEqual(calcStageOf(ctx.snapshot, total), {});
     assert.deepEqual(labels(submenu(ctx, 'Extended Columns')), ['Add New Column...']);

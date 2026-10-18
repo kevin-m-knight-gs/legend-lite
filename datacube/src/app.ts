@@ -51,7 +51,9 @@ import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
-import { clickSort, clickTreeSort, columnKind, firstSortDirection, setGrouping, setPivot, type GridDraft } from './grid-edits.ts';
+import {
+  clickSort, clickTreeSort, columnKind, firstSortDirection, headerSorts, setGrouping, setPivot, type GridDraft,
+} from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -116,6 +118,7 @@ import {
   applyMenuAction,
   buildMenu,
   calcStageOf,
+  columnLabel,
   emailItems,
   exportItems,
   type MenuGroup,
@@ -1198,7 +1201,7 @@ export class CubeApp {
     this.#refreshFormats();
     this.#refreshHeatmaps(view);
     this.#grid.setColumns(model);
-    this.#grid.setSorts(view.snapshot.sorts, view.snapshot.rows.length > 0 ? view.snapshot.treeColumnSort ?? 'asc' : undefined);
+    this.#grid.setSorts(headerSorts(view.snapshot, model.leaves.map((l) => l.name), TREE_COLUMN));
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
     // The panel is refreshed from the view, not only from a
@@ -1882,6 +1885,9 @@ export class CubeApp {
         hasExpanded: this.#owner.current.tree.openPaths.length > 0,
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
+        ...(this.#config.pivotStatisticColumnName !== undefined
+          ? { totalLabel: this.#config.pivotStatisticColumnName }
+          : {}),
         canGroup: column === undefined || this.#kindOf(column, this.#shown) === 'dimension',
         ...(this.#config.pivotMeasuresFirst ? { measuresFirst: true } : {}),
         // A host mailer, or upstream's way: a .eml draft to download.
@@ -2191,7 +2197,8 @@ export class CubeApp {
       return;
     }
     const type = this.#view?.columns.leaves.find((l) => l.name === column)?.type;
-    void this.#edit((d) => clickSort(d, column, firstSortDirection(type), chained), `sort ${column}`);
+    void this.#edit((d) => clickSort(d, column, firstSortDirection(type), chained),
+      `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
   }
 
   /**
