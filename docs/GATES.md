@@ -10708,9 +10708,12 @@ channel B's standard suite and both corpus lanes).** The five DuckDB suites on t
 (essential 345, grammar 137, relation 469, standard 205, unclassified 93; the essential suite's pins 24 -> 25 entries
 and the grammar suite's 9 -> 10, each added by name with its reason, three messages moved), `//gates:pct_channel_b`
 5 of 5, `//pct:pct_discipline` (the adapter's ceiling moved with its reason), `//core:core_tests_root` (the output
-matrix among it: every Decimal root still Pure's bare text) and `//core:core_tests_lowering` pass. `//gates:core`
-under the Postgres wrapper, `//spec:corpus_h2` and `//spec:corpus_duckdb` run on this tree as this lands; their
-verdicts are appended to this entry by the commit that follows.
+matrix among it: every Decimal root still Pure's bare text) and `//core:core_tests_lowering` pass. The chain on this tree
+(the commit that follows, 22:34 to 23:01 in the cloud container): `//gates:core` under the unprivileged Postgres
+wrapper 45 of 45; `//spec:corpus_h2` 6 of 6 and `//spec:corpus_duckdb` 6 of 6 -- all four judges ran (their verdict
+files written 22:49 to 23:01), each verdict 0, every measured roster byte-identical to its committed one (the five
+roster diff-tests of each lane cached on identical inputs: exact). No roster moved under the corrected design where
+the first cut had moved eight H2 and seven DuckDB bodies.
 
 **Not changed, recorded.** The value lane's DOUBLE conversion of a Float root (the `testBigFloatAbs` pin's reason, an
 item of step 9); the heterogeneous class collection's form (S81); the namesake's resolution (S82); the other JDBC lanes (H2, Postgres, the rest) stay
