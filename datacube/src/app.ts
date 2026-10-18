@@ -51,9 +51,8 @@ import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
-import {
-  clickSort, clickTreeSort, columnKind, firstSortDirection, headerSorts, setGrouping, setPivot, type GridDraft,
-} from './grid-edits.ts';
+import { columnKind, firstSortDirection, headerSorts } from './grid-edits.ts';
+import { applyGridCommands, type GridCommand } from './grid-commands.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -115,7 +114,7 @@ import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
-  applyMenuAction,
+  menuCommand,
   buildMenu,
   calcStageOf,
   columnLabel,
@@ -208,6 +207,12 @@ export interface CubeAppBaseOptions {
    * colour, a width) that runs no query. What "changed since saved" listens to.
    */
   readonly onChange?: () => void;
+  /**
+   * Each grid command the cube kept (grid-commands.ts: what a header click, a drag in the zones, a menu entry or the
+   * column editor's Add built -- the commands Python's calls build for the same edits), in order, once its change
+   * landed or was taken over by the next; one refused, or cancelled, is not told.
+   */
+  readonly onCommand?: (command: GridCommand) => void;
   /** The groups to open on (a saved cube's), instead of the configuration's expand level. */
   readonly tree?: TreeState;
   /** Called whenever the snap state changes, for a plane badge. */
@@ -928,15 +933,16 @@ export class CubeApp {
   }
 
   /**
-   * A grid edit (grid-edits.ts, the one way a grid's grouping, pivot and sorts are set) on the cube as it is when the
-   * change lands. The screen's controls offer only what its rules allow; an edit they refuse is said, in their words,
-   * and changes nothing.
+   * GRID COMMANDS APPLIED (grid-commands.ts: the one function the screen's edits and Python's calls are applied by --
+   * docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), as one change of the cube as it is when the change lands. The
+   * screen's controls offer only what its rules allow; a command they refuse is said, in their words, and changes
+   * nothing. A host is told each command the cube kept (onCommand). The refusal, its words or the planner's, or null.
    */
-  #edit(edit: (draft: GridDraft) => GridDraft, label: string): Promise<Outcome> {
+  async #apply(commands: readonly GridCommand[], label: string): Promise<string | null> {
     let refused: string | undefined;
     const out = this.#change((s) => {
       try {
-        const d = edit({ snapshot: s.snapshot, config: s.configuration });
+        const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration }, commands);
         return { ...s, snapshot: d.snapshot, configuration: d.config };
       } catch (e) {
         if (!(e instanceof CubeRefusal)) throw e;
@@ -944,8 +950,16 @@ export class CubeApp {
         return s;
       }
     }, { label });
-    if (refused !== undefined) this.#status(refused, 'warn');
-    return out;
+    if (refused !== undefined) {
+      this.#status(refused, 'warn');
+      await out;
+      return refused;
+    }
+    const outcome = await out;
+    if (outcome.kind !== 'refused' && outcome.kind !== 'cancelled') {
+      for (const command of commands) this.#options.onCommand?.(command);
+    }
+    return refusal(outcome);
   }
 
   /**
@@ -1725,11 +1739,12 @@ export class CubeApp {
 
   /** A drag in the zones: the whole new layout, one change (P2-103). */
   #onLayout(layout: ZoneLayout): void {
-    void this.#edit((d) => setPivot(setGrouping(d, layout.rows), layout.columns), 'move in the zones');
+    void this.#apply([{ kind: 'group', rows: [...layout.rows] }, { kind: 'pivot', columns: [...layout.columns] }],
+      'move in the zones');
   }
 
   #onZoneChange(zone: Zone, columns: readonly string[]): void {
-    void this.#edit((d) => (zone === 'rows' ? setGrouping(d, columns) : setPivot(d, columns)),
+    void this.#apply([zone === 'rows' ? { kind: 'group', rows: [...columns] } : { kind: 'pivot', columns: [...columns] }],
       zone === 'rows' ? 'row groups' : 'column pivots');
   }
 
@@ -1764,7 +1779,8 @@ export class CubeApp {
   /**
    * A preset's calculated columns added to the cube (the grid's Extended Columns menu), in one step: `make` builds them
    * under the name it is given -- the one the person asked for, the last column -- and names any it reads after it. A
-   * name the cube already has gets a number, so a preset never replaces a column.
+   * name the cube already has gets a number, so a preset never replaces a column. Each is added by the command the
+   * column editor's Add builds (grid-commands.ts calculate), in order, so one may read the one before it.
    */
   async #addPreset(stage: 'row' | 'group', name: string, label: string, make: (name: string) => DerivedColumn[]): Promise<void> {
     const s = this.#snapshot;
@@ -1772,10 +1788,8 @@ export class CubeApp {
     const fits = (n: string): boolean => make(n).every((d) => !taken.has(d.name));
     let free = name;
     for (let i = 2; !fits(free); i += 1) free = `${name}_${i}`;
-    const added = make(free);
-    const refused = stage === 'row'
-      ? await this.#setCalc([...s.derived, ...added], [...(s.groupDerived ?? [])])
-      : await this.#setCalc([...s.derived], [...(s.groupDerived ?? []), ...added]);
+    const refused = await this.#apply(make(free).map((column): GridCommand => ({ kind: 'calculate', level: stage, column })),
+      'calculated columns');
     if (refused) this.#status(`Could not add ${label}: ${refused}`, 'error');
   }
 
@@ -1921,21 +1935,13 @@ export class CubeApp {
       this.#options.onMoveToSheet?.(item.id.slice('sheet.to.'.length));
       return;
     }
-    // The query actions go through applyMenuAction, which returns the
-    // SAME snapshot when nothing changed; the rest are layout,
-    // clipboard and export, which never touch the query.
-    let query: boolean;
-    try {
-      query = applyMenuAction(this.#snapshot, item, this.#config) !== this.#snapshot;
-    } catch (e) {
-      // the menu offers only what grid-edits.ts allows; a refusal is said, never thrown away
-      if (!(e instanceof CubeRefusal)) throw e;
-      this.#status(e.message, 'warn');
-      return;
-    }
-    if (query) {
-      void this.#edit((d) => ({ ...d, snapshot: applyMenuAction(d.snapshot, item, d.config) }),
-        item.label ?? item.id ?? 'menu');
+    // A query entry builds its grid command (menuCommand), none when it
+    // would change nothing; the rest are layout, clipboard and export,
+    // which never touch the query. The menu offers only what
+    // grid-edits.ts allows; a refusal is said, never thrown away (#apply).
+    const command = menuCommand(this.#snapshot, item);
+    if (command !== null) {
+      void this.#apply([command], item.label ?? item.id ?? 'menu');
       return;
     }
     const column = item.column;
@@ -1950,7 +1956,10 @@ export class CubeApp {
         this.#autoSize(null);
         return;
       case 'column.hide':
-        if (column) this.#patchColumn(column, { hidden: true });
+        // a column's presentation, by the command Python's configure builds (a pivot's header or the tree column too)
+        if (column) {
+          void this.#apply([{ kind: 'configure', patch: { columns: { [column]: { hidden: true } } } }], `column ${column}`);
+        }
         return;
       case 'column.pinLeft':
         if (column) this.#patchColumn(column, { pinned: 'left' });
@@ -2181,9 +2190,10 @@ export class CubeApp {
    */
   #setHeatmap(leafName: string, on: boolean): void {
     const measure = isPivotTotalColumn(leafName) ? leafName : this.#pivotMeasureOf(leafName) ?? leafName;
-    this.#patchColumn(measure, {
-      heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : undefined,
-    });
+    // by the command Python's configure builds: null takes the heatmap off, as JSON cannot write undefined
+    void this.#apply([{ kind: 'configure', patch: { columns: { [measure]: {
+      heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : null,
+    } } } }], `column ${measure}`);
   }
 
   /**
@@ -2193,11 +2203,13 @@ export class CubeApp {
    */
   #sortByHeader(column: string, chained: boolean): void {
     if (column === TREE_COLUMN) {
-      void this.#edit((d) => clickTreeSort(d, chained), 'sort the groups');
+      void this.#apply([{ kind: 'clickTreeSort', chained }], 'sort the groups');
       return;
     }
+    // the click's first direction is the type the compiler gave the header, which only the view has: a pivot's header
+    // and a count of text are numbers (grid-edits.ts firstSortDirection)
     const type = this.#view?.columns.leaves.find((l) => l.name === column)?.type;
-    void this.#edit((d) => clickSort(d, column, firstSortDirection(type), chained),
+    void this.#apply([{ kind: 'clickSort', column, first: firstSortDirection(type), chained }],
       `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
   }
 
@@ -3058,6 +3070,8 @@ export class CubeApp {
         compile: (candidate, signal) => this.#check(this.#controller.compile(
           { snapshot: candidate, tree: this.#owner.current.tree }, this.#view, signal)),
         apply: (row, group, rename) => this.#setCalc(row, group, rename),
+        // a new column: added by the command Python's calculate builds
+        add: (level, column) => this.#apply([{ kind: 'calculate', level, column }], 'calculated columns'),
         readJson: (column) => this.#jsonReader(column),
         // the rail's choice: another calculated column, in this window's place
         openOther: (next) => {

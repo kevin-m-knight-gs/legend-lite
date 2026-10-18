@@ -27,14 +27,14 @@ Python sends it and the stage-3 live channel can carry it.
 | `pivot {columns}` | the pivot, whole | `setPivot` |
 | `sorts {sorts}` | the sorts, whole (the Sorts panel) | `setSorts` |
 | `addSort {column, direction}` | a sort added last (the menu's Add, Python's `sort`) | `addSort` |
-| `clickSort {column, chained}` | a header click; its first direction is read from the column's type | `clickSort` |
+| `clickSort {column, first, chained}` | a header click; `first` is the direction it starts with, which the screen reads off the type the compiler gave the header | `clickSort` |
 | `clickTreeSort {chained}` | a click on the tree column's header | `clickTreeSort` |
 | `column {name, kind?, aggregate?, weight?}` | Column Properties | `setColumn` |
-| `configure {patch}` | settings, an appearance, a column's presentation | `withConfiguration` |
+| `configure {patch}` | settings, an appearance, a column's presentation (a pivot total's, a pivot column's, the tree column's too: presentation only) | `withConfiguration` |
 | `filter {filter}` | the filter, whole (the filter editor, Python's `filter`) | the snapshot's filter |
 | `addFilter {condition}` | one condition added to the filter (a cell's menu) | and-ed in, as the menu does |
 | `calculate {column}` | a calculated column added, its lambda already parsed | `draftCandidate`'s lists |
-| `measure {measure}` | Python's `measure`: an Aggregation, or a copy of the column under a new name | `measureAsColumn` |
+| `measures {measures}` | Python's `measure`: an Aggregation, or a copy of the column under a new name | `measureAsColumn` |
 
 ### Rules
 
@@ -45,6 +45,10 @@ Python sends it and the stage-3 live channel can carry it.
   before it.
 - **Reading JSON.** `readGridCommand(json)` reads a command and refuses an unknown kind or field in words. Python
   sends JSON, and a misspelt key must never pass unnoticed.
+- **What only the view knows is in the command.** A header click's first direction depends on the type the compiler
+  gave the header: a pivot's header, or a count of a text column, is a number though no column of the query is. The
+  screen has the view, so it puts the direction in the command (`first`). Python never builds `clickSort`: its `sort`
+  is `addSort`.
 
 ## Where it lands
 
@@ -55,11 +59,17 @@ Python sends it and the stage-3 live channel can carry it.
   they parse, and they turn Python's filter into the editor's normal form.
 - **Python:** each `Grid` method builds its commands and sends them through one `_apply`. `page.grid(...)` sends its
   starting edits as one list.
-- **The screen:**
-  - the edit handlers in `app.ts` (`#edit`, the header clicks, the drag zones, the menu's sort, pivot, filter, heatmap
-    and hide entries, the column editor's add) build commands and pass them to one `#apply`;
-  - the Properties window's Apply goes through `column` and `configure` commands;
-  - an `onCommand` option tells a host each command applied (the parity test, and the live channel later).
+- **The screen** (step 3):
+  - the edit handlers in `app.ts` build commands and pass them to one `#apply`, which replaced `#edit`: the header
+    clicks, the drag zones, the menu's query entries (`ui/menu.ts menuCommand`; `applyMenuAction` is its command
+    applied), the menu's heatmap and hide entries (`configure`), and the column editor's add and the Extended Columns
+    presets (`calculate`);
+  - an `onCommand` option tells a host each command the cube kept, once its change landed or was taken over by the next
+    (the parity test, and the live channel later); one refused or cancelled is not told.
+- **Not yet commands (step 3b):** the Properties window's Apply, which merges its draft's changes onto the cube as it is
+  now (`mergeDraft`); the column editor's edit, rename and delete, which offer the cube's two lists whole; and the
+  columns panel's visibility, widths, pins and pivot exclusion (`#patchColumn`). Each is its own step, so the parity
+  file stays the judge of each.
 
 ## How it is tested
 

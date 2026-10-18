@@ -35,6 +35,7 @@ import {
   NEW_CHILD,
   NEW_WINDOW,
   draftCandidate,
+  draftColumn,
   draftLists,
   draftRename,
   draftStage,
@@ -83,12 +84,17 @@ export interface ColumnEditorOptions {
     candidate: CubeSnapshot,
     signal: AbortSignal,
   ) => Promise<CompileOutcome | undefined>;
-  /** Offer both lists to the cube: its refusal, or null when it took them. */
+  /** Offer both lists to the cube (an edit, a rename, a delete): its refusal, or null when it took them. */
   readonly apply: (
     row: readonly DerivedColumn[],
     group: readonly DerivedColumn[],
     rename?: { readonly from: string; readonly to: string },
   ) => Promise<string | null>;
+  /**
+   * Offer a new column to the cube, at its level (the grid command Python's calculate builds, grid-commands.ts): its
+   * refusal, or null when it took it.
+   */
+  readonly add: (level: CalcStage, column: DerivedColumn) => Promise<string | null>;
   /** The window goes: after OK or Delete succeeds, or on Cancel. */
   readonly onClose: () => void;
   /** Upstream's 500 ms; a test passes 0. */
@@ -419,8 +425,13 @@ export class ColumnEditor {
       if ('refusal' in parsed) {
         this.#refusal = parsed.refusal;
       } else {
-        const { row, group } = this.#lists(parsed.lambda);
-        this.#refusal = await this.#options.apply(row, group, this.#rename());
+        // a new column is added as one (its level's list, last); an edit offers both lists, the column in its place
+        if (this.#original === undefined) {
+          this.#refusal = await this.#options.add(this.#stage(), draftColumn(this.#draft, parsed.lambda));
+        } else {
+          const { row, group } = this.#lists(parsed.lambda);
+          this.#refusal = await this.#options.apply(row, group, this.#rename());
+        }
       }
     } finally {
       this.#busy = false;

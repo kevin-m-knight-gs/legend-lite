@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   applyMenuAction,
   buildMenu,
+  menuCommand,
   menuItems,
   valueLabel,
   type MenuActionId,
@@ -456,6 +457,29 @@ describe('applyMenuAction', () => {
     ] as MenuActionId[]) {
       assert.equal(run(id, 'desk'), CUBE, `${id} must not touch the query`);
     }
+  });
+});
+
+describe('menuCommand: the grid command a query entry builds (grid-commands.ts), the one Python builds for its call', () => {
+  const command = (id: MenuActionId, column?: string, s: CubeSnapshot = CUBE) =>
+    menuCommand(s, { id, label: '', ...(column ? { column } : {}) });
+
+  it('builds the edit as Python would send it', () => {
+    assert.deepEqual(menuCommand(CUBE, { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }),
+      { kind: 'addSort', column: 'desk', direction: 'desc' });
+    assert.deepEqual(command('pivot.addVertical', 'desk'), { kind: 'group', rows: ['region', 'desk'] });
+    assert.deepEqual(command('pivot.horizontal', 'desk'), { kind: 'pivot', columns: ['desk'] });
+    assert.deepEqual(command('filter.clearAll'), { kind: 'filter', filter: null });
+    assert.deepEqual(menuCommand(CUBE, { id: 'filter.add', label: '', column: 'desk', operator: 'equal', value: 'FX' }),
+      { kind: 'addFilter', condition: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } });
+  });
+
+  it('builds none for an entry off the query, or one that would change nothing', () => {
+    for (const id of ['column.hide', 'copy.selection', 'export.csv'] as MenuActionId[]) {
+      assert.equal(command(id, 'desk'), null, id);
+    }
+    assert.equal(command('pivot.addVertical', 'region'), null, 'a row group the grid has');
+    assert.equal(command('sort.asc'), null, 'no column under it');
   });
 });
 

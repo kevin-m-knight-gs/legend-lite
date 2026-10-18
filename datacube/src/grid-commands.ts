@@ -9,13 +9,14 @@ import {
   APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, withConfiguration, type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
-  addSort, allColumns, clickSort, clickTreeSort, firstSortDirection, measureAsColumn, setColumn, setGrouping, setPivot,
+  addSort, allColumns, clickSort, clickTreeSort, measureAsColumn, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
   setSorts, type ColumnChange, type GridDraft,
 } from './grid-edits.ts';
 import {
-  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, isPivotTotalColumn, pivotTotalColumn, rowColumns,
+  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, isPivotTotalColumn, pivotTotalColumn,
   type AggregateFn, type ColumnKind, type DerivedColumn, type FilterNode, type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
+import { TREE_COLUMN } from './treeview.ts';
 
 /** Settings by their document's own keys, each cleared by null (a value JSON can carry, as undefined is not). */
 export type SettingsPatch = Readonly<Record<string, unknown>>;
@@ -30,8 +31,12 @@ export type GridCommand =
   | { readonly kind: 'sorts'; readonly sorts: readonly SortSpec[] }
   /** A sort added last (the menu's Add Ascending and Add Descending, Python's sort). */
   | { readonly kind: 'addSort'; readonly column: string; readonly direction: SortDirection }
-  /** A header click: alone, or chained after the other sorts; its first direction is its column's type's. */
-  | { readonly kind: 'clickSort'; readonly column: string; readonly chained: boolean }
+  /**
+   * A header click: alone, or chained after the other sorts. `first` is the direction a click on it starts with, which
+   * the type the compiler gave the header decides (grid-edits.ts firstSortDirection): a pivot's header, or a count of
+   * text, is a number though no column of the query is -- so the screen, which has the view, says it.
+   */
+  | { readonly kind: 'clickSort'; readonly column: string; readonly first: SortDirection; readonly chained: boolean }
   /** A click on the tree column's header. */
   | { readonly kind: 'clickTreeSort'; readonly chained: boolean }
   /** Column Properties: a column's kind, Aggregation, weighted average's weight (null clears the last two). */
@@ -63,10 +68,8 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
       return setSorts(draft, command.sorts);
     case 'addSort':
       return addSort(draft, command.column, command.direction);
-    case 'clickSort': {
-      const type = rowColumns(draft.snapshot).find((c) => c.name === command.column)?.type;
-      return clickSort(draft, command.column, firstSortDirection(type), command.chained);
-    }
+    case 'clickSort':
+      return clickSort(draft, command.column, command.first, command.chained);
     case 'clickTreeSort':
       return clickTreeSort(draft, command.chained);
     case 'column':
@@ -148,17 +151,24 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
   for (const [name, c] of Object.entries(columns)) {
     const named = allColumns(d);
     // a pivot total is a column of its own (its heatmap, width, hiding: the screen's menu offers them), of a measure
-    // column the grid has; its kind and Aggregation are its measure's
-    const total = isPivotTotalColumn(name) ? name.slice(pivotTotalColumn('').length) : undefined;
-    if (!named.includes(name) && (total === undefined || !named.includes(total))) {
+    // column the grid has; so is a pivot value's column while the grid pivots (its hiding), and the tree column (its
+    // width, hiding) -- each its presentation alone: a header's kind and Aggregation are its measure's
+    const own = named.includes(name);
+    const total = !own && isPivotTotalColumn(name) ? name.slice(pivotTotalColumn('').length) : undefined;
+    const header = !own && total === undefined ? pivotHeaderMeasure(d, name) : undefined;
+    const tree = !own && name === TREE_COLUMN;
+    if (!own && (total === undefined || !named.includes(total)) && header === undefined && !tree) {
       throw new CubeRefusal(`'${name}' is not a column of the grid (${named.join(', ')})`);
     }
     if (!isObject(c)) throw new CubeRefusal(`a column's settings are an object, not ${JSON.stringify(c)}`);
     known(Object.keys(c), COLUMN_SETTINGS, "a column's setting");
     const { kind, aggregateFn, aggregationParameters, excludedFromPivot, ...presentation } = c;
-    if (total !== undefined && [kind, aggregateFn, aggregationParameters, excludedFromPivot].some((x) => x !== undefined)) {
-      throw new CubeRefusal(`${name} is the pivot total of '${total}': its kind, Aggregation and pivot exclusion are `
-        + `'${total}''s, set on '${total}'`);
+    if (!own && [kind, aggregateFn, aggregationParameters, excludedFromPivot].some((x) => x !== undefined)) {
+      const of = total ?? header;
+      throw new CubeRefusal(of === undefined
+        ? `${name} is the grid's tree column: it has no kind, Aggregation or pivot exclusion`
+        : `${name} is ${total !== undefined ? 'the pivot total' : 'a pivot column'} of '${of}': its kind, Aggregation `
+          + `and pivot exclusion are '${of}''s, set on '${of}'`);
     }
     if (kind === null) {
       throw new CubeRefusal(`${name}'s kind is set, never cleared: 'dimension' or 'measure' (Column Properties > Column Kind)`);
@@ -264,9 +274,10 @@ export function readGridCommand(given: unknown): GridCommand {
       fields(o, kind, ['column', 'direction']);
       return { kind, column: textFrom(o['column'], 'a sort'), direction: directionFrom(o['direction']) };
     case 'clickSort':
-      fields(o, kind, ['column', 'chained']);
+      fields(o, kind, ['column', 'first', 'chained']);
       if (typeof o['chained'] !== 'boolean') throw new CubeRefusal('a header click is chained or not: true or false');
-      return { kind, column: textFrom(o['column'], 'a header click'), chained: o['chained'] };
+      if (o['first'] === undefined) throw new CubeRefusal("a header click says the direction it starts with: first, 'asc' or 'desc'");
+      return { kind, column: textFrom(o['column'], 'a header click'), first: directionFrom(o['first']), chained: o['chained'] };
     case 'clickTreeSort':
       fields(o, kind, ['chained']);
       if (typeof o['chained'] !== 'boolean') throw new CubeRefusal('a tree header click is chained or not: true or false');

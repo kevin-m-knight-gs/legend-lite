@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, withConfiguration } from '../src/config.ts';
 import {
@@ -15,6 +16,7 @@ import {
   addSort, clickSort, clickTreeSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
 } from '../src/grid-edits.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type DerivedColumn } from '../src/snapshot.ts';
+import { TREE_COLUMN } from '../src/treeview.ts';
 import { stand } from './fake-planner.ts';
 
 const CUBE: CubeSnapshot = {
@@ -47,10 +49,11 @@ describe('each command gives what the screen\'s own edit gives', () => {
     ['pivot', { kind: 'pivot', columns: ['desk'] }, setPivot(d, ['desk'])],
     ['sorts', { kind: 'sorts', sorts: [{ column: 'qty', direction: 'asc' }] }, setSorts(d, [{ column: 'qty', direction: 'asc' }])],
     ['addSort', { kind: 'addSort', column: 'notional', direction: 'desc' }, addSort(d, 'notional', 'desc')],
-    // a header click's first direction is its column's type's: a number from the largest, text from A, a date the latest
-    ['clickSort on a number', { kind: 'clickSort', column: 'notional', chained: false }, clickSort(d, 'notional', 'desc', false)],
-    ['clickSort on text', { kind: 'clickSort', column: 'desk', chained: true }, clickSort(d, 'desk', 'asc', true)],
-    ['clickSort on a date', { kind: 'clickSort', column: 'traded', chained: false }, clickSort(d, 'traded', 'desc', false)],
+    // a header click starts where the screen says, from the type the compiler gave the header: a number from the
+    // largest, text from A -- and a column of text the grid counts is a number on the screen, though not in the query
+    ['clickSort on a number', { kind: 'clickSort', column: 'notional', first: 'desc', chained: false }, clickSort(d, 'notional', 'desc', false)],
+    ['clickSort on text', { kind: 'clickSort', column: 'desk', first: 'asc', chained: true }, clickSort(d, 'desk', 'asc', true)],
+    ['clickSort on counted text', { kind: 'clickSort', column: 'desk', first: 'desc', chained: false }, clickSort(d, 'desk', 'desc', false)],
     ['clickTreeSort', { kind: 'clickTreeSort', chained: false }, clickTreeSort(d, false)],
     ['column', { kind: 'column', name: 'qty', change: { aggregate: 'average' } }, setColumn(d, 'qty', { aggregate: 'average' })],
     ['configure', { kind: 'configure', patch: { reportTitle: 'Trades', columns: { qty: { hidden: true } } } },
@@ -78,6 +81,20 @@ describe('each command gives what the screen\'s own edit gives', () => {
     const total = pivotTotalColumn('notional');
     refused(() => applyGridCommand(d, { kind: 'configure', patch: { columns: { [total]: { aggregateFn: 'max' } } } }),
       /is the pivot total of 'notional'/);
+  });
+
+  it('configure sets a pivot column\'s and the tree column\'s presentation (the menu hides them), never a kind or Aggregation', () => {
+    const pivoted = setPivot(d, ['desk']);
+    const header = `FX${PIVOT_SEPARATOR}notional`;
+    const hide = (name: string): GridCommand => ({ kind: 'configure', patch: { columns: { [name]: { hidden: true } } } });
+    assert.deepEqual(applyGridCommand(pivoted, hide(header)).config.columns[header], { hidden: true });
+    refused(() => applyGridCommand(pivoted, { kind: 'configure', patch: { columns: { [header]: { aggregateFn: 'max' } } } }),
+      /is a pivot column of 'notional'/);
+    // not pivoted, no pivot's header is a column of the grid
+    refused(() => applyGridCommand(d, hide(header)), /is not a column of the grid/);
+    assert.deepEqual(applyGridCommand(d, hide(TREE_COLUMN)).config.columns[TREE_COLUMN], { hidden: true });
+    refused(() => applyGridCommand(d, { kind: 'configure', patch: { columns: { [TREE_COLUMN]: { kind: 'measure' } } } }),
+      /the grid's tree column: it has no kind/);
   });
 
   it('filter sets the filter whole, and null takes it off', () => {
@@ -123,7 +140,7 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'pivot', columns: [] },
     { kind: 'sorts', sorts: [{ column: 'qty', direction: 'desc' }] },
     { kind: 'addSort', column: 'qty', direction: 'asc' },
-    { kind: 'clickSort', column: 'qty', chained: true },
+    { kind: 'clickSort', column: 'qty', first: 'desc', chained: true },
     { kind: 'clickTreeSort', chained: false },
     { kind: 'column', name: 'qty', change: { kind: 'dimension', aggregate: null, weight: null } },
     { kind: 'configure', patch: { columns: { qty: { heatmap: null } } } },
@@ -142,7 +159,8 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand({ kind: 'regroup', rows: [] }), /'regroup' is not a grid's command/);
     refused(() => readGridCommand({ kind: 'group', row: ['region'] }), /a 'group' command takes rows, not row/);
     refused(() => readGridCommand({ kind: 'addSort', column: 'qty', direction: 'up' }), /a sort is 'asc' or 'desc'/);
-    refused(() => readGridCommand({ kind: 'clickSort', column: 'qty' }), /chained or not/);
+    refused(() => readGridCommand({ kind: 'clickSort', column: 'qty', first: 'desc' }), /chained or not/);
+    refused(() => readGridCommand({ kind: 'clickSort', column: 'qty', chained: false }), /the direction it starts with/);
     refused(() => readGridCommand({ kind: 'column', name: 'qty', change: { aggregateFn: 'max' } }),
       /a column's properties are kind, aggregate and weight, not aggregateFn/);
     refused(() => readGridCommand({ kind: 'column', name: 'qty', change: { aggregate: 'mean' } }), /"mean" is not one of DataCube's aggregates/);

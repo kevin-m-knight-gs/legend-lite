@@ -91,17 +91,28 @@ function checkGroupable(draft: GridDraft, names: readonly string[], had: readonl
 }
 
 /**
+ * The measure a pivot's header is of, or undefined (the grid does not pivot, or `column` is no header of its pivot): a
+ * pivot value's column or a pivot total's, each ending with a measure the pivot spreads (query.ts spreadMeasures: a
+ * measure column, or the count a pivot of none fills with), made unique by `~N` when its name is taken (pivotColumns).
+ * What a header sorts by (setSorts) and what a header's own presentation is set on (grid-commands.ts configure).
+ */
+export function pivotHeaderMeasure(draft: GridDraft, column: string): string | undefined {
+  if (draft.snapshot.pivotOn.length === 0) return undefined;
+  const at = column.lastIndexOf(PIVOT_SEPARATOR);
+  if (at <= 0) return undefined;
+  const measure = column.slice(at + PIVOT_SEPARATOR.length).replace(/~\d+$/, '');
+  return spreadMeasures(applyToSnapshot(draft.snapshot, draft.config)).some((m) => m.name === measure) ? measure : undefined;
+}
+
+/**
  * `sorts` as the grid's sorts, in order, each once, ascending or descending: each it did not sort by a column the grid
- * has (the Sorts panel's), or, pivoted, a pivot's header -- a pivot value's column or a pivot total's, each ending with
- * a measure the pivot spreads (query.ts spreadMeasures: a measure column, or the count a pivot of none fills with),
- * made unique by `~N` when its name is taken (pivotColumns) -- as the header menu sorts by the header clicked; a sort
- * it has is kept or taken away as it is. A header of values the level does not have is left out of its query. A child
- * group's aggregate is refused: no query of the level has it to order by (P2-15).
+ * has (the Sorts panel's), or, pivoted, a pivot's header (pivotHeaderMeasure) -- as the header menu sorts by the header
+ * clicked; a sort it has is kept or taken away as it is. A header of values the level does not have is left out of its
+ * query. A child group's aggregate is refused: no query of the level has it to order by (P2-15).
  */
 export function setSorts<D extends GridDraft>(draft: D, sorts: readonly SortSpec[]): D {
   const columns = allColumns(draft);
   const pivoted = draft.snapshot.pivotOn.length > 0;
-  const spread = new Set(pivoted ? spreadMeasures(applyToSnapshot(draft.snapshot, draft.config)).map((m) => m.name) : []);
   // a child group's aggregate is read by its own query, beside the level's: the level's rows cannot be ordered by it
   const apart = new Set((draft.snapshot.groupDerived ?? []).filter((d) => d.childAggregate).map((d) => d.name));
   const seen = new Set<string>();
@@ -116,9 +127,7 @@ export function setSorts<D extends GridDraft>(draft: D, sorts: readonly SortSpec
       throw new CubeRefusal(`'${column}' is worked out from each group's child rows after the groups are read, `
         + 'so the groups cannot be sorted by it');
     }
-    const at = column.lastIndexOf(PIVOT_SEPARATOR);
-    const header = at > 0 && spread.has(column.slice(at + PIVOT_SEPARATOR.length).replace(/~\d+$/, ''));
-    if (!columns.includes(column) && !header) {
+    if (!columns.includes(column) && pivotHeaderMeasure(draft, column) === undefined) {
       throw new CubeRefusal(`the sort names '${column}', which the grid does not have: one of its columns `
         + `(${listed(columns)})${pivoted ? ", or a pivot's header" : ''}`);
     }

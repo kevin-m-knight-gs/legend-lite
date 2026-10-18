@@ -11,6 +11,7 @@ import type { Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import type { GridCommand } from '../src/grid-commands.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
@@ -161,6 +162,8 @@ describe('the app', () => {
   let downloads: [string, string, string | Uint8Array][];
   let clipboard: string[];
   let statuses: [string, string][];
+  /** Each grid command the screen applied and the cube kept (onCommand). */
+  let commands: GridCommand[];
 
   beforeEach(async () => {
     dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
@@ -175,12 +178,14 @@ describe('the app', () => {
     downloads = [];
     clipboard = [];
     statuses = [];
+    commands = [];
     app = new CubeApp(root, SNAPSHOT, {
       engine,
       planner,
       dimensions: [{ name: 'Geography', columns: ['region', 'desk'] }],
       showColumnZone: true,
       onStatus: (text, kind) => statuses.push([text, kind]),
+      onCommand: (command) => commands.push(command),
       writeClipboard: (t) => {
         clipboard.push(t);
       },
@@ -666,9 +671,13 @@ describe('the app', () => {
     assert.deepEqual(app.snapshot.sorts, []);
     assert.equal(app.configuration.treeColumnSort, 'desc');
     assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2193');
+    // each click a grid command (grid-commands.ts), its first direction the one the header's type gives
+    const notional: GridCommand = { kind: 'clickSort', column: 'notional', first: 'desc', chained: false };
+    assert.deepEqual(commands, [notional, notional, notional, notional,
+      { kind: 'clickTreeSort', chained: true }, { kind: 'clickTreeSort', chained: false }]);
   });
 
-  it('adds and removes a heatmap from the menu', () => {
+  it('adds and removes a heatmap from the menu', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
     pick('Add Heatmap to notional');
     const column = Object.entries(app.configuration.columns).find(
@@ -681,6 +690,12 @@ describe('the app', () => {
       Object.values(app.configuration.columns).some((c) => c.heatmap),
       false,
     );
+    // each by the configure command Python's configure builds: null takes it off
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(commands, [
+      { kind: 'configure', patch: { columns: { notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } } } },
+      { kind: 'configure', patch: { columns: { notional: { heatmap: null } } } },
+    ]);
   });
 
   it('a right-click on a TREE cell resolves the dimension at that level', () => {

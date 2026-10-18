@@ -34,11 +34,9 @@
 import type { MemberPath } from '../adhoc/state.ts';
 import type {
   CubeSnapshot,
-  FilterNode,
   FilterOperator,
   FilterValue,
   SortDirection,
-  SortSpec,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
@@ -47,7 +45,7 @@ import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
-import { addSort, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
+import { applyGridCommand, type GridCommand } from '../grid-commands.ts';
 import type { CubeConfiguration } from '../config.ts';
 
 /**
@@ -821,92 +819,89 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
 // -- applying an action to the snapshot -------------------------------
 
 /**
- * Apply a menu action, returning a NEW snapshot.
- *
- * Actions that change nothing return the snapshot unchanged by
- * identity, so a caller can skip a refresh rather than re-running the
- * same query. Sorts and pivots are set by grid-edits.ts, the one way a
- * grid's are set (`config`: the grid's, which says a column's kind);
- * an action its offers refuse throws its words (CubeRefusal).
+ * The grid command a menu entry builds (grid-commands.ts: the one way the screen and Python edit a grid), or null: an
+ * entry that does not touch the query -- layout, clipboard, export -- or one that would change nothing (no column
+ * under it, a row group or a pivot the grid already has). Sorts and pivots are applied by grid-edits.ts, the one way a
+ * grid's are set; an entry its offers refuse is refused when applied, in their words (CubeRefusal).
+ */
+export function menuCommand(s: CubeSnapshot, item: MenuItem): GridCommand | null {
+  const col = item.column;
+  const without = <T>(xs: readonly T[], p: (x: T) => boolean): T[] =>
+    xs.filter((x) => !p(x));
+
+  switch (item.id) {
+    case 'sort.asc':
+    case 'sort.desc':
+      return col
+        ? { kind: 'sorts', sorts: [{ column: col, direction: item.direction ?? 'asc' }] }
+        : null;
+    case 'sort.addAsc':
+    case 'sort.addDesc':
+      return col ? { kind: 'addSort', column: col, direction: item.direction ?? 'asc' } : null;
+    case 'sort.clearColumn':
+      return col
+        ? { kind: 'sorts', sorts: without(s.sorts, (x) => x.column === col) }
+        : null;
+    case 'sort.clearAll':
+      return { kind: 'sorts', sorts: [] };
+
+    case 'filter.add':
+      // ADDS to the filter rather than replacing it, which is what
+      // "Add Filter" says and what makes the entry usable twice in
+      // a row (grid-commands.ts addFilter: AND-ed with the tree it
+      // has); an OR is the filter editor's job.
+      if (!col || !item.operator) return null;
+      return {
+        kind: 'addFilter',
+        condition: {
+          kind: 'condition',
+          column: col,
+          operator: item.operator,
+          ...(item.value !== undefined ? { value: item.value } : {}),
+        },
+      };
+
+    case 'filter.clearAll':
+      return { kind: 'filter', filter: null };
+
+    case 'pivot.vertical':
+      return col ? { kind: 'group', rows: [col] } : null;
+    case 'pivot.addVertical':
+      return col && !s.rows.includes(col)
+        ? { kind: 'group', rows: [...s.rows, col] }
+        : null;
+    case 'pivot.removeVertical':
+      return col ? { kind: 'group', rows: without(s.rows, (x) => x === col) } : null;
+    case 'pivot.clearVertical':
+      return { kind: 'group', rows: [] };
+
+    case 'pivot.horizontal':
+      return col ? { kind: 'pivot', columns: [col] } : null;
+    case 'pivot.addHorizontal':
+      return col && !s.pivotOn.includes(col)
+        ? { kind: 'pivot', columns: [...s.pivotOn, col] }
+        : null;
+    case 'pivot.removeHorizontal':
+      return col ? { kind: 'pivot', columns: without(s.pivotOn, (x) => x === col) } : null;
+    case 'pivot.clearHorizontal':
+      return { kind: 'pivot', columns: [] };
+
+    default:
+      // Layout, copy and export actions do not touch the query.
+      return null;
+  }
+}
+
+/**
+ * A menu action applied to the snapshot: its command (menuCommand), applied as the screen applies it. An entry that
+ * builds none returns the snapshot unchanged by identity, so a caller can skip a refresh; an entry the grid's offers
+ * refuse throws their words (CubeRefusal).
  */
 export function applyMenuAction(
   s: CubeSnapshot,
   item: MenuItem,
   config: CubeConfiguration,
 ): CubeSnapshot {
-  const col = item.column;
-  const without = <T>(xs: readonly T[], p: (x: T) => boolean): T[] =>
-    xs.filter((x) => !p(x));
-  const draft = { snapshot: s, config };
-  const sorted = (sorts: readonly SortSpec[]): CubeSnapshot => setSorts(draft, sorts).snapshot;
-  const rows = (names: readonly string[]): CubeSnapshot => setGrouping(draft, names).snapshot;
-  const pivotOn = (names: readonly string[]): CubeSnapshot => setPivot(draft, names).snapshot;
-
-  switch (item.id) {
-    case 'sort.asc':
-    case 'sort.desc':
-      return col
-        ? sorted([{ column: col, direction: item.direction ?? 'asc' }])
-        : s;
-    case 'sort.addAsc':
-    case 'sort.addDesc':
-      return col ? addSort(draft, col, item.direction ?? 'asc').snapshot : s;
-    case 'sort.clearColumn':
-      return col
-        ? sorted(without(s.sorts, (x) => x.column === col))
-        : s;
-    case 'sort.clearAll':
-      return sorted([]);
-
-    case 'filter.add': {
-      // ADDS to the filter rather than replacing it, which is what
-      // "Add Filter" says and what makes the entry usable twice in
-      // a row. The new condition joins the existing tree with AND;
-      // an OR is the filter editor's job.
-      if (!col || !item.operator) return s;
-      const condition: FilterNode = {
-        kind: 'condition',
-        column: col,
-        operator: item.operator,
-        ...(item.value !== undefined ? { value: item.value } : {}),
-      };
-      const filter: FilterNode = s.filter
-        ? s.filter.kind === 'and'
-          ? { kind: 'and', children: [...s.filter.children, condition] }
-          : { kind: 'and', children: [s.filter, condition] }
-        : condition;
-      return { ...s, filter };
-    }
-
-    case 'filter.clearAll': {
-      const { filter: _drop, ...rest } = s;
-      return rest;
-    }
-
-    case 'pivot.vertical':
-      return col ? rows([col]) : s;
-    case 'pivot.addVertical':
-      return col && !s.rows.includes(col)
-        ? rows([...s.rows, col])
-        : s;
-    case 'pivot.removeVertical':
-      return col ? rows(without(s.rows, (x) => x === col)) : s;
-    case 'pivot.clearVertical':
-      return rows([]);
-
-    case 'pivot.horizontal':
-      return col ? pivotOn([col]) : s;
-    case 'pivot.addHorizontal':
-      return col && !s.pivotOn.includes(col)
-        ? pivotOn([...s.pivotOn, col])
-        : s;
-    case 'pivot.removeHorizontal':
-      return col ? pivotOn(without(s.pivotOn, (x) => x === col)) : s;
-    case 'pivot.clearHorizontal':
-      return pivotOn([]);
-
-    default:
-      // Layout, copy and export actions do not touch the query.
-      return s;
-  }
+  const command = menuCommand(s, item);
+  return command === null ? s : applyGridCommand({ snapshot: s, config }, command).snapshot;
 }
