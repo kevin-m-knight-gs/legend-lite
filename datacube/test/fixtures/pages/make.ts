@@ -12,6 +12,7 @@
 //   preset over the sales sample, calculated columns at each level among them.
 
 import { writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 import { element } from '../../../../pure-protocol/src/index.ts';
 import { defaultChart } from '../../../src/chart-spec.ts';
@@ -100,7 +101,7 @@ export async function corpus(): Promise<Record<string, PageDocument>> {
 }
 
 // run as a script: the fixtures written beside it, each as DataCube writes a page (pageToJson), ending in a newline
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   for (const [name, page] of Object.entries(await corpus())) {
     writeFileSync(new URL(name, import.meta.url), `${pageToJson(page)}\n`);
     console.log(`wrote ${name}`);
