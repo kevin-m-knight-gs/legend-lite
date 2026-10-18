@@ -780,6 +780,25 @@ class CypherToPureTest {
     }
 
     @Test
+    void aZonedNanosecondValueIsItsInstantsParts() {
+        // W13 leg 3: a zoned value finer than a microsecond is its instant's parts, the UTC date and the UTC
+        // nanoseconds since midnight: the wall time's moved back by the offset's (a sum the database adds), the
+        // clock's whole days carried into the date; returned, the instant's ISO text. No nanosecond epoch.
+        String p = pure("RETURN datetime('1984-10-11T12:31:14.645876123+01:00') AS d,"
+                + " time('12:31:14.645876123+01:00') AS t");
+        assertTrue(p.contains("~[d:r|meta::legend::lite::dateTimeOfText("), p);
+        assertTrue(p.contains("- (1.0E9 * (3600 * 1))->cast(@Integer)"), p);
+        assertTrue(p.contains("->mod(86400000000000)"), p);
+        assertFalse(p.contains("NANOSECONDS"), p);
+        // a region's offset is the database's reading of the instant's microseconds in it
+        String r = pure("RETURN datetime('2017-07-01T12:00:00.000000001[Europe/Stockholm]') AS d");
+        assertTrue(r.contains("meta::legend::lite::instantIn("), r);
+        assertFalse(r.contains("NANOSECONDS"), r);
+        // datetime.fromepoch's nanoseconds are a second's (Neo4j's)
+        invalid("RETURN datetime.fromepoch(0, 1000000000) AS d", "Invalid nanosecond: 1000000000");
+    }
+
+    @Test
     void aZonedDateTimeIsItsInstantWithTheZoneCarriedBeside() {
         // a local date-time at the default zone (UTC) is the instant itself; a written offset is spelled as the
         // adjust steps the database computes (the instant is the wall time less the offset); the zone rides beside

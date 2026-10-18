@@ -11838,3 +11838,20 @@ the judge's duration slots no longer sum nanoseconds in a long. `lite/nanoparts.
 (DuckDB PASS 3906 / REFUSED 266 / BOTH_ERROR 767 / SKIP 56; Postgres PASS 3602 / REFUSED 570 / BOTH_ERROR 767 / SKIP
 56, of 4995 cases), TCK agreement DuckDB 3571 (unchanged), Postgres 3220 → 3296 (Temporal9's local truncations,
 Temporal8's local arithmetic); the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-fifth landing — nanosecond values as their parts, leg 3: the zoned values
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.87, the plan's W13 leg 3. A zoned date-time of
+nanosecond precision is its instant's parts (the UTC date and the UTC nanoseconds since midnight), a zoned time its
+UTC nanoseconds from the epoch day's midnight, the zone beside: conversions between wall time and instant over the
+parts (a spelled offset a sum, a read one the database's, a region's the database's reading of the instant's
+microseconds), construction, fields, offset and epoch fields, `toString`, comparison and order, carriage through
+WITH, the egress, arithmetic, truncation and `between`; a printed local nanosecond value parsed back. Found by the
+leg's cases and fixed at either precision: a wall time a region shows twice read as java.time reads it (the
+earlier instant; the database reads the later), a zoned time converted to another offset as java.time converts it,
+`fromepoch`'s nanoseconds past a second as Neo4j's error. Neo4j's equality and order of one instant in two zones
+measured and left to the user's S66 (the plan's §5). `lite/nanozones.yaml` (14 cases); CypherToPureTest's
+`aZonedNanosecondValueIsItsInstantsParts`. Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3918 /
+REFUSED 266 / BOTH_ERROR 769 / SKIP 56; Postgres PASS 3868 / REFUSED 316 / BOTH_ERROR 769 / SKIP 56, of 5009 cases),
+TCK agreement DuckDB 3571 (unchanged), Postgres 3296 → 3540; the oracle check 0 problems; the chain's 40 guard
+targets green.

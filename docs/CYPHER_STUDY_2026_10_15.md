@@ -5423,3 +5423,80 @@ pass now too (a duration step and a `between` of local values). The rest of Post
 at render, 24 at seeding, 6 by year) are of zoned values above all (Temporal9's 192 zoned truncations, and zoned
 construction, selection, arithmetic and comparison in Temporal1, 3, 5, 6, 7 and 8), then lists and stored values
 (WithOrderBy1 and 2's 32): legs 3, 4 and 5. DuckDB's TCK refusals are the writes and the 8 by year.
+
+### 12.87 Nanosecond values as their parts, leg 3: the zoned values (W13, 2026-10-18)
+
+- **The representation.** A zoned date-time of nanosecond precision is its instant's parts, the UTC date and the UTC
+  nanoseconds since midnight (`Parts` on the detail, as §12.85's local date-time), the zone beside as §12.8 carries
+  it (a spelled offset, a region's name, an offset and region the database reads, §12.75). A zoned time of day is
+  its UTC nanoseconds from the epoch day's midnight, below 0 or past a day where the offset carries the wall time
+  across midnight: §12.11's instant on the epoch day as an integer, so two order as Neo4j's do (its
+  `getNanosOfDayUTC`).
+- **The conversions, each the database's arithmetic over the parts.**
+  - The wall time of an instant (`splitWall`): the UTC parts moved by the offset at the instant, the clock's whole
+    days carried into the date; a spelled offset a sum the database adds, a read one the database's, a region's the
+    database's reading of the instant's microseconds in it (an offset changes on a whole second, so the digits past
+    the microsecond never matter to it).
+  - The instant of a wall time (`splitInstant`): the wall time moved back by the offset there, a region's the
+    database's instant for the wall time's microseconds against them (§12.8's `instantIn`), a read region's offset
+    after the one at the instant (`splitAfter`).
+  - A zoned time: its wall time the nanoseconds plus the offset's, within the day; from a wall time, the nanoseconds
+    less the offset's.
+- **What leg 3 spells over the parts.** Construction from texts, components (the wall time's parts in the zone) and
+  `datetime.fromepoch` (the epoch day moved by the seconds' whole days and the rest's, the seconds past whole days a
+  float product cast back); a text in a non-calendar form (week, ordinal, quarter) of nanosecond precision too,
+  which leg 1 had left in the old carriage. The fields (a zoned value's of its wall time's parts), the offset fields
+  (`offset`, `offsetMinutes`, `offsetSeconds` at the instant) and the epoch fields (86,400 seconds a day of the UTC
+  date's distance from the epoch day, the whole seconds or milliseconds of the UTC nanoseconds). `toString` (a
+  region's offset at the instant, its name in brackets). Comparison and ordering. Carriage through WITH (the UTC date
+  the hidden `DATE_PART` column, the zone the column's when spelled, else `ZONE_PART`'s and `REGION_PART`'s, as
+  §12.75 carries a read zone). The egress: the instant's ISO text (a zoned time's instant on the epoch day), read as
+  the date-time it spells, as §12.8 and §12.11 return a zoned value. Duration arithmetic (a date-time's wall time
+  moved by the months and days, then its instant by the seconds and nanoseconds; a zoned time's wall time moved,
+  wrapping), truncation (of the wall time, the instant converted after), `duration.between` (every reading §12.10
+  and §12.11 give a zoned operand, over the parts). A print then a parse of a local nanosecond value reads the value
+  back too (§12.74's identity, which only zoned texts had: Temporal6/[2], [4] on Postgres).
+- **Found by the leg's own cases, at either precision.**
+  - **One instant in two zones, measured and left to S66.** Neo4j's `=` on zoned values is java.time's `equals`,
+    the instant and the zone (`datetime('2017-01-01T12:00+01:00') = datetime('2017-01-01T11:00Z')` is false, so is
+    `time('12:00+01:00') = time('11:00Z')`, and `+02:00` against `[Europe/Stockholm]` at one instant), and its order
+    breaks a tie of instants by the offsets (the larger after) and then the zones (an offset before a region, two
+    regions by name: `+02:00` before `Europe/Stockholm`, `Europe/Berlin` before `Europe/Stockholm`), as its
+    `unsafeCompareTo` does. The island answers both by the instant, the register's S66, a decision of the user's
+    whose reason (a zone kept with the value would need a Pure type) the carried zone (S65) now answers where the
+    island sees the zone: both were spelled over the carried zones and measured green on both lanes, then withdrawn
+    for the decision, which stays the user's (the plan's §5).
+  - **A wall time a region's clocks show twice.** When summer time ends, the database reads an ambiguous wall time
+    as the later instant (DuckDB's ICU and Postgres's AT TIME ZONE, measured: Stockholm's 02:30 on 2017-10-29 is
+    +01:00), java.time as the earlier, the offset before the transition (Neo4j's +02:00). The island spells java.time's
+    reading over the database's (`regionInstant`): the offset a day before the database's instant read, and the
+    instant it names kept where it is earlier and names the same wall time; a gap's reading is the database's, as
+    java.time's (forward by the gap).
+  - **A zoned time converted to another offset.** `time({time: t, timezone: z})` is java.time's
+    `withOffsetSameInstant`: the wall time in the new offset, wrapped within the day (measured: 23:00 at +01:00 to
+    +14:00 is 12:00 at +14:00, which orders before 00:00Z); the island had kept the instant on the epoch day, which
+    orders it after. Now the wall time wrapped and placed in the offset, at either precision.
+  - **`datetime.fromepoch`'s nanoseconds past the second.** Neo4j's `Invalid nanosecond: N` outside 0 to 999,999,999
+    (measured), raised for a written argument.
+- **What the bridge still carries** (§12.85's `legacy`): lists, a map's Variant, `collect`, `min` and `max`, a
+  returned grouping key, `IN`, a CASE or coalesce choosing among zoned values (the choice keeps no zone): leg 4;
+  stored values (TIMESTAMP_NS columns): leg 5. The written year rides through a zone's shift, so a zoned value in a
+  list beyond the old carriage's years is refused by name as a local one is (and one of the range's edge years, its
+  instant a day from it at most).
+- **Pinned.** `lite/nanozones.yaml`'s 14 cases, each judged by Neo4j; CypherToPureTest's
+  `aZonedNanosecondValueIsItsInstantsParts`.
+
+#### 12.87.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 5009 | 3918 (from 3,906) | 0 | 0 | 0 | 266 | 769 (from 767) | 56 |
+| Postgres | 5009 | 3868 (from 3,602) | 0 | 0 | 0 | 316 (from 570) | 769 (from 767) | 56 |
+
+TCK agreement: DuckDB 3571 (unchanged: the TCK's zoned nanosecond rows passed there through the old carriage),
+Postgres 3296 → 3540, the 244 rows of zoned and remaining local nanosecond values: Temporal9's 192 truncations
+(zoned, and local ones to a zoned result), Temporal3's 21 selections, Temporal1's 18 constructions, Temporal8's 6
+zoned durations, Temporal6's 5 texts (local ones parsed back among them), Temporal7's 2 comparisons. Nothing moved
+back on either lane. The 14 cases of `lite/nanozones.yaml`: 12 PASS and 2 BOTH_ERROR on each lane. Postgres's
+nanosecond refusals left: the lists (WithOrderBy1's [13] to [16], [19], [20], [45] and the `temporallists` cases:
+leg 4), the stored values (24 at seeding: leg 5), the 6 by year on both lanes (lists: leg 4).

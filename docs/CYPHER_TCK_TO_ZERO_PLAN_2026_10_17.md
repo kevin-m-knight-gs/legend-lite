@@ -483,6 +483,18 @@ rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (be
   the judge's duration slots overflowed a long. The year-1 case renamed `nanos_in_the_year_one`. Next, leg 3: the
   zoned values (Temporal9's 192 zoned truncations on Postgres above all), their offsets, named zones and the epoch
   functions, over UTC parts with the zone beside.
+- Leg 3 LANDED 2026-10-18 (the study's §12.87, GATES' eighty-fifth landing; TCK agreement DuckDB 3571 → 3571,
+  Postgres 3296 → 3540; DuckDB PASS 3906 → 3918, Postgres 3602 → 3868): the zoned values over the parts (a
+  zoned date-time its UTC date and UTC nanoseconds since midnight, a zoned time its UTC nanoseconds from the epoch
+  day's midnight, the zone beside): the conversions (the offset a spelled sum, a read one, a region's the database's
+  reading of the instant's microseconds), construction (texts, components, `fromepoch`), fields, offset and epoch
+  fields, `toString`, comparison and order, carriage through WITH, the egress, arithmetic, truncation, `between`;
+  a printed local nanosecond value parsed back (Temporal6). Found by its cases and fixed at either precision: the
+  database's reading of a wall time a region shows twice (the later instant; java.time's the earlier), a zoned time
+  converted to another offset (java.time's wall time wrapped), `fromepoch`'s nanoseconds past a second (Neo4j's
+  error). Measured and withdrawn for the user's S66: Neo4j's equality and order of one instant in two zones (§5).
+  Next, leg 4: lists, `collect`, `min` and `max`, grouping keys and `IN` over the parts (WithOrderBy1 and the
+  `temporallists` cases on Postgres, the 6 year refusals on both lanes).
 
 ## 3. Decisions asked of the user
 
@@ -738,6 +750,18 @@ questions, no PRs; a blocker is logged in §5 and the line moves to the next ite
 ## 5. Blockers log
 
 What got stuck, where, and why, for later; each entry names the cases it holds back.
+
+- **2026-10-18, W13 leg 3 (§12.87) — one instant in two zones (S66, a decision of the user's).** Neo4j's `=` on
+  zoned values compares the instant and the zone (java.time's `equals`: `datetime('2017-01-01T12:00+01:00') =
+  datetime('2017-01-01T11:00Z')` is false; `time('12:00+01:00') = time('11:00Z')` too; `+02:00` against
+  `[Europe/Stockholm]` at one instant), and its order breaks a tie of instants by the offsets, then the zones (an
+  offset before a region, two regions by name). The island answers both by the instant, as S66 decided ("a zone kept
+  with the value would need a Pure type"). Since S65 the zone rides beside the value wherever the translator sees it,
+  so both can be spelled over the carried zones (the offsets and regions the database reads compared by it; a zone
+  not carried, a CASE's or an aggregate's, refused by name for `=`): implemented and measured green on both lanes,
+  withdrawn because S66 is the user's to revisit. It holds back no TCK row (the TCK compares no one instant in two
+  zones); the lite cases `datetime_comparison`, `time_comparison` and
+  `stored/a_stored_zoned_time_compared_with_a_zoned_literal` pin S66.
 
 - **2026-10-18, W13 leg 1 (§12.85) — a temporal value's field of another form.** `date({year: 2000, week: 2, month:
   1})` is Neo4j's `Cannot assign month to week date.`, `date({year: 2000, quarter: 2, day: 3})` its `Cannot assign
