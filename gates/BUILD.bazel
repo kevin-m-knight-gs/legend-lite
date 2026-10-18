@@ -260,6 +260,8 @@ test_suite(
         "//studio:verify_test",
         "//query:verify_test",
         "//site:verify_test",
+        # the same one folder deeper: the staging slot's place (.github/workflows/pages.yml)
+        "//site:verify_staging_test",
         # Query's hand tools compile (Linux only in CI, like the test: the closure holds the native image)
         "//query:tools_build_test",
     ],

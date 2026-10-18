@@ -1,0 +1,23 @@
+# THE STAGING SLOT'S TRIGGER (the user, 2026-10-18): a push to the `staging` branch asks for a Pages deploy
+# (pages.yml), which builds main's site at the root and the staging branch's under /legend-lite/staging/. The deploy
+# runs on main, never here: the github-pages environment deploys the default branch alone. A workflow_dispatch is the
+# one event the run's own token may start.
+#
+# To stage a commit, move the branch to it: `git push origin <commit>:staging` (--force when it is not a descendant).
+name: staging
+on:
+  push:
+    branches: [staging]
+
+permissions:
+  actions: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: ask pages.yml, on main, for a deploy with this staging branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
