@@ -2126,3 +2126,6 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   Postgres the same census (PASS 3976 of 5041), the TCK at 3597 of 3880 on both; left the write clauses, 3 setups Neo4j
   refuses and 2 years past every database's dates. Next on this line: one PR of the branch (origin/main merged), then
   the write clauses.
+  Later, 2026-10-18: the 3 setups were the oracle's, not Neo4j's (it ran the TCK's openCypher 9 setups under Cypher 25,
+  which narrows `CREATE`; a setup now runs under `CYPHER 5`, `tools/neo4j-oracle/snap.py`): all three pass on both
+  lanes, PASS 3979 of 5041 on both, the TCK at 3600 of 3880. Left outside the write clauses: the 2 signed years.

@@ -10,9 +10,10 @@ The cases are the openCypher TCK's scenarios (core/src/test/resources/cypher-par
 Gherkin subset below, which the Java reader CypherTck mirrors step for step: the two must produce the same keys and
 the same sha inputs, or every answer is STALE) and lite's own (cypher-parity/lite/*.yaml). Each case runs on a
 local Neo4j Community over Bolt (the Apache 2.0 Python driver; the standard library otherwise, run isolated with
-python3 -I): the graph emptied, the case's setup run, the graph dumped (that dump is what the lanes seed their
-tables from: CI never interprets a CREATE), then the query, under the Cypher version the case names or lite's
-default (25), its rows written in the TCK's value grammar, or its error by Neo4j's code and message.
+python3 -I): the graph emptied, the case's setup run (under CYPHER 5, SETUP_CYPHER: the data the case is judged
+over, not what is judged), the graph dumped (that dump is what the lanes seed their tables from: CI never interprets
+a CREATE), then the query, under the Cypher version the case names or lite's default (25), its rows written in the
+TCK's value grammar, or its error by Neo4j's code and message.
 
 Neo4j Community is GPLv3: it runs here only, never on a classpath, never in CI; CI judges from the committed file.
 """
@@ -30,6 +31,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 PARITY = os.path.join(ROOT, "core", "src", "test", "resources", "cypher-parity")
 DEFAULT_CYPHER = "25"
+# The version a setup statement runs under: the TCK's setups are openCypher 9's text, which Cypher 5 reads as written
+# and Cypher 25 narrows (a variable created in a CREATE read in a property map of the same CREATE, measured: "Creating
+# an entity (a) and referencing that entity in a property definition in the same CREATE is not allowed" for
+# WithSkipLimit1/[1], WithSkipLimit2/[2] and With2/[1]). A setup only builds the graph; the query is what is judged,
+# under its own version. A setup statement that names its version keeps it.
+SETUP_CYPHER = "5"
 FORMAT = 1
 TIMEOUT_S = 60.0
 
@@ -525,6 +532,8 @@ def run_case(driver, c):
     with driver.session() as s:
         s.run("MATCH (n) DETACH DELETE n").consume()
         for stmt in c["setup"]:
+            if not re.match(r"\s*CYPHER\b", stmt):
+                stmt = "CYPHER " + SETUP_CYPHER + " " + stmt
             try:
                 s.run(stmt).consume()
             except Exception as e:  # a setup Neo4j refuses: the case is unrunnable, recorded as such

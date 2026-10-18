@@ -1195,10 +1195,10 @@ tck/clauses/with-orderBy/WithOrderBy4/[17] Handle projected variables inside an 
 tck/clauses/with-orderBy/WithOrderBy4/[18]  Handle projected property accesses inside an order by item which contains an aggregation expression	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy4/[19] Fail if not projected variables are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy4/[20] Fail if more complex expressions, even if projected, are used inside an order by item which contains an aggregation expression	BOTH_ERROR	BOTH_ERROR
-tck/clauses/with-skip-limit/WithSkipLimit1/[1] Handle dependencies across WITH with SKIP	SKIP	SKIP
+tck/clauses/with-skip-limit/WithSkipLimit1/[1] Handle dependencies across WITH with SKIP	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit1/[2] Ordering and skipping on aggregate	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit2/[1] ORDER BY and LIMIT can be used	PASS	PASS
-tck/clauses/with-skip-limit/WithSkipLimit2/[2] Handle dependencies across WITH with LIMIT	SKIP	SKIP
+tck/clauses/with-skip-limit/WithSkipLimit2/[2] Handle dependencies across WITH with LIMIT	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit2/[3] Connected components succeeding WITH with LIMIT	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit2/[4] Ordering and limiting on aggregate	PASS	PASS
 tck/clauses/with-skip-limit/WithSkipLimit3/[1] Get rows in the middle	PASS	PASS
@@ -1229,7 +1229,7 @@ tck/clauses/with/With1/[3] Forwarding a relationship variable	PASS	PASS
 tck/clauses/with/With1/[4] Forwarding a path variable	PASS	PASS
 tck/clauses/with/With1/[5] Forwarding null	PASS	PASS
 tck/clauses/with/With1/[6] Forwarding a node variable possibly null	PASS	PASS
-tck/clauses/with/With2/[1] Forwarding a property to express a join	SKIP	SKIP
+tck/clauses/with/With2/[1] Forwarding a property to express a join	PASS	PASS
 tck/clauses/with/With2/[2] Forwarding a nested map literal	PASS	PASS
 tck/clauses/with/With3/[1] Forwarding multiple node and relationship variables	PASS	PASS
 tck/clauses/with/With4/[1] Aliasing relationship variable	PASS	PASS

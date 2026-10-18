@@ -51,7 +51,7 @@ store grammar, executor).
 | W10 | Variable-length without a bound or past two hops | 25 | the unroll stops at a bound of 4 and two hops in all; no bound needs a recursion | platform (a recursion native), island | — |
 | W11 | Variants of no known shape | 53 | a list comprehension over a Variant (26, all also `rand()`), ORDER BY a Variant (18), two Variants or two computed lists compared (9) | island, judge | — |
 | W12 | The tail | ~45 | pattern comprehensions over rows (11) and over two hops (3), `count(DISTINCT)` (6), `toString` of lists and nodes (5), min/max over mixed values (6), untyped relationships beside other patterns (4), SKIP/LIMIT expressions (2), text predicates on non-strings (4), temporal texts of the row (4), and singletons | island | — |
-| — | Setup oddities | 3 | Neo4j refused the setup | harness | — |
+| — | Setup oddities | 3 | Neo4j refused the setup — RESOLVED 2026-10-18 (the study's §12.92): the oracle ran the TCK's openCypher 9 setups under Cypher 25, which narrows `CREATE`; under `CYPHER 5` Neo4j answers the TCK's rows and both lanes pass | harness (the oracle) | — |
 
 The sum exceeds 849 because W11's comprehension cases are also W3's, and W2 unlocks cases counted under W12.
 
@@ -522,6 +522,10 @@ rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (be
   is minted nowhere (each former mint a loud check, green on both lanes). The profile's marks stay: a model's own
   `TIMESTAMP_NS` column is read through them (S64). The carriage's now-unreachable branches (the operations spelled
   over the nanosecond epoch) deleted after it, 2026-10-18: no row moved, the chain green on both lanes. W13 is done.
+- The three setups "Neo4j refused" RESOLVED 2026-10-18 (the study's §12.92, GATES' ninetieth landing; TCK agreement
+  3597 → 3600 on both lanes): the oracle runs a setup statement under `CYPHER 5` (the TCK's setups are openCypher 9's
+  text, which Cypher 25 narrows); Neo4j passes WithSkipLimit1/[1], WithSkipLimit2/[2] and With2/[1], and so do both
+  lanes. Outside the write clauses the TCK holds only the 2 signed years.
 
 ## 3. Decisions asked of the user
 

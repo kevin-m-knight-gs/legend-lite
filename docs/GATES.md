@@ -11911,3 +11911,17 @@ carriage: each place that minted it is a check that fails loudly, green on both 
 cases); CypherToPureTest's marked-model pins re-spelled over the parts. Both lanes in update mode, FAIL/BUG/ERROR at
 zero, the same census on both (PASS 3976 / REFUSED 259 / BOTH_ERROR 770 / SKIP 36, of 5041 cases); TCK agreement
 3597 on both, unchanged; the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the ninetieth landing — the three setups "Neo4j refused" were the oracle's version
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.92. Three TCK scenarios (WithSkipLimit1/[1],
+WithSkipLimit2/[2], With2/[1]) were SKIP as "Neo4j refused the setup". Their setups are openCypher 9's text, which
+reads a node created earlier in a `CREATE` in a later node's property map of the same `CREATE`; the oracle ran every
+statement under lite's default Cypher 25, which refuses that, and Cypher 5 reads it as written (measured). Neo4j
+passes the three: under `CYPHER 5` its answers are the TCK's expected rows. The oracle now runs a setup statement
+under `CYPHER 5` unless it names its version (`tools/neo4j-oracle/snap.py`'s `SETUP_CYPHER`; the query keeps its
+own); the drift check over all 5041 cases moved these three answers and no other. All three pass on both lanes as
+the island stands. Both lanes in update mode, FAIL/BUG/ERROR at zero, the same census on both (PASS 3979 / REFUSED
+259 / BOTH_ERROR 770 / SKIP 33, of 5041 cases); TCK agreement 3597 → 3600 on both; the oracle check 0 problems; the
+chain's 40 guard targets green. What the TCK holds outside the write clauses (and the control queries of their
+scenarios) on either lane: the 2 signed years past every database's dates.

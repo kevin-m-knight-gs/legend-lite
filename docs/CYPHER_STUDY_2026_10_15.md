@@ -5642,3 +5642,22 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
 - **Pinned.** `lite/edgevalues.yaml`'s 6 cases, each judged by Neo4j: a relationship's nanosecond local values over
   the years 1 and 2015, zoned values of an offset and a region, a duration, through two WITHs, an OPTIONAL MATCH and a
   variable-length pattern.
+
+### 12.92 The three setups "Neo4j refused": the oracle's version, not Neo4j's (2026-10-18)
+
+- **What it was.** Three TCK scenarios were SKIP as "Neo4j refused the setup": WithSkipLimit1/[1], WithSkipLimit2/[2]
+  and With2/[1], whose setups read a node created earlier in the same `CREATE` in a later node's property map
+  (`CREATE (a:End {num: 42, id: 0}), (:End {num: 3}), (:Begin {num: a.id})`). The TCK's setups are openCypher 9's
+  text, and the oracle ran every statement under lite's default Cypher 25 (C1); Cypher 25 narrows `CREATE` there
+  ("Creating an entity (a) and referencing that entity in a property definition in the same CREATE is not allowed.
+  Only reference variables created in earlier clauses."), Cypher 5 reads it as written (measured). So Neo4j passes
+  the three scenarios: under `CYPHER 5` its answers are the TCK's expected rows, `({name: 'A', num: 0, id: 0})` and
+  `(:End {num: 42, id: 0})`. The refusal was the oracle's choice of version for a statement it does not judge.
+- **The oracle.** A setup statement runs under `CYPHER 5` (`SETUP_CYPHER` in `tools/neo4j-oracle/snap.py`) unless it
+  names its own version; the query keeps the version the case names, or lite's 25. A setup only builds the graph the
+  case is judged over, and its dump is what the lanes seed from. Measured: the drift check over all 5041 cases moved
+  these three answers and no other (every other setup builds the same graph under either version).
+- **The lanes.** All three pass on both lanes as the island stands (a WITH's projected value joined to a fresh
+  `MATCH` by its `WHERE`, §12.44). No setup of the TCK is refused now; outside the write clauses
+  (and the control queries of their scenarios) the TCK holds, on either lane, only the 2 signed years past every
+  database's dates.
