@@ -296,15 +296,57 @@ public final class Render {
      *  escaped by the DB). One VARCHAR {@code _wire_row} column; the
      *  plan's ORDER BY lifts onto the wrapper (output-column keys only,
      *  loud otherwise). */
-    static SqlSelect jsonWireRows(SqlSelect inner, String rowAlias) {
-        List<OutputCol> cols = inner.outputs();
-        List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
-        for (OutputCol oc : cols) {
-            kv.add(new SqlExpr.StringLit(oc.name()));
-            kv.add(SqlExpr.Column.of(rowAlias, oc));
+    /**
+     * One row as a JSON object ASSEMBLED FROM ITS CELLS' TEXTS (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, decision
+     * 3, 2026-10-18: no database's native JSON number decides a token): a Float's token is Pure's Float text, a
+     * Decimal's the value's own scale, and every other kind's the database's own JSON writer's token (a string
+     * escaped, a boolean, an integer, a date as the database writes it today, nested JSON kept) read off a
+     * one-element JSON array's text; a null cell is {@code null}. The keys are JSON strings the same way. A column
+     * the typed schema does not name (a pivot's generated column) takes the database's token.
+     */
+    private static SqlExpr jsonRow(String rowAlias, List<OutputCol> cols, List<Type.@com.legend.base.Nullable Column> relCols) {
+        List<SqlExpr> parts = new ArrayList<>();
+        parts.add(new SqlExpr.StringLit("{"));
+        for (int i = 0; i < cols.size(); i++) {
+            if (i > 0) {
+                parts.add(new SqlExpr.StringLit(","));
+            }
+            parts.add(jsonToken(new SqlExpr.StringLit(cols.get(i).name())));
+            parts.add(new SqlExpr.StringLit(":"));
+            Type.Column typed = relCols.get(i);
+            parts.add(jsonCell(SqlExpr.Column.of(rowAlias, cols.get(i)), typed == null ? null : typed.type()));
         }
-        SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
+        parts.add(new SqlExpr.StringLit("}"));
+        return cat(parts.toArray(new SqlExpr[0]));
+    }
+
+    /** A cell's JSON token by its Pure type: Pure's text for a Float, its own scale for a Decimal, the database's
+     *  token otherwise; null as {@code null}. */
+    private static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t) {
+        SqlExpr token;
+        if (t == Type.Primitive.FLOAT) {
+            token = Scalars.pureToString(t, c);
+        } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+            token = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
+        } else {
+            token = jsonToken(c);
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, c), new SqlExpr.StringLit("null"))), token);
+    }
+
+    /** {@code x}'s JSON token as the database's JSON writer spells it: a one-element JSON array's text without its
+     *  brackets (the escaping, the quoting and the spelling the database's own). */
+    private static SqlExpr jsonToken(SqlExpr x) {
+        SqlExpr arr = new SqlExpr.Cast(new SqlExpr.JsonArray(List.of(x), com.legend.sql.SqlTyping.UNKNOWN),
                 SqlType.Scalar.VARCHAR);
+        return SqlExpr.Call.of(SqlFn.SUBSTRING, arr, new SqlExpr.IntLit(2),
+                SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, arr), new SqlExpr.IntLit(2)));
+    }
+
+    static SqlSelect jsonWireRows(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias) {
+        List<OutputCol> cols = inner.outputs();
+        SqlExpr obj = jsonRow(rowAlias, cols, relCols);
         List<SqlSelect.SortKey> lifted = new ArrayList<>();
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
@@ -331,16 +373,10 @@ public final class Render {
      *  {@code [row,row,…]} text — {@code string_agg} over the per-row
      *  objects with hoisted order; ZERO rows are the empty array (the
      *  pinned {@code []} wire). */
-    static SqlSelect jsonWire(SqlSelect inner, String rowAlias) {
+    static SqlSelect jsonWire(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias) {
         List<OutputCol> cols = inner.outputs();
         String aggAlias = rowAlias + "_a";
-        List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
-        for (OutputCol oc : cols) {
-            kv.add(new SqlExpr.StringLit(oc.name()));
-            kv.add(SqlExpr.Column.of(rowAlias, oc));
-        }
-        SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
-                SqlType.Scalar.VARCHAR);
+        SqlExpr obj = jsonRow(rowAlias, cols, relCols);
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         rowProjs.add(new SqlSelect.Projection(obj, "_wire_row",
                 new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false)));

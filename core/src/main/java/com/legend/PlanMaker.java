@@ -61,7 +61,7 @@ final class PlanMaker {
                 case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
                 case JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
                 case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, relation(WireRender.schema(root), lowered),
-                        WireRender.rows(lowered), dialect, target);
+                        WireRender.rows(lowered, WireRender.schema(root)), dialect, target);
                 case TDS_TEXT -> tdsText(lowered, root, dialect, target);
             };
             // a value's text is the one-column relation `value`, whole: no row to stream

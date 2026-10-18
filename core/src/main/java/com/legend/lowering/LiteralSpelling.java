@@ -567,8 +567,10 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
                 SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
                 plain);
+        // the exponent marker in either case: DuckDB and Postgres write 2.5e-07, H2 1.5E15 (the output matrix,
+        // docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3 gap 2, 2026-10-18)
         SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
-                SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit("e")),
+                SqlExpr.Call.of(SqlFn.STRPOS, SqlExpr.Call.of(SqlFn.LOWER, s), new SqlExpr.StringLit("e")),
                 new SqlExpr.IntLit(0));
         SqlExpr fractionFree = SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, x, SqlExpr.Call.of(SqlFn.FLOOR_RAW, x)),

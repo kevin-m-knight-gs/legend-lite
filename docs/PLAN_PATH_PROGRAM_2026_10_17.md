@@ -258,6 +258,11 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 2, the Float's text and the JSON wires from their cells** (GATES "step 2, the Float's text"):
+  `floatPrint` finds the exponent in either case (H2's `E`); the JSON wires are assembled from their cells' texts, a
+  Float's Pure's, a Decimal's its own scale, the rest the database's own JSON token read off a one-element array --
+  32 pins deleted (76 -> 44). What is left is the DateTime's text: the next landing, one owner (`T`, the fraction's
+  digits with trailing zeros trimmed, `+0000`) for every output, the text-carried value root included.
 - **2026-10-18, step 2, the matrix measured** (GATES "The plan path program, step 2 begins"): `OutputMatrixTest`, 192
   cells on DuckDB and H2; 116 write Pure's text, 76 pinned by name (the JSON wires' native number tokens, H2's
   exponent forms, every DateTime text but the TDS text's whole second and the TDS text's millisecond column, a

@@ -54,7 +54,7 @@ public final class Execution {
                     dialect.render(l.plan()), connection, dialect, out);
             case TABULAR -> com.legend.exec.Executor.streamWireRows(
                     dialect.render(com.legend.lowering.WireRender.rows(
-                            l.plan())), connection, out);
+                            l.plan(), com.legend.lowering.WireRender.schema(l.root().info()))), connection, out);
             case SCALAR, COLLECTION -> {
                 out.write(com.legend.exec.Executor.wireText(
                         dialect.render(com.legend.lowering.WireRender.wrap(

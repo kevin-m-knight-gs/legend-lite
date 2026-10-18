@@ -45,7 +45,7 @@ public final class WireRender {
             Format format) {
         SqlSelect inner = asSelect(plan);
         if (format == Format.JSON) {
-            return Render.jsonWire(inner, "_wire1");
+            return Render.jsonWire(inner, typedOrNull(inner, schema), "_wire1");
         }
         Map<String, Type.Column> byName = new LinkedHashMap<>();
         for (Type.Column c : schema.columns()) {
@@ -68,8 +68,23 @@ public final class WireRender {
     /** The STREAMING JSON form: one {@code _wire_row} object text per
      * JDBC row (order preserved on the wrapper) — the executor writes
      * only the array punctuation. */
-    public static SqlQuery rows(SqlQuery plan) {
-        return Render.jsonWireRows(asSelect(plan), "_wire1");
+    public static SqlQuery rows(SqlQuery plan, Type.RelationType schema) {
+        SqlSelect inner = asSelect(plan);
+        return Render.jsonWireRows(inner, typedOrNull(inner, schema), "_wire1");
+    }
+
+    /** Each output's typed column, or null where the schema names none (a pivot's generated column): the JSON wires
+     *  spell a Float and a Decimal by their Pure type and take the database's token for the rest. */
+    private static List<Type.@com.legend.base.Nullable Column> typedOrNull(SqlSelect inner, Type.RelationType schema) {
+        Map<String, Type.Column> byName = new LinkedHashMap<>();
+        for (Type.Column c : schema.columns()) {
+            byName.put(c.name(), c);
+        }
+        List<Type.@com.legend.base.Nullable Column> out = new ArrayList<>();
+        for (var oc : inner.outputs()) {
+            out.add(byName.get(oc.name()));
+        }
+        return out;
     }
 
     private static SqlSelect asSelect(SqlQuery plan) {

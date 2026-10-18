@@ -10653,6 +10653,33 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 2, the Float's text and the JSON wires from their cells (32 pins deleted)
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md` §5
+steps 2 and 3 (the Float's text owner; the Decimal's scale on the JSON wire), decision 3 (the JSON wire assembled from
+formatted cells). The line: `docs/IN_FLIGHT.md`, the thirteenth line.
+
+What changed:
+1. **The Float's text** (`lowering/LiteralSpelling.floatPrint`): the exponent marker is found in either case, so H2's
+   `1.5E15` and `2.5E-7` print as Pure's `1500000000000000.0` and `0.00000025` on every output, as DuckDB's `2.5e-07`
+   did (gap 2 of the design's §3, closed: 16 pins).
+2. **The JSON wires assembled from their cells' texts** (`lowering/Render.jsonRow`, `jsonCell`, `jsonToken`;
+   `WireRender` hands the wires the typed columns): a row's object is concatenated from its cells -- a Float's token
+   Pure's Float text, a Decimal's the value's own scale (`CAST AS VARCHAR`), every other kind's the database's own JSON
+   writer's token read off a one-element JSON array's text (a string escaped, a boolean, an integer, a date as the
+   database writes it today, nested JSON kept), a null `null`, the keys JSON strings the same way; a column the typed
+   schema does not name (a pivot's generated column) takes the database's token. No database's native JSON number
+   decides a token any more: DuckDB's `2.5e-7` and its Decimals turned into doubles (`2.5`, `5.0`, `3.75`) are gone
+   (gaps 2 and 3 on the JSON wires: 16 pins). Both paths change at once: the legacy executor's wire and streaming
+   outputs and the plan's go through the same `WireRender`.
+3. `OutputMatrixTest`: the 32 pins deleted (76 -> 44; what is left is the DateTime's text, every output but the TDS
+   text's whole second and millisecond column, and a value root's fractional date-time on DuckDB's CSV wire).
+
+What judges it: `OutputMatrixTest` (no pin moved, none newly deviating), `//core:core_tests_root`, `_exec`, `_server`
+(`PureV1ApiTest.e8`: the engine's values row for row through the assembled wire), `_integration`, `_lowering`, `_sql`,
+`//core:corpus_differential_test`, `//core:sql_parity_test`, `//core:mongodb_plan_test` (the MongoDB target writes
+the assembled wire too: the differential's JSON cases), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`.
+
 ## 2026-10-18 — The plan path program, step 2 begins: the output matrix, measured and pinned
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 2 and §9; the design `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`
