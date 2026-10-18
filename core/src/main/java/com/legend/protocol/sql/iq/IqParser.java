@@ -454,10 +454,16 @@ public final class IqParser {
                         t.pos());
             }
             int start = at;
+            // 2026-10-18 (landing 5's review): each later statement is read by a reader of its own, so what it holds
+            // (a recursive WITH, a LATERAL, an ORDER BY key, a constant one engine cannot convert) is never taken for
+            // the first statement's
+            IqParser own = new IqParser(text, tokens, settings, false);
+            own.at = start;
             try {
-                later.add(oneStatement());
+                later.add(own.oneStatement());
+                at = own.at;
             } catch (SqlSyntaxException e) {
-                if (!afterReadingErrors.contains(e)) {
+                if (!own.afterReadingErrors.contains(e)) {
                     throw batchError(e, t);
                 }
                 // an error IQ raises once it has read the statement: read on past it, for the syntax alone

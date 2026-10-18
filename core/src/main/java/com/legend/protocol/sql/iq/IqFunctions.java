@@ -2251,8 +2251,10 @@ final class IqFunctions {
                         + " is not supported in a UTF-8 database: IQ's engine answers that byte alone", f.pos());
             }
             if (constant != null) {
-                long code = b;
-                return strict(Kind.STRING, varchar(), List.of(n), v -> SqlToPure.call("char", integer(code)));
+                // the byte is the database's to compute (2026-10-18, landing 5's review: compare, not compute); the
+                // constant's is read here only to refuse it by name
+                return strict(Kind.STRING, varchar(), List.of(n), v -> SqlToPure.call("char", SqlToPure.call("mod",
+                        v.get(0), integer(256))));
             }
             String lone = IqDialect.REFUSED_AT_RUN_TIME + name + " of a code whose byte (modulo 256) is 0 or above 127"
                     + " is no character of a UTF-8 database: IQ's engine answers that byte alone";
@@ -2813,6 +2815,10 @@ final class IqFunctions {
         return times(m, ifThen(negative, new CDecimal(unit.negate()), new CDecimal(unit)));
     }
 
+    /** The most chunks {@link #longQuotient} divides in (2026-10-17: TPC-DS's AVG of an AVG took 19, and its plan did
+     *  not finish in 20 s over empty tables). */
+    private static final int LONG_QUOTIENT_CHUNKS = 3;
+
     /**
      * IQ island, 2026-10-17 (the TPC-H and TPC-DS corpus lanes' 900 AVGs of a NUMERIC whose type IQ's engine makes
      * wider than 38 digits, NUMERIC(p+22, s+21)): {@code x / y} cut toward zero at scale {@code s} by long division, so
@@ -2822,10 +2828,6 @@ final class IqFunctions {
      * {@code wholeY}. A quotient of 38 - s digits or more before its point is refused at run time ({@code refusal}):
      * lite's decimals hold no more, where IQ's type does. Null where a step would still need more than 38 digits.
      */
-    /** The most chunks {@link #longQuotient} divides in (2026-10-17: TPC-DS's AVG of an AVG took 19, and its plan did
-     *  not finish in 20 s over empty tables). */
-    private static final int LONG_QUOTIENT_CHUNKS = 3;
-
     static @com.legend.base.Nullable ValueSpecification longQuotient(ValueSpecification x, int s1, int whole1,
             ValueSpecification y, int wholeY, int s, String refusal) {
         // a chunk of at most 13 digits takes whole() one estimate: fewer repeats of the rest (2026-10-17)

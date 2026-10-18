@@ -298,11 +298,6 @@ public final class SqlToPure {
         }
     }
 
-    /** Postgres's integer division, truncating toward zero, exact for every bigint. With the remainder taken off
-     *  ({@code rem} keeps the dividend's sign, as Postgres's {@code %} does) the quotient is a whole number. Pure's
-     *  divide computes it in double precision, within 2^-52 of it; shrunk by 2^-50 and truncated, the estimate is never
-     *  beyond the quotient, so {@code A - q0 * b} (exact integer arithmetic, never beyond A) is a small multiple of the
-     *  divisor, divided once more and added. A divisor of zero is Postgres's error and rem's. */
     /** {@code a / b} of two Integers, cut toward zero: lite's {@code quotient}, the database's integer division (IQ
      *  island, 2026-10-17: {@link #integerQuotient}'s estimate reads each operand about fourteen times, which
      *  nested divisions multiply). The divisor's zero is the caller's to test. */
@@ -310,6 +305,11 @@ public final class SqlToPure {
         return call("meta::legend::lite::quotient", a, b);
     }
 
+    /** Postgres's integer division, truncating toward zero, exact for every bigint. With the remainder taken off
+     *  ({@code rem} keeps the dividend's sign, as Postgres's {@code %} does) the quotient is a whole number. Pure's
+     *  divide computes it in double precision, within 2^-52 of it; shrunk by 2^-50 and truncated, the estimate is never
+     *  beyond the quotient, so {@code A - q0 * b} (exact integer arithmetic, never beyond A) is a small multiple of the
+     *  divisor, divided once more and added. A divisor of zero is Postgres's error and rem's. */
     public static ValueSpecification integerQuotient(ValueSpecification a, ValueSpecification b) {
         ValueSpecification whole = AppliedFunction.infixRun("minus", List.of(a, call("rem", a, b)));
         ValueSpecification shrunk = AppliedFunction.infixRun("times", List.of(call("divide", whole, b),
@@ -3560,19 +3560,20 @@ public final class SqlToPure {
         // every row it is computed for is computed once, a column of the row before it (assemble), and read as one
         List<ColSpec> pre = new ArrayList<>();
         List<SqlAst.Expr> mine = new ArrayList<>();
-        for (SqlAst.ScalarSubquery q : x.expr() instanceof SqlAst.ScalarSubquery ? List.<SqlAst.ScalarSubquery>of()
-                : eagerSubqueries(x.expr())) {
-            Tx sq = scalarSubquery(q, scope);
-            if (sq.kind() == Kind.BOOLEAN) {
-                continue;
-            }
-            String column = fresh(present);
-            pre.add(new ColSpec(column, lambda(row, valueOf(sq)), null, null));
-            hoisted.put(q, Col.of(column, sq.kind(), true, sq.detail()));
-            mine.add(q);
-        }
         Tx t;
+        // 2026-10-18 (landing 5's review): every column this item hoists is unbound however it ends
         try {
+            for (SqlAst.ScalarSubquery q : x.expr() instanceof SqlAst.ScalarSubquery
+                    ? List.<SqlAst.ScalarSubquery>of() : eagerSubqueries(x.expr())) {
+                Tx sq = scalarSubquery(q, scope);
+                if (sq.kind() == Kind.BOOLEAN) {
+                    continue;
+                }
+                String column = fresh(present);
+                pre.add(new ColSpec(column, lambda(row, valueOf(sq)), null, null));
+                hoisted.put(q, Col.of(column, sq.kind(), true, sq.detail()));
+                mine.add(q);
+            }
             try {
                 t = tx(x.expr(), scope, row);
             } catch (SqlTranslationException tooLarge) {

@@ -499,7 +499,7 @@ Database types planned with it: Postgres.
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
-| `CHR` | spelled | `chr` |  | 9 |
+| `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
 | `ENCODE_BASE64` | emulated | `replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')` |  | 3 |
@@ -1434,7 +1434,7 @@ Database types planned with it: DuckDB.
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
-| `CHR` | spelled | `chr` |  | 9 |
+| `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | 3 |

@@ -180,6 +180,14 @@ class IqParserTest {
         assertEquals(1, select("SELECT id FROM t ORDER BY id SELECT vc FROM t; SELECT 2").orderBy().size());
         assertEquals(1, select("SELECT id FROM t ORDER BY id; WITH r AS (SELECT id FROM r) SELECT id FROM r").orderBy()
                 .size());
+        // 2026-10-18 (landing 5's review): what a later statement holds is not the first's -- a recursion, a LATERAL
+        IqParser.Parsed later = IqParser.parsed("SELECT id FROM t; WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT"
+                + " n + 1 FROM r WHERE n < 3) SELECT n FROM r; SELECT a.id FROM t a, LATERAL (SELECT b.id FROM u b"
+                + " WHERE b.t_id = a.id) c", IqProfile.IQ17_DEFAULT.settings());
+        assertFalse(later.recursion().with());
+        assertTrue(later.recursion().reads().isEmpty());
+        assertTrue(later.laterals().isEmpty());
+        assertEquals(2, later.later().size());
         // one that does not parse fails the batch, IQ's syntax error
         SqlSyntaxException e = error("SELECT id FROM t; SELECT id FROM t LIMIT 5");
         assertFalse(e.unsupported());

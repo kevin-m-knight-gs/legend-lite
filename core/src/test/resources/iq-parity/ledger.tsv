@@ -1088,6 +1088,8 @@ lite/corpus_gaps/batch_later_argument_count_fails_it@iq17-default	BOTH_ERROR	BOT
 lite/corpus_gaps/batch_later_charindex_start_fails_it@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/batch_first_error_is_its_error@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/batch_first_error_is_its_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/batch_later_recursive_with_is_no_error@iq17-default	PASS	PASS
+lite/corpus_gaps/batch_later_lateral_is_no_error@iq17-default	PASS	PASS
 lite/corpus_gaps/batch_later_with_without_a_separator_is_iqs_131@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/batch_later_with_without_a_separator_is_iqs_131@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_star_with_no_from_reads_dummy@iq16-default	PASS	PASS

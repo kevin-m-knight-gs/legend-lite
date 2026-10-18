@@ -1729,6 +1729,13 @@ tests:
     profile: iq17-default
   - id: batch_first_error_is_its_error
     sql: "SELECT nosuch FROM t; SELECT id FROM t"
+  # 2026-10-18 (landing 5's review): a later statement's recursion or LATERAL is not the first statement's error
+  - id: batch_later_recursive_with_is_no_error
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id; WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r"
+    profile: iq17-default
+  - id: batch_later_lateral_is_no_error
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id; SELECT a.id FROM t a, LATERAL (SELECT b.id FROM u b WHERE b.t_id = a.id) c"
+    profile: iq17-default
   - id: batch_later_with_without_a_separator_is_iqs_131
     sql: "SELECT id FROM t WITH c AS (SELECT 2 AS b) SELECT b FROM c"
   - id: a_star_with_no_from_reads_dummy

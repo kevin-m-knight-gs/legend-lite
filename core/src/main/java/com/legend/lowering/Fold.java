@@ -623,49 +623,6 @@ final class Fold {
         }
     }
 
-    /** The size, in nodes, from which a computed column substituted into two reads is written once instead
-     *  ({@link #rereadsLarge}). */
-    static final int LARGE_REREAD = 48;
-
-    /** Whether {@code folded} (an extend of {@code columns} new projections folded into {@code src}, last) holds a
-     *  large computed projection of {@code src} two or more times among its new projections: substituting it into
-     *  each read repeats it in the statement (2026-10-17, the IQ island's scale: a checked operation reads its
-     *  operand in its NULL test, its range test and its value), where the select of {@code src} would compute it
-     *  once. */
-    static boolean rereadsLarge(SqlSelect src, SqlSelect folded, int columns) {
-        List<SqlExpr> large = new ArrayList<>();
-        for (SqlSelect.Projection p : src.projections()) {
-            if (!(p.expr() instanceof SqlExpr.Column) && nodes(p.expr()) >= LARGE_REREAD) {
-                large.add(p.expr());
-            }
-        }
-        if (large.isEmpty()) {
-            return false;
-        }
-        List<SqlSelect.Projection> fresh = folded.projections().subList(
-                Math.max(0, folded.projections().size() - columns), folded.projections().size());
-        for (SqlExpr e : large) {
-            int[] seen = {0};
-            for (SqlSelect.Projection p : fresh) {
-                occurrences(p.expr(), e, seen);
-            }
-            if (seen[0] >= 2) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void occurrences(SqlExpr in, SqlExpr of, int[] seen) {
-        if (in.equals(of)) {
-            seen[0]++;
-            return;
-        }
-        for (SqlExpr ch : in.children()) {
-            occurrences(ch, of, seen);
-        }
-    }
-
     /** An expression's size as the budget counts it: its nodes. */
     static int nodes(SqlExpr e) {
         int n = 1;

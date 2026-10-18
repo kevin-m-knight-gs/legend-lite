@@ -197,7 +197,8 @@ island's reason, those IQ answers, and what became of them:
   rest repeated a long operand through checked operations' NULL and zero tests. Built 2026-10-17: an item past the
   size bound has its long operands (64 Pure nodes or more, read on every path) each computed once, bottom up, a
   column before it (`SqlToPure.output`), and the lowering writes a large computed column (48 SQL nodes or more) that
-  later columns read twice in its own select rather than into each read (`Fold.rereadsLarge`). 32 of the 44 answer
+  later columns read twice in its own select rather than into each read (`Fold.rereadsLarge`; 2026-10-18, landing
+  5's review: removed, main's fold budget, `Fold.Budget`, writes such a column once since the merge). 32 of the 44 answer
   (sede-13007: 9.6 KB of SQL, where the bound lifted wrote 1.5 MB); 8 pass the bound still; the SE judge unchanged
   but ties;
 - measured and built in the landing's later round (2026-10-17, each snapped from IQ 17.1): PATINDEX of LIKE's `_`,
@@ -596,6 +597,16 @@ The user asked for real queries that push the island hard. Their corpora, data a
       of a DECIMAL is a DOUBLE there; a wide value came back wrong in its last digits).
     - A regression of the `x + 0` fold, fixed: a zero written with a point folds only in a shown item's type
       (`AVG(it + 0.0)` is of scale 21, `(it + 0.0) / (sm + 0.0)` a NUMERIC quotient).
+  - Round 8 (2026-10-18, NULL logic and mixed kinds: 1,311 PASS, 1,571 matching errors, 22 FAIL, 15 BUG of 3,000),
+    found, not built yet, for the next landing:
+    - A BETWEEN or a comparison across kinds IQ's engine cannot compare, beside a NULL bound or an untyped NULL
+      (`sm BETWEEN dbl AND NULL`, `vc BETWEEN sm AND NULL`, `NULL BETWEEN NULL AND NULL`, `it >= ts`), is its
+      "Invalid data type comparison in predicate" error; lite answers.
+    - COALESCE, ISNULL and NULLIF of a NUMERIC constant beside a DOUBLE or an untyped NULL type otherwise there
+      (`COALESCE(2.5, dbl)`, `ISNULL(1e0, 0, dbl)`, `NULLIF(NULL, '1')`).
+    - A string constant read as a date beside another kind names IQ's code otherwise (6 runs).
+    - Its 3 ERRORs are D-N3's overflow, deferred (row 0.3): `it * bg`, `-1 + bg` and `bg % -1` over a BIGINT at
+      its limits are a NUMERIC(29) or NUMERIC(20) in IQ, and DuckDB's BIGINT raises.
   - IQ's own quirk, not copied: `ROW_NUMBER() OVER (ORDER BY bg - bg, id)` over BIGINT extremes does not honor the
     `id` tiebreak (RANK sees the rows equal).
   - Measured, not built: `1 + v = v + 1` is two-valued too (IQ reads the sum in either order), and lite keeps it

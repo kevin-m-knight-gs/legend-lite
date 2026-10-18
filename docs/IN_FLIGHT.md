@@ -1953,7 +1953,8 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     written once per check of each checked operation around it.
   - Later the same day (follow-on branch `claude/iq-island-5-next`, the same landing):
     - `lowering/Fold.java`, `lowering/Lowerer.java`: a large computed column that later columns read twice is written
-      once in its own select (`Fold.rereadsLarge`).
+      once in its own select (`Fold.rereadsLarge`; removed 2026-10-18 in the landing's review: main's `Fold.Budget`
+      does it since the merge, and the lowering is main's again).
     - `protocol/sql/SqlToPure.java`:
       - an item past the size bound computes its long operands once, a column before it
         (`SqlTranslationException.pastSizeBound`);
