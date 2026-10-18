@@ -2105,3 +2105,24 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
   compiler line's; this line validates the graph profile's own references in its reader (PR3).
+- **Announced here as landed, 2026-10-17 and 2026-10-18 (the TCK-to-zero program, `docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md`;
+  each landing's record is its GATES entry, the forty-second to the eighty-ninth): the other lines' files this line touched** — the
+  dialects: `sql/dialect/Postgres.java` (the orderability key, the list encodings, the W7 casts, a `concat` of more than
+  100 arguments nested, the exact double-precision `REM`, §12.90), `AnsiSqlRenderer.java` (`maxFunctionArguments`),
+  `DuckDb.java`, `CarrierStrategies.java`, `SqlWriter.java`, and every dialect for `random()` (W3) and the `TIME` and
+  `TIMESTAMP_NS` column types' DDL (W5); the MIR (`sql/SqlFn.java`, `SqlTyping.java`, `SqlExpr.java`, `SqlDdl.java`);
+  the lowering (`Scalars.java`, `Lowerer.java`, `MatchFold.java` (an ISO year of four digits), `Fold.java`,
+  `Render.java`, `ListEncodings.java`, `CastPolicy.java`, `CollectionLanes.java`, `Aggregates.java`); the natives
+  (`builtin/Pure.java`: `random`, `recurse`, the governance ceiling moved with dated comments; `NativeFn.java`,
+  `SystemMetamodel.java`, `platform/CoreFn.java`); the compiler (`compiler/spec/RecurseChecker.java`, `Typer.java`,
+  `TdsChecker.java`, `CastChecker.java`, `typed/TypedRecurse.java`; `compiler/element/StoreCompiler.java`,
+  `GraphEdges.java`, `RelationalOpRows.java`, `type/PlatformTypes.java`; `compiler/RelationalKinds.java`); the resolver
+  (`resolver/StoreResolver.java`); the grammar and model (`parser/DatabaseProtocolParser.java`,
+  `model/RelationalDataType.java`, `model/FromProtocol.java`, `protocol/DatabaseComposer.java`); the plan and
+  execution (`plan/PlanText.java`, `plan/PreciseTypes.java`, `StatementExecutor.java`, `exec/Executor.java`,
+  `setup/Ddl.java`, `testdatagen/TestDataGenerator.java`). **Not touched since 2026-10-17: `protocol/sql/`** (no edit to
+  `SqlToPure.java` or `InputDialect.java`; the island implements no `InputDialect` and calls no `postgresName`, so
+  nothing of it extends what the ninth line's D11 moves; told to the ninth line, 2026-10-18). The lanes: DuckDB and
+  Postgres the same census (PASS 3976 of 5041), the TCK at 3597 of 3880 on both; left the write clauses, 3 setups Neo4j
+  refuses and 2 years past every database's dates. Next on this line: one PR of the branch (origin/main merged), then
+  the write clauses.

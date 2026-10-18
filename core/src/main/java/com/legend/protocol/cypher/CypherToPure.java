@@ -98,7 +98,7 @@ public final class CypherToPure {
         /** The graph profile's marks on the property {@code property} of the class at {@code classPath} (declared
          *  on it or inherited; the study's §12.64): {@code timeOfDay} (a DateTime holding the date-time at a time of
          *  day on the epoch day, read as a time of day of nanosecond precision) and {@code nanoseconds} (a DateTime
-         *  of nanosecond precision, the store's TIMESTAMP_NS: its operations spelled over the nanosecond epoch).
+         *  of nanosecond precision, the store's TIMESTAMP_NS: read into its parts at the property, §12.91).
          *  None for a model without the profile. */
         default List<String> marks(String classPath, String property) {
             return List.of();
@@ -7657,16 +7657,15 @@ public final class CypherToPure {
     /** The value a temporal's Variant text spells ({@link #spelledTemporal}), the database's parse of the text
      *  inside the oracle's spelling: a date's, a time of day's on the epoch day, a date-time's (a zoned value's
      *  instant: its zone is not carried). */
-    private static ValueSpecification temporalOfText(ValueSpecification text, Kind kind, boolean nanos) {
+    private static ValueSpecification temporalOfText(ValueSpecification text, Kind kind) {
         int open = kind == Kind.DATE ? "Date('".length() : kind == Kind.TIME ? "Time('".length()
                 : "DateTime('".length();
         ValueSpecification inner = call("substring", text, lit(open + 1), integer(minus(call("length", text),
                 lit(open + 2))));
         return switch (kind) {
             case DATE -> call("datePart", call("parseDate", inner));
-            case TIME -> nanos ? parsedWithNanos(inner, 15, true, "1970-01-01T")
-                    : call(TIME_OF, parsedWithNanos(inner, 15, false, "1970-01-01T"));
-            default -> parsedWithNanos(inner, 26, nanos, null);
+            case TIME -> call(TIME_OF, call("parseDate", plus(new CString("1970-01-01T"), inner)));
+            default -> call("parseDate", inner);
         };
     }
 
@@ -7681,7 +7680,7 @@ public final class CypherToPure {
             return call("toMany", held, SqlToPure.typeArg("String"));
         }
         return call("map", call("toMany", held, SqlToPure.typeArg("String")), lambda("e", temporalOfText(
-                new Variable("e"), kind, nanos)));
+                new Variable("e"), kind)));
     }
 
     /** The one scalar kind a spelled list's elements share (nulls aside), or null: what a Variant of it reads back
@@ -12175,14 +12174,13 @@ public final class CypherToPure {
             return splitOfSpelled(Tx.value(present, Kind.STRING, true), e.kind());
         }
         ValueSpecification read = spelledTemporal(e.kind()) ? temporalOfText(call("toOne", call("to", got,
-                SqlToPure.typeArg("String"))), e.kind(), fine) : call("to", got, SqlToPure.typeArg(
+                SqlToPure.typeArg("String"))), e.kind()) : call("to", got, SqlToPure.typeArg(
                 java.util.Objects.requireNonNull(elementType(e.kind()))));
         if (e.nullable()) {
             read = call("if", call("or", call("isEmpty", got), call("equal", call("toString", call("toOne", got)),
-                    new CString("null"))), thunk(nullOfStored(e.kind(), fine && spelledTemporal(e.kind())).vs()),
-                    thunk(read));
+                    new CString("null"))), thunk(SqlToPure.nullOf(e.kind()).vs()), thunk(read));
         }
-        return withNanos(columnLike(read, e.kind(), true), fine && spelledTemporal(e.kind()));
+        return columnLike(read, e.kind(), true);
     }
 
     /** {@code target[from..to]}: a known list's slice by spelled bounds (from the end when negative, clamped to the
@@ -13250,8 +13248,9 @@ public final class CypherToPure {
     }
 
     /** What a translation carries beside its value: the zone of a zoned value (§12.8, §12.11) and whether it is of
-     *  nanosecond precision (§12.12: the database's TIMESTAMP_NS, every operation on it spelled over the nanosecond
-     *  epoch, which DuckDB keeps and a microsecond engine refuses by name). */
+     *  nanosecond precision: a temporal value then carried as its {@link Parts} (W13), a text the printing of one, a
+     *  duration whose nanoseconds count, a list whose elements are such texts. (A temporal marked so without its
+     *  parts lives only at a marked TIMESTAMP_NS column's read, which reads it into them, §12.91.) */
     private record Carried(@com.legend.base.Nullable Zone zone, boolean nanos,
             /** the zoned value a text is the printing of ({@code toString}), what a parse of the text reads back:
              *  print then parse is the identity (the study's §12.74); null for any other value */
@@ -13275,13 +13274,7 @@ public final class CypherToPure {
      * date (a StrictDate, the database's DATE) rides here, present exactly when the value is. Every database computes
      * both exactly, over every year its DATE holds; a time of day has no date.
      */
-    private record Parts(@com.legend.base.Nullable Tx date,
-            /** the year a date-time's spelling writes (a literal's, a spelled year component's), null when the row
-             *  computes it: what the epoch-nanosecond carriage's range is checked against (§12.12) */
-            @com.legend.base.Nullable Long year) {
-        Parts(@com.legend.base.Nullable Tx date) {
-            this(date, null);
-        }
+    private record Parts(@com.legend.base.Nullable Tx date) {
     }
 
     /** A zoned value's text marked with the value it prints ({@link Carried#printedFrom}). */
@@ -13478,18 +13471,14 @@ public final class CypherToPure {
     /** A local date-time of nanosecond precision from its date and its nanoseconds since midnight (each present
      *  exactly when the other is). */
     private static Tx splitDateTime(Tx date, Tx ofDay) {
-        return splitDateTime(date, ofDay, null);
-    }
-
-    /** {@link #splitDateTime(Tx, Tx)} of the written year {@code year} (null when the row computes it). */
-    private static Tx splitDateTime(Tx date, Tx ofDay, @com.legend.base.Nullable Long year) {
         return new Tx(ofDay.vs(), Kind.DATETIME, ofDay.nullable() || date.nullable(), null, new Carried(null, true,
-                null, new Parts(date, year)), ofDay.guard(), ofDay.body());
+                null, new Parts(date)), ofDay.guard(), ofDay.body());
     }
 
     /** A time of day's or a date-time's nanoseconds since midnight, an Integer: a split value's own; a microsecond
-     *  one's (Pure's StrictTime, DateTime) its microseconds since its day's start a thousandfold; an epoch-nanosecond
-     *  one's (§12.12, the carriage W13 retires) its nanoseconds since its day's start. All the database's. */
+     *  one's (Pure's StrictTime, DateTime) its microseconds since its day's start a thousandfold; a marked
+     *  TIMESTAMP_NS column's (read into the parts at the property, §12.91) its nanoseconds since its day's start.
+     *  All the database's. */
     private static Tx ofDay(Tx t) {
         if (split(t)) {
             return new Tx(t.vs(), Kind.INTEGER, t.nullable(), null, null, t.guard(), t.body());
@@ -13676,9 +13665,7 @@ public final class CypherToPure {
         Tx clock = SqlToPure.strict(Kind.INTEGER, parts, v -> integer(call("mod", total.apply(v), lit(DAY_NANOS))));
         Tx date = SqlToPure.strict(Kind.DATE, parts, v -> day(call("adjust", v.get(0), integer(quotient(
                 total.apply(v), DAY_NANOS)), days())));
-        // (the written year kept: what the old carriage's range is checked against, a day off at most)
-        return splitDateTime(date, clock, t.detail() instanceof Carried c && c.parts() != null ? c.parts().year()
-                : null);
+        return splitDateTime(date, clock);
     }
 
     /** A split zoned date-time's wall time in its zone, a split date-time: the UTC parts moved by the offset at the
@@ -16124,7 +16111,7 @@ public final class CypherToPure {
                     sub.year(), sub.month(), sub.day());
             return splitDateTime(Tx.value(new com.legend.protocol.spec.CDate(day, day.toEngineString(), null),
                     Kind.DATE, false), Tx.value(clockNanos(lit(sub.hour()), lit(sub.minute()), lit(sub.second()),
-                    lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false), (long) sub.year());
+                    lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false));
         }
         return Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null), kind, false);
     }
@@ -16571,10 +16558,7 @@ public final class CypherToPure {
             boolean clocked = clockBase != null;
             Tx clock = SqlToPure.strict(Kind.INTEGER, clockInputs, v -> clockOf(clocked ? v.get(0) : null,
                     components(keys, v, clocked ? 1 : 0)));
-            Tx yearPart = parts.get(Component.YEAR);
-            Long year = !hasBase && yearPart != null && yearPart.vs() instanceof CInteger y ? y.value().longValue()
-                    : null;
-            return scalar(splitDateTime(date, clock, year));
+            return scalar(splitDateTime(date, clock));
         }
         if (hasBase && !hasBaseTime && timeBaseIsTime && keys.isEmpty()) {
             // localdatetime({date: d, time: t}): the date-time at that time of that day
@@ -16931,24 +16915,6 @@ public final class CypherToPure {
                     two(call("dayOfMonth", d)));
             return plus(date, new CString("T"), clock);
         });
-    }
-
-    /** A text of the row parsed to a date-time ({@code micro} characters hold its microsecond form); a text marked
-     *  as a nanosecond value's (one {@link #temporalText} spelled) has its digits past the microsecond read and
-     *  stepped on (the database's: the first three of them, zero-padded, as nanoseconds). */
-    private static ValueSpecification parsedWithNanos(ValueSpecification text, int micro, boolean nanos,
-            @com.legend.base.Nullable String prefix) {
-        ValueSpecification whole = prefix == null ? text : plus(new CString(prefix), text);
-        if (!nanos) {
-            return call("parseDate", whole);
-        }
-        ValueSpecification head = call("parseDate", prefix == null ? call("substring", text, new CInteger(1L),
-                new CInteger((long) micro)) : plus(new CString(prefix), call("substring", text, new CInteger(1L),
-                new CInteger((long) micro))));
-        ValueSpecification tail = call("if", call("greaterThan", call("length", text), new CInteger((long) micro)),
-                thunk(call("parseInteger", call("substring", plus(text, new CString("00")),
-                        new CInteger((long) micro + 1), new CInteger(3L)))), thunk(new CInteger(0L)));
-        return call("adjust", head, tail, unit("NANOSECONDS"));
     }
 
     /** A number of at most two digits, zero-padded to two: the digits of 100 plus it, after the 1. */
