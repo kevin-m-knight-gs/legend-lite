@@ -568,6 +568,9 @@ public final class StoreResolver {
                     && Type.isRelation(c.info().type()) ->
                     structural(c, context);
             case TypedConcatenate c -> structural(c, context);
+            // a WRITE of a class query's rows into a store table (docs/WRITES_DESIGN_2026_10_18.md §4, L1): the rows
+            // resolve, the table is physical already
+            case com.legend.compiler.spec.typed.TypedWrite w -> structural(w, context);
             // navigate keeps its TARGET verbatim (the navigation pipeline
             // is resolver OUTPUT vocabulary) — only the source resolves
             case TypedNavigate nav

@@ -287,6 +287,46 @@ public final class Lowerer {
      * trace of the lets); the final statement is the query.
      */
     public SqlQuery lower(List<TypedSpec> body) {
+        // J-tail: demand-driven subselect column pruning (engine parity —
+        // isolated composites enumerate only consumed columns)
+        return SubselectPrune.prune(lower(withQueryLets(body)));
+    }
+
+    /**
+     * Lower a STORE WRITE's body (docs/WRITES_DESIGN_2026_10_18.md §4, L1): leading {@code let}s bound as
+     * {@link #lower(List)} binds them, the last statement a write into a store table, lowered to the DML statement that
+     * writes it: {@code rel->write(#>{db.t}#)} the relation's rows inserted into the table's columns of their names
+     * ({@link SqlDml.InsertSelect}). The statement's count is the database's (the executor's update count).
+     */
+    public com.legend.sql.SqlDml lowerStoreWrite(List<TypedSpec> body) {
+        TypedSpec root = withQueryLets(body);
+        if (root instanceof TypedWrite w && w.destination().isPresent()
+                && w.destination().get() instanceof TypedTableReference t) {
+            SqlQuery rows = SubselectPrune.prune(lower(w.source()));
+            List<String> columns = rows.outputs().stream().map(OutputCol::name).toList();
+            java.util.Set<String> declared = new java.util.LinkedHashSet<>();
+            outputsOf(t.info(), OutputCol.Origin.PHYSICAL).forEach(c -> declared.add(c.name()));
+            for (String c : columns) {
+                if (!declared.contains(c)) {
+                    throw new IllegalStateException("write: the relation's column '" + c + "' is not a column of "
+                            + t.store() + "." + t.table() + " " + declared + " (the checker types a write's relation by"
+                            + " its destination's columns)");
+                }
+            }
+            int dot = t.table().indexOf('.');
+            java.util.Set<String> quoted = new java.util.LinkedHashSet<>(t.quotedColumns());
+            quoted.retainAll(columns);
+            return new com.legend.sql.SqlDml.InsertSelect(dot < 0 ? null : t.table().substring(0, dot),
+                    dot < 0 ? t.table() : t.table().substring(dot + 1),
+                    new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable()), columns, quoted, rows);
+        }
+        throw new IllegalStateException("not a store write: " + root.getClass().getSimpleName()
+                + " (StatementExecutor dispatches only a write into a store table here)");
+    }
+
+    /** {@code body}'s leading lets bound into query scope, its last statement returned with every binder spelled
+     *  like a query-scope name renamed: the let prelude every body's lowering shares. */
+    private TypedSpec withQueryLets(List<TypedSpec> body) {
         // QUERY SCOPE is one flat map read ahead of every row scope
         // (letBindings: plan parameters, the lets below, lets met in
         // expression position). A binder inside the body spelled like one
@@ -315,10 +355,7 @@ public final class Lowerer {
                         "a query-level let has no row scope for $" + var);
             }));
         }
-        // J-tail: demand-driven subselect column pruning (engine parity —
-        // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(lower(com.legend.compiler.spec.typed.TypedSubst
-                .renameBinders(body.get(body.size() - 1), reserved, queryScope)));
+        return com.legend.compiler.spec.typed.TypedSubst.renameBinders(body.get(body.size() - 1), reserved, queryScope);
     }
 
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
@@ -3292,7 +3329,8 @@ public final class Lowerer {
                 if (!(w.destination().isEmpty()
                         || !containsStoreTable(w.destination().get()))) {
                     throw new NotImplementedException(
-                            "TypedWrite to a store destination is not yet implemented");
+                            "TypedWrite to a store destination is not yet implemented as a query's plan (a write"
+                            + " into a store table runs at execution: lowerStoreWrite)");
                 }
                 yield Render.writeCount(relation(w.source()), nextAlias());
             }

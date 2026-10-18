@@ -76,6 +76,14 @@ final class StatementExecutor {
                 && rlf.parameters().isEmpty()) {
             env = env.withProtocolBody(rlf.body());
         }
+        // a program that writes a store table runs in ONE transaction (docs/WRITES_DESIGN_2026_10_18.md §4): its
+        // writes all land or none do; a caller's open transaction is joined, not committed
+        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        if (typedBody.stream().anyMatch(s -> com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
+            ExecEnv tx = env;
+            return com.legend.exec.Executor.inTransaction(connection,
+                    () -> executeStatements(typedBody, new java.util.ArrayList<>(), specs, tx));
+        }
         return executeStatements(typedBody, new java.util.ArrayList<>(), specs, env);
     }
 
@@ -2056,26 +2064,7 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection, boolean identity) {
-        // F13: identity-bearing layouts (keyless classes gain the __id
-        // field, minted per construction site) ride ONLY the verdict-
-        // side lane (canon rider) — golden-SQL text lanes and corpus
-        // value lanes keep the plain layout, unperturbed.
-        com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
-                        identity),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone());
-        // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
-        // over keyed instances is the key relation on the execute path
-        // too (the structural fallback erased class identity and read
-        // non-key fields). Identity minting stays verdict-lane-only.
-        lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
-                .element.EqualityKeys.resolve(ctx, t2));
-        if (identity) {
-            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
-        }
-        // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
-        lowerer = lowerer.withFeatures(featuresOf(env, body));
+        com.legend.lowering.Lowerer lowerer = lowererFor(body, env, ctx, identity);
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
@@ -2106,6 +2095,54 @@ final class StatementExecutor {
                     com.legend.exec.Executor::pureOfSqlType);
         }
         return plan;
+    }
+
+    /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
+     *  dialect and run by the executor; its value the database's update count. A frame's post-processors rewrite a
+     *  query's text, and no write is designed under them: refused by name. */
+    private static ExecutionResult storeWrite(java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedWrite write, ExecEnv env, boolean identity) {
+        if (!env.tableReplace().isEmpty() || env.postProcessors().extractCtes()
+                || env.postProcessors().nonExecutable()) {
+            throw new com.legend.error.NotImplementedException("a write into a store table under the execution's"
+                    + " post-processors (tableReplace, extractCtes, nonExecutable) is not designed (the writes design's"
+                    + " leg 2 writes the table it names)");
+        }
+        java.util.List<TypedSpec> statements = new java.util.ArrayList<>(body.subList(0, body.size() - 1));
+        statements.add(write);
+        com.legend.sql.SqlDml dml = lowererFor(statements, env, env.ctx(), identity).lowerStoreWrite(
+                com.legend.lowering.SeedableLets.withSeedableLetPrefix(statements, env.queryLets(), env.ctx()));
+        String sql = env.dialect().render(dml);
+        record(env, sql, false);
+        long count = com.legend.exec.Executor.executeUpdate(env.connection(), sql);
+        return new ExecutionResult.Scalar(count, write.info().type());
+    }
+
+    /** The Lowerer a statement's body lowers with (lowerAndPrepare's and the store write's): the model's layouts,
+     *  keys, time zone and the body's features. */
+    private static com.legend.lowering.Lowerer lowererFor(java.util.List<TypedSpec> body, ExecEnv env,
+            ModelContext ctx, boolean identity) {
+        // F13: identity-bearing layouts (keyless classes gain the __id
+        // field, minted per construction site) ride ONLY the verdict-
+        // side lane (canon rider) — golden-SQL text lanes and corpus
+        // value lanes keep the plain layout, unperturbed.
+        com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
+                        identity),
+                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
+                .withDbTimeZone(env.timeZone());
+        // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
+        // over keyed instances is the key relation on the execute path
+        // too (the structural fallback erased class identity and read
+        // non-key fields). Identity minting stays verdict-lane-only.
+        lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
+                .element.EqualityKeys.resolve(ctx, t2));
+        if (identity) {
+            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
+        }
+        // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
+        lowerer = lowerer.withFeatures(featuresOf(env, body));
+        return lowerer;
     }
 
     /** Leg 3.4 step 2: the SQL text of a plan for execution or prepare —
@@ -2337,6 +2374,13 @@ final class StatementExecutor {
                         + "' is EFFECT but no arm is registered");
             }
             return Prelude.answered(arm.run(body, nc, env));
+        }
+        // A WRITE INTO A STORE TABLE (docs/WRITES_DESIGN_2026_10_18.md §4, L1): the database inserts the relation's
+        // rows, and the statement's update count is the write's value. It runs in the query's transaction
+        // (StatementExecutor.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
+        if (root instanceof com.legend.compiler.spec.typed.TypedWrite w
+                && w.destination().orElse(null) instanceof com.legend.compiler.spec.typed.TypedTableReference) {
+            return Prelude.answered(storeWrite(body, w, env, rider != null || identityLane));
         }
         // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
         // the engine walks its Database metamodel, we render from the

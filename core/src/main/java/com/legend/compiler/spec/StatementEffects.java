@@ -160,6 +160,48 @@ public final class StatementEffects {
         return false;
     }
 
+    /** Does the program WRITE A STORE TABLE — a {@code write} into a table (docs/WRITES_DESIGN_2026_10_18.md §4, L1),
+     * directly or through the compiled body of a user function it calls (the descent of {@link #callsVerdict}:
+     * memoized by signature, cycles and un-typeable callees score false)? The execution runs such a program in one
+     * transaction. */
+    public static boolean writesStore(TypedSpec n, SpecCompiler specs,
+            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedWrite w && w.destination().isPresent()
+                && w.destination().get() instanceof com.legend.compiler.spec.typed.TypedTableReference) {
+            return true;
+        }
+        if (n instanceof TypedUserCall uc
+                && com.legend.builtin.Subsumed.of(uc.callee().qualifiedName()).isEmpty()) {
+            com.legend.model.FunctionId key = uc.callee().id();
+            Boolean known = memo.get(key);
+            if (known == null) {
+                memo.put(key, false);   // in-progress: cycles score false
+                boolean writes = false;
+                try {
+                    for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
+                        if (writesStore(stmt, specs, memo)) {
+                            writes = true;
+                            break;
+                        }
+                    }
+                } catch (TypeInferenceException e) {
+                    // an un-typeable callee cannot execute; this reachability scan does not decide on it
+                }
+                memo.put(key, writes);
+                known = writes;
+            }
+            if (known) {
+                return true;
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            if (writesStore(c, specs, memo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean containsTdgGenerator(TypedSpec n) {
         if (n instanceof TypedNativeCall nc
                 && (com.legend.compiler.element.type.PlatformTypes

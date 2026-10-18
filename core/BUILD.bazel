@@ -403,6 +403,8 @@ legend_java_library(
             # the #Cypher{...}# island's parity lanes are :cypher_parity_test's and :cypher_parity_postgres_test's
             "src/test/java/com/legend/integration/CypherParityTest.java",
             "src/test/java/com/legend/server/CypherParityPostgresTest.java",
+            # the store writes on Postgres are :store_writes_postgres_test's (the writes design's leg 2)
+            "src/test/java/com/legend/integration/StoreWritesPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
@@ -1005,6 +1007,33 @@ junit_test(
         ":core",
         ":test_cases",
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE STORE WRITES ON POSTGRES (docs/WRITES_DESIGN_2026_10_18.md §4, L1): StoreWritesExecutionTest's writes (a
+# relation's rows into a table, the update count, one transaction per program, a caller's transaction joined) on the
+# embedded Postgres 16; the same checks run on DuckDB and H2 in core_tests_integration
+junit_test(
+    name = "store_writes_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/StoreWritesExecutionTest.java",
+        "src/test/java/com/legend/integration/StoreWritesPostgresTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.StoreWritesPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
