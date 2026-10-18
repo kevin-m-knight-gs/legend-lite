@@ -117,7 +117,11 @@ class PostgresArmTest {
                     "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)->serialize(#{s::Item{id, name, price}}#)")) {
                 for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
                     boolean graph = query.contains("graphFetch");
-                    if (graph && output == com.legend.TypedQuery.Output.CSV) {
+                    // a graph result has a JSON wire only: no CSV, no TDS text (PlanMakerTest pins both refusals;
+                    // the TDS text output of 2026-10-17 was not skipped here, measured 2026-10-18 in a root
+                    // container running the test as an unprivileged user)
+                    if (graph && (output == com.legend.TypedQuery.Output.CSV
+                            || output == com.legend.TypedQuery.Output.TDS_TEXT)) {
                         continue;
                     }
                     com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, query)

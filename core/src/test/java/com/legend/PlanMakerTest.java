@@ -362,6 +362,60 @@ class PlanMakerTest {
 
     // ---------------------------------------------------------------------------------------------------------------
 
+    /** The plan path program's step 1a (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): every result column carries its
+     *  Pure type and multiplicity, the SQL type of its slot, and its store's declared type by provenance -- or none,
+     *  said so: a computed column has no declared type, a mapped property reads its column's. */
+    @Test
+    void aColumnCarriesItsThreeTypeFacts() {
+        List<ExecutionPlan.Column> cols = columns(plan(DatabaseType.DuckDB, RELATION, TypedQuery.Output.TDS_TEXT));
+        assertEquals(List.of("ID", "NAME", "PRICE"), cols.stream().map(ExecutionPlan.Column::name).toList(),
+                cols.toString());
+        assertEquals(List.of("INTEGER", "VARCHAR(20)", "DECIMAL(10,2)"),
+                cols.stream().map(ExecutionPlan.Column::store).toList(), cols.toString());
+        assertEquals("String", cols.get(1).type(), cols.toString());
+        assertEquals("VARCHAR", cols.get(1).slot(), cols.toString());
+        assertEquals("DECIMAL(10,2)", cols.get(2).slot(), cols.toString());
+        List<ExecutionPlan.Column> computed = columns(plan(DatabaseType.DuckDB,
+                "|#>{s::DB.T}#->extend(~NEXT: r|$r.ID + 1)->select(~[NAME, NEXT])", TypedQuery.Output.CSV));
+        assertEquals("VARCHAR(20)", computed.get(0).store(), computed.toString());
+        assertEquals(null, computed.get(1).store(), computed.toString());
+        assertEquals("Integer", computed.get(1).type(), computed.toString());
+        List<ExecutionPlan.Column> project = columns(plan(DatabaseType.DuckDB, PROJECT, TypedQuery.Output.CSV));
+        assertEquals(List.of("VARCHAR(20)", "DECIMAL(10,2)"),
+                project.stream().map(ExecutionPlan.Column::store).toList(), project.toString());
+        List<ExecutionPlan.Column> value = columns(plan(DatabaseType.DuckDB, "|1 + 2", TypedQuery.Output.TDS_TEXT));
+        assertEquals(1, value.size(), value.toString());
+        assertEquals("value", value.get(0).name(), value.toString());
+        assertEquals("Integer", value.get(0).type(), value.toString());
+        assertEquals(null, value.get(0).store(), value.toString());
+        assertEquals(new ExecutionPlan.Multiplicity(1, 1), value.get(0).multiplicity(), value.toString());
+    }
+
+    /** The plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §2, §3): a plan written to its JSON and
+     *  read back is the same plan, its typed SQL tree included, and the tree read back renders the same statement
+     *  with the same bindings on the plan's own dialect. */
+    @Test
+    void aPlansTypedTreeReadsBackAndRendersTheSameStatement() {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+            for (String query : List.of(RELATION, NONE, PROJECT, "|1 + 2",
+                    "|#>{s::DB.T}#->extend(~NEXT: r|$r.ID + 1)->select(~[NAME, NEXT])",
+                    "|#>{s::DB.T}#->groupBy(~[NAME], ~[total: r|$r.PRICE : y|$y->sum()])->sort(~NAME->ascending())",
+                    "|#>{s::DB.T}#->extend(over(~NAME->ascending()), ~rank: {p, w, r | $p->rank($w, $r)})",
+                    "|#>{s::DB.T}#->select(~[ID])->concatenate(#>{s::DB.T}#->select(~[ID]))->sort(~ID->ascending())")) {
+                for (TypedQuery.Output output : List.of(TypedQuery.Output.TDS_TEXT, TypedQuery.Output.CSV)) {
+                    ExecutionPlan plan = plan(type, query, output);
+                    com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + output + " " + query);
+                }
+            }
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan(type, GRAPH, TypedQuery.Output.JSON),
+                    type + " JSON " + GRAPH);
+        }
+    }
+
+    private static List<ExecutionPlan.Column> columns(ExecutionPlan plan) {
+        return ((ExecutionPlan.Relation) ((ExecutionPlan.TextResult) plan.root()).type()).columns();
+    }
+
     private static ExecutionPlan plan(DatabaseType type, String query, TypedQuery.Output output) {
         return Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT", output);
     }

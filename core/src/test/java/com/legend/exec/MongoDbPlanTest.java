@@ -96,6 +96,7 @@ class MongoDbPlanTest {
 
     private static String run(String query, TypedQuery.Output output, Map<String, ?> values) throws Exception {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT", output);
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
         StringWriter out = new StringWriter();
         PlanRunner.run(plan, values, PlanSessions.shared(), out);
         return out.toString();

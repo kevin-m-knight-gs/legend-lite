@@ -558,7 +558,9 @@ class CodeShapeGuardrailTest {
      * fixtures and the of(outs,name) unclaimed-name fallback — a
      * production null-origin reaching the strict H2 renderer WALLS
      * (slice 3), so any residue surfaces as a counted decline, never
-     * a guessed spelling. Count only SHRINKS. */
+     * a guessed spelling. Count only SHRINKS. 7 -> 8 on 2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3):
+     * MirJson.readExpr rebuilds a Column from the plan's JSON with the origin it was written with -- an
+     * origin-preserving rebuild, the typed tree read back. */
     @Test
     void unstampedColumnConstructionOnlyShrinks() throws IOException {
         int count = 0;
@@ -573,8 +575,8 @@ class CodeShapeGuardrailTest {
                 i++;
             }
         }
-        assertTrue(count <= 7, "raw SqlExpr.Column construction sites"
-                + " grew: " + count + " > 7 — new references go through"
+        assertTrue(count <= 8, "raw SqlExpr.Column construction sites"
+                + " grew: " + count + " > 8 — new references go through"
                 + " the stamped doors (Column.of over an OutputCol /"
                 + " derived / physical); raw construction is for"
                 + " origin-preserving rebuilds only");

@@ -187,6 +187,7 @@ public final class TypedQuery {
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
         Compiler.LoweredQuery l = lower(runtime, streaming);
         String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
-        return new com.legend.plan.QueryPlan(sql, l.root().info(), com.legend.plan.ResultShape.of(l.root()));
+        return new com.legend.plan.QueryPlan(sql, l.root().info(), com.legend.plan.ResultShape.of(l.root()),
+                com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
     }
 }

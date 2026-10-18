@@ -60,7 +60,7 @@ final class PlanMaker {
             case TABULAR -> switch (output) {
                 case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
                 case JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
-                case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, relation(WireRender.schema(root)),
+                case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, relation(WireRender.schema(root), lowered),
                         WireRender.rows(lowered), dialect, target);
                 case TDS_TEXT -> tdsText(lowered, root, dialect, target);
             };
@@ -104,7 +104,7 @@ final class PlanMaker {
             throw new IllegalStateException("TDS text: an output column outside the query's typed schema (SQL type "
                     + sqlType + "): the lowering's typed slot is missing");
         }, own == null);   // a value's strings quoted whole: the reader types an unquoted cell by its text
-        return text(ExecutionPlan.Format.TDS_TEXT, relation(schema), wrapped, dialect, target);
+        return text(ExecutionPlan.Format.TDS_TEXT, relation(schema, lowered), wrapped, dialect, target);
     }
 
     /** The whole result as one text of {@code format}: the lowered query, of {@code root}'s type, wrapped by the wire. */
@@ -115,7 +115,7 @@ final class PlanMaker {
             case CSV -> ExecutionPlan.Format.CSV;
             case JSON -> ExecutionPlan.Format.JSON;
         };
-        return text(text, relation(schema), WireRender.wrap(lowered, schema, format), dialect, target);
+        return text(text, relation(schema, lowered), WireRender.wrap(lowered, schema, format), dialect, target);
     }
 
     private static ExecutionPlan.TextResult text(ExecutionPlan.Format format, ExecutionPlan.ResultType type,
@@ -162,9 +162,9 @@ final class PlanMaker {
         };
     }
 
-    private static ExecutionPlan.Relation relation(Type.RelationType schema) {
-        return new ExecutionPlan.Relation(schema.columns().stream()
-                .map(c -> new ExecutionPlan.Column(c.name(), c.type().typeName())).toList());
+    /** The relation's columns with their three type facts, read from the lowered query (the plan path program's §3). */
+    private static ExecutionPlan.Relation relation(Type.RelationType schema, SqlQuery lowered) {
+        return new ExecutionPlan.Relation(com.legend.plan.PlanColumns.of(schema, lowered));
     }
 
     private static ExecutionPlan.Value objects(ExprType root) {

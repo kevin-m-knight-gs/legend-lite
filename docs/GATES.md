@@ -10653,6 +10653,61 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 1: every result column carries its three type facts; the typed SQL tree in the lite JSON
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §3 (the design), §9 (the record). The line: `docs/IN_FLIGHT.md`, the
+thirteenth line. The user's word: "lets write it all down and then actually do it end to end and lets go!"; the
+audit's rulings R7 to R11 (types first; deletion mandatory; the corpus and PCT rule; the engine-compatible plan as
+compatible as it can be; a let in the database or nowhere).
+
+What changed:
+1. **The plan** (`executionplan/ExecutionPlan.java`, `PlanJson.java` format 5): a text result's column carries its
+   Pure type and multiplicity, the SQL type of its slot, and its store's declared type -- or null, said: a computed
+   column has no declared type; a nested column the query flattens into prefixed outputs and a pivot's generated
+   column whose template carries no type have no one slot.
+2. **The facts** (`executionplan/ColumnFacts.java`, new): the slot from the lowered query's outputs (by name; a
+   value root's one output by position); the store type by PROVENANCE over the lowered query -- a projection that
+   reads a base table's column through subselects, CTEs, joins and a pivot's key columns is that column's declared
+   type (`SqlSource.Table.storedTypes`; a `StoredRead` carries it outright); a union's where every branch agrees; a
+   VALUES, a raw SQL text, a catalog, a source URL and a placeholder declare nothing. `plan/PlanColumns.java` (new)
+   joins the typer's columns with the facts; `PlanMaker`'s text results and the server's `QueryPlan` carry them.
+3. **The engine-compatible plan** (`server/PureV1Api.java`): a plan's `resultColumns.dataType` is the store's declared
+   type for a column read through and `""` for a computed one, as the engine's is; the TDS builder's
+   `relationalType` stays the engine's spelling of the Pure type (`VARCHAR(1024)` even for a `VARCHAR(32)` column,
+   measured on the recorded 4.145.0 answers). `PureV1ApiTest`'s recorded difference 2 is closed: the engine's plan
+   is compared verbatim there.
+4. **The typed SQL tree in the lite JSON** (`executionplan/MirJson.java`, new; step 1b): every `SqlQuery`,
+   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `TypeFact`, `DateFmt` and declared column type written with its own
+   tag and read back by an exhaustive switch (the writer's switches run over the sealed interfaces, so a new MIR
+   variant fails to compile until it has a tag); a double and a BigDecimal travel as their own text, a window bound's
+   number with its class. `PlanJson` writes a statement's `tree` and reads it: a plan read back is as typed as the
+   planner's.
+5. **The round-trip gate** (`testcases/PlanRoundTrip.java`, new): a plan written and read back is the same plan,
+   tree included, and the tree read back renders the same statement with as many bindings on the plan's dialect --
+   judged on every plan `PlanMakerTest` makes (relations, a value, a computed column, a group, a window, a union, a
+   graph fetch, on DuckDB and H2), every case of `MongoDbDifferentialTest` on both databases (the pipeline text
+   included), and every plan `MongoDbPlanTest` runs.
+6. `AGENTS.md`'s MIR table recounted (`SqlQuery` permits `SqlWith` too; eleven sources). `PostgresArmTest` skips a
+   graph query's TDS text output as it skips its CSV (the 2026-10-17 output was not skipped there; found by running
+   the Postgres tests as an unprivileged user in the root container).
+
+What judges it: `PlanMakerTest.aColumnCarriesItsThreeTypeFacts` (a store column, a computed column, a mapped
+property, a value root) and `aPlansTypedTreeReadsBackAndRendersTheSameStatement`, `PlanJsonTest`, `PlanRunnerTest`,
+`PureV1ApiTest.e9`, `//core:core_tests_integration` (the flattened and pivot columns, found by its first run),
+`//core:mongodb_plan_test` (the round trip over the differential's cases), and the local gate's core lane
+`//gates:core` with `--lockfile_mode=error` (every target green; its six Postgres tests green run as an unprivileged
+user, `tools/postgres/as_unprivileged.sh ubuntu`, since the container runs as root). Not run here: the other lanes of
+`//gates:local` and CI's heavy lanes.
+
+Pins moved, each with its dated reason naming this step: the tree reader (`MirJson`) rebuilds what the planner wrote,
+exactly, so it is a registered constructor of the nodes the guards quarantine -- `CodeShapeGuardrailTest`'s raw
+`SqlExpr.Column` sites (7 -> 8, an origin-preserving rebuild), `RawSqlLedgerTest` and `ArchitectureTest`'s
+`rawSqlSourceIsConstructedOnlyAtTheCharteredSeam` (a `RawSql` read back, no text composed),
+`ParkedWorkLedgerTest`'s PARK-2 anchor (`new SqlWith(` in `MirJson.java` too; no common-subexpression pass, PARK-2
+stays parked), `TestLaneOrderGuardrailTest`'s `RowOrder` owners (a key read back, none added); the dialect-leak
+ledger's `PlanMakerTest` rows (database-type 22 -> 27, product-name 35 -> 40: the new tests name DuckDB and H2 as
+the file's other tests do).
+
 ## 2026-10-17 — The PCT burn-down on MongoDB: the relation half shaped, the long tail measured
 
 The plan: `docs/MONGODB_PLAN_2026_10_16.md` §11.4 (the record). The line: `docs/IN_FLIGHT.md`, the twelfth line.

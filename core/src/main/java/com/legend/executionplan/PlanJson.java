@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * THE LITE PLAN FORMAT: an {@link ExecutionPlan} as JSON and back. Lite's own, clean shape — legend-engine's protocol is a
  * separate, later serialisation of the same plan (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8). Every {@code _type} is an
- * enum constant shared by the writer and the reader, read by an exhaustive switch; an unknown tag is refused by name. The typed SQL tree is not written yet: a plan read back has none.
+ * enum constant shared by the writer and the reader, read by an exhaustive switch; an unknown tag is refused by name. The typed SQL tree is written too ({@link MirJson}, 2026-10-18): a plan read back is as typed as the planner's.
  */
 public final class PlanJson {
 
@@ -41,8 +41,10 @@ public final class PlanJson {
      *  2026-10-09: the planner's plans (step 2's landing 2) — a target's database (declared or the platform's), its
      *  server versions and session statements, and a text result's columns without a SQL type; 4 since 2026-10-09: the
      *  runner's plans (step 3) — each slot's binding (one value with its null's type and, where the statement names the
-     *  value's type, its type hole; or a list as one array). */
-    public static final int VERSION = 4;
+     *  value's type, its type hole; or a list as one array); 5 since 2026-10-17: a text result's column's three type
+     *  facts -- its multiplicity, the SQL type of its slot, its store's declared type or null -- and the typed SQL
+     *  tree, every MIR variant its own tag ({@link MirJson}; docs/PLAN_PATH_PROGRAM_2026_10_17.md §3). */
+    public static final int VERSION = 5;
 
     private PlanJson() {
     }
@@ -154,6 +156,9 @@ public final class PlanJson {
                     Map<String, Object> co = new LinkedHashMap<>();
                     co.put("name", c.name());
                     co.put("type", c.type());
+                    co.put("multiplicity", multiplicity(c.multiplicity()));
+                    co.put("slot", c.slot());
+                    co.put("store", c.store());   // null: computed, no declared type
                     cols.add(co);
                 }
                 o.put("columns", cols);
@@ -179,6 +184,8 @@ public final class PlanJson {
         }
         o.put("slots", slots);
         o.put("target", target(s.target()));
+        // the typed SQL tree (MirJson; the plan path program's step 1b): a plan read back is as typed as the planner's
+        o.put("tree", s.tree() == null ? null : MirJson.query(s.tree()));
         return o;
     }
 
@@ -460,7 +467,8 @@ public final class PlanJson {
         List<ExecutionPlan.Column> cols = new ArrayList<>();
         for (Json.Node n : columns.items()) {
             Json.Obj c = (Json.Obj) n;
-            cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type")));
+            cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
+                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null)));
         }
         return cols;
     }
@@ -516,8 +524,10 @@ public final class PlanJson {
         for (Json.Node n : t.getArr("setup").items()) {
             setup.add(readSetupStep((Json.Obj) n));
         }
+        Json.Node tree = o.getOr("tree", null);
         return new Sql(o.getString("statement"), slots, new Target(readDatabase(t.getObj("database")),
-                readServers(t.getObj("servers")), t.getStringArray("session"), setup), null);
+                readServers(t.getObj("servers")), t.getStringArray("session"), setup),
+                tree == null ? null : MirJson.readQuery((Json.Obj) tree));
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {

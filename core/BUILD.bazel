@@ -171,7 +171,7 @@ legend_java_library(
     name = "plan",
     visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":lineage", ":model", ":sql"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":lineage", ":model", ":sql"],
 )
 legend_java_library(
     name = "resolver",
@@ -688,6 +688,7 @@ junit_test(
     target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
     deps = [
         ":core",
+        ":test_cases",   # PlanRoundTrip: the plan path program's round-trip gate (step 1b)
         "//testing",
         "@bson//jar",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

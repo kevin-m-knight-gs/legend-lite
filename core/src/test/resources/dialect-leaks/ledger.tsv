@@ -63,10 +63,11 @@ core/src/test/java/com/legend/AuditRound5Test.java	product-name	2
 core/src/test/java/com/legend/ConstantPlanParityTest.java	jdbc-url	1
 core/src/test/java/com/legend/PipelineStageFailureTest.java	dialect-class	2
 core/src/test/java/com/legend/PipelineStageFailureTest.java	product-name	2
-core/src/test/java/com/legend/PlanMakerTest.java	database-type	22
+# 2026-10-18, the plan path program's step 1 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): the three-facts and the round-trip tests name DuckDB and H2 as the plan maker's other tests do (database-type 22 -> 27, product-name 35 -> 40).
+core/src/test/java/com/legend/PlanMakerTest.java	database-type	27
 core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	4
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/PlanMakerTest.java	product-name	35
+core/src/test/java/com/legend/PlanMakerTest.java	product-name	40
 core/src/test/java/com/legend/PlanOnJavaBase.java	product-name	4
 core/src/test/java/com/legend/StoreTypesTest.java	jdbc-url	1
 core/src/test/java/com/legend/StoreTypesTest.java	product-name	2

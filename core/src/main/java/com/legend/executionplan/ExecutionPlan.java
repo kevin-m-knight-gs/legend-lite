@@ -114,13 +114,20 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
-    /** A column of a relation the database writes as text: its name and its Pure type as the typer names it (a
-     *  primitive's name, {@code Decimal(10,2)}, an enumeration's path) — the database answers with the text, so no
-     *  column has a SQL type of its own. */
-    public record Column(String name, String type) {
+    /** A column of a relation the database writes as text, with its three type facts
+     *  (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): {@code type}, its Pure type as the typer names it (a primitive's
+     *  name, {@code Decimal(10,2)}, an enumeration's path), and its {@code multiplicity}; {@code slot}, the SQL type
+     *  the database answers with (the lowering's typed slot: {@code VARCHAR}, {@code DECIMAL(10,2)},
+     *  {@code TIMESTAMP}) -- null when the column has no one slot (a nested column the query flattens into prefixed
+     *  outputs; a pivot's generated column whose template carries no type); and {@code store}, the column's declared
+     *  type in its store when the value is a store column read through ({@code VARCHAR(20)}, as the relational
+     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. */
+    public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
+            @com.legend.base.Nullable String store) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(multiplicity, "multiplicity");
         }
     }
 

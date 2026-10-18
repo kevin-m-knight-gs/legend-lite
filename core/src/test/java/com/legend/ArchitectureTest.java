@@ -908,8 +908,10 @@ final class ArchitectureTest {
             .that().haveNameNotMatching(
                     // sql.AliasPrefix (leg 3.4 step 2): re-aliases an EXISTING RawSql
                     // node — the authored text rides through verbatim (RawSqlAdapt is gone, 2026-10-13: the
-                    // renderer translates the text in place, SqlDialect.raw)
-                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix)(\\$.*)?")
+                    // renderer translates the text in place, SqlDialect.raw); executionplan.MirJson
+                    // (2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3)): the plan's typed tree read back from its JSON, exactly as the planner
+                    // wrote it -- no text composed
+                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain

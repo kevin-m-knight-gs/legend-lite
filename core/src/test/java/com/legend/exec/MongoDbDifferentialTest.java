@@ -416,6 +416,8 @@ class MongoDbDifferentialTest {
     private static String run(String model, String expression, TypedQuery.Output output) throws Exception {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), expression)
                 .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, output);
+        // the plan path program's round-trip gate (step 1b): every case's plan, on both databases
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, expression);
         StringWriter out = new StringWriter();
         PlanRunner.run(plan, Map.of(), PlanSessions.shared(), out);
         return out.toString();

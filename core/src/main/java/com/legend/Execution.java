@@ -159,7 +159,8 @@ public final class Execution {
             String sql = dialect.render(l.plan());
             var r = com.legend.exec.Executor.execute(sql, l.plan(), l.root().info(), shape, connection, dialect, null);
             out.write(r instanceof com.legend.exec.ExecutionResult.Graph g && g.json() != null ? g.json() : "[]");
-            return new com.legend.plan.QueryPlan(sql, l.root().info(), shape);
+            return new com.legend.plan.QueryPlan(sql, l.root().info(), shape,
+                    com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
         }
         if (shape != com.legend.plan.ResultShape.TABULAR) {
             throw new com.legend.error.NotImplementedException(
@@ -171,7 +172,8 @@ public final class Execution {
         out.write(com.legend.exec.Executor.wireText(dialect.render(com.legend.lowering.WireRender.wrap(
                 l.plan(), com.legend.lowering.WireRender.schema(l.root().info()),
                 com.legend.lowering.WireRender.Format.JSON)), connection));
-        return new com.legend.plan.QueryPlan(dialect.render(l.plan()), l.root().info(), shape);
+        return new com.legend.plan.QueryPlan(dialect.render(l.plan()), l.root().info(), shape,
+                com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
     }
 
     /**

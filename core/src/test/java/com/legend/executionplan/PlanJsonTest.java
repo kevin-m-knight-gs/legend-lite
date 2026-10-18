@@ -77,7 +77,7 @@ class PlanJsonTest {
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
                                                 new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
                         // a placeholder typed by its value (H2): its type hole, with each kind's spelling
-                        new TextResult(Format.JSON, new Relation(List.of(new Column("x", "Float"))),
+                        new TextResult(Format.JSON, new Relation(List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null))),
                                 new Sql("select ID * CAST(? AS ) as x from T", List.of(new Slot("f",
                                         new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(22,
                                                 java.util.Map.of(ExecutionPlan.ValueKind.DECIMAL,
@@ -88,7 +88,7 @@ class PlanJsonTest {
                                                                 ExecutionPlan.Digits.PRECISION)),
                                                 ExecutionPlan.ValueKind.DECIMAL)))), t, null)),
                         // a date-time's hole, a finer one cut to six digits (Postgres)
-                        new TextResult(Format.JSON, new Relation(List.of(new Column("t", "DateTime"))),
+                        new TextResult(Format.JSON, new Relation(List.of(new Column("t", "DateTime", new Multiplicity(0, 1), "TIMESTAMP", null))),
                                 new Sql("select CAST(? AS ) as t", List.of(new Slot("t",
                                         new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.TypeHole(17,
                                                 java.util.Map.of(ExecutionPlan.ValueKind.DATE_TIME,
@@ -100,7 +100,7 @@ class PlanJsonTest {
                                                 ExecutionPlan.ValueKind.DATE_TIME)))), t, null)),
                         new TextResult(Format.JSON, new Value("model::Person", new Multiplicity(0, null)),
                                 new Sql("select json_group_array(...) from T", List.of(), t, null)),
-                        new TextResult(Format.CSV, new Relation(List.of(new Column("name", "String"))),
+                        new TextResult(Format.CSV, new Relation(List.of(new Column("name", "String", new Multiplicity(0, 1), "VARCHAR", "VARCHAR(100)"))),
                                 new Sql("select ... from T", List.of(), t, null)),
                         new TextResult(Format.JSON_PER_ROW, new Relation(List.of()),
                                 new Sql("select ... from T", List.of(), t, null)))));
@@ -128,7 +128,7 @@ class PlanJsonTest {
         Target t = new Target(new Database.Platform(DatabaseType.DuckDB), new Servers.Every(),
                 List.of("SET TimeZone='UTC'"), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TextResult(Format.JSON,
-                new Relation(List.of(new Column("value", "Integer"))), new Sql("select 1", List.of(), t, null)));
+                new Relation(List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null))), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
@@ -161,14 +161,14 @@ class PlanJsonTest {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":4,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":5,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v4 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v5 plan"), refused.getMessage());
     }
 
     @Test
@@ -182,7 +182,7 @@ class PlanJsonTest {
 
     @Test
     void anEarlierVersionIsRefused() {
-        for (int version = 1; version <= 3; version++) {
+        for (int version = 1; version <= 4; version++) {
             int v = version;
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
                     "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));

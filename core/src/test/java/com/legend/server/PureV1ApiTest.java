@@ -570,8 +570,9 @@ class PureV1ApiTest {
 
     /**
      * The recorded differences, applied structurally: the vocabulary (difference 1);
-     * RECORDED DIFFERENCE 2, a plan's {@code resultColumns} carry no physical type in
-     * lite (its typer has no physical provenance); the SQL text (compared by rows).
+     * the SQL text (compared by rows). Recorded difference 2 -- a plan's {@code resultColumns} without a physical
+     * type -- closed 2026-10-17: the plan carries the store's declared type (docs/PLAN_PATH_PROGRAM_2026_10_17.md
+     * §3), compared verbatim.
      */
     private static Object rewrite(Json.Node n, String key) {
         if (n instanceof Json.Obj o) {
@@ -585,8 +586,6 @@ class PureV1ApiTest {
                 Json.Node v = e.getValue();
                 if (k.equals("sqlQuery")) {
                     out.put(k, "<compared by rows>");
-                } else if (k.equals("dataType") && "resultColumns".equals(key)) {
-                    out.put(k, "");
                 } else if ((k.equals("fullPath") || k.equals("type")) && v instanceof Json.Str s
                         && VOCABULARY.containsKey(s.value())) {
                     out.put(k, VOCABULARY.get(s.value()));

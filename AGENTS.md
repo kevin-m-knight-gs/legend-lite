@@ -256,8 +256,8 @@ Sealed roots in `com.legend.sql` (15 files, ~1,743 LOC):
 
 | Root | Variants |
 |---|---|
-| `SqlQuery` | `permits SqlSelect, SqlUnion` |
-| `SqlSource` | 8 — `Pivot, SourceUrl, Table, VarSetPlaceholder, Dual, Subselect, Values, Join` |
+| `SqlQuery` | `permits SqlSelect, SqlUnion, SqlWith` |
+| `SqlSource` | 11 — `Pivot, SourceUrl, Table, Cte, VarSetPlaceholder, Dual, Subselect, Values, RawSql, Catalog, Join` (counted 2026-10-17) |
 | `SqlExpr` | 32 — incl. `Lambda` (**not** `LambdaExpr`), `Call`, `Cast`, `WindowCall`, `SqlAgg.Reducer` |
 | `SqlAgg` | carries `enum Fn` (~35) + `Reducer` |
 | `SqlType` | `Scalar` enum, `Decimal(p,s)`, `Array`, `Map` |

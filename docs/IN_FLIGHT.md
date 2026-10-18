@@ -2040,5 +2040,12 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `test/ServiceTestRunner.java`, `server/QueryService.java`, the PCT extension (`pct/src/test/.../extension/`), the
   adapter `pct_adapter.pure`; cross-area edits (the lowering's type facts, the dialects' holes) announced here first.
 - **Step 1 announced 2026-10-17: types in the plan** (the program's §3): the three facts per result column, the engine
-  renderer reading the store's declared type, the typed SQL tree written into the lite JSON (format 4), the round-trip
-  gate.
+  renderer reading the store's declared type, the typed SQL tree written into the lite JSON (format 5), the round-trip
+  gate. **Step 1 landed 2026-10-18** (GATES "The plan path program, step 1"): `ExecutionPlan.Column`'s three facts,
+  `ColumnFacts` (new), `PlanColumns` (new), `PlanJson` format 5 with the typed SQL tree (`MirJson`, new),
+  `QueryPlan`'s columns, `PureV1Api`'s `resultColumns.dataType` from the store type (the parity test's recorded
+  difference 2 closed), the round-trip gate (`testcases/PlanRoundTrip`, new) on every plan the plan maker's and the
+  MongoDB tests make. Files touched beyond the announced list: `AGENTS.md` (the MIR table recounted),
+  `server/PostgresArmTest.java` (a graph query's TDS text output skipped as its CSV is), `core/BUILD.bazel` (the
+  `plan` library depends on `execution_plan`; the MongoDB plan test on the shared test cases). Step 2 next: the
+  printed values (PARK-24).

@@ -184,7 +184,7 @@ class PlanRunnerTest {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.DuckDB),
                 new ExecutionPlan.Servers.Every(), List.of(), List.of());
         ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), new ExecutionPlan.TextResult(
-                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "Integer"))),
+                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null))),
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
         var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.run(bad, Map.of(), t -> {
@@ -213,7 +213,7 @@ class PlanRunnerTest {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
                 DatabaseType.H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
         return new ExecutionPlan(List.of(declared("v", type, 0, 1)), new ExecutionPlan.TextResult(
-                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("v", "String"))),
+                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("v", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
                 new ExecutionPlan.Sql(before + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
                         new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(before.length(), H2_TYPES,
                                 type.equals("Date") ? ExecutionPlan.ValueKind.DATE
@@ -265,7 +265,7 @@ class PlanRunnerTest {
                 List.of(), List.of(new ExecutionPlan.SetupStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
                         new ExecutionPlan.SetupStep.Statement("INSERT INTO " + table + " VALUES (1)")));
         return new ExecutionPlan(List.of(), new ExecutionPlan.TextResult(ExecutionPlan.Format.JSON,
-                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String"))),
+                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
 
@@ -322,7 +322,7 @@ class PlanRunnerTest {
 
     private static ExecutionPlan plan(ExecutionPlan.Format format, String statement, ExecutionPlan.Target target) {
         return new ExecutionPlan(List.of(), new ExecutionPlan.TextResult(format,
-                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String"))),
+                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
                 new ExecutionPlan.Sql(statement, List.of(), target, null)));
     }
 

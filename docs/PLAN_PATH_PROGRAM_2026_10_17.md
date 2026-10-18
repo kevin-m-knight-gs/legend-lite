@@ -115,10 +115,14 @@ A computed column has no store type and says `absent`. The planner asserts the t
 Pure Integer is a model defect the typer refuses; the plan is where the compiler's facts are asserted one last time)
 and refuses by name when they do not: invariant 4, no defaulting, on the plan.
 
-**The engine renderer reads `store` when present**; otherwise it spells the Pure type by legend-engine's own map
-(`pureTypeToDataTypeMap`, `pureToRelational.pure:48-56`, probed 2026-09-27), which is the engine's rule for a computed
-column, not a lite guess; an unprobed type stays refused. `UpstreamRelationType.relationalSpelling`'s "no physical
-provenance" comment goes.
+**The engine renderer reads `store` where the engine carries the physical type.** Measured on the recorded 4.145.0
+answers (`core/src/test/resources/upstream-api/e8-groupby-sort.json`, `e9-groupby-sort.json`; the audit of
+2026-10-17): the plan's `resultColumns[].dataType` is the store's declared type for a column read through
+(`VARCHAR(32)`) and `""` for a computed one; the TDS builder's `relationalType` is the engine's spelling of the PURE
+type even for a store column (`VARCHAR(1024)` for that same `VARCHAR(32)` column; `pureTypeToDataTypeMap`,
+`pureToRelational.pure:48-56`, probed 2026-09-27). So `resultColumns.dataType` reads `store` (the parity test's
+recorded difference 2 closes) and the builder keeps `UpstreamRelationType.relationalSpelling`, which is the engine's
+own rule, not a lite guess; an unprobed type stays refused.
 
 **Parameters** already carry theirs (Pure type, multiplicity, enum values, bind type, hole spellings).
 
@@ -254,6 +258,20 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 1 landed** (the three facts per column, the typed tree in the lite JSON, the round-trip gate;
+  GATES "The plan path program, step 1"). The tree: `MirJson`, every MIR variant its own tag, written into the
+  plan's `tree` and read back; the gate: `testcases/PlanRoundTrip`, every plan the plan maker's and the MongoDB tests
+  make reads back equal and renders the same statement. Measured on the way: a column no output is named after is
+  one of three said things (a pivot's generated column, a nested column flattened into prefixed outputs, a value
+  root's one output), found by the integration suite's first run.
+- **2026-10-17, step 1a** (the three facts per column): `ExecutionPlan.Column` carries `type`, `multiplicity`,
+  `slot` and `store` (null when computed); `ColumnFacts` reads the slot from the lowered query's outputs and the store
+  type by provenance (a projection reading a base table's column through subselects, CTEs, joins and a pivot's keys;
+  `SqlExpr.StoredRead` carries it outright); `PlanColumns` joins them with the typer's columns; `PlanJson` format 5;
+  `QueryPlan` carries the columns and `PureV1Api`'s `resultColumns.dataType` is the store type, so the parity test's
+  recorded difference 2 is closed and the engine's recorded plan is compared verbatim there. Judged by
+  `PlanMakerTest.aColumnCarriesItsThreeTypeFacts`, `PlanJsonTest`, `PureV1ApiTest.e9`, the local gate's core lane and
+  `//core:mongodb_plan_test`.
 - **2026-10-17, the audit with the user** -- R7 to R11 recorded; four corrections (the server's `execute` is still on
   the legacy path; the lite JSON's next version is 5; a dynamic pivot is a probe plan and an identifier hole; a `let`
   is dissolved or materialized, never carried). Step 1a starts: the three facts per column, the engine renderer on the
