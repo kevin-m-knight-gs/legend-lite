@@ -2151,6 +2151,19 @@ tests:
     sql: "SELECT id, it + 1 AS b, GREATER(1, 2) AS g FROM t ORDER BY id"
     profile: iq17-default
 
+  # ---- a function of no name of IQ's held in an expression of a derived table's column no one reads (IQ island,
+  # 2026-10-17; the corpus lane's JOB and TPC-DS, measured on IQ 17.1): IQ drops the column first and answers; read,
+  # its -265
+  - id: an_unread_coalesce_of_string_agg_is_dropped
+    sql: "SELECT d.k, d.n FROM (SELECT k, COUNT(*) AS n, COALESCE(STRING_AGG(DISTINCT s, ', '), 'none') AS names FROM g GROUP BY k) d ORDER BY d.k"
+    profile: iq17-default
+  - id: an_unread_length_of_concat_is_dropped
+    sql: "SELECT d.id FROM (SELECT id, LENGTH(CONCAT(vc, ch)) AS l, STRING_AGG(DISTINCT CONCAT(vc, '(', ch, ')'), ', ') AS x FROM t GROUP BY id, vc, ch) d ORDER BY d.id"
+    profile: iq17-default
+  - id: a_read_coalesce_of_string_agg
+    sql: "SELECT d.k, d.names FROM (SELECT k, COALESCE(STRING_AGG(DISTINCT s, ', '), 'none') AS names FROM g GROUP BY k) d ORDER BY d.k"
+    profile: iq17-default
+
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
   # 17.1): -156 before an aggregate in WHERE (-150); -150 where an IN reads the inner aggregate
   - id: a_nested_aggregate_before_one_in_where

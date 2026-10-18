@@ -3275,10 +3275,11 @@ public final class IqDialect implements InputDialect {
      * checked (-149), but a function of no name of IQ's there raises nothing (its -265 where read; a DISTINCT or
      * windowed derived table is planned whole, so its -265 there). Measured: {@code FORMAT(nosuch, 'x')} -143,
      * {@code STRING_AGG(vc, ',')} over an ungrouped column -149, {@code LEFT(FORMAT(dt, 'yy'), 1)}, {@code 1 / 0} and
-     * {@code CAST('x' AS INT)} answered. Where the item is such a call of a string's result alone (STRING_AGG, FORMAT,
-     * ...) and its column is read nowhere -- not by the outer query, at any depth, nor by the derived table's own
-     * clauses, with no NATURAL or USING join there -- the call is read as a NULL string ({@code placeheld}; its
-     * arguments translated, so their names bind and their grouping is checked). Any other such call in a column the
+     * {@code CAST('x' AS INT)} answered. Where the item holds such calls -- the outermost of them of a string's result
+     * (STRING_AGG, FORMAT, CONCAT, ...), alone or inside an expression -- and its column is read nowhere -- not by the
+     * outer query, at any depth, nor by the derived table's own clauses, with no NATURAL or USING join there -- each
+     * call is read as a NULL string ({@code placeheld}; its arguments translated, so their names bind and their
+     * grouping is checked). Any other such call in a column the
      * outer query's own clauses do not read is refused by name rather than claim the -265.
      */
     private static void unreadUnknownFunctions(SqlAst.Statement statement, Set<SqlAst.FunctionCall> placeheld) {
@@ -3349,10 +3350,14 @@ public final class IqDialect implements InputDialect {
                             }
                             List<SqlAst.FunctionCall> all = new ArrayList<>();
                             unknownCalls(x.expr(), all);
-                            if (x.expr() == unknown && all.size() == 1 && !matched && !readDeep.contains(name)
-                                    && STRING_RESULTS.contains(IqLexer.lower(unknown.name().get(
-                                            unknown.name().size() - 1).text()))) {
-                                placeheld.add(unknown);
+                            List<SqlAst.FunctionCall> outermost = new ArrayList<>();
+                            outermostUnknownCalls(x.expr(), outermost);
+                            // IQ island, 2026-10-17 (the corpus lane's JOB and TPC-DS, ~30 queries: COALESCE(STRING_AGG(
+                            // DISTINCT ...), 'none'), LENGTH(CONCAT(...))): such calls held in an expression too, each
+                            // outermost one a string's result, every one of them read as a NULL string
+                            if (!matched && !readDeep.contains(name) && outermost.stream().allMatch(c ->
+                                    STRING_RESULTS.contains(IqLexer.lower(c.name().get(c.name().size() - 1).text())))) {
+                                placeheld.addAll(all);
                                 continue;
                             }
                             throw SqlTranslationException.unsupported(unknown.name().get(unknown.name().size() - 1)
@@ -3407,6 +3412,19 @@ public final class IqDialect implements InputDialect {
         }
         for (SqlAst.Expr child : children(e)) {
             unknownCalls(child, out);
+        }
+    }
+
+    /** Into {@code out}, the calls in {@code e} (outside its subqueries) of a name no function of IQ's has that no
+     *  other such call holds. */
+    private static void outermostUnknownCalls(SqlAst.Expr e, List<SqlAst.FunctionCall> out) {
+        if (e instanceof SqlAst.FunctionCall f && IqFunctions.NO_SUCH_FUNCTION.contains(IqLexer.lower(
+                f.name().get(f.name().size() - 1).text()))) {
+            out.add(f);
+            return;
+        }
+        for (SqlAst.Expr child : children(e)) {
+            outermostUnknownCalls(child, out);
         }
     }
 

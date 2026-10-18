@@ -1210,6 +1210,9 @@ lite/corpus_gaps/greater_beside_a_round_past_its_type@iq17-default	BOTH_ERROR	BO
 lite/corpus_gaps/greater_in_where_beside_a_ceiling@iq17-default	PASS	PASS
 lite/corpus_gaps/greater_in_an_unread_derived_column@iq17-default	PASS	PASS
 lite/corpus_gaps/greater_beside_an_integer_past_its_range@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_unread_coalesce_of_string_agg_is_dropped@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/corpus_gaps/an_unread_length_of_concat_is_dropped@iq17-default	PASS	PASS
+lite/corpus_gaps/a_read_coalesce_of_string_agg@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR
