@@ -44,7 +44,7 @@ import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { SHOW_AS_KINDS, TIME_GRAINS, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
-import { isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
+import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
 import { addSort, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
@@ -57,7 +57,7 @@ import type { CubeConfiguration } from '../config.ts';
  * panel uses.
  */
 export function columnLabel(name: string): string {
-  return name.split(PIVOT_SEPARATOR).join(' / ');
+  return name.split(PIVOT_SEPARATOR).map((part) => (part === PIVOT_TOTAL_KEY ? 'Total' : part)).join(' / ');
 }
 
 export interface MenuContext {
@@ -93,12 +93,6 @@ export interface MenuContext {
   readonly canEmail?: boolean;
   /** Whether the host knows where the cube's rows come from, so the cube can be written down. */
   readonly canSaveCube?: boolean;
-  /**
-   * The column is a pivot TOTAL. It exists only in the grid -- joined
-   * in from a second query -- so no query can sort, filter or pivot
-   * by it.
-   */
-  readonly pivotTotal?: boolean;
   /** From a header: Properties... opens Column Properties on this. */
   readonly propertiesColumn?: string;
   /** The column pivot's headers are measure-first (a checked entry). */
@@ -446,11 +440,11 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
 
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const { snapshot: s } = ctx;
-  // A pivot total is a real column of the level's query (a conditional
-  // aggregate), so it SORTS like any measure; everything else about it is
-  // column-free: a filter applies to source rows, before any total exists,
-  // and a total is not a dimension to pivot, hide or rename.
-  const column = ctx.pivotTotal ? undefined : ctx.column;
+  // A pivot total is a column of the level's query like any other (an aggregate over the group's every pivot value),
+  // so it is offered what a pivot's cell is: a sort, a heatmap and a width as its measure's, hiding, copying. What it
+  // is not offered it is not, as a cell is not: a dimension to group or pivot by (canGroup), a value to filter by (a
+  // filter runs on source rows, before any total), a pin (a pivot's result, pivotBase).
+  const column = ctx.column;
   const sortColumn = ctx.column;
   const groups: MenuGroup[] = [];
   const push = (label: string, items: (MenuItem | null)[]): void => {

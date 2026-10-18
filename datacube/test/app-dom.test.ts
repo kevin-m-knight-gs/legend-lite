@@ -960,6 +960,36 @@ describe('the app', () => {
     assert.ok(painted.length > 0, 'no cell was painted');
   });
 
+  it('a pivot total\'s menu turns its measure\'s heatmap on, and paints the total (2026-10-18)', async () => {
+    // the total's right-click menu greyed out Add Heatmap ("a pivot total is no column of the cube"), though a total is a
+    // column of the level's query like any other; it is offered what a pivot cell is, as its measure's
+    const total = pivotTotalColumn('notional');
+    class TotalEngine extends PivotEngine {
+      override async answer(sql: string, epoch: number): Promise<ResultTable> {
+        const t = await super.answer(sql, epoch);
+        if (sql.includes('"function":"distinct"')) return t;
+        return { ...t, columns: [...t.columns, { name: total, type: 'Float', values: [4, 6] }] };
+      }
+    }
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const app = new CubeApp(host, PIVOTED, { engine: new TotalEngine(), planner: new EchoPlanner() });
+    await app.open();
+    const totalCells = (): HTMLElement[] => [...host.querySelectorAll<HTMLElement>(`.dc-cell[data-column="${total}"]`)];
+    assert.ok(totalCells().length > 0, 'the total is on screen');
+    assert.ok(totalCells().every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
+    totalCells()[0]!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role="menuitem"]')]
+      .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Add Heatmap to Total / notional');
+    assert.ok(entry, 'the total offers a heatmap');
+    assert.notEqual(entry.getAttribute('aria-disabled'), 'true');
+    entry.click();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    assert.ok(app.configuration.columns['notional']?.heatmap, "it is the measure's heatmap");
+    assert.ok(totalCells().some((c) => c.style.backgroundColor !== ''), 'the total is painted');
+    app.dispose();
+  });
+
   it('lists a pivoted measure as the columns the pivot MADE of it', async () => {
     // The panel said "notional" once while the grid showed five of
     // it. ag-grid's own tool panel nests the pivot result columns

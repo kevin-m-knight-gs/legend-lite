@@ -1892,9 +1892,6 @@ export class CubeApp {
         ...(column !== undefined && this.#config.columns[column]?.pinned
           ? { pinned: this.#config.columns[column]?.pinned as 'left' | 'right' }
           : {}),
-        ...(column !== undefined && isPivotTotalColumn(column)
-          ? { pivotTotal: true }
-          : {}),
         ...(column !== undefined && this.#kindOf(column, this.#shown) !== undefined
           ? { extendable: true }
           : {}),
