@@ -2104,4 +2104,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   execution (D2), the streaming gate. **The pivot homework landed 2026-10-18** (GATES "The pivot homework";
   `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md`): `lowering/Render.java` (the wires' names as the engine labels them,
   the dynamic pivot's JSON wire from its cells, `PivotKeys`), `lowering/WireRender.java`, `PlanMakerTest`, register
-  S78 to S80.
+  S78 to S80. **Step 9 announced and begun 2026-10-18: the DuckDB PCT lane on the plan route** (the user's
+  "flip and let's fix everything"): `pct/.../extension/PctBackend.java` (`throughThePlan`), then whatever the
+  first run's failures name in the plan path (`lowering/`, `exec/`, the adapter `pct_adapter.pure`); the five
+  DuckDB suites' pins move only with a named residue, shrink-only.

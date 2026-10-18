@@ -297,6 +297,13 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-18, step 9 announced and begun: the DuckDB PCT lane flipped onto the plan route** (the user: "flip
+  and let's fix everything", after the session's account of steps 1 to 7 switching no consumer). `PctBackend
+  .throughThePlan` is true for the DuckDB lane as for MongoDB's: every channel A case planned to Pure's TDS text and
+  run by the plan runner (`PctPlanRoute`), the legacy route no longer taken there. The first run's failures are the
+  work list, fixed at their root in the plan path; a residue is pinned by name, shrink-only. The other JDBC lanes
+  follow once this one is exact; the shadow plan is deleted with the legacy route (R8). Step 7's second half
+  (the service's switch, the whole-text wires, H2's lazy execution, the streaming gate) follows steps 8 to 10.
 - **2026-10-18, the pivot homework against upstream's real code** (the user's question after step 7's first
   landing; `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md`; GATES "The pivot homework"): the engine's generated column
   name carries the single quotes everywhere, only a cast pivot executes there, H2 refuses every pivot; the group rule,

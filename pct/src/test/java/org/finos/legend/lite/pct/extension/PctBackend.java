@@ -229,10 +229,12 @@ public final class PctBackend {
     }
 
     /** Whether channel A runs through the plan path (the expression planned to Pure's TDS text and run by the plan
-     *  runner on the session the lane's connector opens) rather than the legacy executor on a JDBC session: the
-     *  MongoDB lane, which has no JDBC session (docs/MONGODB_PLAN_2026_10_16.md §6). */
+     *  runner on the session the plan's target opens) rather than the legacy executor on a JDBC session: the MongoDB
+     *  lane, which has no JDBC session (docs/MONGODB_PLAN_2026_10_16.md §6), and since 2026-10-18 the DuckDB lane,
+     *  the reference lane, switched first (the plan path program's step 9, docs/PLAN_PATH_PROGRAM_2026_10_17.md §7;
+     *  the user: "flip and let's fix everything"). The other JDBC lanes follow once this one is exact. */
     public static boolean throughThePlan() {
-        return lane() == Lane.MONGODB;
+        return lane() == Lane.MONGODB || lane() == Lane.DUCKDB;
     }
 
     /** The system property the MongoDB lane's storeless runtime names for its password (a vault reference in the
