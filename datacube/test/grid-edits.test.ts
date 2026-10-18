@@ -254,7 +254,7 @@ describe('the headers\' sort marks: what orders the rows, as the query orders th
   const TREE = '__tree';
   const headed = ['__tree', 'notional', 'qty', pivotTotalColumn('notional'), 'weakest'];
   const folded = (s: Partial<CubeSnapshot>): CubeSnapshot =>
-    applyToSnapshot({ ...CUBE, treeColumnSort: undefined, ...s }, DEFAULT_CONFIGURATION);
+    applyToSnapshot({ ...CUBE, ...s }, DEFAULT_CONFIGURATION);
 
   it('with no sort applied, the tree shows its own direction: it orders the groups', () => {
     assert.deepEqual(headerSorts(folded({}), headed, TREE), [{ column: TREE, direction: 'asc' }]);
@@ -274,7 +274,7 @@ describe('the headers\' sort marks: what orders the rows, as the query orders th
 
   it('a sort the query leaves out is neither marked nor counted: a total\'s with totals off, a child aggregate\'s', () => {
     const total = pivotTotalColumn('notional');
-    const noTotals = { ...DEFAULT_CONFIGURATION, pivotStatisticColumnPlacement: undefined };
+    const { pivotStatisticColumnPlacement: _totals, ...noTotals } = DEFAULT_CONFIGURATION;
     const s = applyToSnapshot({
       ...CUBE,
       pivotOn: ['desk'],
