@@ -248,6 +248,7 @@ _EXTRA_DATA = {
     "multi-cube": ["test/cube-fixture.ts", "test/gate.ts"],
     "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts"],
     "page-app": ["test/cube-fixture.ts", "test/gate.ts"],
+    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts"],
     # the headless lane's stand-ins for node:assert and node:test, held to Node's own here
     "headless-assert": ["test/headless/node-assert.ts"],
     "headless-test-runner": [

@@ -28,7 +28,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { chartValuesAsColumns, followCube, GRID_MARKS } from '../chart-spec.ts';
+import { chartValuesAsColumns, followCube, GRID_MARKS, type ChartSpec } from '../chart-spec.ts';
 import { applyToSnapshot, type CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
@@ -786,7 +786,7 @@ export class CubePage {
     body.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       const spec = panel.spec;
-      const editable = panel.frozen && spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark);
+      const editable = panel.frozen && editableInGrid(spec);
       this.#menuFor = (item) => {
         if (item.id === 'tile.options') panel.toggleForm();
         if (item.id === 'tile.edit') this.#openEditor(id);
@@ -1124,7 +1124,7 @@ export class CubePage {
       return;
     }
     const spec = chart.panel.spec;
-    if (!spec || spec.mark === 'scatter' || GRID_MARKS.has(spec.mark) || spec.x === undefined) return;
+    if (!editableInGrid(spec)) return;
     const source = this.#sourceOf(chart.link);
     const tile = `edit-${chartId}`;
     const host = this.#doc.createElement('div');
@@ -1227,6 +1227,14 @@ export class CubePage {
 
 /** Pages made so far: each its own crosshair group. */
 let crosshairs = 0;
+
+/**
+ * Whether Open in grid can edit a chart: its grouping is a column across (a gauge has none, nor a KPI without a trend),
+ * and it is not a scatter's rows nor the grid as shown. The one rule: the menu offers the entry exactly when it opens a grid.
+ */
+function editableInGrid(spec: ChartSpec | null): spec is ChartSpec & { readonly x: string } {
+  return spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark) && spec.x !== undefined;
+}
 
 /** `layout` without the tiles `leave` names: each one's place closed by its neighbours, as a removal closes it. */
 function without(layout: Bands, leave: (id: string) => boolean): Bands {
