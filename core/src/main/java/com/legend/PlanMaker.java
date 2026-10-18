@@ -182,8 +182,60 @@ final class PlanMaker {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
         };
-        return new ExecutionPlan.Target(database, Databases.servers(decided.type()), dialect.sessionSetup(),
+        List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
                 setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), decided.type(), dialect));
+        steps.addAll(metamodelSteps(l, decided.type(), dialect));
+        return new ExecutionPlan.Target(database, Databases.servers(decided.type()), dialect.sessionSetup(), steps);
+    }
+
+    /**
+     * The system metamodel store's tables a query reads ({@code Class.all()}: the typed tree's references to
+     * {@link com.legend.builtin.SystemMetamodel#STORE_FQN}), set up on the plan's target as the legacy route seeded
+     * them on the graph's own system database ({@code exec.SystemDatabase}; the plan path program's step 9,
+     * 2026-10-18): each referenced table created and loaded with the graph's facts ({@link MetamodelSeeds}, written
+     * at plan time), so a model-free runner answers the query on the plan's session. A query reading no such table
+     * adds no step; a table of no rows is created empty.
+     */
+    private static List<ExecutionPlan.SetupStep> metamodelSteps(Compiler.LoweredQuery l,
+            ConnectionDefinition.DatabaseType type, SqlDialect dialect) {
+        java.util.Set<String> tables = new java.util.TreeSet<>();
+        collectSystemTables(l.root(), tables);
+        if (tables.isEmpty()) {
+            return List.of();
+        }
+        com.legend.model.DatabaseDefinition store = l.ctx()
+                .findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
+                .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
+        boolean bulk = Databases.loadsRowsInBulk(type);
+        List<ExecutionPlan.SetupStep> out = new ArrayList<>();
+        for (com.legend.model.DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
+            for (com.legend.model.DatabaseDefinition.TableDefinition def : schema.tables()) {
+                // a reference names its table schema-qualified (metamodel.classes)
+                if (!tables.contains(schema.name() + "." + def.name()) && !tables.contains(def.name())) {
+                    continue;
+                }
+                for (String statement : com.legend.setup.Ddl.metamodelSeed(def, schema.name(), dialect)) {
+                    out.add(new ExecutionPlan.SetupStep.Statement(statement));
+                }
+                List<List<String>> rows = MetamodelSeeds.rows(def.name(), l.ctx());
+                if (!rows.isEmpty()) {
+                    RowLoad load = com.legend.setup.Ddl.metamodelRows(def, schema.name(), rows);
+                    out.add(bulk ? load.staged(dialect)
+                            : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static void collectSystemTables(com.legend.compiler.spec.typed.TypedSpec n, java.util.Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr
+                && tr.store().equals(com.legend.builtin.SystemMetamodel.STORE_FQN)) {
+            out.add(tr.table());
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
+            collectSystemTables(c, out);
+        }
     }
 
     /** The one definition a declared target opens: its connections may differ in name, not in database —

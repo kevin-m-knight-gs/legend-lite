@@ -78,7 +78,10 @@ class PctDisciplineTest {
     // alone; an enumeration's values by extractEnumValue; every other value read by compileValueSpecification and
     // reactivate (readPureLiteral, seven lines, with its reason) -- Pure reads what the database spelled, no
     // comparison, no Java; 540 -> 557.
-    private static final int ADAPTER_MAX_LINES = 557;
+    // 2026-10-18, the DuckDB lane on the plan route (the plan path program's step 9): a Number-typed function's
+    // value read by the wire header's type (value:Decimal[1]), where the text alone read a Decimal as a Float; the
+    // Decimal arm reads a D the Number root spells (four lines); 557 -> 561.
+    private static final int ADAPTER_MAX_LINES = 561;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

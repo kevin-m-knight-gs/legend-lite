@@ -2714,6 +2714,13 @@ final class Scalars {
             return new SqlExpr.Cast(new SqlExpr.NullLit(),
                     com.legend.sql.SqlType.Scalar.VARCHAR);
         }
+        // a TYPE value prints its NAME (STR_Person->toString() is 'STR_Person'; testClassToString): the cell
+        // carries the type's PATH (the lowering's type reference, so the text carrier compiles it; 2026-10-18), and
+        // the database strips the package
+        if (t instanceof Type.GenericType mg && PlatformTypes.isClassMetaclass(mg)) {
+            return new SqlExpr.Call(SqlFn.REGEXP_REPLACE, List.of(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
+                    new SqlExpr.StringLit("^.*::"), new SqlExpr.StringLit(""), new SqlExpr.StringLit("")));
+        }
         // Variant.toString IS its CANONICAL JSON text — compact, source
         // whitespace normalized away, leaf quoting PRESERVED (witness
         // testVariantColumn_keyExtraction: the engine prints {"a":1},

@@ -10653,6 +10653,65 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 9, first landing: the DuckDB PCT lane on the plan route, its twelve failures fixed or named
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9 (announced in its §9 and `docs/IN_FLIGHT.md` with the
+flip, commit `efaaf3e`: the user's "flip and let's fix everything expertly", after the session's account that steps 1
+to 7 had switched no consumer).
+
+**The flip.** `PctBackend.throughThePlan` is true for the DuckDB lane as for MongoDB's: every channel A case is planned
+to Pure's TDS text under the PCT's flags and run by the plan runner on the plan's own session (`PctPlanRoute`); the
+legacy route (the query service on the lane's JDBC session) is no longer taken there. The adapter's unwrap by the
+function's return type (the MongoDB line's) carried the DuckDB lane as it was.
+
+**The first run on the flipped lane: 12 failures of 1,249** (relation 469 and unclassified 93 green as they were;
+essential 5, grammar 5, standard 2), in five causes:
+1. **A Decimal read as a Float (6: `rem`, `minus`, `plus`, `times`, `min`, `max`).** The adapter read a value typed
+   `Number` by its text alone, so a Decimal-typed value's bare text (`0.14` for Pure's `rem(3.14, 1.5d)`, which is
+   `0.14D`; `353791.470` losing its scale as a Float) read a Float. Fixed in two places: the adapter reads such a
+   value by the wire header's type (`value:Decimal[1]`: Pure's `parseDecimal`, the header being the typed fact; the
+   `ADAPTER_MAX_LINES` ceiling 557 -> 561 with the reason), and a Number-typed root's computed or written Decimal
+   cell carries its `D` by its own slot (`LiteralSpelling.wireValueEgress` with `Fold.conformValueEgress`'s
+   `numberRoot`; `min([1.0d])` is `1.0D`), as a column-rooted cell and a Number-LUB mix already spelled theirs. A
+   Decimal-typed root prints bare, as Pure does: the output matrix holds (its first run caught the `D` spelled on
+   every Decimal root, reverted).
+2. **A type written as a value (1: `letChainedWithAnotherFunction`; `testClassToString` on the way).** The lowering
+   spelled a type value by its simple name, and the text carrier's reader, compiling the cell, found five
+   `TestClass`es. Fixed: a type value carries its path (`Lowerer`'s two reference arms; `MixedEncoding.simpleName`
+   deleted); the carrier spells the cell rather than the static type argument (`LiteralSpelling.pureValueText`'s
+   `Class<T>` arm had named a collection of types by their common ancestor, `Any`); and `toString` of a type prints
+   its name, the database stripping the package (`Scalars.pureToString`'s new arm: the second run's
+   `testClassToString` showed the path leaking into the text). The legacy bridge could not resolve the simple name
+   either: the test had passed with a String where a Class was due.
+3. **The system metamodel store (1: `Class.all()`).** The legacy route seeded the graph's facts into a system
+   database of its own (`exec.SystemDatabase`); the plan path had no such tables. Fixed at plan time: the plan maker
+   writes each referenced store table as setup steps of the plan's target (its DDL and its rows,
+   `PlanMaker.metamodelSteps` through `Ddl.metamodelSeed` and `MetamodelSeeds`), so the model-free runner answers
+   on the plan's session (505 classes in the PCT's graph). `MetamodelSeeds` and `OpSeeds` move into the planner
+   library (their dependencies were plan-side already).
+4. **A Float literal beyond a double (1: `testBigFloatAbs`) and the inverse trigonometric errors (2: `asin`, `acos`
+   of 2.0).** Pinned as the legacy route had them, the messages moved to the plan route's with the reasons: the value
+   lane converts a Float root to DOUBLE, whose HUGEINT digits are `...784` where Java's text was `...780` (the fix is
+   the value lane keeping a DECIMAL slot exact, an item of step 9); a NaN cell is refused by Pure's `parseFloat`
+   where Java's BigDecimal said "Infinite or NaN". The engine's relational adapters ledger both.
+5. **A heterogeneous class collection (1: `testConcatenateTypeInference`).** Instances meeting at an abstract
+   ancestor cross as JSON without their class, which the text carrier has no form for; the legacy route rebuilt the
+   instances in Java. Pinned by name; register S81 names the form (each element spelled as its own class's literal
+   before the union, or the JSON carrying `__type` and a JSON-to-grammar speller).
+
+**Verdicts (this tree).** The five DuckDB suites on the plan route 1,249 of 1,249 (essential 345, grammar 137,
+relation 469, standard 205, unclassified 93; the essential suite's pins 24 -> 25 entries: one added by name, three
+messages moved, each with its reason), `//pct:pct_discipline` (the adapter's ceiling moved with its reason),
+`//core:core_tests_root` (the output matrix among it: every Decimal root still Pure's bare text) and
+`//core:core_tests_lowering` pass. The chain -- `//gates:core` under the Postgres wrapper, `//gates:pct_channel_b`,
+`//spec:corpus_h2`, `//spec:corpus_duckdb` -- runs on this tree as this lands; its verdicts are appended to this
+entry by the commit that follows.
+
+**Not changed, recorded.** The value lane's DOUBLE conversion of a Float root (the `testBigFloatAbs` pin's reason, an
+item of step 9); the heterogeneous class collection's form (S81); the other JDBC lanes (H2, Postgres, the rest) stay
+on the legacy route until this one is exact on its chain; the shadow plan (`PctShadowPlan`) is deleted with the
+legacy route (R8).
+
 ## 2026-10-18 — The pivot homework against upstream's real code: the generated name as the engine labels it on every wire
 
 The note: `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md` (the user's question after step 7's first landing: "do we

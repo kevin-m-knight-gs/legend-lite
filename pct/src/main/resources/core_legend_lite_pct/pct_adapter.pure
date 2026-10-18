@@ -472,13 +472,17 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                       // String's '0' as an Integer), so a number is read as Pure spells it and a String's cells
                       // are the quoted text itself (quotedCells; the MongoDB lane's burn-down, 2026-10-17)
                       let lines = $tdsString->split('\n')->tail()->filter(l | $l != '' && $l != 'null');
+                      // the wire header's type (value:Decimal[1]): a Number-typed function's value is read by it
+                      // (a Decimal prints bare, as Pure prints it; the plan route, step 9, 2026-10-18)
+                      let header = $tdsString->split('\n')->at(0);
+                      let headerType = $header->substring($header->indexOf(':') + 1, $header->indexOf('['));
                       if($rt == Date || $rt == StrictDate || $rt == DateTime || $rt == LatestDate,
                         | $lines->map(l | $l->parseDate())->cast(@X)->toMultiplicity(@[o]),
                         | if($rt == Decimal,
-                            | $lines->map(l | $l->parseDecimal())->cast(@X)->toMultiplicity(@[o]),
+                            | $lines->map(l | if($l->endsWith('D'), |$l->substring(0, $l->length() - 1), |$l)->parseDecimal())->cast(@X)->toMultiplicity(@[o]),   // a Decimal crosses with its D (2026-10-18)
                             | if($rt == Number || $rt == Integer || $rt == Float,
-                                | $lines->map(l | if($l->endsWith('D'), |$l->substring(0, $l->length() - 1)->parseDecimal(),
-                                                     |if($rt == Float || ($rt == Number && $l->contains('.')), |$l->parseFloat(), |$l->parseInteger())))->cast(@X)->toMultiplicity(@[o]),
+                                | $lines->map(l | if($l->endsWith('D') || ($rt == Number && $headerType == 'Decimal'), |if($l->endsWith('D'), |$l->substring(0, $l->length() - 1), |$l)->parseDecimal(),
+                                                     |if($rt == Float || ($rt == Number && ($headerType == 'Float' || ($headerType != 'Integer' && $l->contains('.')))), |$l->parseFloat(), |$l->parseInteger())))->cast(@X)->toMultiplicity(@[o]),
                                 | if($rt == String,
                                     | meta::legend::lite::pct::quotedCells($tdsString)->cast(@X)->toMultiplicity(@[o]),
                                     | if($rt == Boolean,

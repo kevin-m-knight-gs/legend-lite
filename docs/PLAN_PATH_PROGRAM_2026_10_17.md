@@ -297,6 +297,13 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-18, step 9, first landing: the DuckDB PCT lane exact on the plan route** (GATES "step 9, first
+  landing"): the flipped lane's first run failed 12 of 1,249; fixed at the root: a Number-typed value read by the
+  wire header's type and a Number root's Decimal cell carrying its D by its own slot (six), a type value carrying its
+  path, spelled from the cell and printed by its name (two), the system metamodel store's tables written into the
+  plan's setup by the plan maker (`Class.all()`); pinned by name with the reason: a Float literal beyond a double, the
+  inverse trigonometric NaN (the engine's adapters ledger them), a heterogeneous class collection (S81). Verdicts:
+  1,249 of 1,249, the root and lowering lanes green. Next: the chain on this tree, then the other JDBC lanes.
 - **2026-10-18, step 9 announced and begun: the DuckDB PCT lane flipped onto the plan route** (the user: "flip
   and let's fix everything", after the session's account of steps 1 to 7 switching no consumer). `PctBackend
   .throughThePlan` is true for the DuckDB lane as for MongoDB's: every channel A case planned to Pure's TDS text and

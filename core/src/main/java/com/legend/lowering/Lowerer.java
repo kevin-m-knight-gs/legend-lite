@@ -361,7 +361,7 @@ public final class Lowerer {
                             relation(ValueCollections.valueColumnProject(
                                     m.source(), ml, spec.info().type(), colMult)),
                             spec.info().type()),
-                    LiteralSpelling.ValueLane.MAP_CHANNEL);
+                    LiteralSpelling.ValueLane.MAP_CHANNEL, spec.info().type() == Type.Primitive.NUMBER);
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
             boolean scalarCells = ml.body().get(ml.body().size() - 1)
@@ -383,7 +383,7 @@ public final class Lowerer {
         }
         return Fold.conformValueEgress(
                 Fold.declaredKindEnvelope(scalarRoot(spec), spec.info().type()),
-                LiteralSpelling.ValueLane.SCALAR_ROOT);
+                LiteralSpelling.ValueLane.SCALAR_ROOT, spec.info().type() == Type.Primitive.NUMBER);
     }
 
     /**
@@ -2992,18 +2992,19 @@ public final class Lowerer {
                     && pa.source().info().type() instanceof Type.EnumType ->
                     scalarStructural(pa.source(), columns);
 
-            // a TYPE written as a value ([String, Integer] vs columns.type;
-            // Car): type VALUES travel as canonical simple names
+            // a TYPE written as a value ([String, Integer] vs columns.type; Car): a type VALUE travels as its
+            // PATH (a primitive's is its name) -- the text carrier compiles the cell, and a simple name is
+            // ambiguous there (the PCT's TestClass has five namesakes; the DuckDB lane on the plan route, step 9,
+            // 2026-10-18; until then the canonical simple name, which the legacy bridge could not resolve either)
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
-                    new SqlExpr.StringLit(MixedEncoding.simpleName(tr.target().typeName()));
+                    new SqlExpr.StringLit(tr.target().typeName());
             case com.legend.compiler.spec.typed.TypedPackageableRef pr
                     when pr.info().type() instanceof
                             com.legend.compiler.element.type.Type.GenericType g
                     && g.rawFqn().equals(
                             com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
                     && g.arguments().size() == 1 ->
-                    new SqlExpr.StringLit(MixedEncoding.simpleName(
-                            g.arguments().get(0).typeName()));
+                    new SqlExpr.StringLit(g.arguments().get(0).typeName());
 
             default -> scalarRelationalArms(spec, columns);
         };

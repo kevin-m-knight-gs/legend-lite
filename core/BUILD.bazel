@@ -210,6 +210,10 @@ _PLANNER_SRCS = [
     "src/main/java/com/legend/CrossStoreGuard.java",
     # the models a host holds, compiled once and planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
     "src/main/java/com/legend/HeldModels.java",
+    # the system metamodel store's rows, written into a plan's setup by the plan maker (the plan path program's
+    # step 9, 2026-10-18); until then the legacy executor's seed of the graph's system database
+    "src/main/java/com/legend/MetamodelSeeds.java",
+    "src/main/java/com/legend/OpSeeds.java",
     "src/main/java/com/legend/PlanMaker.java",
     "src/main/java/com/legend/ProgramFacts.java",
     "src/main/java/com/legend/QueryParameters.java",

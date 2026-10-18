@@ -1336,6 +1336,13 @@ final class Fold {
     /** Per-lane scope: {@link LiteralSpelling.ValueLane}. */
     static SqlSelect conformValueEgress(SqlSelect s,
             LiteralSpelling.ValueLane lane) {
+        return conformValueEgress(s, lane, false);
+    }
+
+    /** {@link #conformValueEgress(SqlSelect, LiteralSpelling.ValueLane)} with {@code numberRoot}: the cells' Pure
+     *  type is Number, so a Decimal among them carries its D (LiteralSpelling.wireValueEgress). */
+    static SqlSelect conformValueEgress(SqlSelect s,
+            LiteralSpelling.ValueLane lane, boolean numberRoot) {
         java.util.List<SqlSelect.Projection> out = null;
         for (int i = 0; i < s.projections().size(); i++) {
             SqlSelect.Projection p = s.projections().get(i);
@@ -1344,7 +1351,7 @@ final class Fold {
                 continue;
             }
             SqlExpr.Cast conformed = LiteralSpelling.wireValueEgress(
-                    p.expr(), col.type(), lane);
+                    p.expr(), col.type(), lane, numberRoot);
             if (conformed == null) {
                 continue;
             }

@@ -50,7 +50,15 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // own answer (a Pure Float IS java.lang.Double there; the engine's
             // DuckDB/H2 PCT suites run compiled). This lane is the INTERPRETED
             // builder, whose Float is BigDecimal-backed and keeps the digits.
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+            // 2026-10-18, the DuckDB lane on the plan route (step 9): the value lane converts a Float root to
+            // DOUBLE (Fold.declaredKindEnvelope), and the HUGEINT digits of that double are ...784 where the legacy
+            // route's Java text was ...780; both lose the literal's two decimals. The fix is the value lane keeping
+            // a DECIMAL slot exact under a Float root (an item of step 9), not a pin.
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
+            // 2026-10-18, the plan route (step 9): a heterogeneous class collection meeting at an abstract ancestor
+            // (CO_Address and CO_Location as CO_GeographicEntity) crosses as JSON without its class, which the text
+            // carrier has no form for; the legacy route rebuilt the instances in Java. Register S81.
+            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form"),
             one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
@@ -148,9 +156,11 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // engine relational PCT adapter ledgers these two tests as
             // expected failures (relational-h2 EssentialFunctions_manifest:
             // "No error was thrown"; duckdb/postgres: the database's own
-            // error). Ours: the NaN cell cannot be read back as a Float.
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
+            // error). Ours: the NaN cell cannot be read back as a Float -- on the plan route (step 9, 2026-10-18)
+            // the text carrier spells it NaN and Pure's parseFloat refuses the character (the legacy route's Java
+            // BigDecimal said "Infinite or NaN").
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
 
     public static Test suite() {
         // M4 §3.4: the census gate pins this JVM's SqlTypeCensus

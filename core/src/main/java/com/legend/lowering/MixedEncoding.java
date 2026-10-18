@@ -694,11 +694,6 @@ final class MixedEncoding {
         return null;
     }
 
-    static String simpleName(String qn) {
-        int cut = qn.lastIndexOf("::");
-        return cut < 0 ? qn : qn.substring(cut + 2);
-    }
-
 
     /** Pure LITERAL FLATTENING at construction (audit-of-R1: consumer-site
      * compaction was whack-a-mole): a VALUE-lane literal collection with an
