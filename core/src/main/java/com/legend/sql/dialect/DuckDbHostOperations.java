@@ -39,7 +39,7 @@ final class DuckDbHostOperations implements HostOperations {
 
     @Override
     public List<String> openDatabase(String name) {
-        return List.of("ATTACH ':memory:' AS " + quoted(name));
+        return List.of("ATTACH '" + DuckDb.IN_MEMORY + "' AS " + quoted(name));
     }
 
     @Override

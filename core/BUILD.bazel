@@ -254,7 +254,7 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/PureV1Api.java",
     ],
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
 )
 legend_java_library(
     name = "server_lib",
@@ -367,7 +367,11 @@ _CENSUS_READS = _CORE_READS + [
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",
+    "//native:main_java",
+    "//testing:main_java",
+    "//warehouse:main_java",
     "//warehouse:test_java",
+    "//wasm:planner_java",
 ]
 
 # core's tests, compiled ONCE; every lane below runs from this library.
@@ -395,7 +399,7 @@ legend_java_library(
             "src/test/java/com/legend/integration/IqCorpusTest.java",
             # the regression suite's corpus lane is :pg_regress_corpus_test's alone (manual): it fails without
             # -Dsql.corpus.regress (2026-10-17)
-            "src/test/java/com/legend/integration/PgRegressCorpusTest.java",
+            "src/test/java/com/legend/integration/PostgresRegressCorpusTest.java",
             # the #Cypher{...}# island's parity lanes are :cypher_parity_test's and :cypher_parity_postgres_test's
             "src/test/java/com/legend/integration/CypherParityTest.java",
             "src/test/java/com/legend/server/CypherParityPostgresTest.java",
@@ -834,7 +838,7 @@ junit_test(
 
 # THE #SQL{...}# ISLAND OVER THE POSTGRESQL REGRESSION SUITE (the corpus program's first corpus, 2026-10-17, the
 # seventh line): each read-only statement of the suite's files, replayed in schedule order on the embedded Postgres 16,
-# judged live against Postgres (integration/PgRegressCorpusTest.java). Run only where -Dsql.corpus.regress names a
+# judged live against Postgres (integration/PostgresRegressCorpusTest.java). Run only where -Dsql.corpus.regress names a
 # src/test/regress directory (the suite is PostgreSQL's: REL_16_STABLE); manual, not a gate:
 #   bazel test //core:pg_regress_corpus_test --strategy=TestRunner=local --test_output=all \
 #     --jvmopt=-Dsql.corpus.regress=<.../src/test/regress> --jvmopt=-Dsql.corpus.report=<report dir>
@@ -842,13 +846,13 @@ junit_test(
     name = "pg_regress_corpus_test",
     memory_mb = 4096,
     size = "enormous",
-    srcs = ["src/test/java/com/legend/integration/PgRegressCorpusTest.java"],
+    srcs = ["src/test/java/com/legend/integration/PostgresRegressCorpusTest.java"],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
         "@embedded_postgres//:postgres",
     ],
     jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.integration.PgRegressCorpusTest"],
+    select = ["--select-class=com.legend.integration.PostgresRegressCorpusTest"],
     tags = ["manual"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,

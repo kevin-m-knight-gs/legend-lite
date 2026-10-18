@@ -13,6 +13,8 @@ write_source_files(
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
     files = {
+        # the engine's dynafunction registries, dialect by dialect: reference data (the dialect program's D10, 2026-10-18)
+        "engine-dynafunctions.tsv": "//spec:gen_engine_dynafunctions",
         "protocol-roster.tsv": "//parser-equivalence:gen_roster",
     },
     visibility = ["//visibility:public"],

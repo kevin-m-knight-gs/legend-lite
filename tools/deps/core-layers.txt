@@ -42,6 +42,9 @@
 # 2026-10-16, the dialect program's Phase 5: `database` no longer reaches `execution_plan` (a database's server versions
 # are its dialect's, SqlDialect.serverVersions; PlanMaker writes them into the plan) and `plan` no longer reaches
 # `database` (the IN-list facts are legend-engine's, EngineText.inListTempTables, which PlanEnvelope passes in).
+# 2026-10-18, the dialect program's Phase 7: `pure_v1` reaches `database` (CreateClass asks the declared database's
+# dialect for the path an in-memory specification is written with, SqlDialect.inMemoryPath, instead of reading the
+# protocol's DuckDB tag).
 spi	
 cache	base
 values	base
@@ -70,7 +73,7 @@ probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
 planner	base builtin cache compiler compiler_element_type database error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
-pure_v1	base compiler compiler_element_type error json parser plan planner protocol sql_dialect
+pure_v1	base compiler compiler_element_type database error json parser plan planner protocol sql_dialect
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
 ide	base lexer model parser
 test	base compiler driver error exec model planner protocol sql values

@@ -14,11 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The translator ({@link SqlToPure}) on its own: the Pure each query becomes, printed as a person would write it,
- * Postgres's name and NULL rules, and each refusal's kind. The FROM source's columns come from a stand-in for the
+ * The translator ({@link SqlToPure}) on its own, reading Postgres ({@link PostgresDialect}, the {@code #SQL{...}#}
+ * island's language; named for it, the dialect program's D11, 2026-10-18, as {@code IqToPureTest} is for IQ's): the
+ * Pure each query becomes, printed as a person would write it, Postgres's name and NULL rules, and each refusal's kind. The FROM source's columns come from a stand-in for the
  * typer, so no model is compiled here; {@code SqlIslandIntegrationTest} runs the same pipeline end to end.
  */
-class SqlToPureTest {
+class PostgresToPureTest {
 
     /** A source column, as the typer reports it. */
     private record Col(String name, String type, boolean nullable, @com.legend.base.Nullable String storeType) {
@@ -41,7 +42,7 @@ class SqlToPureTest {
 
     private static String pure(String sql, List<Col> columns) {
         ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> columns.forEach(
-                c -> column.column(c.name(), c.type(), c.nullable(), c.storeType())));
+                c -> column.column(c.name(), c.type(), c.nullable(), c.storeType())), PostgresDialect.INSTANCE);
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 

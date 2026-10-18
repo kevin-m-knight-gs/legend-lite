@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The Postgres reader ({@link SqlParser}, {@link SqlLexer}): Postgres's lexical rules and operator precedence, every
  * clause it accepts, and the refusals by name and position of what it does not accept yet.
  */
-class SqlParserTest {
+class PostgresParserTest {
 
     private static SqlAst.Select select(String sql) {
         return (SqlAst.Select) SqlParser.parse(sql);

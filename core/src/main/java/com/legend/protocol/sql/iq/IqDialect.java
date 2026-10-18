@@ -6114,6 +6114,23 @@ public final class IqDialect implements InputDialect {
                 IqType.integer("INTEGER", lo, hi, true))));
     }
 
+    /** IQ's wording of a kind in the translator's refusals that name a value's type (D11, 2026-10-18): its own
+     *  ({@link #kindName}). */
+    @Override
+    public String typeName(Kind kind) {
+        return kindName(kind);
+    }
+
+    /** A string constant the translator compares with a value of another kind (a simple CASE's operand, D11,
+     *  2026-10-18): refused by name. IQ converts the string by its own rules, which the island reads in its own
+     *  comparisons ({@link #binary}) but not in the translator's; until 2026-10-18 the translator read it by
+     *  Postgres's rules, which no IQ test reached. */
+    @Override
+    public Tx readString(SqlAst.StringLit s, Kind kind) {
+        throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with " + kindName(kind)
+                + " in a simple CASE is not supported yet", s.pos());
+    }
+
     private static String kindName(Kind k) {
         return switch (k) {
             case BOOLEAN -> "a condition";

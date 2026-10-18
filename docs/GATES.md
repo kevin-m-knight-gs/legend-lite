@@ -11262,3 +11262,95 @@ product behaviour change was intended, and none was measured.
     `-Drcorpus.backend=warehouse` and `legend.warehouse.*` on the head. Host pass 2471/108/14, database pass
     2473/108/14 of 2613 on both, the failures identical between the commits and equal to the DuckDB lane's, test by
     test.
+
+## 2026-10-18 — The dialect program's Phase 7: the warehouse, the model writer, the planner boundary and the dead code (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with main's #53 merged in (7a7a0096). The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "Done, 2026-10-18"; §3 defects 7 and 8; §6 D4 and D6).
+- **What moved:**
+  - The warehouse's Postgres knowledge is behind `Attachment`: its command line (`--postgres`, a `postgresql://` URL),
+    the password prompt and libpq's words. `WarehouseServer.Config` carries attached catalogs of any kind. DuckDB's
+    error kinds and engine name are the DuckDB binding's (`duck/`). Behaviour is unchanged but for two command-line
+    refusals' wording (`NAME=CONNECTION`; "an attached catalog needs --duckdb-extensions").
+  - Defects 7 and 8 were never reachable: a session, and so a JDBC connection, exists only on a native catalog.
+    `WarehousePostgresLiveTest.aJdbcConnectionToTheAttachedCatalogIsRefusedByName` pins the refusal.
+  - `server/CreateClass` asks the declared database's dialect for the path an in-memory specification is written with
+    (`SqlDialect.inMemoryPath`); `//core:pure_v1` reaches `//core:database` (`tools/deps/core-layers.txt`).
+  - The planner boundary (`wasm` `Boundary`, the tab's and Python's) seeds the tab with the platform's dialect and asks
+    the catalog question of it (`SqlDialect.catalogColumnsQuery`), its signatures unchanged.
+  - D6: 39 dead files deleted (18,499 lines); the rest of D6's list is left for the build program's script review,
+    whose old D3 decided to repair or wire it (the record).
+  - D10, taken over from the parked compiler line (the user's): `builtin/DynaFn.java` names no database; the engine's
+    dialect-by-dialect table is generated reference data, `docs/engine-dynafunctions.tsv`, which no build reads. The
+    232 names and every decision are unchanged; the refusal of an UNSUPPORTED name points at the table. The ledger
+    after it: 6 rows, 70 lines, all D11's (the SQL translator's Postgres rules, scheduled with the SQL line).
+- **Guards:** the warehouse is a host owner (`DatabaseOwners`' HOST kind); the leak ratchet and the owner guard read
+  the warehouse's main code, wasm's planner, native and testing; `Attachment` names an attached database only in its
+  rows and one-line arms (a new pin); `EmbeddedMySql`'s MariaDB driver is a registered crossing; the warehouse's two
+  crossings are gone. The ledger loses the warehouse's 5 rows (24 lines) and gains #53's `PgRegressCorpusTest` (2): 7
+  rows, 245 lines, all D10's or D11's.
+- **The independent review of the branch**, by an agent that wrote none of it, against the code, without Bazel:
+  - Blocking: the layering policy did not allow `pure_v1` to reach `database` (`//tools/deps:core_layering_test`,
+    which the first local gate run failed on, 370 of 371). Fixed.
+  - Fixed as well: `CreateClass` would have thrown for a declared database with no dialect (now written as it is,
+    pinned by a test); the password prompt asked before learning that a URL cannot carry the password (now refused
+    first, as on main); `Attachment` was a registry no guard read (now pinned); the D6 record misstated which
+    deletions the script review had kept as history; three files only the deleted ones used; stale `join.py` pointers.
+  - Checked and found equal to main: the command line's parsing and duplicate rules, `AttachFailed`, the error
+    classification (`DuckException.parse`/`bind`, read from its kind or its message's lead), the catalog question's
+    text, `testDataSql`'s output, the guards' counts (a Python replica: 7 rows, 245 lines; 4 crossings).
+- **Proof:**
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 372 of 372 on
+    the final tree (from a clean build: `bazel clean` freed the disk first).
+  - D10: `//core:census` (6 rows, 70 lines), `//core:core_tests_normalizer`, `//core:core_tests_builtin`,
+    `//core:core_tests_root`, `//spec:spec_tests`, `//core:update_generated_tests` (`DynaFn.java` regenerated) and
+    `//docs:update_generated_tests` (the new table): all pass.
+  - Not re-measured locally: the PCT, corpus and stress lanes. No SQL any of them renders or reads changed (the two
+    new `SqlDialect` methods render no statement a lane runs); the branch's CI runs every lane.
+
+## 2026-10-18 — The dialect program's D11 and the absolute ban: the SQL translator names no database (the ninth line)
+
+The same branch (neema2/legend-lite#56), at the seventh line's quiet point after #53. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "D11 and the absolute ban"; status DONE).
+- **What moved, no rule rewritten:** Postgres's rules leave `SqlToPure` (7,961 lines to 4,852) for six Postgres files in
+  `protocol/sql/`: `PostgresOperators`, `PostgresCasts`, `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and
+  `PostgresAggregates`. An instance method became a static one taking the translator first; the text is otherwise the
+  same. `AGGREGATES` and `SMALL_INTEGERS` stay in `SqlToPure`, which shared code reads (`SqlParser`'s VALUES check, the
+  `narrowInteger`-gated smallint check).
+- **The seam:** `InputDialect` loses the defaults that called Postgres's rules (`unary`, `between`, `inList`,
+  `isDistinct`, `quantifiedTest`, `isAggregate`) and the aggregate fallback (`aggregate` is abstract). It gains
+  `readString`, `typeName`, `operator` and `subscript`. IQ refuses `readString` by name (a simple CASE comparing a
+  string with a non-string, read by Postgres's rules until now; no IQ test reached it). `InputLanguages` maps an
+  island's language to its dialect; `SqlToPure.translate(sql, sources)` is gone.
+- **Named, not moved:** the translator's window functions and FROM set-returning functions stay its own reading.
+- **Tests:** `PostgresToPureTest`, `PostgresParserTest` and `PostgresRegressCorpusTest` (renamed, for the language they
+  test; the corpus target is still `//core:pg_regress_corpus_test`).
+- **Guards:** `DatabaseOwners` lists the six files as Postgres's input language and `InputLanguages` among the
+  registries. `DialectLeakRatchetTest` is a ban (`noDatabaseIsNamedOutsideItsOwners`), and
+  `dialect-leaks/ledger.tsv` is deleted (6 rows, 70 lines before D11, none after).
+- **Proof:**
+  - A dump of every translation the tests make (the statement, its dialect, the Pure or the refusal), taken through a
+    hook that was never committed. It covered `//core:core_tests`, the SQL, IQ and Cypher parity lanes on DuckDB and
+    Postgres, `//core:iq_syntax_cases_test`, `//core:sql_island_postgres_test`, `//core:postgres_arm_test` and
+    `//core:pg_regress_corpus_test`, before the move and after each of its two steps: 37,378 translations, all 35
+    targets passing each time. The IQ corpus lane (`//core:iq_corpus_test`, manual) was not run: its corpora are not in
+    the container, and a simple CASE comparing a string constant with a number or a date there is refused by name now
+    where it was read by Postgres's rules. The dumps are identical apart from two kinds of input:
+    - the statements the regression suite writes from live values (OIDs, timestamps);
+    - one IQ test that calls the translator once or twice by a `Set.of` order.
+  - The regression corpus (PostgreSQL REL_16_STABLE 8e928803020e under `tools/postgres/as_unprivileged.sh`), row by
+    row, status and message: identical, but for five statements whose text carries a live timestamp. Its counts,
+    before and after: PASS 2,905, REFUSED 7,038, BOTH_ERROR 2,260, UNMODELED 1,453, CATALOG 1,237, ERROR 420,
+    NONDETERMINISTIC 160, SKIP 7, REGISTERED 6, KNOWN 5, HARNESS 2. These are the seventh line's numbers for main
+    after #53.
+  - `//core:census` (the ban, the owner guard), the protocol, compiler and architecture tests.
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 373 of 373
+    on the D11 commit.
+  - An independent review, by an agent that wrote none of it, against the code: no drift found (the aggregates' side
+    effects in order, the operator and subscript refusals word for word, `readString` and `typeName` equal to the old
+    helpers for Postgres, no static-initialisation cycle, no overload rebound by the static imports). Fixed from it:
+    - `dateArithmetic` and `numberConstant` moved to `PostgresDates` and `PostgresFunctions`;
+    - nine members made private again;
+    - stale comments;
+    - the ban fails when a root it reads yields no source;
+    - the records' wording.

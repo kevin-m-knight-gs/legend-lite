@@ -1,6 +1,13 @@
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/guards:defs.bzl", "guards_package")
 
+# the main sources, as files: core's database-name guards read them (the dialect program's Phase 7, 2026-10-18)
+filegroup(
+    name = "main_java",
+    srcs = glob(["src/main/java/**/*.java"]),
+    visibility = ["//core:__pkg__"],
+)
+
 # Test support shared by every module's tests: Runfile, a declared input found through Bazel's
 # runfiles library (Bazel workplan P1-03), and Repo/Upstream, which P1-05 and P3-33 retire.
 legend_java_library(

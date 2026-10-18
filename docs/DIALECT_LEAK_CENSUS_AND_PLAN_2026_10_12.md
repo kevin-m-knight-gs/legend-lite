@@ -1,14 +1,17 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
-**Status: IN PROGRESS (2026-10-17).**
+**Status: DONE (2026-10-18): the ledger is empty and the leak ratchet is a ban.**
 - Phases 0 and 1 landed as neema2/legend-lite#39 (8501ccb).
 - The owner guard and Phases 2 and 4 landed as neema2/legend-lite#45 (4fb892f).
 - Phase 3 landed as neema2/legend-lite#49 (59b547a).
 - Phase 5 landed as neema2/legend-lite#51 (6f2a0f8).
-- Phase 6's part 1 landed as neema2/legend-lite#52 (da2dd23). Its part 2 is done on branch
-  `claude/gracious-edison-jcsvzm` (both records are under Phase 6).
-- Left: Phase 7 (the warehouse and the other modules, then the absolute ratchet), the SQL translator's Postgres rules
-  (D11), and defect 11 (SQLite's plan path) in a PR of its own.
+- Phase 6 landed in two parts: part 1 as neema2/legend-lite#52 (da2dd23), part 2 as neema2/legend-lite#54 (c607cf6)
+  (both records are under Phase 6).
+- Phase 7, D10 (taken over from the parked compiler line, the user's, 2026-10-18) and D11 (with the seventh line) are
+  done on branch `claude/gracious-edison-jcsvzm`, neema2/legend-lite#56 (their records are under Phase 7). With D11 the
+  ledger is empty and `DialectLeakRatchetTest` bans a database's name outside its owners.
+- Left, outside the ban: defect 11 (SQLite's plan path), in a PR of its own; the scripts and tools D6 left, kept for
+  now (the user); the translator's window and FROM-function readings, named under D11.
 
 (The status of 2026-10-13, on `claude/great-wright-p6t5s1`: Phase 0 done (55569df); Phase 1's 1b steps 1 to 3
 (2a4a5c8, 9373aec, 4a9f1bc, 43ad660), P1a (e64e7e8), P1c (9e6363e to 074bd95), P1d with D8 (0470214 to 1447d42) and
@@ -274,8 +277,8 @@ structural, not scattered:
 | 4 | `CorpusDifferentialTest` renders every service with the DuckDB dialect, even services whose runtime declares H2, Postgres, Snowflake or Databricks | `CorpusDifferentialTest.java:46, 63, 81-83` |
 | 5 | On the Postgres corpus lane, on-demand fixtures run *without isolation*: `isolateBegin` returns null and the caller proceeds | `DuckWorkspaces.java:198-202`, `MinimalCorpus.java:692-696` |
 | 6 | `AbstractDatabaseTest`'s SQLite subclass declares `type: SQLite; specification: DuckDB {}`. *Fixed by Phase 6, part 1 (2026-10-16): the connection declares its backend's specification.* | `AbstractDatabaseTest.java:285-296` |
-| 7 | The warehouse wraps `BEGIN`/`COMMIT` in `postgres_query` on an attached Postgres catalog (expected to fail; read, not run) | `warehouse/.../WhConnection.java:66-93` |
-| 8 | The warehouse reports engine "DuckDB" for an attached Postgres catalog | `warehouse/.../server/Sessions.java:46` |
+| 7 | The warehouse wraps `BEGIN`/`COMMIT` in `postgres_query` on an attached Postgres catalog (expected to fail; read, not run). *Unreachable, and it was at the census commit (Phase 7, 2026-10-18): the census read `WhConnection` without its caller. A JDBC connection opens a session first, and `WarehouseServer.openSession` refuses a session on an attached catalog by name. Pinned by `WarehousePostgresLiveTest.aJdbcConnectionToTheAttachedCatalogIsRefusedByName`.* | `warehouse/.../WhConnection.java:66-93` |
+| 8 | The warehouse reports engine "DuckDB" for an attached Postgres catalog. *Unreachable for the same reason (Phase 7): a session, and so the engine it reports, exists only on a native catalog. The name is the DuckDB binding's now (`DuckLibrary.NAME`), and `WarehouseJdbcTest.theDatabaseIsTheEngineBehindTheSession` holds it to DuckDB's own driver.* | `warehouse/.../server/Sessions.java:46` |
 | 9 | ClickHouse's `concat` is NULL when any argument is NULL, where the flat concat's contract skips NULLs (H2, DuckDB, Postgres and SQLite skip them; Trino emulates it): a left-join-missed operand yields NULL on ClickHouse only. No PCT lane reaches it (found by D1, 2026-10-13; a follow-up task) | `clickhouse local` 25.8: `concat('a', NULL, 'b')` is `\N`; `ClickHouse.java` CONCAT → `concatFlat` |
 | 10 | On BigQuery an ordered collection of instances comes back in either order: the literal list lowers to a `UNION ALL` of one-row selects with no ordinal and no `ORDER BY`, and BigQuery keeps no branch order (`collection::tests::filter::testFilterInstance`, `[i1, i2]` or `[i2, i1]` from run to run; found by D1's measurement, 2026-10-13, older than it) | sibling 4's two runs of `pct_channel_b_bigquery_grammar` on 270dcfb |
 | 11 | SQLite's plan path answers differently from today's path: a list parameter's plan is refused by name ("binds no array"); a Decimal parameter answers `2.500000000000000000` in CSV and `"2.50"`, a string, in JSON, where today's path answers `2.50` and `2.5`; a Date or DateTime parameter answers with nine fraction digits in JSON (found by Phase 6, 2026-10-16, when PlanMakerTest first ran on every in-process database; no lane runs SQLite's plans) | `core/src/test/resources/plan-maker/differences.tsv`, 31 rows |
@@ -1163,6 +1166,141 @@ warehouse's tests (Phase 7).
   - **Kept:** `experiments/` (kept by decision, 2026-10-02, `.bazelignore`) and the code under `docs/` (the harnesses
     that produced each folder's evidence, `docs/parked/` included). The leak ratchet skips them by path.
 
+**Done, 2026-10-18** (branch `claude/gracious-edison-jcsvzm`, after Phase 6 landed as neema2/legend-lite#54). What it
+did, and where it departs from the list above:
+
+- **The warehouse (D4).**
+  - Its Postgres knowledge is behind `Attachment`, the registry of the databases a catalog attaches, each operation an
+    exhaustive switch into the database's own class. That now includes the command line (a kind's option, `--postgres
+    NAME=CONNECTION`, and its URL alone, `postgresql://...`), the password prompt, where a password goes without a
+    terminal, and libpq's "no password supplied" (`Postgres`). `Config` carries attached catalogs of any kind
+    (`Config.attached`, `withAttached`); `WarehouseServer` and `Catalogs` name no attached database.
+  - The DuckDB binding owns DuckDB's facts: its error kinds (`DuckException.parse` and `bind`, read from its kind or,
+    for a statement refused while it was prepared, from its message's lead; `Statements.classify` matches no text) and
+    its name (`DuckLibrary.NAME`, the engine a session reports).
+  - **Defects 7 and 8 were never reachable** (§3): a session, and so a JDBC connection, exists only on a native
+    catalog. A test pins the refusal.
+  - Its tests: `TestServer` takes attached catalogs of any kind; `AppModeTest`'s Postgres URL tests are
+    `PostgresUrlTest`'s, and the URL on the app's command line is `PostgresCatalogTest`'s.
+  - **The warehouse is a host owner** (`DatabaseOwners`' HOST kind): one DuckDB, the host of every catalog. Its sources
+    name DuckDB, in their code and their strings; another database only in a file named for it; and `Attachment`, the
+    registry, every one it attaches. The guards read its main code too. Its 5 ledger rows (24 lines) and its two
+    registered crossings are gone. `Attachment`, which no census reads (a registry), names a database only in its
+    rows and its switches' one-line arms (`DialectOwnerExclusivityTest.theWarehouseRegistryNamesADatabaseOnlyInItsRowsAndArms`,
+    as `DialectBoundaryTest` pins `Databases`).
+  - Departure: the "one warehouse-owned class" is two, `Postgres` and `PostgresUrl` (a URL's reading is its own
+    record), both reached only through `Attachment`.
+- **`server/CreateClass`.** The path a pathless in-memory specification is written with is the declared database's
+  dialect's (`SqlDialect.inMemoryPath`): DuckDB's `:memory:`, which legend-engine needs (its DuckDB opens the path a
+  specification names, and refuses one with none); the other dialects name none. `CreateClass` is plan side
+  (`//core:pure_v1`, which reaches `//core:database` for it: `tools/deps/core-layers.txt`), so the dialect, not the
+  connector, answers. Same output for every connection the tab writes; a declared database the platform does not run
+  on is written as it is, the writer running nothing (`CreateClassTest.anInMemoryDatabaseIsWrittenWithItsDatabasesPath`).
+- **Phase 3's two wasm items**, left until now. `Boundary.testDataSql` seeds the tab with the platform's own dialect
+  (`Databases.PLATFORM`: the tab's engine is the platform's in-process one). The catalog question is
+  `SqlDialect.catalogColumnsQuery` (DuckDB's; the others refuse by name), no longer `DuckDb.CATALOG_COLUMNS_SQL` read off
+  the class. The tab's and Python's signatures are unchanged.
+- **The guards read every module that plans, renders or runs SQL.** wasm's planner, native and testing join core, pct,
+  spec, parser-equivalence and the warehouse. `testing`'s test-database launchers are owners named for their database;
+  `EmbeddedMySql`, which opens MySQL with MariaDB's driver, is a registered crossing. Not read: the build's tools and the
+  other products (sdlc-server, depot-server, query-store, json, base, site, datacube's tools). Their hits that day were
+  two false positives, the census renderer and a tool named for Postgres (`DialectLeakRatchetTest.ROOTS`).
+- **Dead code (D6): 39 files, 18,499 lines deleted.** They are `tools/spikes`, `tools/metamodel-census`,
+  `tools/reference/join.py`, `scripts/corpus`'s codemods and their library (`add_taxonomy_edges`, `brokerage`,
+  `coverage`, `curves`, `curves2`, `largeexp`, `mutate`, `refdata`, `schedule`, `taxa_*`, `timeseries`) and
+  `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`; with them what only they used:
+  `tools/reference/source_drift.py` (its output was `join.py`'s input) and `docs/{corpus-coverage,census-baseline}.json`
+  (`coverage.py`'s and `census_gate.py`'s). No target builds them, no kept file imports them, and no live document
+  tells anyone to run them; git keeps them. 26 of them are rows the build program's script review marked "keep as
+  history" (`docs/bazel-audit-2026-10-02/script-review.md`; its old P7-04): D6, the user's later decision, deletes them,
+  and the review's End-1 records those rows done (`docs/IN_FLIGHT.md`). Departure: the rest of D6's list is left for that
+  review (`docs/build-inventory/program/PHASE_8.md` End-1), because there the two decisions conflict outright. D6
+  (2026-10-13) deletes those files, but the build program's old D3 (2026-10-03) decided to repair or wire them, and its
+  P3-25 wiring is uncommitted elsewhere. They are:
+  - `scripts/corpus/run.py` and its 16 probes, the recipes behind 14 kept repros (old D3 rows 1 and 2);
+  - `scripts/projects/*` (rows 5 and D18);
+  - `tools/untangle` (row 9);
+  - `tools/wrongrows` (P3-25);
+  - `tools/native-axes.py` (row 8) and `tools/upstream-drift.py` (old D19);
+  - `scripts/parser`, which moves to history whole (old D3b).
+
+  The user (2026-10-18): keep them for now, to be gone through later.
+- **D5** landed on 2026-10-13 (fbd216a3f, `HostSqlTest`). Its follow-up, D5b (`HostOperation.Source.Query`,
+  `Conversion`, `MakeRelation.selectList`; the `snap.ts` preflight count planned like any query), is the DataCube
+  line's. The query demo's warehouse seed (`query/demo/models/trading-seed.sql`) still runs DuckDB text on the
+  configured catalog: the Query line's.
+
+**D10, 2026-10-18** (the same branch; the user had this program take it over from the parked compiler line):
+`builtin/DynaFn.java` names no database. Its generator writes each name, its inference flag and nothing else; the
+engine's table of which of its dialect extensions register each name is generated reference data,
+`docs/engine-dynafunctions.tsv` (`//spec:gen_engine_dynafunctions`, held by `//docs:update_generated`'s diff test),
+which no build reads. This platform's answer for each of its databases is that dialect's own
+(`docs/dialect-capability/`), so the two cannot disagree. The one product reader of the engine's dialect lists,
+`RelOpTranslator`'s refusal of an UNSUPPORTED name, points at that table instead of printing them. The 232 names and
+every decision (`DynaFnDecisions`) are unchanged. `DynaFn`'s row (175 lines) left the ledger.
+
+**D11 and the absolute ban, 2026-10-18** (the same branch; scheduled with the seventh line, which named its quiet
+point after #53): the SQL translator names no database.
+- **What moved, no rule rewritten:** `SqlToPure` (7,961 lines, 4,852 after) keeps the framework every input language
+  shares -- scopes, the query's shape, three-valued logic, subqueries, windows -- and Postgres's rules are six files of
+  its own in `protocol/sql/`, beside `PostgresDialect` and `PostgresDateTime`:
+  - `PostgresOperators`: arithmetic, comparison, concatenation, IS DISTINCT FROM, IN, BETWEEN, LIKE, the quantified
+    test, CASE's one type, Postgres's type names in messages;
+  - `PostgresCasts`: CAST and `::`, typed constants, smallint, integer and bigint widths, a string read as a value;
+  - `PostgresFunctions`: the scalar function catalog;
+  - `PostgresDates`: date arithmetic, intervals and date_trunc;
+  - `PostgresJsonb`: jsonb's operators, subscripts, constants and functions;
+  - `PostgresAggregates`: the aggregates, the translator's own reading until now.
+
+  The moved text is the same text. An instance method became a static one that takes the translator first, and reads
+  it as `translator.`; a private member that another file reads became package-private.
+- **The seam, `InputDialect`:**
+  - The six defaults that called Postgres's rules (unary, BETWEEN, IN, IS DISTINCT FROM, the quantified test,
+    `isAggregate`) are abstract, and so is `aggregate`: every dialect answers its own, and the translator's fallback
+    is gone.
+  - New: `readString`, a string compared with a value read by the language's input rules (a simple CASE's WHEN,
+    lag's default); `typeName`, a kind in the dialect's messages; `operator` and `subscript`, null where a dialect
+    reads none, which is refused.
+  - IQ answers `typeName` in its own wording and refuses `readString` by name. Until now the translator read such a
+    string by Postgres's rules; no IQ test reached it.
+- **Named, not moved:** the translator's window functions and its FROM set-returning functions stay its own reading.
+  The `window` hook's shape cannot carry the EXCLUDE frames' several `over()` steps. They name no database, and their
+  messages take the dialect's type names. Two Postgres-flavoured tables stay in `SqlToPure` because shared code reads
+  them: `AGGREGATES`, which `SqlParser`'s VALUES check reads (`notInValues`) besides Postgres's `isAggregate`, and
+  `SMALL_INTEGERS`, which the smallint-width check (`widened`, active only where a dialect has a `narrowInteger`)
+  reads.
+- **The island's entry:** `InputLanguages` is the input-language registry, `Databases`' counterpart (`SqlIslands` asks
+  it for `#SQL{}`'s dialect), and `SqlToPure.translate(sql, sources)`, Postgres's entry, is gone.
+- **Tests named for their language:** `PostgresToPureTest` (was `SqlToPureTest`), `PostgresParserTest`
+  (`SqlParserTest`) and `PostgresRegressCorpusTest` (`PgRegressCorpusTest`; its target is still
+  `//core:pg_regress_corpus_test`).
+- **Guards:** `DatabaseOwners` lists the six files as Postgres's input language and `InputLanguages` among the
+  registries. `DialectLeakRatchetTest` is a ban (`noDatabaseIsNamedOutsideItsOwners`), and its ledger is deleted.
+- **Proof:** every translation that `//core:core_tests`, the parity lanes and the Postgres regression corpus make was
+  dumped (the statement, the dialect, the Pure or the refusal) before the move and after each of its two steps:
+  37,378 translations, 20,052 Postgres's and 17,326 IQ's. The IQ corpus lane (`//core:iq_corpus_test`, manual, its
+  corpora outside the repository) was not run: a simple CASE there comparing a string constant with a number or a date
+  answered by Postgres's rules before, and is refused by name now (IQ's `readString`).
+  - The dumps are identical apart from two kinds of input. Statements whose text the regression suite writes from live
+    values (OIDs, timestamps) differ between any two runs. One IQ test calls the translator once or twice depending on
+    a `Set.of` order.
+  - The regression corpus (`//core:pg_regress_corpus_test`, PostgreSQL REL_16_STABLE 8e928803020e) is identical in
+    every row's status, and in every message but five, whose statement's text carries a live timestamp (its length
+    moves a column number). Its counts, before and after: PASS 2,905, REFUSED 7,038, BOTH_ERROR 2,260,
+    UNMODELED 1,453, CATALOG 1,237, ERROR 420, NONDETERMINISTIC 160, SKIP 7, REGISTERED 6, KNOWN 5, HARNESS 2.
+
+  - The local gate on the D11 commit: 373 of 373 (the four targets the container cannot run left out, as for Phase
+    7).
+  - An independent review (an agent that wrote none of it) found no drift in the code. Its findings are fixed:
+    - two Postgres-only helpers left in `SqlToPure` (`dateArithmetic`, `numberConstant`), now in `PostgresDates` and
+      `PostgresFunctions`;
+    - nine members left wider than their readers need, made private again;
+    - stale comments;
+    - the ban now fails when a root it reads yields no source;
+    - the records' overclaims (above).
+
+The ledger's last state, before D11: 6 rows, 70 lines, all D11's. After: none, and no ledger.
+
 ### Order and size
 
 | order | phase | rough lines | behaviour change |
@@ -1185,15 +1323,15 @@ Decided by the user, 2026-10-13. The recommendation each row first carried is ke
 | **D1** | A dialect that silently inherits a DuckDB arm from the base renderer today: copy the arm into it, or make it refuse? | **Agreed.** Copy it where that dialect's PCT lanes prove the spelling works there. Refuse with a named `DialectCapability` everywhere else (H2's GUID, TIME_BUCKET and MAP_EMPTY, for example). Behaviour changes only for statements that already produce wrong text. |
 | **D2** | Raw SQL comes from two places: legend-engine-style **H2 text** (corpus test data, `testDataSetupSqls`) and a user's **native** SQL (`executeInDb`). Today both are rewritten as H2 text. | **Decided: by the declared database.** Raw text is in the language of the database its connection declares; it is translated only when it runs on another (an H2 test connection on DuckDB), and passes untouched otherwise (`executeInDb` on a Snowflake connection, as legend-engine does). The DDL for CSV test data is rendered from the IR. Measure the corpus before and after. (First recommended: record the origin on `RawSql`.) |
 | **D3** | The IR's *meanings* are DuckDB's in places: its typing rules, LIST_SLICE's end, H2's scan order, strftime codes. Is that a leak? | **Agreed.** Keep the meanings as the platform's written contract; every dialect already emulates them. Replace only the DuckDB *strings* inside the IR (`"to_days"`, strftime codes, json_type and typeof names) with typed values. |
-| **D4** | Warehouse: share core's dialect, or keep its own per-engine classes? | **Agreed for now.** Keep the closure rule and gather its Postgres knowledge into one owner behind `Attachment`. On the backlog: revisit whether the warehouse can use core's dialects once the platform can carry it. |
+| **D4** | Warehouse: share core's dialect, or keep its own per-engine classes? | **Agreed for now.** Keep the closure rule and gather its Postgres knowledge into one owner behind `Attachment`. On the backlog: revisit whether the warehouse can use core's dialects once the platform can carry it. **Done in Phase 7 (2026-10-18).** **The direction, the user's, 2026-10-18** (after a review of how the warehouse works: today a Postgres catalog is DuckDB acting as Postgres's client, its SQL passed through `postgres_query` and its rows typed by DuckDB). The warehouse keeps DuckDB as its host. The databases worth hosting natively, Postgres and MySQL, become first class through their own native clients, not DuckDB's extensions. ClickHouse (its own HTTP server), BigQuery and Snowflake (HTTP with CORS) are reached directly. Databricks needs a relay until it answers CORS. Trino gains nothing from a native client. Open: whether Snowflake's HTTP API carries Arrow; if not, a native or ODBC client for Arrow is the case for hosting it. A plan of its own. |
 | **D5** | TypeScript apps: must every SQL go through the planner? | **Decided: yes, all of it.** The tab's DuckDB-only operations become named operations of the DuckDB dialect, refused by the others; a guard bans SQL text in TypeScript. (First recommended: no for tab-only setup, which `snap.ts`'s count on a warehouse catalog had already disproved.) |
-| **D6** | Delete the dead trees? | **Decided: only the orphan tools and scripts** (about 24,000 lines, listed in Phase 7). `experiments/` stays (its own decision of 2026-10-02) and so does the code under `docs/`, the harnesses behind each folder's evidence. |
+| **D6** | Delete the dead trees? | **Decided: only the orphan tools and scripts** (about 24,000 lines, listed in Phase 7). `experiments/` stays (its own decision of 2026-10-02) and so does the code under `docs/`, the harnesses behind each folder's evidence. **Applied in Phase 7 (2026-10-18)** to the 36 files no plan repairs or wires (and three files only they used); the rest conflict with the build program's script review, which decided to repair or wire them: **kept for now** (the user, 2026-10-18), to be gone through later. |
 | **D7** | Land phase by phase on the branch, each green, then pause for review after P1 (the most visible restructuring)? | **Agreed.** |
 | **D8** | Which case does a store's bare name have on Postgres? The engine emits it unquoted, so Postgres folds it to lower case; the corpus's setup text assumes that. Main's `#SQL{...}#` Postgres fixture and DataCube's `infer.test.ts` assume the opposite: the name is kept as declared and quoted. Folding was tried and reverted on 2026-10-12 (neema2/legend-lite#30's CI). | **Decided: fold**, as legend-engine does (more correct for a drop-in replacement: most Postgres tables are created unquoted). Decide it once, as the dialect's own rule (P1). The two kinds of test then follow whichever rule is chosen. Folding matches the engine and the corpus; keeping case matches `#SQL{...}#`. If folding returns, the PR's independent review named two prerequisites: `CatalogModel.ident` must quote a mixed-case catalog name (or a Postgres table `"Orders"` is read as `orders`), and a star-expanded column's label must take the spelling its references take (`Stars.java:54`). |
 | **P1b** | The base renderer's shape. | **Decided: an exhaustive switch per concrete dialect, families included**, a base with no spellings, a guard that enforces it, and a capability matrix generated from the code (Phase 1b). |
 | **D9** | The connection grammar, the protocol and the model name every database (`type: Postgres;`, `PSnowflakeSpec`, the `DatabaseType` enum), because the user's model language does. Are they leaks? | **Decided (the user, 2026-10-15): they are vocabulary owners.** They may parse and carry a database's name and never decide anything by it. A guard holds both halves: their dependency allowlists already keep them from reaching a dialect, a connection or `Databases` (`ArchitectureTest`, invariants 6j and 7a to 7c); and in their code a database is named only as the vocabulary's own identifiers, never as a specific `DatabaseType` constant, a dialect class, a driver, a JDBC URL or a product-name call (`DialectOwnerExclusivityTest`). The alternative, each database's parsing in its own classes, would split the grammar across eleven places. |
-| **D10** | `builtin/DynaFn` (175 lines) is legend-engine's own table of which database supports which dynaFunction, across 17 databases, several of which this platform does not run. | **Decided (the user, 2026-10-15): split it.** The engine's table stays as reference data, generated from or verified against the engine source (spec by verification, the reference-checkout tenet). Our databases' answers come from each dialect's capability, so the capability matrix and `DynaFn` cannot disagree. `builtin/` is the compiler line's: this program does not edit it; the decision is posted to that line (`docs/IN_FLIGHT.md`, the ninth line) for it to schedule. |
-| **D11** | The SQL input dialects (`protocol/sql/`: `#SQL{...}#`'s Postgres, `#IQ{...}#`'s IQ) name a database because they read its language. Owners? | **Decided (the user, 2026-10-15): yes, each the owner of its own input language, under the same exclusivity guard.** `PostgresDialect` and `PostgresDateTime` name only Postgres, the `iq` package only IQ. The translator they share (`SqlToPure`, `InputDialect`) is no owner: the Postgres rules still inside it (`postgresBinary`, `postgresName` and the rest, 47 lines) are counted by the leak ratchet, to move into `PostgresDialect` with the seventh and tenth lines, whose code it is. |
+| **D10** | `builtin/DynaFn` (175 lines) is legend-engine's own table of which database supports which dynaFunction, across 18 databases, several of which this platform does not run. | **Decided (the user, 2026-10-15): split it.** The engine's table stays as reference data, generated from or verified against the engine source (spec by verification, the reference-checkout tenet). Our databases' answers come from each dialect's capability, so the capability matrix and `DynaFn` cannot disagree. `builtin/` is the compiler line's: this program does not edit it; the decision is posted to that line (`docs/IN_FLIGHT.md`, the ninth line) for it to schedule. **Taken over by this program (the user, 2026-10-18)**: the compiler line is parked, and the absolute ban needs it. **Done the same day** (Phase 7's record: `docs/engine-dynafunctions.tsv`). |
+| **D11** | The SQL input dialects (`protocol/sql/`: `#SQL{...}#`'s Postgres, `#IQ{...}#`'s IQ) name a database because they read its language. Owners? | **Decided (the user, 2026-10-15): yes, each the owner of its own input language, under the same exclusivity guard.** `PostgresDialect` and `PostgresDateTime` name only Postgres, the `iq` package only IQ. The translator they share (`SqlToPure`, `InputDialect`) is no owner: the Postgres rules still inside it (`postgresBinary`, `postgresName` and the rest, 47 lines) are counted by the leak ratchet, to move into `PostgresDialect` with the seventh and tenth lines, whose code it is. **Done 2026-10-18** at the seventh line's quiet point, with the absolute ban (Phase 7's record: Postgres's rules in six Postgres files, the translator naming no database). |
 
 
 ## 7. The misses (leaks the patterns could not see; each slice's reviewers found them by reading)

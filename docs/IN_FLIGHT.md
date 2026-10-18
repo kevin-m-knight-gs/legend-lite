@@ -1521,7 +1521,7 @@ pause for the user's review after Phase 1.
   and a vocabulary owner names no specific `DatabaseType`, dialect, driver or URL. The leak ratchet now counts only
   what no owner holds: 1,964 lines.
 - **For the compiler line (D10, the user's decision of 2026-10-15; `builtin/` is that line's, so this program does not
-  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 17
+  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 18
   databases (175 of the leak ratchet's lines). It splits in two:
   - the engine's table stays as reference data, generated from or verified against the engine's source (spec by
     verification, the reference-checkout tenet);
@@ -1529,6 +1529,14 @@ pause for the user's review after Phase 1.
     generated matrix), so the matrix and `DynaFn` cannot disagree.
 
   The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
+  - **Taken over, 2026-10-18 (the user: the compiler line is parked, and the absolute ban needs it).** This program
+    does it now, with Phase 7 (#56; done the same day). `DynaFn.java` keeps each name, its inference flag and the
+    platform's resolution (`DynaFnDecisions`, unchanged), and names no database. The engine's table, which engine
+    dialect extension registers each name, becomes a generated reference ledger, `docs/engine-dynafunctions.tsv`,
+    written by the same generator from the pinned engine tree and held by `//docs:update_generated`'s diff test. Its
+    one reader in the product, `RelOpTranslator`'s refusal of an UNSUPPORTED name, points at that table instead of
+    printing the engine's dialect list. No other behaviour changes. Files: `builtin/DynaFn.java` (generated),
+    `spec`'s `DynaFnGenerator` and BUILD, `docs/BUILD.bazel`, `normalizer/RelOpTranslator.java`.
 - **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**
   - The owner guard (`core/src/test/java/com/legend/DatabaseOwners.java`, `DialectOwnerExclusivityTest`), and the
     dialect package's foreign names removed:
@@ -1647,6 +1655,30 @@ pause for the user's review after Phase 1.
 
   A branch that calls `SqlParity.seed` or `IqParity.seed` passes the backend; one that reads `diff/seed.sql` reads
   `diff/seed.json`; one that runs the corpus on the warehouse passes `-Drcorpus.backend=warehouse`.
+- **Announced 2026-10-18, Phase 7: the warehouse, the model writer, the planner boundary and the dead code** (branch
+  `claude/gracious-edison-jcsvzm`, after Phase 6 landed as #54; the plan's Phase 7 and its record there). Files other
+  lines also edit:
+  - `warehouse/` (the second line's, which touches `WarehouseServer` and `Statements`): `Attachment` gains the command
+    line's option and URL, the password prompt and libpq's words (`Postgres`); `WarehouseServer.Config.postgres` and
+    `withPostgres` are `attached` and `withAttached` (a `Catalogs.Attach` per catalog: `Attachment.POSTGRES` and its
+    connection string); `Statements.classify` reads `DuckException.parse`/`bind`; `Sessions` names `DuckLibrary.NAME`.
+    Tests: `TestServer.start` takes attached catalogs; `PostgresUrlTest` (new) takes `AppModeTest`'s Postgres URL tests.
+    A branch that calls `withPostgres` or reads `config().postgres()` calls `withAttached` and reads `attached()`.
+  - `core/.../server/CreateClass.java` (the model writer) asks `SqlDialect.inMemoryPath`; `//core:pure_v1` gains
+    `:database`.
+  - `wasm/src/main/java/planner/Boundary.java` (the DataCube and Python lines' boundary): `testDataSql` and
+    `catalogColumnsSql` keep their signatures and ask the platform's dialect; `DuckDb.CATALOG_COLUMNS_SQL` is private,
+    `SqlDialect.catalogColumnsQuery` its reader. `warehouse/`, `native/` and `testing/` each gain a `main_java`
+    filegroup (wasm: `planner_java`) that the census reads; `tools/deps/core-layers.txt` lets `pure_v1` reach
+    `database`.
+  - Deleted (D6): `tools/spikes`, `tools/metamodel-census`, `tools/reference/{join,source_drift}.py`,
+    `scripts/corpus`'s codemods and `refdata`, `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`
+    and `docs/{corpus-coverage,census-baseline}.json` (39 files). **To the build rebuild's script review (End-1):** the
+    sheet's rows for these files are done; 26 of them were "keep as history", and D6 (the user's, 2026-10-13) deletes
+    them. PHASE_8's Short-22 cites `coverage.py`, `mutate.py` and `census_gate.py`, which are gone. `run.py` and the
+    probes, `scripts/projects`, `tools/{untangle,wrongrows}`, `tools/{native-axes,upstream-drift}.py` and
+    `scripts/parser` are not deleted: D6 and old D3 conflict on them. The user (2026-10-18): keep them for now, to be
+    gone through later.
 - **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
@@ -1655,6 +1687,47 @@ pause for the user's review after Phase 1.
   defaults (each input language states its own: a message's type names become `InputDialect.typeName(Kind)`). This
   program does the move itself, on main after both PRs land, so neither has to rebase over it; until then a new input
   language (Cypher, #48) that extends `postgresName` or a Postgres default is extending what moves.
+- **To the seventh line and the corpus program, 2026-10-18: the D11 move is next, and we want to schedule it with
+  you.** #53 has landed, so both landings D11 waited on are in.
+  - **What moves:** every rule in `SqlToPure` that only Postgres's reading reaches (its operators and predicates,
+    cast, the function catalog, the aggregate fallback, dates, jsonb, `postgresName`'s type names in messages) goes
+    to Postgres-owned files in `protocol/sql/` (`PostgresDialect`, `PostgresDateTime`, new `Postgres*` classes).
+    The translator keeps the framework IQ and Cypher share. `InputDialect`'s Postgres defaults become
+    `PostgresDialect`'s: each input language states its own, and a message's type names come from
+    `InputDialect.typeName(Kind)`. The translator's tests (`SqlParserTest`, `SqlToPureTest`) name the language they
+    test, and `PgRegressCorpusTest` opens Postgres through `TestBackends` (or is named for it).
+  - **How:** one mechanical PR: moves and delegations, no rule rewritten. Every `#SQL{}`, `#IQ{}` and `#Cypher{}`
+    lane's SQL dump, the parity lanes and the regression corpus's verdicts must be byte-identical before and after.
+  - **When:** `SqlToPure` is 7,961 lines and changed eight times in the last two days, and we would rather not make
+    you rebase over a move that size. So tell us here when you reach a quiet point between your landings, and we do
+    it then and land it fast. If you would rather move it yourselves, say so, and we review.
+  - **Until then:** please put a new Postgres-only rule in `PostgresDialect` or `PostgresDateTime`, not in
+    `SqlToPure` or `InputDialect`. The leak ratchet already counts their lines (`SqlToPure` 47, `InputDialect` 6,
+    `SqlIslands` 2), and a new one fails it.
+  - **After it** the ledger is empty (D10, taken over by this program above, is done) and the leak ratchet becomes an
+    absolute ban.
+  - **Done, 2026-10-18 (#56)**, at the quiet point the seventh line named (after #53). The SQL front end now reads so:
+    - Postgres's rules are Postgres's files in `protocol/sql/`: `PostgresOperators`, `PostgresCasts`,
+      `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and `PostgresAggregates`, beside `PostgresDialect` and
+      `PostgresDateTime`. `SqlToPure` keeps the framework (4,852 lines, from 7,961). A new Postgres rule goes in one of
+      these files: the translator names no database, and a name there now fails `//core:census` (the ratchet is a
+      ban, its ledger deleted).
+    - `InputDialect`: `unary`, `between`, `inList`, `isDistinct`, `quantifiedTest`, `isAggregate` and `aggregate` are
+      abstract (the translator has no aggregate fallback); new `readString`, `typeName`, `operator` and `subscript`.
+      IQ refuses `readString` by name: a simple CASE comparing a string constant with a non-string value, which the
+      translator read by Postgres's rules until now (no IQ test reached it).
+    - `SqlToPure.translate(sql, sources)` is gone: pass `PostgresDialect.INSTANCE`. An island's language to its
+      dialect is `InputLanguages`.
+    - The tests: `PostgresToPureTest` (was `SqlToPureTest`), `PostgresParserTest` (`SqlParserTest`),
+      `PostgresRegressCorpusTest` (`PgRegressCorpusTest`; the target is still `//core:pg_regress_corpus_test`).
+    - Not moved: the translator's window functions and FROM set-returning functions stay its own reading.
+    - Proof: every translation the tests make, dumped before and after, identical but for the inputs the regression
+      suite writes from live values and one IQ test's `Set.of`-ordered second call; the regression corpus identical in
+      every row's status (the plan's Phase 7 record).
+    - **To the tenth line:** the IQ corpus lane (`//core:iq_corpus_test`) was not run here (its corpora are not in this
+      container). A simple CASE comparing a string constant with a number or a date, which the translator read by
+      Postgres's rules, is now `IqDialect.readString`'s refusal by name; IQ's own reading (`dateConstant`, the number
+      rules of its comparisons) can replace it when you want it.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),

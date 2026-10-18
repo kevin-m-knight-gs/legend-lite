@@ -66,6 +66,18 @@ public final class DuckDb extends AnsiSqlRenderer {
         return DuckDbHostOperations.INSTANCE;
     }
 
+    /** DuckDB's own name for an in-memory database: a connection's path ({@code jdbc:duckdb::memory:}, which
+     *  legend-engine's DuckDB opens) and an {@code ATTACH}'s. */
+    static final String IN_MEMORY = ":memory:";
+
+    /** {@inheritDoc} DuckDB's own name for an in-memory database: legend-engine's DuckDB opens
+     *  {@code jdbc:duckdb:<path>}, and its datasource refuses a specification with no path (it puts the path into a
+     *  {@code Properties}, which holds no null). */
+    @Override
+    public String inMemoryPath() {
+        return IN_MEMORY;
+    }
+
     /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
      *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
     @Override
@@ -222,15 +234,26 @@ public final class DuckDb extends AnsiSqlRenderer {
      * warehouse's, a test's: each column's name, its own type name, its canonical type (joined on
      * its type id, inside the same DuckDB), and a DECIMAL's precision and scale. A LEFT join: a column
      * whose type names no canonical one is kept, with none, and refused by name -- never dropped.
-     * {@code {schema}} and {@code {table}} are filled with SQL string literals by the reader.
+     * {@code {schema}} and {@code {table}} are filled with SQL string literals ({@link #catalogColumnsQuery}).
      */
-    public static final String CATALOG_COLUMNS_SQL = """
+    private static final String CATALOG_COLUMNS_SQL = """
             SELECT c.column_name, c.data_type, t.logical_type, c.numeric_precision, c.numeric_scale, NOT c.is_nullable AS not_null
             FROM duckdb_columns() c
             LEFT JOIN (SELECT DISTINCT type_oid, logical_type FROM duckdb_types()
                        WHERE internal AND type_oid IS NOT NULL) t ON t.type_oid = c.data_type_id
             WHERE c.database_name = current_database() AND c.schema_name = {schema} AND c.table_name = {table}
             ORDER BY c.column_index""";
+
+    /** {@inheritDoc} {@link #CATALOG_COLUMNS_SQL}, each placeholder filled by its place in the template, so a name
+     *  holding {@code {table}} stays a name. */
+    @Override
+    public String catalogColumnsQuery(String schema, String table) {
+        int s = CATALOG_COLUMNS_SQL.indexOf("{schema}");
+        int t = CATALOG_COLUMNS_SQL.indexOf("{table}");
+        return CATALOG_COLUMNS_SQL.substring(0, s) + stringLit(schema)
+                + CATALOG_COLUMNS_SQL.substring(s + "{schema}".length(), t) + stringLit(table)
+                + CATALOG_COLUMNS_SQL.substring(t + "{table}".length());
+    }
 
     /** Type ALIASES (a column's own type name, upper-cased) that are not their canonical type's: JSON. */
     public static final java.util.Map<String, CatalogType> CATALOG_ALIASES =

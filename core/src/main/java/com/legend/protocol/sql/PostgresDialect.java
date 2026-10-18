@@ -15,9 +15,11 @@ import java.util.List;
 /**
  * Postgres as {@link SqlToPure} reads it: the {@code #SQL{...}#} island's dialect, Postgres 16 its spec
  * (docs/LEGEND_SQL_STUDY_2026_10_11.md). Its reader is {@link SqlParser}; its names, NULL order, output names,
- * constants' and columns' types and the wording of its refusals are here; its operators, casts, LIKE, CASE's one type
- * and its function catalog are the translator's own Postgres rules, which read the translator throughout (the
- * {@code postgres...} entries of {@link SqlToPure.At}, {@link SqlToPure#common}, {@link SqlToPure#postgresFunction}).
+ * constants' and columns' types and the wording of its refusals are here; its operators and predicates, casts, CASE's
+ * one type, function catalog, intervals, jsonb and aggregates are its own files' ({@link PostgresOperators},
+ * {@link PostgresCasts}, {@link PostgresFunctions}, {@link PostgresDates}, {@link PostgresJsonb},
+ * {@link PostgresAggregates}; the dialect program's D11, 2026-10-18, moved them out of {@link SqlToPure}), which read
+ * the translator throughout ({@link SqlToPure.At}'s place).
  */
 public final class PostgresDialect implements InputDialect {
 
@@ -247,16 +249,72 @@ public final class PostgresDialect implements InputDialect {
             case SqlAst.StringLit str -> Tx.value(new CString(str.value()), Kind.STRING, false);
             case SqlAst.BooleanLit b -> SqlToPure.booleanValue(new CBoolean(b.value()), false);
             case SqlAst.NullLit n -> Tx.value(SqlToPure.empty(), Kind.NULL, true);
-            case SqlAst.TypedLit lit -> SqlToPure.typedLiteral(lit);
+            case SqlAst.TypedLit lit -> PostgresCasts.typedLiteral(lit);
             default -> throw new IllegalArgumentException("not a constant: " + constant);
         };
     }
 
-    // ------------------------------------------------------------------ meanings: the translator's Postgres rules
+    // ------------------------------------------------------------------ meanings: Postgres's rules (PostgresOperators,
+    // PostgresCasts, PostgresFunctions, PostgresDates, PostgresJsonb), which read the translator throughout
 
     @Override
     public Tx binary(SqlAst.Binary b, SqlToPure.At at) {
-        return at.postgresBinary(b);
+        return PostgresOperators.binary(at.translator(), b, at.scope(), at.row());
+    }
+
+    @Override
+    public Tx unary(SqlAst.Unary u, SqlToPure.At at) {
+        return PostgresOperators.unary(at.translator(), u, at.scope(), at.row());
+    }
+
+    @Override
+    public Tx between(SqlAst.Between b, SqlToPure.At at) {
+        return PostgresOperators.between(at.translator(), b, at.scope(), at.row());
+    }
+
+    @Override
+    public Tx inList(SqlAst.InList in, SqlToPure.At at) {
+        return PostgresOperators.inList(at.translator(), in, at.scope(), at.row());
+    }
+
+    @Override
+    public Tx isDistinct(SqlAst.IsDistinct d, SqlToPure.At at) {
+        return PostgresOperators.isDistinct(at.translator(), d, at.scope(), at.row());
+    }
+
+    @Override
+    public Tx quantifiedTest(SqlAst.BinaryOp op, SqlAst.Expr left, Tx each, SqlAst.Pos pos, SqlToPure.At at) {
+        return PostgresOperators.quantifiedTest(op, left, each, pos, at);
+    }
+
+    @Override
+    public Tx readString(SqlAst.StringLit s, Kind kind) {
+        return PostgresCasts.fromString(s, kind);
+    }
+
+    @Override
+    public String typeName(Kind kind) {
+        return PostgresOperators.postgresName(kind);
+    }
+
+    @Override
+    public @com.legend.base.Nullable Tx operator(SqlAst.Operator o, SqlToPure.At at) {
+        return PostgresJsonb.readOperator(o, at);
+    }
+
+    @Override
+    public @com.legend.base.Nullable Tx subscript(SqlAst.Subscript s, SqlToPure.At at) {
+        return PostgresJsonb.subscript(at.translator(), s, at.scope(), at.row());
+    }
+
+    @Override
+    public boolean isAggregate(String name) {
+        return PostgresAggregates.postgresAggregate(name);
+    }
+
+    @Override
+    public SqlToPure.Aggregation aggregate(SqlAst.FunctionCall f, SqlToPure.Grouping at) {
+        return PostgresAggregates.ownAggregate(at.translator(), f, at.input(), at.name(), at.names());
     }
 
     /** Postgres's resolution of a set operation's column ("UNION, CASE, and Related Constructs"; 2026-10-17, the
@@ -356,22 +414,22 @@ public final class PostgresDialect implements InputDialect {
                 }
             }
         }
-        return SqlToPure.common(what, exprs, values, pos);
+        return PostgresOperators.common(what, exprs, values, pos);
     }
 
     @Override
     public @com.legend.base.Nullable FunctionRule function(String name) {
-        return SqlToPure.postgresFunction(name);
+        return PostgresFunctions.rule(name);
     }
 
     @Override
     public Tx cast(SqlAst.Cast c, SqlToPure.At at) {
-        return at.postgresCast(c);
+        return PostgresCasts.cast(at.translator(), c, at.scope(), at.row());
     }
 
     @Override
     public Tx like(SqlAst.Like l, SqlToPure.At at) {
-        return at.postgresLike(l);
+        return PostgresOperators.like(at.translator(), l, at.scope(), at.row());
     }
 
     // ------------------------------------------------------------------ Postgres's wording
