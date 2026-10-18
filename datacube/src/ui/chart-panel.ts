@@ -129,7 +129,8 @@ export class ChartPanel {
   setFrozen(frozen: boolean): void {
     if (!this.#spec || this.frozen === frozen) return;
     const { frozen: _was, ...rest } = this.#spec;
-    this.#spec = frozen ? { ...rest, frozen: true } : rest;
+    // following again, it takes the grid's grouping now -- before it says so, so what it says is what it draws
+    this.#spec = frozen ? { ...rest, frozen: true } : followCube(rest, this.#options.snapshot());
     this.#options.onFrozen?.(frozen);
     this.refresh(0);
   }

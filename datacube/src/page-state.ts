@@ -70,6 +70,12 @@ export class PageState {
     return { label: step.label, draft: this.#draft };
   }
 
+  /** Every tile the history's other pages hold (its steps back and forward): a tile gone now that an undo or a redo can
+   *  bring back. */
+  get reachable(): ReadonlySet<string> {
+    return new Set([...this.#past, ...this.#future].flatMap((step) => step.draft.page.views.map((v) => v.id)));
+  }
+
   /** The step Undo would undo, by its label. */
   get undoLabel(): string | undefined {
     return this.#past.at(-1)?.label;

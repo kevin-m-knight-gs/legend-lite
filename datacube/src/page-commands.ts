@@ -181,9 +181,10 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
 }
 
 /**
- * The views in the order the screen writes them (page/cube-page.ts views()): the grids in the sheets' reading order --
- * the order a reopened page adds them in -- then the charts, each in the order it came. A page Python edits is written
- * as the screen writes it.
+ * The views and cubes in the order the screen writes them (page/cube-page.ts views(), page-app.ts document()): the grids
+ * in the sheets' reading order -- the order a reopened page adds them in -- then the charts, each in the order it came;
+ * the cubes of the grids in their order, then those kept for detached charts. A page Python edits is written as the
+ * screen writes it.
  */
 function inScreenOrder(page: PageDocument): PageDocument {
   const reading = page.sheets.flatMap((s) => tiles(s.layout));
@@ -193,7 +194,11 @@ function inScreenOrder(page: PageDocument): PageDocument {
     ...grids.map((v, i) => ({ v, i })).sort((x, y) => at(x.v.id) - at(y.v.id) || x.i - y.i).map((x) => x.v),
     ...page.views.filter((v) => v.kind === 'chart'),
   ];
-  return views.every((v, i) => v === page.views[i]) ? page : { ...page, views };
+  const gridOrder = views.filter((v) => v.kind === 'grid').map((v) => v.cube);
+  const place = (id: string): number => (gridOrder.includes(id) ? gridOrder.indexOf(id) : gridOrder.length);
+  const cubes = page.cubes.map((c, i) => ({ c, i })).sort((x, y) => place(x.c.id) - place(y.c.id) || x.i - y.i).map((x) => x.c);
+  const same = views.every((v, i) => v === page.views[i]) && cubes.every((c, i) => c === page.cubes[i]);
+  return same ? page : { ...page, views, cubes };
 }
 
 /** A command applied: the page as the screen's rules leave it, or a refusal in their words (CubeRefusal). */
@@ -376,7 +381,11 @@ const textOrNull = (v: unknown, what: string): string | null => (v === null ? nu
 
 const optionalId = (v: unknown, what: string): { id?: string } => (v === undefined ? {} : { id: text(v, what) });
 
-/** A grid's cube, read by its own reader (cube-document.ts readCube): what it refuses, refused in its words. */
+/**
+ * A grid's cube, read by its own reader (cube-document.ts readCube): what it refuses, refused in its words. Never null
+ * from JSON: a grid whose source the page cannot write down is the screen's own, and a page holding one does not read
+ * back (Python's page is always written down).
+ */
 function cubeOf(v: unknown): CubeDocument {
   if (!isObject(v)) throw new CubeRefusal("a grid's cube is its document");
   try {
@@ -427,7 +436,7 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'addGrid':
       fields(o, kind, ['id', 'document', 'sheet', 'near', 'title', 'columns']);
       return {
-        kind, ...optionalId(o['id'], "a grid's id"), document: o['document'] === null ? null : cubeOf(o['document']),
+        kind, ...optionalId(o['id'], "a grid's id"), document: cubeOf(o['document']),
         sheet: text(o['sheet'], 'a sheet'), near: textOrNull(o['near'], 'a tile'), title: textOrNull(o['title'], "a tile's title"),
         columns: columnsFrom(o['columns']),
       };
