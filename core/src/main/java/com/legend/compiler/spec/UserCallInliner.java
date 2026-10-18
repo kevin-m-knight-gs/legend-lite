@@ -167,16 +167,19 @@ public final class UserCallInliner {
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
         // splices its pipeline into every use; downstream phases never see
         // a let. A TRAILING let IS its value (real pure: the let statement
-        // yields it). KNOWN TRADE (audit): a let used twice EVALUATES twice
-        // in SQL — for a non-deterministic row set (limit with no total
-        // order) the two splices may disagree where real pure's
-        // single-evaluation binding could not; CTE sharing is the future fix.
+        // yields it). A let lives in the database or nowhere (docs/PLAN_PATH_PROGRAM_2026_10_17.md §5, R11,
+        // 2026-10-18): dissolved here, the database computing the value where it is read. KNOWN TRADE (audit): a
+        // let used twice EVALUATES twice in SQL — for a non-deterministic row set (limit with no total order) the
+        // two splices may disagree where real pure's single-evaluation binding could not; CTE sharing is the
+        // future fix. A value the database computes anew at each call (generateGuid), read more than once, is no
+        // trade but a wrong answer, so it is refused by name until materialization is built (refuseUndissolvable).
         try (Scope scope = new Scope()) {
             for (int i = 0; i < body.size() - 1; i++) {
                 if (!(body.get(i) instanceof TypedLet let)) {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
+                refuseUndissolvable(let, body.subList(i + 1, body.size()));
                 scope.put(let.name(), reduce(let.value(), scope));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
@@ -823,6 +826,44 @@ public final class UserCallInliner {
      * FORWARD (their values see the bindings so far); the last statement is
      * the value. One expression comes out.
      */
+    /** A let over a value the database computes anew at each call ({@code generateGuid}; a clock read -- {@code now},
+     *  {@code today} -- is one value for the statement on every database), read more than once in {@code rest}, cannot
+     *  be dissolved (each read would be a new value) and must be materialized in the database, which is not built:
+     *  refused by name (docs/PLAN_PATH_PROGRAM_2026_10_17.md §5). */
+    private static void refuseUndissolvable(TypedLet let, List<TypedSpec> rest) {
+        int reads = 0;
+        for (TypedSpec t : rest) {
+            reads += reads(let.name(), t);
+        }
+        if (reads > 1 && computedAnewAtEachCall(let.value())) {
+            throw new NotImplementedException("the let '" + let.name() + "' binds a value the database computes anew"
+                    + " at each call (generateGuid) and is read " + reads + " times: dissolving it would read " + reads
+                    + " values; materializing it in the database is not built yet"
+                    + " (docs/PLAN_PATH_PROGRAM_2026_10_17.md §5)");
+        }
+    }
+
+    private static int reads(String name, TypedSpec t) {
+        int n = t instanceof TypedVariable v && v.name().equals(name) ? 1 : 0;
+        for (TypedSpec c : t.children()) {
+            n += reads(name, c);
+        }
+        return n;
+    }
+
+    private static boolean computedAnewAtEachCall(TypedSpec t) {
+        if (t instanceof TypedNativeCall nc
+                && com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(nc.callee().id())) {
+            return true;
+        }
+        for (TypedSpec c : t.children()) {
+            if (computedAnewAtEachCall(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private TypedSpec reduceStatements(List<TypedSpec> body, Scope env) {
         try (Scope scope = new Scope(env)) {
             for (int i = 0; i < body.size() - 1; i++) {
@@ -850,6 +891,7 @@ public final class UserCallInliner {
                                             + " of " + sc.args().get(0).getClass().getSimpleName() : "") : "")
                             + ") in an inlined function body is not supported");
                 }
+                refuseUndissolvable(let, body.subList(i + 1, body.size()));
                 scope.put(let.name(), reduce(let.value(), scope));
             }
             // A TRAILING let IS its value (real pure: the let statement yields

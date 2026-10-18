@@ -2067,4 +2067,6 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   lane's two pin classes' headers. **Step 4 landed 2026-10-18** (GATES "step 4, dynamic pivots"): no probe plan, no
   hole -- the database names its own pivot's columns (`SqlExpr.RowJson`, new; `Render.tdsTextOfDynamicPivot`,
   `jsonWireOfRows`; `TdsTextWrap`, `WireRender`, `PlanMaker`; the rewriters' and renderers' arms; `MirJson`;
-  `AGENTS.md`'s MIR table). Next: step 5, the lets (the program's §5).
+  `AGENTS.md`'s MIR table). **Step 5 landed 2026-10-18** (GATES "step 5, the lets"): the dissolution measured as
+  the rule in force (`compiler/spec/UserCallInliner.java`: `refuseUndissolvable`, the one `generateGuid` case),
+  `LetsTest` (new), the dialect-leak ledger's row. Next: step 6, both judges on plans (the program's §6).

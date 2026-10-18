@@ -205,7 +205,19 @@ SQL text binds a value the PLANNER produces (a plan, a SQL text, a type), read o
 (`SqlTextVerdicts`). Those live in the planner, as they do today; they are not runtime carriage.
 
 The planner picks between 1 and 2 from two facts it has: whether the expression is deterministic, and how many
-statements read the name. The judges (§6) do not care which was chosen; they care what they are handed. This is what
+statements read the name.
+
+**As built (step 5, 2026-10-18).** Answer 1 is the platform's on both paths, and was before this program: a query
+let is dissolved by the expression inliner (G½, `UserCallInliner.inlineBody`, its scope substituting the value where
+the name is read), a program let by the statement inliner (`StatementInline`), an inlined function body's let by the
+same inliner (`reduceStatements`); no let reaches the lowering, and no value is fetched and bound by Java. A clock
+read (`now`, `today`) is one value for the statement on every database, so a let over it dissolves. The one native the
+database computes anew at each call, `generateGuid`, is the case answer 2 exists for: a let over it read more than once
+cannot be dissolved (each read a new value) and is refused by name (`refuseUndissolvable`) until materialization is
+built -- no body in the PCT's 921 or the lanes demanded it (every lane green on the rule), so answer 2 stays
+unbuilt, and the refusal is its demand signal. The inliner's remaining known trade stands: a let over a row set with
+no total order, read twice, may be two different row sets where Pure's single binding was one (CTE sharing is its
+fix); it is a trade, not a wrong value. The judges (§6) do not care which was chosen; they care what they are handed. This is what
 the channel B homework sized (`docs/MONGODB_PLAN_2026_10_16.md` §9: single- against multi-statement bodies) and what
 `docs/DEFERRED_TEST_EXECUTION.md` charters.
 
@@ -267,6 +279,10 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 5 landed: the lets** (GATES "step 5, the lets"): dissolution measured as the rule already in
+  force on both paths (the inliners; §5 "as built"); the one undissolvable case -- a `generateGuid` let read more
+  than once -- refused by name in the inliner; materialization unbuilt, undemanded; `LetsTest` (new). Next: step 6,
+  both judges on plans (§6).
 - **2026-10-18, step 4 landed: dynamic pivots** (GATES "step 4, dynamic pivots"): announced and landed in one
   landing, as its design shrank to one MIR expression (`SqlExpr.RowJson`) and one wrapper: the database names its own
   pivot's columns (§3, corrected), so the plan path's refusal retires; judged against the legacy probe route's text

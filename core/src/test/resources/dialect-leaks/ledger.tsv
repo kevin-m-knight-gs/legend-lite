@@ -61,6 +61,8 @@ core/src/test/java/com/legend/AuditRound5Test.java	database-type	2
 core/src/test/java/com/legend/AuditRound5Test.java	jdbc-url	1
 core/src/test/java/com/legend/AuditRound5Test.java	product-name	2
 core/src/test/java/com/legend/ConstantPlanParityTest.java	jdbc-url	1
+# 2026-10-18, the plan path program's step 5 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §5): the lets' test opens an in-memory DuckDB, the database it judges the dissolved lets on.
+core/src/test/java/com/legend/LetsTest.java	jdbc-url	1
 core/src/test/java/com/legend/PipelineStageFailureTest.java	dialect-class	2
 core/src/test/java/com/legend/PipelineStageFailureTest.java	product-name	2
 # 2026-10-18, the plan path program's step 1 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): the three-facts and the round-trip tests name DuckDB and H2 as the plan maker's other tests do (database-type 22 -> 27, product-name 35 -> 40).

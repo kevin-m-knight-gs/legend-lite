@@ -10653,6 +10653,29 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 5, the lets: dissolved by the inliners, the one undissolvable case refused
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §5 (R11; its "as built" paragraph written at this landing) and §7
+step 5. The line: `docs/IN_FLIGHT.md`, the thirteenth line.
+
+What changed:
+1. **Measured, not built**: a let was already dissolved on both paths before this program -- a query let by the
+   expression inliner (`UserCallInliner.inlineBody`), a program let by `StatementInline`, an inlined function body's
+   let by `reduceStatements`; the lowering never meets one and Java never binds a value. `LetsTest` (new) pins it on
+   DuckDB through the plan path: `let x = 2 + 3; $x * $x` plans to one statement reading `2 + 3` where the name was
+   and answers 25; `let n = now(); $n == $n` answers true (a clock read is one value for the statement).
+2. **The one undissolvable case** (`refuseUndissolvable`, in the inliner at both let sites): a let over a value the
+   database computes anew at each call -- `generateGuid`, the one such native -- read more than once would read as
+   many values; it is refused by name ("read 2 times ... materializing it in the database is not built yet").
+   `let g = generateGuid(); $g->length()` (read once) answers 36. Materialization (§5's answer 2) stays unbuilt: no
+   body in the PCT's 921 demanded it, every lane is green on the rule, and the refusal is the demand signal.
+3. The inliner's known trade (a let over a row set with no total order read twice) stands, restated beside the rule.
+
+What judges it: `//core:core_tests_root` (`LetsTest`), `_exec`, `_server`, `_integration`, `_lowering`, `_sql`,
+`//core:corpus_differential_test`, `//core:sql_parity_test`, `//core:mongodb_plan_test`, `//core:guardrails`,
+`//core:census` (the dialect-leak ledger: `LetsTest`, one in-memory DuckDB), `//pct:pct_discipline`;
+`//pct:pct_duckdb`, `//pct:pct_h2`, `//pct:pct_mongodb` (the inliner runs on every path). Verdict (2026-10-18): the twelve core targets 12/12 and the twelve PCT targets 12/12 pass (`//pct:pct_duckdb` five suites, `//pct:pct_h2`, `//pct:pct_mongodb` five suites); no pin or roster row moved.
+
 ## 2026-10-18 — The plan path program, step 4, dynamic pivots: the database names its own pivot's columns
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §3 (its last paragraph, corrected at this landing) and §7 step 4. The
