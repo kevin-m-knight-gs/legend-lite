@@ -76,15 +76,15 @@ tck/clauses/create/Create1/[20] Fail when creating a node using undefined variab
 tck/clauses/create/Create2/[1] Create two nodes and a single relationship in a single pattern	REFUSED	REFUSED
 tck/clauses/create/Create2/[2] Create two nodes and a single relationship in separate patterns	REFUSED	REFUSED
 tck/clauses/create/Create2/[3] Create two nodes and a single relationship in separate clauses	REFUSED	REFUSED
-tck/clauses/create/Create2/[4] Create two nodes and a single relationship in the reverse direction	REFUSED	SKIP
+tck/clauses/create/Create2/[4] Create two nodes and a single relationship in the reverse direction	REFUSED	REFUSED
 tck/clauses/create/Create2/[5] Create a single relationship between two existing nodes	REFUSED	REFUSED
-tck/clauses/create/Create2/[6] Create a single relationship between two existing nodes in the reverse direction	REFUSED	SKIP
+tck/clauses/create/Create2/[6] Create a single relationship between two existing nodes in the reverse direction	REFUSED	REFUSED
 tck/clauses/create/Create2/[7] Create a single node and a single self loop in a single pattern	REFUSED	REFUSED
 tck/clauses/create/Create2/[8] Create a single node and a single self loop in separate patterns	REFUSED	REFUSED
 tck/clauses/create/Create2/[9] Create a single node and a single self loop in separate clauses	REFUSED	REFUSED
 tck/clauses/create/Create2/[10] Create a single self loop on an existing node	REFUSED	REFUSED
-tck/clauses/create/Create2/[11] Create a single relationship and an end node on an existing starting node	REFUSED	SKIP
-tck/clauses/create/Create2/[12] Create a single relationship and a starting node on an existing end node	REFUSED	SKIP
+tck/clauses/create/Create2/[11] Create a single relationship and an end node on an existing starting node	REFUSED	REFUSED
+tck/clauses/create/Create2/[12] Create a single relationship and a starting node on an existing end node	REFUSED	REFUSED
 tck/clauses/create/Create2/[13] Create a single relationship with a property	REFUSED	REFUSED
 tck/clauses/create/Create2/[14] Create a single relationship with a property and return it	REFUSED	REFUSED
 tck/clauses/create/Create2/[15] Create a single relationship with two properties	REFUSED	REFUSED
@@ -112,11 +112,11 @@ tck/clauses/create/Create3/[12] WITH-MERGE-CREATE: A bound node should be recogn
 tck/clauses/create/Create3/[13] Merge followed by multiple creates	REFUSED	REFUSED
 tck/clauses/create/Create4/[1] Generate the movie graph	REFUSED	REFUSED
 tck/clauses/create/Create4/[2] Many CREATE clauses	REFUSED	REFUSED
-tck/clauses/create/Create5/[1] Create a pattern with multiple hops	REFUSED	SKIP
-tck/clauses/create/Create5/[2] Create a pattern with multiple hops in the reverse direction	REFUSED	SKIP
-tck/clauses/create/Create5/[3] Create a pattern with multiple hops in varying directions	REFUSED	SKIP
-tck/clauses/create/Create5/[4] Create a pattern with multiple hops with multiple types and varying directions	REFUSED	SKIP
-tck/clauses/create/Create5/[5] Create a pattern with multiple hops and varying directions	REFUSED	SKIP
+tck/clauses/create/Create5/[1] Create a pattern with multiple hops	REFUSED	REFUSED
+tck/clauses/create/Create5/[2] Create a pattern with multiple hops in the reverse direction	REFUSED	REFUSED
+tck/clauses/create/Create5/[3] Create a pattern with multiple hops in varying directions	REFUSED	REFUSED
+tck/clauses/create/Create5/[4] Create a pattern with multiple hops with multiple types and varying directions	REFUSED	REFUSED
+tck/clauses/create/Create5/[5] Create a pattern with multiple hops and varying directions	REFUSED	REFUSED
 tck/clauses/create/Create6/[1] Limiting to zero results after creating nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/create/Create6/[2] Skipping all results after creating nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/create/Create6/[3] Skipping and limiting to a few results after creating nodes does not affect the result set nor the side effects	REFUSED	REFUSED
@@ -648,15 +648,15 @@ tck/clauses/merge/Merge5/[28] Fail when using variable length relationship in ME
 tck/clauses/merge/Merge5/[29] Fail on merging relationship with null property	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge6/[1] Using ON CREATE on a node	REFUSED	REFUSED
 tck/clauses/merge/Merge6/[2] Using ON CREATE on a relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge6/[3] Updating one property with ON CREATE	REFUSED	SKIP
-tck/clauses/merge/Merge6/[4] Null-setting one property with ON CREATE	REFUSED	SKIP
-tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	BOTH_ERROR	SKIP
-tck/clauses/merge/Merge6/[7] Copying properties from literal map with ON CREATE	REFUSED	SKIP
+tck/clauses/merge/Merge6/[3] Updating one property with ON CREATE	REFUSED	REFUSED
+tck/clauses/merge/Merge6/[4] Null-setting one property with ON CREATE	REFUSED	REFUSED
+tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	BOTH_ERROR	BOTH_ERROR
+tck/clauses/merge/Merge6/[7] Copying properties from literal map with ON CREATE	REFUSED	REFUSED
 tck/clauses/merge/Merge7/[1] Using ON MATCH on created node	REFUSED	REFUSED
 tck/clauses/merge/Merge7/[2] Using ON MATCH on created relationship	REFUSED	REFUSED
 tck/clauses/merge/Merge7/[3] Using ON MATCH on a relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	BOTH_ERROR	SKIP
-tck/clauses/merge/Merge7/[5] Copying properties from literal map with ON MATCH	REFUSED	SKIP
+tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	BOTH_ERROR	BOTH_ERROR
+tck/clauses/merge/Merge7/[5] Copying properties from literal map with ON MATCH	REFUSED	REFUSED
 tck/clauses/merge/Merge8/[1] Using ON CREATE and ON MATCH	REFUSED	REFUSED
 tck/clauses/merge/Merge9/[1] UNWIND with one MERGE	REFUSED	REFUSED
 tck/clauses/merge/Merge9/[2] UNWIND with multiple MERGE	REFUSED	REFUSED
@@ -3374,24 +3374,24 @@ tck/expressions/temporal/Temporal3/[11] Should datetime into date time #7	PASS	P
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #8	PASS	PASS
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #9	PASS	PASS
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #10	PASS	PASS
-tck/expressions/temporal/Temporal4/[1] Should store date #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[2] Should store date array #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[2] Should store date array #2	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[3] Should store local time #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[4] Should store local time array #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[4] Should store local time array #2	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[5] Should store time #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[6] Should store time array #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[6] Should store time array #2	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[7] Should store local date time #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[8] Should store local date time array #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[8] Should store local date time array #2	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[9] Should store date time #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[10] Should store date time array #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[10] Should store date time array #2	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[11] Should store duration #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[12] Should store duration array #1	REFUSED	SKIP
-tck/expressions/temporal/Temporal4/[12] Should store duration array #2	REFUSED	SKIP
+tck/expressions/temporal/Temporal4/[1] Should store date #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[2] Should store date array #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[2] Should store date array #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[3] Should store local time #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[4] Should store local time array #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[4] Should store local time array #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[5] Should store time #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[6] Should store time array #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[6] Should store time array #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[7] Should store local date time #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[8] Should store local date time array #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[8] Should store local date time array #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[9] Should store date time #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[10] Should store date time array #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[10] Should store date time array #2	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[11] Should store duration #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[12] Should store duration array #1	REFUSED	REFUSED
+tck/expressions/temporal/Temporal4/[12] Should store duration array #2	REFUSED	REFUSED
 tck/expressions/temporal/Temporal4/[13] Should propagate null #1	PASS	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #2	PASS	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #3	PASS	PASS
