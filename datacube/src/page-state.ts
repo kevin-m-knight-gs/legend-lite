@@ -2,12 +2,10 @@
 // commands edit it (page-commands.ts PageDraft), held in one place, with one history. A page edit is a step of that
 // history -- undone and redone as a whole -- as a grid's edit is a step of its own owner's (state-owner.ts).
 //
-// Two ways a step is made, one history:
-//
-//   apply     commands applied here, by the one function (applyPageCommands): what a host editing the page by
-//             commands does (a live channel's, a test's)
-//   begin     an edit its owner makes itself (the screen moves a tile, then says so): the draft as it is now is the step
-//             back from it, and `keep` brings the draft to what the owner made
+// A step is begun from the page as it is (`begin`), and `keep` brings the draft to what the edit made: an edit its owner
+// made itself (the screen moves a tile, then says so), or commands applied by the one function (page-commands.ts
+// applyToState: what a host editing the page by commands does -- a live channel, a test). The function is not imported
+// here: the screen's page, which only begins and keeps, does not download it.
 //
 // `keep` is also how what the page's own owners change reaches it with no step: a grid's own edits (its cube: the grid's
 // own owner undoes them), a chart's spec as it follows its grid, the page's name (its host's).
@@ -17,7 +15,7 @@
 //
 // No DOM: every rule here is tested alone (test/page-state.test.ts).
 
-import { applyPageCommands, type PageCommand, type PageDraft } from './page-commands.ts';
+import type { PageDraft } from './page-commands.ts';
 import { DEFAULT_HISTORY_LIMIT } from './state-owner.ts';
 
 /** A step of the page's history: what it was called, and the page on the other side of it. */
@@ -44,15 +42,7 @@ export class PageState {
     return this.#draft;
   }
 
-  /** Commands applied, in order, as one step named `label` (undo takes them all back); a refusal changes nothing. */
-  apply(commands: readonly PageCommand[], label: string): PageCommand[] {
-    const { draft, applied } = applyPageCommands(this.#draft, commands);
-    this.#record(label);
-    this.#draft = draft;
-    return applied;
-  }
-
-  /** An edit its owner is making itself, named `label`: the page as it is now is the step back from it. */
+  /** An edit named `label` begins: the page as it is now is the step back from it. */
   begin(label: string): void {
     this.#record(label);
   }

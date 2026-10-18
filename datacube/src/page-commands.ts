@@ -15,6 +15,7 @@ import {
   type PageView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
+import type { PageState } from './page-state.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from './snapshot.ts';
 
 /** A page as its commands edit it: its document, and every tile and sheet id it has held -- none is given out again,
@@ -335,6 +336,17 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: saved(bands) })));
     }
   }
+}
+
+/**
+ * Commands applied to a page's state (page-state.ts) as one step named `label` -- undo takes them all back -- the
+ * commands as applied returned; a refusal changes nothing.
+ */
+export function applyToState(state: PageState, commands: readonly PageCommand[], label: string): PageCommand[] {
+  const { draft, applied } = applyPageCommands(state.draft, commands);
+  state.begin(label);
+  state.keep(draft);
+  return applied;
 }
 
 /** Commands applied in order, each as applied: the first refusal stops them, in its words. */

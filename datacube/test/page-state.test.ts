@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { tiles } from '../src/layout/bands.ts';
-import { applyPageCommand, idsOf, type PageDraft } from '../src/page-commands.ts';
+import { applyPageCommand, applyToState as apply, idsOf, type PageDraft } from '../src/page-commands.ts';
 import type { PageDocument } from '../src/page-document.ts';
 import { PageState } from '../src/page-state.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
@@ -21,7 +21,7 @@ describe('a page edit is one step of one history', () => {
   it('commands applied as one step: undo takes them all back, redo does them again, each by its label', () => {
     const state = new PageState(start());
     assert.equal(state.undoLabel, undefined);
-    const applied = state.apply([{ kind: 'addSheet', name: 'More' }, { kind: 'moveTile', tile: 'chart', sheet: 'sheet-3', columns: null }], 'Move to Sheet');
+    const applied = apply(state, [{ kind: 'addSheet', name: 'More' }, { kind: 'moveTile', tile: 'chart', sheet: 'sheet-3', columns: null }], 'Move to Sheet');
     assert.deepEqual(applied[0], { kind: 'addSheet', id: 'sheet-3', name: 'More' }, 'the commands as applied: the id given');
     assert.deepEqual(sheets(state), ['sheet-1', 'sheet-2', 'sheet-3']);
     assert.equal(state.undoLabel, 'Move to Sheet');
@@ -37,13 +37,13 @@ describe('a page edit is one step of one history', () => {
 
   it('a new step after an undo clears what was undone; a refused one changes nothing', () => {
     const state = new PageState(start());
-    state.apply([{ kind: 'renameSheet', sheet: 'sheet-1', name: 'One' }], 'Rename Sheet');
-    state.apply([{ kind: 'renameSheet', sheet: 'sheet-2', name: 'Two' }], 'Rename Sheet');
+    apply(state, [{ kind: 'renameSheet', sheet: 'sheet-1', name: 'One' }], 'Rename Sheet');
+    apply(state, [{ kind: 'renameSheet', sheet: 'sheet-2', name: 'Two' }], 'Rename Sheet');
     state.undo();
-    state.apply([{ kind: 'removeTile', tile: 'chart' }], 'Remove');
+    apply(state, [{ kind: 'removeTile', tile: 'chart' }], 'Remove');
     assert.equal(state.redoLabel, undefined, 'the rename undone is not done again');
     const before = state.draft;
-    assert.throws(() => state.apply([{ kind: 'removeSheet', sheet: 'sheet-9' }], 'Delete Sheet'), CubeRefusal);
+    assert.throws(() => apply(state, [{ kind: 'removeSheet', sheet: 'sheet-9' }], 'Delete Sheet'), CubeRefusal);
     assert.equal(state.draft, before);
     assert.equal(state.undoLabel, 'Remove', 'the refused step is no step');
     state.undo();
@@ -64,7 +64,7 @@ describe('a page edit is one step of one history', () => {
 
   it('what the page\'s own owners change is kept with no step: an undo leaves it in no step\'s way', () => {
     const state = new PageState(start());
-    state.apply([{ kind: 'renameSheet', sheet: 'sheet-1', name: 'One' }], 'Rename Sheet');
+    apply(state, [{ kind: 'renameSheet', sheet: 'sheet-1', name: 'One' }], 'Rename Sheet');
     // a grid's own edit reached the page: no step
     const renamed = { ...state.draft.page, name: 'Desk view' };
     state.keep({ page: renamed, held: state.draft.held });
@@ -75,10 +75,10 @@ describe('a page edit is one step of one history', () => {
 
   it('the ids a page has held only grow: a step undone gives its ids back to no one; redone, its tiles come back', () => {
     const state = new PageState(start());
-    state.apply([{ kind: 'addSheet', name: null }], 'Add Sheet');
+    apply(state, [{ kind: 'addSheet', name: null }], 'Add Sheet');
     state.undo();
     assert.ok(state.draft.held.includes('sheet-3'), 'sheet-3 was held');
-    const [added] = state.apply([{ kind: 'addSheet', name: null }], 'Add Sheet');
+    const [added] = apply(state, [{ kind: 'addSheet', name: null }], 'Add Sheet');
     assert.deepEqual(added, { kind: 'addSheet', id: 'sheet-4', name: null }, 'never sheet-3 again');
     state.undo();
     state.redo();
@@ -90,7 +90,7 @@ describe('a page edit is one step of one history', () => {
 
   it('keeps as many steps as it is told, the oldest let go', () => {
     const state = new PageState(start(), 2);
-    for (const name of ['A', 'B', 'C']) state.apply([{ kind: 'renameSheet', sheet: 'sheet-1', name }], `Rename to ${name}`);
+    for (const name of ['A', 'B', 'C']) apply(state, [{ kind: 'renameSheet', sheet: 'sheet-1', name }], `Rename to ${name}`);
     assert.equal(state.undo()!.label, 'Rename to C');
     assert.equal(state.undo()!.label, 'Rename to B');
     assert.equal(state.undo(), undefined, 'the first step let go');

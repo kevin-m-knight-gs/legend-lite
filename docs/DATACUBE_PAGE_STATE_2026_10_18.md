@@ -14,8 +14,10 @@ sheet deleted, a tile moved to another sheet or renamed could not be undone.
 ## The owner
 
 `datacube/src/page-state.ts`, `PageState`: the page's draft and its history. Pure, no DOM, tested alone.
-- `apply(commands, label)`: the commands applied by `applyPageCommands`, as one step (undo takes them all back); the
-  commands as applied returned. What a host editing the page by commands uses: stage 3's live channel, tests.
+- Commands applied as one step (undo takes them all back): `applyToState(state, commands, label)` in page-commands.ts,
+  the commands as applied returned -- what a host editing the page by commands uses (stage 3's live channel, tests).
+  It lives beside the function, not in the state, so the screen's page, which only begins and keeps, does not
+  download the page commands' rules.
 - `begin(label)` and `keep(draft)`: an edit its owner made itself (the screen moves a tile, then says so) is a step
   begun from the page as it is, and `keep` brings the draft to the page the owner made. `keep` is also how what the
   page's own owners change reaches it with no step: a grid's own edits (its cube: the grid's own owner undoes them), a

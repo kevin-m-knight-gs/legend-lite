@@ -161,8 +161,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  285,500 -> 286,500 (2026-10-18, stage 1's step 3b and its review): the Properties window's Apply as grid commands
  *  (grid-commands.ts draftCommands, the three-way merge it replaced gone), commands told as the cube keeps them
  *  (app.ts #followCommands), and a command read from JSON field by field (its filter by its operators' operands).
- *  Measured 285,529. */
-const BUDGET = 286_500;
+ *  Measured 285,529.
+ *  286,500 -> 288,500 (2026-10-18, the command program's stage 2, the roadmap run's phase 2:
+ *  docs/DATACUBE_PAGE_STATE_2026_10_18.md): a page of its own has one page state and page-level undo -- page-state.ts,
+ *  CubePage.sync putting the screen at a step (sheets, tiles made again, titles, specs, layouts), PageApp keeping the
+ *  state and each grid's maker, the screen telling a grid and a chart added and a chart's spec. The page commands'
+ *  rules stay out (applyToState lives beside them, not in the state). Measured 287,626. */
+const BUDGET = 288_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -189,8 +194,9 @@ const BUDGET = 286_500;
  *  refused as a sort). Measured 270,114.
  *  271,000 -> 272,500 (2026-10-18, the command program's stage 1, step 3: as the grid's -- the screen applies its edits
  *  as grid commands, by the one function Python's calls are applied by). Measured 272,184.
- *  272,500 -> 273,500 (2026-10-18, stage 1's step 3b and its review: as the grid's). Measured 272,761. */
-const ENGINE_BUDGET = 273_500;
+ *  272,500 -> 273,500 (2026-10-18, stage 1's step 3b and its review: as the grid's). Measured 272,761.
+ *  273,500 -> 275,500 (2026-10-18, the command program's stage 2: page-level undo, as the grid's). Measured 274,868. */
+const ENGINE_BUDGET = 275_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -270,8 +276,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  actions. What a cube fetches before it shows: the module, the chunks it imports statically and its styles, measured
  *  281,797 (all the chunks 410,466).
  *  290,000 -> 291,000 (2026-10-18, the command program's stage 1: the screen applies its edits as grid commands, the
- *  Properties window's Apply among them -- the grid's notes of the same date). Measured 290,232. */
-const WIDGET_BUDGET = 291_000;
+ *  Properties window's Apply among them -- the grid's notes of the same date). Measured 290,232.
+ *  291,000 -> 293,000 (2026-10-18, the command program's stage 2: page-level undo -- the grid's notes of the same date).
+ *  Measured 292,353. */
+const WIDGET_BUDGET = 293_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
