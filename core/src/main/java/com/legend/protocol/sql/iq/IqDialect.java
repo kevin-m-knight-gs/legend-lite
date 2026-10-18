@@ -5487,6 +5487,13 @@ public final class IqDialect implements InputDialect {
                     + " under its engine, refused before translating", b.pos());
         }
         SqlAst.Expr x = engine == Engine.IQ ? identityOperand(b) : null;
+        SqlAst.Expr zero = x == null ? null : x == b.left() ? b.right() : b.left();
+        // IQ island, 2026-10-17 (the corpus lane's SEDE: AVG(Score + 0.0); measured on IQ 17.1): a zero written with a
+        // point is folded only in the type a shown item takes (it + 0.0 shown is an INTEGER); inside another
+        // expression it is a NUMERIC of scale 0 (AVG(it + 0.0) of scale 21, (it + 0.0) / (sm + 0.0) a NUMERIC quotient)
+        if (zero != null && integerLiteral(zero) == null && !shownValues.contains(b)) {
+            x = null;
+        }
         if (x != null) {
             Tx value = x == b.left() ? l : r;
             if (value.detail() instanceof IqType type && IDENTITY_FAMILIES.contains(type.family())) {

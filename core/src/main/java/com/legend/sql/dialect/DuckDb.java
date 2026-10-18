@@ -871,6 +871,23 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter roundHalfEven(SqlWriter writer, List<SqlExpr> a) {
+        if (a.size() == 2 && a.get(0).type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() instanceof com.legend.sql.SqlType.Decimal && a.get(1) instanceof SqlExpr.IntLit n
+                && n.value() >= 0 && n.value() <= 37) {
+            // an exact decimal to a constant scale (IQ island, 2026-10-17, the corpus lane's wide CASTs: ROUND_EVEN of a
+            // DECIMAL is a DOUBLE, 1524157887653619.89 came back .84): DuckDB's ROUND of a DECIMAL is exact, half away
+            // from zero, so an exact half -- the remainder by the unit half of it -- whose rounding is odd steps back
+            // one unit toward zero, to its even neighbour
+            java.math.BigDecimal unit = java.math.BigDecimal.ONE.movePointLeft((int) n.value());
+            String u = unit.toPlainString();
+            String h = unit.divide(java.math.BigDecimal.valueOf(2)).toPlainString();
+            String twice = unit.multiply(java.math.BigDecimal.valueOf(2)).toPlainString();
+            SqlWriter.Piece x = w -> w.append("(").expr(a.get(0), 0).append(")");
+            SqlWriter.Piece rounded = w -> w.append("ROUND(").piece(x).append(", " + n.value() + ")");
+            return writer.append("(CASE WHEN abs(").piece(x).append(" % " + u + ") = " + h + " AND ").piece(rounded)
+                    .append(" % " + twice + " <> 0 THEN ").piece(rounded).append(" - sign(").piece(x).append(") * "
+                            + u + " ELSE ").piece(rounded).append(" END)");
+        }
         // round_even is a 2-arg macro — bare round(x) means precision 0.
         return a.size() == 1
                 ? writer.append("ROUND_EVEN(").expr(a.get(0), 0).append(", 0)")

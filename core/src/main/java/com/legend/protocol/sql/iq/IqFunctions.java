@@ -4370,16 +4370,30 @@ final class IqFunctions {
         }
         int n = s;
         boolean round = n < ss;
-        if (round && sp - ss + n > 18) {
+        // IQ island, 2026-10-17 (the corpus lane's TPC-H and TPC-DS: CAST(SUM(...) AS DECIMAL(12,2)) of a NUMERIC(32,4)):
+        // past the 18 digits places() computes in, rounded or cut by placesExact in 38, as ROUND is; a value of more
+        // digits than that holds is refused at run time
+        boolean exact = round && sp - ss + n > 18;
+        int heldDigits = Math.min(sp - ss, 37 - ss);
+        if (exact && heldDigits < 1) {
             throw SqlTranslationException.unsupported(what + " of a NUMERIC(" + sp + "," + ss + ") to " + n + " places"
                     + " is not supported yet: its scaled value may exceed 18 digits", c.pos());
         }
+        String past = exact && heldDigits < sp - ss ? IqDialect.REFUSED_AT_RUN_TIME + what + " of a value of more than "
+                + heldDigits + " digits before its point is not supported: its NUMERIC(" + sp + "," + ss + ") needs"
+                + " more than the 38 digits lite's decimals hold" : null;
         // can the value need more whole digits than p - s? (rounding up may add one; IQ's engine truncates)
         boolean check = sp - ss + (round && !iq ? 1 : 0) > p - s;
         boolean fromWhole = whole;
+        int fromScale = ss;
         return strict(Kind.DECIMAL, type, List.of(value), v -> {
             ValueSpecification d = fromWhole ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0);
-            ValueSpecification r = round ? places(d, n, !iq) : s == ss ? d : atScale(d, s);
+            ValueSpecification r = !round ? (s == fromScale ? d : atScale(d, s)) : !exact ? places(d, n, !iq)
+                    : SqlToPure.call("round", placesExact(d, fromScale, n, !iq), integer(n));
+            if (past != null) {
+                r = refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", d), new CDecimal(pow10(
+                        heldDigits))), past, r, raise("Decimal"));
+            }
             if (!check) {
                 return r;
             }

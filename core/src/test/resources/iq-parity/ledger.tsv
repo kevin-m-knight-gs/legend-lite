@@ -1147,6 +1147,8 @@ lite/corpus_gaps/a_column_compared_with_itself_in_where@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_under_a_truth_test@iq17-default	PASS	PASS
 lite/corpus_gaps/a_column_compared_with_itself_in_sql_anywhere@sqla17-default	PASS	PASS
 lite/corpus_gaps/zero_plus_an_integer_is_the_integer@iq17-default	PASS	PASS
+lite/corpus_gaps/zero_with_a_point_plus_an_integer_inside_expressions@iq17-default	PASS	PASS
+lite/corpus_gaps/zero_with_a_point_plus_integers_divided@iq17-default	PASS	PASS
 lite/corpus_gaps/group_by_zero_plus_an_integer@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/group_by_zero_plus_an_integer_beside_the_integer@iq17-default	PASS	PASS
 lite/corpus_gaps/group_by_zero_plus_an_integer_in_having@iq17-default	BOTH_ERROR	BOTH_ERROR
@@ -1220,6 +1222,8 @@ lite/corpus_gaps/coalesce_of_a_list@iq17-default	PASS	PASS
 lite/corpus_gaps/a_row_value_in_a_subquery@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_row_value_compared@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_parenthesized_value_in_a_subquery@iq17-default	PASS	PASS
+lite/corpus_gaps/a_wide_numeric_cast_to_fewer_places@iq17-default	PASS	PASS
+lite/corpus_gaps/a_wide_numeric_constant_cast_to_fewer_places@iq17-default	PASS	PASS
 lite/corpus_gaps/a_nested_aggregate_before_one_in_where@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_in@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/corpus_gaps/a_nested_aggregate_read_by_between@iq17-default	BOTH_ERROR	BOTH_ERROR

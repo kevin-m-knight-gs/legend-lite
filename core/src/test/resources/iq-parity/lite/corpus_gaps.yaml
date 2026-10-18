@@ -1915,6 +1915,12 @@ tests:
   - id: zero_plus_an_integer_is_the_integer
     sql: "SELECT id, 0 + it AS a, it + 0 AS b, 0 + sm AS c, it - 0 AS e, 0.0 + it AS f, 0 + dbl AS h, 0 + nm AS i FROM t ORDER BY id"
     profile: iq17-default
+  - id: zero_with_a_point_plus_an_integer_inside_expressions
+    sql: "SELECT AVG(it + 0.0) AS a, AVG(0.0 + it) AS b, AVG(it + 0) AS c FROM t"
+    profile: iq17-default
+  - id: zero_with_a_point_plus_integers_divided
+    sql: "SELECT id, (it + 0.0) / (sm + 0.0) AS a FROM t WHERE sm <> 0 ORDER BY id"
+    profile: iq17-default
   - id: group_by_zero_plus_an_integer
     sql: "SELECT (0 + it) AS k, COUNT(*) AS c, SUM(id) AS s FROM t GROUP BY (0 + it) ORDER BY k"
     profile: iq17-default
@@ -2189,6 +2195,15 @@ tests:
     profile: iq17-default
   - id: a_parenthesized_value_in_a_subquery
     sql: "SELECT id FROM t WHERE (id) IN (SELECT t_id FROM u) ORDER BY id"
+    profile: iq17-default
+
+  # ---- a wide NUMERIC cast to fewer places (IQ island, 2026-10-17; the corpus lane's TPC-H and TPC-DS, measured on IQ
+  # 17.1): cut toward zero under IQ's engine past the 18 digits a scaled integer holds
+  - id: a_wide_numeric_cast_to_fewer_places
+    sql: "SELECT k, CAST(SUM(n * n * n) AS NUMERIC(20,2)) AS a, CAST(SUM(n) * 1.0000 AS DECIMAL(12,1)) AS b FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: a_wide_numeric_constant_cast_to_fewer_places
+    sql: "SELECT CAST(nm * 123456789.1234 AS NUMERIC(25,2)) AS a, CAST(-nm * 98765432.5555 AS NUMERIC(25,1)) AS b FROM t ORDER BY id"
     profile: iq17-default
 
   # ---- an aggregate inside a select item's aggregate (IQ island, 2026-10-17; the differential fuzzer, measured on IQ
