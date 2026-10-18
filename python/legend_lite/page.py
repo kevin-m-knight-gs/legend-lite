@@ -244,21 +244,15 @@ class Grid(Tile):
         """The name of the frame it is over."""
         return self._cube['source']['name']
 
-    def _set(self, key: str, value: Any) -> Grid:
-        self._query[key] = value
-        self._page._changed()
-        return self
-
-    def _edit(self, given: dict[str, Any]) -> Grid:
-        """The grid edited as DataCube's screen edits one -- any of ``configuration`` (its settings, as a host patches
-        them), ``columns`` (Column Properties), ``rows``, ``pivotOn``, ``measures`` and ``sorts``, each whole, and
-        ``addSort`` (one sort added as the header menu adds it) -- by DataCube's own module, the one its panels, header menu
-        and drag zones call (headless gridEdit: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md), and compiled as its
-        Apply compiles: refused in DataCube's words, nothing set; else the cube document DataCube writes, its open
-        groups kept as the screen keeps them."""
+    def _apply(self, commands: list[dict[str, Any]]) -> Grid:
+        """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
+        docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md) -- ``{'kind': 'group', 'rows': [...]}``, ``{'kind': 'addSort',
+        ...}``, ``{'kind': 'configure', 'patch': {...}}`` and the rest -- applied by DataCube's own function in order
+        (headless gridApply), the grid then compiled as Apply compiles it: refused in DataCube's words, nothing set; else
+        the cube document DataCube writes, its open groups kept as the screen keeps them."""
         engine, frames = self._headless()
         with frames.serving():
-            said = json.loads(engine.call('gridEdit', self._spec(frames), _json.dumps(given)))
+            said = json.loads(engine.call('gridApply', self._spec(frames), _json.dumps(commands)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         return self._kept(said, 4)
@@ -269,6 +263,8 @@ class Grid(Tile):
         cube = self._cube
         cube.clear()
         cube.update(_plain(_json.loads(said['cube'])))
+        # the commands DataCube applied, as the screen would have built them: the page's record of its edits
+        self._page._commands.extend(_plain(c) for c in said['commands'])
         for note in said['notes']:
             warnings.warn(f"{self.frame}: {note}", stacklevel=stacklevel)
         self._page._changed()
@@ -383,11 +379,11 @@ class Grid(Tile):
     def group(self, *rows: str) -> Grid:
         """Grouped by ``rows``, outermost first (the Rows zone): dimensions, as the screen offers them
         (``column(name, kind='dimension')`` makes one); none, not grouped."""
-        return self._edit({'rows': list(rows)})
+        return self._apply([{'kind': 'group', 'rows': list(rows)}])
 
     def pivot(self, *columns: str) -> Grid:
         """Pivoted on ``columns`` (the Columns zone): dimensions, as for ``group``; none, not pivoted."""
-        return self._edit({'pivotOn': list(columns)})
+        return self._apply([{'kind': 'pivot', 'columns': list(columns)}])
 
     def column(self, name: str, *, kind: str | None = None, aggregate: Any = _KEEP, weight: Any = _KEEP) -> Grid:
         """``name``'s Column Properties, as the panel sets them: its ``kind`` (``'dimension'``, which can be grouped and
@@ -397,7 +393,7 @@ class Grid(Tile):
         change = {**({'kind': kind} if kind is not None else {}),
                   **({'aggregate': aggregate} if aggregate is not _KEEP else {}),
                   **({'weight': weight} if weight is not _KEEP else {})}
-        return self._edit({'columns': {name: change}})
+        return self._apply([{'kind': 'column', 'name': name, 'change': change}])
 
     def measure(self, column: str, fn: str, name: str | None = None, *, weight: str | None = None) -> Grid:
         """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type, and none is assumed:
@@ -408,7 +404,7 @@ class Grid(Tile):
         as the screen would add one. A grouped ``column`` takes no Aggregation of its own: give the measure a ``name``."""
         measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
                    **({'weight': weight} if weight is not None else {})}
-        return self._edit({'measures': [measure]})
+        return self._apply([{'kind': 'measures', 'measures': [measure]}])
 
     def filter(self, condition: Any) -> Grid:
         """Its filter: a condition ``(column, operator[, value])``, a list of them (all of them), a group
@@ -416,25 +412,23 @@ class Grid(Tile):
         (DataCube's code, headless: gridFilter): each operator's value as it takes one (none, one, a list, another
         column), one a column of its type is offered, the grid with it compiled, in the editor's normal form (a group of
         one is that one, an empty one none: ``[]`` takes the filter off, as ``None`` does); ``None`` for none."""
-        if condition is not None:
-            self._page._current(self._view['cube'], 4)
-            engine, frames = self._headless()
-            with frames.serving():
-                said = json.loads(engine.call('gridFilter', self._spec(frames), _json.dumps(_given_filter(condition))))
-            if 'problems' in said:
-                raise ValueError(f'{"; ".join(said["problems"])} -- in Python a condition is (column, operator) or '
-                                 '(column, operator, value), its value a list where the operator takes several')
-            if said['filter'] is not None:
-                return self._set('filter', said['filter'])
-        self._query.pop('filter', None)
-        self._page._changed()
-        return self
+        if condition is None:
+            return self._apply([{'kind': 'filter', 'filter': None}])
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.serving():
+            said = json.loads(engine.call('gridFilter', self._spec(frames), _json.dumps(_given_filter(condition))))
+        if 'problems' in said:
+            raise ValueError(f'{"; ".join(said["problems"])} -- in Python a condition is (column, operator) or '
+                             '(column, operator, value), its value a list where the operator takes several')
+        # the cube with it, set by the filter command the filter editor's Apply builds
+        return self._kept(said, 3)
 
     def sort(self, column: str, direction: str = 'asc') -> Grid:
         """A sort, after those it has, as the header menu's Add Ascending and Add Descending add one (grid-edits.ts
         addSort: a sort it had of ``column`` taken first; one it has already changes nothing): ``column`` (one of the
         grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
-        return self._edit({'addSort': {'column': column, 'direction': direction}})
+        return self._apply([{'kind': 'addSort', 'column': column, 'direction': direction}])
 
     def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
@@ -459,10 +453,10 @@ class Grid(Tile):
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,
         ``maxRows``, ``appearance``, ``columns``: each column's formats and colours, ...), set as DataCube sets a host's
         (its ``applyConfiguration``: the appearance and each column's merged into what they have; None clears a
-        setting) and folded into its query as the screen folds it, through headless gridEdit. A column's ``kind``,
-        ``aggregateFn`` and ``aggregationParameters`` go by Column Properties' rules, as ``column()`` does: a kind is
-        set, never cleared; ``excludedFromPivot`` is True or False."""
-        return self._edit({'configuration': _copied(settings)})
+        setting) and folded into its query as the screen folds it, by a configure command (headless gridApply). A
+        column's ``kind``, ``aggregateFn`` and ``aggregationParameters`` go by Column Properties' rules, as ``column()``
+        does: a kind is set, never cleared; ``excludedFromPivot`` is True or False."""
+        return self._apply([{'kind': 'configure', 'patch': _copied(settings)}])
 
     def chart(self, mark: str, *, x: Any = _KEEP, y: Sequence[Any] | None = None,
               split: Any = _KEEP, title: str | None = None, frozen: bool | None = None,
@@ -812,6 +806,8 @@ class Page:
         if 'problems' in said:
             raise ValueError("a page's name: " + '; '.join(said['problems']))
         self._doc: dict[str, Any] = _plain(_json.loads(said['page']))
+        # every grid command DataCube applied for this page's grids, in order, as the screen would have built them
+        self._commands: list[dict[str, Any]] = []
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
         # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
@@ -1022,11 +1018,19 @@ class Page:
             # grid's cube has none: nothing to ask when none is given)
             with self._batch(tell=False):
                 pairs = list(measures.items() if isinstance(measures, Mapping) else measures or ())
-                if rows or columns or pairs or sort or dimensions:
-                    grid._edit({'columns': {d: {'kind': 'dimension'} for d in dimensions},
-                                'rows': list(rows), 'pivotOn': list(columns),
-                                'measures': [{'name': column, 'column': column, 'fn': fn} for column, fn in pairs],
-                                'sorts': [{'column': column, 'direction': direction} for column, direction in sort]})
+                # in the order a person would make them: the kinds first (a column made a dimension can then be
+                # grouped), the row groups and the pivot, the measures (a measure of a grouped column is one of its own),
+                # the sorts last (one may name a column a measure made)
+                commands = [
+                    *({'kind': 'column', 'name': d, 'change': {'kind': 'dimension'}} for d in dimensions),
+                    *([{'kind': 'group', 'rows': list(rows)}] if rows else []),
+                    *([{'kind': 'pivot', 'columns': list(columns)}] if columns else []),
+                    *([{'kind': 'measures', 'measures': [{'name': c, 'column': c, 'fn': fn} for c, fn in pairs]}]
+                      if pairs else []),
+                    *([{'kind': 'sorts', 'sorts': [{'column': c, 'direction': d} for c, d in sort]}] if sort else []),
+                ]
+                if commands:
+                    grid._apply(commands)
                 if filter is not None:
                     grid.filter(filter)
         except BaseException:

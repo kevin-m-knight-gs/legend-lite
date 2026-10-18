@@ -222,7 +222,8 @@ function weightFrom(given: unknown, name: string): string | null {
 /** A sort direction, or why not. */
 function directionFrom(v: unknown): SortDirection {
   if (typeof v !== 'string' || !SORT_DIRECTIONS.includes(v as SortDirection)) {
-    throw new CubeRefusal(`a sort is ${SORT_DIRECTIONS.map((d) => `'${d}'`).join(' or ')}, not ${JSON.stringify(v)}`);
+    // in setSorts' own words, as Python has always been told
+    throw new CubeRefusal(`a sort is ${SORT_DIRECTIONS.map((d) => `'${d}'`).join(' or ')}, not '${String(v)}'`);
   }
   return v as SortDirection;
 }

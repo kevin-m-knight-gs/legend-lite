@@ -2251,7 +2251,7 @@ export class CubeApp {
   async applyConfiguration(
     patch: Patch<CubeConfiguration>,
   ): Promise<void> {
-    // the one rule a host's patch is applied by: Python's Grid.configure too (headless gridEdit)
+    // the one rule a host's patch is applied by: Python's Grid.configure too (headless gridApply, a configure command)
     await this.#configure((c) => withConfiguration(c, patch), 'settings');
   }
 

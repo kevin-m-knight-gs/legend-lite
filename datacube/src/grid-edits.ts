@@ -1,6 +1,6 @@
 // ONE WAY TO EDIT A GRID (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md): its row groups, its pivot, its sorts and a
 // column's kind and Aggregation, by the screen's own offers -- what the Pivots and Sorts panels, the header menu, the
-// drag zones and Column Properties offer a person -- so the screen and Python (headless gridEdit) edit a grid alike.
+// drag zones and Column Properties offer a person -- so the screen and Python (headless gridApply) edit a grid alike.
 // No DOM. An edit the offers do not allow is refused in words (CubeRefusal): the screen's controls never ask one,
 // Python's calls may.
 

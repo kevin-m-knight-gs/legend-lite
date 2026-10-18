@@ -15,7 +15,7 @@ import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
-import { draftCandidate, draftStage, newDraft } from '../column-draft.ts';
+import { draftColumn, draftStage, newDraft } from '../column-draft.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
@@ -31,13 +31,9 @@ import {
 } from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
-import {
-  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, applyToSnapshot, withConfiguration, type CubeConfiguration,
-  type Patch,
-} from '../config.ts';
-import {
-  addSort, allColumns, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
-} from '../grid-edits.ts';
+import { applyToSnapshot } from '../config.ts';
+import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
+import type { GridDraft } from '../grid-edits.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
@@ -46,9 +42,8 @@ import { PlanThenRun } from '../runner.ts';
 import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
-  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, isJsonValue, isPivotTotalColumn, isRelativeDate, pivotTotalColumn, rowColumns,
-  type AggregateFn,
-  type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterValue, type Measure, type SortDirection,
+  COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
+  type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterValue,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
@@ -186,12 +181,13 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
  * calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{cube, notes}`, the
  * cube document with it as the screen writes the editor's Apply (app.ts #setCalc: the editor's two lists set, the
  * columns typed as the run that lands types them, the state folded), and what opening it over its source changed; or
- * `{problems}`, why it was refused, in DataCube's words. Python keeps the document, never a column it adds itself
- * (parity.json's "a calculated column": the column Python appended was untyped, and its query had no group list).
+ * `{problems}`, why it was refused, in DataCube's words; the `calculate` command it applied among `commands`. Python
+ * keeps the document, never a column it adds itself (parity.json's "a calculated column").
  */
 export async function gridCalculate(spec: GridSpec, name: string, expression: string,
   kind: ColumnKind | null): Promise<string> {
-  return using(spec, async ({ planner, cube, state }) => {
+  return using(spec, async (o) => {
+    const { planner, state } = o;
     if (kind !== null && !COLUMN_KINDS.includes(kind)) {
       const kinds = COLUMN_KINDS.map((k) => `'${k}'`).join(' or ');
       return JSON.stringify({ problems: [`a column's kind is ${kinds}, not '${String(kind)}'`] });
@@ -208,17 +204,8 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
       if (!(e instanceof PlanError)) throw e;
       return JSON.stringify({ problems: [e.message] });
     }
-    const snapshot = draftCandidate(state.snapshot, undefined, draft, lambda);
-    const outcome = await compiled(planner, { snapshot, tree: state.tree });
-    if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
-    // as the screen's state lands after Apply: its columns typed by the run (the controller's step 0), folded
-    const landed = fold({ snapshot: await typedColumns(planner, snapshot), configuration: state.configuration, tree: state.tree });
-    const doc = readCube(fromJson(spec.cube));
-    const written = writeCube({
-      name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree: landed.tree,
-      ...(doc.unknown ? { unknown: doc.unknown } : {}),
-    });
-    return JSON.stringify({ cube: cubeToJson(written), notes: cube.notes });
+    // the column as the editor makes it (column-draft.ts draftColumn), added by the command the editor's Apply builds
+    return applied(spec, o, [{ kind: 'calculate', level: draftStage(draft), column: draftColumn(draft, lambda) }]);
   });
 }
 
@@ -341,218 +328,70 @@ function conditionFrom(
  * editor's draft tree by its operators' own operands and offers (draftFrom), converted as the editor converts its tree
  * (filter-operators.ts toFilterNode: its normal form, a group of one that one, an empty group none), and the cube with
  * it compiled as a refresh would send it -- so Python checks no filter by rules of its own
- * (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 6). JSON: `{filter}` (null: no filter at all) or `{problems}`, why it
- * was refused.
+ * (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 6). JSON: as gridApply's, the `filter` command applied among
+ * `commands` (its filter null: no filter at all), or `{problems}`, why it was refused.
  */
 export async function gridFilter(spec: GridSpec, given: string): Promise<string> {
-  return using(spec, async ({ planner, state }) => {
-    const typed = await typedColumns(planner, state.snapshot);
+  return using(spec, async (o) => {
+    const typed = await typedColumns(o.planner, o.state.snapshot);
     const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
     const made = draftFrom(JSON.parse(given) as GivenFilter, types);
     if (typeof made === 'string') return JSON.stringify({ problems: [made] });
-    const filter = toFilterNode(made, (c) => types.get(c)) ?? undefined;
-    const { filter: _was, ...rest } = typed;
-    const snapshot: CubeSnapshot = filter === undefined ? rest : { ...rest, filter };
-    const outcome = await compiled(planner, { snapshot, tree: state.tree });
-    if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
-    return JSON.stringify({ filter: filter ?? null });
+    // the editor's normal form, set by the command the filter editor's Apply builds
+    return applied(spec, o, [{ kind: 'filter', filter: toFilterNode(made, (c) => types.get(c)) }]);
   });
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-
-/** A list of the grid's columns as Python sends one (a part named `what`), or why not: the edit judges the names. */
-function namesFrom(given: unknown, what: string): string[] {
-  if (!Array.isArray(given) || !given.every((n) => typeof n === 'string')) {
-    throw new CubeRefusal(`${what} is a list of the grid's columns, not ${JSON.stringify(given)}`);
-  }
-  return given;
-}
-
-/** A field of Python's call as text, or why not. */
-function textFrom(v: unknown, what: string): string {
-  if (typeof v !== 'string') throw new CubeRefusal(`${what} is text, not ${JSON.stringify(v)}`);
-  return v;
-}
-
-/** Python's edit, in order -- the settings, then Column Properties (a column made a dimension can then be grouped), the
- *  row groups and the pivot, the measures (a measure of a grouped column is one of its own), the sorts last (one may
- *  name a column a measure made) -- each by grid-edits.ts and config.ts, the screen's own rules. A part it does not
- *  know is refused. */
-function edited(draft: GridDraft, asked: Record<string, unknown>): GridDraft {
-  const unknown = Object.keys(asked).filter((k) => !EDIT_PARTS.includes(k));
-  if (unknown.length > 0) throw new CubeRefusal(`a grid's edit is ${EDIT_PARTS.join(', ')}, any of them: not ${unknown.join(', ')}`);
-  let d = draft;
-  // the settings first, as a host patches them (CubeApp.applyConfiguration): one rule, config.ts withConfiguration
-  if (asked['configuration'] !== undefined) d = configured(d, asked['configuration']);
-  if (asked['columns'] !== undefined) {
-    if (!isObject(asked['columns'])) throw new CubeRefusal("a grid's columns are set by name: {name: {kind, aggregate, weight}}");
-    for (const [name, change] of Object.entries(asked['columns'])) {
-      if (!isObject(change)) throw new CubeRefusal(`a column's properties are {kind, aggregate, weight}, not ${JSON.stringify(change)}`);
-      const { kind, aggregate, weight, ...other } = change;
-      const unknown = Object.keys(other);
-      if (unknown.length > 0) throw new CubeRefusal(`a column's properties are kind, aggregate and weight, not ${unknown.join(', ')}`);
-      // null clears an Aggregation or a weight, as the panel's "none" does
-      d = setColumn(d, name, {
-        ...(kind !== undefined ? { kind: textFrom(kind, "a column's kind") as ColumnKind } : {}),
-        ...(aggregate !== undefined ? { aggregate: aggregate === null ? null : aggregateFrom(aggregate) } : {}),
-        ...(weight !== undefined ? { weight: weight === null ? null : textFrom(weight, "a column's weight") } : {}),
-      });
-    }
-  }
-  if (asked['rows'] !== undefined) d = setGrouping(d, namesFrom(asked['rows'], 'the row groups'));
-  if (asked['pivotOn'] !== undefined) d = setPivot(d, namesFrom(asked['pivotOn'], 'the pivot'));
-  if (asked['measures'] !== undefined) {
-    if (!Array.isArray(asked['measures'])) throw new CubeRefusal('the measures are a list');
-    const taken = new Set<string>();
-    for (const m of asked['measures']) {
-      if (!isObject(m)) throw new CubeRefusal(`a measure is {name, column, fn[, weight]}, not ${JSON.stringify(m)}`);
-      const measure: Measure = {
-        name: textFrom(m['name'], "a measure's name").trim(),
-        column: textFrom(m['column'], "a measure's column"),
-        fn: aggregateFrom(m['fn']),
-        ...(m['weight'] !== undefined ? { weight: textFrom(m['weight'], "a measure's weight") } : {}),
-      };
-      const one = measureAsColumn(d, measure, taken);
-      if (one.made.column === measure.column) taken.add(measure.column);
-      d = one.draft;
-    }
-  }
-  if (asked['sorts'] !== undefined) {
-    if (!Array.isArray(asked['sorts'])) throw new CubeRefusal('the sorts are a list');
-    d = setSorts(d, asked['sorts'].map((x) => {
-      if (!isObject(x)) throw new CubeRefusal(`a sort is {column, direction}, not ${JSON.stringify(x)}`);
-      return { column: textFrom(x['column'], 'a sort'), direction: textFrom(x['direction'], "a sort's direction") as SortDirection };
-    }));
-  }
-  // a sort added last, as the header menu's Add Ascending and Add Descending add one (grid-edits.ts addSort)
-  if (asked['addSort'] !== undefined) {
-    const x = asked['addSort'];
-    if (!isObject(x)) throw new CubeRefusal(`a sort is {column, direction}, not ${JSON.stringify(x)}`);
-    d = addSort(d, textFrom(x['column'], 'a sort'), textFrom(x['direction'], "a sort's direction") as SortDirection);
-  }
-  return d;
-}
-
-/** The parts of a grid's edit, in the order they are applied. */
-const EDIT_PARTS = ['configuration', 'columns', 'rows', 'pivotOn', 'measures', 'sorts', 'addSort'];
-
 /**
- * A grid's settings patched as a host patches them (config.ts withConfiguration, CubeApp.applyConfiguration's rule),
- * from JSON in the saved document's own keys: null clears a setting -- the patch's undefined, which JSON cannot write
- * -- among the settings, in the appearance and in a column's. A column's kind, Aggregation and weight go by Column
- * Properties' own rules (setColumn), so what the panel refuses is refused here too: a kind is set, never cleared, and
- * whether a measure is kept out of the pivot is true or false.
+ * COMMANDS APPLIED AS THE SCREEN APPLIES AN EDIT (grid-commands.ts: the one module the screen's handlers and Python's
+ * calls build commands for -- docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md): to the grid as opened, its columns typed as
+ * the compiler types them now; then the cube compiled as Apply compiles the screen's draft (the configuration folded
+ * in, every query planned, none run) and written as the screen's state lands (its columns typed by the run, folded).
+ * The open groups stay, as the screen keeps them. JSON: `{cube, notes, commands}` -- the cube document as DataCube
+ * writes it (its numbers exact), what opening it over its source changed (openCube's notes), and the commands applied
+ * -- or `{problems}`, why it was refused, in the screen's words.
  */
-function configured(draft: GridDraft, given: unknown): GridDraft {
-  if (!isObject(given)) throw new CubeRefusal("a grid's configuration is its settings by name, in its document's own keys");
-  const cleared = (o: Record<string, unknown>): Record<string, unknown> =>
-    Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === null ? undefined : v]));
-  const patched = (d: GridDraft, patch: Record<string, unknown>): GridDraft =>
-    ({ ...d, config: withConfiguration(d.config, patch as Patch<CubeConfiguration>) });
-  const { columns, appearance, ...settings } = given;
-  // a setting DataCube has not (a name misspelt) is refused, never kept where nothing reads it (config.ts's lists)
-  const known = (keys: readonly string[], settings: object, what: string): void => {
-    const odd = keys.find((k) => !Object.hasOwn(settings, k));
-    if (odd !== undefined) throw new CubeRefusal(`'${odd}' is not ${what} (${Object.keys(settings).join(', ')})`);
-  };
-  known(Object.keys(settings), CUBE_SETTINGS, "a grid's setting");
-  if (appearance !== undefined && !isObject(appearance)) {
-    throw new CubeRefusal("a grid's appearance is its settings by name, each cleared by null, not cleared whole");
+async function applied(spec: GridSpec, o: Opened, commands: readonly GridCommand[]): Promise<string> {
+  const { planner, cube } = o;
+  let d: GridDraft;
+  try {
+    d = applyGridCommands({ snapshot: await typedColumns(planner, cube.snapshot), config: cube.configuration }, commands);
+  } catch (e) {
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
   }
-  if (isObject(appearance)) known(Object.keys(appearance), APPEARANCE_SETTINGS, 'an appearance setting');
-  let d = patched(draft, { ...cleared(settings), ...(isObject(appearance) ? { appearance: cleared(appearance) } : {}) });
-  if (columns === undefined) return d;
-  if (!isObject(columns)) throw new CubeRefusal("a grid's columns' settings are by name: {name: {setting: value}}");
-  for (const [name, c] of Object.entries(columns)) {
-    const named = allColumns(d);
-    // a pivot total is a column of its own (its heatmap, width, hiding: the screen's menu offers them), of a measure
-    // column the grid has; its kind and Aggregation are its measure's
-    const total = isPivotTotalColumn(name) ? name.slice(pivotTotalColumn('').length) : undefined;
-    if (!named.includes(name) && (total === undefined || !named.includes(total))) {
-      throw new CubeRefusal(`'${name}' is not a column of the grid (${named.join(', ')})`);
-    }
-    if (!isObject(c)) throw new CubeRefusal(`a column's settings are an object, not ${JSON.stringify(c)}`);
-    known(Object.keys(c), COLUMN_SETTINGS, "a column's setting");
-    const { kind, aggregateFn, aggregationParameters, excludedFromPivot, ...presentation } = c;
-    if (total !== undefined && [kind, aggregateFn, aggregationParameters, excludedFromPivot].some((x) => x !== undefined)) {
-      throw new CubeRefusal(`${name} is the pivot total of '${total}': its kind, Aggregation and pivot exclusion are `
-        + `'${total}''s, set on '${total}'`);
-    }
-    if (kind === null) {
-      throw new CubeRefusal(`${name}'s kind is set, never cleared: 'dimension' or 'measure' (Column Properties > Column Kind)`);
-    }
-    if (excludedFromPivot !== undefined && typeof excludedFromPivot !== 'boolean') {
-      throw new CubeRefusal(`${name}'s excludedFromPivot is true or false, not ${JSON.stringify(excludedFromPivot)}`);
-    }
-    if (kind !== undefined || aggregateFn !== undefined || aggregationParameters !== undefined) {
-      d = setColumn(d, name, {
-        ...(kind !== undefined ? { kind: textFrom(kind, "a column's kind") as ColumnKind } : {}),
-        ...(aggregateFn !== undefined ? { aggregate: aggregateFn === null ? null : aggregateFrom(aggregateFn) } : {}),
-        ...(aggregationParameters !== undefined ? { weight: weightFrom(aggregationParameters, name) } : {}),
-      });
-    }
-    d = patched(d, { columns: { [name]: { ...cleared(presentation), ...(excludedFromPivot !== undefined ? { excludedFromPivot } : {}) } } });
-  }
-  return d;
-}
-
-/** A weighted average's parameters as the document keeps them, `[weight column]` -- or null, cleared -- or why not. */
-function weightFrom(given: unknown, name: string): string | null {
-  if (given === null) return null;
-  if (!Array.isArray(given) || given.length !== 1 || typeof given[0] !== 'string') {
-    throw new CubeRefusal(`${name}'s aggregationParameters is [its weight column], not ${JSON.stringify(given)}`);
-  }
-  return given[0];
-}
-
-/** One of DataCube's aggregates, or why not. */
-function aggregateFrom(fn: unknown): AggregateFn {
-  if (typeof fn !== 'string' || !AGGREGATE_FNS.includes(fn as AggregateFn)) {
-    throw new CubeRefusal(`${JSON.stringify(fn)} is not one of DataCube's aggregates: ${AGGREGATE_FNS.join(', ')}`);
-  }
-  return fn as AggregateFn;
+  const tree = cube.tree;
+  const snapshot = applyToSnapshot(d.snapshot, d.config);
+  const outcome = await compiled(planner, { snapshot, tree });
+  if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
+  // as the screen's state lands after the edit: its columns typed by the run (the controller's step 0), folded
+  const landed = fold({ snapshot: await typedColumns(planner, snapshot), configuration: d.config, tree });
+  const doc = readCube(fromJson(spec.cube));
+  const written = writeCube({
+    name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree,
+    ...(doc.unknown ? { unknown: doc.unknown } : {}),
+  });
+  return `{"cube":${JSON.stringify(cubeToJson(written))},"notes":${JSON.stringify(cube.notes)},`
+    + `"commands":[${commands.map((c) => toJson(c)).join(',')}]}`;
 }
 
 /**
- * A GRID EDITED AS THE SCREEN EDITS ONE (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.3): `given` (JSON) any of
- * `configuration` (its settings, in the saved document's own keys, patched as a host patches them: config.ts
- * withConfiguration; null clears one; a column's kind, Aggregation and weight by Column Properties' rules), `columns`
- * ({name: {kind, aggregate, weight}}: Column Properties; null clears an Aggregation or a weight), `rows`, `pivotOn`,
- * `measures` ([{name, column, fn, weight?}]: each a column's Aggregation, or a calculated column of its name), `sorts`
- * ([{column, direction}], whole) and `addSort` ({column, direction}: the header menu's Add), in that order, by grid-edits.ts
- * -- the module the screen's panels, its header menu and its drag zones call -- then the cube compiled as Apply
- * compiles the screen's draft (app.ts #applyDraft: the configuration folded in, every query planned, none run). The
- * open groups stay, as the screen keeps them. JSON: `{cube, notes}`, the cube document as DataCube writes it (its
- * numbers exact) and what opening it over its source changed (openCube's notes), or `{problems}`, why it was refused,
- * in the screen's words. Python keeps no rule of a grid's query of its own.
+ * A GRID EDITED BY COMMANDS (`given`: a JSON list of grid-commands.ts commands, each read by readGridCommand -- an
+ * unknown kind or field refused in words), applied in order as the screen applies them (applied above): what Python's
+ * grid methods send, each a command the screen builds for the same edit. Python keeps no rule of a grid of its own.
  */
-export async function gridEdit(spec: GridSpec, given: string): Promise<string> {
-  return using(spec, async ({ planner, cube }) => {
+export async function gridApply(spec: GridSpec, given: string): Promise<string> {
+  return using(spec, async (o) => {
     const asked: unknown = JSON.parse(given);
-    if (!isObject(asked)) {
-      return JSON.stringify({ problems: ["a grid's edit is {configuration, columns, rows, pivotOn, measures, sorts, addSort}, any of them"] });
-    }
-    const draft: GridDraft = { snapshot: await typedColumns(planner, cube.snapshot), config: cube.configuration };
-    let d: GridDraft;
+    if (!Array.isArray(asked)) return JSON.stringify({ problems: ["a grid's edit is a list of commands"] });
+    let commands: GridCommand[];
     try {
-      d = edited(draft, asked);
+      commands = asked.map(readGridCommand);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
     }
-    const snapshot = applyToSnapshot(d.snapshot, d.config);
-    // the open groups stay, as the screen's edits keep them (app.ts #edit): a path the new grouping has not is shown closed
-    const tree = cube.tree;
-    const outcome = await compiled(planner, { snapshot, tree });
-    if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
-    const doc = readCube(fromJson(spec.cube));
-    const written = writeCube({
-      name: doc.name, source: doc.source, snapshot, configuration: d.config, tree,
-      ...(doc.unknown ? { unknown: doc.unknown } : {}),
-    });
-    // what opening it over its source changed (openCube's notes), written with the edit: Python says them
-    return JSON.stringify({ cube: cubeToJson(written), notes: cube.notes });
+    return applied(spec, o, commands);
   });
 }
 

@@ -561,7 +561,7 @@ class Document(Paged):
 
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones
-        # call (grid-edits.ts, headless gridEdit: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md), the grid compiled as
+        # call (grid-commands.ts, headless gridApply: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), the grid compiled as
         # Apply compiles it
         page, grid, _ = self.built()
         before = page.to_dict()
@@ -618,9 +618,11 @@ class Document(Paged):
             grid.configure({'columns': {'pnl': {'aggregatefn': 'max'}}})
         with self.assertRaisesRegex(ValueError, "'fontsize' is not an appearance setting"):
             grid.configure({'appearance': {'fontsize': 14}})
-        # an edit of a part DataCube does not know is refused, never ignored
-        with self.assertRaisesRegex(ValueError, r"a grid's edit is configuration, columns, .*: not pivot"):
-            grid._edit({'pivot': ['desk']})
+        # a command DataCube does not know, or a field it does not take, is refused, never ignored (grid-commands.ts)
+        with self.assertRaisesRegex(ValueError, r"'pivots' is not a grid's command: group, pivot, "):
+            grid._apply([{'kind': 'pivots', 'columns': ['desk']}])
+        with self.assertRaisesRegex(ValueError, r"a 'pivot' command takes columns, not pivotOn"):
+            grid._apply([{'kind': 'pivot', 'pivotOn': ['desk']}])
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
         # a measure is its column's Aggregation, replacing the one it had; a named one, a calculated column with its own;
         # a weighted average with its weight; a count of a number; a sort on a calculated column
