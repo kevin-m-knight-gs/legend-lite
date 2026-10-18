@@ -207,6 +207,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.TempTableInSplice t -> throw new IllegalStateException("temp-table IN splice '"
                     + t.tempTableName() + "' reached an executable dialect — plan-text vocabulary only");
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
+            case SqlExpr.RowJson r -> throw new DialectCapability("a row as JSON reached MongoDb: no pivot runs"
+                    + " there (the MongoDB plan's PR4), and a document is its own JSON");
             case SqlExpr.RowOrder r -> throw new DialectCapability("a physical row order reached MongoDb: a"
                     + " collection's documents have no row order to read");
             case SqlExpr.Column c -> column(writer, c);

@@ -969,6 +969,12 @@ public final class DuckDb extends AnsiSqlRenderer {
      * not in the IR.
      */
     @Override
+    /** {@inheritDoc} DuckDB: {@code to_json(alias)}, the row's columns by name, a pivot's generated ones included. */
+    protected SqlWriter rowJson(SqlWriter writer, SqlExpr.RowJson r) {
+        return writer.append("to_json(").append(ident(r.alias())).append(")");
+    }
+
+    @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         if (!(c.target() instanceof com.legend.sql.SqlType.Array)
                 && c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {

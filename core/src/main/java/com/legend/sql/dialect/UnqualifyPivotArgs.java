@@ -95,6 +95,7 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.StarExcept se -> se;
             case SqlExpr.Group g -> new SqlExpr.Group(unqualify(g.inner()));
             case SqlExpr.PlanParam ignored -> e;
+            case SqlExpr.RowJson ignored -> e;
             case SqlExpr.StringLit ignored -> e;
             case SqlExpr.IntLit ignored -> e;
             case SqlExpr.FloatLit ignored -> e;

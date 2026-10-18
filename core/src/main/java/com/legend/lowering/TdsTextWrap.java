@@ -65,8 +65,10 @@ public final class TdsTextWrap {
         }
         List<OutputCol> outs = probe != null ? probe.outs()
                 : inner0.outputs();
-        List<Type.Column> typedCols = typedColumns(outs, schema, plan,
-                probe, sqlTypeToPure);
+        SqlSource.Pivot dynamic = probe == null
+                ? pivots(plan).stream().filter(p -> p.in().isEmpty()).findFirst().orElse(null) : null;
+        List<Type.Column> typedCols = dynamic != null ? staticColumns(outs, schema)
+                : typedColumns(outs, schema, plan, probe, sqlTypeToPure);
         String alias = "_pct0";
         Lift lift = liftOrder(lifted, outs, inner0, alias);
         inner0 = lift.inner0();
@@ -75,7 +77,36 @@ public final class TdsTextWrap {
                         new SqlSource.Subselect(inner0, alias, null))
                 .withOutputs(outs)
                 .withOrderBy(lift.remapped());
+        if (dynamic != null) {
+            // the plan path (no probe): the database names the pivot's columns itself (step 4, 2026-10-18)
+            return Render.tdsTextOfDynamicPivot(inner, dynamic, typedCols, templates(dynamic, schema), "_pct1",
+                    quoteStrings, layouts);
+        }
         return Render.tdsText(inner, typedCols, "_pct1", quoteStrings, layouts);
+    }
+
+    /** A dynamic pivot's static columns (its group keys), each the typed schema's by name; any other output is a
+     *  defect, refused by name. */
+    static List<Type.Column> staticColumns(List<OutputCol> outs, Type.RelationType schema) {
+        List<Type.Column> typed = new ArrayList<>(outs.size());
+        for (OutputCol oc : outs) {
+            typed.add(schema.columns().stream().filter(c -> c.name().equals(oc.name())).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("TDS text: a dynamic pivot's output '" + oc.name()
+                            + "' is none of the typed schema's static columns " + schema.columns())));
+        }
+        return typed;
+    }
+
+    /** The typer's template column for each USING of {@code pivot}, by the USING's alias (the aggregate's name). */
+    static List<Type.Column> templates(SqlSource.Pivot pivot, Type.RelationType schema) {
+        List<Type.Column> out = new ArrayList<>(pivot.usings().size());
+        for (SqlSource.Pivot.Using u : pivot.usings()) {
+            out.add(schema.dynamicColumns().stream().filter(c -> c.name().equals(u.alias())).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("TDS text: the pivot's USING '" + u.alias()
+                            + "' has no template among the typed schema's dynamic columns "
+                            + schema.dynamicColumns().stream().map(Type.Column::name).toList())));
+        }
+        return out;
     }
 
     /** Per-output pure types: static schema by name → the plan's pivot

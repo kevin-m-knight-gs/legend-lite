@@ -547,6 +547,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
             // (render) refuses it
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
+            case SqlExpr.RowJson r -> rowJson(writer, r);
             case SqlExpr.RowOrder r -> writer.append((r.table() == null ? ""
                     : aliasIdent(r.table()) + ".") + rowOrderColumn());
             // the QUALIFIER is structurally always a source ALIAS (the
@@ -1310,6 +1311,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt). A dialect whose database types a
      * parameter otherwise writes it typed.
      */
+    /** The aliased source's row as one JSON value ({@link SqlExpr.RowJson}): no ANSI form. */
+    protected SqlWriter rowJson(SqlWriter writer, SqlExpr.RowJson r) {
+        throw new DialectCapability("a row as JSON reached a dialect without a row-to-JSON form");
+    }
+
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
         com.legend.sql.ValueTyping byValue = p.byValue();
         if (byValue != null && byValue.kinds().stream().anyMatch(k -> k == com.legend.sql.ValueKind.DATE_TIME

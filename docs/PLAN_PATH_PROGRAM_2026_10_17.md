@@ -142,6 +142,15 @@ the runner writes names where the plan recorded a hole. Today's refusal ("a pivo
 database is asked") retires with the sequence. (Corrected in the audit of 2026-10-17: "names from the result" alone
 is not enough.)
 
+**Corrected again at step 4's landing (2026-10-18): no sequence, no hole.** The database names its own pivot's columns:
+their names are its keys -- the distinct values of the ON column over the pivot's source, in the order the database
+orders the columns -- and each row's values are readable by those names from the row's own JSON
+(`SqlExpr.RowJson`, DuckDB's `to_json(alias)`). So the header is a keys subquery, each row's cells a correlated
+subquery over the same keys, the types the template's (the typer's dynamic column per USING and the USING's lowered
+slot), and the whole text is ONE static statement the database writes (`Render.tdsTextOfDynamicPivot`); the JSON wire
+is each row's own JSON (`jsonWireOfRows`). The runner does nothing -- the stronger form of R6. The probe plan and the
+identifier hole were never built.
+
 ## 4. The text carrier for non-primitive values (R4)
 
 **The problem.** On the text route (the TDS text output, the PCT lanes through the plan) a value root whose type is not
@@ -258,6 +267,10 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 - **2026-10-17** -- the program written (this document), the rulings R1 to R6 recorded, the representation decided
   (JSON stays, §2). Step 1 announced: types in the plan.
+- **2026-10-18, step 4 landed: dynamic pivots** (GATES "step 4, dynamic pivots"): announced and landed in one
+  landing, as its design shrank to one MIR expression (`SqlExpr.RowJson`) and one wrapper: the database names its own
+  pivot's columns (§3, corrected), so the plan path's refusal retires; judged against the legacy probe route's text
+  (`PlanMakerTest.aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt`). Next: step 5, the lets (§5).
 - **2026-10-18, step 3 landed: the text carrier** (GATES "step 3, the text carrier"): every form spelled by the
   database and read by Pure; the MongoDB lane's pins 29 deleted and 9 moved to what stays named (the identity tests,
   a user element by its simple name, an instance past the layout's depth); the text-carried date's `+0000` corrected

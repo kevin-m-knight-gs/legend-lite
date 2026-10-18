@@ -2064,4 +2064,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   definition (`core_legend_lite_pct.definition.json`: `core_functions_unclassified`), `MongoDbDifferentialTest`,
   `TextCarrierTest` (new), the MongoDB lane's pins. **Step 3 landed 2026-10-18** (GATES "step 3, the text carrier"):
   files touched beyond the announced list: `executionplan/PlanJson.java` (the reader's depth, 4096), the MongoDB
-  lane's two pin classes' headers. Next: step 4, dynamic pivots (a probe plan and an identifier hole).
+  lane's two pin classes' headers. **Step 4 landed 2026-10-18** (GATES "step 4, dynamic pivots"): no probe plan, no
+  hole -- the database names its own pivot's columns (`SqlExpr.RowJson`, new; `Render.tdsTextOfDynamicPivot`,
+  `jsonWireOfRows`; `TdsTextWrap`, `WireRender`, `PlanMaker`; the rewriters' and renderers' arms; `MirJson`;
+  `AGENTS.md`'s MIR table). Next: step 5, the lets (the program's §5).

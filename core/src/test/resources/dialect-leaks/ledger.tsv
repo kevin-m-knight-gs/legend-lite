@@ -68,10 +68,11 @@ core/src/test/java/com/legend/PipelineStageFailureTest.java	product-name	2
 core/src/test/java/com/legend/OutputMatrixTest.java	database-type	1
 core/src/test/java/com/legend/OutputMatrixTest.java	jdbc-url	2
 core/src/test/java/com/legend/OutputMatrixTest.java	product-name	5
-core/src/test/java/com/legend/PlanMakerTest.java	database-type	27
+# 2026-10-18, the plan path program's step 4 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): the dynamic pivot's test names DuckDB, the one database whose pivot the plan path runs, as the plan maker's other tests do (database-type 27 -> 30, product-name 40 -> 43).
+core/src/test/java/com/legend/PlanMakerTest.java	database-type	30
 core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	4
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/PlanMakerTest.java	product-name	40
+core/src/test/java/com/legend/PlanMakerTest.java	product-name	43
 core/src/test/java/com/legend/PlanOnJavaBase.java	product-name	4
 core/src/test/java/com/legend/StoreTypesTest.java	jdbc-url	1
 core/src/test/java/com/legend/StoreTypesTest.java	product-name	2

@@ -10653,6 +10653,51 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The plan path program, step 4, dynamic pivots: the database names its own pivot's columns
+
+The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §3 (its last paragraph, corrected at this landing) and §7 step 4. The
+line: `docs/IN_FLIGHT.md`, the thirteenth line.
+
+What changed:
+1. **The design shrank**: the audit of 2026-10-17 planned a probe plan and an identifier hole the runner fills. Measured
+   on DuckDB (2026-10-18): a pivot's row as JSON (`to_json(alias)`) carries its generated columns by name
+   (`2000__|__newCol`), and those names are the pivot's keys -- the distinct ON values over its source, ascending, the
+   order DuckDB names the columns in. So the header is a keys subquery, each row's cells a correlated subquery over
+   the same keys reading the row's JSON by name, cast to the USING's lowered slot and spelled by the template's Pure
+   type (`Render.tdsTextOfDynamicPivot`, from `TdsTextWrap.wrap` when there is no probe); one static statement, the
+   runner idle. The refusal in `PlanMaker` ("a pivot's columns are known only once the database is asked") retires.
+2. **One MIR expression**, `SqlExpr.RowJson(alias)` (the 33rd; `AGENTS.md`'s table): the aliased source's row as one
+   JSON value. DuckDB renders it; the base renderer and MongoDB refuse it by name; the rewriters (`SqlRewriter`,
+   `UnqualifyPivotArgs`, `FoldToListReduce`, `Windows`, `SubselectPrune`) pass it as a leaf; `MirJson` carries it.
+3. **The JSON wire of a dynamic pivot** is each row's own JSON (`jsonWireOfRows`, the database's tokens: Pure's Float
+   text on such a wire is a named residue of step 2's rule); **its CSV wire** is built as its TDS text is
+   (`csvWireOfDynamicPivot`: the generated names and cells from the keys and the row's JSON, in the CSV's cell rules);
+   before, the CSV wire of a dynamic pivot was written over the static columns alone, silently short (the MongoDB
+   differential's `pivot` case measured it so).
+4. `PlanMakerTest.aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt` (new, over a `#TDS` literal): the
+   plan's TDS text equals the legacy probe route's, byte for byte (`[1]` generated columns, the template's
+   multiplicity), the round trip holds, the JSON wire names the columns. A dynamic pivot on more than one ON column is
+   refused by name (its generated names join the keys). A dynamic pivot over a STORE table through the legacy probe
+   route refuses today (`TDS text: pivot column 'CITY' matches 0 using aliases`: the probe reads the column back in
+   the store's case, the schema names it in the model's) -- a pre-existing defect of the probe path, which the plan
+   path does not share; recorded here, not fixed.
+5. **A dynamic pivot below the root** (composed with a later `extend`, `sort`, `limit` or `groupBy`, the relation
+   suite's four `composition` tests) is refused by name on the plan path: the typed schema of the composed result
+   carries no template for the generated columns (`TDS text: the pivot's USING 'newCol' has no template among the
+   typed schema's dynamic columns`), so neither their names' types nor their cells can be spelled; the DuckDB lane
+   passes those through its legacy probe (the plan's final columns asked of the database). Carrying the templates
+   through the later operations is the typer's, for step 9 (the DuckDB lane through plans). The MongoDB lane's 14
+   pivot pins move to what refuses now (10 MongoDB's own, 4 this residue).
+
+What judges it: `//core:core_tests_root` (the new test; `PlanMakerTest` whole), `_exec`, `_server`, `_integration`,
+`_lowering`, `_sql`, `//core:corpus_differential_test`, `//core:sql_parity_test`, `//core:mongodb_plan_test`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`; `//pct:pct_duckdb`, `//pct:pct_h2`, `//pct:pct_mongodb`
+(every dialect's expression switch learned the variant). All pass on the final tree: the core targets 12 of 12 (the
+dialect-leak ledger's `PlanMakerTest` pins moved with a dated reason: database-type 27 -> 30, product-name 40 -> 43),
+the PCT suites 12 of 12 (DuckDB's five and H2's with no verdict moved; MongoDB's relation suite on its 14 moved pivot
+pins, re-run on the final tree). The MongoDB differential's `pivot` case, whose DuckDB reference the first refusal
+of the CSV wire failed, runs again on the written wire (REFUSED on MongoDB, its own).
+
 ## 2026-10-18 — The plan path program, step 3, the text carrier: a value that is no primitive crosses as Pure's grammar
 
 The plan: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §4 (the carrier) and §7 step 3. The line: `docs/IN_FLIGHT.md`, the

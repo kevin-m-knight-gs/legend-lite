@@ -21,7 +21,7 @@ public sealed interface SqlExpr
                 SqlExpr.CompactList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
-                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
+                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.RowJson,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
                 SqlExpr.TempTableInSplice, SqlExpr.StoredRead,
                 SqlAgg.Reducer {
@@ -72,6 +72,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> List.of();
             case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
+            case RowJson ignored -> List.of();
             case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
             case ArrayLit a -> a.elements();
@@ -169,6 +170,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> this;
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
+            case RowJson ignored -> this;
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
@@ -595,6 +597,19 @@ public sealed interface SqlExpr
      * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2); in the legacy engine-text printer, the
      * engine's template placeholder ({@code ${name}} — its freemarker placeholder for a function parameter or an
      * Allocation-bound variable), its {@code type} unknown. */
+    /** The row of the aliased source as ONE JSON value, its columns by name -- the ones a static plan cannot
+     *  enumerate included (a dynamic pivot's: the plan path program's step 4, 2026-10-18). The dialect spells it
+     *  (DuckDB {@code to_json(alias)}); one without a row-to-JSON form refuses it. */
+    record RowJson(String alias, TypeFact type) implements SqlExpr {
+        public RowJson {
+            type = SqlTyping.T_JSON;
+        }
+
+        public RowJson(String alias) {
+            this(alias, SqlTyping.T_JSON);
+        }
+    }
+
     record PlanParam(String name, Kind kind, boolean optional,
             @com.legend.base.Nullable String enumMapFn,
             TypeFact type, @com.legend.base.Nullable ValueTyping byValue) implements SqlExpr {

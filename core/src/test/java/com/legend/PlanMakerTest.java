@@ -238,6 +238,36 @@ class PlanMakerTest {
         assertTrue(sql.statement().contains("IS NOT DISTINCT FROM ?"), sql.statement());
     }
 
+    /** Trees planted by city and year, for a pivot whose columns the database names itself. */
+    private static final String TREES = "#TDS\n city, year, treePlanted\n NYC, 2011, 5\n NYC, 2000, 15\n SAN, 2011, 2\n"
+            + " SAN, 2000, 1\n SAN, 2000, 2\n#";
+
+    /**
+     * A DYNAMIC pivot's text is built by the database alone (the plan path program's step 4,
+     * docs/PLAN_PATH_PROGRAM_2026_10_17.md §3, 2026-10-18): the generated columns named from the pivot's keys, the
+     * cells read from each row's own JSON by those names, the types the template's -- the same TDS text the legacy
+     * route builds with its metadata probe; the JSON wire each row's own JSON. No probe step, no hole for the runner.
+     */
+    @Test
+    void aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt() throws Exception {
+        String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
+                + "->sort(~city->ascending())";
+        String model = model(DatabaseType.DuckDB.name());
+        assertAnswersAsToday(model, DatabaseType.DuckDB, query, query, java.util.Map.of(), TypedQuery.Output.TDS_TEXT);
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
+        try (Connection c = fresh(DatabaseType.DuckDB)) {
+            String text = PlanCases.run(plan, c);
+            assertTrue(text.endsWith("\nNYC,15,5\nSAN,3,2"), text);
+            assertTrue(text.startsWith("city:String[") && text.contains("'\\'2000__|__newCol\\'':Integer[1],'\\'2011__|__newCol\\'':Integer[1]"), text);
+            ExecutionPlan csv = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.CSV);
+            assertEquals("city,2000__|__newCol,2011__|__newCol\r\nNYC,15,5\r\nSAN,3,2\r\n", PlanCases.run(csv, c));
+            ExecutionPlan json = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.JSON);
+            assertEquals("[{\"city\":\"NYC\",\"2000__|__newCol\":15,\"2011__|__newCol\":5},"
+                    + "{\"city\":\"SAN\",\"2000__|__newCol\":3,\"2011__|__newCol\":2}]", PlanCases.run(json, c));
+        }
+    }
+
     @Test
     void aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput() throws Exception {
         for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {

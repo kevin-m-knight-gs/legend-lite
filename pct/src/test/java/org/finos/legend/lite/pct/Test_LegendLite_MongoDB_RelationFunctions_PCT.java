@@ -34,6 +34,10 @@ public class Test_LegendLite_MongoDB_RelationFunctions_PCT extends PCTReportConf
     // reading the value relation's cells by the function's return type).
     // Re-measured 2026-10-17 after the cross-lane pass (§11.4: base64 and the string distances composed, a value
     // root's date precision, the day truncation typed DATE).
+    // Re-measured 2026-10-18 after the plan path's dynamic pivots (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3, step 4):
+    // the plan path's refusal retired; what refuses now is MongoDB's own (no pivot runs there, PR4) and, for a pivot
+    // below the root (composed with a later extend, sort, limit or groupBy), the typed schema carrying no template
+    // for its generated columns -- named, the DuckDB lane passing those through its legacy probe.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // MONGODB'S OWN, refused by name
             one("meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId_Function_1__Boolean_1_", "\"currentUserId reached MongoDb, whose pipeline names no user\""),
@@ -41,22 +45,22 @@ public class Test_LegendLite_MongoDB_RelationFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsEmptyOfModelConversion_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   2,\\'{}\\'\n#'\nactual:   '#TDS\n   id,payload\n\n#'\""),
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   1,\\'{\"person\":{\"name\":\"Jose\"}}\\'\n   3,\\'{\"person\":{\"name\":\"Pedro\"}}\\'\n#'\nactual:   '#TDS\n   id,payload\n   1,\\'{\"person\":{\"name\":\"Jose\"}}\\'\n   2,\\'{}\\'\n   3,\\'{\"person\":{\"name\":\"Pedro\"}}\\'\n#'\""),
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::composition::test_Pivot_Filter_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot_Function_1__Boolean_1_", "TDS text: the pivot's USING 'newCol' has no template among the typed schema's dynamic columns"),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit_Function_1__Boolean_1_", "TDS text: the pivot's USING 'newCol' has no template among the typed schema's dynamic columns"),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort_Function_1__Boolean_1_", "TDS text: the pivot's USING 'newCol' has no template among the typed schema's dynamic columns"),
+            one("meta::pure::functions::relation::tests::composition::test_Pivot_Filter_Function_1__Boolean_1_", "TDS text: the pivot's USING 'newCol' has no template among the typed schema's dynamic columns"),
             one("meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsEmptyOfKeyExtraction_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   2,\\'{\"businessData\":{}}\\'\n#'\nactual:   '#TDS\n   id,payload\n\n#'\""),
             one("meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsNotEmptyOfKeyExtraction_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   1,\\'{\"businessData\":{\"signalId\":\"s1\"}}\\'\n   3,\\'{\"businessData\":{\"signalId\":\"s3\"}}\\'\n#'\nactual:   '#TDS\n   id,payload\n   1,\\'{\"businessData\":{\"signalId\":\"s1\"}}\\'\n   2,\\'{\"businessData\":{}}\\'\n   3,\\'{\"businessData\":{\"signalId\":\"s3\"}}\\'\n#'\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a pivot's columns are known only once the database is asked: no TDS text plan for it yet\"")
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked")
     );
 
     public static Test suite() {

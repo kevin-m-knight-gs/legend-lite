@@ -179,6 +179,7 @@ public abstract class SqlRewriter {
             case SqlExpr.JsonKindLit l -> l;
             case SqlExpr.TypeNameLit l -> l;
             case SqlExpr.PlanParam p -> p;
+            case SqlExpr.RowJson r -> r;
             case SqlExpr.Group g -> {
                 SqlExpr i = rewriteExpr(g.inner());
                 yield i == g.inner() ? g : new SqlExpr.Group(i);
