@@ -960,9 +960,9 @@ describe('the app', () => {
     assert.ok(painted.length > 0, 'no cell was painted');
   });
 
-  it('a pivot total\'s menu turns its measure\'s heatmap on, and paints the total (2026-10-18)', async () => {
-    // the total's right-click menu greyed out Add Heatmap ("a pivot total is no column of the cube"), though a total is a
-    // column of the level's query like any other; it is offered what a pivot cell is, as its measure's
+  it('a pivot total\'s menu turns on the total\'s own heatmap: the total painted, its measure\'s cells left alone (2026-10-18)', async () => {
+    // the total's right-click menu greyed out Add Heatmap ("a pivot total is no column of the cube"); and a total is a
+    // column of its own (the user: "shouldn't the default be just for the column itself?"), so its heatmap is its own
     const total = pivotTotalColumn('notional');
     class TotalEngine extends PivotEngine {
       override async answer(sql: string, epoch: number): Promise<ResultTable> {
@@ -975,18 +975,29 @@ describe('the app', () => {
     dom.window.document.body.append(host);
     const app = new CubeApp(host, PIVOTED, { engine: new TotalEngine(), planner: new EchoPlanner() });
     await app.open();
-    const totalCells = (): HTMLElement[] => [...host.querySelectorAll<HTMLElement>(`.dc-cell[data-column="${total}"]`)];
-    assert.ok(totalCells().length > 0, 'the total is on screen');
-    assert.ok(totalCells().every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
-    totalCells()[0]!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
-    const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role="menuitem"]')]
-      .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Add Heatmap to Total / notional');
-    assert.ok(entry, 'the total offers a heatmap');
-    assert.notEqual(entry.getAttribute('aria-disabled'), 'true');
-    entry.click();
-    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
-    assert.ok(app.configuration.columns['notional']?.heatmap, "it is the measure's heatmap");
-    assert.ok(totalCells().some((c) => c.style.backgroundColor !== ''), 'the total is painted');
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const cells = (column: string): HTMLElement[] => [...host.querySelectorAll<HTMLElement>(`.dc-cell[data-column="${column}"]`)];
+    const pickOnTotal = async (label: string): Promise<void> => {
+      cells(total)[0]!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+      const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role="menuitem"]')]
+        .find((i) => i.querySelector('.dc-menu-label')?.textContent === label);
+      assert.ok(entry, `the total offers "${label}"`);
+      assert.notEqual(entry.getAttribute('aria-disabled'), 'true', label);
+      entry.click();
+      await settle();
+    };
+    assert.ok(cells(total).length > 0, 'the total is on screen');
+    assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
+    await pickOnTotal('Add Heatmap to Total / notional');
+    assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
+    assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
+    assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
+    assert.ok(cells('A__|__notional').every((c) => c.style.backgroundColor === ''), 'the cells are not');
+    await pickOnTotal('Remove Heatmap');
+    assert.equal(app.configuration.columns[total]?.heatmap, undefined);
+    assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'taken off');
     app.dispose();
   });
 

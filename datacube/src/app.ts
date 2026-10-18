@@ -2168,10 +2168,13 @@ export class CubeApp {
    *
    * Set on the MEASURE rather than the leaf, so it reaches every
    * `2021__|__notional` the pivot produced -- a heatmap applied to
-   * one pivoted leaf and not its siblings is worse than none.
+   * one pivoted leaf and not its siblings is worse than none. A pivot
+   * TOTAL is a column of its own (the user, 2026-10-18): its heatmap is
+   * its own, and its measure's leaves it alone (export-render.ts
+   * heatmapSetting).
    */
   #setHeatmap(leafName: string, on: boolean): void {
-    const measure = this.#pivotMeasureOf(leafName) ?? leafName;
+    const measure = isPivotTotalColumn(leafName) ? leafName : this.#pivotMeasureOf(leafName) ?? leafName;
     this.#patchColumn(measure, {
       heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : undefined,
     });
