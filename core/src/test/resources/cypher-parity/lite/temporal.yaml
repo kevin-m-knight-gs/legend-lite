@@ -282,7 +282,7 @@ tests:
     cypher: "RETURN localdatetime({year: 1, month: 1, day: 1, hour: 1, minute: 1, second: 1, nanosecond: 1}) AS a"
   - id: nanos_duration_fields
     cypher: "WITH duration({seconds: 1, nanoseconds: 1}) AS d RETURN d.nanoseconds, d.nanosecondsOfSecond, d.microsecondsOfSecond, duration('PT1.000000001S') = d AS eq, duration.between(localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('1984-10-11T12:31:14.645876124')).nanosecondsOfSecond AS one"
-  - id: nanos_component_of_the_row_refused_by_name
+  - id: nanos_component_of_the_row
     cypher: "UNWIND [1] AS i RETURN localtime({hour: 12, minute: 0, second: 0, nanosecond: i}) AS t"
   - id: duration_fraction_of_a_month_cascades
     cypher: "RETURN duration({months: 0.75}) AS d, toString(duration({months: 0.75})) AS t"

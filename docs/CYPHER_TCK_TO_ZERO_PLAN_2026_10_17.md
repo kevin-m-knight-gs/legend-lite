@@ -495,6 +495,14 @@ rows (S71's 372 at render, 38 at seeding, 7 by year); not the 2 signed years (be
   error). Measured and withdrawn for the user's S66: Neo4j's equality and order of one instant in two zones (§5).
   Next, leg 4: lists, `collect`, `min` and `max`, grouping keys and `IN` over the parts (WithOrderBy1 and the
   `temporallists` cases on Postgres, the 6 year refusals on both lanes).
+- Leg 4 LANDED 2026-10-18 (the study's §12.88, GATES' eighty-sixth landing; TCK agreement DuckDB 3571 → 3577,
+  Postgres 3540 → 3552; DuckDB PASS 3918 → 3936, Postgres 3868 → 3896): lists and maps of nanosecond values as the
+  oracle's texts of their parts, read back as the parts; `IN`, `collect`, `min` and `max` (by the sortable text),
+  returned grouping keys (by the egress text), CASE and coalesce of zoned values; a nanosecond component of the row.
+  The bridge to §12.12's carriage is removed: no TCK row refuses a nanosecond value at render on either lane. Found by
+  its cases: Postgres's limit of 100 arguments to a function (the dialect nests `concat` past it). Next, leg 5: stored
+  values (a value class of the parts in place of the `TIMESTAMP_NS` column: Postgres's 24 seeding refusals, DuckDB's
+  20 harness skips), then leg 6, the `TIMESTAMP_NS` path retired.
 
 ## 3. Decisions asked of the user
 
@@ -784,8 +792,9 @@ What got stuck, where, and why, for later; each entry names the cases it holds b
   the native types' reach; an encoding of lite's own would carry them (a microsecond timestamp and the nanoseconds
   past it, epoch arithmetic in 128-bit integers), every nanosecond operation re-spelled over it: a design decision
   for the user, not taken here. TAKEN 2026-10-18: W13 (a date and the nanoseconds of the day, on every dialect);
-  since its leg 1 a local value of any year its DATE holds is carried and returned on both lanes, the zoned values,
-  lists and stored values still in the old carriage until their legs.
+  since its leg 1 a local value of any year its DATE holds is carried and returned on both lanes, the zoned values
+  since leg 3, lists since leg 4 (WithOrderBy1's six rows pass on DuckDB, §12.88); the 20 harness skips of stored
+  values wait on leg 5.
 - **2026-10-17, W5 (§12.74) — years beyond the databases' dates.** `duration.between(date('-999999999-01-01'),
   date('+999999999-12-31'))` (Temporal10/[9], [10]): DuckDB's dates end near year 5,881,580, Postgres's near
   5,874,897; Neo4j's years reach 999,999,999. Physically out of reach of the databases' date types.

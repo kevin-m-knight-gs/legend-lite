@@ -11855,3 +11855,16 @@ measured and left to the user's S66 (the plan's §5). `lite/nanozones.yaml` (14 
 REFUSED 266 / BOTH_ERROR 769 / SKIP 56; Postgres PASS 3868 / REFUSED 316 / BOTH_ERROR 769 / SKIP 56, of 5009 cases),
 TCK agreement DuckDB 3571 (unchanged), Postgres 3296 → 3540; the oracle check 0 problems; the chain's 40 guard
 targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-sixth landing — nanosecond values as their parts, leg 4: lists, maps and aggregates
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.88, the plan's W13 leg 4. A temporal of
+nanosecond precision in a list or a map is the oracle's text the database writes of its parts, read back as the
+parts where it is read (an index, `head`, `last`, a comprehension, a map's entry, an UNWIND's rows); `IN` over the
+parts; `collect` of the texts; `min` and `max` of the sortable texts, read back or returned as the value; a returned
+grouping key grouped by its egress text; CASE and coalesce among zoned values part by part; a nanosecond component
+the row computes. The bridge to §12.12's carriage is gone, and with it the refusal of a year outside 1678 to 2261.
+Found by the leg's cases: Postgres's 100 arguments to a function, past which the dialect nests `concat`. `lite/
+nanolists.yaml` (11 cases). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3936 / REFUSED 259 /
+BOTH_ERROR 769 / SKIP 56; Postgres PASS 3896 / REFUSED 299 / BOTH_ERROR 769 / SKIP 56, of 5020 cases), TCK agreement
+DuckDB 3571 → 3577, Postgres 3540 → 3552; the oracle check 0 problems; the chain's 40 guard targets green.

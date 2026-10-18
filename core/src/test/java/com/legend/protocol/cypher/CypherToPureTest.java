@@ -774,9 +774,10 @@ class CypherToPureTest {
         // a year beyond the databases' nanosecond timestamps is a date like any other
         assertTrue(pure("RETURN localdatetime({year: 1, month: 1, day: 1, hour: 1, minute: 1, second: 1,"
                 + " nanosecond: 1}) AS t").contains("dateTimeOfText"));
-        // refused by name: a nanosecond component of the row
-        unsupported("UNWIND [1] AS i RETURN localtime({hour: 12, minute: 0, second: 0, nanosecond: i}) AS t",
-                "a nanosecond component that is not a spelled number");
+        // a nanosecond component of the row: the parts carry whatever the row computes (W13 leg 4)
+        String row = pure("UNWIND [1] AS i RETURN localtime({hour: 12, minute: 0, second: 0, nanosecond: i}) AS t");
+        assertTrue(row.contains("meta::legend::lite::timeOfText("), row);
+        assertFalse(row.contains("NANOSECONDS"), row);
     }
 
     @Test

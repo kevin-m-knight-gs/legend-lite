@@ -5500,3 +5500,53 @@ zoned durations, Temporal6's 5 texts (local ones parsed back among them), Tempor
 back on either lane. The 14 cases of `lite/nanozones.yaml`: 12 PASS and 2 BOTH_ERROR on each lane. Postgres's
 nanosecond refusals left: the lists (WithOrderBy1's [13] to [16], [19], [20], [45] and the `temporallists` cases:
 leg 4), the stored values (24 at seeding: leg 5), the 6 by year on both lanes (lists: leg 4).
+
+### 12.88 Nanosecond values as their parts, leg 4: lists, maps and aggregates (W13, 2026-10-18)
+
+- **A value of nanosecond precision in a list or a map is its text.** A list or map the database builds as a Variant
+  holds each temporal as the oracle's spelling (§12.76: `Time('...')`, `DateTime('...')`, a zoned value's instant's),
+  which the database now writes of the parts (`splitSpelled`); a spelled list the database computes as a collection
+  (`collection`) holds the same texts, a microsecond value among them read into the parts first. Read back where it
+  is read, the text is parsed into the parts (`splitOfIso`: the date's ten characters, the clock's fields, the
+  fraction's digits padded to nine; the database's parse of each): an element by its index, `head`, `last`, a
+  comprehension's or a quantifier's variable, a map's entry, an UNWIND's rows (each text unwound, then its parts the
+  column and the hidden date column beside, as a WITH carries them, §12.85). A zoned value's zone is not carried
+  through a list, as before (S65).
+- **`IN`.** A split value against a spelled list is unrolled into equalities (Pure's `in` over the members' values
+  would compare the nanoseconds alone); against a collection the database computes, a member equal to it, each
+  read as its parts.
+- **`collect`.** Each value's text, as a list holds it.
+- **`min` and `max`.** The least or greatest of the values' sortable texts (`splitSortable`: the ISO text with
+  every digit of the second, of fixed width over the years 0 to 9999, so its order is the value's; a zoned value's
+  instant's, a zoned time's instant on the epoch day), the aggregate's column marked `SortableText`: read back as the
+  parts by the clauses after, returned as the value its text spells (the egress, §12.85).
+- **A returned grouping key** of nanosecond precision groups by its egress text, which the result reads as the
+  value.
+- **CASE and coalesce among zoned values**, part by part, the instants' (a CASE keeps no zone, as a microsecond
+  one's does not).
+- **A nanosecond component the row computes** (`localtime({..., nanosecond: i})`) is the parts' too: the refusal
+  by name it had since §12.12 goes (`lite/temporal/nanos_component_of_the_row`, renamed). The epoch fields of a
+  zoned value whose zone the island does not carry (an aggregate's) read the instant alone, which they need.
+- **The bridge is gone.** §12.85's `legacy` (a split value in §12.12's epoch-nanosecond carriage) has no caller
+  left and is removed, with the refusal by name of a year outside 1678 to 2261: a local or zoned value of nanosecond
+  precision is its parts wherever the island carries it, on every lane. What still takes the `TIMESTAMP_NS` carriage
+  is a stored value (a `TIMESTAMP_NS` column, §12.64): leg 5.
+- **Found by the leg's cases: Postgres's hundred arguments.** A spelled list of six zoned times' texts is one
+  `concat` of more than 100 arguments, which Postgres refuses ("cannot pass more than 100 arguments to a function",
+  its `FUNC_MAX_ARGS`). The dialect writes a longer concatenation as a `concat` of the `concat`s of runs of at most
+  100 (`maxFunctionArguments`, the base's unbounded; `concat` never yields NULL, so the nesting keeps its value).
+- **Pinned.** `lite/nanolists.yaml`'s 11 cases, each judged by Neo4j.
+
+#### 12.88.1 The ledger
+
+| lane | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| DuckDB | 5020 | 3936 (from 3,918) | 0 | 0 | 0 | 259 (from 266) | 769 | 56 |
+| Postgres | 5020 | 3896 (from 3,868) | 0 | 0 | 0 | 299 (from 316) | 769 | 56 |
+
+TCK agreement: DuckDB 3571 → 3577 (WithOrderBy1's six rows of the years 1 and 9999 in a list: [17], [18], [45]
+#9 and #10, refused by name since §12.74), Postgres 3540 → 3552 (WithOrderBy1's twelve list rows: [13] to [20],
+[45]'s nanosecond examples). Nothing moved back on either lane. The 11 cases of `lite/nanolists.yaml` PASS on each
+lane, and `lite/temporallists`' four on Postgres. The TCK's nanosecond refusals left: none at render on either lane;
+Postgres's 24 at seeding (a stored value's `TIMESTAMP_NS` column, leg 5) and DuckDB's 20 harness skips of the same
+values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every database's DATE).

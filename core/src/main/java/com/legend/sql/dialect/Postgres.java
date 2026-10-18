@@ -61,6 +61,13 @@ public final class Postgres extends AnsiSqlRenderer {
         super(LEXICON);
     }
 
+    /** Postgres's {@code FUNC_MAX_ARGS}: a call takes at most 100 arguments ("cannot pass more than 100 arguments to a
+     *  function", measured 2026-10-18 on a concatenation of a spelled list's texts). */
+    @Override
+    protected int maxFunctionArguments() {
+        return 100;
+    }
+
     // ==================================================================
     // The catalog: a Postgres table's model, from Postgres's own catalog
     // ==================================================================

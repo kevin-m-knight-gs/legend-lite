@@ -915,14 +915,14 @@ tck/clauses/with-orderBy/WithOrderBy1/[9] Sort lists in ascending order	PASS	PAS
 tck/clauses/with-orderBy/WithOrderBy1/[10] Sort lists in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[11] Sort dates in ascending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[12] Sort dates in descending order	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy1/[13] Sort local times in ascending order	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[14] Sort local times in descending order	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[15] Sort times in ascending order	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[16] Sort times in descending order	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[17] Sort local date times in ascending order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[18] Sort local date times in descending order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[19] Sort date times in ascending order	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[20] Sort date times in descending order	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[13] Sort local times in ascending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[14] Sort local times in descending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[15] Sort times in ascending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[16] Sort times in descending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[17] Sort local date times in ascending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[18] Sort local date times in descending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[19] Sort date times in ascending order	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[20] Sort date times in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[21] Sort distinct types in ascending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[22] Sort distinct types in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[23] Sort by a boolean variable projected from a node property in ascending order #1	PASS	PASS
@@ -985,10 +985,10 @@ tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with 
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #4	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #5	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #6	PASS	PASS
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #7	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #8	PASS	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #9	REFUSED	REFUSED
-tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #10	REFUSED	REFUSED
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #7	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #8	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #9	PASS	PASS
+tck/clauses/with-orderBy/WithOrderBy1/[45] Sort order should be consistent with comparisons where comparisons are defined #Example: <exampleName> #10	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined variable #Example: <exampleName> #1	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined variable #Example: <exampleName> #2	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with-orderBy/WithOrderBy1/[46] Fail on sorting by an undefined variable #Example: <exampleName> #3	BOTH_ERROR	BOTH_ERROR
@@ -4273,6 +4273,17 @@ lite/multipattern/an_undirected_typed_relationship_from_a_label_less_node	PASS	P
 lite/multipattern/an_incoming_typed_relationship_from_a_label_less_node	PASS	PASS
 lite/multipattern/an_optional_pattern_repeating_a_type	PASS	PASS
 lite/multipattern/two_patterns_sharing_a_relationship_type_stay_distinct	PASS	PASS
+lite/nanolists/lists_returned	PASS	PASS
+lite/nanolists/indexed_and_tested	PASS	PASS
+lite/nanolists/unwound_and_ordered	PASS	PASS
+lite/nanolists/unwound_after_a_with	PASS	PASS
+lite/nanolists/comprehended_over_the_parts	PASS	PASS
+lite/nanolists/collected_and_unwound	PASS	PASS
+lite/nanolists/least_and_greatest	PASS	PASS
+lite/nanolists/least_through_a_with	PASS	PASS
+lite/nanolists/grouped_and_returned	PASS	PASS
+lite/nanolists/in_a_map	PASS	PASS
+lite/nanolists/chosen_among_zoned	PASS	PASS
 lite/nanoparts/local_times_and_date_times_returned	PASS	PASS
 lite/nanoparts/years_beyond_the_nanosecond_timestamps	PASS	PASS
 lite/nanoparts/fields_of_the_parts	PASS	PASS
@@ -4783,7 +4794,7 @@ lite/temporal/nanos_zones	PASS	PASS
 lite/temporal/nanos_time_of_a_named_zone_datetime	PASS	PASS
 lite/temporal/nanos_in_the_year_one	PASS	PASS
 lite/temporal/nanos_duration_fields	PASS	PASS
-lite/temporal/nanos_component_of_the_row_refused_by_name	REFUSED	REFUSED
+lite/temporal/nanos_component_of_the_row	PASS	PASS
 lite/temporal/duration_fraction_of_a_month_cascades	PASS	PASS
 lite/temporal/duration_fraction_of_days_and_weeks	PASS	PASS
 lite/temporal/duration_fraction_in_text	PASS	PASS
@@ -4797,9 +4808,9 @@ lite/temporal/to_string_in_a_named_zone	PASS	PASS
 lite/temporal/a_date_moved_by_a_duration_of_more_than_a_day	PASS	PASS
 lite/temporallists/dates_unwound_in_order	PASS	PASS
 lite/temporallists/dates_filtered_and_indexed	PASS	PASS
-lite/temporallists/local_times_of_two_precisions	PASS	REFUSED
-lite/temporallists/local_times_in_microseconds	PASS	REFUSED
-lite/temporallists/times_with_offsets_in_order	PASS	REFUSED
+lite/temporallists/local_times_of_two_precisions	PASS	PASS
+lite/temporallists/local_times_in_microseconds	PASS	PASS
+lite/temporallists/times_with_offsets_in_order	PASS	PASS
 lite/temporallists/local_date_times_mapped	PASS	PASS
 lite/temporallists/zoned_date_times_by_their_instants	PASS	PASS
 lite/temporallists/collected_dates_unwound	PASS	PASS
@@ -4807,7 +4818,7 @@ lite/temporallists/collected_times_indexed	PASS	PASS
 lite/temporallists/a_list_of_times_returned	PASS	PASS
 lite/temporallists/a_map_of_temporals	PASS	PASS
 lite/temporallists/distinct_lists_of_dates	PASS	PASS
-lite/temporallists/sort_consistent_with_comparisons	PASS	REFUSED
+lite/temporallists/sort_consistent_with_comparisons	PASS	PASS
 lite/temporallists/a_comprehension_of_dates_returned	PASS	PASS
 lite/temporaltail/a_second_in_thirds	PASS	PASS
 lite/temporaltail/months_in_fractions	PASS	PASS
