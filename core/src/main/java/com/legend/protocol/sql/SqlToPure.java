@@ -7,7 +7,6 @@ import com.legend.protocol.TypeExpression;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CBoolean;
-import com.legend.protocol.spec.CDate;
 import com.legend.protocol.spec.CDecimal;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
@@ -20,7 +19,6 @@ import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 import com.legend.protocol.sql.InputDialect.Problem;
-import com.legend.values.PureDateLiteral;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -49,8 +47,8 @@ import java.util.Set;
  *
  * <p><b>Dialects</b>: what a SQL dialect's reader and rules differ on -- its parse, its names, where NULLs sort, an
  * unnamed column's name, constants' and columns' types, operators, CASE's one type, its functions, casts, LIKE, the
- * wording of its own refusals -- is its {@link InputDialect}'s. Postgres's is {@link PostgresDialect}, the one
- * {@link #translate(String, Sources)} reads.
+ * wording of its own refusals -- is its {@link InputDialect}'s. Postgres's is {@link PostgresDialect}, the
+ * {@code #SQL{...}#} island's ({@link InputLanguages}).
  *
  * <p>Step 1 of the study's phase 1: one FROM source, {@code tb('pkg::Database.schema.table')}.
  */
@@ -156,17 +154,17 @@ public final class SqlToPure {
     private static final String SYNTHETIC = "_sql_";
 
     private final Sources sources;
-    private final InputDialect dialect;
+    final InputDialect dialect;
     private final Env env;
     /** This query level's lambda parameters: a row, a group, a join's two sides, a subquery's row. Each level has
      *  its own, so a correlated subquery's lambdas can reach the enclosing query's row. */
-    private final String row;
+    final String row;
     /** IQ island, 2026-10-17: the scalar subqueries the item being translated computes once ({@link #output}), by
      *  node, each the column computed before it. */
     private final Map<SqlAst.Expr, Col> hoisted = new java.util.IdentityHashMap<>();
     /** IQ island, 2026-10-17: the grouping being translated's dialect guards ({@link Aggregation#guard}). */
     private final List<ValueSpecification> guards = new ArrayList<>();
-    private final String group;
+    final String group;
     private final String leftRow;
     private final String rightRow;
     /** A subquery's row, in the {@code exists} and {@code map} that read an expression subquery. */
@@ -175,6 +173,9 @@ public final class SqlToPure {
     private final String partition;
     private final String window;
     private int fresh;
+    /** The operands of integer arithmetic over constants, whose range the arithmetic around them holds
+     *  ({@link PostgresCasts#heldToWidth}). */
+    final Set<SqlAst.Expr> heldOutside = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     private SqlToPure(Sources sources, InputDialect dialect, Env env) {
         this.sources = sources;
@@ -234,14 +235,9 @@ public final class SqlToPure {
         }
     }
 
-    /** The Pure relation expression {@code sql} means; {@link SqlTranslationException} when it has none (its kind
-     *  says whether the text is not SQL, the translation is not built yet, or Postgres rejects the query too). */
-    public static ValueSpecification translate(String sql, Sources sources) {
-        return translate(sql, sources, PostgresDialect.INSTANCE);
-    }
-
     /** The Pure relation expression {@code sql}, a query in {@code dialect}, means: read by the dialect's parse and
-     *  its rules ({@link #translate(String, Sources)} is Postgres's). */
+     *  its rules; {@link SqlTranslationException} when it has none (its kind says whether the text is not SQL, the
+     *  translation is not built yet, or the dialect's database rejects the query too). */
     public static ValueSpecification translate(String sql, Sources sources, InputDialect dialect) {
         SqlAst.Statement statement;
         try {
@@ -326,7 +322,7 @@ public final class SqlToPure {
     }
 
     /** Postgres's numeric promotion for {@code + - *}: integer with integer stays integer; a float wins; else exact. */
-    private static Kind arithmetic(Kind a, Kind b) {
+    static Kind arithmetic(Kind a, Kind b) {
         if (a == Kind.INTEGER && b == Kind.INTEGER) {
             return Kind.INTEGER;
         }
@@ -372,7 +368,7 @@ public final class SqlToPure {
         }
 
         /** A translation of no {@code detail}: what a dialect knows of its type beyond its kind
-         *  ({@link InputDialect.TypeDetail}) is nothing, as it always is in Postgres's. */
+         *  ({@link InputDialect.TypeDetail}) is nothing, as it is in Postgres's for any value but a column's. */
         public Tx(ValueSpecification vs, Kind kind, boolean nullable,
                 @com.legend.base.Nullable ValueSpecification whenFalse) {
             this(vs, kind, nullable, whenFalse, null);
@@ -408,7 +404,7 @@ public final class SqlToPure {
     /** A column of the relation in hand: {@code name} is the column the relation holds it in, {@code label} the name
      *  the query sees it by, and {@code var} the lambda parameter that reaches it when it is not this level's row
      *  (a join side's, or an enclosing query's for a correlated reference). */
-    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label,
+    record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label,
             InputDialect.@com.legend.base.Nullable TypeDetail detail) {
 
         /** A column of no {@link InputDialect.TypeDetail}. */
@@ -456,11 +452,16 @@ public final class SqlToPure {
     // ------------------------------------------------------------------ scopes
 
     /** Where a column reference finds its column. */
-    private interface Scope {
+    interface Scope {
         Col column(SqlAst.ColumnRef ref);
 
         /** The column {@code ref} names here or in an enclosing query, nearest first; null for none. */
         @com.legend.base.Nullable Col columnOrNull(SqlAst.ColumnRef ref);
+
+        /** The column {@code ref} reads, before any grouping (as an aggregate's argument reads it); null for none. */
+        default @com.legend.base.Nullable Col readOrNull(SqlAst.ColumnRef ref) {
+            return columnOrNull(ref);
+        }
 
         /** A one-value function's name read as its value, here or in an enclosing query, nearest first; null for
          *  none (Postgres reads a name as a FROM item's only after no query in scope has a column of it). */
@@ -514,45 +515,20 @@ public final class SqlToPure {
             return scope.columnOrNull(ref) != null;
         }
 
-        // Postgres's rules here, for PostgresDialect: kept in this class, which they read throughout
-
-        Tx postgresBinary(SqlAst.Binary b) {
-            return binary(b, scope, row);
+        /** The translation this place is in: for an input language's rules in this package, which read the
+         *  translator throughout ({@link PostgresDialect}'s, D11). */
+        SqlToPure translator() {
+            return SqlToPure.this;
         }
 
-        Tx postgresUnary(SqlAst.Unary u) {
-            return unary(u, scope, row);
+        /** Where names are read here. */
+        Scope scope() {
+            return scope;
         }
 
-        Tx postgresCast(SqlAst.Cast c) {
-            return cast(c, scope, row);
-        }
-
-        Tx postgresLike(SqlAst.Like l) {
-            return like(l, scope, row);
-        }
-
-        Tx postgresBetween(SqlAst.Between b) {
-            return between(b, scope, row);
-        }
-
-        Tx postgresInList(SqlAst.InList in) {
-            return inList(in, scope, row);
-        }
-
-        Tx postgresIsDistinct(SqlAst.IsDistinct d) {
-            return isDistinct(d, scope, row);
-        }
-
-        Tx postgresQuantifiedTest(SqlAst.BinaryOp op, SqlAst.Expr left, Tx each, SqlAst.Pos pos) {
-            Tx value = left instanceof SqlAst.StringLit s && readsStrings(each.kind()) ? fromString(s, each.kind())
-                    : tx(left);
-            comparableKinds(value, each, pos);
-            return compare(op, value, each);
-        }
-
-        Tx postgresFunction(Translation translation, SqlAst.FunctionCall f, List<Tx> args) {
-            return translation.apply(SqlToPure.this, f, args, scope, row);
+        /** The lambda parameter the row is in here. */
+        String row() {
+            return row;
         }
     }
 
@@ -589,6 +565,20 @@ public final class SqlToPure {
             this.names = names;
             this.name = name;
             this.grouped = grouped;
+        }
+
+        /** The translation this grouping is in, its input scope and the grouped relation's names so far: for an
+         *  input language's rules in this package ({@link PostgresDialect}'s aggregates, D11). */
+        SqlToPure translator() {
+            return SqlToPure.this;
+        }
+
+        Input input() {
+            return in;
+        }
+
+        Set<String> names() {
+            return names;
         }
 
         /** IQ island, 2026-10-14 (the third landing): whether {@code e}, no aggregate, is one of the query's group
@@ -829,7 +819,7 @@ public final class SqlToPure {
     }
 
     /** The FROM clause's columns, before any grouping; names it does not have are the enclosing query's. */
-    private final class Input implements Scope {
+    final class Input implements Scope {
         private final List<Binding> bindings;
         private final List<Col> star;
         private final String clause;
@@ -1033,6 +1023,11 @@ public final class SqlToPure {
         }
 
         @Override
+        public @com.legend.base.Nullable Col readOrNull(SqlAst.ColumnRef ref) {
+            return input.columnOrNull(ref);
+        }
+
+        @Override
         public @com.legend.base.Nullable Col functionValue(SqlAst.ColumnRef ref) {
             Col source = input.functionValue(ref);
             return source == null ? null : key(source, ref);
@@ -1141,6 +1136,31 @@ public final class SqlToPure {
         return f.name().size() == 1 && SET_RETURNING.containsKey(functionName(f.name().get(0)));
     }
 
+    /** Whether {@code e} calls a set-returning function anywhere in it (the parser's VALUES rows, where Postgres
+     *  allows none). */
+    static boolean containsSetReturning(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && setReturning(f)
+                || children(e).stream().anyMatch(SqlToPure::containsSetReturning);
+    }
+
+    /** The error of {@code e} as a VALUES row's cell, or null: a set-returning function, an aggregate or a window
+     *  function in it, outside a subquery (the parser's VALUES lists, which have no rows to read). */
+    static @com.legend.base.Nullable String notInValues(SqlAst.Expr e) {
+        if (containsSetReturning(e)) {
+            return "set-returning functions are not allowed in VALUES";
+        }
+        if (containsWindow(e)) {
+            return "window functions are not allowed in VALUES";
+        }
+        return anyAggregateCall(e) ? "aggregate functions are not allowed in VALUES" : null;
+    }
+
+    private static boolean anyAggregateCall(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                && AGGREGATES.contains(functionName(f.name().get(0)))
+                || children(e).stream().anyMatch(SqlToPure::anyAggregateCall);
+    }
+
     private static void noSetReturning(SqlAst.Expr e) {
         if (e instanceof SqlAst.FunctionCall f && setReturning(f)) {
             throw SqlTranslationException.unsupported("a set-returning function inside an expression is not supported"
@@ -1165,10 +1185,6 @@ public final class SqlToPure {
 
         if (s.items().isEmpty()) {
             throw SqlTranslationException.unsupported("a select list with no columns is not supported yet", s.pos());
-        }
-        if (s.from().isEmpty() && env.outer() != null) {
-            // legend-lite cannot yet lower a row of an enclosing query read by a one-row relation of its own
-            throw SqlTranslationException.unsupported("a subquery without FROM is not supported yet", s.pos());
         }
         if (s.from().isEmpty() && s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns)) {
             throw SqlTranslationException.invalid("with no tables specified, SELECT * is not valid", s.pos());
@@ -1524,7 +1540,17 @@ public final class SqlToPure {
     /** A relation as a FROM item: its columns renamed by the alias's column list, under its qualifier. */
     private Source bound(Rel rel, SqlAst.@com.legend.base.Nullable Ident qualifier, List<SqlAst.Ident> columnAliases,
             SqlAst.Pos pos) {
-        Rel renamed = columnAliases.isEmpty() ? rel : aliased(rel, columnAliases, qualifier, pos);
+        Rel read = rel;
+        if (dialect.untypedNullIsText() && rel.columns().stream().anyMatch(c -> c.kind() == Kind.NULL)) {
+            // the reading query's NULL text, where the dialect types the column so (2026-10-17, the review of the
+            // corpus program's step 1: an untyped NULL read had answered x + 1)
+            List<@com.legend.base.Nullable Tx> texts = new ArrayList<>();
+            for (OutCol c : rel.columns()) {
+                texts.add(c.kind() != Kind.NULL ? null : Tx.value(nullOf(Kind.STRING).vs(), Kind.STRING, true));
+            }
+            read = converted(rel, texts);
+        }
+        Rel renamed = columnAliases.isEmpty() ? read : aliased(read, columnAliases, qualifier, pos);
         List<BCol> cols = new ArrayList<>();
         List<Col> star = new ArrayList<>();
         for (OutCol c : renamed.columns()) {
@@ -1765,7 +1791,8 @@ public final class SqlToPure {
                 || item instanceof SqlAst.SubqueryFrom q && q.lateral();
     }
 
-    private static boolean isSourceFunction(SqlAst.TableFunction f) {
+    /** Whether {@code f} is the island's source function, {@code tb('pkg::Database.table')}. */
+    static boolean isSourceFunction(SqlAst.TableFunction f) {
         return f.name().size() == 1 && TABLE_FUNCTION.equals(functionName(f.name().get(0)));
     }
 
@@ -2708,6 +2735,15 @@ public final class SqlToPure {
      * {@code extend(over(...), ~column: {p, w, r | ...})}.
      */
     private Windowed windows(SqlAst.Select s, Scope scope, ValueSpecification relation, Set<String> present) {
+        // two windows of one name are Postgres's error, whether or not a call reads them (2026-10-17, the regression
+        // suite: WINDOW w AS (...), w AS (...) answered)
+        Set<String> windowNames = new java.util.HashSet<>();
+        for (SqlAst.NamedWindow nw : s.windows()) {
+            String name = nw.name().quoted() ? nw.name().text() : dialect.fold(nw.name().text());
+            if (!windowNames.add(name) && dialect.oneWindowPerName()) {
+                throw SqlTranslationException.invalid("window \"" + name + "\" is already defined", nw.name().pos());
+            }
+        }
         List<SqlAst.Window> calls = new ArrayList<>();
         Map<SqlAst.Window, String> named = new java.util.IdentityHashMap<>();
         for (SqlAst.SelectItem item : s.items()) {
@@ -2994,7 +3030,7 @@ public final class SqlToPure {
     }
 
     /** A min or max argument: Postgres has neither of a boolean (bool_and and bool_or are its), nor of jsonb. */
-    private static void minMaxable(Kind kind, String fn, SqlAst.Pos pos) {
+    static void minMaxable(Kind kind, String fn, SqlAst.Pos pos) {
         notJsonKey(kind, fn, pos);
         if (kind == Kind.BOOLEAN) {
             throw SqlTranslationException.invalid("function " + fn + "(boolean) does not exist", pos);
@@ -3052,7 +3088,7 @@ public final class SqlToPure {
             if (minMax) {
                 minMaxable(arg.kind(), fn, f.pos());
             } else if (!fn.equals("count") && !arg.kind().numeric()) {
-                throw SqlTranslationException.invalid("function " + fn + "(" + postgresName(arg.kind())
+                throw SqlTranslationException.invalid("function " + fn + "(" + dialect.typeName(arg.kind())
                         + ") does not exist", f.pos());
             } else if (!fn.equals("count") && (arg.kind() == Kind.FLOAT || arg.kind() == Kind.INEXACT)) {
                 // a frame's sum of doubles less the row's own loses the digits Postgres's sum of the rest keeps
@@ -3172,7 +3208,7 @@ public final class SqlToPure {
             windowArguments(f, 1, 1);
             Col arg = windowKey(f.args().get(0), scope, present, computed);
             if (arg.kind() != Kind.BOOLEAN) {
-                throw SqlTranslationException.invalid("function " + fn + "(" + postgresName(arg.kind())
+                throw SqlTranslationException.invalid("function " + fn + "(" + dialect.typeName(arg.kind())
                         + ") does not exist", f.pos());
             }
             return new WindowColumn(windowLambda(property(row, arg.name())), lambda(group,
@@ -3189,7 +3225,7 @@ public final class SqlToPure {
             Col x = windowKey(f.args().get(1), scope, present, computed);
             for (Col c : List.of(y, x)) {
                 if (!c.kind().numeric()) {
-                    throw SqlTranslationException.unsupported(fn + " of " + postgresName(c.kind()) + " values is not"
+                    throw SqlTranslationException.unsupported(fn + " of " + dialect.typeName(c.kind()) + " values is not"
                             + " supported yet", f.pos());
                 }
             }
@@ -3280,15 +3316,15 @@ public final class SqlToPure {
     private WindowColumn lagDefault(SqlAst.Expr d, Col arg, ValueSpecification at, ValueSpecification other,
             Scope scope, Set<String> present, List<ColSpec> computed) {
         Tx dflt = d instanceof SqlAst.StringLit s && arg.kind() != Kind.STRING && readsStrings(arg.kind())
-                ? fromString(s, arg.kind()) : tx(d, scope, row);
+                ? dialect.readString(single(s, arg.detail()), arg.kind()) : tx(d, scope, row);
         Kind kind;
         if (dflt.kind() == arg.kind()) {
             kind = arg.kind();
         } else if (dflt.kind().numeric() && arg.kind().numeric()) {
             kind = arithmetic(arg.kind(), dflt.kind());
         } else {
-            throw SqlTranslationException.unsupported("a default of " + postgresName(dflt.kind()) + " for "
-                    + postgresName(arg.kind()) + " values is not supported yet", d.pos());
+            throw SqlTranslationException.unsupported("a default of " + dialect.typeName(dflt.kind()) + " for "
+                    + dialect.typeName(arg.kind()) + " values is not supported yet", d.pos());
         }
         if (kind == Kind.DECIMAL) {
             // the value and the default take one scale in the database (see common)
@@ -3516,7 +3552,8 @@ public final class SqlToPure {
                     ? dialect.columnName(ref.parts().get(ref.parts().size() - 1), col.label())
                     : dialect.defaultName(x, ref -> tableOf(scope, ref));
             Output o = passthrough(col, name, passed, present, scope);
-            return new Output(o.name(), o.internal(), o.value(), x.expr(), o.kind(), o.nullable(), o.detail());
+            return new Output(o.name(), o.internal(), o.value(), x.expr(), o.kind(), o.nullable(),
+                    narrowed(o.kind(), o.detail(), x.expr(), scope));
         }
         // IQ island, 2026-10-17 (the corpus lane's scale: a quotient of a correlated COUNT subquery repeated it 504
         // times, each check of a checked operation reading its operand again): a scalar subquery the item computes for
@@ -3567,7 +3604,14 @@ public final class SqlToPure {
         }
         String name = alias != null ? alias.text() : dialect.defaultName(x, ref -> tableOf(scope, ref));
         return new Output(name, internalFor(name, present), valueOf(t), x.expr(), t.kind(), t.nullable(),
-                t.detail(), pre);
+                narrowed(t.kind(), t.detail(), x.expr(), scope), pre);
+    }
+
+    /** A select item's type detail: its value's, else the dialect's narrow integer where the item is one
+     *  ({@link #widened}), so that a query reading the column knows it. */
+    private InputDialect.@com.legend.base.Nullable TypeDetail narrowed(Kind kind,
+            InputDialect.@com.legend.base.Nullable TypeDetail detail, SqlAst.Expr e, Scope scope) {
+        return detail == null && kind == Kind.INTEGER && widened(e, scope) ? dialect.narrowInteger() : detail;
     }
 
     /** The scalar subqueries of {@code e} that it computes whenever it is computed ({@link #output}): reached through
@@ -3724,7 +3768,7 @@ public final class SqlToPure {
         return fresh(present);
     }
 
-    private String fresh(Set<String> taken) {
+    String fresh(Set<String> taken) {
         String name;
         do {
             name = SYNTHETIC + (++fresh);
@@ -4066,37 +4110,21 @@ public final class SqlToPure {
 
     // ------------------------------------------------------------------ aggregates
 
-    private static final Set<String> AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "stddev", "stddev_samp",
+    static final Set<String> AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "stddev", "stddev_samp",
             "stddev_pop", "variance", "var_samp", "var_pop", "string_agg", "bool_and", "bool_or", "every",
             "percentile_cont", "percentile_disc", "corr", "covar_pop", "covar_samp", "regr_count", "regr_avgx",
             "regr_avgy", "regr_sxx", "regr_syy", "regr_sxy", "regr_slope", "regr_intercept", "regr_r2");
 
-    /** Postgres's linear regressions of y on x: double precision, over the pairs that hold both values. */
-    private static final Set<String> REGRESSIONS = Set.of("regr_count", "regr_avgx", "regr_avgy", "regr_sxx",
-            "regr_syy", "regr_sxy", "regr_slope", "regr_intercept", "regr_r2");
-
-    /** Postgres's ordered-set aggregates that Pure's percentile computes. */
-    private static final Set<String> PERCENTILES = Set.of("percentile_cont", "percentile_disc");
-
     /** Postgres's aggregates of pairs and Pure's (over rowMapper pairs): double precision, a pair with a NULL
      *  skipped. */
-    private static final Map<String, String> BIVARIATE = Map.of("corr", "corr", "covar_pop", "covarPopulation",
+    static final Map<String, String> BIVARIATE = Map.of("corr", "corr", "covar_pop", "covarPopulation",
             "covar_samp", "covarSample");
 
     /** Postgres's boolean aggregates: Pure's and() (bool_and, every) or or() (bool_or) of the group. */
-    private static final Set<String> BOOLEAN_AGGREGATES = Set.of("bool_and", "bool_or", "every");
-
-    /** An aggregate column of the grouped relation: its map and reduce (with any it is computed from), its kind, and
-     *  the column computed from them after the grouping when it is not one of them. */
-    private record Aggregate(List<ColSpec> specs, Kind kind, @com.legend.base.Nullable ColSpec finish) {
-
-        Aggregate(ColSpec spec, Kind kind) {
-            this(List.of(spec), kind, null);
-        }
-    }
+    static final Set<String> BOOLEAN_AGGREGATES = Set.of("bool_and", "bool_or", "every");
 
     /** Postgres's statistical aggregates and Pure's: sample (n - 1) unless named population. */
-    private static final Map<String, String> STATISTICS = Map.of("stddev", "stdDevSample", "stddev_samp",
+    static final Map<String, String> STATISTICS = Map.of("stddev", "stdDevSample", "stddev_samp",
             "stdDevSample", "stddev_pop", "stdDevPopulation", "variance", "varianceSample", "var_samp",
             "varianceSample", "var_pop", "variancePopulation");
 
@@ -4106,19 +4134,13 @@ public final class SqlToPure {
 
     /** A sum's kind: of integers a bigint or a numeric (WHOLE), of a sum of integers or of numerics a numeric, of
      *  doubles a double. */
-    private static Kind sumKind(Kind arg) {
+    static Kind sumKind(Kind arg) {
         return arg == Kind.INTEGER ? Kind.WHOLE : arg == Kind.DECIMAL || arg == Kind.WHOLE ? Kind.NUMBER : arg;
     }
 
     /** An average's or a statistic's kind: double precision of doubles; Postgres's numeric otherwise, a Float here. */
-    private static Kind statisticKind(Kind arg) {
+    static Kind statisticKind(Kind arg) {
         return arg == Kind.FLOAT ? Kind.FLOAT : Kind.INEXACT;
-    }
-
-    /** Whether {@code name} (a function's name as the translator reads one, {@link #functionName}) is one of
-     *  Postgres's aggregates: {@link InputDialect#isAggregate}'s default. */
-    static boolean postgresAggregate(String name) {
-        return AGGREGATES.contains(name);
     }
 
     private boolean isAggregate(SqlAst.FunctionCall f) {
@@ -4143,7 +4165,7 @@ public final class SqlToPure {
         return false;
     }
 
-    private boolean containsAggregate(SqlAst.Expr e) {
+    boolean containsAggregate(SqlAst.Expr e) {
         if (e instanceof SqlAst.FunctionCall f && isAggregate(f)) {
             return true;
         }
@@ -4177,450 +4199,24 @@ public final class SqlToPure {
             if (byCanon.containsKey(canon)) {
                 return;
             }
-            String fn = functionName(f.name().get(0));
             String want = preferred.get(canon);
             String name = want != null && !names.contains(want) && !want.startsWith(SYNTHETIC) ? want : fresh(names);
+            // the dialect's aggregate: its columns, and the one computed from them after the grouping
             Aggregation own = dialect.aggregate(f, new Grouping(in, names, name, byCanon));
-            if (own != null) {
-                // the dialect's own aggregate: its columns, and the one computed from them after the grouping
-                names.add(name);
-                byCanon.put(canon, Col.of(name, own.kind(), own.nullable(), own.detail()));
-                aggregates.addAll(own.specs());
-                if (own.finish() != null) {
-                    finishes.add(own.finish());
-                }
-                if (own.guard() != null) {
-                    guards.add(own.guard());
-                }
-                return;
-            }
-            if (fn.equals("string_agg") || PERCENTILES.contains(fn) || BIVARIATE.containsKey(fn)
-                    || REGRESSIONS.contains(fn)) {
-                Aggregate aggregate = fn.equals("string_agg") ? new Aggregate(stringAgg(f, in, name), Kind.STRING)
-                        : PERCENTILES.contains(fn) ? percentile(f, in, name)
-                        : REGRESSIONS.contains(fn) ? regression(f, in, name, names) : bivariate(f, in, name, names);
-                names.add(name);
-                byCanon.put(canon, Col.of(name, aggregate.kind(), true));
-                aggregates.addAll(aggregate.specs());
-                if (aggregate.finish() != null) {
-                    finishes.add(aggregate.finish());
-                }
-                return;
-            }
-            Tx arg;
-            if (f.star()) {
-                if (!fn.equals("count")) {
-                    throw SqlTranslationException.invalid(fn + "(*) is not a function; only count(*) is", f.pos());
-                }
-                arg = Tx.value(new CInteger(1L), Kind.INTEGER, false);
-            } else {
-                if (f.args().size() != 1) {
-                    throw SqlTranslationException.invalid(fn + " takes one argument here", f.pos());
-                }
-                arg = tx(f.args().get(0), in, row);
-            }
-            if (!f.withinGroup().isEmpty()) {
-                throw SqlTranslationException.invalid("WITHIN GROUP is required for ordered-set aggregates only; "
-                        + fn + " is not one", f.pos());
-            }
-            orderedKeys(f, in);
-            if (f.distinct()) {
-                // the distinct values of the group, each once (Postgres's DISTINCT inside an aggregate)
-                notJsonKey(arg.kind(), fn + "(DISTINCT ...)", f.pos());
-            }
-            SqlAst.Expr filter = f.filter();
-            if (filter != null) {
-                if (containsAggregate(filter)) {
-                    throw SqlTranslationException.invalid("aggregate functions are not allowed in FILTER",
-                            filter.pos());
-                }
-                // the rows the condition holds for only: another row gives no value, as Postgres skips it
-                Tx value = arg;
-                ValueSpecification test = condition(filter, in, "FILTER");
-                ValueSpecification kept = call("if", test, thunk(valueOf(value)), thunk(empty()));
-                arg = value.kind() == Kind.BOOLEAN ? booleanValue(kept, true) : Tx.value(kept, value.kind(), true);
-            }
-            ValueSpecification values = new Variable(group);
-            if (f.distinct()) {
-                values = call("distinct", values);
-            }
-            Kind kind;
-            ValueSpecification reduce;
-            if (BOOLEAN_AGGREGATES.contains(fn)) {
-                // Postgres's every is bool_and; NULLs are skipped, and no values is NULL
-                if (arg.kind() != Kind.BOOLEAN) {
-                    throw arg.kind() == Kind.NULL || arg.kind() == Kind.OTHER
-                            ? SqlTranslationException.unsupported(fn + " of this value is not supported yet", f.pos())
-                            : SqlTranslationException.invalid("function " + fn + "(" + postgresName(arg.kind())
-                                    + ") does not exist", f.pos());
-                }
-                kind = Kind.BOOLEAN;
-                reduce = call(fn.equals("bool_or") ? "or" : "and", values);
-            } else {
-                switch (fn) {
-                    case "count" -> {
-                        kind = Kind.INTEGER;
-                        reduce = call("count", values);
-                    }
-                    case "sum" -> {
-                        requireNumeric(arg, f);
-                        kind = sumKind(arg.kind());
-                        reduce = call("sum", values);
-                    }
-                    case "avg" -> {
-                        requireNumeric(arg, f);
-                        kind = statisticKind(arg.kind());
-                        reduce = call("average", values);
-                    }
-                    case "min" -> {
-                        minMaxable(arg.kind(), fn, f.pos());
-                        kind = arg.kind();
-                        reduce = call("min", values);
-                    }
-                    case "max" -> {
-                        minMaxable(arg.kind(), fn, f.pos());
-                        kind = arg.kind();
-                        reduce = call("max", values);
-                    }
-                    default -> {
-                        // stddev, variance and their sample and population forms
-                        requireNumeric(arg, f);
-                        kind = statisticKind(arg.kind());
-                        reduce = call(java.util.Objects.requireNonNull(STATISTICS.get(fn), fn), values);
-                    }
-                }
-            }
-            // count is never NULL; every other aggregate is NULL over no values (Postgres)
             names.add(name);
-            Col col = Col.of(name, kind, !fn.equals("count"));
-            byCanon.put(canon, col);
-            aggregates.add(new ColSpec(col.name(), lambda(row, valueOf(arg)), lambda(group, reduce), null));
+            byCanon.put(canon, Col.of(name, own.kind(), own.nullable(), own.detail()));
+            aggregates.addAll(own.specs());
+            if (own.finish() != null) {
+                finishes.add(own.finish());
+            }
+            if (own.guard() != null) {
+                guards.add(own.guard());
+            }
             return;
         }
         for (SqlAst.Expr child : children(e)) {
             collectAggregates(child, in, byCanon, aggregates, finishes, names, preferred);
         }
-    }
-
-    /**
-     * {@code percentile_cont(p)} or {@code percentile_disc(p) WITHIN GROUP (ORDER BY x [DESC]) [FILTER (WHERE ...)]}:
-     * Pure's percentile over the group, NULLs skipped as Postgres skips them, {@code p} a constant fraction. The
-     * continuous one interpolates between doubles, as Postgres does (each value read as one: DuckDB would interpolate
-     * a decimal at the decimal's scale). The discrete one picks a value, which the lowering gives as a double: an
-     * integer's is read back as its integer (Postgres's type, whose division truncates), a numeric's is inexact.
-     */
-    private Aggregate percentile(SqlAst.FunctionCall f, Input in, String name) {
-        String fn = functionName(f.name().get(0));
-        boolean continuous = fn.equals("percentile_cont");
-        if (f.withinGroup().isEmpty()) {
-            throw SqlTranslationException.invalid("WITHIN GROUP is required for ordered-set aggregate " + fn,
-                    f.pos());
-        }
-        if (f.distinct()) {
-            throw SqlTranslationException.invalid("cannot use DISTINCT with WITHIN GROUP", f.pos());
-        }
-        if (f.star() || f.args().size() != 1 || f.withinGroup().size() != 1 || !f.orderBy().isEmpty()) {
-            throw SqlTranslationException.unsupported(fn + " of other than one fraction and one value is not"
-                    + " supported yet", f.pos());
-        }
-        SqlAst.SortItem key = f.withinGroup().get(0);
-        for (SqlAst.Expr a : List.of(f.args().get(0), key.expr())) {
-            if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
-            }
-        }
-        SqlAst.Expr fraction = f.args().get(0);
-        BigDecimal p = fraction instanceof SqlAst.NumericLit n ? n.value()
-                : fraction instanceof SqlAst.IntegerLit n ? new BigDecimal(n.value()) : null;
-        if (p == null) {
-            throw SqlTranslationException.unsupported(fn + " of a fraction other than a constant is not supported"
-                    + " yet", fraction.pos());
-        }
-        if (p.signum() < 0 || p.compareTo(BigDecimal.ONE) > 0) {
-            throw SqlTranslationException.invalid("percentile value " + p.toPlainString() + " is not between 0 and 1",
-                    fraction.pos());
-        }
-        Tx x = tx(key.expr(), in, row);
-        if (!x.kind().numeric()) {
-            throw x.kind() == Kind.NULL || x.kind() == Kind.OTHER || !continuous
-                    ? SqlTranslationException.unsupported(fn + " of " + postgresName(x.kind()) + " values is not"
-                            + " supported yet", key.expr().pos())
-                    : SqlTranslationException.invalid("function " + fn + "(numeric, " + postgresName(x.kind())
-                            + ") does not exist", f.pos());
-        }
-        Tx value = continuous && x.kind() != Kind.FLOAT ? strict(Kind.FLOAT, List.of(x), v -> call("toFloat",
-                v.get(0))) : x;
-        ValueSpecification each = valueOf(value);
-        SqlAst.Expr filter = f.filter();
-        if (filter != null) {
-            if (containsAggregate(filter)) {
-                throw SqlTranslationException.invalid("aggregate functions are not allowed in FILTER", filter.pos());
-            }
-            each = call("if", condition(filter, in, "FILTER"), thunk(each), thunk(empty()));
-        }
-        ValueSpecification reduce = call("percentile", new Variable(group),
-                new com.legend.protocol.spec.CFloat(p.doubleValue()), new CBoolean(!key.descending()),
-                new CBoolean(continuous));
-        if (!continuous && (x.kind() == Kind.INTEGER || x.kind() == Kind.WHOLE)) {
-            reduce = call("cast", reduce, typeArg("Integer"));
-        }
-        Kind kind = continuous ? (x.kind() == Kind.INEXACT ? Kind.INEXACT : Kind.FLOAT)
-                : x.kind() == Kind.DECIMAL || x.kind() == Kind.NUMBER ? Kind.INEXACT : x.kind();
-        return new Aggregate(new ColSpec(name, lambda(row, each), lambda(group, reduce), null), kind);
-    }
-
-    /** {@code corr(y, x)}, {@code covar_pop(y, x)}, {@code covar_samp(y, x)}: Pure's over the group's pairs
-     *  ({@code rowMapper(y, x)}), a pair with a NULL skipped as Postgres skips it; double precision. */
-    private Aggregate bivariate(SqlAst.FunctionCall f, Input in, String name, Set<String> names) {
-        String fn = functionName(f.name().get(0));
-        if (!f.withinGroup().isEmpty()) {
-            throw SqlTranslationException.invalid("WITHIN GROUP is required for ordered-set aggregates only; " + fn
-                    + " is not one", f.pos());
-        }
-        if (f.distinct() || f.star() || f.args().size() != 2) {
-            throw SqlTranslationException.unsupported(fn + " other than of two values is not supported yet",
-                    f.pos());
-        }
-        orderedKeys(f, in);
-        List<Tx> pair = new ArrayList<>();
-        for (SqlAst.Expr a : f.args()) {
-            if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
-            }
-            Tx t = tx(a, in, row);
-            if (!t.kind().numeric()) {
-                throw SqlTranslationException.unsupported(fn + " of " + postgresName(t.kind()) + " values is not"
-                        + " supported yet", a.pos());
-            }
-            pair.add(t);
-        }
-        ValueSpecification y = valueOf(pair.get(0));
-        ValueSpecification x = valueOf(pair.get(1));
-        SqlAst.Expr filter = f.filter();
-        if (filter != null) {
-            if (containsAggregate(filter)) {
-                throw SqlTranslationException.invalid("aggregate functions are not allowed in FILTER", filter.pos());
-            }
-            ValueSpecification test = condition(filter, in, "FILTER");
-            y = call("if", test, thunk(y), thunk(empty()));
-            x = call("if", test, thunk(x), thunk(empty()));
-        }
-        ValueSpecification reduce = call(java.util.Objects.requireNonNull(BIVARIATE.get(fn)), new Variable(group));
-        if (!fn.equals("corr")) {
-            return new Aggregate(new ColSpec(name, lambda(row, call("rowMapper", y, x)), lambda(group, reduce), null),
-                    Kind.FLOAT);
-        }
-        // Postgres's corr is NULL where either value's variance over the pairs is 0 (one pair among them); a
-        // database's quotient is NaN there (DuckDB's). The pairs' variances -- a value's covariance with itself, over
-        // the pairs that hold both -- say where; the column is the correlation elsewhere.
-        String raw = fresh(names);
-        String vy = fresh(names);
-        String vx = fresh(names);
-        ValueSpecification yPaired = call("if", call("isEmpty", x), thunk(empty()), thunk(y));
-        ValueSpecification xPaired = call("if", call("isEmpty", y), thunk(empty()), thunk(x));
-        ValueSpecification flat = call("or", knownZero(vy), knownZero(vx));
-        return new Aggregate(List.of(
-                new ColSpec(raw, lambda(row, call("rowMapper", y, x)), lambda(group, reduce), null),
-                new ColSpec(vy, lambda(row, call("rowMapper", y, yPaired)), lambda(group,
-                        call("covarPopulation", new Variable(group))), null),
-                new ColSpec(vx, lambda(row, call("rowMapper", x, xPaired)), lambda(group,
-                        call("covarPopulation", new Variable(group))), null)),
-                Kind.FLOAT, new ColSpec(name, lambda(row, call("if", flat, thunk(empty()), thunk(property(row, raw)))),
-                        null, null));
-    }
-
-    /** An aggregate's {@code ORDER BY}, for one whose answer no order changes (all but string_agg): Postgres orders
-     *  the values it reads, and reads the same answer from them in any order. Its keys are still checked as Postgres
-     *  checks them; under DISTINCT each must be the argument. */
-    private void orderedKeys(SqlAst.FunctionCall f, Input in) {
-        for (SqlAst.SortItem o : f.orderBy()) {
-            if (containsAggregate(o.expr())) {
-                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), o.expr().pos());
-            }
-            if (f.distinct() && (f.args().size() != 1 || !canon(o.expr(), in).equals(canon(f.args().get(0), in)))) {
-                throw SqlTranslationException.invalid("in an aggregate with DISTINCT, ORDER BY expressions must"
-                        + " appear in argument list", o.expr().pos());
-            }
-            tx(o.expr(), in, row);
-        }
-    }
-
-    /**
-     * Postgres's regressions of y on x ({@code regr_slope(y, x)} and the others), over the pairs that hold both
-     * values, each value read as a double as Postgres reads it. They are computed from the pairs' count and averages
-     * and their population variances and covariance (Pure's covarPopulation over rowMapper pairs), the column itself
-     * after the grouping: Sxx is N times x's variance, Syy and Sxy alike; the slope Sxy / Sxx and the intercept
-     * avg(y) - slope * avg(x), NULL where Sxx is 0; r2 Sxy^2 / (Sxx * Syy), 1 where only Syy is 0. As for corr, a
-     * variance Postgres's running sums leave near 0 for equal values is exactly 0 here.
-     */
-    private Aggregate regression(SqlAst.FunctionCall f, Input in, String name, Set<String> names) {
-        String fn = functionName(f.name().get(0));
-        if (!f.withinGroup().isEmpty()) {
-            throw SqlTranslationException.invalid("WITHIN GROUP is required for ordered-set aggregates only; " + fn
-                    + " is not one", f.pos());
-        }
-        if (f.star() || f.args().size() != 2) {
-            throw SqlTranslationException.invalid("function " + fn + " takes two arguments", f.pos());
-        }
-        if (f.distinct()) {
-            throw SqlTranslationException.unsupported(fn + "(DISTINCT ...) is not supported yet", f.pos());
-        }
-        orderedKeys(f, in);
-        List<ValueSpecification> pair = new ArrayList<>();
-        List<Boolean> nullable = new ArrayList<>();
-        for (SqlAst.Expr a : f.args()) {
-            if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
-            }
-            Tx t = tx(a, in, row);
-            if (!t.kind().numeric()) {
-                throw SqlTranslationException.unsupported(fn + " of " + postgresName(t.kind()) + " values is not"
-                        + " supported yet", a.pos());
-            }
-            ValueSpecification v = valueOf(t);
-            // Postgres reads each value as a double precision
-            pair.add(t.kind() == Kind.FLOAT || t.kind() == Kind.INEXACT ? v : t.nullable() ? call("if",
-                    call("isEmpty", v), thunk(empty()), thunk(call("toFloat", call("toOne", v)))) : call("toFloat", v));
-            nullable.add(t.nullable());
-        }
-        ValueSpecification y = pair.get(0);
-        ValueSpecification x = pair.get(1);
-        boolean maybeNull = nullable.get(0) || nullable.get(1);
-        SqlAst.Expr filter = f.filter();
-        if (filter != null) {
-            if (containsAggregate(filter)) {
-                throw SqlTranslationException.invalid("aggregate functions are not allowed in FILTER", filter.pos());
-            }
-            ValueSpecification test = condition(filter, in, "FILTER");
-            y = call("if", test, thunk(y), thunk(empty()));
-            x = call("if", test, thunk(x), thunk(empty()));
-            maybeNull = true;
-        }
-        // each value where its pair holds both
-        ValueSpecification yPaired = maybeNull ? call("if", call("isEmpty", x), thunk(empty()), thunk(y)) : y;
-        ValueSpecification xPaired = maybeNull ? call("if", call("isEmpty", y), thunk(empty()), thunk(x)) : x;
-        Variable g = new Variable(group);
-        switch (fn) {
-            case "regr_count" -> {
-                return new Aggregate(new ColSpec(name, lambda(row, xPaired), lambda(group, call("count", g)), null),
-                        Kind.INTEGER);
-            }
-            case "regr_avgx", "regr_avgy" -> {
-                return new Aggregate(new ColSpec(name, lambda(row, fn.equals("regr_avgx") ? xPaired : yPaired),
-                        lambda(group, call("average", g)), null), Kind.FLOAT);
-            }
-            default -> {
-            }
-        }
-        String n = fresh(names);
-        String vx = fresh(names);
-        String vy = fresh(names);
-        String cxy = fresh(names);
-        String ax = fresh(names);
-        String ay = fresh(names);
-        List<ColSpec> parts = List.of(
-                new ColSpec(n, lambda(row, xPaired), lambda(group, call("count", g)), null),
-                new ColSpec(vx, lambda(row, call("rowMapper", x, xPaired)), lambda(group, call("covarPopulation", g)),
-                        null),
-                new ColSpec(vy, lambda(row, call("rowMapper", y, yPaired)), lambda(group, call("covarPopulation", g)),
-                        null),
-                new ColSpec(cxy, lambda(row, call("rowMapper", y, x)), lambda(group, call("covarPopulation", g)),
-                        null),
-                new ColSpec(ax, lambda(row, xPaired), lambda(group, call("average", g)), null),
-                new ColSpec(ay, lambda(row, yPaired), lambda(group, call("average", g)), null));
-        ValueSpecification count = call("toFloat", property(row, n));
-        ValueSpecification sxx = one(vx);
-        ValueSpecification slope = call("divide", one(cxy), sxx);
-        ValueSpecification flat = call("or", call("isEmpty", property(row, vx)), call("equal", sxx,
-                new CInteger(0L)));
-        ValueSpecification value = switch (fn) {
-            case "regr_sxx" -> call("if", call("isEmpty", property(row, vx)), thunk(empty()), thunk(
-                    AppliedFunction.infixRun("times", List.of(count, sxx))));
-            case "regr_syy" -> call("if", call("isEmpty", property(row, vy)), thunk(empty()), thunk(
-                    AppliedFunction.infixRun("times", List.of(count, one(vy)))));
-            case "regr_sxy" -> call("if", call("isEmpty", property(row, cxy)), thunk(empty()), thunk(
-                    AppliedFunction.infixRun("times", List.of(count, one(cxy)))));
-            case "regr_slope" -> call("if", flat, thunk(empty()), thunk(slope));
-            case "regr_intercept" -> call("if", flat, thunk(empty()), thunk(AppliedFunction.infixRun("minus",
-                    List.of(one(ay), AppliedFunction.infixRun("times", List.of(slope, one(ax)))))));
-            default -> call("if", flat, thunk(empty()), thunk(call("if", call("equal", one(vy), new CInteger(0L)),
-                    thunk(call("toFloat", new CInteger(1L))), thunk(call("divide", AppliedFunction.infixRun("times",
-                            List.of(one(cxy), one(cxy))), AppliedFunction.infixRun("times", List.of(sxx,
-                            one(vy))))))));
-        };
-        return new Aggregate(parts, Kind.FLOAT, new ColSpec(name, lambda(row, value), null, null));
-    }
-
-    /** A grouped column's one value (where it holds one). */
-    private ValueSpecification one(String column) {
-        return call("toOne", property(row, column));
-    }
-
-    /** Whether a grouped column holds 0: known and equal to 0. */
-    private ValueSpecification knownZero(String column) {
-        ValueSpecification v = property(row, column);
-        return call("and", call("isNotEmpty", v), call("equal", call("toOne", v), new CInteger(0L)));
-    }
-
-    /** {@code string_agg(text, 'sep' [ORDER BY col [DESC], ...]) [FILTER (WHERE ...)]}: Pure's joinStrings over the
-     *  group, NULLs skipped as Postgres skips them; ordered, the group-lambda form
-     *  ({@code g | $g->joinStrings(r | value, sep, ~k->ascending())}: string_agg(x, sep ORDER BY k)). A key is a
-     *  column, in Postgres's default NULL placement (last ascending, first descending). */
-    private ColSpec stringAgg(SqlAst.FunctionCall f, Input in, String name) {
-        if (f.star() || f.args().size() != 2) {
-            throw SqlTranslationException.invalid("function string_agg takes two arguments", f.pos());
-        }
-        if (f.distinct()) {
-            throw SqlTranslationException.unsupported("string_agg(DISTINCT ...) is not supported yet", f.pos());
-        }
-        if (!f.withinGroup().isEmpty()) {
-            throw SqlTranslationException.invalid("WITHIN GROUP is required for ordered-set aggregates only;"
-                    + " string_agg is not one", f.pos());
-        }
-        for (SqlAst.Expr a : f.args()) {
-            if (containsAggregate(a)) {
-                throw SqlTranslationException.invalid(dialect.message(Problem.NESTED_AGGREGATE), a.pos());
-            }
-        }
-        Tx value = tx(f.args().get(0), in, row);
-        if (value.kind() != Kind.STRING) {
-            throw value.kind() == Kind.OTHER || value.kind() == Kind.NULL
-                    ? SqlTranslationException.unsupported("string_agg of this type is not supported yet", f.pos())
-                    : SqlTranslationException.invalid("function string_agg(" + postgresName(value.kind())
-                            + ", unknown) does not exist", f.pos());
-        }
-        if (!(f.args().get(1) instanceof SqlAst.StringLit sep)) {
-            throw SqlTranslationException.unsupported("a string_agg delimiter other than a constant is not supported"
-                    + " yet", f.args().get(1).pos());
-        }
-        ValueSpecification each = valueOf(value);
-        SqlAst.Expr filter = f.filter();
-        if (filter != null) {
-            if (containsAggregate(filter)) {
-                throw SqlTranslationException.invalid("aggregate functions are not allowed in FILTER", filter.pos());
-            }
-            each = call("if", condition(filter, in, "FILTER"), thunk(each), thunk(empty()));
-        }
-        if (f.orderBy().isEmpty()) {
-            return new ColSpec(name, lambda(row, each), lambda(group, call("joinStrings", new Variable(group),
-                    new CString(sep.value()))), null);
-        }
-        List<ValueSpecification> keys = new ArrayList<>();
-        for (SqlAst.SortItem o : f.orderBy()) {
-            Col c = o.expr() instanceof SqlAst.ColumnRef ref ? in.columnOrNull(ref) : null;
-            if (c == null || c.var() != null) {
-                throw SqlTranslationException.unsupported("a string_agg ORDER BY key other than a column is not"
-                        + " supported yet", o.expr().pos());
-            }
-            Boolean nullsFirst = o.nullsFirst();
-            if (nullsFirst != null && nullsFirst != o.descending()) {
-                throw SqlTranslationException.unsupported("a string_agg ORDER BY key with its NULLs placed otherwise"
-                        + " than Postgres's default is not supported yet", o.pos());
-            }
-            keys.add(call(o.descending() ? "descending" : "ascending", colSpec(c.name())));
-        }
-        return new ColSpec(name, lambda(group, call("joinStrings", new Variable(group), lambda(row, each),
-                new CString(sep.value()), keys.size() == 1 ? keys.get(0) : new PureCollection(keys))), null, null);
     }
 
     /** Refuses an aggregate of only an enclosing query's columns, in any clause: Postgres makes it an aggregate of
@@ -4678,17 +4274,10 @@ public final class SqlToPure {
         }
     }
 
-    private static void requireNumeric(Tx arg, SqlAst.FunctionCall f) {
-        if (!arg.kind().numeric()) {
-            throw SqlTranslationException.invalid("function " + functionName(f.name().get(0)) + "(" + arg.kind()
-                    .name().toLowerCase(Locale.ROOT) + ") does not exist", f.pos());
-        }
-    }
-
     // ------------------------------------------------------------------ expressions
 
     /** A WHERE, HAVING or WHEN condition: the rows where it is TRUE (NULL and FALSE alike are not TRUE). */
-    private ValueSpecification condition(SqlAst.Expr e, Scope scope, String clause) {
+    ValueSpecification condition(SqlAst.Expr e, Scope scope, String clause) {
         return truth(tx(e, scope, row), clause, e.pos()).vs();
     }
 
@@ -4852,26 +4441,11 @@ public final class SqlToPure {
         return t.kind() == Kind.NULL || t.whenFalse() == null && t.vs().equals(nullOf(t.kind()).vs());
     }
 
-    /** An operator's operands, a NULL constant typed as the other operand (Postgres resolves an unknown by the other
-     *  side); two NULL constants are Postgres's error. */
-    private static List<Tx> typedOperands(Tx l, Tx r, String operator, SqlAst.Pos pos) {
-        if (l.kind() == Kind.NULL && r.kind() == Kind.NULL) {
-            throw SqlTranslationException.invalid("operator is not unique: unknown " + operator + " unknown", pos);
-        }
-        if (l.kind() == Kind.NULL) {
-            return List.of(nullOf(r.kind()), r);
-        }
-        if (r.kind() == Kind.NULL) {
-            return List.of(l, nullOf(l.kind()));
-        }
-        return List.of(l, r);
-    }
-
     public static Tx not(Tx t) {
         return Tx.condition(t.falseWhen(), t.vs(), t.nullable());
     }
 
-    private Tx tx(SqlAst.Expr e, Scope scope, String row) {
+    Tx tx(SqlAst.Expr e, Scope scope, String row) {
         Col bound = hoisted.get(e);
         if (bound != null) {
             // IQ island, 2026-10-17: an operand the item computes once, a column before it (output)
@@ -4893,14 +4467,23 @@ public final class SqlToPure {
             case SqlAst.Param p -> dialect.parameter(p, new At(scope, row), sources);
             case SqlAst.Unary u -> dialect.unary(u, new At(scope, row));
             case SqlAst.Binary b -> dialect.binary(b, new At(scope, row));
-            case SqlAst.Operator o when o.left() != null && JSON_OPERATORS.contains(o.operator()) ->
-                    jsonOperator(o, scope, row);
-            case SqlAst.Subscript sub -> subscript(sub, scope, row);
+            case SqlAst.Subscript sub -> {
+                Tx t = dialect.subscript(sub, new At(scope, row));
+                if (t == null) {
+                    throw SqlTranslationException.unsupported("subscripts are not supported", sub.pos());
+                }
+                yield t;
+            }
             case SqlAst.ArrayConstructor a -> throw SqlTranslationException.unsupported("arrays other than unnest's"
                     + " argument are not supported yet", a.pos());
-            case SqlAst.Operator o -> throw SqlTranslationException.unsupported((REGEX_OPERATORS.contains(o.operator())
-                    ? "regular expression operators (~, ~*, !~, !~*) are" : "the operator " + o.operator() + " is")
-                    + " not supported yet", o.pos());
+            case SqlAst.Operator o -> {
+                Tx t = dialect.operator(o, new At(scope, row));
+                if (t == null) {
+                    throw SqlTranslationException.unsupported("the operator " + o.operator() + " is not supported yet",
+                            o.pos());
+                }
+                yield t;
+            }
             case SqlAst.IsNull n -> {
                 ValueSpecification v = valueOf(tx(n.operand(), scope, row));
                 Tx isNull = Tx.condition(call("isEmpty", v), call("isNotEmpty", v), false);
@@ -4937,21 +4520,6 @@ public final class SqlToPure {
         };
     }
 
-    private Tx unary(SqlAst.Unary u, Scope scope, String row) {
-        Tx operand = tx(u.operand(), scope, row);
-        return switch (u.op()) {
-            case NOT -> not(truth(operand, "NOT", u.pos()));
-            case MINUS -> {
-                numericOperand(operand, u.operand());
-                yield strict(operand.kind(), List.of(operand), v -> call("minus", v.get(0)));
-            }
-            case PLUS -> {
-                numericOperand(operand, u.operand());
-                yield operand;
-            }
-        };
-    }
-
     /** The Kleene AND (or OR) of {@code ts[from, to)}, grouped as a balanced tree: AND is TRUE when every operand
      *  is, FALSE when any is; OR the other way round. */
     private static Tx kleene(boolean and, List<Tx> ts, int from, int to) {
@@ -4968,7 +4536,7 @@ public final class SqlToPure {
     }
 
     /** {@code b}, an AND or an OR, as Kleene's ({@link At#logical}). */
-    private Tx logical(SqlAst.Binary b, Scope scope, String row) {
+    Tx logical(SqlAst.Binary b, Scope scope, String row) {
         // a chain of one of them is read as the list of its operands, left to right, each under the position
         // of the operator that holds it: no recursion per operator (the stress corpus's 500-term OR overflowed
         // a default thread stack here), and the conditions are combined as a balanced tree, of depth log n for
@@ -4993,115 +4561,6 @@ public final class SqlToPure {
         return kleene(b.op() == SqlAst.BinaryOp.AND, operands, 0, operands.size());
     }
 
-    private Tx binary(SqlAst.Binary b, Scope scope, String row) {
-        switch (b.op()) {
-            case AND, OR -> {
-                return logical(b, scope, row);
-            }
-            case EQ, NE, LT, LE, GT, GE -> {
-                List<Tx> sides = comparable(b.left(), b.right(), scope, row, b.pos());
-                return compare(b.op(), sides.get(0), sides.get(1));
-            }
-            case PLUS, MINUS, TIMES -> {
-                boolean additive = b.op() != SqlAst.BinaryOp.TIMES;
-                if (additive && (intervalConstant(b.left()) != null || intervalConstant(b.right()) != null)) {
-                    return intervalArithmetic(b, scope, row);
-                }
-                Tx lt = tx(b.left(), scope, row);
-                Tx rt = tx(b.right(), scope, row);
-                if (additive && (isDate(lt.kind()) || isDate(rt.kind()))) {
-                    return dateArithmetic(b, lt, rt);
-                }
-                List<Tx> lr = typedOperands(lt, rt,
-                        b.op() == SqlAst.BinaryOp.PLUS ? "+" : b.op() == SqlAst.BinaryOp.MINUS ? "-" : "*", b.pos());
-                Tx l = lr.get(0);
-                Tx r = lr.get(1);
-                numericOperand(l, b.left());
-                numericOperand(r, b.right());
-                String fn = b.op() == SqlAst.BinaryOp.PLUS ? "plus" : b.op() == SqlAst.BinaryOp.MINUS ? "minus"
-                        : "times";
-                return strict(arithmetic(l.kind(), r.kind()), List.of(l, r),
-                        v -> AppliedFunction.infixRun(fn, List.of(v.get(0), v.get(1))));
-            }
-            case DIVIDE -> {
-                List<Tx> lr = typedOperands(tx(b.left(), scope, row), tx(b.right(), scope, row), "/", b.pos());
-                Tx l = lr.get(0);
-                Tx r = lr.get(1);
-                numericOperand(l, b.left());
-                numericOperand(r, b.right());
-                if (l.kind() == Kind.WHOLE && (r.kind() == Kind.INTEGER || r.kind() == Kind.WHOLE)
-                        || r.kind() == Kind.WHOLE && l.kind() == Kind.INTEGER) {
-                    throw SqlTranslationException.unsupported("dividing a sum of integers by an integer is not supported"
-                            + " yet: Postgres's sum of an integer column is a bigint or a numeric by the column's width,"
-                            + " which divide differently (cast it: sum(x)::bigint / n or sum(x)::numeric / n)", b.pos());
-                }
-                if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER) {
-                    return strict(Kind.INTEGER, List.of(l, r), v -> wholeQuotient(v.get(0), v.get(1)));
-                }
-                // a double's quotient is a double, in Postgres too; a numeric's is exact there, a Float here
-                boolean doubles = (l.kind() == Kind.FLOAT || r.kind() == Kind.FLOAT) && l.kind() != Kind.INEXACT
-                        && r.kind() != Kind.INEXACT;
-                return strict(doubles ? Kind.FLOAT : Kind.INEXACT, List.of(l, r), v -> call("divide", v.get(0),
-                        v.get(1)));
-            }
-            case POWER -> {
-                List<Tx> lr = typedOperands(tx(b.left(), scope, row), tx(b.right(), scope, row), "^", b.pos());
-                Tx l = lr.get(0);
-                Tx r = lr.get(1);
-                numericOperand(l, b.left());
-                numericOperand(r, b.right());
-                // Postgres computes ^ in double precision but for a numeric operand, where it is exact; pow is a Float
-                if (exactNumeric(l.kind()) || exactNumeric(r.kind())) {
-                    return numericPower(b.left(), b.right(), List.of(l, r), "^", b.pos(), scope, row);
-                }
-                return strict(powerKind(l.kind(), r.kind()), List.of(l, r), v -> call("pow", v.get(0), v.get(1)));
-            }
-            case MODULO -> {
-                List<Tx> lr = typedOperands(tx(b.left(), scope, row), tx(b.right(), scope, row), "%", b.pos());
-                numericOperand(lr.get(0), b.left());
-                numericOperand(lr.get(1), b.right());
-                return remainder(lr.get(0), lr.get(1), "operator does not exist: " + postgresName(lr.get(0).kind())
-                        + " % " + postgresName(lr.get(1).kind()), "%", b.pos());
-            }
-            case CONCAT -> {
-                // a || b || c is one strict concatenation of all its operands: NULL when any is. Postgres's || reads a
-                // value of another type as its text where the other side is text (text || anynonarray)
-                List<SqlAst.Expr> exprs = concatenated(b);
-                List<Tx> operands = new ArrayList<>();
-                for (SqlAst.Expr operand : exprs) {
-                    Tx t = tx(operand, scope, row);
-                    if (t.kind() == Kind.JSON) {
-                        throw SqlTranslationException.unsupported("|| of jsonb values (which merges them) is not"
-                                + " supported yet", operand.pos());
-                    }
-                    operands.add(t);
-                }
-                Kind first = operands.get(0).kind();
-                Kind second = operands.get(1).kind();
-                if (first != Kind.STRING && first != Kind.NULL && second != Kind.STRING && second != Kind.NULL) {
-                    throw SqlTranslationException.invalid("operator does not exist: " + postgresName(first) + " || "
-                            + postgresName(second), b.pos());
-                }
-                List<Kind> kinds = new ArrayList<>();
-                for (int i = 0; i < operands.size(); i++) {
-                    Tx t = operands.get(i);
-                    if (t.kind() != Kind.STRING && t.kind() != Kind.NULL) {
-                        asText(t, exprs.get(i).pos(), "||");
-                    }
-                    kinds.add(t.kind());
-                }
-                return strict(Kind.STRING, operands, v -> {
-                    List<ValueSpecification> texts = new ArrayList<>();
-                    for (int i = 0; i < v.size(); i++) {
-                        texts.add(kinds.get(i) == Kind.STRING ? v.get(i) : call("toString", v.get(i)));
-                    }
-                    return AppliedFunction.infixRun("plus", texts);
-                });
-            }
-        }
-        throw new IllegalStateException("unreachable: " + b.op());
-    }
-
     /** {@code l op r} for a comparison {@code op}: NULL when either side is (Postgres's comparisons are strict). */
     public static Tx compare(SqlAst.BinaryOp op, Tx l, Tx r) {
         String fn = switch (op) {
@@ -5115,57 +4574,9 @@ public final class SqlToPure {
         return op == SqlAst.BinaryOp.NE ? not(test) : test;
     }
 
-    /** A power's kind: of an inexact numeric, numeric in Postgres (so inexact here) unless a double is in it. */
-    private static Kind powerKind(Kind a, Kind b) {
-        // a sum of integers may be numeric, whose power Postgres computes exactly
-        return a == Kind.INEXACT || b == Kind.INEXACT || a == Kind.WHOLE || b == Kind.WHOLE ? Kind.INEXACT
-                : Kind.FLOAT;
-    }
-
-    private static boolean exactNumeric(Kind kind) {
-        return kind == Kind.DECIMAL || kind == Kind.NUMBER;
-    }
-
-    /** The operands of a run of {@code ||}, left to right. */
-    private static List<SqlAst.Expr> concatenated(SqlAst.Expr e) {
-        if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.CONCAT) {
-            List<SqlAst.Expr> all = new ArrayList<>(concatenated(b.left()));
-            all.addAll(concatenated(b.right()));
-            return all;
-        }
-        return List.of(e);
-    }
-
-    private static void numericOperand(Tx t, SqlAst.Expr e) {
-        if (t.kind() == Kind.NULL || isNullConstant(t) && t.kind().numeric()) {
-            // an untyped or a numeric NULL constant: strict makes the result NULL of the operator's type (a NULL of
-            // another type, a text one included, is no number)
-            return;
-        }
-        // Postgres has these operators (an untyped constant takes the other operand's type; date - date, jsonb - key)
-        if (e instanceof SqlAst.StringLit) {
-            throw SqlTranslationException.unsupported("an untyped string constant in arithmetic is not supported yet",
-                    e.pos());
-        }
-        if (isDate(t.kind())) {
-            throw SqlTranslationException.unsupported("date and timestamp arithmetic is not supported yet", e.pos());
-        }
-        if (t.kind() == Kind.JSON) {
-            throw SqlTranslationException.unsupported("jsonb's - (deleting a key or an element) is not supported yet",
-                    e.pos());
-        }
-        if (t.kind() == Kind.OTHER) {
-            throw SqlTranslationException.unsupported("arithmetic on values of this type is not supported yet",
-                    e.pos());
-        }
-        if (!t.kind().numeric()) {
-            throw SqlTranslationException.invalid("arithmetic needs numbers; this operand is not numeric", e.pos());
-        }
-    }
-
     /** The two sides of a comparison: a string constant compared with a date takes the date's type (Postgres reads
      *  an untyped constant by its context), in ISO 8601 spelling. */
-    private List<Tx> comparable(SqlAst.Expr left, SqlAst.Expr right, Scope scope, String row, SqlAst.Pos pos) {
+    List<Tx> comparable(SqlAst.Expr left, SqlAst.Expr right, Scope scope, String row, SqlAst.Pos pos) {
         if (left instanceof SqlAst.NullLit || right instanceof SqlAst.NullLit) {
             // NULL compared with anything is NULL in Postgres, never TRUE or FALSE: strictTest reads it so
             Tx l = left instanceof SqlAst.NullLit ? Tx.value(empty(), Kind.NULL, true) : tx(left, scope, row);
@@ -5175,19 +4586,36 @@ public final class SqlToPure {
         return comparableValues(left, right, scope, row, pos);
     }
 
-    private List<Tx> comparableValues(SqlAst.Expr left, SqlAst.Expr right, Scope scope, String row, SqlAst.Pos pos) {
+    List<Tx> comparableValues(SqlAst.Expr left, SqlAst.Expr right, Scope scope, String row, SqlAst.Pos pos) {
         Tx l = tx(left, scope, row);
         Tx r = tx(right, scope, row);
         if (left instanceof SqlAst.StringLit s && readsStrings(r.kind())) {
-            l = fromString(s, r.kind());
+            l = dialect.readString(single(s, r.detail()), r.kind());
         } else if (right instanceof SqlAst.StringLit s && readsStrings(l.kind())) {
-            r = fromString(s, l.kind());
+            r = dialect.readString(single(s, l.detail()), l.kind());
         }
         comparableKinds(l, r, pos);
         return List.of(l, r);
     }
 
-    private static void comparableKinds(Tx l, Tx r, SqlAst.Pos pos) {
+    /** {@code s}, a string read as the type of a value of {@code detail}: refused where that is a real (Postgres
+     *  reads the string as a single-precision float, which Pure's Float is not: '1004.3' = a real 1004.3 is true
+     *  there; 2026-10-17, the regression suite): a comparison, IN, BETWEEN, ANY and ALL, lag's and lead's default,
+     *  and (through {@link #stringWithAReal}) CASE, COALESCE and the set operations. */
+    SqlAst.StringLit single(SqlAst.StringLit s, InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        if (dialect.singlePrecision(detail)) {
+            throw stringWithAReal(s.pos());
+        }
+        return s;
+    }
+
+    /** The refusal of a string read as a real's type. */
+    static SqlTranslationException stringWithAReal(SqlAst.Pos pos) {
+        return SqlTranslationException.unsupported("a string read with a real (float4) value is not supported yet:"
+                + " Postgres reads it as a real", pos);
+    }
+
+    static void comparableKinds(Tx l, Tx r, SqlAst.Pos pos) {
         notJsonKey(l.kind(), "a comparison", pos);
         notJsonKey(r.kind(), "a comparison", pos);
         boolean ok = l.kind() == r.kind() || l.kind().numeric() && r.kind().numeric()
@@ -5198,7 +4626,7 @@ public final class SqlToPure {
         }
     }
 
-    private static boolean isDate(Kind k) {
+    static boolean isDate(Kind k) {
         return k == Kind.DATE || k == Kind.DATETIME;
     }
 
@@ -5212,179 +4640,11 @@ public final class SqlToPure {
         }
     }
 
-    /** The results of a CASE, or the arguments of COALESCE, GREATEST or LEAST, as one type, by Postgres's resolution
-     *  ("UNION, CASE, and Related Constructs"): an untyped string constant takes the others' type, read by that
-     *  type's input rules (all untyped: text); the others must share a category, numbers widening to the widest;
-     *  else Postgres's error. */
-    static Common common(String what, List<SqlAst.Expr> exprs, List<Tx> txs, SqlAst.Pos pos) {
-        Kind target = null;
-        boolean untyped = false;
-        for (int i = 0; i < txs.size(); i++) {
-            Kind k = txs.get(i).kind();
-            if (exprs.get(i) instanceof SqlAst.StringLit) {
-                untyped = true;
-                continue;
-            }
-            if (k == Kind.NULL) {
-                continue;
-            }
-            if (target == null || target == k) {
-                target = k;
-            } else if (target.numeric() && k.numeric()) {
-                target = arithmetic(target, k);
-            } else if (isDate(target) && isDate(k)) {
-                // Postgres reads a date as a timestamp at midnight here
-                throw SqlTranslationException.unsupported(what + " of date and timestamp values is not supported yet",
-                        pos);
-            } else {
-                throw SqlTranslationException.invalid(what + " types " + postgresName(target) + " and "
-                        + postgresName(k) + " cannot be matched", pos);
-            }
-        }
-        if (target == null) {
-            return new Common(txs, untyped ? Kind.STRING : Kind.NULL);
-        }
-        List<Tx> values = new ArrayList<>();
-        int merged = 0;
-        for (int i = 0; i < txs.size(); i++) {
-            if (txs.get(i).kind() != Kind.NULL && !isNullConstant(txs.get(i))) {
-                merged++;
-            }
-            if (exprs.get(i) instanceof SqlAst.StringLit s && target != Kind.STRING) {
-                if (target == Kind.JSON) {
-                    values.add(jsonConstant(s));
-                } else if (readsStrings(target)) {
-                    values.add(fromString(s, target));
-                } else {
-                    throw SqlTranslationException.unsupported(what + " of a string constant and a "
-                            + postgresName(target) + " value is not supported yet", s.pos());
-                }
-            } else {
-                values.add(txs.get(i));
-            }
-        }
-        // decimals merged into one value take one scale in the database (DuckDB's CASE pads 1.5 to 1.50), each its
-        // own in Postgres: the same number, but its text is refused (a numeric that is no column's)
-        return new Common(values, target == Kind.DECIMAL && merged > 1 ? Kind.NUMBER : target);
-    }
-
-    /** A kind's Postgres type name, for Postgres's messages. */
-    private static String postgresName(Kind k) {
-        return switch (k) {
-            case INTEGER -> "integer";
-            case WHOLE -> "bigint";
-            case FLOAT -> "double precision";
-            case DECIMAL, NUMBER, INEXACT -> "numeric";
-            case STRING -> "text";
-            case BOOLEAN -> "boolean";
-            case DATE -> "date";
-            case DATETIME -> "timestamp without time zone";
-            case TIME -> "time without time zone";
-            case ZONED -> "timestamp with time zone";
-            case ZONED_TIME -> "time with time zone";
-            case DURATION -> "interval";
-            case JSON -> "jsonb";
-            case NULL -> "unknown";
-            case OTHER -> "an enumeration";
-        };
-    }
-
     /** The kinds an untyped string constant compared with them is read as (Postgres: an "unknown" constant takes the
      *  other operand's type, read by that type's input rules). */
-    private static boolean readsStrings(Kind k) {
+    static boolean readsStrings(Kind k) {
         return isDate(k) || k == Kind.INTEGER || k == Kind.DECIMAL || k == Kind.FLOAT || k == Kind.INEXACT
                 || k == Kind.BOOLEAN;
-    }
-
-    private static final Set<String> REGEX_OPERATORS = Set.of("~", "~*", "!~", "!~*");
-
-    /** A string constant read as {@code kind}, by Postgres's input rules: dates and timestamps in ISO 8601, integers
-     *  and decimals in their plain spellings (others, which Postgres may read too, are refused), booleans as
-     *  Postgres's boolin reads them (any unambiguous prefix of true/false/yes/no, on/off, 1/0; nothing else). */
-    private static Tx fromString(SqlAst.StringLit s, Kind kind) {
-        String v = s.value();
-        switch (kind) {
-            case DATE, DATETIME -> {
-                return dateFromString(s, kind);
-            }
-            case INTEGER -> {
-                String n = plainNumber(v.strip(), false);
-                if (n != null && new java.math.BigInteger(n).bitLength() < 64) {
-                    return Tx.value(integer(new java.math.BigInteger(n)), Kind.INTEGER, false);
-                }
-            }
-            case DECIMAL, FLOAT, INEXACT -> {
-                String n = plainNumber(v.strip(), true);
-                if (n != null) {
-                    // a double precision constant is the double nearest its text (round('2.5'::float8) is rint's 2)
-                    return kind == Kind.FLOAT ? Tx.value(call("toFloat", new CDecimal(new BigDecimal(n))), Kind.FLOAT,
-                            false) : Tx.value(new CDecimal(new BigDecimal(n)), Kind.DECIMAL, false);
-                }
-            }
-            case BOOLEAN -> {
-                Boolean b = postgresBoolean(v.strip().toLowerCase(Locale.ROOT));
-                if (b == null) {
-                    throw SqlTranslationException.invalid("invalid input syntax for type boolean: \"" + v + "\"",
-                            s.pos());
-                }
-                return booleanValue(new CBoolean(b), false);
-            }
-            default -> {
-            }
-        }
-        throw SqlTranslationException.unsupported("the string '" + v + "' read as " + kind.name()
-                .toLowerCase(Locale.ROOT) + " is not supported yet", s.pos());
-    }
-
-    /** {@code v} when it is a plain number: an optional sign and digits, and (when {@code decimal}) an optional point
-     *  with digits on at least one side and an optional exponent; without its {@code +}. Null otherwise. */
-    private static @com.legend.base.Nullable String plainNumber(String v, boolean decimal) {
-        int i = v.startsWith("+") || v.startsWith("-") ? 1 : 0;
-        int digits = 0;
-        while (i < v.length() && Character.isDigit(v.charAt(i)) && v.charAt(i) < 0x80) {
-            i++;
-            digits++;
-        }
-        if (decimal && i < v.length() && v.charAt(i) == '.') {
-            i++;
-            while (i < v.length() && Character.isDigit(v.charAt(i)) && v.charAt(i) < 0x80) {
-                i++;
-                digits++;
-            }
-        }
-        if (digits == 0) {
-            return null;
-        }
-        if (decimal && i < v.length() && (v.charAt(i) == 'e' || v.charAt(i) == 'E')) {
-            int e = i + 1 < v.length() && (v.charAt(i + 1) == '+' || v.charAt(i + 1) == '-') ? i + 2 : i + 1;
-            int start = e;
-            while (e < v.length() && Character.isDigit(v.charAt(e)) && v.charAt(e) < 0x80) {
-                e++;
-            }
-            if (e == start) {
-                return null;
-            }
-            i = e;
-        }
-        if (i != v.length()) {
-            return null;
-        }
-        return v.startsWith("+") ? v.substring(1) : v;
-    }
-
-    /** Postgres's parse_bool_with_len: true, false, or null for a spelling it refuses. */
-    private static @com.legend.base.Nullable Boolean postgresBoolean(String v) {
-        if (v.isEmpty()) {
-            return null;
-        }
-        if ("true".startsWith(v) || "yes".startsWith(v) || v.equals("on") || v.equals("1")) {
-            return Boolean.TRUE;
-        }
-        if ("false".startsWith(v) || "no".startsWith(v) || v.length() >= 2 && "off".startsWith(v)
-                || v.equals("0")) {
-            return Boolean.FALSE;
-        }
-        return null;
     }
 
     // ------------------------------------------------------------------ subqueries in expressions
@@ -5445,159 +4705,6 @@ public final class SqlToPure {
         return t.negated() ? not(test) : test;
     }
 
-    /** {@code x IS [NOT] DISTINCT FROM y}: equality in which two NULLs are equal (Pure's {@code ==}); never NULL. */
-    private Tx isDistinct(SqlAst.IsDistinct d, Scope scope, String row) {
-        ValueSpecification same;
-        if (d.left() instanceof SqlAst.NullLit || d.right() instanceof SqlAst.NullLit) {
-            SqlAst.Expr other = d.left() instanceof SqlAst.NullLit ? d.right() : d.left();
-            same = call("isEmpty", valueOf(tx(other, scope, row)));
-        } else {
-            List<Tx> sides = comparableValues(d.left(), d.right(), scope, row, d.pos());
-            same = call("equal", valueOf(sides.get(0)), valueOf(sides.get(1)));
-        }
-        Tx notDistinct = Tx.condition(same, call("not", same), false);
-        return d.negated() ? notDistinct : not(notDistinct);
-    }
-
-    private Tx inList(SqlAst.InList in, Scope scope, String row) {
-        List<Tx> operands = new ArrayList<>();
-        operands.add(tx(in.operand(), scope, row));
-        boolean nullInList = false;
-        for (SqlAst.Expr v : in.values()) {
-            if (v instanceof SqlAst.NullLit) {
-                nullInList = true;
-                continue;
-            }
-            operands.add(comparable(in.operand(), v, scope, row, v.pos()).get(1));
-        }
-        if (operands.size() == 1) {
-            // x IN (NULL): never TRUE, never FALSE
-            return nullOf(Kind.BOOLEAN);
-        }
-        boolean nullableElement = false;
-        for (Tx element : operands.subList(1, operands.size())) {
-            nullableElement |= element.nullable();
-        }
-        Tx test;
-        if (nullableElement) {
-            // an element that may be NULL: x = e for each, in three-valued OR -- TRUE where one holds, FALSE where every
-            // one fails, else NULL (x IN (col, 5) is TRUE for x = 5 whatever col is)
-            ValueSpecification holds = null;
-            ValueSpecification fails = null;
-            for (Tx element : operands.subList(1, operands.size())) {
-                Tx eq = compare(SqlAst.BinaryOp.EQ, operands.get(0), element);
-                holds = holds == null ? eq.vs() : call("or", holds, eq.vs());
-                fails = fails == null ? eq.falseWhen() : call("and", fails, eq.falseWhen());
-            }
-            test = Tx.condition(java.util.Objects.requireNonNull(holds), java.util.Objects.requireNonNull(fails), true);
-        } else {
-            test = strictTest(operands, v -> call("in", v.get(0), new PureCollection(v.subList(1, v.size()))));
-        }
-        if (nullInList) {
-            // a NULL in the list: TRUE where the value is found, else NULL (it might equal the NULL), never FALSE
-            test = Tx.condition(test.vs(), new CBoolean(false), true);
-        }
-        return in.negated() ? not(test) : test;
-    }
-
-    private Tx between(SqlAst.Between b, Scope scope, String row) {
-        List<Tx> low = comparable(b.operand(), b.low(), scope, row, b.pos());
-        List<Tx> high = comparable(b.operand(), b.high(), scope, row, b.pos());
-        // x >= low AND x <= high, in three-valued logic: a NULL bound leaves the other to decide FALSE
-        Tx l = compare(SqlAst.BinaryOp.GE, low.get(0), low.get(1));
-        Tx h = compare(SqlAst.BinaryOp.LE, high.get(0), high.get(1));
-        Tx test = Tx.condition(call("and", l.vs(), h.vs()), call("or", l.falseWhen(), h.falseWhen()),
-                l.nullable() || h.nullable());
-        return b.negated() ? not(test) : test;
-    }
-
-    /** {@code LIKE} by the shape of its constant pattern: no wildcard is equality; a trailing, leading or enclosing
-     *  {@code %} alone is startsWith, endsWith or contains; anything else is the equivalent regular expression. */
-    private Tx like(SqlAst.Like l, Scope scope, String row) {
-        Tx operand = tx(l.operand(), scope, row);
-        if (operand.kind() != Kind.STRING) {
-            throw SqlTranslationException.invalid("LIKE needs a text value", l.operand().pos());
-        }
-        if (!(l.pattern() instanceof SqlAst.StringLit pattern)) {
-            throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant is not supported"
-                    + " yet", l.pattern().pos());
-        }
-        char escape = '\\';
-        SqlAst.Expr esc = l.escape();
-        if (esc != null) {
-            if (!(esc instanceof SqlAst.StringLit e) || e.value().length() > 1) {
-                throw SqlTranslationException.invalid("invalid escape string: it must be empty or one character",
-                        esc.pos());
-            }
-            escape = e.value().isEmpty() ? 0 : e.value().charAt(0);
-        }
-        // the pattern as literal runs between wildcards: run, wildcard, run, ..., run
-        List<String> parts = new ArrayList<>();
-        StringBuilder run = new StringBuilder();
-        String p = pattern.value();
-        for (int i = 0; i < p.length(); i++) {
-            char c = p.charAt(i);
-            if (escape != 0 && c == escape) {
-                if (i + 1 >= p.length()) {
-                    throw SqlTranslationException.invalid("LIKE pattern must not end with escape character",
-                            pattern.pos());
-                }
-                run.append(p.charAt(++i));
-            } else if (c == '%' || c == '_') {
-                parts.add(run.toString());
-                parts.add(String.valueOf(c));
-                run.setLength(0);
-            } else {
-                run.append(c);
-            }
-        }
-        parts.add(run.toString());
-        List<String> wild = new ArrayList<>();
-        for (int i = 1; i < parts.size(); i += 2) {
-            wild.add(parts.get(i));
-        }
-        boolean ci = l.caseInsensitive();
-        boolean onlyPercent = !wild.contains("_");
-        java.util.function.Function<List<ValueSpecification>, ValueSpecification> test;
-        if (wild.isEmpty()) {
-            test = v -> textTest("equal", v.get(0), parts.get(0), ci);
-        } else if (onlyPercent && wild.size() == 1 && parts.get(2).isEmpty() && !parts.get(0).isEmpty()) {
-            test = v -> textTest("startsWith", v.get(0), parts.get(0), ci);
-        } else if (onlyPercent && wild.size() == 1 && parts.get(0).isEmpty() && !parts.get(2).isEmpty()) {
-            test = v -> textTest("endsWith", v.get(0), parts.get(2), ci);
-        } else if (onlyPercent && wild.size() == 2 && parts.get(0).isEmpty() && parts.get(4).isEmpty()
-                && !parts.get(2).isEmpty()) {
-            test = v -> textTest("contains", v.get(0), parts.get(2), ci);
-        } else {
-            StringBuilder regex = new StringBuilder(ci ? "(?i)^" : "^");
-            for (int i = 0; i < parts.size(); i++) {
-                String part = parts.get(i);
-                if (i % 2 == 1) {
-                    regex.append(part.equals("%") ? ".*" : ".");
-                } else {
-                    for (int k = 0; k < part.length(); k++) {
-                        char c = part.charAt(k);
-                        if ("\\.[]{}()*+?^$|".indexOf(c) >= 0) {
-                            regex.append('\\');
-                        }
-                        regex.append(c);
-                    }
-                }
-            }
-            regex.append('$');
-            String re = regex.toString();
-            test = v -> call("matches", v.get(0), new CString(re));
-        }
-        Tx result = strictTest(List.of(operand), test);
-        return l.negated() ? not(result) : result;
-    }
-
-    private static ValueSpecification textTest(String fn, ValueSpecification value, String text,
-            boolean caseInsensitive) {
-        return caseInsensitive ? call(fn, call("toLower", value), call("toLower", new CString(text)))
-                : call(fn, value, new CString(text));
-    }
-
     /** {@code CASE}: the first WHEN that is TRUE gives the result (a NULL WHEN is not TRUE); no ELSE is NULL. */
     private Tx caseExpr(SqlAst.Case c, Scope scope, String row) {
         SqlAst.Expr otherwise = c.otherwise();
@@ -5638,7 +4745,7 @@ public final class SqlToPure {
             return nullOf(Kind.NULL);
         }
         if (results.detail() != null && values.stream().allMatch(SqlToPure::isNullConstant)) {
-            // every result a NULL of the type the dialect resolved (none in Postgres's): that NULL
+            // every result a NULL of the type the dialect resolved (none in Postgres's resolution): that NULL
             return Tx.value(nullOf(kind).vs(), kind, true, results.detail());
         }
         return kind == Kind.BOOLEAN ? booleanValue(vs, nullable) : Tx.value(vs, kind, nullable, results.detail());
@@ -5679,1755 +4786,110 @@ public final class SqlToPure {
         return translation.apply(f, args, new At(scope, row));
     }
 
-    /** A Postgres function's translation: from its call, its arguments' translations, and the scope it is in. */
-    @FunctionalInterface
-    private interface Translation {
-        Tx apply(SqlToPure t, SqlAst.FunctionCall f, List<Tx> args, Scope scope, String row);
-    }
-
-    /** Postgres's catalog's function {@code name} ({@link #FUNCTIONS}), as {@link PostgresDialect} supplies it; null
-     *  for none. */
-    static InputDialect.@com.legend.base.Nullable FunctionRule postgresFunction(String name) {
-        Translation translation = FUNCTIONS.get(name);
-        return translation == null ? null : (f, args, at) -> at.postgresFunction(translation, f, args);
-    }
-
-    /** The catalog: Postgres's scalar functions this step reads, by their names in Postgres, each with its
-     *  translation (a name it does not hold is refused as not supported yet). */
-    private static final Map<String, Translation> FUNCTIONS = functions();
-
-    private static Map<String, Translation> functions() {
-        Map<String, Translation> m = new HashMap<>();
-        m.put("upper", (t, f, a, s, r) -> text1(f, a, "toUpper", Kind.STRING));
-        m.put("lower", (t, f, a, s, r) -> text1(f, a, "toLower", Kind.STRING));
-        for (String length : List.of("length", "char_length", "character_length")) {
-            m.put(length, (t, f, a, s, r) -> text1(f, a, "length", Kind.INTEGER));
-        }
-        // the spaces at an end (Postgres's default characters to trim, named or not): Pure's trims; other characters
-        // to trim are not supported yet
-        String[][] trims = {{"trim", "trim"}, {"btrim", "trim"}, {"ltrim", "ltrim"}, {"rtrim", "rtrim"}};
-        for (String[] trim : trims) {
-            String pure = trim[1];
-            m.put(trim[0], (t, f, a, s, r) -> {
-                if (a.size() == 2) {
-                    if (!(f.args().get(1) instanceof SqlAst.StringLit chars && chars.value().equals(" "))) {
-                        throw SqlTranslationException.unsupported(functionName(f.name().get(0)) + " with characters to"
-                                + " trim other than ' ' is not supported yet", f.args().get(1).pos());
-                    }
-                    return text1(f, a.subList(0, 1), pure, Kind.STRING);
-                }
-                return text1(f, a, pure, Kind.STRING);
-            });
-        }
-        m.put("reverse", (t, f, a, s, r) -> text1(f, a, "reverseString", Kind.STRING));
-        m.put("ascii", (t, f, a, s, r) -> text1(f, a, "ascii", Kind.INTEGER));
-        m.put("abs", (t, f, a, s, r) -> numeric1(f, a, "abs"));
-        m.put("ceil", (t, f, a, s, r) -> numeric1(f, a, "ceiling"));
-        m.put("ceiling", (t, f, a, s, r) -> numeric1(f, a, "ceiling"));
-        m.put("floor", (t, f, a, s, r) -> numeric1(f, a, "floor"));
-        m.put("coalesce", (t, f, a, s, r) -> coalesce(f, a));
-        m.put("current_date", (t, f, a, s, r) -> nullary(f, a, "today", Kind.DATE));
-        for (String now : List.of("current_timestamp", "now", "localtimestamp")) {
-            m.put(now, (t, f, a, s, r) -> nullary(f, a, "now", Kind.DATETIME));
-        }
-        // Postgres's functions of a double precision and Pure's (Postgres's log is base 10; log(b, x) below)
-        String[][] floats = {{"sqrt", "sqrt"}, {"exp", "exp"}, {"ln", "log"}, {"log", "log10"}, {"cbrt", "cbrt"},
-                {"sin", "sin"}, {"cos", "cos"}, {"tan", "tan"}, {"asin", "asin"}, {"acos", "acos"}, {"atan", "atan"},
-                {"cot", "cot"}, {"sinh", "sinh"}, {"cosh", "cosh"}, {"tanh", "tanh"}, {"degrees", "toDegrees"},
-                {"radians", "toRadians"}};
-        for (String[] fl : floats) {
-            String pure = fl[1];
-            // sqrt, exp, ln and log have numeric forms in Postgres, which a numeric reads (an integer reads the
-            // double precision one)
-            boolean numericForm = Set.of("sqrt", "exp", "ln", "log").contains(fl[0]);
-            m.put(fl[0], (t, f, a, s, r) -> {
-                arity(f, a, 1);
-                numericOperand(a.get(0), f.args().get(0));
-                Kind k = a.get(0).kind();
-                return strict(k == Kind.INEXACT || numericForm && (exactNumeric(k) || k == Kind.WHOLE) ? Kind.INEXACT
-                        : Kind.FLOAT, a,
-                        v -> call(pure, v.get(0)));
-            });
-        }
-        Translation log10 = java.util.Objects.requireNonNull(m.get("log"));
-        m.put("log", (t, f, a, s, r) -> a.size() == 2 ? logBase(f, a) : log10.apply(t, f, a, s, r));
-        m.put("atan2", (t, f, a, s, r) -> {
-            arity(f, a, 2);
-            numericOperand(a.get(0), f.args().get(0));
-            numericOperand(a.get(1), f.args().get(1));
-            return strict(a.get(0).kind() == Kind.INEXACT || a.get(1).kind() == Kind.INEXACT ? Kind.INEXACT
-                    : Kind.FLOAT, a, v -> call("atan2", v.get(0), v.get(1)));
-        });
-        m.put("pi", (t, f, a, s, r) -> nullary(f, a, "pi", Kind.FLOAT));
-        m.put("sign", (t, f, a, s, r) -> {
-            arity(f, a, 1);
-            numericOperand(a.get(0), f.args().get(0));
-            inexact(a.get(0), "sign", f.pos());
-            return a.get(0).kind() == Kind.INTEGER ? strict(Kind.FLOAT, a, v -> call("toFloat", call("sign", v.get(0))))
-                    : wholeNumber(a.get(0), v -> call("sign", v));
-        });
-        m.put("mod", (t, f, a, s, r) -> {
-            arity(f, a, 2);
-            numericOperand(a.get(0), f.args().get(0));
-            numericOperand(a.get(1), f.args().get(1));
-            return remainder(a.get(0), a.get(1), "function mod(" + postgresName(a.get(0).kind()) + ", "
-                    + postgresName(a.get(1).kind()) + ") does not exist", "mod(...)", f.pos());
-        });
-        m.put("log10", (t, f, a, s, r) -> log10.apply(t, f, a, s, r));
-        m.put("round", (t, f, a, s, r) -> round(f, a));
-        m.put("div", (t, f, a, s, r) -> div(f, a));
-        m.put("width_bucket", (t, f, a, s, r) -> widthBucket(f, a));
-        // jsonb (a Variant, register S49): json's functions read it as jsonb's do
-        for (String family : List.of("json", "jsonb")) {
-            // an array's length is refused: Pure's toMany(@Variant) drops an array's null elements on DuckDB, and
-            // reads a value that is not an array (Postgres's error) as an empty list on Postgres
-            m.put(family + "_array_length", (t, f, a, s, r) -> {
-                throw SqlTranslationException.unsupported(functionName(f.name().get(0)) + "(...) is not supported"
-                        + " yet", f.pos());
-            });
-            m.put(family + "_extract_path", (t, f, a, s, r) -> extractPath(f, a, false));
-            m.put(family + "_extract_path_text", (t, f, a, s, r) -> extractPath(f, a, true));
-            m.put("to_" + family, (t, f, a, s, r) -> toJson(f, a));
-        }
-        m.put("nullif", (t, f, a, s, r) -> t.nullif(f, s, r));
-        m.put("concat", (t, f, a, s, r) -> concat(f, a));
-        m.put("concat_ws", (t, f, a, s, r) -> concatWs(f, a));
-        m.put("format", (t, f, a, s, r) -> format(f, a));
-        m.put("overlay", (t, f, a, s, r) -> overlay(f, a));
-        m.put("quote_literal", (t, f, a, s, r) -> quoteLiteral(f, a, false));
-        m.put("quote_nullable", (t, f, a, s, r) -> quoteLiteral(f, a, true));
-        m.put("translate", (t, f, a, s, r) -> translate(f, a));
-        m.put("split_part", (t, f, a, s, r) -> splitPart(f, a));
-        m.put("greatest", (t, f, a, s, r) -> extreme(f, a, true));
-        m.put("least", (t, f, a, s, r) -> extreme(f, a, false));
-        m.put("num_nulls", (t, f, a, s, r) -> countNulls(f, a, true));
-        m.put("num_nonnulls", (t, f, a, s, r) -> countNulls(f, a, false));
-        m.put("md5", (t, f, a, s, r) -> {
-            kinds(f, a, Kind.STRING);
-            return strict(Kind.STRING, a, v -> call("hash", v.get(0), new EnumValue(HASH_TYPE, "MD5")));
-        });
-        m.put("chr", (t, f, a, s, r) -> {
-            kinds(f, a, Kind.INTEGER);
-            return strict(Kind.STRING, a, v -> call("char", v.get(0)));
-        });
-        for (String side : List.of("left", "right")) {
-            m.put(side, (t, f, a, s, r) -> {
-                kinds(f, a, Kind.STRING, Kind.INTEGER);
-                // a negative count leaves that many off the other end, in Postgres and in Pure's relational left and
-                // right alike (measured on DuckDB and Postgres, 2026-10-12)
-                return strict(Kind.STRING, a, v -> call(side, v.get(0), v.get(1)));
-            });
-        }
-        for (String pad : List.of("lpad", "rpad")) {
-            m.put(pad, (t, f, a, s, r) -> {
-                if (a.size() == 3) {
-                    kinds(f, a, Kind.STRING, Kind.INTEGER, Kind.STRING);
-                } else {
-                    kinds(f, a, Kind.STRING, Kind.INTEGER);
-                }
-                nonNegative(f, 1);
-                return strict(Kind.STRING, a, v -> call(pad, v));
-            });
-        }
-        m.put("replace", (t, f, a, s, r) -> {
-            kinds(f, a, Kind.STRING, Kind.STRING, Kind.STRING);
-            return strict(Kind.STRING, a, v -> call("replace", v));
-        });
-        m.put("repeat", (t, f, a, s, r) -> {
-            kinds(f, a, Kind.STRING, Kind.INTEGER);
-            nonNegative(f, 1);
-            return strict(Kind.STRING, a, v -> call("repeatString", v));
-        });
-        for (String position : List.of("strpos", "position")) {
-            m.put(position, (t, f, a, s, r) -> {
-                // the RELATIONAL indexOf is strpos: 1-based, 0 when not found, 1 for '' -- legend-engine's relational
-                // lowering (locate()), the acceptance surface; platform Pure's is 0-based, a divergence PCT ledgers
-                // (Test_LegendLite_EssentialFunctions_PCT), and the parity corpus pins the relational one here
-                kinds(f, a, Kind.STRING, Kind.STRING);
-                return strict(Kind.INTEGER, a, v -> call("indexOf", v.get(0), v.get(1)));
-            });
-        }
-        for (String sub : List.of("substring", "substr")) {
-            m.put(sub, (t, f, a, s, r) -> substring(f, a));
-        }
-        m.put("trunc", (t, f, a, s, r) -> trunc(f, a));
-        for (String power : List.of("power", "pow")) {
-            m.put(power, (t, f, a, s, r) -> {
-                arity(f, a, 2);
-                List<Tx> lr = typedOperands(a.get(0), a.get(1), ",", f.pos());
-                numericOperand(lr.get(0), f.args().get(0));
-                numericOperand(lr.get(1), f.args().get(1));
-                // power of a numeric is numeric in Postgres, exact; of integers and doubles, double precision
-                if (exactNumeric(lr.get(0).kind()) || exactNumeric(lr.get(1).kind())) {
-                    return t.numericPower(f.args().get(0), f.args().get(1), lr, functionName(f.name().get(0))
-                            + "(...)", f.pos(), s, r);
-                }
-                return strict(powerKind(lr.get(0).kind(), lr.get(1).kind()), lr, v -> call("pow", v.get(0),
-                        v.get(1)));
-            });
-        }
-        m.put("make_date", (t, f, a, s, r) -> {
-            kinds(f, a, Kind.INTEGER, Kind.INTEGER, Kind.INTEGER);
-            return strict(Kind.DATE, a, v -> call("date", v.get(0), v.get(1), v.get(2)));
-        });
-        m.put("make_timestamp", (t, f, a, s, r) -> {
-            arity(f, a, 6);
-            for (int i = 0; i < 6; i++) {
-                if (i < 5 ? a.get(i).kind() != Kind.INTEGER && a.get(i).kind() != Kind.NULL
-                        : !a.get(i).kind().numeric() && a.get(i).kind() != Kind.NULL) {
-                    throw SqlTranslationException.unsupported("make_timestamp of other than five integers and a"
-                            + " number of seconds is not supported yet", f.args().get(i).pos());
-                }
-            }
-            return strict(Kind.DATETIME, a, v -> call("date", v.get(0), v.get(1), v.get(2), v.get(3), v.get(4),
-                    v.get(5)));
-        });
-        m.put("date_trunc", (t, f, a, s, r) -> dateTrunc(f, a));
-        m.put("isfinite", (t, f, a, s, r) -> {
-            arity(f, a, 1);
-            if (isNullConstant(a.get(0))) {
-                throw SqlTranslationException.invalid("function isfinite(unknown) is not unique", f.pos());
-            }
-            if (!isDate(a.get(0).kind())) {
-                throw SqlTranslationException.invalid("function isfinite(" + postgresName(a.get(0).kind()) + ") does"
-                        + " not exist", f.pos());
-            }
-            // no value here is infinite (Postgres's infinity constants are refused)
-            return strictTest(a, v -> new CBoolean(true));
-        });
-        m.put("starts_with", (t, f, a, s, r) -> {
-            kinds(f, a, Kind.STRING, Kind.STRING);
-            return strictTest(a, v -> call("startsWith", v.get(0), v.get(1)));
-        });
-        m.put("extract", (t, f, a, s, r) -> datePart(f, a, true));
-        m.put("date_part", (t, f, a, s, r) -> datePart(f, a, false));
-        return java.util.Collections.unmodifiableMap(m);
-    }
-
-    private static Tx text1(SqlAst.FunctionCall f, List<Tx> args, String pure, Kind result) {
-        arity(f, args, 1);
-        if (args.get(0).kind() == Kind.NULL) {
-            // Postgres reads the NULL as text: the function's NULL
-            return nullOf(result);
-        }
-        if (args.get(0).kind() != Kind.STRING) {
-            throw SqlTranslationException.invalid("function " + functionName(f.name().get(0)) + " needs a text"
-                    + " value", f.pos());
-        }
-        return strict(result, args, v -> call(pure, v.get(0)));
-    }
-
-    private static Tx numeric1(SqlAst.FunctionCall f, List<Tx> args, String pure) {
-        arity(f, args, 1);
-        numericOperand(args.get(0), f.args().get(0));
-        if (args.get(0).kind() == Kind.NULL) {
-            return nullOf(Kind.FLOAT);
-        }
-        if (pure.equals("abs")) {
-            return strict(args.get(0).kind(), args, v -> call(pure, v.get(0)));
-        }
-        inexact(args.get(0), functionName(f.name().get(0)), f.pos());
-        return wholeNumber(args.get(0), v -> call(pure, v));
-    }
-
-    /** A whole number Postgres computes in its argument's type, as ceil, floor, sign and round(x) do: numeric for a
-     *  numeric, double precision for a double -- and for an integer, which Postgres reads as a double (the preferred
-     *  numeric type). Its kind is that type, so that what reads it next (a division above all) reads what Postgres
-     *  does: {@code ceil(x) / 4} divides exactly. A double is converted (toFloat); a numeric's whole number stays
-     *  Pure's Integer, an exact number either way (a toDecimal of it is a 38-digit decimal of scale 0, which DuckDB's
-     *  CASE then imposes on a branch's decimals). */
-    private static Tx wholeNumber(Tx x, java.util.function.UnaryOperator<ValueSpecification> pure) {
-        if (x.kind() == Kind.NULL) {
-            return nullOf(Kind.FLOAT);
-        }
-        if (x.kind() == Kind.INTEGER || x.kind() == Kind.FLOAT) {
-            return strict(Kind.FLOAT, List.of(x), v -> call("toFloat", x.kind() == Kind.INTEGER ? v.get(0)
-                    : pure.apply(v.get(0))));
-        }
-        return strict(Kind.DECIMAL, List.of(x), v -> pure.apply(v.get(0)));
-    }
-
-    private static Tx nullary(SqlAst.FunctionCall f, List<Tx> args, String pure, Kind result) {
-        arity(f, args, 0);
-        return Tx.value(call(pure), result, false);
-    }
-
-    /** {@code coalesce(a, b, ...)}: the first value that is not NULL. Pure's takes two to four values, so a longer
-     *  list nests from the right. */
-    private static Tx coalesce(SqlAst.FunctionCall f, List<Tx> arguments) {
-        if (arguments.size() < 2) {
-            throw SqlTranslationException.unsupported("coalesce takes two or more arguments here", f.pos());
-        }
-        Common common = common("COALESCE", f.args(), arguments, f.pos());
-        List<Tx> args = common.values();
-        Kind kind = common.kind();
-        if (kind == Kind.NULL) {
-            return nullOf(Kind.STRING);
-        }
-        // the arguments after the first that is never NULL are never read (Postgres evaluates none of them): it is
-        // the last, so the result is one value where Pure types it (by its last argument)
-        for (int i = 0; i < args.size() - 1; i++) {
-            if (!args.get(i).nullable()) {
-                args = args.subList(0, i + 1);
-                break;
-            }
-        }
-        if (args.size() == 1) {
-            Tx only = args.get(0);
-            if (kind == Kind.FLOAT && only.kind() != Kind.FLOAT && only.kind() != Kind.INEXACT) {
-                // the double of an exact number (coalesce(0.28, x::float8) is the double 0.28)
-                return strict(Kind.FLOAT, List.of(only), v -> call("toFloat", v.get(0)));
-            }
-            return kind == Kind.BOOLEAN || only.kind() == kind ? only : Tx.value(valueOf(only), kind, only.nullable());
-        }
-        boolean nullable = true;
-        for (Tx a : args) {
-            nullable &= a.nullable();
-        }
-        ValueSpecification tail = valueOf(args.get(args.size() - 1));
-        int i = args.size() - 1;
-        while (i > 0) {
-            int take = Math.min(3, i);
-            List<ValueSpecification> group = new ArrayList<>();
-            for (int k = i - take; k < i; k++) {
-                group.add(valueOf(args.get(k)));
-            }
-            group.add(tail);
-            tail = call("coalesce", group);
-            i -= take;
-        }
-        return kind == Kind.BOOLEAN ? booleanValue(tail, nullable) : Tx.value(tail, kind, nullable);
-    }
-
-    private static final String HASH_TYPE = "meta::pure::functions::hash::HashType";
-
-    private static final Set<String> TIME_FIELDS = Set.of("hour", "hours", "minute", "minutes");
-
-    /** Postgres's 4-byte integer's names: a numeric or text value it cannot hold is Postgres's error. */
-    private static final Set<String> NARROW_INTEGERS = Set.of("integer", "int", "int4");
-
     /** Postgres's 2-byte integer's names. */
-    private static final Set<String> SMALL_INTEGERS = Set.of("smallint", "int2");
+    static final Set<String> SMALL_INTEGERS = Set.of("smallint", "int2");
 
-    /** The names of text with a length ({@code varchar(n)}): an explicit cast cuts a longer value to n characters. */
-    private static final Set<String> VARCHAR_TYPES = Set.of("varchar", "character varying");
+    private static final Set<SqlAst.BinaryOp> INTEGER_ARITHMETIC = Set.of(SqlAst.BinaryOp.PLUS,
+            SqlAst.BinaryOp.MINUS, SqlAst.BinaryOp.TIMES, SqlAst.BinaryOp.DIVIDE, SqlAst.BinaryOp.MODULO);
 
-    /** The types a cast reads, as Postgres names them, and their kinds: real
-     *  (single precision), char(n) (padded), time zones, intervals, json and arrays are not among them yet. */
-    private static final Map<String, Kind> CAST_TYPES = Map.ofEntries(Map.entry("integer", Kind.INTEGER),
-            Map.entry("int", Kind.INTEGER), Map.entry("int4", Kind.INTEGER), Map.entry("bigint", Kind.INTEGER),
-            Map.entry("smallint", Kind.INTEGER), Map.entry("int2", Kind.INTEGER),
-            Map.entry("int8", Kind.INTEGER), Map.entry("numeric", Kind.DECIMAL), Map.entry("decimal", Kind.DECIMAL),
-            Map.entry("double precision", Kind.FLOAT), Map.entry("float8", Kind.FLOAT), Map.entry("float", Kind.FLOAT),
-            Map.entry("text", Kind.STRING), Map.entry("varchar", Kind.STRING),
-            Map.entry("character varying", Kind.STRING), Map.entry("boolean", Kind.BOOLEAN),
-            Map.entry("bool", Kind.BOOLEAN), Map.entry("date", Kind.DATE), Map.entry("timestamp", Kind.DATETIME),
-            Map.entry("timestamp without time zone", Kind.DATETIME), Map.entry("json", Kind.JSON),
-            Map.entry("jsonb", Kind.JSON));
-
-    /** The date fields that are whole numbers, and Pure's functions for them; Postgres's seconds and epochs carry
-     *  fractions. */
-    private static final Map<String, String> DATE_FIELDS = Map.ofEntries(Map.entry("year", "year"),
-            Map.entry("years", "year"), Map.entry("quarter", "quarterNumber"), Map.entry("month", "monthNumber"),
-            Map.entry("months", "monthNumber"), Map.entry("day", "dayOfMonth"), Map.entry("days", "dayOfMonth"),
-            Map.entry("doy", "dayOfYear"), Map.entry("isodow", "dayOfWeekNumber"), Map.entry("hour", "hour"),
-            Map.entry("hours", "hour"), Map.entry("minute", "minute"), Map.entry("minutes", "minute"));
-
-    /** The date fields computed from Pure's: Postgres's day of the week from Sunday (0), from ISO's (Sunday 7); its
-     *  ISO week, as Pure's weekOfYear is (measured); a year's decade (year / 10), century ((year + 99) / 100) and
-     *  millennium ((year + 999) / 1000), Postgres's for years from 1; a day's epoch, its seconds since 1970-01-01. */
-    private static final Map<String, java.util.function.UnaryOperator<ValueSpecification>> COMPUTED_FIELDS =
-            computedFields();
-
-    private static Map<String, java.util.function.UnaryOperator<ValueSpecification>> computedFields() {
-        Map<String, java.util.function.UnaryOperator<ValueSpecification>> m = new LinkedHashMap<>();
-        m.put("dow", v -> call("rem", call("dayOfWeekNumber", v), new CInteger(7L)));
-        for (String week : List.of("week", "weeks")) {
-            m.put(week, v -> call("weekOfYear", v));
-        }
-        for (String decade : List.of("decade", "decades")) {
-            m.put(decade, v -> yearsDivided(v, 0, 10));
-        }
-        for (String century : List.of("century", "centuries")) {
-            m.put(century, v -> yearsDivided(v, 99, 100));
-        }
-        for (String millennium : List.of("millennium", "millennia")) {
-            m.put(millennium, v -> yearsDivided(v, 999, 1000));
-        }
-        m.put("epoch", v -> call("toEpochValue", v));
-        return java.util.Collections.unmodifiableMap(m);
+    /** Whether {@code e} is an integer the database types narrower than the island computes it (the dialect's
+     *  {@link InputDialect#narrowInteger}: a smallint, 2026-10-17): a cast to smallint or an int2 constant,
+     *  a column holding one, or what keeps its type: a sign, arithmetic of two, coalesce, greatest, least and CASE of
+     *  such values (or NULLs), abs, nullif, min, max and the window functions of one. The review of the corpus
+     *  program's step 1 found the type lost through them: {@code f1 + abs(int2 '1')}, {@code VALUES (int2 '30000')}
+     *  read twice. */
+    private boolean widened(SqlAst.Expr e, Scope scope) {
+        InputDialect.TypeDetail narrow = dialect.narrowInteger();
+        return narrow != null && widened(e, scope, narrow);
     }
 
-    /** {@code (year + offset) / by}, truncated (a year here is at least 1): exact, the quotient's double far from the
-     *  next whole number. */
-    private static ValueSpecification yearsDivided(ValueSpecification v, long offset, long by) {
-        ValueSpecification year = offset == 0 ? call("year", v) : AppliedFunction.infixRun("plus", List.of(
-                call("year", v), new CInteger(offset)));
-        return call("floor", call("divide", year, new CInteger(by)));
-    }
-
-    /** The arguments' kinds, as Postgres resolves the function: a NULL constant makes it NULL (not supported here); a
-     *  value of another kind has no such function. */
-    private static void kinds(SqlAst.FunctionCall f, List<Tx> args, Kind... expected) {
-        arity(f, args, expected.length);
-        for (int i = 0; i < expected.length; i++) {
-            Kind k = args.get(i).kind();
-            if (k == Kind.NULL) {
-                // Postgres reads the NULL as the argument's type: strict makes the function NULL
-                continue;
+    /** {@link #widened}; a column reference reads {@code scope}, or none where it is null (a subquery's own). */
+    boolean widened(SqlAst.Expr e, @com.legend.base.Nullable Scope scope, InputDialect.TypeDetail narrow) {
+        return switch (e) {
+            case SqlAst.Cast c -> SMALL_INTEGERS.contains(c.type().name());
+            case SqlAst.TypedLit t -> SMALL_INTEGERS.contains(t.type().name());
+            case SqlAst.ColumnRef ref -> {
+                Col c = scope == null ? null : scope.readOrNull(ref);
+                yield c != null && narrow.equals(c.detail());
             }
-            if (k != expected[i]) {
-                throw SqlTranslationException.invalid("function " + functionName(f.name().get(0)) + " needs "
-                        + expected[i].name().toLowerCase(Locale.ROOT) + " argument " + (i + 1) + ", not "
-                        + k.name().toLowerCase(Locale.ROOT), f.args().get(i).pos());
+            case SqlAst.ScalarSubquery q -> q.query() instanceof SqlAst.Select one && one.items().size() == 1
+                    && one.items().get(0) instanceof SqlAst.SelectExpr x && widened(x.expr(), null, narrow);
+            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && widened(u.operand(), scope, narrow);
+            case SqlAst.Binary b -> INTEGER_ARITHMETIC.contains(b.op()) && widened(b.left(), scope, narrow)
+                    && widened(b.right(), scope, narrow);
+            case SqlAst.Case c -> {
+                List<SqlAst.Expr> results = new ArrayList<>();
+                c.whens().forEach(w -> results.add(w.result()));
+                if (c.otherwise() != null) {
+                    results.add(c.otherwise());
+                }
+                yield allNarrow(results, scope, narrow);
             }
-        }
-    }
-
-    /** Argument {@code i} as an integer constant of at least 0: a negative one means something else in Postgres. */
-    private static void nonNegative(SqlAst.FunctionCall f, int i) {
-        constantAtLeast(f, i, 0);
-    }
-
-    private static void constantAtLeast(SqlAst.FunctionCall f, int i, int min) {
-        if (!(f.args().get(i) instanceof SqlAst.IntegerLit n) || n.value().compareTo(
-                java.math.BigInteger.valueOf(min)) < 0) {
-            throw SqlTranslationException.unsupported(functionName(f.name().get(0)) + "(...) with argument " + (i + 1)
-                    + " other than an integer constant of at least " + min + " is not supported yet",
-                    f.args().get(i).pos());
-        }
-    }
-
-    /** {@code round(x)} (and {@code round(x, 0)}) of an exact number: Postgres's numeric round, half away from
-     *  zero. Pure's round is half to even, so this is {@link #halfAwayFromZero}. A double precision rounds half to
-     *  even in Postgres; {@code round(x, n)} for another n has no Pure spelling here yet: both refused. */
-    /** {@code substring(s, start [, length])}, {@code substr}: the characters from {@code start} (1-based) on, {@code
-     *  length} of them -- Pure's relational substring, SQL's substring(start, length). A start before 1 still counts
-     *  its places in Postgres ({@code substring('hello', 0, 3)} is {@code 'he'}): constants are moved to start at 1.
-     *  A negative length is Postgres's error. */
-    private static Tx substring(SqlAst.FunctionCall f, List<Tx> a) {
-        if (a.size() == 2 && f.args().get(1) instanceof SqlAst.StringLit) {
-            throw SqlTranslationException.unsupported("substring(... FROM pattern) (a regular expression) is not"
-                    + " supported yet", f.pos());
-        }
-        if (a.size() == 2) {
-            kinds(f, a, Kind.STRING, Kind.INTEGER);
-            return strict(Kind.STRING, a, v -> call("substring", v.get(0), v.get(1)));
-        }
-        kinds(f, a, Kind.STRING, Kind.INTEGER, Kind.INTEGER);
-        for (Tx x : a) {
-            if (isNullConstant(x)) {
-                return nullOf(Kind.STRING);
-            }
-        }
-        Long start = constantInteger(f.args().get(1));
-        Long length = constantInteger(f.args().get(2));
-        if (start == null || length == null) {
-            throw SqlTranslationException.unsupported(functionName(f.name().get(0)) + " with a start or a length other"
-                    + " than a constant is not supported yet", f.pos());
-        }
-        if (length < 0) {
-            throw SqlTranslationException.invalid("negative substring length not allowed", f.args().get(2).pos());
-        }
-        long from = Math.max(start, 1);
-        long count = Math.max(start + length - from, 0);
-        return strict(Kind.STRING, List.of(a.get(0)), v -> call("substring", v.get(0),
-                integer(java.math.BigInteger.valueOf(from)), integer(java.math.BigInteger.valueOf(count))));
-    }
-
-    /** An integer constant ({@code 3}, {@code -3}), or null. */
-    private static @com.legend.base.Nullable Long constantInteger(SqlAst.Expr e) {
-        java.math.BigInteger k = e instanceof SqlAst.IntegerLit n ? n.value()
-                : e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.MINUS
-                        && u.operand() instanceof SqlAst.IntegerLit n ? n.value().negate() : null;
-        return k == null || k.bitLength() >= 63 ? null : k.longValue();
-    }
-
-    /** {@code x} to {@code places} decimal places (negative: to tens, hundreds...), exactly: the scaled value rounded
-     *  half away from zero (Postgres's numeric round) or truncated (trunc), then scaled back by a decimal constant --
-     *  decimal multiplication, exact on every database (a divide would go through a double). */
-    private static ValueSpecification toPlaces(ValueSpecification x, long places, boolean halfAway) {
-        BigDecimal up = BigDecimal.ONE.scaleByPowerOfTen((int) places);
-        ValueSpecification scaled = places == 0 ? x : places > 0
-                ? AppliedFunction.infixRun("times", List.of(x, integer(up.toBigIntegerExact())))
-                : AppliedFunction.infixRun("times", List.of(x, new CDecimal(up)));
-        ValueSpecification whole = halfAway ? halfAwayFromZero(scaled) : towardZero(scaled);
-        BigDecimal down = BigDecimal.ONE.scaleByPowerOfTen((int) -places);
-        return places == 0 ? whole : places > 0
-                ? AppliedFunction.infixRun("times", List.of(whole, new CDecimal(down)))
-                : AppliedFunction.infixRun("times", List.of(whole, integer(down.toBigIntegerExact())));
-    }
-
-    /** The whole number toward zero. */
-    private static ValueSpecification towardZero(ValueSpecification x) {
-        return call("if", call("greaterThanEqual", x, new CInteger(0L)), thunk(call("floor", x)),
-                thunk(call("ceiling", x)));
-    }
-
-    /** {@code trunc(x [, places])}: toward zero -- numeric for a numeric (exact), double precision otherwise. */
-    private static Tx trunc(SqlAst.FunctionCall f, List<Tx> args) {
-        if (args.size() != 2) {
-            arity(f, args, 1);
-        }
-        Tx x = args.get(0);
-        numericOperand(x, f.args().get(0));
-        if (args.size() == 1) {
-            inexact(x, "trunc(x)", f.pos());
-            if (x.kind() == Kind.NULL) {
-                // trunc has numeric, double precision and macaddr forms: a NULL is no one of them
-                throw SqlTranslationException.invalid("function trunc(unknown) is not unique", f.pos());
-            }
-            return wholeNumber(x, SqlToPure::towardZero);
-        }
-        return places(f, args, false);
-    }
-
-    /** round(x, n) or trunc(x, n): a numeric (an integer read as one) to a constant number of places, exactly. */
-    private static Tx places(SqlAst.FunctionCall f, List<Tx> args, boolean halfAway) {
-        Tx x = args.get(0);
-        String fn = functionName(f.name().get(0));
-        if (isNullConstant(x) || isNullConstant(args.get(1))) {
-            return nullOf(Kind.DECIMAL);
-        }
-        if (x.kind() == Kind.FLOAT) {
-            throw SqlTranslationException.invalid("function " + fn + "(double precision, "
-                    + postgresName(args.get(1).kind()) + ") does not exist", f.pos());
-        }
-        inexact(x, fn + "(x, n)", f.pos());
-        Long n = constantInteger(f.args().get(1));
-        if (n == null || Math.abs(n) > 18) {
-            throw SqlTranslationException.unsupported(fn + "(x, n) with n other than a constant (of at most 18) is not"
-                    + " supported yet", f.args().get(1).pos());
-        }
-        long places = n;
-        // an integer is read as Postgres's numeric first: n places of it (round(42, 1) is 42.0), and no overflow of
-        // its own width in the scaling
-        boolean whole = x.kind() == Kind.INTEGER || x.kind() == Kind.WHOLE;
-        return strict(Kind.DECIMAL, List.of(x), v -> toPlaces(whole ? call("toDecimal", v.get(0)) : v.get(0), places,
-                halfAway));
-    }
-
-    /** Refuses what rounds or spells an inexact numeric (see {@link Kind}): it may fall either side of Postgres's
-     *  exact value, and a rounding or a spelling of it then differs from Postgres's. */
-    private static void inexact(Tx x, String what, SqlAst.Pos pos) {
-        if (x.kind() == Kind.INEXACT) {
-            throw inexactRefused(what, pos);
-        }
-    }
-
-    private static SqlTranslationException inexactRefused(String what, SqlAst.Pos pos) {
-        return SqlTranslationException.unsupported(what + " of a quotient, average or root of numerics (exact in"
-                + " Postgres, a double here) is not supported yet", pos);
-    }
-
-    private static Tx round(SqlAst.FunctionCall f, List<Tx> args) {
-        if (args.size() == 2) {
-            numericOperand(args.get(0), f.args().get(0));
-            // Postgres's numeric round: half away from zero (Pure's round(Decimal, n) breaks ties to even)
-            return places(f, args, true);
-        }
-        arity(f, args, 1);
-        Tx x = args.get(0);
-        numericOperand(x, f.args().get(0));
-        inexact(x, "round(x)", f.pos());
-        if (x.kind() == Kind.FLOAT) {
-            // Postgres's round of a double precision is rint, half to even, as Pure's round of a Float is (measured)
-            return strict(Kind.FLOAT, List.of(x), v -> call("toFloat", call("round", v.get(0))));
-        }
-        if (x.kind() == Kind.INTEGER) {
-            // round(int) is round(double precision) in Postgres: the value itself, a double
-            return strict(Kind.FLOAT, List.of(x), v -> call("toFloat", v.get(0)));
-        }
-        return wholeNumber(x, SqlToPure::halfAwayFromZero);
-    }
-
-    /** The nearest integer, a tie away from zero (Postgres's numeric rounding; Pure's round breaks ties to even). */
-    private static ValueSpecification halfAwayFromZero(ValueSpecification x) {
-        return call("if", call("greaterThanEqual", x, new CInteger(0L)),
-                thunk(call("floor", AppliedFunction.infixRun("plus", List.of(x, new CDecimal(new BigDecimal("0.5")))))),
-                thunk(call("ceiling", AppliedFunction.infixRun("minus",
-                        List.of(x, new CDecimal(new BigDecimal("0.5")))))));
-    }
-
-    /** {@code nullif(a, b)}: NULL when {@code a = b} is TRUE, else {@code a}. */
-    private Tx nullif(SqlAst.FunctionCall f, Scope scope, String row) {
-        if (f.args().size() != 2) {
-            throw SqlTranslationException.invalid("function nullif takes two arguments", f.pos());
-        }
-        List<Tx> sides = comparable(f.args().get(0), f.args().get(1), scope, row, f.pos());
-        Tx a = sides.get(0);
-        Tx equal = compare(SqlAst.BinaryOp.EQ, a, sides.get(1));
-        ValueSpecification v = call("if", equal.vs(), thunk(empty()), thunk(valueOf(a)));
-        return a.kind() == Kind.BOOLEAN ? booleanValue(v, true) : Tx.value(v, a.kind(), true);
-    }
-
-    /** {@code concat(a, b, ...)}: the values end to end, a NULL as nothing; never NULL. Text values only so far
-     *  (Postgres writes any other value by its type's output rules). */
-    private static Tx concat(SqlAst.FunctionCall f, List<Tx> args) {
-        if (args.isEmpty()) {
-            throw SqlTranslationException.invalid("function concat needs an argument", f.pos());
-        }
-        List<ValueSpecification> parts = new ArrayList<>();
-        for (int i = 0; i < args.size(); i++) {
-            Tx a = args.get(i);
-            if (a.kind() == Kind.NULL) {
-                continue;
-            }
-            ValueSpecification v = asText(a, f.args().get(i).pos(), "concat(...)");
-            parts.add(a.nullable() ? call("if", call("isEmpty", v), thunk(new CString("")), thunk(call("toOne", v)))
-                    : v);
-        }
-        ValueSpecification all = parts.isEmpty() ? new CString("") : parts.size() == 1 ? parts.get(0)
-                : AppliedFunction.infixRun("plus", parts);
-        return Tx.value(all, Kind.STRING, false);
-    }
-
-    /** A value as concat writes it, by Postgres's output function: an integer's digits, t or f, a date's ISO spelling,
-     *  a numeric's digits with its scale -- Pure's toString writes each so on every database (judged), the boolean
-     *  spelled here. A double's text (Postgres's shortest that reads back), a timestamp's and others are not yet. */
-    private static ValueSpecification asText(Tx a, SqlAst.Pos pos, String where) {
-        return switch (a.kind()) {
-            case STRING -> valueOf(a);
-            // concat writes a boolean with its output function, t or f (|| casts it: true, false)
-            case BOOLEAN -> {
-                ValueSpecification v = valueOf(a);
-                ValueSpecification tf = call("if", a.nullable() ? call("toOne", v) : v, thunk(new CString("t")),
-                        thunk(new CString("f")));
-                yield a.nullable() ? call("if", call("isEmpty", v), thunk(empty()), thunk(tf)) : tf;
-            }
-            case INTEGER, WHOLE, DATE, DECIMAL -> {
-                ValueSpecification v = valueOf(a);
-                yield a.nullable() ? call("if", call("isEmpty", v), thunk(empty()), thunk(call("toString",
-                        call("toOne", v)))) : call("toString", v);
-            }
-            case INEXACT -> throw inexactRefused(where, pos);
-            default -> throw SqlTranslationException.unsupported(where + " of " + postgresName(a.kind())
-                    + " values is not supported yet", pos);
+            case SqlAst.FunctionCall f when f.name().size() == 1 && !f.args().isEmpty() ->
+                    switch (functionName(f.name().get(0))) {
+                        case "coalesce", "greatest", "least" -> allNarrow(f.args(), scope, narrow);
+                        case "abs", "nullif", "min", "max", "first_value", "last_value", "nth_value", "lag", "lead",
+                                "any_value" -> widened(f.args().get(0), scope, narrow);
+                        default -> false;
+                    };
+            default -> false;
         };
     }
 
-    /** {@code concat_ws(sep, a, b, ...)}: the values that are not NULL, each written as concat writes it, with {@code
-     *  sep} between them; NULL only where {@code sep} is. Each value present is written after a separator, and the
-     *  first separator taken off (after a first value that is never NULL, none is). */
-    private static Tx concatWs(SqlAst.FunctionCall f, List<Tx> args) {
-        if (args.size() < 2) {
-            throw SqlTranslationException.invalid("function concat_ws needs a separator and a value", f.pos());
-        }
-        if (args.get(0).kind() != Kind.STRING && args.get(0).kind() != Kind.NULL) {
-            throw SqlTranslationException.unsupported("concat_ws(...) with a separator other than text is not"
-                    + " supported yet", f.args().get(0).pos());
-        }
-        List<ValueSpecification> texts = new ArrayList<>();
-        List<Boolean> nullable = new ArrayList<>();
-        for (int i = 1; i < args.size(); i++) {
-            Tx a = args.get(i);
-            if (isNullConstant(a)) {
+    /** Whether {@code values} resolve to the narrow type: each one of it or a NULL, one at least of it. */
+    private boolean allNarrow(List<SqlAst.Expr> values, @com.legend.base.Nullable Scope scope,
+            InputDialect.TypeDetail narrow) {
+        boolean any = false;
+        for (SqlAst.Expr v : values) {
+            if (v instanceof SqlAst.NullLit) {
                 continue;
             }
-            texts.add(asText(a, f.args().get(i).pos(), "concat_ws(...)"));
-            nullable.add(a.nullable());
+            if (!widened(v, scope, narrow)) {
+                return false;
+            }
+            any = true;
         }
-        boolean leading = !texts.isEmpty() && !nullable.get(0);
-        return strict(Kind.STRING, List.of(args.get(0)), v -> {
-            ValueSpecification sep = v.get(0);
-            List<ValueSpecification> parts = new ArrayList<>();
-            for (int i = 0; i < texts.size(); i++) {
-                ValueSpecification text = texts.get(i);
-                if (i == 0 && leading) {
-                    parts.add(text);
-                } else if (nullable.get(i)) {
-                    parts.add(call("if", call("isEmpty", text), thunk(new CString("")), thunk(
-                            AppliedFunction.infixRun("plus", List.of(sep, call("toOne", text))))));
-                } else {
-                    parts.add(AppliedFunction.infixRun("plus", List.of(sep, text)));
-                }
-            }
-            if (parts.isEmpty()) {
-                return new CString("");
-            }
-            ValueSpecification all = parts.size() == 1 ? parts.get(0) : AppliedFunction.infixRun("plus", parts);
-            return leading ? all : call("substring", all, AppliedFunction.infixRun("plus", List.of(call("length", sep),
-                    new CInteger(1L))));
-        });
+        return any;
     }
 
-    /** {@code format(fmt, a, b, ...)} of a constant format: its text, each {@code %s} the next value written as concat
-     *  writes it (a NULL as nothing), {@code %%} a percent sign. {@code %I}, {@code %L}, positions and widths are not
-     *  supported yet. */
-    private static Tx format(SqlAst.FunctionCall f, List<Tx> args) {
-        if (args.isEmpty()) {
-            throw SqlTranslationException.invalid("function format() needs a format", f.pos());
-        }
-        if (isNullConstant(args.get(0))) {
-            return nullOf(Kind.STRING);
-        }
-        if (!(f.args().get(0) instanceof SqlAst.StringLit fmt)) {
-            throw SqlTranslationException.unsupported("format(...) of a format other than a constant is not supported"
-                    + " yet", f.args().get(0).pos());
-        }
-        String text = fmt.value();
-        List<ValueSpecification> parts = new ArrayList<>();
-        StringBuilder literal = new StringBuilder();
-        int next = 1;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c != '%') {
-                literal.append(c);
-                continue;
-            }
-            if (i + 1 == text.length()) {
-                throw SqlTranslationException.invalid("unterminated format() type specifier", fmt.pos());
-            }
-            char spec = text.charAt(++i);
-            if (spec == '%') {
-                literal.append('%');
-                continue;
-            }
-            if (spec != 's') {
-                if (spec == 'I' || spec == 'L' || spec == '-' || spec == '*' || Character.isDigit(spec)) {
-                    throw SqlTranslationException.unsupported("format(...) with %" + spec + " is not supported yet",
-                            fmt.pos());
-                }
-                throw SqlTranslationException.invalid("unrecognized format() type specifier \"" + spec + "\"",
-                        fmt.pos());
-            }
-            if (next >= args.size()) {
-                throw SqlTranslationException.invalid("too few arguments for format()", f.pos());
-            }
-            Tx a = args.get(next);
-            SqlAst.Pos pos = f.args().get(next).pos();
-            next++;
-            if (literal.length() > 0) {
-                parts.add(new CString(literal.toString()));
-                literal.setLength(0);
-            }
-            if (isNullConstant(a)) {
-                continue;
-            }
-            ValueSpecification v = asText(a, pos, "format(...)");
-            parts.add(a.nullable() ? call("if", call("isEmpty", v), thunk(new CString("")), thunk(call("toOne", v)))
-                    : v);
-        }
-        if (literal.length() > 0 || parts.isEmpty()) {
-            parts.add(new CString(literal.toString()));
-        }
-        return Tx.value(parts.size() == 1 ? parts.get(0) : AppliedFunction.infixRun("plus", parts), Kind.STRING,
-                false);
-    }
-
-    /** {@code overlay(s PLACING r FROM n [FOR m])} of a constant n (and m): s with its m characters from the n-th
-     *  (1-based) replaced by r, m being r's length when not given. Postgres's definition: {@code substring(s, 1, n - 1)
-     *  || r || substring(s, n + m)}, the second from the first character when n + m is before it; n before 1 is
-     *  Postgres's error. */
-    private static Tx overlay(SqlAst.FunctionCall f, List<Tx> args) {
-        if (args.size() == 4) {
-            kinds(f, args, Kind.STRING, Kind.STRING, Kind.INTEGER, Kind.INTEGER);
-        } else {
-            kinds(f, args, Kind.STRING, Kind.STRING, Kind.INTEGER);
-        }
-        for (Tx a : args) {
-            if (isNullConstant(a)) {
-                return nullOf(Kind.STRING);
-            }
-        }
-        Long n = constantInteger(f.args().get(2));
-        Long m = args.size() == 4 ? constantInteger(f.args().get(3)) : null;
-        if (n == null || args.size() == 4 && m == null || Math.abs(n) > Integer.MAX_VALUE
-                || m != null && Math.abs(m) > Integer.MAX_VALUE) {
-            throw SqlTranslationException.unsupported("overlay(...) with a start or a count other than a constant is"
-                    + " not supported yet", f.pos());
-        }
-        if (n <= 0) {
-            throw SqlTranslationException.invalid("negative substring length not allowed", f.args().get(2).pos());
-        }
-        return strict(Kind.STRING, args.subList(0, 2), v -> {
-            ValueSpecification head = call("substring", v.get(0), new CInteger(1L), new CInteger(n - 1));
-            ValueSpecification tail = m == null ? call("substring", v.get(0), AppliedFunction.infixRun("plus",
-                    List.of(new CInteger(n), call("length", v.get(1))))) : call("substring", v.get(0),
-                    new CInteger(Math.max(n + m, 1)));
-            return AppliedFunction.infixRun("plus", List.of(head, v.get(1), tail));
-        });
-    }
-
-    /** {@code quote_literal(x)}: x's text as a string constant -- in quotes, each quote doubled; with a backslash in
-     *  it, Postgres's escape string ({@code E'...'}), each backslash doubled too. NULL for a NULL, which {@code
-     *  quote_nullable} writes {@code NULL}. A value other than text is its text, as {@code x::text} writes it. */
-    private static Tx quoteLiteral(SqlAst.FunctionCall f, List<Tx> args, boolean orNull) {
-        arity(f, args, 1);
-        Tx x = args.get(0);
-        if (isNullConstant(x)) {
-            return orNull ? Tx.value(new CString("NULL"), Kind.STRING, false) : nullOf(Kind.STRING);
-        }
-        if (x.kind() != Kind.STRING) {
-            asText(x, f.args().get(0).pos(), functionName(f.name().get(0)) + "(...)");
-        }
-        Kind kind = x.kind();
-        Tx quoted = strict(Kind.STRING, List.of(x), v -> {
-            ValueSpecification text = kind == Kind.STRING ? v.get(0) : call("toString", v.get(0));
-            ValueSpecification body = call("replace", call("replace", text, new CString("\\"), new CString("\\\\")),
-                    new CString("'"), new CString("''"));
-            return AppliedFunction.infixRun("plus", List.of(call("if", call("contains", text, new CString("\\")),
-                    thunk(new CString("E'")), thunk(new CString("'"))), body, new CString("'")));
-        });
-        if (!orNull || !quoted.nullable()) {
-            return quoted;
-        }
-        return Tx.value(call("if", call("isEmpty", quoted.vs()), thunk(new CString("NULL")), thunk(call("toOne",
-                quoted.vs()))), Kind.STRING, false);
-    }
-
-    /** {@code translate(s, from, to)} of constant {@code from} and {@code to}: each character of s found in from (at
-     *  its first place there) is the character at that place in to, or is taken out where to is shorter. Pure's
-     *  replace, a character at a time, each replaced before any character that becomes it, so that no replacement is
-     *  replaced again; characters that replace one another in a cycle ({@code translate(s, 'ab', 'ba')}) are not
-     *  supported yet. */
-    private static Tx translate(SqlAst.FunctionCall f, List<Tx> args) {
-        kinds(f, args, Kind.STRING, Kind.STRING, Kind.STRING);
-        for (Tx a : args) {
-            if (isNullConstant(a)) {
-                return nullOf(Kind.STRING);
-            }
-        }
-        if (!(f.args().get(1) instanceof SqlAst.StringLit from) || !(f.args().get(2) instanceof SqlAst.StringLit to)) {
-            throw SqlTranslationException.unsupported("translate(...) of characters other than constants is not"
-                    + " supported yet", f.pos());
-        }
-        int[] fromChars = from.value().codePoints().toArray();
-        int[] toChars = to.value().codePoints().toArray();
-        Map<Integer, String> replacement = new LinkedHashMap<>();
-        for (int i = 0; i < fromChars.length; i++) {
-            replacement.putIfAbsent(fromChars[i], i < toChars.length ? character(toChars[i]) : "");
-        }
-        replacement.entrySet().removeIf(e -> e.getValue().equals(character(e.getKey())));
-        List<Map.Entry<Integer, String>> order = new ArrayList<>();
-        Set<Integer> pending = new java.util.LinkedHashSet<>(replacement.keySet());
-        while (!pending.isEmpty()) {
-            Map.Entry<Integer, String> ready = null;
-            for (Map.Entry<Integer, String> e : replacement.entrySet()) {
-                if (pending.contains(e.getKey()) && (e.getValue().isEmpty()
-                        || !pending.contains(e.getValue().codePointAt(0)))) {
-                    ready = e;
-                    break;
-                }
-            }
-            if (ready == null) {
-                throw SqlTranslationException.unsupported("translate(...) whose characters replace one another in a"
-                        + " cycle is not supported yet", f.args().get(1).pos());
-            }
-            order.add(ready);
-            pending.remove(ready.getKey());
-        }
-        return strict(Kind.STRING, List.of(args.get(0)), v -> {
-            ValueSpecification result = v.get(0);
-            for (Map.Entry<Integer, String> e : order) {
-                result = call("replace", result, new CString(character(e.getKey())),
-                        new CString(e.getValue()));
-            }
-            return result;
-        });
-    }
-
-    /** The one character {@code codePoint} as text ({@code Character.toString(int)} is not in TeaVM's class
-     *  library, which compiles this package for the browser). */
-    private static String character(int codePoint) {
-        return new String(Character.toChars(codePoint));
-    }
-
-    /** {@code split_part(s, delimiter, n)} of a constant delimiter and a constant n from 1 to 5: the n-th field of s,
-     *  fields separated by the delimiter ('' past the last). A field is the text before the delimiter's first place
-     *  (Pure's relational indexOf, as strpos), the rest after it; an empty delimiter makes s one field. A field
-     *  counted from the end (n below 0) is not supported yet; n = 0 is Postgres's error. */
-    private static Tx splitPart(SqlAst.FunctionCall f, List<Tx> args) {
-        kinds(f, args, Kind.STRING, Kind.STRING, Kind.INTEGER);
-        for (Tx a : args) {
-            if (isNullConstant(a)) {
-                return nullOf(Kind.STRING);
-            }
-        }
-        Long n = constantInteger(f.args().get(2));
-        if (!(f.args().get(1) instanceof SqlAst.StringLit d) || n == null) {
-            throw SqlTranslationException.unsupported("split_part(...) with a delimiter or a field other than a"
-                    + " constant is not supported yet", f.pos());
-        }
-        if (n == 0) {
-            throw SqlTranslationException.invalid("field position must not be zero", f.args().get(2).pos());
-        }
-        if (n < 0 || n > 5) {
-            throw SqlTranslationException.unsupported("split_part(...) of a field other than the first to the fifth is"
-                    + " not supported yet", f.args().get(2).pos());
-        }
-        String delimiter = d.value();
-        return strict(Kind.STRING, List.of(args.get(0)), v -> delimiter.isEmpty() ? (n == 1 ? v.get(0)
-                : new CString("")) : field(v.get(0), new CString(delimiter), n));
-    }
-
-    private static ValueSpecification field(ValueSpecification rest, CString delimiter, long n) {
-        ValueSpecification at = call("indexOf", rest, delimiter);
-        ValueSpecification none = call("equal", at, new CInteger(0L));
-        if (n == 1) {
-            return call("if", none, thunk(rest), thunk(call("substring", rest, new CInteger(1L),
-                    AppliedFunction.infixRun("minus", List.of(at, new CInteger(1L))))));
-        }
-        // the delimiter's length in characters, as SQL's substring counts them (not UTF-16's units)
-        ValueSpecification after = call("substring", rest, AppliedFunction.infixRun("plus", List.of(at,
-                new CInteger(delimiter.value().codePointCount(0, delimiter.value().length())))));
-        return call("if", none, thunk(new CString("")), thunk(field(after, delimiter, n - 1)));
-    }
-
-    /** A number constant ({@code 3}, {@code -2.5}), or null. */
-    private static @com.legend.base.Nullable BigDecimal numberConstant(SqlAst.Expr e) {
-        boolean negative = e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.MINUS;
-        SqlAst.Expr literal = e instanceof SqlAst.Unary u && negative ? u.operand() : e;
-        BigDecimal v = literal instanceof SqlAst.IntegerLit n ? new BigDecimal(n.value())
-                : literal instanceof SqlAst.NumericLit d ? d.value() : null;
-        return v == null || !negative ? v : v.negate();
-    }
-
-    /** {@code a % b}, {@code mod(a, b)}: the remainder, with the dividend's sign -- Pure's rem, exact for integers and
-     *  numerics alike (DuckDB's remainder of decimals too, measured), a numeric's scale the larger operand's in both. A
-     *  double has none in Postgres. */
-    private static Tx remainder(Tx l, Tx r, String noSuch, String what, SqlAst.Pos pos) {
-        for (Tx x : List.of(l, r)) {
-            if (x.kind() == Kind.FLOAT) {
-                throw SqlTranslationException.invalid(noSuch, pos);
-            }
-            inexact(x, what, pos);
-        }
-        boolean integers = (l.kind() == Kind.INTEGER || l.kind() == Kind.WHOLE || l.kind() == Kind.NULL)
-                && (r.kind() == Kind.INTEGER || r.kind() == Kind.WHOLE || r.kind() == Kind.NULL);
-        Kind kind = !integers ? (l.kind() == Kind.NUMBER || r.kind() == Kind.NUMBER ? Kind.NUMBER : Kind.DECIMAL)
-                : l.kind() == Kind.WHOLE || r.kind() == Kind.WHOLE ? Kind.WHOLE : Kind.INTEGER;
-        return strict(kind, List.of(l, r), v -> call("rem", v.get(0), v.get(1)));
-    }
-
-    /** {@code div(a, b)}: the quotient truncated toward zero, Postgres's numeric of scale 0 (it has div of numerics
-     *  only, an integer read as one). Exact, as integer division is ({@link #integerQuotient}): Pure's rem of decimals
-     *  is exact on both databases, with the dividend's sign. */
-    private static Tx div(SqlAst.FunctionCall f, List<Tx> args) {
-        arity(f, args, 2);
-        boolean decimal = false;
-        for (int i = 0; i < 2; i++) {
-            Tx x = args.get(i);
-            numericOperand(x, f.args().get(i));
-            if (x.kind() == Kind.FLOAT) {
-                throw SqlTranslationException.invalid("function div(" + postgresName(args.get(0).kind()) + ", "
-                        + postgresName(args.get(1).kind()) + ") does not exist", f.pos());
-            }
-            inexact(x, "div(...)", f.pos());
-            decimal |= exactNumeric(x.kind());
-        }
-        boolean decimals = decimal;
-        return strict(Kind.DECIMAL, args, v -> decimals ? integerQuotient(call("toDecimal", v.get(0)),
-                call("toDecimal", v.get(1))) : integerQuotient(v.get(0), v.get(1)));
-    }
-
-    /** {@code log(b, x)}: the logarithm of x to the base b. Postgres has it for numerics only (exact there; an integer
-     *  is read as one). Of the constant base 10 it is Pure's log10, as {@code log(x)} is (an inexact numeric, exact
-     *  at 10's powers). Another base is refused: ln(x) / ln(b) misses the exact powers that compare equal in Postgres
-     *  ({@code log(10, 1000)} by natural logarithms is 2.9999999999999996). */
-    private static Tx logBase(SqlAst.FunctionCall f, List<Tx> args) {
-        for (int i = 0; i < 2; i++) {
-            numericOperand(args.get(i), f.args().get(i));
-        }
-        if (args.get(0).kind() == Kind.FLOAT || args.get(1).kind() == Kind.FLOAT) {
-            throw SqlTranslationException.invalid("function log(" + postgresName(args.get(0).kind()) + ", "
-                    + postgresName(args.get(1).kind()) + ") does not exist", f.pos());
-        }
-        SqlAst.Expr b = f.args().get(0);
-        if (b instanceof SqlAst.Cast c && c.type().modifiers().isEmpty() && NUMERIC_TYPES.contains(c.type().name())) {
-            b = c.operand();
-        }
-        BigDecimal base = numberConstant(b);
-        if (base == null || base.compareTo(BigDecimal.TEN) != 0) {
-            throw SqlTranslationException.unsupported("log(b, x) of a base other than the constant 10 is not supported"
-                    + " yet: Postgres's is exact, and a quotient of natural logarithms misses the exact powers",
-                    f.args().get(0).pos());
-        }
-        return strict(Kind.INEXACT, args.subList(1, 2), v -> call("log10", v.get(0)));
-    }
-
-    /** The names of Postgres's numeric type. */
-    private static final Set<String> NUMERIC_TYPES = Set.of("numeric", "decimal");
-
-    /** {@code power(x, n)} of numerics where x is an integer read as one ({@code x::numeric}, or an integer with a
-     *  numeric exponent) and n a whole constant from 0 to 16: Postgres's numeric power, exact for a base of scale 0
-     *  (it rounds to a scale no less than the base's). x times itself n times, in decimal arithmetic. Postgres writes
-     *  it to 16 places or more, so its text is refused. A base with a fraction is not supported yet: Postgres rounds
-     *  its power to about 16 significant digits. */
-    private Tx numericPower(SqlAst.Expr base, SqlAst.Expr exponent, List<Tx> lr, String what, SqlAst.Pos pos,
-            Scope scope, String row) {
-        if (isNullConstant(lr.get(0)) || isNullConstant(lr.get(1))) {
-            return nullOf(Kind.NUMBER);
-        }
-        // the integer itself: Pure's toDecimal of it is a decimal of scale 0 (of a decimal, of scale 18)
-        Tx integer = lr.get(0).kind() == Kind.INTEGER ? lr.get(0) : base instanceof SqlAst.Cast c
-                && c.type().modifiers().isEmpty() && NUMERIC_TYPES.contains(c.type().name()) ? tx(c.operand(), scope,
-                row) : null;
-        BigDecimal n = numberConstant(exponent);
-        if (integer == null || integer.kind() != Kind.INTEGER || n == null || n.signum() < 0 || n.compareTo(BigDecimal.valueOf(16)) > 0
-                || n.stripTrailingZeros().scale() > 0) {
-            throw SqlTranslationException.unsupported(what + " of numeric values other than an integer to a whole"
-                    + " power from 0 to 16 is not supported yet (Postgres rounds a numeric's power to about 16"
-                    + " significant digits)", pos);
-        }
-        int times = n.intValue();
-        return strict(Kind.NUMBER, List.of(integer), v -> {
-            ValueSpecification x = call("toDecimal", v.get(0));
-            return times == 0 ? new CDecimal(BigDecimal.ONE) : times == 1 ? x
-                    : AppliedFunction.infixRun("times", java.util.Collections.nCopies(times, x));
-        });
-    }
-
-    /** {@code width_bucket(x, low, high, count)} of constant bounds and a constant count up to 10,000: which of count
-     *  equal buckets from low to high holds x (0 before them, count + 1 after). Postgres has it for doubles and for
-     *  numerics, read by x's type (an integer with integer bounds reads the double one):
-     *  - doubles: Postgres's own steps, {@code count * ((x - low) / (high - low))} truncated, at most count - 1, plus
-     *    1 -- the same double operations on every database, the bounds the doubles nearest their text;
-     *  - numerics: Postgres divides (x - low) * count by high - low to 16 places or more (rounded), and takes its
-     *    floor plus 1. The floor here is exact, from the remainder; within 5e-17 below a bucket's edge (screened at
-     *    1e-15 of a bucket), where Postgres's rounded quotient may reach the edge, it is an error. */
-    private static Tx widthBucket(SqlAst.FunctionCall f, List<Tx> args) {
-        arity(f, args, 4);
-        BigDecimal low = numberConstant(f.args().get(1));
-        BigDecimal high = numberConstant(f.args().get(2));
-        Long count = constantInteger(f.args().get(3));
-        if (low == null || high == null || count == null) {
-            throw SqlTranslationException.unsupported("width_bucket(...) with bounds or a count other than constants"
-                    + " is not supported yet", f.pos());
-        }
-        if (count <= 0) {
-            throw SqlTranslationException.invalid("count must be greater than zero", f.args().get(3).pos());
-        }
-        if (count > 10000 || low.abs().compareTo(BigDecimal.TEN.pow(300)) > 0
-                || high.abs().compareTo(BigDecimal.TEN.pow(300)) > 0) {
-            throw SqlTranslationException.unsupported("width_bucket(...) of more than 10000 buckets, or of bounds"
-                    + " beyond 1e300, is not supported yet", f.pos());
-        }
-        int order = low.compareTo(high);
-        if (order == 0) {
-            throw SqlTranslationException.invalid("lower bound cannot equal upper bound", f.pos());
-        }
-        Tx x = args.get(0);
-        numericOperand(x, f.args().get(0));
-        if (isNullConstant(x)) {
-            return nullOf(Kind.INTEGER);
-        }
-        inexact(x, "width_bucket(...)", f.pos());
-        boolean integerBounds = f.args().get(1) instanceof SqlAst.IntegerLit
-                || f.args().get(1) instanceof SqlAst.Unary u1 && u1.operand() instanceof SqlAst.IntegerLit;
-        integerBounds &= f.args().get(2) instanceof SqlAst.IntegerLit
-                || f.args().get(2) instanceof SqlAst.Unary u2 && u2.operand() instanceof SqlAst.IntegerLit;
-        if (x.kind() == Kind.WHOLE && integerBounds) {
-            throw SqlTranslationException.unsupported("width_bucket(...) of a sum of integers and integer bounds is"
-                    + " not supported yet: Postgres's sum is a bigint (read as a double) or a numeric by the column's"
-                    + " width (cast it)", f.pos());
-        }
-        boolean doubles = x.kind() == Kind.FLOAT || x.kind() == Kind.INTEGER && integerBounds;
-        boolean ascending = order < 0;
-        return strict(Kind.INTEGER, List.of(x), v -> doubles
-                ? floatBucket(x.kind() == Kind.FLOAT ? v.get(0) : call("toFloat", v.get(0)), low, high, count,
-                        ascending)
-                : numericBucket(v.get(0), low, high, count, ascending));
-    }
-
-    private static ValueSpecification floatBucket(ValueSpecification x, BigDecimal low, BigDecimal high, long count,
-            boolean ascending) {
-        ValueSpecification lo = call("toFloat", new CDecimal(low));
-        ValueSpecification hi = call("toFloat", new CDecimal(high));
-        ValueSpecification part = ascending
-                ? call("divide", AppliedFunction.infixRun("minus", List.of(x, lo)),
-                        AppliedFunction.infixRun("minus", List.of(hi, lo)))
-                : call("divide", AppliedFunction.infixRun("minus", List.of(lo, x)),
-                        AppliedFunction.infixRun("minus", List.of(lo, hi)));
-        ValueSpecification bucket = call("floor", AppliedFunction.infixRun("times", List.of(
-                call("toFloat", new CInteger(count)), part)));
-        ValueSpecification inside = AppliedFunction.infixRun("plus", List.of(call("if", call("greaterThanEqual",
-                bucket, new CInteger(count)), thunk(new CInteger(count - 1)), thunk(bucket)), new CInteger(1L)));
-        return buckets(x, lo, hi, count, ascending, inside);
-    }
-
-    private static ValueSpecification numericBucket(ValueSpecification x, BigDecimal low, BigDecimal high, long count,
-            boolean ascending) {
-        ValueSpecification lo = new CDecimal(low);
-        ValueSpecification hi = new CDecimal(high);
-        ValueSpecification a = AppliedFunction.infixRun("times", List.of(ascending
-                ? AppliedFunction.infixRun("minus", List.of(x, lo))
-                : AppliedFunction.infixRun("minus", List.of(lo, x)), new CInteger(count)));
-        ValueSpecification b = ascending ? AppliedFunction.infixRun("minus", List.of(hi, lo))
-                : AppliedFunction.infixRun("minus", List.of(lo, hi));
-        // a is at least 0 and below count * b: a - rem(a, b) is b times the floor exactly, a whole number below
-        // 10,000 that the quotient's double rounds to
-        ValueSpecification rest = call("rem", a, b);
-        ValueSpecification floor = call("round", call("divide", AppliedFunction.infixRun("minus", List.of(a, rest)),
-                b));
-        // within 5e-17 of the next edge (as a part of b) Postgres's rounded quotient may reach it: the double of that
-        // part, within 2^-52 of it, is screened at 1e-15 (a product with a 17-digit constant overflows DuckDB's
-        // 18-digit decimal arithmetic)
-        ValueSpecification near = call("lessThan", call("divide", AppliedFunction.infixRun("minus", List.of(b, rest)),
-                b), new com.legend.protocol.spec.CFloat(1e-15));
-        ValueSpecification inside = call("if", near, thunk(call("toOne", call("cast", empty(), typeArg("Integer")))),
-                thunk(AppliedFunction.infixRun("plus", List.of(floor, new CInteger(1L)))));
-        return buckets(x, lo, hi, count, ascending, inside);
-    }
-
-    /** A bucket: 0 before the first, count + 1 after the last, else {@code inside}. */
-    private static ValueSpecification buckets(ValueSpecification x, ValueSpecification lo, ValueSpecification hi,
-            long count, boolean ascending, ValueSpecification inside) {
-        ValueSpecification before = call(ascending ? "lessThan" : "greaterThan", x, lo);
-        ValueSpecification after = call(ascending ? "greaterThanEqual" : "lessThanEqual", x, hi);
-        return call("if", before, thunk(new CInteger(0L)), thunk(call("if", after, thunk(new CInteger(count + 1)),
-                thunk(inside))));
-    }
-
-    /** {@code greatest(...)}, {@code least(...)}: the largest (smallest) of the values, NULLs ignored; NULL only when
-     *  every value is. */
-    private static Tx extreme(SqlAst.FunctionCall f, List<Tx> arguments, boolean greatest) {
-        List<Tx> args = common(greatest ? "GREATEST" : "LEAST", f.args(), arguments, f.pos()).values();
-        Tx best = null;
-        for (int i = 0; i < args.size(); i++) {
-            Tx a = args.get(i);
-            if (a.kind() == Kind.NULL) {
-                continue;
-            }
-            if (a.kind() == Kind.BOOLEAN) {
-                throw SqlTranslationException.unsupported(functionName(f.name().get(0)) + "(...) of boolean values is"
-                        + " not supported yet", f.args().get(i).pos());
-            }
-            if (best == null) {
-                best = a;
-                continue;
-            }
-            comparableKinds(best, a, f.pos());
-            best = better(best, a, greatest);
-        }
-        if (best == null) {
-            // every value NULL: Postgres reads them as text
-            return nullOf(Kind.STRING);
-        }
-        return best;
-    }
-
-    private static Tx better(Tx l, Tx r, boolean greatest) {
-        ValueSpecification lv = valueOf(l);
-        ValueSpecification rv = valueOf(r);
-        // where both hold a value, each is one value: the pick is never empty (its type says so)
-        ValueSpecification lOne = l.nullable() ? call("toOne", lv) : lv;
-        ValueSpecification rOne = r.nullable() ? call("toOne", rv) : rv;
-        ValueSpecification v = call("if", call(greatest ? "greaterThanEqual" : "lessThanEqual", lOne, rOne),
-                thunk(lOne), thunk(rOne));
-        if (r.nullable()) {
-            v = call("if", call("isEmpty", rv), thunk(lv), thunk(v));
-        }
-        if (l.nullable()) {
-            v = call("if", call("isEmpty", lv), thunk(rv), thunk(v));
-        }
-        Kind kind = l.kind() == r.kind() ? l.kind() : l.kind().numeric() && r.kind().numeric()
-                ? arithmetic(l.kind(), r.kind()) : l.kind();
-        return Tx.value(v, kind, l.nullable() && r.nullable());
-    }
-
-    /** {@code num_nulls(...)}, {@code num_nonnulls(...)}: how many of the values are NULL (are not). */
-    private static Tx countNulls(SqlAst.FunctionCall f, List<Tx> args, boolean nulls) {
-        if (args.isEmpty()) {
-            throw SqlTranslationException.invalid("function " + functionName(f.name().get(0)) + " needs an argument",
-                    f.pos());
-        }
-        List<ValueSpecification> ones = new ArrayList<>();
-        long fixed = 0;
-        for (Tx a : args) {
-            if (a.kind() == Kind.NULL || !a.nullable()) {
-                fixed += (a.kind() == Kind.NULL) == nulls ? 1 : 0;
-                continue;
-            }
-            ones.add(call("if", call(nulls ? "isEmpty" : "isNotEmpty", valueOf(a)), thunk(new CInteger(1L)),
-                    thunk(new CInteger(0L))));
-        }
-        if (fixed != 0 || ones.isEmpty()) {
-            ones.add(new CInteger(fixed));
-        }
-        return Tx.value(ones.size() == 1 ? ones.get(0) : AppliedFunction.infixRun("plus", ones), Kind.INTEGER, false);
-    }
-
-    /** {@code extract(field FROM x)}, {@code date_part('field', x)}: the whole-number fields of a date or timestamp
-     *  (DATE_FIELDS); a time of day is a timestamp's only. */
-    /** {@code extract(field FROM x)} ({@code numeric}, Postgres 14 on) and {@code date_part('field', x)} (double
-     *  precision): a field's whole number. */
-    private static Tx datePart(SqlAst.FunctionCall f, List<Tx> args, boolean numeric) {
-        arity(f, args, 2);
-        String fn = functionName(f.name().get(0));
-        if (!(f.args().get(0) instanceof SqlAst.StringLit field)) {
-            throw SqlTranslationException.unsupported(fn + "(...) of a computed field is not supported yet",
-                    f.args().get(0).pos());
-        }
-        Tx x = args.get(1);
-        String name = fold(field.value());
-        String simple = DATE_FIELDS.get(name);
-        java.util.function.UnaryOperator<ValueSpecification> computed = COMPUTED_FIELDS.get(name);
-        java.util.function.UnaryOperator<ValueSpecification> pure = simple != null ? v -> call(simple, v) : computed;
-        if (pure == null) {
-            throw SqlTranslationException.unsupported(fn + "(" + name + " ...) is not supported yet", field.pos());
-        }
-        boolean timeOfDay = TIME_FIELDS.contains(name);
-        // Pure's toEpochValue is whole seconds: a timestamp's fraction would be lost
-        boolean dayOnly = name.equals("epoch");
-        if (!isDate(x.kind()) || timeOfDay && x.kind() != Kind.DATETIME || dayOnly && x.kind() != Kind.DATE) {
-            throw SqlTranslationException.unsupported(fn + "(" + name + " ...) of a " + x.kind().name().toLowerCase(
-                    Locale.ROOT) + " value is not supported yet", f.args().get(1).pos());
-        }
-        // extract is numeric in Postgres (14 on), date_part double precision: a field's whole number as either
-        return numeric ? strict(Kind.DECIMAL, List.of(x), v -> pure.apply(v.get(0)))
-                : strict(Kind.FLOAT, List.of(x), v -> call("toFloat", pure.apply(v.get(0))));
-    }
-
-    /** Refuses another number of arguments as not supported: Postgres may have that overload (btrim(x, chars)). */
-    private static void arity(SqlAst.FunctionCall f, List<Tx> args, int n) {
-        if (args.size() != n) {
-            throw SqlTranslationException.unsupported("function " + functionName(f.name().get(0)) + " with "
-                    + args.size() + " argument" + (args.size() == 1 ? "" : "s") + " is not supported yet; it takes "
-                    + n + " here", f.pos());
-        }
-    }
-
-    /**
-     * {@code CAST(x AS type)}, {@code x::type}: a string constant is read by the type's input rules (as a typed
-     * constant is); a value converts where one Pure function gives Postgres's answer: a number to another number
-     * (an exact one to an integer rounds half away from zero, a double precision half to even), to text; a
-     * timestamp to its date; an integer to a boolean. An integer or smallint holds a value in its range, else it
-     * is Postgres's error; {@code varchar(n)} cuts the text to n characters. Refused: what rounds, formats or reads
-     * otherwise in Postgres (a double precision to a numeric, a double precision or a timestamp to text, text to a
-     * number), another type modifier, the other types.
-     */
-    private Tx cast(SqlAst.Cast c, Scope scope, String row) {
-        String type = c.type().name();
-        Kind target = CAST_TYPES.get(type);
-        if (target == null) {
-            throw SqlTranslationException.unsupported("casts to " + type + " are not supported yet", c.pos());
-        }
-        if (!c.type().modifiers().isEmpty()) {
-            if (VARCHAR_TYPES.contains(type) && c.type().modifiers().size() == 1 && c.type().modifiers().get(0) > 0) {
-                // varchar(n): the value's text, cut to n characters (an explicit cast truncates in Postgres)
-                long n = c.type().modifiers().get(0);
-                Tx text = cast(new SqlAst.Cast(c.operand(), new SqlAst.TypeName(type, List.of(), c.type().pos()),
-                        c.pos()), scope, row);
-                return strict(Kind.STRING, List.of(text), v -> call("left", v.get(0), new CInteger(n)));
-            }
-            throw SqlTranslationException.unsupported("casts to " + type + " with a type modifier are not supported"
-                    + " yet", c.pos());
-        }
-        // Postgres's integer (int4) and smallint (int2) are narrower than Pure's: a value they cannot hold is
-        // Postgres's error ("integer out of range")
-        long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
-                : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
-        if (c.operand() instanceof SqlAst.StringLit s && target == Kind.JSON) {
-            return jsonConstant(s);
-        }
-        if (c.operand() instanceof SqlAst.StringLit s) {
-            Tx read = target == Kind.STRING ? Tx.value(new CString(s.value()), Kind.STRING, false)
-                    : fromString(s, target);
-            if (range != null && read.vs() instanceof CInteger n && (n.value().longValue() > range[1]
-                    || n.value().longValue() < range[0])) {
-                throw SqlTranslationException.invalid("value \"" + s.value() + "\" is out of range for type "
-                        + (SMALL_INTEGERS.contains(type) ? "smallint" : "integer"), s.pos());
-            }
-            return read;
-        }
-        Tx x = tx(c.operand(), scope, row);
-        if (x.kind() == Kind.NULL) {
-            return nullOf(target);
-        }
-        if (target == Kind.INTEGER && range != null && x.kind() == Kind.INTEGER && x.vs() instanceof CInteger n) {
-            if (n.value().longValue() > range[1] || n.value().longValue() < range[0]) {
-                throw SqlTranslationException.invalid((SMALL_INTEGERS.contains(type) ? "smallint" : "integer")
-                        + " out of range", c.pos());
-            }
-            return x;
-        }
-        // an integer an enclosed cast already holds to this range needs no second test (nested casts tested at every
-        // level wrote the value three times a level: the stress corpus's ten casts were 9 MB of SQL)
-        boolean held = range != null && within(provenRange(c.operand()), range);
-        if (x.kind() == target || target == Kind.DECIMAL && x.kind() == Kind.NUMBER) {
-            return range == null || held ? x : inRange(x, range, type);
-        }
-        if (x.kind() == Kind.WHOLE && target == Kind.INTEGER) {
-            // a sum of integers as a bigint (or narrower): its width now known; a strict value keeps its guard
-            Tx whole = new Tx(x.vs(), Kind.INTEGER, x.nullable(), null, null, x.guard(), x.body());
-            return range == null || held ? whole : inRange(whole, range, type);
-        }
-        if (x.kind() == Kind.INEXACT) {
-            if (target == Kind.DECIMAL || target == Kind.FLOAT) {
-                // already Postgres's numeric; as a double precision, Postgres's double of the exact value, which this
-                // one may miss: inexact either way
-                return x;
-            }
-            inexact(x, "a cast to " + type, c.pos());
-        }
-        String from = x.kind().name().toLowerCase(Locale.ROOT);
-        String convert = switch (target) {
-            case STRING -> x.kind() == Kind.INTEGER || x.kind() == Kind.WHOLE || x.kind() == Kind.DECIMAL
-                    || x.kind() == Kind.BOOLEAN || x.kind() == Kind.DATE ? "toString" : null;
-            // a numeric rounds half away from zero, a double half to even (Pure's round of a Float, measured). Text
-            // is not read: a database's cast reads what Postgres's input rejects ('1.5' and '1e3' are 2 and 1000 on
-            // DuckDB, errors in Postgres)
-            case INTEGER -> x.kind() == Kind.DECIMAL || x.kind() == Kind.NUMBER ? "halfAwayFromZero"
-                    : x.kind() == Kind.FLOAT ? "round" : null;
-            // text to numeric: Pure's parseDecimal lowers to a fixed DECIMAL(5, 2), not Postgres's unbounded numeric
-            case DECIMAL -> x.kind() == Kind.INTEGER || x.kind() == Kind.WHOLE ? "toDecimal" : null;
-            // text likewise: DuckDB reads '1_000' as 1000 and '1e400' as Infinity, Postgres rejects both
-            case FLOAT -> x.kind().numeric() ? "toFloat" : null;
-            case DATE -> x.kind() == Kind.DATETIME ? "datePart" : null;
-            case BOOLEAN -> x.kind() == Kind.INTEGER ? "notEqual" : null;
-            // text parses into jsonb; a jsonb's text (with its strings quoted) is not Pure's to(@String)
-            case JSON -> x.kind() == Kind.STRING ? FROM_JSON : null;
-            default -> null;
+    /** Whether {@code e} is a number or string constant, or arithmetic, a sign or a cast of constants alone. */
+    static boolean constant(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.NumericLit n -> true;
+            case SqlAst.StringLit str -> true;
+            case SqlAst.TypedLit t -> true;
+            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && constant(u.operand());
+            case SqlAst.Cast c -> constant(c.operand());
+            case SqlAst.Binary b -> ARITHMETIC.contains(b.op()) && constant(b.left()) && constant(b.right());
+            default -> false;
         };
-        if (convert == null) {
-            throw SqlTranslationException.unsupported("casts from " + from + " to " + type + " are not supported yet",
-                    c.pos());
-        }
-        if (target == Kind.BOOLEAN) {
-            // Postgres: 0 is false, any other integer true
-            return strictTest(List.of(x), v -> call("not", call("equal", v.get(0), new CInteger(0L))));
-        }
-        Tx converted = convert.equals("halfAwayFromZero") ? strict(target, List.of(x), v -> halfAwayFromZero(v.get(0)))
-                : strict(target, List.of(x), v -> call(convert, v.get(0)));
-        return range == null ? converted : inRange(converted, range, type);
     }
 
-    /** The range {@code e}'s value is already held to by a cast to a narrow integer ({@link #NARROW_INTEGERS},
-     *  {@link #SMALL_INTEGERS}: Postgres raised past it), seen through casts to other integers, which keep an
-     *  integer's value; the narrowest such range, or null when no cast holds it. */
-    private static long @com.legend.base.Nullable [] provenRange(SqlAst.Expr e) {
-        long[] proven = null;
-        SqlAst.Expr at = e;
-        while (at instanceof SqlAst.Cast c && c.type().modifiers().isEmpty()
-                && CAST_TYPES.get(c.type().name()) == Kind.INTEGER) {
-            String type = c.type().name();
-            long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
-                    : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
-            if (range != null && (proven == null || within(range, proven))) {
-                proven = range;
-            }
-            at = c.operand();
-        }
-        return proven;
-    }
-
-    /** Whether {@code inner} is a range and lies within {@code outer}. */
-    private static boolean within(long @com.legend.base.Nullable [] inner, long[] outer) {
-        return inner != null && inner[0] >= outer[0] && inner[1] <= outer[1];
-    }
-
-    /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value
-     *  read as one ({@code []->cast(@Integer)->toOne()} raises, typed as the integer it stands for). */
-    private static Tx inRange(Tx x, long[] range, String type) {
-        return strict(Kind.INTEGER, List.of(x), v -> call("if", call("or", call("lessThan", v.get(0),
-                new CInteger(range[0])), call("greaterThan", v.get(0), new CInteger(range[1]))),
-                thunk(call("toOne", call("cast", empty(), typeArg("Integer")))), thunk(v.get(0))));
-    }
+    static final Set<SqlAst.BinaryOp> ARITHMETIC = Set.of(SqlAst.BinaryOp.PLUS, SqlAst.BinaryOp.MINUS,
+            SqlAst.BinaryOp.TIMES, SqlAst.BinaryOp.DIVIDE, SqlAst.BinaryOp.MODULO);
 
     // ------------------------------------------------------------------ dates
 
-    private static final String DURATION_UNIT = "meta::pure::functions::date::DurationUnit";
-
-    /** An interval constant's months, days and seconds, which Postgres adds in that order. */
-    private record Interval(long months, long days, long seconds) {
-    }
-
-    /** The units an interval constant's text may name (Postgres's abbreviations too): their months, days, seconds. */
-    private static final Map<String, long[]> INTERVAL_UNITS = intervalUnits();
-
-    private static Map<String, long[]> intervalUnits() {
-        // one array per field, shared by its spellings: a field named twice is Postgres's error
-        Map<String, long[]> m = new LinkedHashMap<>();
-        long[] year = {12, 0, 0};
-        for (String y : List.of("year", "years", "yr", "yrs", "y")) {
-            m.put(y, year);
-        }
-        long[] month = {1, 0, 0};
-        for (String mo : List.of("month", "months", "mon", "mons")) {
-            m.put(mo, month);
-        }
-        long[] week = {0, 7, 0};
-        for (String w : List.of("week", "weeks", "w")) {
-            m.put(w, week);
-        }
-        long[] day = {0, 1, 0};
-        for (String d : List.of("day", "days", "d")) {
-            m.put(d, day);
-        }
-        long[] hour = {0, 0, 3600};
-        for (String h : List.of("hour", "hours", "hr", "hrs", "h")) {
-            m.put(h, hour);
-        }
-        long[] minute = {0, 0, 60};
-        for (String mi : List.of("minute", "minutes", "min", "mins", "m")) {
-            m.put(mi, minute);
-        }
-        long[] second = {0, 0, 1};
-        for (String sec : List.of("second", "seconds", "sec", "secs", "s")) {
-            m.put(sec, second);
-        }
-        return java.util.Collections.unmodifiableMap(m);
-    }
-
-    /** An interval constant's text in Postgres's plain form: signed whole amounts, each with its unit. Null for
-     *  another form (a fraction, {@code HH:MM:SS}, {@code ago}, a bare number): refused. */
-    private static @com.legend.base.Nullable Interval interval(String text) {
-        List<String> words = new ArrayList<>();
-        StringBuilder word = new StringBuilder();
-        for (char c : (text.toLowerCase(Locale.ROOT) + " ").toCharArray()) {
-            if (c != ' ') {
-                word.append(c);
-            } else if (!word.isEmpty()) {
-                words.add(word.toString());
-                word.setLength(0);
-            }
-        }
-        if (words.isEmpty() || words.size() % 2 != 0) {
-            return null;
-        }
-        long months = 0;
-        long days = 0;
-        long seconds = 0;
-        List<long[]> fields = new ArrayList<>();
-        for (int i = 0; i < words.size(); i += 2) {
-            String amount = plainNumber(words.get(i), false);
-            long[] unit = INTERVAL_UNITS.get(words.get(i + 1));
-            if (amount == null || unit == null || amount.length() > 9 || fields.contains(unit)) {
-                return null;
-            }
-            fields.add(unit);
-            long n = Long.parseLong(amount);
-            months += n * unit[0];
-            days += n * unit[1];
-            seconds += n * unit[2];
-        }
-        return new Interval(months, days, seconds);
-    }
-
-    /** An interval constant ({@code INTERVAL '1 day'}, {@code '1 day'::interval}); null for another expression. */
-    private static @com.legend.base.Nullable Interval intervalConstant(SqlAst.Expr e) {
-        String text = e instanceof SqlAst.TypedLit t && t.type().name().equals("interval") ? t.value()
-                : e instanceof SqlAst.Cast c && c.type().name().equals("interval") && c.type().modifiers().isEmpty()
-                        && c.operand() instanceof SqlAst.StringLit s ? s.value() : null;
-        if (text == null) {
-            return null;
-        }
-        Interval i = interval(text);
-        if (i == null) {
-            throw SqlTranslationException.unsupported("the interval '" + text + "' is not supported yet: whole years,"
-                    + " months, weeks, days, hours, minutes and seconds are", e.pos());
-        }
-        return i;
-    }
-
-    /**
-     * A date or timestamp plus or minus an interval constant: a timestamp, its months added first (a day past the
-     * month's end is its last day), then its days, then its seconds, as Postgres adds them. A date is a timestamp at
-     * midnight here, as in Postgres.
-     */
-    private Tx intervalArithmetic(SqlAst.Binary b, Scope scope, String row) {
-        boolean minus = b.op() == SqlAst.BinaryOp.MINUS;
-        Interval li = intervalConstant(b.left());
-        Interval ri = intervalConstant(b.right());
-        if (li != null && (ri != null || minus)) {
-            throw SqlTranslationException.unsupported("interval arithmetic other than a date or timestamp plus or"
-                    + " minus an interval is not supported yet", b.pos());
-        }
-        Interval in = java.util.Objects.requireNonNull(li != null ? li : ri);
-        Tx d = tx(li != null ? b.right() : b.left(), scope, row);
-        if (d.kind() == Kind.NULL || isNullConstant(d)) {
-            return nullOf(Kind.DATETIME);
-        }
-        if (!isDate(d.kind())) {
-            throw SqlTranslationException.unsupported("an interval with a " + postgresName(d.kind()) + " value is not"
-                    + " supported yet", b.pos());
-        }
-        long sign = minus ? -1 : 1;
-        return strict(Kind.DATETIME, List.of(d), v -> {
-            ValueSpecification x = v.get(0);
-            if (d.kind() == Kind.DATE) {
-                x = atMidnight(x);
-            }
-            if (in.months() != 0) {
-                x = call("adjust", x, new CInteger(sign * in.months()), new EnumValue(DURATION_UNIT, "MONTHS"));
-            }
-            if (in.days() != 0) {
-                x = call("adjust", x, new CInteger(sign * in.days()), new EnumValue(DURATION_UNIT, "DAYS"));
-            }
-            if (in.seconds() != 0) {
-                x = call("adjust", x, new CInteger(sign * in.seconds()), new EnumValue(DURATION_UNIT, "SECONDS"));
-            }
-            return x;
-        });
-    }
-
-    /** {@code +} and {@code -} with a date or a timestamp on a side: a date plus or minus an integer is a date, so many
-     *  days on; a date minus a date the days between them. Refused: a timestamp minus a timestamp (an interval) and
-     *  the rest. */
-    private static Tx dateArithmetic(SqlAst.Binary b, Tx l, Tx r) {
-        boolean minus = b.op() == SqlAst.BinaryOp.MINUS;
-        if (l.kind() == Kind.DATE && r.kind() == Kind.DATE && minus) {
-            // the days from the right date to the left one
-            return strict(Kind.INTEGER, List.of(l, r), v -> call("dateDiff", v.get(1), v.get(0),
-                    new EnumValue(DURATION_UNIT, "DAYS")));
-        }
-        Tx date = l.kind() == Kind.DATE ? l : r;
-        Tx days = date == l ? r : l;
-        if (date.kind() == Kind.DATE && days.kind() == Kind.INTEGER && !(minus && date == r)) {
-            return strict(Kind.DATE, List.of(date, days), v -> call("adjust", v.get(0), minus ? call("minus", v.get(1))
-                    : v.get(1), new EnumValue(DURATION_UNIT, "DAYS")));
-        }
-        throw SqlTranslationException.unsupported("this date and timestamp arithmetic is not supported yet (a date"
-                + " plus or minus an integer, a date minus a date, and a date or timestamp plus or minus an interval"
-                + " constant are)", b.pos());
-    }
-
-    /** Postgres's date_trunc fields and Pure's: the first moment of the year, quarter, month, week (Monday), day, hour,
-     *  minute or second. */
-    private static final Map<String, String> TRUNCATIONS = Map.of("year", "firstDayOfYear", "quarter",
-            "firstDayOfQuarter", "month", "firstDayOfMonth", "week", "firstDayOfWeek", "day", "firstHourOfDay", "hour",
-            "firstMinuteOfHour", "minute", "firstSecondOfMinute", "second", "firstMillisecondOfSecond");
-
-    /** {@code date_trunc('field', timestamp)}: a timestamp. Of a date Postgres truncates a timestamp with time zone:
-     *  refused. */
-    private static Tx dateTrunc(SqlAst.FunctionCall f, List<Tx> args) {
-        arity(f, args, 2);
-        String pure = args.get(0).vs() instanceof CString c ? TRUNCATIONS.get(c.value().toLowerCase(Locale.ROOT))
-                : null;
-        if (pure == null) {
-            throw SqlTranslationException.unsupported("date_trunc to a field other than a constant year, quarter,"
-                    + " month, week, day, hour, minute or second is not supported yet", f.args().get(0).pos());
-        }
-        Tx x = args.get(1);
-        if (x.kind() != Kind.DATETIME) {
-            throw SqlTranslationException.unsupported("date_trunc of a " + postgresName(x.kind()) + " value is not"
-                    + " supported yet", f.args().get(1).pos());
-        }
-        // Pure's first day of a year, quarter, month or week is a date: Postgres's is a timestamp at its midnight
-        boolean day = pure.startsWith("firstDayOf");
-        return strict(Kind.DATETIME, List.of(x), v -> day ? atMidnight(call(pure, v.get(0))) : call(pure, v.get(0)));
-    }
-
-    /** A date as the timestamp at its midnight (no time added: Pure's adjust of a date by 0 hours). */
-    private static ValueSpecification atMidnight(ValueSpecification date) {
-        return call("adjust", date, new CInteger(0L), new EnumValue(DURATION_UNIT, "HOURS"));
-    }
-
-    /** {@code DATE '...'} and {@code TIMESTAMP '...'} in ISO 8601 spelling: Pure date constants; {@code JSONB '...'}
-     *  and {@code JSON '...'}: a Variant constant. */
-    static Tx typedLiteral(SqlAst.TypedLit lit) {
-        if (JSON_TYPES.contains(lit.type().name())) {
-            return jsonConstant(new SqlAst.StringLit(lit.value(), lit.pos()));
-        }
-        return switch (lit.type().name()) {
-            case "date" -> dateFromString(new SqlAst.StringLit(lit.value(), lit.pos()), Kind.DATE);
-            case "timestamp", "timestamp without time zone" ->
-                    dateFromString(new SqlAst.StringLit(lit.value(), lit.pos()), Kind.DATETIME);
-            default -> throw SqlTranslationException.unsupported("constants of type " + lit.type().name() + " are not"
-                    + " supported yet", lit.pos());
-        };
-    }
-
-    /** A string constant read as a date or a timestamp by Postgres's rules ({@link PostgresDateTime}): ISO 8601 and
-     *  Postgres's other spellings (month names, month/day/year, digits run together, a year's day, a Julian day, AM and
-     *  PM, epoch); a date drops a time of day. Its Pure constant spells the same day or instant, {@code
-     *  yyyy-mm-ddThh:mm:ss[.ffffff]} for a timestamp (24:00:00 is the next midnight). */
-    private static Tx dateFromString(SqlAst.StringLit s, Kind target) {
-        PostgresDateTime.Value v = PostgresDateTime.read(s.value(), target == Kind.DATE ? "date" : "timestamp",
-                s.pos());
-        if (target == Kind.DATE) {
-            String body = v.date().toString();
-            return Tx.value(new CDate(PureDateLiteral.parse(body), body, null), Kind.DATE, false);
-        }
-        java.time.LocalDateTime t = v.date().atStartOfDay().plusNanos(v.micros() * 1000);
-        if (t.getYear() > 9999) {
-            throw SqlTranslationException.unsupported("'" + s.value() + "' as a timestamp is not supported yet (a"
-                    + " timestamp outside the years 1 to 9999)", s.pos());
-        }
-        String body = String.format(Locale.ROOT, "%sT%02d:%02d:%02d", t.toLocalDate(), t.getHour(), t.getMinute(),
-                t.getSecond());
-        if (t.getNano() != 0) {
-            body += "." + String.format(Locale.ROOT, "%06d", t.getNano() / 1000);
-        }
-        return Tx.value(new CDate(PureDateLiteral.parse(body), body, null), Kind.DATETIME, false);
-    }
+    static final String DURATION_UNIT = "meta::pure::functions::date::DurationUnit";
 
     // ------------------------------------------------------------------ jsonb
 
     /** Pure's semi-structured value: Postgres's jsonb here (register S49). */
     static final String VARIANT = "meta::pure::metamodel::variant::Variant";
-    private static final String FROM_JSON = "fromJson";
-
-    /** jsonb's navigation operators: {@code ->} a member or an element, {@code ->>} its text, {@code #>} and
-     *  {@code #>>} the same along a path. */
-    private static final Set<String> JSON_OPERATORS = Set.of("->", "->>", "#>", "#>>");
-
-    /** {@code '...'::jsonb}: the text parsed (text that is not JSON is Postgres's error, and fromJson's). */
-    private static Tx jsonConstant(SqlAst.StringLit s) {
-        if (duplicateKey(s.value())) {
-            // jsonb keeps a duplicate key's last value, DuckDB's JSON reads its first
-            throw SqlTranslationException.unsupported("a jsonb constant with a duplicate key is not supported yet",
-                    s.pos());
-        }
-        // jsonb's 'null' is a value, not SQL's NULL; a database may hold it either way
-        return Tx.value(call(FROM_JSON, new CString(s.value())), Kind.JSON, s.value().strip().equals("null"));
-    }
-
-    /** Whether JSON text has an object with a key twice (text that is not JSON: no; reading it is the error). */
-    private static boolean duplicateKey(String json) {
-        java.util.ArrayDeque<Set<String>> objects = new java.util.ArrayDeque<>();
-        java.util.ArrayDeque<Boolean> isObject = new java.util.ArrayDeque<>();
-        int i = 0;
-        while (i < json.length()) {
-            char c = json.charAt(i);
-            if (c == '"') {
-                int start = ++i;
-                while (i < json.length() && json.charAt(i) != '"') {
-                    i += json.charAt(i) == '\\' ? 2 : 1;
-                }
-                if (i >= json.length()) {
-                    return false;
-                }
-                String raw = json.substring(start, i++);
-                int next = i;
-                while (next < json.length() && Character.isWhitespace(json.charAt(next))) {
-                    next++;
-                }
-                if (next < json.length() && json.charAt(next) == ':' && Boolean.TRUE.equals(isObject.peek())) {
-                    String key = com.legend.json.Json.unescape(raw);
-                    if (!java.util.Objects.requireNonNull(objects.peek()).add(key)) {
-                        return true;
-                    }
-                }
-                continue;
-            }
-            if (c == '{' || c == '[') {
-                isObject.push(c == '{');
-                objects.push(new HashSet<>());
-            } else if ((c == '}' || c == ']') && !isObject.isEmpty()) {
-                isObject.pop();
-                objects.pop();
-            }
-            i++;
-        }
-        return false;
-    }
-
-    private Tx jsonOperator(SqlAst.Operator o, Scope scope, String row) {
-        if (!o.operator().endsWith(">>")) {
-            constantNavigation(java.util.Objects.requireNonNull(o.left()), o.pos());
-        }
-        Tx value = jsonOperand(tx(java.util.Objects.requireNonNull(o.left()), scope, row), o.operator(), o.pos());
-        Tx got;
-        if (o.operator().startsWith("#")) {
-            if (!(o.right() instanceof SqlAst.StringLit path)) {
-                throw SqlTranslationException.unsupported("a path for " + o.operator() + " other than a constant"
-                        + " ('{a,b}') is not supported yet", o.right().pos());
-            }
-            got = value;
-            boolean constant = isJsonConstant(java.util.Objects.requireNonNull(o.left()));
-            for (String key : jsonPath(path)) {
-                constantIndex(constant, key, path.pos());
-                got = pathElement(got, key, path.pos());
-            }
-        } else {
-            got = navigate(value, o.right(), tx(o.right(), scope, row), o.operator());
-        }
-        return o.operator().endsWith(">>") ? jsonText(got) : got;
-    }
-
-    /** {@code base[index]}: jsonb's subscript, a PATH element (Postgres's jsonb_get_element), not {@code ->}: an
-     *  integer reads an array's element or an object's member named by its digits; a text reads an object's member or,
-     *  if it is an integer's spelling, an array's element. */
-    private Tx subscript(SqlAst.Subscript sub, Scope scope, String row) {
-        constantNavigation(sub.base(), sub.pos());
-        Tx base = tx(sub.base(), scope, row);
-        if (base.kind() != Kind.JSON) {
-            throw SqlTranslationException.unsupported("subscripts of values other than jsonb (arrays) are not"
-                    + " supported yet", sub.pos());
-        }
-        SqlAst.Expr index = sub.index();
-        if (index instanceof SqlAst.StringLit k) {
-            return pathElement(base, k.value(), k.pos());
-        }
-        if (index instanceof SqlAst.IntegerLit n) {
-            if (n.value().bitLength() >= 32) {
-                throw SqlTranslationException.invalid("subscript type bigint is not supported", n.pos());
-            }
-            return pathElement(base, n.value().toString(), n.pos());
-        }
-        Tx key = tx(index, scope, row);
-        if (key.kind() == Kind.INTEGER) {
-            // an array's element, else an object's member named by the integer's digits
-            Tx got = strict(Kind.JSON, List.of(key), k -> call("coalesce", call("get", base.vs(), k.get(0)),
-                    call("get", base.vs(), call("toString", k.get(0)))));
-            return Tx.value(got.vs(), Kind.JSON, true);
-        }
-        if (key.kind() == Kind.STRING) {
-            throw SqlTranslationException.unsupported("a subscript text other than a constant is not supported yet",
-                    index.pos());
-        }
-        if (key.kind() == Kind.NULL || key.kind() == Kind.OTHER) {
-            throw SqlTranslationException.unsupported("a jsonb subscript of this type is not supported yet",
-                    index.pos());
-        }
-        throw SqlTranslationException.invalid("subscript type " + postgresName(key.kind()) + " is not supported",
-                index.pos());
-    }
-
-    /** One element of a jsonb path ({@code #>}, a subscript, {@code jsonb_extract_path}), as Postgres reads it:
-     *  an object's member named by the text; an array's element if the text is an integer's spelling (strtol's:
-     *  leading white space, a sign, digits, nothing after, within int4), else none; a scalar's, none. */
-    private static Tx pathElement(Tx value, String element, SqlAst.Pos pos) {
-        Integer index = pathIndex(element);
-        Tx member = member(value, element, pos);
-        if (index == null) {
-            return member;
-        }
-        // an object has no element and an array no member: whichever the value is, one of the two reads it
-        return Tx.value(call("coalesce", member.vs(), call("get", value.vs(), integer(java.math.BigInteger.valueOf(
-                index)))), Kind.JSON, true);
-    }
-
-    /** A path element that spells an integer, read out of a jsonb CONSTANT, is refused: whichever of an element or a
-     *  member it reads is chosen in the database, and legend-lite's Postgres lowering folds a literal Variant's
-     *  navigation (constantNavigation's reason). */
-    private static void constantIndex(boolean constant, String element, SqlAst.Pos pos) {
-        if (constant && pathIndex(element) != null) {
-            throw SqlTranslationException.unsupported("a path element that spells an integer, read out of a jsonb"
-                    + " constant, is not supported yet", pos);
-        }
-    }
-
-    /** The array index a path element's text spells, as Postgres's strtoint reads it, or null. */
-    private static @com.legend.base.Nullable Integer pathIndex(String text) {
-        int i = 0;
-        while (i < text.length() && " \t\n\u000b\f\r".indexOf(text.charAt(i)) >= 0) {
-            i++;
-        }
-        String number = text.substring(i);
-        if (!isIntegerText(number)) {
-            return null;
-        }
-        try {
-            return Integer.parseInt(number.startsWith("+") ? number.substring(1) : number);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
+    static final String FROM_JSON = "fromJson";
 
     /** A jsonb value read out of a jsonb CONSTANT is refused: legend-lite's Postgres lowering folds the navigation of a
      *  literal Variant at compile time, and re-emits a picked string, number or boolean as a plain SQL literal, not a
      *  jsonb value (its text, read by ->>, is right). A column's, or any value's not a constant's, is not folded. */
-    private static void constantNavigation(SqlAst.Expr base, SqlAst.Pos pos) {
+    static void constantNavigation(SqlAst.Expr base, SqlAst.Pos pos) {
         if (isJsonConstant(base)) {
             throw SqlTranslationException.unsupported("reading a jsonb value out of a jsonb constant is not supported"
                     + " yet (its text, with ->> or #>>, is)", pos);
         }
     }
 
-    private static boolean isJsonConstant(SqlAst.Expr e) {
+    static boolean isJsonConstant(SqlAst.Expr e) {
         return switch (e) {
             case SqlAst.Cast c -> JSON_TYPES.contains(c.type().name())
                     && (c.operand() instanceof SqlAst.StringLit || isJsonConstant(c.operand()));
@@ -7441,9 +4903,9 @@ public final class SqlToPure {
         };
     }
 
-    private static final Set<String> JSON_TYPES = Set.of("json", "jsonb");
+    static final Set<String> JSON_TYPES = Set.of("json", "jsonb");
 
-    private static Tx jsonOperand(Tx t, String operator, SqlAst.Pos pos) {
+    static Tx jsonOperand(Tx t, String operator, SqlAst.Pos pos) {
         if (t.kind() == Kind.JSON) {
             return t;
         }
@@ -7457,175 +4919,11 @@ public final class SqlToPure {
 
     /** jsonb's order and equality are its own (an object after an array, a longer object after a shorter one, keys
      *  by length): a Variant is ordered, grouped and compared by Pure's rules, so a jsonb value is no key here. */
-    private static void notJsonKey(Kind kind, String what, SqlAst.Pos pos) {
+    static void notJsonKey(Kind kind, String what, SqlAst.Pos pos) {
         if (kind == Kind.JSON) {
             throw SqlTranslationException.unsupported(what + " of a jsonb value is not supported yet (jsonb orders and"
                     + " compares by its own rules)", pos);
         }
-    }
-
-    /** {@code value -> key}: a constant key's member (an object's, else NULL), or an integer's element (an array's,
-     *  from 0; a negative one counts from the end; else NULL). */
-    private static Tx navigate(Tx value, SqlAst.Expr keyExpr, Tx key, String operator) {
-        if (keyExpr instanceof SqlAst.IntegerLit n && n.value().bitLength() >= 32) {
-            throw SqlTranslationException.invalid("operator does not exist: jsonb " + operator + " bigint",
-                    keyExpr.pos());
-        }
-        if (key.kind() == Kind.INTEGER) {
-            Tx got = strict(Kind.JSON, List.of(key), k -> call("get", value.vs(), k.get(0)));
-            return Tx.value(got.vs(), Kind.JSON, true);
-        }
-        if (key.kind() == Kind.STRING && keyExpr instanceof SqlAst.StringLit k) {
-            return member(value, k.value(), k.pos());
-        }
-        if (key.kind() == Kind.STRING) {
-            // DuckDB's arrow reads a key that starts with $ or / as a path: only a constant one is known not to
-            throw SqlTranslationException.unsupported("a member key other than a constant is not supported yet",
-                    keyExpr.pos());
-        }
-        if (key.kind() == Kind.NULL || key.kind() == Kind.OTHER) {
-            throw SqlTranslationException.unsupported("a jsonb key of this type is not supported yet", keyExpr.pos());
-        }
-        throw SqlTranslationException.invalid("operator does not exist: jsonb " + operator + " "
-                + key.kind().name().toLowerCase(Locale.ROOT), keyExpr.pos());
-    }
-
-    private static Tx member(Tx value, String key, SqlAst.Pos pos) {
-        if (key.startsWith("$") || key.startsWith("/")) {
-            throw SqlTranslationException.unsupported("a member key that starts with $ or / is read as a path by"
-                    + " DuckDB; it is not supported yet", pos);
-        }
-        return Tx.value(call("get", value.vs(), new CString(key)), Kind.JSON, true);
-    }
-
-    /** {@code ->>}'s text: a string's own characters, a number's or a boolean's spelling; NULL for jsonb's null. */
-    private static Tx jsonText(Tx got) {
-        return Tx.value(call("to", got.vs(), typeArg("String")), Kind.STRING, true);
-    }
-
-    /** A text[] constant's elements, the keys of a jsonb path: {@code '{a,b,"c d"}'}. An element that is a number
-     *  reads an array's element or an object's member, by the value it meets: it is not supported yet. */
-    private static List<String> jsonPath(SqlAst.StringLit lit) {
-        String text = lit.value().strip();
-        if (!text.startsWith("{") || !text.endsWith("}")) {
-            throw SqlTranslationException.unsupported("a path other than a plain array constant ('{a,b}') is not"
-                    + " supported yet", lit.pos());
-        }
-        String body = text.substring(1, text.length() - 1);
-        List<String> keys = new ArrayList<>();
-        if (body.strip().isEmpty()) {
-            return keys;
-        }
-        int i = 0;
-        while (true) {
-            while (i < body.length() && Character.isWhitespace(body.charAt(i))) {
-                i++;
-            }
-            StringBuilder key = new StringBuilder();
-            if (i < body.length() && body.charAt(i) == '"') {
-                i++;
-                while (i < body.length() && body.charAt(i) != '"') {
-                    if (body.charAt(i) == '\\' && i + 1 < body.length()) {
-                        i++;
-                    }
-                    key.append(body.charAt(i++));
-                }
-                if (i >= body.length()) {
-                    throw SqlTranslationException.unsupported("a path with an unclosed quote is not supported", lit.pos());
-                }
-                i++;
-                while (i < body.length() && Character.isWhitespace(body.charAt(i))) {
-                    i++;
-                }
-            } else {
-                int start = i;
-                while (i < body.length() && body.charAt(i) != ',') {
-                    char c = body.charAt(i);
-                    if (c == '"' || c == '{' || c == '}' || c == '\\') {
-                        throw SqlTranslationException.unsupported("a path element with " + c + " is not supported yet",
-                                lit.pos());
-                    }
-                    i++;
-                }
-                String bare = body.substring(start, i).strip();
-                if (bare.isEmpty() || bare.equalsIgnoreCase("null")) {
-                    throw SqlTranslationException.unsupported("an empty or NULL path element is not supported yet",
-                            lit.pos());
-                }
-                key.append(bare);
-            }
-            keys.add(key.toString());
-            if (i >= body.length()) {
-                return keys;
-            }
-            if (body.charAt(i) != ',') {
-                throw SqlTranslationException.unsupported("a malformed path constant is not supported", lit.pos());
-            }
-            i++;
-        }
-    }
-
-    /** Whether {@code s} is an integer's digits, signed or not: a path element jsonb reads by the value it meets. */
-    private static boolean isIntegerText(String s) {
-        int start = !s.isEmpty() && (s.charAt(0) == '+' || s.charAt(0) == '-') ? 1 : 0;
-        if (start == s.length()) {
-            return false;
-        }
-        for (int i = start; i < s.length(); i++) {
-            if (s.charAt(i) < '0' || s.charAt(i) > '9') {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** {@code json_extract_path(x, VARIADIC keys)}: {@code #>}'s path, its keys constants; the _text form
-     *  {@code #>>}'s. */
-    private static Tx extractPath(SqlAst.FunctionCall f, List<Tx> args, boolean text) {
-        if (args.size() < 2) {
-            throw SqlTranslationException.unsupported(functionName(f.name().get(0)) + " with no keys is not"
-                    + " supported yet", f.pos());
-        }
-        if (!text) {
-            constantNavigation(f.args().get(0), f.pos());
-        }
-        // an untyped constant is read as the function's json argument
-        Tx got = f.args().get(0) instanceof SqlAst.StringLit lit ? jsonConstant(lit)
-                : jsonOperand(args.get(0), functionName(f.name().get(0)), f.pos());
-        boolean constant = isJsonConstant(f.args().get(0));
-        for (int i = 1; i < args.size(); i++) {
-            if (!(f.args().get(i) instanceof SqlAst.StringLit key)) {
-                throw SqlTranslationException.unsupported("a path key other than a constant is not supported yet",
-                        f.args().get(i).pos());
-            }
-            constantIndex(constant, key.value(), key.pos());
-            got = pathElement(got, key.value(), key.pos());
-        }
-        return text ? jsonText(got) : got;
-    }
-
-    /** {@code to_jsonb(x)}: a text, number or boolean as jsonb's string, number or boolean. */
-    private static Tx toJson(SqlAst.FunctionCall f, List<Tx> args) {
-        arity(f, args, 1);
-        if (f.args().get(0) instanceof SqlAst.StringLit) {
-            throw SqlTranslationException.invalid("could not determine polymorphic type because input has type"
-                    + " unknown", f.pos());
-        }
-        Kind k = args.get(0).kind();
-        if (k == Kind.JSON) {
-            return args.get(0);
-        }
-        if (k != Kind.STRING && k != Kind.INTEGER && k != Kind.BOOLEAN && k != Kind.DECIMAL && k != Kind.FLOAT) {
-            throw SqlTranslationException.unsupported(functionName(f.name().get(0)) + "(...) of a "
-                    + k.name().toLowerCase(Locale.ROOT) + " is not supported yet", f.pos());
-        }
-        if (args.get(0).vs() instanceof CString text) {
-            // a text constant is a jsonb string constant (its JSON spelling, quoted and escaped): legend-lite's
-            // Postgres lowering spells toVariant of a string constant with no type, which Postgres cannot resolve
-            return Tx.value(call(FROM_JSON, new CString(com.legend.json.Json.toCompact(text.value()))), Kind.JSON,
-                    false);
-        }
-        return strict(Kind.JSON, args, v -> call("toVariant", v.get(0)));
     }
 
     /** {@code @Name}: a type as a value, as {@code to(@String)} takes it. */
@@ -7646,7 +4944,7 @@ public final class SqlToPure {
         return b.append(']').toString();
     }
 
-    private static String canon(SqlAst.Expr e, Input in) {
+    static String canon(SqlAst.Expr e, Input in) {
         return switch (e) {
             case SqlAst.ColumnRef ref -> {
                 Col c = in.column(ref);
@@ -7805,15 +5103,15 @@ public final class SqlToPure {
         return call(fn, List.of(args));
     }
 
-    private static AppliedFunction call(String fn, List<ValueSpecification> args) {
+    static AppliedFunction call(String fn, List<ValueSpecification> args) {
         return new AppliedFunction(fn, args);
     }
 
-    private static ValueSpecification property(String row, String column) {
+    static ValueSpecification property(String row, String column) {
         return new AppliedProperty(new Variable(row), column);
     }
 
-    private static LambdaFunction lambda(String parameter, ValueSpecification body) {
+    static LambdaFunction lambda(String parameter, ValueSpecification body) {
         return new LambdaFunction(List.of(new Variable(parameter)), List.of(body));
     }
 
@@ -7831,7 +5129,7 @@ public final class SqlToPure {
         return new PureCollection(List.of());
     }
 
-    private static ColSpec colSpec(String name) {
+    static ColSpec colSpec(String name) {
         return new ColSpec(name, null, null, null);
     }
 }

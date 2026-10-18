@@ -24,13 +24,27 @@ import java.util.regex.Pattern;
  *       2026-10-16): the same, by its class's name and its parent's ({@code MySqlConnector} names MariaDB), in its
  *       code and in its strings too (its URLs, its product name); {@code DatabaseConnector}, the interface, names
  *       none;</li>
+ *   <li>a <b>test backend</b> (a database as the tests run on it, {@code testbackend/*Backend.java} in core's tests,
+ *       the program's Phase 6, 2026-10-16): the same as a connector; {@code TestBackend} and the shared bases
+ *       ({@code InProcessBackend}, {@code ServerBackend}, {@code CloudBackend}) name none;</li>
+ *   <li>a <b>test named for a database</b> (any test source whose class is named for one: a test, {@code
+ *       DuckDbRenderTest}, {@code PostgresArmTest}, a PCT lane's {@code Test_LegendLite_Postgres_*}, or a harness,
+ *       {@code H2ExtensionFunctions}; Phase 6, 2026-10-16): that database and its parent class's, in its code and its strings, as a
+ *       connector is held to its own. A test that is about no one database names none: it runs on the platform's
+ *       engine or on every database ({@code testbackend.TestBackends});</li>
  *   <li>an <b>input language</b> (the SQL a user writes, {@code protocol/sql/}, D11): {@code PostgresDialect} and
  *       {@code PostgresDateTime} Postgres's, the {@code iq} package IQ's (Sybase's); the translator they share is no
  *       owner;</li>
+ *   <li>a <b>host</b> (a module whose engine is one database by design, the census's SINGLE-BACKEND-APP; the program's
+ *       Phase 7, 2026-10-18): the warehouse is one DuckDB, the host of every catalog, which attaches other databases
+ *       through DuckDB's extensions (D4). Its sources name DuckDB, in their code and their strings; another database
+ *       only in a file named for it ({@code Postgres}, {@code PostgresUrl}, {@code PostgresCatalogTest}) and in
+ *       {@code Attachment}, the registry of the databases it attaches;</li>
  *   <li>a <b>vocabulary</b> (the model language: the lexer, the parser and its grammars, the protocol, the model, D9):
  *       it may parse and carry any database's name, and decides nothing by one;</li>
  *   <li>the <b>registries</b> ({@code database.Databases}, a declared type to its dialect; {@code exec.Connectors}, to
- *       its connector) and the guards, which name every database by design.</li>
+ *       its connector; {@code testbackend.TestBackends}, to its test backend; the warehouse's {@code Attachment}, to
+ *       how it attaches one) and the guards, which name every database by design.</li>
  * </ul>
  * The dialect package's tests name several databases by design (one test compares them) and are owners of every one.
  */
@@ -39,7 +53,7 @@ final class DatabaseOwners {
     private DatabaseOwners() {
     }
 
-    enum Kind { DIALECT, CONNECTOR, INPUT_LANGUAGE, VOCABULARY, EVERY }
+    enum Kind { DIALECT, CONNECTOR, BACKEND, NAMED_TEST, INPUT_LANGUAGE, HOST, VOCABULARY, EVERY }
 
     /** An owner: its kind, and the databases it may name (for a vocabulary or the registry, every one). */
     record Owner(Kind kind, Set<String> databases) {
@@ -92,22 +106,41 @@ final class DatabaseOwners {
 
     private static final String MAIN = "core/src/main/java/com/legend/";
 
+    private static final String TEST = "core/src/test/java/com/legend/";
+
     /** The dialect package's shared files that own a database their name does not say: the engine text's reader owns
      *  the language it reads, legend-engine's H2 (D2). */
     private static final Map<String, Set<String>> NAMED_BY_ROLE = Map.of(
             MAIN + "sql/dialect/RawSqlBoundary.java", Set.of("H2"));
 
-    /** The input languages (D11): each file and the database whose SQL it reads. */
+    /** The input languages (D11): each file and the database whose SQL it reads. 2026-10-18, the dialect program's
+     *  D11: Postgres's rules that were the translator's (SqlToPure's) are its own files' (operators, casts, functions,
+     *  dates, jsonb, aggregates). */
     private static final Map<String, Set<String>> INPUT_LANGUAGES = Map.of(
             MAIN + "protocol/sql/PostgresDialect.java", Set.of("Postgres"),
-            MAIN + "protocol/sql/PostgresDateTime.java", Set.of("Postgres"));
+            MAIN + "protocol/sql/PostgresDateTime.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresOperators.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresCasts.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresFunctions.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresDates.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresJsonb.java", Set.of("Postgres"),
+            MAIN + "protocol/sql/PostgresAggregates.java", Set.of("Postgres"));
 
     private static final String IQ = MAIN + "protocol/sql/iq/";
 
     /** The vocabulary (D9): the model language's lexer, parser, protocol and model. {@code protocol/sql/}, the SQL a user
      *  writes, is not vocabulary: its owners are the input languages. */
     private static final List<String> VOCABULARY = List.of(MAIN + "lexer/", MAIN + "parser/", MAIN + "protocol/",
-            MAIN + "model/");
+            MAIN + "model/",
+            // 2026-10-16, the dialect program's Phase 6: the vocabulary's own tests, which read and write every
+            // database's name and connection as the vocabulary does ({@code protocol/sql/}'s tests excepted, as above)
+            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/");
+
+    /** The warehouse's sources (D4): a host, whose engine is DuckDB. */
+    private static final String WAREHOUSE = "warehouse/src/";
+
+    /** The warehouse's engine: the database every one of its catalogs runs in. */
+    private static final String WAREHOUSE_HOST = "DuckDB";
 
     /** Sources that name every database by design: the registry and the guards that count names. */
     private static final List<String> EVERY = List.of(
@@ -120,14 +153,27 @@ final class DatabaseOwners {
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",
+            // 2026-10-18, the dialect program's D11: the input-language registry, Databases' counterpart for the SQL a
+            // user writes (an island's language to the dialect it is read in)
+            MAIN + "protocol/sql/InputLanguages.java",
+            // 2026-10-16, the dialect program's Phase 6: the tests' registry of databases, and its test (which compares
+            // every database's backend by design, as ConnectorsTest compares their connectors)
+            TEST + "testbackend/TestBackends.java",
+            TEST + "TestBackendsTest.java",
             "core/src/test/java/com/legend/sql/dialect/",
             // 2026-10-16, the dialect program's Phase 5 (the audit of the branch): the connectors' table test, which
             // compares every database's sessions by design, as the dialect package's tests compare their SQL
             "core/src/test/java/com/legend/exec/ConnectorsTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
+            // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
+            // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count
+            "core/src/test/java/com/legend/ArchitectureTest.java",
             "core/src/test/java/com/legend/DialectLeakRatchetTest.java",
             "core/src/test/java/com/legend/DialectOwnerExclusivityTest.java",
-            "core/src/test/java/com/legend/DatabaseOwners.java");
+            "core/src/test/java/com/legend/DatabaseOwners.java",
+            // 2026-10-18, the dialect program's Phase 7: the warehouse's registry of the databases a catalog attaches
+            // (D4), Databases' counterpart there: one row and one exhaustive switch arm per database
+            WAREHOUSE + "main/java/com/legend/warehouse/server/Attachment.java");
 
 
     /** The owner {@code rel} (a source's path from the repository root, {@code source} its text) is, or null when it
@@ -141,8 +187,22 @@ final class DatabaseOwners {
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);
         }
+        if (rel.startsWith(WAREHOUSE)) {
+            Set<String> own = new LinkedHashSet<>(Set.of(WAREHOUSE_HOST));
+            own.addAll(named(className(rel)));
+            return new Owner(Kind.HOST, own);
+        }
         if (isConnector(rel)) {
             return new Owner(Kind.CONNECTOR, ownAndParent(rel, source));
+        }
+        if (BACKEND.matcher(rel).matches()) {
+            return new Owner(Kind.BACKEND, ownAndParent(rel, source));
+        }
+        // a test, or (2026-10-18, the dialect program's Phase 7) a test database's launcher in the shared test support,
+        // testing/ (EmbeddedPostgres and the rest)
+        if ((rel.contains("/src/test/") || rel.startsWith("testing/src/main/java/"))
+                && !named(className(rel)).isEmpty()) {
+            return new Owner(Kind.NAMED_TEST, ownAndParent(rel, source));
         }
         if (INPUT_LANGUAGES.containsKey(rel)) {
             return new Owner(Kind.INPUT_LANGUAGE, INPUT_LANGUAGES.get(rel));
@@ -150,7 +210,7 @@ final class DatabaseOwners {
         if (rel.startsWith(IQ)) {
             return new Owner(Kind.INPUT_LANGUAGE, Set.of("Sybase"));
         }
-        if (rel.startsWith(MAIN + "protocol/sql/")) {
+        if (rel.startsWith(MAIN + "protocol/sql/") || rel.startsWith(TEST + "protocol/sql/")) {
             return null;
         }
         if (VOCABULARY.stream().anyMatch(rel::startsWith)) {
@@ -160,6 +220,9 @@ final class DatabaseOwners {
     }
 
     private static final Pattern CONNECTOR = Pattern.compile(Pattern.quote(MAIN) + "exec/\\w+Connector\\.java");
+
+    /** A test backend, {@code testbackend/<Db>Backend.java}, or the interface and bases they extend. */
+    private static final Pattern BACKEND = Pattern.compile(Pattern.quote(TEST) + "testbackend/\\w+Backend\\.java");
 
     /** Whether {@code rel} (a source's path from the repository root) is a connector, {@code exec/<Db>Connector.java}
      *  or the interface they implement. */

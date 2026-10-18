@@ -10,23 +10,23 @@
 // generated name, so this judges any way of producing them.
 
 import assert from 'node:assert/strict';
-import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
-import path from 'node:path';
+import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../../src/app.ts';
-import { DEFAULT_CONFIGURATION } from '../../src/config.ts';
+import { DEFAULT_CONFIGURATION, applyToSnapshot, fromSnapshot } from '../../src/config.ts';
+import { measuresAsColumns } from '../../src/grid-edits.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
 import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import type { CubeView } from '../../src/cube.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import type { CubeSnapshot } from '../../src/snapshot.ts';
+import type { QuerySnapshot, Measure, } from '../../src/snapshot.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { MODEL, RUNTIME } from '../wasm-differential/cases.ts';
 import { accessor } from '../../../pure-protocol/src/index.ts';
-import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
+import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -41,7 +41,7 @@ const ROWS = `
   ('APAC','Rates','B9',2022,'Q1',70,8,9),  ('APAC','FX','B10',2022,'Q3',80,9,10),
   (NULL,'Rates','B11',2021,'Q4',5,1,11)`;
 
-const COLUMNS: CubeSnapshot['columns'] = [
+const COLUMNS: QuerySnapshot['columns'] = [
   { name: 'region', type: 'String', kind: 'dimension' },
   { name: 'desk', type: 'String', kind: 'dimension' },
   { name: 'book', type: 'String', kind: 'dimension' },
@@ -53,7 +53,7 @@ const COLUMNS: CubeSnapshot['columns'] = [
 ];
 
 /** One measure per column: average, median, count and sum. */
-const MEASURES: CubeSnapshot['measures'] = [
+const MEASURES: readonly Measure[] = [
   { name: 'avg_n', column: 'notional', fn: 'average' },
   { name: 'med_p', column: 'pnl', fn: 'median' },
   { name: 'cnt_q', column: 'qty', fn: 'count' },
@@ -64,7 +64,7 @@ const TRUTH_SQL: Record<string, string> = {
   cnt_q: 'COUNT(*)',
 };
 
-const CUBE: CubeSnapshot = {
+const CUBE: QuerySnapshot = {
   source: { query: accessor('trades::DB', 'TRADES') },
   columns: COLUMNS,
   derived: [],
@@ -116,17 +116,23 @@ interface Opened {
   readonly errors: string[];
 }
 
-async function openCube(snapshot: CubeSnapshot, connection: ArrowishConnection = conn): Promise<Opened> {
+async function openCube(snapshot: QuerySnapshot, connection: ArrowishConnection = conn): Promise<Opened> {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
   (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame =
     (fn: () => void) => { fn(); return 0; };
   const root = dom.window.document.getElementById('r') as HTMLElement;
   const engine = new Watched(new DuckDbEngine(connection));
   const errors: string[] = [];
-  const app = new CubeApp(root, snapshot, {
+  // the measures as a grid holds them -- its columns' Aggregation and calculated columns of their own names
+  // (grid-edits.ts measuresAsColumns, as a cube saved with a list is made on open), folded as an opener takes them
+  // its settings read back first, as the app opens a snapshot (app.ts: fromSnapshot -- a row cap the cube carries)
+  const { measures = [], ...grid } = snapshot;
+  const made = measuresAsColumns({ snapshot: grid, config: fromSnapshot(grid, DEFAULT_CONFIGURATION) }, measures);
+  assert.equal(made.made.length, measures.length, made.notes.join('; '));
+  const app = new CubeApp(root, applyToSnapshot(made.draft.snapshot, made.draft.config), {
     engine,
     planner,
-    configuration: DEFAULT_CONFIGURATION,
+    configuration: made.draft.config,
     onStatus: (text, kind) => { if (kind === 'error') errors.push(text); },
   });
   // A refused first query is reported on the status line AND rejects
@@ -218,13 +224,7 @@ Promise<void> {
 /** A fresh in-memory DuckDB holding the seed TRADES: the suite's, and a test's own when it writes (Bazel workplan
  *  P3-10: no test changes rows another test reads). */
 async function seededConnection(): Promise<ArrowishConnection> {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   const connection = db.connect() as ArrowishConnection;
   const local = new DuckDbEngine(connection);
   await local.run(`CREATE TABLE TRADES (region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32),

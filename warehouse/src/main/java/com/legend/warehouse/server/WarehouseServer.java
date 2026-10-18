@@ -63,7 +63,7 @@ public final class WarehouseServer implements AutoCloseable {
             List<String> owners,
             List<String> allowedOrigins,
             Duration sessionLimit,
-            Map<String, String> postgres,
+            Map<String, Catalogs.Attach> attached,
             @Nullable Path duckdbExtensions,
             @Nullable Path site,
             @Nullable String singleUser) {
@@ -84,46 +84,46 @@ public final class WarehouseServer implements AutoCloseable {
 
         public Config withOwners(List<String> owners) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
-                    allowedOrigins, sessionLimit, postgres, duckdbExtensions, site, singleUser);
+                    allowedOrigins, sessionLimit, attached, duckdbExtensions, site, singleUser);
         }
 
         /** The web pages (exact origins, e.g. {@code https://cube.example.com}) whose browsers may call this server. */
         public Config withAllowedOrigins(List<String> allowedOrigins) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
-                    allowedOrigins, sessionLimit, postgres, duckdbExtensions, site, singleUser);
+                    allowedOrigins, sessionLimit, attached, duckdbExtensions, site, singleUser);
         }
 
         /** How long one sign-in may be kept alive by refreshing its token (`Identity.refresh`). */
         public Config withSessionLimit(Duration sessionLimit) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
-                    allowedOrigins, sessionLimit, postgres, duckdbExtensions, site, singleUser);
+                    allowedOrigins, sessionLimit, attached, duckdbExtensions, site, singleUser);
         }
 
         /**
-         * Postgres catalogs ({@link Postgres}), by name, each a libpq connection string, and the directory
-         * holding DuckDB's {@code postgres_scanner.duckdb_extension}.
+         * The attached catalogs ({@link Attachment}), by name, each its kind and the connection string it attaches
+         * with, and the directory holding the DuckDB extension each kind loads.
          */
-        public Config withPostgres(Map<String, String> postgres, @Nullable Path duckdbExtensions) {
+        public Config withAttached(Map<String, Catalogs.Attach> attached, @Nullable Path duckdbExtensions) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
-                    allowedOrigins, sessionLimit, Map.copyOf(postgres), duckdbExtensions, site, singleUser);
+                    allowedOrigins, sessionLimit, Map.copyOf(attached), duckdbExtensions, site, singleUser);
         }
 
         /** DuckDB's native library ({@code --duckdb-library}): what a server started in a JVM loads. */
         public Config withDuckdbLibrary(@Nullable Path duckdbLibrary) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
-                    allowedOrigins, sessionLimit, postgres, duckdbExtensions, site, singleUser);
+                    allowedOrigins, sessionLimit, attached, duckdbExtensions, site, singleUser);
         }
 
         /** A DataCube page served from DIR for every GET outside the API, with {@code /config.json} naming this server. */
         public Config withSite(@Nullable Path site) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
-                    allowedOrigins, sessionLimit, postgres, duckdbExtensions, site, singleUser);
+                    allowedOrigins, sessionLimit, attached, duckdbExtensions, site, singleUser);
         }
 
         /** One user, an owner, signed in by the launch key ({@link WarehouseServer#launchKey}) and no password. */
         public Config withSingleUser(@Nullable String singleUser) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
-                    allowedOrigins, sessionLimit, postgres, duckdbExtensions, site, singleUser);
+                    allowedOrigins, sessionLimit, attached, duckdbExtensions, site, singleUser);
         }
     }
 
@@ -167,9 +167,7 @@ public final class WarehouseServer implements AutoCloseable {
         launchKey = config.singleUser() == null ? null : identity.launchKey(config.singleUser());
         List<String> owners = config.singleUser() == null ? config.owners() : List.of(config.singleUser());
         site = config.site();
-        Map<String, Catalogs.Attach> attach = new LinkedHashMap<>();
-        config.postgres().forEach((name, dsn) -> attach.put(name, new Catalogs.Attach(Attachment.POSTGRES, dsn)));
-        catalogs = new Catalogs(config.dataDir(), config.catalogs(), attach, config.duckdbExtensions());
+        catalogs = new Catalogs(config.dataDir(), config.catalogs(), config.attached(), config.duckdbExtensions());
         system = Database.open(config.dataDir().resolve("system.duckdb"));
         system.lockDown(null);
         history = new History(system);
@@ -707,12 +705,13 @@ public final class WarehouseServer implements AutoCloseable {
      * stops, and said when it starts. {@code --duckdb-library FILE} is DuckDB's library: beside a native executable by
      * default; on the JVM it must be given.
      *
-     * <p>{@code --postgres NAME=DSN...} adds a Postgres catalog ({@link Postgres}): DSN is a libpq connection
+     * <p>An attached catalog is named by its kind's option, or by its URL alone ({@link Attachment}): {@code --postgres
+     * NAME=DSN...} or {@code postgresql://...} adds a Postgres catalog ({@link Postgres}): DSN is a libpq connection
      * string, whose login role is what every user of the catalog reads as (give it SELECT only, and
      * {@code options='-c statement_timeout=<ms>'} as a backstop to the cancel). {@code --duckdb-extensions DIR}
-     * is where {@code postgres_scanner.duckdb_extension} is: beside a native executable by default; on the JVM
-     * it must be given. Without {@code --catalog}, the DuckDB catalog {@code main} is made, Postgres catalogs
-     * or not: grants are managed from a DuckDB catalog.
+     * is where the extension each kind loads is ({@code postgres_scanner.duckdb_extension}): beside a native
+     * executable by default; on the JVM it must be given. Without {@code --catalog}, the DuckDB catalog {@code main} is
+     * made, attached catalogs or not: grants are managed from a DuckDB catalog.
      *
      * <p>{@code --app} is the DataCube app (docs/DATACUBE_APP_PLAN_2026_10_02.md): the account running it is its one
      * user, signed in by the address printed, and the page is served from the {@code site} folder beside the
@@ -723,10 +722,10 @@ public final class WarehouseServer implements AutoCloseable {
         try {
             start(args);
         } catch (IllegalArgumentException | Catalogs.AttachFailed e) {
-            // the command line or a Postgres catalog: said in one line, not as a stack trace
+            // the command line or an attached catalog: said in one line, not as a stack trace
             System.err.println("warehouse: " + e.getMessage());
             if (e instanceof Catalogs.AttachFailed f && f.missingPassword) {
-                System.err.println("warehouse: put the password in ~/.pgpass or PGPASSWORD, or start it from a terminal");
+                System.err.println("warehouse: " + f.kind.passwordHelp());
             }
             System.exit(2);
         }
@@ -761,7 +760,7 @@ public final class WarehouseServer implements AutoCloseable {
             }
         }
         List<String> names = new ArrayList<>(config.catalogs());
-        names.addAll(new java.util.TreeSet<>(config.postgres().keySet()));
+        names.addAll(new java.util.TreeSet<>(config.attached().keySet()));
         System.err.println("warehouse listening on 127.0.0.1:" + s.port() + ", catalogs " + names);
         System.err.println("warehouse data in " + config.dataDir().toAbsolutePath()
                 + (temporary == null ? "" : " (temporary: removed when the warehouse stops)"));
@@ -776,18 +775,23 @@ public final class WarehouseServer implements AutoCloseable {
     }
 
     /**
-     * A Postgres catalog libpq found no password for ({@code ~/.pgpass}, {@code PGPASSWORD}): asked once on
-     * the terminal, as psql asks. Anything else, or no terminal to ask on, stops the server with libpq's words.
+     * An attached catalog that found no password where its database looks for one (Postgres: {@code ~/.pgpass},
+     * {@code PGPASSWORD}): asked once on the terminal, as psql asks. Anything else, or no terminal to ask on, stops
+     * the server with the attached database's words.
      */
     private static Config withPasswordAsked(Config config, Catalogs.AttachFailed failed) throws IOException {
-        String dsn = config.postgres().get(failed.catalog);
+        Catalogs.Attach attach = config.attached().get(failed.catalog);
         java.io.Console console = System.console();
-        if (!failed.missingPassword || console == null || dsn == null || PostgresUrl.isUrl(dsn)) throw failed;
+        if (!failed.missingPassword || console == null || attach == null
+                || !attach.kind().takesPassword(attach.connection())) {
+            throw failed;
+        }
         char[] password = console.readPassword("%s password for %s: ", failed.kind.databaseType, failed.catalog);
         if (password == null) throw failed;
-        LinkedHashMap<String, String> postgres = new LinkedHashMap<>(config.postgres());
-        postgres.put(failed.catalog, PostgresUrl.withPassword(dsn, password));
-        return config.withPostgres(postgres, config.duckdbExtensions());
+        LinkedHashMap<String, Catalogs.Attach> attached = new LinkedHashMap<>(config.attached());
+        attached.put(failed.catalog, new Catalogs.Attach(attach.kind(), attach.kind().withPassword(attach.connection(),
+                password)));
+        return config.withAttached(attached, config.duckdbExtensions());
     }
 
     private static void deleteTree(Path root) {
@@ -839,7 +843,7 @@ public final class WarehouseServer implements AutoCloseable {
         Path tokenKeyFile = null;
         long tokenMinutes = 60;
         long sessionHours = Identity.DEFAULT_SESSION_LIMIT.toHours();
-        LinkedHashMap<String, String> postgres = new LinkedHashMap<>();
+        LinkedHashMap<String, Catalogs.Attach> attached = new LinkedHashMap<>();
         Path extensions = null;
         Path site = null;
         boolean app = false;
@@ -847,10 +851,11 @@ public final class WarehouseServer implements AutoCloseable {
         boolean open = false;
         String table = null;
         for (int i = 0; i < args.length; i++) {
-            if (PostgresUrl.isUrl(args[i])) {
-                PostgresUrl url = PostgresUrl.parse(args[i]);
-                if (postgres.put(url.catalog(), url.dsn()) != null) {
-                    throw new IllegalArgumentException("catalog " + url.catalog() + " is named twice");
+            // an attached catalog by its URL alone (postgresql://...), named after its database
+            Attachment.Named byUrl = Attachment.byUrl(args[i]);
+            if (byUrl != null) {
+                if (attached.put(byUrl.catalog(), byUrl.attach()) != null) {
+                    throw new IllegalArgumentException("catalog " + byUrl.catalog() + " is named twice");
                 }
                 continue;
             }
@@ -867,19 +872,21 @@ public final class WarehouseServer implements AutoCloseable {
                 continue;
             }
             if (i + 1 >= args.length) throw new IllegalArgumentException(args[i] + " needs a value");
+            // an attached catalog by its kind's option: NAME=CONNECTION
+            Attachment byFlag = Attachment.byFlag(args[i]);
+            if (byFlag != null) {
+                String[] kv = args[++i].split("=", 2);
+                if (kv.length != 2 || kv[1].isBlank()) {
+                    throw new IllegalArgumentException(byFlag.flag + " takes NAME=CONNECTION, e.g. " + byFlag.flagExample);
+                }
+                if (attached.put(kv[0], new Catalogs.Attach(byFlag, kv[1])) != null) {
+                    throw new IllegalArgumentException("catalog " + kv[0] + " is named twice");
+                }
+                continue;
+            }
             switch (args[i]) {
                 case "--site" -> site = Path.of(args[++i]);
                 case "--table" -> table = args[++i];
-                case "--postgres" -> {
-                    String[] kv = args[++i].split("=", 2);
-                    if (kv.length != 2 || kv[1].isBlank()) {
-                        throw new IllegalArgumentException(
-                                "--postgres takes NAME=DSN, e.g. sales='host=db dbname=sales user=reader'");
-                    }
-                    if (postgres.put(kv[0], kv[1]) != null) {
-                        throw new IllegalArgumentException("catalog " + kv[0] + " is named twice");
-                    }
-                }
                 case "--duckdb-extensions" -> extensions = directoryOf(Path.of(args[++i]));
                 case "--port" -> port = intArgument("--port", args[++i]);
                 case "--data" -> data = Path.of(args[++i]);
@@ -900,7 +907,7 @@ public final class WarehouseServer implements AutoCloseable {
             }
         }
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
-        for (String n : postgres.keySet()) {
+        for (String n : attached.keySet()) {
             if (!Catalogs.validName(n)) throw new IllegalArgumentException("bad catalog name: " + n);
             if (cats.contains(n)) throw new IllegalArgumentException("catalog " + n + " is named twice");
         }
@@ -921,17 +928,18 @@ public final class WarehouseServer implements AutoCloseable {
             }
         }
         // DuckDB's library stays as given: null is "beside a native executable" (DuckLibrary), and on the JVM a refusal
-        // naming the flag. The postgres extension likewise, when a catalog needs it.
-        if (!postgres.isEmpty() && extensions == null) {
+        // naming the flag. The extension an attached catalog loads likewise, when there is one.
+        if (!attached.isEmpty() && extensions == null) {
             if (!DuckLibrary.nativeImage()) {
-                throw new IllegalArgumentException("a Postgres catalog needs --duckdb-extensions DIR"
-                        + " (the directory holding " + Attachment.POSTGRES.extensionFile + ")");
+                throw new IllegalArgumentException("an attached catalog needs --duckdb-extensions DIR (the directory holding "
+                        + String.join(", ", attached.values().stream().map(a -> a.kind().extensionFile).distinct().toList())
+                        + ")");
             }
             extensions = DuckLibrary.executableDir("--duckdb-extensions");
         }
         String user = null;
         if (singleUser) {
-            // the warehouse's one principal is the account running it; each Postgres catalog connects as its own user
+            // the warehouse's one principal is the account running it; each attached catalog connects as its own user
             user = Identity.accountPrincipal(System.getProperty("user.name", ""));
         }
         if (open && (site == null || !singleUser)) {
@@ -949,7 +957,7 @@ public final class WarehouseServer implements AutoCloseable {
         Config config = new Config(port, data, cats, users,
                 tokenKeyFile == null ? null : tokenKey(tokenKeyFile), Duration.ofMinutes(tokenMinutes),
                 new Statements.Limits(concurrency, queue, maxRows, Duration.ofMinutes(retainMinutes), resultMemoryMb << 20),
-                library, owners, origins, Duration.ofHours(sessionHours), Map.copyOf(postgres), extensions, site, user);
+                library, owners, origins, Duration.ofHours(sessionHours), Map.copyOf(attached), extensions, site, user);
         return new CommandLine(config, open, table, temporaryData);
     }
 

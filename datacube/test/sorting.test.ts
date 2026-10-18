@@ -43,7 +43,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: ['yr'],
-  measures: [{ name: 'total', column: 'amt', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -54,10 +53,10 @@ describe('sorting by a pivoted column', () => {
     // through rather than filtering it out as "not of this level".
     const s: CubeSnapshot = {
       ...CUBE,
-      sorts: [{ column: '2023__|__total', direction: 'desc' }],
+      sorts: [{ column: '2023__|__amt', direction: 'desc' }],
     };
     assert.deepEqual(totalOrderSorts(s, ['region']), [
-      { column: '2023__|__total', direction: 'desc' },
+      { column: '2023__|__amt', direction: 'desc' },
       { column: 'region', direction: 'asc' },
     ]);
   });
@@ -65,10 +64,10 @@ describe('sorting by a pivoted column', () => {
   it('emits the sort AFTER the pivot\'s groupBy, where the column exists', async () => {
     const out = (await printLevel({
       ...CUBE,
-      sorts: [{ column: '2023__|__total', direction: 'desc' }],
+      sorts: [{ column: '2023__|__amt', direction: 'desc' }],
     }, undefined, { tuples: [['2023'], ['2024']] }));
     assert.ok(out.indexOf('groupBy(') < out.indexOf('sort('));
-    assert.match(out, /sort\(\[~'2023__\|__total'->descending\(\)/);
+    assert.match(out, /sort\(\[~'2023__\|__amt'->descending\(\)/);
   });
 
   it('actually orders rows by a pivot cell, against the engine', async () => {
@@ -97,7 +96,7 @@ describe('sorting by a pivoted column', () => {
     // either order and a windowed read can repeat or skip one.
     const out = (await printLevel({
       ...CUBE,
-      sorts: [{ column: '2024__|__total', direction: 'desc' }],
+      sorts: [{ column: '2024__|__amt', direction: 'desc' }],
     }, undefined, { tuples: [['2023'], ['2024']] }));
     assert.match(out, /~region->ascending\(\)\]\)/);
   });
@@ -108,7 +107,7 @@ describe('sorting by a derived measure', () => {
     const out = (await printLevel({
       ...CUBE,
       pivotOn: [],
-      groupDerived: [{ name: 'share', lambda: (await row('$x.total / 100')) }],
+      groupDerived: [{ name: 'share', lambda: (await row('$x.amt / 100')) }],
       sorts: [{ column: 'share', direction: 'desc' }],
     }));
     // The column must exist before it is ordered by.

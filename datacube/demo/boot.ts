@@ -376,7 +376,6 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     derived: [],
     rows: ['region', 'desk', 'book'],
     pivotOn: ['year'],
-    measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
     sorts: [],
     epoch: 1,
   });

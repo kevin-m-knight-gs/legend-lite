@@ -6,10 +6,10 @@ package com.legend.lowering;
 import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import com.legend.testbackend.TestBackend;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -53,9 +53,10 @@ class QuotedColumnNameTest {
             { mappings: []; connections: [ local::DB: [ c1: local::Conn ] ]; }
             """;
 
-    private static List<String> run(String engine, String query) throws Exception {
-        String url = "duckdb".equals(engine) ? "jdbc:duckdb:" : "jdbc:h2:mem:quoted" + System.nanoTime();
-        try (Connection c = DriverManager.getConnection(url)) {
+    /** {@code query}'s rows on {@code backend}: each in-process database (the dialect program's Phase 6, 2026-10-16:
+     *  until then DuckDB and H2, by name). */
+    private static List<String> run(TestBackend backend, String query) throws Exception {
+        try (Connection c = backend.open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE t (\"total pnl\" DOUBLE, \"x,y\" VARCHAR(32), \"a\"\"b\" VARCHAR(32),"
                         + " \"sales region\" VARCHAR(32), \"製品\" VARCHAR(32), \"مبلغ\" DOUBLE,"
@@ -66,9 +67,8 @@ class QuotedColumnNameTest {
                         + " (2.0, 'k1', 'q3', 'EU', '茶', 6.0, 'Bo', 'p3')");
             }
             // the runtime declares the engine the session runs on
-            String model = "duckdb".equals(engine) ? MODEL : MODEL.replace(
-                    "{ type: DuckDB; specification: DuckDB { }; auth: Test; }",
-                    "{ type: H2; specification: LocalH2 { }; auth: DefaultH2; }");
+            String model = MODEL.replace("{ type: DuckDB; specification: DuckDB { }; auth: Test; }",
+                    "{ " + backend.connectionBody() + " }");
             var r = Execution.execute(model, query, "local::RT", c);
             return r.rows().stream().map(row -> {
                 StringBuilder sb = new StringBuilder();
@@ -81,77 +81,77 @@ class QuotedColumnNameTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("sort by a column whose name has a space")
-    void sortBySpacedName(String engine) throws Exception {
-        assertEquals(List.of("1.5|p2", "2.0|p3", "3.5|p1"), run(engine,
+    void sortBySpacedName(TestBackend backend) throws Exception {
+        assertEquals(List.of("1.5|p2", "2.0|p3", "3.5|p1"), run(backend,
                 "|#>{local::DB.t}#->select(~['total pnl', plain])->sort([~'total pnl'->ascending()])"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("group by a spaced name, then sort on the same column (a subtotal grid)")
-    void groupThenSortSpacedName(String engine) throws Exception {
-        assertEquals(List.of("EU|5.5", "US|1.5"), run(engine,
+    void groupThenSortSpacedName(TestBackend backend) throws Exception {
+        assertEquals(List.of("EU|5.5", "US|1.5"), run(backend,
                 "|#>{local::DB.t}#->groupBy(~['sales region'], ~[s: x|$x.'total pnl': y|$y->sum()])"
                         + "->sort([~'sales region'->ascending()])"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("group by a column whose name has a comma")
-    void groupByCommaName(String engine) throws Exception {
-        assertEquals(List.of("k1|5.5", "k2|1.5"), run(engine,
+    void groupByCommaName(TestBackend backend) throws Exception {
+        assertEquals(List.of("k1|5.5", "k2|1.5"), run(backend,
                 "|#>{local::DB.t}#->groupBy(~['x,y'], ~[s: x|$x.'total pnl': y|$y->sum()])"
                         + "->sort([~'x,y'->ascending()])"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("non-ASCII headers: group, aggregate and sort")
-    void nonAsciiNames(String engine) throws Exception {
-        assertEquals(List.of("米|4.0", "茶|16.0"), run(engine,
+    void nonAsciiNames(TestBackend backend) throws Exception {
+        assertEquals(List.of("米|4.0", "茶|16.0"), run(backend,
                 "|#>{local::DB.t}#->groupBy(~['製品'], ~[m: x|$x.'مبلغ': y|$y->sum()])"
                         + "->sort([~'製品'->ascending()])"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("a derived column over a quoted column")
-    void derivedOverQuoted(String engine) throws Exception {
-        assertEquals(List.of("p1|20.0", "p2|8.0", "p3|12.0"), run(engine,
+    void derivedOverQuoted(TestBackend backend) throws Exception {
+        assertEquals(List.of("p1|20.0", "p2|8.0", "p3|12.0"), run(backend,
                 "|#>{local::DB.t}#->extend(~[d: x|$x.'مبلغ'->toOne() * 2])->select(~[plain, d])"
                         + "->sort([~plain->ascending()])"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("sort by a column whose name has a quote")
-    void sortByQuotedQuoteName(String engine) throws Exception {
-        assertEquals(List.of("q1", "q2", "q3"), run(engine,
+    void sortByQuotedQuoteName(TestBackend backend) throws Exception {
+        assertEquals(List.of("q1", "q2", "q3"), run(backend,
                 "|#>{local::DB.t}#->select(~['a\"b'])->sort([~'a\"b'->ascending()])"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("a mixed-case name declared quoted is read by its exact spelling")
-    void mixedCaseQuoted(String engine) throws Exception {
-        assertEquals(List.of("Al", "Bo", "Cy"), run(engine,
+    void mixedCaseQuoted(TestBackend backend) throws Exception {
+        assertEquals(List.of("Al", "Bo", "Cy"), run(backend,
                 "|#>{local::DB.t}#->select(~[firstName])->sort([~firstName->ascending()])"));
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"duckdb", "h2"})
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     @DisplayName("plain names still resolve")
-    void plainName(String engine) throws Exception {
-        assertEquals(List.of("p1", "p2", "p3"), run(engine,
+    void plainName(TestBackend backend) throws Exception {
+        assertEquals(List.of("p1", "p2", "p3"), run(backend,
                 "|#>{local::DB.t}#->select(~[plain])->sort([~plain->ascending()])"));
     }
 
     @org.junit.jupiter.api.Test
-    @DisplayName("pivot on a quoted column (DataCube's engine: DuckDB)")
+    @DisplayName("pivot on a quoted column (DataCube's engine: the platform's)")
     void pivotOnQuotedColumn() throws Exception {
-        assertEquals(List.of("EU|5.5|null", "US|null|1.5"), run("duckdb",
+        assertEquals(List.of("EU|5.5|null", "US|null|1.5"), run(com.legend.testbackend.TestBackends.platform(),
                 "|#>{local::DB.t}#->select(~['sales region', 'x,y', 'total pnl'])"
                         + "->pivot(~['x,y'], ~[s: x|$x.'total pnl': y|$y->sum()])"
                         + "->sort([~'sales region'->ascending()])"));
@@ -161,6 +161,6 @@ class QuotedColumnNameTest {
     @DisplayName("a column that does not exist is still refused")
     void missingColumnRefused() {
         assertThrows(RuntimeException.class,
-                () -> run("duckdb", "|#>{local::DB.t}#->sort([~'no such column'->ascending()])"));
+                () -> run(com.legend.testbackend.TestBackends.platform(), "|#>{local::DB.t}#->sort([~'no such column'->ascending()])"));
     }
 }

@@ -3,6 +3,7 @@
 
 package com.legend.server;
 
+import com.legend.testcases.PostgresSeed;
 import com.legend.testcases.SqlParity;
 import com.legend.testing.EmbeddedPostgres;
 import com.legend.testing.Runfile;
@@ -46,7 +47,7 @@ class SqlParityPostgresTest {
         EmbeddedPostgres pg = EmbeddedPostgres.shared();
         List<String> problems = new ArrayList<>();
         try (Connection admin = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
-            SqlParity.seed(admin, tables, true);
+            PostgresSeed.seed(admin, tables);
             grantToThisAccount(admin, tables);
 
             // the answers are Postgres's

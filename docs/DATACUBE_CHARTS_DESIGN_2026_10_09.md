@@ -38,7 +38,9 @@ startup). `chart-option.ts`'s house rules: the dataviz palette, bars at most 24 
 
 Each batch lands on its own (an audit, the local gate, CI, the user's OK), and each reaches Python the moment it lands:
 `ll.Page` writes the same chart spec and page document, and `datacube/test/python-vocabulary.test.ts` holds Python's
-words to DataCube's.
+words to DataCube's. *(Amended 2026-10-16, PR neema2/legend-lite#47: Python keeps no list of the chart's words any
+more, so the test went with its pins -- DataCube's reader, asked headless by `gridChart`, refuses a word it does not
+know and names the words it takes; a chart's version comes from the chart DataCube starts from.)*
 
 ### Batch 1: the dashboard around the charts (the dashboards design's M3 and M4)
 
@@ -165,7 +167,8 @@ Each step a commit of its own, in this order:
 
 0. This note, and the branch announced in `docs/IN_FLIGHT.md`.
 1. **The spec's version 2** (§3.1): the slots, the reader (version 1 read unchanged), Python's words
-   (`page.py`, `python-vocabulary.test.ts`).
+   (`page.py`, `python-vocabulary.test.ts`). *(Amended 2026-10-16: Python's words are DataCube's reader's alone,
+   asked headless; the list and its test are gone, PR neema2/legend-lite#47.)*
 2. **A chart plots group-level columns and windows** (§3.2 gap 1).
 3. **The presets** (`calc-presets.ts`): grain, bins, show as, used by the chart's editor; the date functions in the
    editor's vocabulary.
@@ -364,7 +367,8 @@ bubbles placed by latitude and longitude. Both offline: everything a map draws s
   with each batch, and the rarer kinds -- maps first -- go in chunks of their own, fetched with their first chart.
 - **Accessible**: each kind says what it shows in words (`describe`), and pattern fills are one option away.
 - **Tests**: each kind's option tested in node, drawn as SVG (`chart-option` tests); each batch's interactions in
-  Chromium (`verify_*`); Python's words read against DataCube's (`python-vocabulary.test.ts`).
+  Chromium (`verify_*`); Python's words read against DataCube's (`python-vocabulary.test.ts`; *amended 2026-10-16:
+  retired with Python's lists, DataCube's reader judging each word Python sends, PR neema2/legend-lite#47*).
 - **Examples**: each batch's example page (§3.3), every chart on it read back drawable in node and drawn in Chromium.
 
 ## 6. Decided, and open

@@ -17,6 +17,14 @@ js_library(
     visibility = ["//datacube:__pkg__"],
 )
 
+# the planner's sources, as files: core's database-name guards read them (the dialect program's Phase 7, 2026-10-18;
+# the conformance harness beside it tests the JDK's classes, not a database)
+filegroup(
+    name = "planner_java",
+    srcs = glob(["src/main/java/planner/*.java"]),
+    visibility = ["//core:__pkg__"],
+)
+
 # THE BOUNDARY (planner.Boundary, docs/PROTOCOL_PROGRAM_2026_10_05.md invariant 5): the operations every embedded
 # host runs -- the tab and Python -- plain Java, no host's annotations, each once; and the one text encoding both
 # strings-only hosts answer with (planner.Folded). Built to WebAssembly through the tab's adapter, and native

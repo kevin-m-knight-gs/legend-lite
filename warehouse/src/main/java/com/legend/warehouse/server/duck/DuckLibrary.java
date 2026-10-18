@@ -56,6 +56,9 @@ public final class DuckLibrary {
         return dir;
     }
 
+    /** DuckDB's name, as its drivers report it (JDBC's {@code getDatabaseProductName}). */
+    public static final String NAME = "DuckDB";
+
     /** DuckDB's version, as its drivers report it ("v1.5.5"). */
     public static String version() {
         return Duck.api().version();

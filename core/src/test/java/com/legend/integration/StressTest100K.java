@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -17,7 +18,7 @@ class StressTest100K {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -216,7 +217,7 @@ class StressTest100K {
         long normMs = (System.nanoTime() - t2) / 1_000_000;
         System.out.println("Phase 2 (normalize " + N + " mappings): " + normMs + " ms");
 
-        var dialect = new com.legend.sql.dialect.DuckDb();
+        var dialect = TestBackends.platform().dialect();
 
         // ---- 100 diverse queries spread across the 100K model ----
         var queries = new java.util.ArrayList<String>();

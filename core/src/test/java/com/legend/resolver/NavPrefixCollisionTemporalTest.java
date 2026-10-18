@@ -3,13 +3,13 @@
 
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.testing.KnownDefect;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +56,7 @@ class NavPrefixCollisionTemporalTest {
             "c::Order.all()->project(~[id: o|$o.id, name: o|$o.product(%2015-06-01).name])";
 
     private static List<String> rows(String model) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE OrderT (ID INTEGER, PID INTEGER, product_name VARCHAR)");
                 st.execute("INSERT INTO OrderT VALUES (1, 10, 'unmapped')");

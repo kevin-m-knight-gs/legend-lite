@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { extendWindow } from '../src/query.ts';
-import { renameColumnReferences, type CubeSnapshot, type WindowSpec } from '../src/snapshot.ts';
+import { renameColumnReferences, type QuerySnapshot, type WindowSpec } from '../src/snapshot.ts';
 import { element, from } from '../../pure-protocol/src/index.ts';
 import { print, printLevel } from './lite-compiler.ts';
 
@@ -59,7 +59,7 @@ describe('window columns as Pure', () => {
 });
 
 describe('a group-level window follows the tree', () => {
-  const CUBE: CubeSnapshot = {
+  const CUBE: QuerySnapshot = {
     source: { query: element('t') },
     columns: [
       { name: 'region', type: 'String' }, { name: 'desk', type: 'String' },
@@ -99,7 +99,7 @@ describe('a group-level window follows the tree', () => {
   });
 
   it('a row-level window is written as its extend, before the filter', async () => {
-    const row: CubeSnapshot = { ...CUBE, groupDerived: [], derived: [{ name: 'rk', window: {
+    const row: QuerySnapshot = { ...CUBE, groupDerived: [], derived: [{ name: 'rk', window: {
       fn: 'rank', partition: ['region'], order: [{ column: 'notional', direction: 'desc' }] } }],
       filter: { kind: 'condition', column: 'desk', operator: 'equal', value: 'Rates' } };
     const q = (await printLevel(row, { level: 1, parent: [] }));

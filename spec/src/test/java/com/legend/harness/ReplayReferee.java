@@ -6,7 +6,6 @@ package com.legend.harness;
 import com.legend.exec.ExecutionResult;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
@@ -18,8 +17,8 @@ import java.util.List;
  * cursor + poison), the fresh-replay fallback — and the verify
  * entry points that orchestrate golden-SQL row verification over it.
  * Before this class the machinery was statics spread across
- * Runner/H2Verify with the mirror-or-fresh session acquisition
- * duplicated four times. {@link H2Verify} keeps COMPARISON POLICY
+ * Runner/RefereeVerify with the mirror-or-fresh session acquisition
+ * duplicated four times. {@link RefereeVerify} keeps COMPARISON POLICY
  * only (the §6 normalization inventory, the census instruments).
  *
  * <p>Also the harness's implementation of the platform SPI
@@ -68,24 +67,13 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
 
     private static @com.legend.base.Nullable MirrorState MIRROR;
 
-    /** Install the family session's live mirror (runner-owned). */
-    public static void mirrorBegin(Connection h2) {
-        // F6.7: the engine's H2 extension functions register on the
-        // MIRROR too — only the fresh-replay branch installed them, and
-        // Runner makes the incremental mirror the DEFAULT path for
-        // DuckDB sweeps, so golden SQL calling legend_h2_extension_*
-        // declined verification on the path that actually runs (the C1
-        // fix H2Verify exists for was not in effect).
-        try (Statement st = h2.createStatement()) {
-            for (String alias : H2ExtensionFunctions.aliases()) {
-                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                st.execute(alias);
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException(
-                    "h2 mirror extension registration failed", e);
-        }
-        MIRROR = new MirrorState(h2);
+    /** Install the family session's live mirror (runner-owned): a referee session
+     * ({@code TestBackends.referee().openReferee}), so it carries the engine's
+     * extension functions, as every replay does (F6.7: the incremental mirror is the
+     * DEFAULT path for corpus sweeps, and golden SQL calling the engine's
+     * extension functions once declined verification on it). */
+    public static void mirrorBegin(Connection mirror) {
+        MIRROR = new MirrorState(mirror);
     }
 
     /** Detach the mirror (the runner closes the connection). */
@@ -160,20 +148,20 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             List<com.legend.exec.SqlReplayReferee.FetchHop> fetches =
                     r.hops();
             if (hopIndex < 0 || hopIndex >= fetches.size()) {
-                throw new H2Verify.Unverifiable(
+                throw new RefereeVerify.Unverifiable(
                         "chained fetch — transcript index out of range", null);
             }
             // the receipt compares under the corpus's own flattening
             // (sqlRemoveFormatting strips newlines and tabs): the
             // H2Compatible spelling hands the arm the flattened hop text
             if (!flat(r.sqls().get(hopIndex)).equals(flat(ourSql))) {
-                throw new H2Verify.Unverifiable("chained fetch — transcript"
+                throw new RefereeVerify.Unverifiable("chained fetch — transcript"
                         + " text mismatch (determinism receipt failed)", null);
             }
             com.legend.exec.SqlReplayReferee.FetchHop f =
                     fetches.get(hopIndex);
             if (f.parentIndex() < 0) {
-                throw new H2Verify.Unverifiable("chained fetch — view fetch"
+                throw new RefereeVerify.Unverifiable("chained fetch — view fetch"
                         + " over temps (no single-parent chain)", null);
             }
             List<Integer> chain = new java.util.ArrayList<>();
@@ -185,7 +173,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             for (int j : chain) {
                 String gj = ATTEMPT_GOLDENS.get(j);
                 if (gj == null) {
-                    throw new H2Verify.Unverifiable("chained fetch — ancestor"
+                    throw new RefereeVerify.Unverifiable("chained fetch — ancestor"
                             + " golden (index " + j + ") not asserted before"
                             + " this hop", null);
                 }
@@ -195,19 +183,19 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             String parentTemp = "testDataGen_Temp_"
                     + fetches.get(f.parentIndex()).table();
             if (!goldenSql.toLowerCase(java.util.Locale.ROOT).contains(parentTemp.toLowerCase(java.util.Locale.ROOT))) {
-                throw new H2Verify.Unverifiable("chained fetch — golden does"
+                throw new RefereeVerify.Unverifiable("chained fetch — golden does"
                         + " not reference derived parent temp " + parentTemp,
                         null);
             }
             String d = tdgChainedReplay(
                     recorder.seeds(),
                     ancestors, goldenSql,
-                    H2Verify.transcriptRows(f.columns(), f.rows()));
+                    RefereeVerify.transcriptRows(f.columns(), f.rows()));
             return d == null
                     ? com.legend.exec.SqlReplayReferee.RowVerdict.match()
                     : com.legend.exec.SqlReplayReferee.RowVerdict
                             .diverged(d);
-        } catch (H2Verify.Unverifiable u) {
+        } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-tdg: ", u);
         }
     }
@@ -279,25 +267,20 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
             if (mirror.poison != null) {
-                throw new H2Verify.Unverifiable(mirror.poison, null, true);
+                throw new RefereeVerify.Unverifiable(mirror.poison, null, true);
             }
             try (Statement st = mirror.conn.createStatement()) {
                 applyPendingSeeds(mirror, st, seeds);
                 return work.run(st);
             } catch (SQLException e) {
-                throw new H2Verify.Unverifiable(session.mirrorFailPrefix()
+                throw new RefereeVerify.Unverifiable(session.mirrorFailPrefix()
                         + e.getMessage(), e);
             }
         }
         int id = COUNTER.getAndIncrement();
-        try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:" + session.freshDbName() + id
-                        + H2Verify.SETTINGS, "sa", "");
-                Statement st = h2.createStatement()) {
-            for (String alias : H2ExtensionFunctions.aliases()) {
-                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                st.execute(alias);
-            }
+        try (Connection referee = com.legend.testbackend.TestBackends.referee()
+                        .openReferee(session.freshDbName() + id);
+                Statement st = referee.createStatement()) {
             for (String seed : seeds == null ? List.<String>of() : seeds) {
                 for (String one : seed.split(";\\s*\n|;\\s*$")) {
                     if (one.isBlank()) {
@@ -311,7 +294,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
                             st.execute(one);
                         } catch (SQLException e) {
-                            throw new H2Verify.Unverifiable(
+                            throw new RefereeVerify.Unverifiable(
                                     session.seedFailPrefix()
                                             + e.getMessage(), e, true);
                         }
@@ -320,7 +303,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             }
             return work.run(st);
         } catch (SQLException e) {
-            throw new H2Verify.Unverifiable(session.freshFailPrefix()
+            throw new RefereeVerify.Unverifiable(session.freshFailPrefix()
                     + e.getMessage(), e);
         }
     }
@@ -341,7 +324,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     st.execute(one);
                 } catch (SQLException e) {
                     mirror.poison = "seed replay: " + e.getMessage();
-                    throw new H2Verify.Unverifiable(mirror.poison, e, true);
+                    throw new RefereeVerify.Unverifiable(mirror.poison, e, true);
                 }
             }
             mirror.applied++;
@@ -349,7 +332,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     }
 
     // =================================================================
-    // VERIFY ENTRY POINTS (moved from H2Verify; comparison policy —
+    // VERIFY ENTRY POINTS (moved from RefereeVerify; comparison policy —
     // compareFrame and the §6 inventory — stays there)
     // =================================================================
 
@@ -361,11 +344,11 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
-        if (!H2Verify.ready()) {
-            throw new H2Verify.Unverifiable("h2 driver not on classpath",
+        if (!RefereeVerify.ready()) {
+            throw new RefereeVerify.Unverifiable("h2 driver not on classpath",
                     null);
         }
-        H2Verify.enumPrecheck(ours, enumDecode);
+        RefereeVerify.enumPrecheck(ours, enumDecode);
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
             // INCREMENTAL path: extras run OUTSIDE the cursor (§9a) —
@@ -377,11 +360,11 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                         com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
                         st.execute(x);
                     } catch (SQLException e) {
-                        throw new H2Verify.Unverifiable("seed replay: "
+                        throw new RefereeVerify.Unverifiable("seed replay: "
                                 + e.getMessage(), e);
                     }
                 }
-                return H2Verify.compareFrame(st, goldenSql, ours, enumDecode,
+                return RefereeVerify.compareFrame(st, goldenSql, ours, enumDecode,
                         graphEnumProp, facts);
             });
         }
@@ -394,7 +377,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
         }
         java.util.List<String> allSeeds = all;
         return onReferee(allSeeds, VERIFY_SESSION,
-                st -> H2Verify.compareFrame(st, goldenSql, ours, enumDecode,
+                st -> RefereeVerify.compareFrame(st, goldenSql, ours, enumDecode,
                         graphEnumProp, facts));
     }
 
@@ -413,7 +396,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
-        return "H2".equals(session.getMetaData().getDatabaseProductName())
+        return com.legend.testbackend.TestBackends.of(session) == com.legend.testbackend.TestBackends.referee()
                 ? verifyOnSession(session, goldenSql, ours, enumDecode,
                         graphEnumProp, facts)
                 : verify(seeds, extraSeeds, goldenSql, ours, enumDecode,
@@ -430,19 +413,19 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
-        H2Verify.enumPrecheck(ours, enumDecode);
+        RefereeVerify.enumPrecheck(ours, enumDecode);
         try (Statement st = session.createStatement()) {
-            return H2Verify.compareFrame(st, goldenSql, ours, enumDecode,
+            return RefereeVerify.compareFrame(st, goldenSql, ours, enumDecode,
                     graphEnumProp, facts);
         } catch (SQLException e) {
-            throw new H2Verify.Unverifiable("session golden execution: "
+            throw new RefereeVerify.Unverifiable("session golden execution: "
                     + e.getMessage(), e);
         }
     }
 
     /** TDG 49er replay (docs/TDG_LANE_CHARTER.md residue): BOTH sides
      * are FETCH texts — the GOLDEN rides the ordinary family-mirror H2
-     * route (pending seeds applied), OURS runs on the ambient DuckDB;
+     * route (pending seeds applied), OURS runs on the ambient session;
      * rows compare ORDER-INSENSITIVELY under the shared cell canon
      * (two-sided comparison policy: neither side's incidental row order
      * is contract — the fetches carry no ORDER BY). null = VERIFIED
@@ -450,9 +433,9 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * counted decline. */
     public static @com.legend.base.Nullable String tdgSqlReplay(
             java.util.@com.legend.base.Nullable List<String> seeds,
-            String goldenSql, Connection duck, String ourSql) {
-        if (!H2Verify.ready()) {
-            throw new H2Verify.Unverifiable("h2 driver not on classpath",
+            String goldenSql, Connection session, String ourSql) {
+        if (!RefereeVerify.ready()) {
+            throw new RefereeVerify.Unverifiable("h2 driver not on classpath",
                     null);
         }
         // ORDER-INSENSITIVE compare is GATED on a compile-time fact
@@ -460,55 +443,47 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
         // on either side — an ordered text names its own decline
         if (goldenSql.toLowerCase(java.util.Locale.ROOT).contains("order by")
                 || ourSql.toLowerCase(java.util.Locale.ROOT).contains("order by")) {
-            throw new H2Verify.Unverifiable("ordered fetch — multiset"
+            throw new RefereeVerify.Unverifiable("ordered fetch — multiset"
                     + " compare not applicable", null);
         }
         // CHAINED fetches join the generator's tdg_N_* temp tables —
         // dropped in its finally, unreplayable standalone (sequence
         // replay = unmodeled residue, named)
         if (ourSql.contains("tdg_") || goldenSql.contains("tdg_")) {
-            throw new H2Verify.Unverifiable("chained fetch — generator"
+            throw new RefereeVerify.Unverifiable("chained fetch — generator"
                     + " temp tables not replayable", null);
         }
-        List<H2Verify.Cells> ourRows;
-        // a DUPLICATE connection (the DuckWorkspaces idiom): the ambient
-        // connection may hold an open streaming result mid-walk. The
-        // duplicate starts OUTSIDE the test's workspace catalog — point
-        // it back (getCatalog is metadata, safe mid-stream).
-        // TXN-AWARE (transactional flip attempt): a duplicate is a
+        List<RefereeVerify.Cells> ourRows;
+        // a SECOND READER of the session (its backend's readerOn): the
+        // ambient connection may hold an open streaming result mid-walk.
+        // TXN-AWARE (transactional flip attempt): a second reader is a
         // SEPARATE snapshot-isolated transaction context — the attempt's
         // uncommitted writes are invisible there. When the session
         // carries an open transaction (autoCommit off = a flip attempt;
         // the walk never does this) the read runs on the session
         // connection itself, inside its own transaction.
         try {
-            if (!duck.getAutoCommit()) {
-                try (Statement st = duck.createStatement()) {
+            if (!session.getAutoCommit()) {
+                try (Statement st = session.createStatement()) {
                     try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                        ourRows = H2Verify.rawRows(st, ourSql);
+                        ourRows = RefereeVerify.rawRows(st, ourSql);
                     }
                 }
             } else {
-                try (Connection dup = duck.unwrap(
-                                org.duckdb.DuckDBConnection.class).duplicate();
-                        Statement st = dup.createStatement()) {
-                    String ws = duck.getCatalog();
-                    if (ws != null && !ws.isBlank()) {
-                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                        st.execute("USE " + ws);
-                    }
+                try (Connection reader = com.legend.testbackend.TestBackends.of(session).readerOn(session);
+                        Statement st = reader.createStatement()) {
                     try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                        ourRows = H2Verify.rawRows(st, ourSql);
+                        ourRows = RefereeVerify.rawRows(st, ourSql);
                     }
                 }
             }
         } catch (SQLException e) {
-            throw new H2Verify.Unverifiable("our-side replay: "
+            throw new RefereeVerify.Unverifiable("our-side replay: "
                     + e.getMessage(), e);
         }
-        List<H2Verify.Cells> golden = onReferee(seeds, TDG_SESSION,
-                st -> H2Verify.rawRows(st, goldenSql));
-        return H2Verify.multisetCompare(golden, ourRows);
+        List<RefereeVerify.Cells> golden = onReferee(seeds, TDG_SESSION,
+                st -> RefereeVerify.rawRows(st, goldenSql));
+        return RefereeVerify.multisetCompare(golden, ourRows);
     }
 
     /** The CHAINED-fetch golden replay (live-session refereeing, census
@@ -525,14 +500,14 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
     public static @com.legend.base.Nullable String tdgChainedReplay(
             java.util.@com.legend.base.Nullable List<String> seeds,
             List<String[]> ancestors, String goldenSql,
-            List<H2Verify.Cells> oursRows) {
-        if (!H2Verify.ready()) {
-            throw new H2Verify.Unverifiable("h2 driver not on classpath",
+            List<RefereeVerify.Cells> oursRows) {
+        if (!RefereeVerify.ready()) {
+            throw new RefereeVerify.Unverifiable("h2 driver not on classpath",
                     null);
         }
-        List<H2Verify.Cells> golden = onReferee(seeds, TDG_SESSION,
+        List<RefereeVerify.Cells> golden = onReferee(seeds, TDG_SESSION,
                 st -> goldenWithTemps(st, ancestors, goldenSql));
-        return H2Verify.multisetCompare(golden, oursRows);
+        return RefereeVerify.multisetCompare(golden, oursRows);
     }
 
     /** Materialize the ancestor temps (root-first; a self-join chain
@@ -541,7 +516,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * drops, exactly the engine's sequential create/insert/drop
      * discipline), execute the hop's golden, and ALWAYS drop what was
      * created — the family mirror is shared state. */
-    private static List<H2Verify.Cells> goldenWithTemps(Statement st,
+    private static List<RefereeVerify.Cells> goldenWithTemps(Statement st,
             List<String[]> ancestors, String goldenSql)
             throws SQLException {
         java.util.LinkedHashSet<String> created =
@@ -566,7 +541,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     created.add(name);
                 }
             }
-            return H2Verify.rawRows(st, goldenSql);
+            return RefereeVerify.rawRows(st, goldenSql);
         } finally {
             for (String name : created) {
                 try {
@@ -593,7 +568,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * comparison policy, outcomes as DATA. The enum decode derives
      * from the ARM-supplied mapping/class facts (the producer's own
      * children — never AST re-discovery here). Declines COUNT through
-     * the one funnel ({@link H2Verify#decline}). */
+     * the one funnel ({@link RefereeVerify#decline}). */
     @Override
     public com.legend.exec.SqlReplayReferee.RowVerdict verify(
             java.sql.Connection session, String goldenSql,
@@ -665,7 +640,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                         }
                     }
                     if (pop == null) {
-                        throw new H2Verify.Unverifiable("population temp "
+                        throw new RefereeVerify.Unverifiable("population temp "
                                 + t.name() + ": no population golden asserted"
                                 + " before this statement", null);
                     }
@@ -681,7 +656,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             ATTEMPT_SQL_GOLDENS.add(goldenSql);
             return verifyArmed(session, goldenSql, ours, mappingFqn,
                     rootClassFqn, ctx, seeds, facts);
-        } catch (H2Verify.Unverifiable u) {
+        } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm: ", u);
         } finally {
         }
@@ -693,13 +668,13 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * lets the text stand in. No broad catch remains in the referee — a
      * bug in the compare propagates and fails the test. */
     private static com.legend.exec.SqlReplayReferee.RowVerdict outcome(String arm,
-            H2Verify.Unverifiable u) {
+            RefereeVerify.Unverifiable u) {
         String m = arm + u.getMessage();
         if (u.fault()) {
-            H2Verify.fault(m);
+            RefereeVerify.fault(m);
             return com.legend.exec.SqlReplayReferee.RowVerdict.fault(String.valueOf(u.getMessage()));
         }
-        H2Verify.decline(m);
+        RefereeVerify.decline(m);
         return com.legend.exec.SqlReplayReferee.RowVerdict.declined(String.valueOf(u.getMessage()));
     }
 
@@ -743,7 +718,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 try {
                     return rows(s);
                 } catch (SQLException e) {
-                    throw new H2Verify.Unverifiable("plan-text: allocation"
+                    throw new RefereeVerify.Unverifiable("plan-text: allocation"
                             + " node replay: " + e.getMessage(), e);
                 }
             }, (name, allocSql, labels) -> {
@@ -764,7 +739,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     execute("create table " + name + "(" + cols + ") as "
                             + allocSql);
                 } catch (SQLException e) {
-                    throw new H2Verify.Unverifiable("plan-text: allocation"
+                    throw new RefereeVerify.Unverifiable("plan-text: allocation"
                             + " table '" + name + "': " + e.getMessage(), e);
                 }
                 allocTables.add(name);
@@ -772,7 +747,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             });
             return verifyArmed(session, sql, ours, mappingFqn, rootClassFqn,
                     ctx, null, facts);
-        } catch (H2Verify.Unverifiable u) {
+        } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-plan: ", u);
         } finally {
             for (String name : allocTables) {
@@ -837,7 +812,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 if (ours.columns().get(i).pureType()
                         instanceof com.legend.compiler.element.type.Type
                                 .EnumType et) {
-                    var dec = H2Verify.decodeOf(ctx, mappingFqn, et.fqn());
+                    var dec = RefereeVerify.decodeOf(ctx, mappingFqn, et.fqn());
                     if (dec != null) {
                         enumDecode.put(i, dec);
                     }
@@ -855,7 +830,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                             .EnumType et)) {
                 return null;
             }
-            var dec = H2Verify.decodeOf(ctx, mappingFqn, et.fqn());
+            var dec = RefereeVerify.decodeOf(ctx, mappingFqn, et.fqn());
             return dec == null ? java.util.Map.of() : dec;
         };
         try {
@@ -866,12 +841,12 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     ? com.legend.exec.SqlReplayReferee.RowVerdict.match()
                     : com.legend.exec.SqlReplayReferee.RowVerdict
                             .diverged(r);
-        } catch (H2Verify.Unverifiable u) {
+        } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm: ", u);
         } catch (java.sql.SQLException e) {
             // the session itself failed us (metadata, statement): a FAULT
             String m = "verdict-arm: " + String.valueOf(e.getMessage()).replace('\n', ' ');
-            H2Verify.fault(m);
+            RefereeVerify.fault(m);
             return com.legend.exec.SqlReplayReferee.RowVerdict.fault(m);
         }
     }
@@ -900,7 +875,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     ? com.legend.exec.SqlReplayReferee.RowVerdict.match()
                     : com.legend.exec.SqlReplayReferee.RowVerdict
                             .diverged(d);
-        } catch (H2Verify.Unverifiable u) {
+        } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-tdg: ", u);
         }
     }

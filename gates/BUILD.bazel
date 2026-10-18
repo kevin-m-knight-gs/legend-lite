@@ -34,6 +34,8 @@ test_suite(
         "//core:sql_island_postgres_test",
         # Snap's preflight count as Postgres's host operations write it, on the embedded Postgres 16 (D5)
         "//core:host_operations_postgres_test",
+        # a clashing fixture set aside in a Postgres corpus workspace survives a failed body's rollback (defect 5)
+        "//core:fixture_aside_postgres_test",
         # upstream's Postgres parity corpus (legend-engine 4.145.0's e2e cases) as #SQL{}# islands, on DuckDB and on
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
@@ -193,8 +195,6 @@ test_suite(
         # a notebook's cube: the widget's calls and version, show() in a kernel (legend_lite/notebook.py)
         "//python:notebook_test",
         "//python:tools_build_test",
-        # a server planning for Python's pages, against a legend-lite server it starts (legend_lite/upstream.py; G1)
-        "//python:upstream_test",
         # a class, an association or a data space into a project: the twin of model-changes/, its cases replayed (B4)
         "//python:model_test",
         # the wheel as a developer installs it: a fresh environment, offline, nothing from the repository
@@ -315,10 +315,17 @@ test_suite(
         "//spec:phase3b_probes",
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
+        # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
+        # in the test's outputs
+        "//datacube:tour_test",
         "//parser-equivalence:diagnostics",
         # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
         # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
         "//core:iq_corpus_test",
+        # the #SQL{...}# island over the PostgreSQL regression suite (the corpus program, 2026-10-17;
+        # core/BUILD.bazel's pg_regress_corpus_test): manual, it names a suite kept out of the repository
+        # (-Dsql.corpus.regress) and fails without it
+        "//core:pg_regress_corpus_test",
         "//pct:update_ratchets_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an

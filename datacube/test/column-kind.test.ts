@@ -23,7 +23,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: ['year'],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -72,7 +71,7 @@ describe('excludedFromPivot', () => {
     };
     const out = (await printLevel(s, undefined, { tuples: [['2023']] }));
     assert.match(out, /if\(\$x\.year == 2023, /, 'split by year');
-    assert.match(out, /2023__\|__total/);
+    assert.match(out, /2023__\|__notional/);
   });
 
   it('keeps a MEASURE marked excluded out of the spread', async () => {
@@ -83,7 +82,7 @@ describe('excludedFromPivot', () => {
       ),
     };
     const out = (await printLevel(s, undefined, { tuples: [['2023']] }));
-    assert.equal(out.includes('2023__|__total'), false, 'total is not spread by year');
+    assert.equal(out.includes('2023__|__notional'), false, 'notional is not spread by year');
   });
 });
 

@@ -296,10 +296,55 @@ class OnThePage(unittest.TestCase):
         self.assertEqual(set(page.model['tables']), {kept})
         self.assertEqual(set(page.model['classes']), {kept})
 
+    def test_a_class_sample_is_its_first_rows_as_datacube_writes_them(self):
+        # DataCube's own sample (sample-rows.ts sampleOf, headless gridClass), each value as its executor gives it: an
+        # integer past 2**53 as text, a decimal its digits at its scale, a date and a timestamp as text, a double as
+        # JavaScript writes it (a whole one an integer)
+        import datetime
+        from decimal import Decimal
+        page = ll.Page('Sampled')
+        grid = page.grid(pa.table({
+            'desk': ['FX', 'EQ'], 'qty': [1, 2], 'big': [2 ** 60, 3], 'notional': [1.5, 2.0],
+            'dec': pa.array([Decimal('12.30'), Decimal('1.05')], pa.decimal128(10, 2)),
+            'day': [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
+            'at': [datetime.datetime(2024, 1, 1, 9, 30, 0, 120000), datetime.datetime(2024, 1, 2, 10, 0)],
+            'flag': [True, None]}), name='sampled')
+        cls, asked = grid._class()
+        self.assertEqual(cls['where']['samples'][asked['table']['table']], {
+            'columns': ['desk', 'qty', 'big', 'notional', 'dec', 'day', 'at', 'flag'],
+            'rows': [['FX', 1, str(2 ** 60), Decimal('1.5'), '12.30', '2024-01-01', '2024-01-01T09:30:00.12', True],
+                     ['EQ', 2, 3, 2, '1.05', '2024-01-02', '2024-01-02T10:00:00', None]]})
+
+    def test_a_sample_holding_a_nan_or_an_infinity_is_refused_never_written_as_null(self):
+        # the sample goes to the route as JSON, which has no NaN or infinity: refused by DataCube's sampleOf, naming the
+        # column and the row, before anything is written (it wrote null, a value the data never had)
+        page = ll.Page('Odd values')
+        nan = page.grid(pa.table({'desk': ['FX', 'EQ'], 'rate': pa.array([1.5, float('nan')])}), name='odd_nan')
+        with self.assertRaisesRegex(ValueError, r"the sample's rate in row \d is NaN, which a class's data cannot hold"):
+            nan._class()
+        infinite = page.grid(pa.table({'desk': ['FX'], 'rate': pa.array([float('-inf')])}), name='odd_infinite')
+        with self.assertRaisesRegex(ValueError, r"the sample's rate in row 1 is -Infinity"):
+            infinite.create_class('Odd')
+        # the whole page, as the window makes it: refused, as the window refuses it (model-actions.ts createDataSpaceOf),
+        # never made without the grids whose sample it cannot carry
+        page.grid(pa.table({'desk': ['FX'], 'qty': [1]}), name='fine')
+        with self.assertRaisesRegex(ValueError, r"the sample's rate in row \d is NaN"):
+            page.create_data_space()
+        self.assertEqual(page.model, None, 'nothing written')
+
     def test_the_project_made_is_named_as_asked(self):
         page = _page(self)
         page.grids[0].create_class('Trade', project='Desk book')
         self.assertTrue(page.model['project'].startswith('datacube:desk-book'), page.model)
+
+    def test_a_column_role_the_writer_does_not_know_is_refused_in_its_words(self):
+        # Python keeps no list of the roles: the writer judges them (CreateClass asOf). The project made before it stays
+        # the page's (a project made stays the caller's when a later step fails); no class is written or kept
+        page = _page(self)
+        with self.assertRaisesRegex(ll.LegendError, r"the column 'desk' is asked to be 'primary': a property, a key or omit"):
+            page.grids[0].create_class('Trade', columns={'desk': 'primary'})
+        self.assertEqual(page.model['tables'], {})
+        self.assertNotIn('Class ', '\n'.join(self.files(page.model).values()))
 
     def test_an_association_before_any_class_is_refused_in_words(self):
         with self.assertRaisesRegex(ValueError, 'make them first'):

@@ -8,9 +8,12 @@ import static com.legend.warehouse.WarehouseServerTest.str;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.json.Json;
+import com.legend.warehouse.server.Attachment;
+import com.legend.warehouse.server.Catalogs;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.Column;
@@ -20,6 +23,8 @@ import com.legend.warehouse.sqlapi.SqlApiBinding;
 import com.legend.warehouse.sqlapi.SqlApiBinding.HttpResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +58,7 @@ class WarehousePostgresLiveTest {
                 List.of(new String[] {"alice", "alice-pw"}, new String[] {"carol", "carol-pw"},
                         new String[] {"dave", "dave-pw"}),
                 List.of("alice"), new Statements.Limits(4, 50, 1_000_000, Duration.ofMinutes(5)), List.of(),
-                Map.of("pg", dsn), ext.toAbsolutePath());
+                Map.of("pg", new Catalogs.Attach(Attachment.POSTGRES, dsn)), ext.toAbsolutePath());
         alice = login("alice", "alice-pw");
         carol = login("carol", "carol-pw");
         dave = login("dave", "dave-pw");
@@ -152,6 +157,18 @@ class WarehousePostgresLiveTest {
                 all.toString());
         assertTrue(all.stream().filter(o -> o.catalog().equals("main")).allMatch(o -> o.databaseType().equals("DuckDB")));
         assertTrue(API.objects(sendTo(server, API.allObjects(dave))).stream().noneMatch(o -> o.catalog().equals("pg")));
+    }
+
+    /**
+     * A session is the warehouse's own DuckDB's: a catalog attached to another database has none, so no JDBC
+     * connection reaches one (the dialect program's defects 7 and 8, 2026-10-18: the driver's BEGIN and COMMIT, and the
+     * engine name a connection reports, only ever meet a DuckDB session).
+     */
+    @Test
+    void aJdbcConnectionToTheAttachedCatalogIsRefusedByName() {
+        SQLException refused = assertThrows(SQLException.class, () -> DriverManager.getConnection(
+                "jdbc:warehouse:http://127.0.0.1:" + server.port() + "/pg?user=carol&password=carol-pw"));
+        assertTrue(refused.getMessage().contains("pg is attached to Postgres: it has no sessions"), refused.getMessage());
     }
 
     @Test

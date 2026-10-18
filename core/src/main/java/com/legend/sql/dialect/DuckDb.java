@@ -115,6 +115,18 @@ public final class DuckDb extends AnsiSqlRenderer {
         return DuckDbHostOperations.INSTANCE;
     }
 
+    /** DuckDB's own name for an in-memory database: a connection's path ({@code jdbc:duckdb::memory:}, which
+     *  legend-engine's DuckDB opens) and an {@code ATTACH}'s. */
+    static final String IN_MEMORY = ":memory:";
+
+    /** {@inheritDoc} DuckDB's own name for an in-memory database: legend-engine's DuckDB opens
+     *  {@code jdbc:duckdb:<path>}, and its datasource refuses a specification with no path (it puts the path into a
+     *  {@code Properties}, which holds no null). */
+    @Override
+    public String inMemoryPath() {
+        return IN_MEMORY;
+    }
+
     /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
      *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
     @Override
@@ -271,15 +283,26 @@ public final class DuckDb extends AnsiSqlRenderer {
      * warehouse's, a test's: each column's name, its own type name, its canonical type (joined on
      * its type id, inside the same DuckDB), and a DECIMAL's precision and scale. A LEFT join: a column
      * whose type names no canonical one is kept, with none, and refused by name -- never dropped.
-     * {@code {schema}} and {@code {table}} are filled with SQL string literals by the reader.
+     * {@code {schema}} and {@code {table}} are filled with SQL string literals ({@link #catalogColumnsQuery}).
      */
-    public static final String CATALOG_COLUMNS_SQL = """
+    private static final String CATALOG_COLUMNS_SQL = """
             SELECT c.column_name, c.data_type, t.logical_type, c.numeric_precision, c.numeric_scale, NOT c.is_nullable AS not_null
             FROM duckdb_columns() c
             LEFT JOIN (SELECT DISTINCT type_oid, logical_type FROM duckdb_types()
                        WHERE internal AND type_oid IS NOT NULL) t ON t.type_oid = c.data_type_id
             WHERE c.database_name = current_database() AND c.schema_name = {schema} AND c.table_name = {table}
             ORDER BY c.column_index""";
+
+    /** {@inheritDoc} {@link #CATALOG_COLUMNS_SQL}, each placeholder filled by its place in the template, so a name
+     *  holding {@code {table}} stays a name. */
+    @Override
+    public String catalogColumnsQuery(String schema, String table) {
+        int s = CATALOG_COLUMNS_SQL.indexOf("{schema}");
+        int t = CATALOG_COLUMNS_SQL.indexOf("{table}");
+        return CATALOG_COLUMNS_SQL.substring(0, s) + stringLit(schema)
+                + CATALOG_COLUMNS_SQL.substring(s + "{schema}".length(), t) + stringLit(table)
+                + CATALOG_COLUMNS_SQL.substring(t + "{table}".length());
+    }
 
     /** Type ALIASES (a column's own type name, upper-cased) that are not their canonical type's: JSON. */
     public static final java.util.Map<String, CatalogType> CATALOG_ALIASES =
@@ -391,6 +414,8 @@ public final class DuckDb extends AnsiSqlRenderer {
                 case BIT -> "BOOLEAN";
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
+                case TIMESTAMP_NS -> "TIMESTAMP_NS";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
@@ -466,6 +491,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            // the database's random float in [0, 1), once per row
+            case RANDOM -> writer.append("random()");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case DATE_TRUNC -> dateTruncArm(writer, c);
@@ -1011,10 +1038,15 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     /**
-     * A Variant's elements (toMany(@Variant)): an array's, a JSON null element kept as JSON's null -- a cast to JSON[]
-     * makes it SQL's NULL, which a list reads as no element (2026-10-12, the #SQL{}# line: jsonb_array_elements and
-     * an array's length disagreed with Postgres's); NULL for SQL's NULL or JSON's null; any other value is the error
-     * Pure's toMany raises (PCT testToManyFromNonArray), as the cast's was.
+     * A Variant's elements (toMany(@Variant)): an array's, a JSON null element kept as JSON's null -- a cast of the
+     * ARRAY to JSON[] makes it SQL's NULL, which a list reads as no element (2026-10-12, the #SQL{}# line:
+     * jsonb_array_elements and an array's length disagreed with Postgres's); NULL for SQL's NULL or JSON's null; any
+     * other value is the error Pure's toMany raises (PCT testToManyFromNonArray), as the cast's was. The wildcard's
+     * list is spelled {@code CAST(json_extract(.., '$[*]') AS JSON[])} (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md
+     * §12.62): DuckDB's binder types {@code json_extract}'s wildcard over a constant NULL input as JSON, not a list,
+     * and {@code list_transform} over the CASE then fails to bind; the cast of a list to its own type is the
+     * identity, and the Cypher island's typed null Variant ({@code CAST(NULL AS JSON)}, a class lacking a property
+     * typed two ways) is such a constant.
      */
     @Override
     protected SqlWriter variantElements(SqlWriter writer, List<SqlExpr> args) {
@@ -1027,10 +1059,10 @@ public final class DuckDb extends AnsiSqlRenderer {
             }
             w.append(" AS JSON)");
         };
-        return writer.append("(CASE WHEN json_type(").piece(json).append(") = 'ARRAY' THEN json_extract(").piece(json)
-                .append(", '$[*]') WHEN ").piece(json).append(" IS NULL OR json_type(").piece(json)
-                .append(") = 'NULL' THEN NULL ELSE error('Expect variant that contains an ''ARRAY'', but got ''' ||")
-                .append(" json_type(").piece(json).append(") || '''') END)");
+        return writer.append("(CASE WHEN json_type(").piece(json).append(") = 'ARRAY' THEN CAST(json_extract(")
+                .piece(json).append(", '$[*]') AS JSON[]) WHEN ").piece(json).append(" IS NULL OR json_type(")
+                .piece(json).append(") = 'NULL' THEN NULL ELSE error('Expect variant that contains an ''ARRAY'',")
+                .append(" but got ''' || json_type(").piece(json).append(") || '''') END)");
     }
 
     @Override

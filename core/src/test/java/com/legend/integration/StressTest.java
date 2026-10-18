@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -17,7 +18,7 @@ class StressTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -293,7 +294,7 @@ class StressTest {
         //   - Hub project with limit
         //   - Hub project with filter on score
         //   - Hub → crossHub association navigation (cross-link)
-        var dialect = new com.legend.sql.dialect.DuckDb();
+        var dialect = TestBackends.platform().dialect();
 
         var queries = new java.util.ArrayList<String>();
         for (int q = 0; q < HUBS; q++) {

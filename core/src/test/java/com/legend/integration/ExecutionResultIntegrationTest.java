@@ -7,7 +7,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
 import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,15 +20,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
 
-    @Override
-    protected String getDatabaseType() { return "DuckDB"; }
-
-    @Override
-    protected String getJdbcUrl() { return "jdbc:duckdb:"; }
-
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         try (var stmt = connection.createStatement()) {
             stmt.execute("SET timezone='UTC'");
         }

@@ -3,20 +3,13 @@
 
 package com.legend.resolver;
 
-import com.legend.Compiler;
-import com.legend.compiler.NameResolver;
-import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.lowering.Lowerer;
-import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.DuckDb;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -109,7 +102,7 @@ class StackRatchetWitnessTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE O (ID INTEGER)");
             st.execute("INSERT INTO O VALUES (1)");
@@ -139,13 +132,7 @@ class StackRatchetWitnessTest {
     }
 
     private static String sqlOf(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
-        return new DuckDb().render(plan);
+        return ResolvedSql.of(MODEL, query);
     }
 
     private List<String> rows(String query) throws SQLException {

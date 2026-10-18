@@ -19,6 +19,11 @@ import type { TreeRow } from './tree.ts';
 
 /** The files a grid exports to, as its Export menu offers them. */
 export type ExportKind = 'csv' | 'excel' | 'html' | 'text' | 'pdf';
+const EVERY_EXPORT: Readonly<Record<ExportKind, true>> = { csv: true, excel: true, html: true, text: true, pdf: true };
+/** Every kind, once (a Record over ExportKind: a kind added there is refused here until it is listed). */
+export const EXPORT_KINDS: readonly ExportKind[] = Object.keys(EVERY_EXPORT) as ExportKind[];
+/** Whether `kind` names a file a grid exports to. */
+export const isExportKind = (kind: string): kind is ExportKind => Object.hasOwn(EVERY_EXPORT, kind);
 
 /** A file, named and typed, its content text or bytes. */
 export interface ExportedFile {

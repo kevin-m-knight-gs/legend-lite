@@ -173,7 +173,7 @@ class ChannelBEssentialTest {
         // …). A wire-bug row the engine also excludes is the RELATIONAL
         // frontier, corroborated — not our bug; the TRUE wire-bug count
         // is what burns.
-        java.util.Set<String> engineExcluded = engineDuckDbExclusions();
+        java.util.Set<String> engineExcluded = engineRelationalExclusions();
         int frontier = 0;
         int trueWireBug = 0;
         for (ChannelB.Outcome o : out) {
@@ -290,10 +290,11 @@ class ChannelBEssentialTest {
                 "TRUE wire-bug census grew from ZERO: " + trueWireBug);
     }
 
-    /** The engine's relational-DuckDB essential manifest exclusions
-     * (the pinned release's, from @legend_engine_src; names carry the reference suffix —
-     * stripped to plain FQNs). */
-    private static java.util.Set<String> engineDuckDbExclusions()
+    /** The engine's relational essential manifest exclusions (its relational
+     * executor's frontier on the reference lane's database, legend-engine's
+     * relational-DuckDB manifest: the pinned release's, from @legend_engine_src;
+     * names carry the reference suffix — stripped to plain FQNs). */
+    private static java.util.Set<String> engineRelationalExclusions()
             throws java.io.IOException {
         Path manifest = com.legend.testing.Runfile.property("pct.oracle.Essential");
         java.util.Set<String> names = new java.util.HashSet<>();
@@ -305,7 +306,7 @@ class ChannelBEssentialTest {
         }
         if (names.isEmpty()) {
             throw new IllegalStateException(
-                    "engine DuckDB manifest scan found nothing — the"
+                    "engine relational manifest scan found nothing — the"
                     + " manifest's shape moved");
         }
         return names;

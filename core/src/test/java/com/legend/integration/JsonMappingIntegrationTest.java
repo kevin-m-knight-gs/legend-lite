@@ -1,10 +1,10 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -125,7 +125,7 @@ class JsonMappingIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:duckdb:");
+        connection = TestBackends.platform().open();
     }
 
     @AfterEach

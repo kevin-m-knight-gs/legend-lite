@@ -113,9 +113,10 @@ try {
 
   // CLEARING THE COLUMN PIVOT MUST NOT COST THE OTHER COLUMNS.
   //
-  // This is the cube that has a HOST-CONFIGURED measure -- the
-  // demo's `measures: [notional]` -- and that is the shape the bug
-  // needed: the projection carried the group keys and the configured
+  // This is the cube that had a HOST-CONFIGURED measure -- the
+  // demo's `measures: [notional]`, before a grid's aggregates became
+  // its Column Properties (2026-10-17) -- and that was the shape the
+  // bug needed: the projection carried the group keys and the configured
   // measure and dropped everything else, so clearing the pivot left
   // a grid of one data column while its own columns panel still
   // listed year, qtr, pnl and qty. The feature sweep uploads a file,

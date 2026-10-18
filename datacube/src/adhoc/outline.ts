@@ -13,7 +13,7 @@
 
 import type { Dimension } from '../dimensions.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import { memberConditions, type LevelScope } from '../query.ts';
+import { columnSpecs, defaultMeasure, memberConditions, type LevelScope } from '../query.ts';
 import {
   rowColumns,
   type CubeSnapshot,
@@ -37,8 +37,8 @@ import {
 
 /**
  * The outline for a cube: its named dimensions whose columns it has,
- * then every other dimension column on its own, and the measures (the
- * configured ones, else each measure-kind column summed).
+ * then every other dimension column on its own, and the measures (each
+ * measure-kind column on its Aggregation, as the grid aggregates it).
  */
 export function buildCube(
   snapshot: CubeSnapshot,
@@ -52,10 +52,10 @@ export function buildCube(
   const singles = columns
     .filter((c) => c.kind === 'dimension' && !used.has(c.name))
     .map((c) => ({ name: c.name, generations: [c.name] }));
-  const measures: Measure[] = snapshot.measures.length > 0
-    ? [...snapshot.measures]
-    : columns.filter((c) => c.kind === 'measure')
-      .map((c) => ({ name: c.name, column: c.name, fn: 'sum' as const }));
+  // the grid's measure columns, each on its Aggregation (Column Properties), as the grid aggregates them
+  const specOf = columnSpecs(snapshot);
+  const measures: Measure[] = columns.filter((c) => c.kind === 'measure')
+    .map((c) => defaultMeasure(c.name, specOf.get(c.name)));
   const outline: Outline = {
     dimensions: [
       ...hierarchies.map((d) => ({ name: d.name, generations: [...d.columns] })),
@@ -99,7 +99,6 @@ export function memberQuery(
     columns: cube.snapshot.columns.filter((c) => keys.includes(c.name)),
     rows: keys,
     pivotOn: [],
-    measures: [],
     sorts: keys.map((column) => ({ column, direction: 'asc' as const })),
     groupDerived: [],
     leafCount: false,

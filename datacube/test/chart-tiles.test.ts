@@ -142,6 +142,21 @@ describe('Open in grid: a grid of its own, beside the chart', () => {
     assert.deepEqual(app.snapshot.rows, ['region'], 'the cube\'s grid never moved');
   });
 
+  it('opens the chart\'s values as the editing grid\'s Column Properties, and an untouched Update keeps them', async () => {
+    const [a] = await twoCharts();
+    await togglePill(a);
+    assert.deepEqual(chart(a).spec.y, [{ column: 'notional', fn: 'sum' }]);
+    // the grid's Aggregation moves on; the frozen chart keeps its own
+    await app.applyConfiguration({ columns: { notional: { aggregateFn: 'average' } } });
+    await settle();
+    assert.deepEqual(chart(a).spec.y, [{ column: 'notional', fn: 'sum' }]);
+    await openInGrid(a);
+    // the editing grid opens on the chart's sum, not the grid's average its query carries
+    const title = app.pageViews().views.find((v) => v.id === a)!.title;
+    await click(`edit-${a}`, `Update ${title}`);
+    assert.deepEqual(chart(a).spec.y, [{ column: 'notional', fn: 'sum' }], 'read back from the editing grid as it opened');
+  });
+
   it('removing the editing grid leaves the chart as it was', async () => {
     const [a] = await twoCharts();
     await togglePill(a);
@@ -491,7 +506,7 @@ describe('a KPI tile (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () =
       label: (v) => `$${String(v)}`,
       onPick: () => {},
       initial: {
-        version: 1, mark: 'kpi', x: 'region', y: [{ column: 'notional', fn: 'sum' }],
+        version: 2, mark: 'kpi', x: 'region', y: [{ column: 'notional', fn: 'sum' }],
         options: { orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' }, limit: 50, labels: false,
           legend: 'top', target: 1000 },
       },

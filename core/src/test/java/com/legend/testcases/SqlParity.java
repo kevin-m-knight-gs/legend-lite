@@ -7,6 +7,7 @@ import com.legend.exec.ExecutionResult;
 import com.legend.json.Json;
 import com.legend.protocol.sql.SqlLexer;
 import com.legend.protocol.sql.SqlSyntaxException;
+import com.legend.testbackend.TestBackend;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -123,9 +124,17 @@ public final class SqlParity {
 
     // ------------------------------------------------------------------ the model and the data
 
-    /** The Pure model of the schema: one database, each table's columns typed as legend-lite's relational store
-     *  types them, a connection and a runtime. */
+    /** The Pure model of the schema: its store ({@link #store}), a connection and a runtime. */
     public static String model(List<Table> tables, String connection) {
+        StringBuilder m = new StringBuilder(store(tables));
+        m.append("###Connection\nRelationalDatabaseConnection e2e::Conn\n{\n    ").append(connection)
+                .append("\n}\n###Runtime\nRuntime ").append(RUNTIME).append("\n{\n    mappings: [];\n    connections: [ ")
+                .append(DATABASE).append(": [ environment: e2e::Conn ] ];\n}\n");
+        return m.toString();
+    }
+
+    /** The schema's store: one database, each table's columns typed as legend-lite's relational store types them. */
+    public static String store(List<Table> tables) {
         StringBuilder m = new StringBuilder("###Relational\nDatabase " + DATABASE + "\n(\n");
         for (Table t : tables) {
             m.append("    Table ").append(t.name()).append("\n    (\n");
@@ -136,10 +145,7 @@ public final class SqlParity {
             }
             m.append("    )\n");
         }
-        m.append(")\n###Connection\nRelationalDatabaseConnection e2e::Conn\n{\n    ").append(connection)
-                .append("\n}\n###Runtime\nRuntime ").append(RUNTIME).append("\n{\n    mappings: [];\n    connections: [ ")
-                .append(DATABASE).append(": [ environment: e2e::Conn ] ];\n}\n");
-        return m.toString();
+        return m.append(")\n").toString();
     }
 
     private static String relationalType(String sqlType) {
@@ -148,7 +154,7 @@ public final class SqlParity {
             return t;
         }
         return switch (t) {
-            case "INTEGER", "BIGINT", "DATE", "TIMESTAMP" -> t;
+            case "INTEGER", "BIGINT", "DATE", "TIMESTAMP", "TIME" -> t;
             case "DOUBLE PRECISION" -> "DOUBLE";
             case "BOOLEAN" -> "BIT";
             case "JSON", "JSONB" -> "SEMISTRUCTURED";
@@ -156,48 +162,57 @@ public final class SqlParity {
         };
     }
 
-    /** Creates and fills the tables as upstream's {@code SchemaManager} does: its DDL, and each value bound by its
-     *  YAML type. On DuckDB, which has no JSONB, a JSONB column is JSON. */
-    public static void seed(Connection c, List<Table> tables, boolean postgres) throws SQLException {
-        if (postgres) {
-            // upstream's Postgres setup (TestPostgresParity): the digest functions, and the sequence the sequence
-            // functions' cases use, fresh (the cases run in corpus order, so their answers are fixed)
-            try (Statement s = c.createStatement()) {
-                s.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto");
-                s.execute("DROP SEQUENCE IF EXISTS test_seq");
-                s.execute("CREATE SEQUENCE test_seq START 1");
+    /** Creates and fills the tables on {@code backend}'s database as the product creates a declared table: each table as
+     *  the schema's {@link #store} declares it, rendered by the backend's dialect ({@code setup.Ddl}), and each value
+     *  bound by its YAML type. On Postgres, the database the answers were snapped on, the lanes seed upstream's own
+     *  fixture instead ({@link PostgresSeed}). */
+    public static void seed(TestBackend backend, Connection c, List<Table> tables) throws SQLException {
+        com.legend.sql.dialect.SqlDialect dialect = backend.dialect();
+        Map<String, com.legend.model.DatabaseDefinition.TableDefinition> declared = new LinkedHashMap<>();
+        for (var element : com.legend.Compiler.parseModel(store(tables)).elements()) {
+            if (element instanceof com.legend.model.DatabaseDefinition db) {
+                for (var table : db.tables()) {
+                    declared.put(table.name(), table);
+                }
             }
         }
         for (Table t : tables) {
-            StringBuilder ddl = new StringBuilder("CREATE TABLE " + t.name() + " (");
-            for (int i = 0; i < t.columns().size(); i++) {
-                Column col = t.columns().get(i);
-                String type = !postgres && col.type().equalsIgnoreCase("JSONB") ? "JSON" : col.type();
-                ddl.append(i > 0 ? ", " : "").append(col.name()).append(' ').append(type);
-            }
+            var table = java.util.Objects.requireNonNull(declared.get(t.name()), t.name());
             try (Statement s = c.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS " + t.name() + (postgres ? " CASCADE" : ""));
-                s.execute(ddl.append(')').toString());
+                s.execute(dialect.render(new com.legend.sql.SqlDdl.DropTable(null, table.name(),
+                        com.legend.setup.Ddl.quoting(table, null))));
+                s.execute(dialect.render(com.legend.setup.Ddl.createTable(table, null)));
             }
-            if (t.rows().isEmpty()) {
-                continue;
-            }
-            String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + t.name() + " VALUES (" + marks + ")")) {
-                for (List<Object> row : t.rows()) {
-                    for (int i = 0; i < row.size(); i++) {
-                        bind(c, ps, i + 1, row.get(i), t.columns().get(i).type().toUpperCase(Locale.ROOT), postgres);
-                    }
-                    ps.addBatch();
+            fill(c, dialect.storedName(table.name(), table.quoted()), t, (ps, i, type, json) -> ps.setString(i, json));
+        }
+    }
+
+    /** How a JSON value is bound: its column's declared type ({@code JSON} or {@code JSONB}) and its text. */
+    public interface JsonBinding {
+        void bind(PreparedStatement ps, int i, String type, String json) throws SQLException;
+    }
+
+    /** Fills {@code t}'s rows into {@code target} (the table as the session's SQL spells it), each value bound as
+     *  upstream's {@code SchemaManager} binds it, by its YAML type: a JSON value by {@code json}. */
+    public static void fill(Connection c, String target, Table t, JsonBinding json) throws SQLException {
+        if (t.rows().isEmpty()) {
+            return;
+        }
+        String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
+        try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + target + " VALUES (" + marks + ")")) {
+            for (List<Object> row : t.rows()) {
+                for (int i = 0; i < row.size(); i++) {
+                    bind(ps, i + 1, row.get(i), t.columns().get(i).type().toUpperCase(Locale.ROOT), json);
                 }
-                ps.executeBatch();
+                ps.addBatch();
             }
+            ps.executeBatch();
         }
     }
 
     /** One value, bound as SchemaManager binds it. */
-    private static void bind(Connection c, PreparedStatement ps, int i, @com.legend.base.Nullable Object val,
-            String type, boolean postgres) throws SQLException {
+    private static void bind(PreparedStatement ps, int i, @com.legend.base.Nullable Object val, String type,
+            JsonBinding json) throws SQLException {
         if (val == null) {
             ps.setNull(i, java.sql.Types.NULL);
         } else if (val instanceof Integer n) {
@@ -209,20 +224,16 @@ public final class SqlParity {
         } else if (val instanceof Boolean b) {
             ps.setBoolean(i, b);
         } else if (type.contains("DATE") && !type.contains("TIMESTAMP")) {
-            ps.setDate(i, java.sql.Date.valueOf(val.toString()));
+            // (the JDK's LocalDate, its proleptic Gregorian calendar: java.sql.Date's is Julian before 1582, so the
+            // year 1 would move)
+            ps.setObject(i, java.time.LocalDate.parse(val.toString()));
         } else if (type.contains("TIMESTAMP")) {
             ps.setTimestamp(i, java.sql.Timestamp.valueOf(val.toString()));
-        } else if (type.contains("JSON") && postgres) {
-            try {
-                // a PGobject, as upstream binds it, made by reflection: core's tests do not compile against pgjdbc
-                Object json = Class.forName("org.postgresql.util.PGobject").getConstructor().newInstance();
-                json.getClass().getMethod("setType", String.class).invoke(json, type.contains("JSONB") ? "jsonb"
-                        : "json");
-                json.getClass().getMethod("setValue", String.class).invoke(json, val.toString());
-                ps.setObject(i, json);
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException("pgjdbc's PGobject", e);
-            }
+        } else if (type.contains("TIME")) {
+            // a time of day: bound as the JDK's (DuckDB's and pgjdbc's TIME)
+            ps.setObject(i, java.time.LocalTime.parse(val.toString()));
+        } else if (type.contains("JSON")) {
+            json.bind(ps, i, type, val.toString());
         } else {
             ps.setString(i, val.toString());
         }
@@ -250,7 +261,9 @@ public final class SqlParity {
      *  replaced by its Legend source, {@code tb('e2e::DB.persons')}, aliased by the name as written when no alias
      *  follows (Postgres names an unaliased function in FROM after the function). What is not a schema table there
      *  (a CTE's name, {@code information_schema.tables}, {@code EXTRACT(year FROM o.d)}) is left as it is; text that
-     *  does not lex is returned as it is, for the island to refuse. */
+     *  does not lex is returned as it is, for the island to refuse. A parenthesis opened where a table goes is a
+     *  join's ({@code FROM (x LEFT JOIN y ON ...)}), so a name just inside it is a table too; so is the name of
+     *  {@code TABLE name}, and a name's {@code *} (its descendants) goes with it. */
     public static String rewrite(String sql, Set<String> tables) {
         List<SqlLexer.Token> tokens;
         try {
@@ -263,10 +276,16 @@ public final class SqlParity {
         int copied = 0;
         Deque<Boolean> inFrom = new ArrayDeque<>();
         inFrom.push(false);
+        // the parentheses opened where a table goes (2026-10-17: the regression suite's FROM (x LEFT JOIN y ...) read
+        // its tables as bare names, 15 statements)
+        Set<Integer> joinParens = new java.util.HashSet<>();
         for (int i = 0; i < tokens.size(); i++) {
             SqlLexer.Token t = tokens.get(i);
             switch (t.kind()) {
                 case LPAREN -> {
+                    if (i > 0 && tablePlace(tokens.get(i - 1), i - 1, inFrom, joinParens)) {
+                        joinParens.add(i);
+                    }
                     inFrom.push(false);
                     continue;
                 }
@@ -292,34 +311,53 @@ public final class SqlParity {
             if (i == 0) {
                 continue;
             }
-            SqlLexer.Token prev = tokens.get(i - 1);
-            boolean tablePlace = prev.is("from") || prev.is("join")
-                    || prev.kind() == SqlLexer.Kind.COMMA && Boolean.TRUE.equals(inFrom.peek());
-            if (!tablePlace || !isName(t)) {
+            if (!tablePlace(tokens.get(i - 1), i - 1, inFrom, joinParens) || !isName(t)) {
                 continue;
             }
             int last = i;
-            if (t.kind() == SqlLexer.Kind.IDENT && t.text().equalsIgnoreCase("public") && at(tokens, i + 1).kind()
-                    == SqlLexer.Kind.DOT && isName(at(tokens, i + 2))) {
+            boolean dotted = at(tokens, i + 1).kind() == SqlLexer.Kind.DOT && isName(at(tokens, i + 2));
+            // a table of another schema, named "schema.name" among the tables (2026-10-17, the regression suite)
+            String qualified = dotted ? folded(t) + "." + folded(at(tokens, i + 2)) : null;
+            if (qualified != null && tables.contains(qualified)
+                    || dotted && t.kind() == SqlLexer.Kind.IDENT && t.text().equalsIgnoreCase("public")) {
                 last = i + 2;
             }
             SqlLexer.Token name = tokens.get(last);
             SqlLexer.Token after = at(tokens, last + 1);
-            if (!tables.contains(folded(name)) || after.kind() == SqlLexer.Kind.DOT
+            String table = last > i && tables.contains(qualified) ? qualified : folded(name);
+            if (!tables.contains(table) || after.kind() == SqlLexer.Kind.DOT
                     || after.kind() == SqlLexer.Kind.LPAREN) {
                 continue;
             }
             int start = offset(lineStarts, t);
             int end = offset(lineStarts, name) + sourceLength(sql, offset(lineStarts, name), name);
-            out.append(sql, copied, start).append("tb('").append(DATABASE).append('.').append(folded(name))
-                    .append("')");
-            if (!hasAlias(after)) {
+            SqlLexer.Token star = after;
+            if (after.isOp("*") && last + 1 < tokens.size() - 1) {
+                // FROM a_star*: the table's descendants too, which its source reads anyway
+                after = at(tokens, last + 2);
+            }
+            out.append(sql, copied, start).append("tb('").append(DATABASE).append('.').append(table).append("')");
+            if (!hasAlias(after) && !prev(tokens, i).is("table")) {
                 out.append(" AS ").append(sql, offset(lineStarts, name), end);
             }
             copied = end;
+            if (star != after) {
+                copied = offset(lineStarts, star) + 1;
+                last++;
+            }
             i = last;
         }
         return out.append(sql, copied, sql.length()).toString();
+    }
+
+    /** Whether the token after {@code prev} (at {@code index}) is where a FROM list's table goes. */
+    private static boolean tablePlace(SqlLexer.Token prev, int index, Deque<Boolean> inFrom, Set<Integer> joinParens) {
+        return prev.is("from") || prev.is("join") || prev.is("table") || joinParens.contains(index)
+                || prev.kind() == SqlLexer.Kind.COMMA && Boolean.TRUE.equals(inFrom.peek());
+    }
+
+    private static SqlLexer.Token prev(List<SqlLexer.Token> tokens, int i) {
+        return tokens.get(i - 1);
     }
 
     private static SqlLexer.Token at(List<SqlLexer.Token> tokens, int i) {
@@ -379,7 +417,10 @@ public final class SqlParity {
     public record Grid(List<String> columns, List<List<Object>> rows) {
     }
 
-    /** A JDBC result, as upstream's {@code DirectPostgresRunner} reads one: labels, and {@code getObject} cells. */
+    /** A JDBC result, as upstream's {@code DirectPostgresRunner} reads one: labels, and {@code getObject} cells; a
+     *  Postgres date or timestamp as its java.time value, as legend-lite's executor reads one (2026-10-17, the
+     *  regression suite: through java.sql.Date and Timestamp a BC year lost its era, and 'infinity' was a date in the
+     *  year 292278994). */
     public static Grid grid(ResultSet rs) throws SQLException {
         ResultSetMetaData meta = rs.getMetaData();
         List<String> columns = new ArrayList<>();
@@ -390,7 +431,12 @@ public final class SqlParity {
         while (rs.next()) {
             List<Object> row = new ArrayList<>();
             for (int i = 1; i <= columns.size(); i++) {
-                row.add(cell(rs.getObject(i)));
+                // pgjdbc's type names: a timestamptz has no LocalDateTime, and another driver's names are its own
+                row.add(cell(switch (meta.getColumnTypeName(i)) {
+                    case "date" -> rs.getObject(i, java.time.LocalDate.class);
+                    case "timestamp" -> rs.getObject(i, java.time.LocalDateTime.class);
+                    default -> rs.getObject(i);
+                }));
             }
             rows.add(row);
         }
@@ -427,7 +473,9 @@ public final class SqlParity {
             // a json or jsonb value, from Postgres (a PGobject) or from DuckDB (its JsonNode): the JSON value it holds
             case Object o when o.getClass().getName().equals("org.postgresql.util.PGobject")
                     && JSON_TYPES.contains(pgObject(o, "getType")) -> JsonValue.of(pgObject(o, "getValue"));
-            case Object o when o.getClass().getName().equals("org.duckdb.JsonNode") -> JsonValue.of(o.toString());
+            // (DuckDB's JSON holds a double that is not finite, NaN or an infinity, as a bare token: NonFiniteJson)
+            case Object o when o.getClass().getName().equals("org.duckdb.JsonNode") -> JsonValue.ofNonFinite(
+                    o.toString());
             case java.sql.Timestamp ts -> timestamp(ts.toLocalDateTime());
             case java.sql.Date d -> d.toLocalDate().toString();
             case java.time.LocalDate d -> d.toString();
@@ -457,6 +505,29 @@ public final class SqlParity {
 
     private static final Set<String> JSON_TYPES = Set.of("json", "jsonb");
 
+    /** {@code g} with each text cell that holds a JSON object or array as that JSON's canonical text: register S49's
+     *  difference, where the island writes a {@code json} value's object or array as {@code jsonb} does and Postgres
+     *  keeps the text as written, so two grids that agree so differ only by it. */
+    public static Grid jsonTextAsJson(Grid g) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (List<Object> row : g.rows()) {
+            List<Object> cells = new ArrayList<>();
+            for (Object v : row) {
+                cells.add(v instanceof String s && jsonContainerText(s) ? canonicalOrSelf(s) : v);
+            }
+            rows.add(cells);
+        }
+        return new Grid(g.columns(), rows);
+    }
+
+    private static String canonicalOrSelf(String s) {
+        try {
+            return JsonValue.of(s).toString();
+        } catch (RuntimeException notJson) {
+            return s;
+        }
+    }
+
     private static boolean jsonContainerText(String s) {
         String t = s.strip();
         return t.startsWith("{") && t.endsWith("}") || t.startsWith("[") && t.endsWith("]");
@@ -482,6 +553,12 @@ public final class SqlParity {
             return new JsonValue(canonical(Json.parse(text)));
         }
 
+        /** A JSON text that may hold a double that is not finite as a bare token, as DuckDB's JSON writes one
+         *  ({@link NonFiniteJson}). */
+        static JsonValue ofNonFinite(String text) {
+            return new JsonValue(canonical(NonFiniteJson.parse(text)));
+        }
+
         private static String canonical(Json.Node n) {
             return switch (n) {
                 case Json.Obj o -> {
@@ -492,6 +569,9 @@ public final class SqlParity {
                 }
                 case Json.Arr a -> "[" + String.join(",", a.items().stream().map(JsonValue::canonical).toList()) + "]";
                 case Json.Str str -> Json.toCompact(str.value());
+                case Json.Num num when num.decimalValue() == null && num.token() == null
+                        && !Double.isFinite(num.doubleValue()) -> Double.isNaN(num.doubleValue()) ? "NaN"
+                                : num.doubleValue() > 0 ? "Infinity" : "-Infinity";
                 case Json.Num num -> {
                     BigDecimal d = num.decimalValue() != null ? num.decimalValue()
                             : new BigDecimal(num.token() != null ? num.token() : Double.toString(num.doubleValue()));

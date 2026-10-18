@@ -27,7 +27,7 @@ import {
   referencedColumns,
   totalOrderSorts,
   type AggregateFn,
-  type CubeSnapshot,
+  type QuerySnapshot,
   type FilterNode,
   type SortSpec,
 } from '../src/snapshot.ts';
@@ -81,7 +81,7 @@ const NAMES = [
 const TYPES = ['String', 'Integer', 'Float', 'Date', 'Boolean'];
 const FNS: AggregateFn[] = ['sum', 'count', 'average', 'min', 'max', 'wavg'];
 
-async function makeSnapshot(r: () => number): Promise<CubeSnapshot> {
+async function makeSnapshot(r: () => number): Promise<QuerySnapshot> {
   const pick = <T>(xs: readonly T[]): T =>
     xs[Math.floor(r() * xs.length)] as T;
   const upto = (n: number): number => Math.floor(r() * (n + 1));
@@ -155,7 +155,7 @@ async function makeSnapshot(r: () => number): Promise<CubeSnapshot> {
 }
 
 /** A result table shaped like something an engine might return. */
-function tableFor(s: CubeSnapshot, r: () => number): ResultTable {
+function tableFor(s: QuerySnapshot, r: () => number): ResultTable {
   const cols = referencedColumns(s).slice(0, 4);
   const values = [null, 'EMEA', '', 0, -1, 1e20, "it's", 'Ünïcødé'];
   const n = Math.floor(r() * 4);
@@ -186,13 +186,13 @@ const CASES = 400;
  * A pivot's values come from its own query; the fuzz only writes text, so
  * each key gets a value and a NULL -- both forms a cell's condition takes.
  */
-function factsFor(s: CubeSnapshot): PivotFacts | undefined {
+function factsFor(s: QuerySnapshot): PivotFacts | undefined {
   const on = s.pivotOn;
   return on.length === 0 ? undefined : { tuples: [on.map(() => 'v'), on.map(() => null)] };
 }
 
 async function trySerialize(
-  s: CubeSnapshot,
+  s: QuerySnapshot,
   scope?: Parameters<typeof printLevel>[1],
   seed?: number,
 ): Promise<string | null> {
@@ -311,7 +311,7 @@ describe('fuzzing the model layer', () => {
         model = buildColumnModel(
           table,
           s.rows,
-          s.measures.map((m) => m.name),
+          (s.measures ?? []).map((m) => m.name),
         );
       } catch (e) {
         assert.fail(
@@ -357,7 +357,7 @@ describe('fuzzing the model layer', () => {
       const model = buildColumnModel(
         table,
         s.rows,
-        s.measures.map((m) => m.name),
+        (s.measures ?? []).map((m) => m.name),
       );
       const seen = new Set(model.leaves.map((l) => l.index));
       assert.equal(

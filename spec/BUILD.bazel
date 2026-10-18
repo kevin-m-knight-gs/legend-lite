@@ -121,6 +121,8 @@ legend_java_library(
         ":imports_generator",
         ":source_tree",
         "//core",
+        # the corpus lanes' databases: each lane's workspaces, fixture asides and the replay referee's sessions
+        "//core:test_backends",
         "//testing",
         # CorpusOne runs a corpus pass through JUnitAction
         "//tools/junit",
@@ -189,11 +191,13 @@ corpus_lane(
 corpus_lane(
     name = "corpus_warehouse",
     golden = False,
+    # the lane's backend: DuckDB as the warehouse serves it (testbackend.DuckDbWarehouseBackend)
+    jvm_flags = ["-Drcorpus.backend=warehouse"],
     host_jvm_flags = [
         # the native binary (Bazel workplan P3-19): the passes start it, never a JVM of their own
-        "-Drcorpus.warehouse.server=$(execpath //warehouse:server_native)",
+        "-Dlegend.warehouse.server=$(execpath //warehouse:server_native)",
         # the passes are build actions with no runfiles: the server is told where DuckDB's library is
-        "-Drcorpus.warehouse.library=$(execpath //warehouse:duckdb_library)",
+        "-Dlegend.warehouse.library=$(execpath //warehouse:duckdb_library)",
     ],
     host_srcs = [
         "//warehouse:duckdb_library",
@@ -223,7 +227,7 @@ corpus_lane(
 )
 
 # One corpus pass on demand, scoped to a test when one is named (CorpusOne):
-#   bazel run //spec:corpus_one -- <duckdb|h2> <host|database> [<test fqn>]
+#   bazel run //spec:corpus_one -- <lane: a test backend's name, duckdb or h2> <host|database> [<test fqn>]
 legend_java_binary(
     name = "corpus_one",
     testonly = True,
@@ -407,6 +411,24 @@ java_run(
     mnemonic = "Generate",
     roots = ENGINE_ROOT,
     visibility = ["//core:__pkg__"],
+    deps = [":dynafn_generator"],
+)
+
+# docs/engine-dynafunctions.tsv: the engine's reference table, which engine dialect extensions register each
+# dynafunction (the dialect program's D10, 2026-10-18: DynaFn.java names no database). No build reads it.
+java_run(
+    name = "gen_engine_dynafunctions",
+    srcs = ENGINE_TREE,
+    outs = ["generated/engine-dynafunctions.tsv"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{OUT}",
+        "--engine-table",
+    ],
+    main_class = "com.legend.generators.DynaFnGenerator",
+    mnemonic = "Generate",
+    roots = ENGINE_ROOT,
+    visibility = ["//docs:__pkg__"],
     deps = [":dynafn_generator"],
 )
 

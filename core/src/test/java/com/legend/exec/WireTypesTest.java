@@ -19,11 +19,12 @@ import com.legend.sql.SqlType;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** Leg 3.3: a wire-decided column takes the database's reported type
  * (§4t) — the store says INT, the fixture created VARCHAR. */
@@ -85,17 +86,12 @@ class WireTypesTest {
         assertEquals(SqlType.Scalar.VARCHAR, v.outputs().get(0).type());
     }
 
-    @Test
-    void duckdbReportsTheWire() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            battery(c, new com.legend.sql.dialect.DuckDb());
-        }
-    }
-
-    @Test
-    void h2ReportsTheWire() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:wire" + System.nanoTime())) {
-            battery(c, new com.legend.sql.dialect.H2());
+    /** On each in-process database (the dialect program's Phase 6, 2026-10-16: until then DuckDB and H2, by name). */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
+    void eachDatabaseReportsTheWire(com.legend.testbackend.TestBackend backend) throws Exception {
+        try (Connection c = backend.open()) {
+            battery(c, backend.dialect());
         }
     }
 

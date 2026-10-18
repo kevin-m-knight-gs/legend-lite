@@ -2,7 +2,6 @@ package com.legend.integration;
 
 import org.junit.jupiter.api.*;
 
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -30,19 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Relation API E2E Integration Tests")
 class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
-    @Override
-    protected String getDatabaseType() {
-        return "DuckDB";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:duckdb:";
-    }
-
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 
@@ -971,6 +960,26 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             // Verify first row
             assertEquals("Alice", result.rows().get(0).get(0));
             assertEquals(25L, ((Number) result.rows().get(0).get(1)).longValue());
+        }
+
+        @Test
+        @DisplayName("#TDS{...}# literal (the engine's brace form) reads its grid, not its braces")
+        void testTdsLiteralBraceForm() throws SQLException {
+            // the braces wrap the grid: a literal parsed from text read '{' as its first header cell (2026-10-17, the
+            // Cypher island's procedures, the study's §12.60)
+            String pureQuery = """
+                    #TDS{
+                      name:String, age:Integer
+                      Alice, 25
+                      Bob, 30
+                    }#->select(~[name])
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            assertEquals(1, result.columns().size());
+            assertEquals(2, result.rows().size());
+            assertEquals("Alice", result.rows().get(0).get(0));
         }
 
         @Test

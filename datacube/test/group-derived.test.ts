@@ -11,7 +11,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import type { QuerySnapshot } from '../src/snapshot.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { row } from './lite-compiler.ts';
 import { printLevel } from './lite-compiler.ts';
@@ -37,7 +37,7 @@ after(async () => {
   await engine?.close();
 });
 
-const BASE: CubeSnapshot = {
+const BASE: QuerySnapshot = {
   source: { query: element('deals') },
   columns: [
     { name: 'region', type: 'String' },

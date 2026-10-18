@@ -29,7 +29,6 @@ const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -39,7 +38,7 @@ function result(epoch: number): ResultTable {
   return {
     columns: [
       { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
-      { name: 'total', type: 'Float', values: [600, 400] },
+      { name: 'notional', type: 'Float', values: [600, 400] },
     ],
     rowCount: 2,
     epoch,
@@ -111,7 +110,6 @@ const PIVOTED: CubeSnapshot = {
   ...SNAPSHOT,
   rows: ['region'],
   pivotOn: ['desk'],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
 };
 
 /** An engine that answers in the shape a pivot produces. */
@@ -136,8 +134,8 @@ class PivotEngine extends FakeEngine {
     return {
       columns: [
         { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
-        { name: 'A__|__total', type: 'Float', values: [1, 2] },
-        { name: 'B__|__total', type: 'Float', values: [3, 4] },
+        { name: 'A__|__notional', type: 'Float', values: [1, 2] },
+        { name: 'B__|__notional', type: 'Float', values: [3, 4] },
       ],
       rowCount: 2,
       epoch,
@@ -224,8 +222,7 @@ describe('the app', () => {
     /**
      * A measure shown under its OWN column's name -- how every uploaded
      * file's measures appear -- so the menu knows its type and would
-     * offer a value filter. (A measure named apart from its column, as
-     * `total` above, has no type to offer operators for.)
+     * offer a value filter.
      */
     class OwnNameEngine extends FakeEngine {
       readonly name = 'own-name';
@@ -243,10 +240,7 @@ describe('the app', () => {
     beforeEach(async () => {
       host = dom.window.document.createElement('div');
       dom.window.document.body.append(host);
-      const own = new CubeApp(host, {
-        ...SNAPSHOT,
-        measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
-      }, { engine: new OwnNameEngine(), planner });
+      const own = new CubeApp(host, SNAPSHOT, { engine: new OwnNameEngine(), planner });
       await own.open();
     });
     /** The grid cell showing `text`, right-clicked. */
@@ -642,7 +636,7 @@ describe('the app', () => {
 
   it('adds and removes a heatmap from the menu', () => {
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Add Heatmap to total');
+    pick('Add Heatmap to notional');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
@@ -736,7 +730,8 @@ describe('the app', () => {
     assert.ok(doc);
     assert.equal(doc.kind, 'datacube.cube');
     assert.deepEqual(doc.query.rows, ['region']);
-    assert.deepEqual(doc.query.measures, SNAPSHOT.measures);
+    // a grid's aggregates are its Column Properties: a saved cube carries no measures list
+    assert.equal('measures' in doc.query, false);
     assert.equal(doc.configuration['maxRows'], 123, 'what the user set');
     assert.equal(doc.configuration['showTitleBar'], undefined, 'a default is not written down');
     assert.equal('source' in doc.query, false, 'the relation is derived from the source on open');
@@ -798,18 +793,18 @@ describe('the app', () => {
   });
 
   it('Properties... from a HEADER opens Column Properties on that column', () => {
-    rightClick('.dc-th[data-column="total"]');
+    rightClick('.dc-th[data-column="notional"]');
     pick('Properties...');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
-    // `total` is a measure over `notional`: the panel shows the column.
+    // an aggregated column is its own column's name: the panel shows the column
     // the column shown: the one marked in Column Properties' list
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
   });
 
   it('Properties... from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
-    rightClick('.dc-row [data-column="total"]');
+    rightClick('.dc-row [data-column="notional"]');
     pick('Properties...');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
@@ -924,7 +919,7 @@ describe('the app', () => {
         planner,
         configuration: {
           ...DEFAULT_CONFIGURATION,
-          columns: { total: { heatmap: { from: '#ffffff', to: '#ff0000' } } },
+          columns: { notional: { heatmap: { from: '#ffffff', to: '#ff0000' } } },
         },
       },
     );
@@ -961,7 +956,7 @@ describe('the app', () => {
     // default configuration shows it; it is a column of the same query).
     assert.deepEqual(
       children.map((c) => [c.column, c.label]),
-      [['A__|__total', 'A'], ['B__|__total', 'B'], [pivotTotalColumn('total'), 'Total']],
+      [['A__|__notional', 'A'], ['B__|__notional', 'B'], [pivotTotalColumn('notional'), 'Total']],
     );
     // And the pivot KEY is not in this list at all: its values ARE
     // the column headers, so it cannot also be a column. It is in
@@ -975,7 +970,7 @@ describe('the app', () => {
   });
 
   it('hiding a pivoted column does not take it out of the QUERY', async () => {
-    // Unticking `A__|__total` once narrowed the next query (the cast was
+    // Unticking `A__|__notional` once narrowed the next query (the cast was
     // read off the leaves the grid was SHOWING), so the column left the
     // data as well as the screen. The columns come from the values
     // query now, whatever is hidden.
@@ -987,18 +982,18 @@ describe('the app', () => {
       planner: new EchoPlanner(),
       configuration: {
         ...DEFAULT_CONFIGURATION,
-        columns: { 'A__|__total': { hidden: true } },
+        columns: { 'A__|__notional': { hidden: true } },
       },
     });
     await pivoted.open();
     const level = engine.sql.find((s) => s.includes('"function":"groupBy"')) ?? '';
-    assert.match(level, /"A__\|__total"/, 'the hidden column is still asked for');
-    assert.match(level, /"B__\|__total"/);
+    assert.match(level, /"A__\|__notional"/, 'the hidden column is still asked for');
+    assert.match(level, /"B__\|__notional"/);
     // Hidden on screen, all the same.
     const shown = [...host.querySelectorAll('.dc-th[data-column]')]
       .map((e) => (e as HTMLElement).dataset['column']);
-    assert.equal(shown.includes('A__|__total'), false);
-    assert.equal(shown.includes('B__|__total'), true);
+    assert.equal(shown.includes('A__|__notional'), false);
+    assert.equal(shown.includes('B__|__notional'), true);
   });
 
   it('the grid header carries the column name, so the menu knows what was clicked', () => {

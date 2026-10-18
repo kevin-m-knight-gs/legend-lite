@@ -14,6 +14,7 @@ import { createClass, projectState } from '../../model-changes/src/index.ts';
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelWriter } from './model-writer.ts';
 import { suggestedClassName, suggestedPackage } from './model-names.ts';
+import { sampleOf } from './sample-rows.ts';
 import { classDialog, type ClassChoice, type ClassPreview, type CreatedClass } from './ui/class-dialog.ts';
 import type { ModelAnswer } from './model-writer.ts';
 
@@ -57,17 +58,9 @@ export interface CreateClassOf {
 export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | undefined> {
   const { query, table } = o;
   const model = new PageModel(o.model);
-  // its source's first rows, as the database has them: the class's sample (a Data element)
-  const { rows: sample } = await o.rows.host.planAndRun(o.sample, 0);
-  const samples = {
-    [table.table]: {
-      columns: sample.columns.map((c) => c.name),
-      rows: [...Array(sample.rowCount).keys()].map((r) => sample.columns.map((c) => {
-        const v = c.values[r] ?? null;
-        return typeof v === 'bigint' ? String(v) : v;
-      })),
-    },
-  };
+  // its source's first rows, as the database has them: the class's sample (a Data element), written by the one writer
+  // (sample-rows.ts sampleOf: a NaN or an infinity refused, naming its column and row, never written as null)
+  const samples = { [table.table]: await sampleOf(o.rows.host, o.sample) };
   const action = (c: ClassChoice): ClassAction => ({
     query,
     source: o.source,

@@ -14,7 +14,7 @@ import {
 import { planQueries, type AdHocCube } from '../../src/adhoc/query.ts';
 import { initialGrid, setPov, zoomIn } from '../../src/adhoc/state.ts';
 import type { LevelScope } from '../../src/query.ts';
-import type { CubeSnapshot, WindowSpec } from '../../src/snapshot.ts';
+import type { QuerySnapshot, WindowSpec, Measure, } from '../../src/snapshot.ts';
 
 export const MODEL = `###Relational
 Database trades::DB
@@ -47,7 +47,7 @@ Runtime trades::RT
 `;
 export const RUNTIME = 'trades::RT';
 
-const COLUMNS: CubeSnapshot['columns'] = [
+const COLUMNS: QuerySnapshot['columns'] = [
   { name: 'region', type: 'String' },
   { name: 'desk', type: 'String' },
   { name: 'book', type: 'String' },
@@ -58,7 +58,7 @@ const COLUMNS: CubeSnapshot['columns'] = [
   { name: 'qty', type: 'Integer' },
 ];
 
-function snap(over: Partial<CubeSnapshot>): CubeSnapshot {
+function snap(over: Partial<QuerySnapshot>): QuerySnapshot {
   return {
     source: { query: accessor('trades::DB', 'TRADES') },
     columns: COLUMNS,
@@ -72,7 +72,7 @@ function snap(over: Partial<CubeSnapshot>): CubeSnapshot {
   };
 }
 
-const SUM_NOTIONAL: CubeSnapshot['measures'] = [
+const SUM_NOTIONAL: readonly Measure[] = [
   { name: 'notional', column: 'notional', fn: 'sum' },
 ];
 
@@ -93,7 +93,7 @@ const YEAR_QTRS: PivotFacts = {
 };
 
 export const CASES: {
-  name: string; snapshot: CubeSnapshot; scope?: LevelScope; query?: Lambda; pivot?: PivotFacts;
+  name: string; snapshot: QuerySnapshot; scope?: LevelScope; query?: Lambda; pivot?: PivotFacts;
 }[] = [
   { name: 'flat', snapshot: snap({}) },
   { name: 'measures-only', snapshot: snap({ measures: SUM_NOTIONAL }) },
@@ -381,9 +381,9 @@ for (const measures of [SUM_NOTIONAL, []]) {
 /** A detail level, exactly as `fetchTree` builds its query. */
 function detailCase(
   name: string,
-  cube: CubeSnapshot,
+  cube: QuerySnapshot,
   parent: readonly string[],
-): { name: string; snapshot: CubeSnapshot; scope: LevelScope } {
+): { name: string; snapshot: QuerySnapshot; scope: LevelScope } {
   const snapshot = detailSnapshot(cube, parent);
   return { name, snapshot, scope: { level: snapshot.rows.length, parent: [], limit: 501 } };
 }

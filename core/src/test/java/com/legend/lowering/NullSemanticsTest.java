@@ -3,6 +3,7 @@
 
 package com.legend.lowering;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
@@ -11,7 +12,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
@@ -47,7 +47,7 @@ class NullSemanticsTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE A (NAME VARCHAR, STREET VARCHAR, N INTEGER)");
             st.execute("INSERT INTO A VALUES ('a','Loop',5),('b','Main',NULL),"
