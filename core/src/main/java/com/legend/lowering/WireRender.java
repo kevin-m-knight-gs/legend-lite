@@ -62,19 +62,20 @@ public final class WireRender {
      *  the CSV is lite's own and has one. */
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema, Format format, Spelling spelling) {
         SqlSelect inner = asSelect(plan);
-        boolean dynamicPivot = dynamicPivotUnnamed(plan, schema);
-        if (format == Format.JSON) {
-            // a dynamic pivot's rows are their own JSON (the database's tokens: the plan path program's step 4,
-            // 2026-10-18; Pure's Float text on such a wire is a named residue)
-            return dynamicPivot ? Render.jsonWireOfRows(inner, "_wire1")
-                    : Render.jsonWire(inner, typedOrNull(inner, schema), "_wire1", spelling);
-        }
-        if (dynamicPivot) {
-            // the database names the pivot's columns itself, as for its TDS text (step 4, 2026-10-18)
+        if (dynamicPivotUnnamed(plan, schema)) {
+            // the database names the pivot's columns itself, as for its TDS text (step 4, 2026-10-18), each as the
+            // engine labels it and each cell by its template's type on both wires (the pivot homework, 2026-10-18)
             SqlSource.Pivot pivot = TdsTextWrap.pivots(plan).stream().filter(p -> p.in().isEmpty()).findFirst()
-                    .orElseThrow(() -> new IllegalStateException("csv wire: no dynamic pivot in the plan"));
-            return Render.csvWireOfDynamicPivot(inner, pivot, TdsTextWrap.staticColumns(inner.outputs(), schema),
-                    TdsTextWrap.templates(pivot, schema), "_wire1");
+                    .orElseThrow(() -> new IllegalStateException("wire: no dynamic pivot in the plan"));
+            List<Type.Column> statics = TdsTextWrap.staticColumns(inner.outputs(), schema);
+            List<Type.Column> templates = TdsTextWrap.templates(pivot, schema);
+            return switch (format) {
+                case JSON -> Render.jsonWireOfDynamicPivot(inner, pivot, statics, templates, "_wire1", spelling);
+                case CSV -> Render.csvWireOfDynamicPivot(inner, pivot, statics, templates, "_wire1");
+            };
+        }
+        if (format == Format.JSON) {
+            return Render.jsonWire(inner, typedOrNull(inner, schema), "_wire1", spelling);
         }
         if (spelling != Spelling.PURE) {
             throw new IllegalArgumentException("the CSV wire has one spelling, Pure's; the engine's is the JSON wire's");

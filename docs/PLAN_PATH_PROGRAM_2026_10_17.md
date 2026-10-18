@@ -297,6 +297,13 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-18, the pivot homework against upstream's real code** (the user's question after step 7's first
+  landing; `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md`; GATES "The pivot homework"): the engine's generated column
+  name carries the single quotes everywhere, only a cast pivot executes there, H2 refuses every pivot; the group rule,
+  the absent cast key and the composite key hold. The defect found: the CSV wire's header and the JSON wires' keys
+  printed the bare physical name while the TDS text presented the engine's -- fixed, every wire presents the name as
+  the engine labels it, and the dynamic pivot's JSON wire is built from its cells as its CSV is (step 4's named
+  residue retired). Register S78 to S80. Step 7 continues as announced below.
 - **2026-10-18, step 7 announced; its first landing: the judges onto the typed seam, the dynamic pivot's holes**
   (GATES "step 7, first landing"): `Statements.rows` (typed cells by the plan's columns) on JDBC (`exec.JdbcDecode`)
   and MongoDB (`exec.MongoDbDecode`); `PlanRunner.rows` through it; the judges' plans the statements themselves, the

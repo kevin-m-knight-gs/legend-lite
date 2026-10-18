@@ -10653,6 +10653,48 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-18 — The pivot homework against upstream's real code: the generated name as the engine labels it on every wire
+
+The note: `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md` (the user's question after step 7's first landing: "do we
+need more homework for pivot on upstream real code?"; "do the homework"). The reading is its §1, with every citation
+into the pinned engine checkout (spec input only); the findings its §2; the register rows S78 to S80.
+
+**What was found.** The engine's generated column name carries the single quotes everywhere (`'2000__|__newCol'`:
+DuckDB's `concat('''', year, '''')` and the static form's aliases, the interpreter's `PivotColumnInfo`, the PCT's
+expected text and casts, the serializers' headers and keys); only a cast pivot executes there (every `pivot` is
+`Relation<Any>`, and the executor refuses a label absent from the plan's columns); H2 refuses every pivot; the group
+rule, the absent cast key and the composite key hold as lite has them. Lite's physical and typed name is bare,
+presented quoted by one rule on the TDS text, the legacy route's columns and a cast's label -- but the CSV wire's
+header and the JSON wires' keys printed the bare name (static and dynamic): one result named two ways across its
+carriers, and not the engine's way. The static-pivot probe that failed to type in the first pass used a form the
+engine does not have either (`~[year]` with values); the engine's form types and runs.
+
+**What landed.**
+1. `lowering/Render`: `csvWire`'s header and the JSON row's keys (`jsonMembers`, factored from `jsonRowOf`) through
+   `Type.RelationType.presentPivotName`; the dynamic pivot's CSV header through `generatedName` (the key's text, the
+   separator and the alias between literal quotes); the dynamic pivot's JSON wire built from its cells as its CSV
+   and TDS text are (`jsonWireOfDynamicPivot`, replacing `jsonWireOfRows`: the keys subquery, each member read from
+   the row's own JSON and tokenised by its template's type), which retires step 4's named residue (the database's
+   own tokens on that one wire); `PivotKeys` (the three dynamic builders' one keys subquery), `generatedCell`.
+2. `lowering/WireRender.wrap`: the dynamic road dispatches both wires from the one pivot, its static columns and
+   templates (a switch over the format, no default).
+3. `PlanMakerTest.aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt`: the CSV and JSON pins moved to
+   the engine's names with the reason; a static pivot's CSV and JSON added.
+4. `docs/SEMANTICS_REGISTER.md`: S78 (an uncast pivot answers here, not in the engine), S79 (the name's physical
+   spelling bare, presented as the engine's), S80 (H2: a static pivot answers, a dynamic one is refused by the
+   row-JSON capability).
+
+**Verdicts (this tree).** `//core:core_tests_root` (54.8s) and `//core:core_tests_lowering` (22.4s) pass -- the pivot cases of
+`PlanMakerTest` on DuckDB among them (the dynamic pivot's TDS text, CSV and JSON; the static pivot's CSV and JSON; the
+cast cases). The chain -- `//gates:core` under the Postgres wrapper, `//pct:pct_duckdb` and `//gates:pct_channel_b`,
+`//spec:corpus_h2`, `//spec:corpus_duckdb` -- runs on this tree as this lands; its verdicts are appended to this entry
+by the commit that follows. Not run: the manual MongoDB plan test (no pivot among its cases). The corpus holds no
+pivot, so the wires' change there is the name rule's identity on every separator-free name and the JSON members'
+equal-output factoring.
+
+**Not changed, recorded.** The physical and typed spelling (the homework note's §5); the H2 dynamic refusal's wording
+(S80).
+
 ## 2026-10-18 — The plan path program, step 7, first landing: the judges onto the typed seam, the dynamic pivot's two holes, the Float that is no number
 
 The design: `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §3 (the session seam: text in, rows out), §4 (the decode: by

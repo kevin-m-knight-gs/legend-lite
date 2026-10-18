@@ -268,10 +268,12 @@ public final class Render {
                 new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false)));
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, rowProjs);
-        SqlExpr header = escapeCsv(new SqlExpr.StringLit(cols.get(0).name()));
+        // a pivot's generated column named as the engine labels it, quoted (Type.RelationType.presentPivotName: the
+        // TDS text's rule; the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md)
+        SqlExpr header = escapeCsv(new SqlExpr.StringLit(Type.RelationType.presentPivotName(cols.get(0).name())));
         for (int i = 1; i < cols.size(); i++) {
             header = cat(header, new SqlExpr.StringLit(","),
-                    escapeCsv(new SqlExpr.StringLit(cols.get(i).name())));
+                    escapeCsv(new SqlExpr.StringLit(Type.RelationType.presentPivotName(cols.get(i).name()))));
         }
         SqlExpr crlf = new SqlExpr.StringLit("\r\n");
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
@@ -301,8 +303,10 @@ public final class Render {
      * 3, 2026-10-18: no database's native JSON number decides a token): a Float's token is Pure's Float text, a
      * Decimal's the value's own scale, and every other kind's the database's own JSON writer's token (a string
      * escaped, a boolean, an integer, a date as the database writes it today, nested JSON kept) read off a
-     * one-element JSON array's text; a null cell is {@code null}. The keys are JSON strings the same way. A column
-     * the typed schema does not name (a pivot's generated column) takes the database's token.
+     * one-element JSON array's text; a null cell is {@code null}. The keys are JSON strings the same way, each the
+     * column's name as the engine labels it (a pivot's generated column quoted, {@link Type.RelationType#presentPivotName}:
+     * the TDS text's rule; the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md). A column the typed
+     * schema does not name (a pivot's generated column) takes the database's token.
      */
     private static SqlExpr jsonRow(String rowAlias, List<OutputCol> cols, List<Type.@com.legend.base.Nullable Column> relCols,
             WireRender.Spelling spelling) {
@@ -316,19 +320,24 @@ public final class Render {
     /** {@link #jsonRow} over the cells' own expressions ({@code cells.get(i)} the value of {@code cols.get(i)}). */
     private static SqlExpr jsonRowOf(List<SqlExpr> cells, List<OutputCol> cols,
             List<Type.@com.legend.base.Nullable Column> relCols, WireRender.Spelling spelling) {
+        return cat(new SqlExpr.StringLit("{"), jsonMembers(cells, cols, relCols, spelling), new SqlExpr.StringLit("}"));
+    }
+
+    /** {@link #jsonRowOf}'s members, comma-joined (the empty text for no column): each key its column's name as the
+     *  engine labels it, each value its cell's token. */
+    private static SqlExpr jsonMembers(List<SqlExpr> cells, List<OutputCol> cols,
+            List<Type.@com.legend.base.Nullable Column> relCols, WireRender.Spelling spelling) {
         List<SqlExpr> parts = new ArrayList<>();
-        parts.add(new SqlExpr.StringLit("{"));
         for (int i = 0; i < cols.size(); i++) {
             if (i > 0) {
                 parts.add(new SqlExpr.StringLit(","));
             }
-            parts.add(jsonToken(new SqlExpr.StringLit(cols.get(i).name())));
+            parts.add(jsonToken(new SqlExpr.StringLit(Type.RelationType.presentPivotName(cols.get(i).name()))));
             parts.add(new SqlExpr.StringLit(":"));
             Type.Column typed = relCols.get(i);
             parts.add(jsonCell(cells.get(i), typed == null ? null : typed.type(), cols.get(i).type(), spelling));
         }
-        parts.add(new SqlExpr.StringLit("}"));
-        return cat(parts.toArray(new SqlExpr[0]));
+        return parts.isEmpty() ? new SqlExpr.StringLit("") : cat(parts.toArray(new SqlExpr[0]));
     }
 
     /** A cell's JSON token by its Pure type: a Float's text (Pure's, or Java's on the engine's wire), its own scale
@@ -1042,27 +1051,15 @@ public final class Render {
      */
     public static SqlSelect tdsTextOfDynamicPivot(SqlSelect inner, SqlSource.Pivot pivot, List<Type.Column> staticCols,
             List<Type.Column> templates, String rowAlias, boolean quoteStrings, LiteralSpelling.Layouts layouts) {
-        if (pivot.on().size() != 1) {
-            throw new com.legend.error.NotImplementedException("a dynamic pivot on " + pivot.on().size()
-                    + " columns: its generated names join the keys, which the text does not spell yet");
-        }
+        PivotKeys k = PivotKeys.of(pivot, "text");
         List<OutputCol> cols = inner.outputs().stream().filter(oc -> !oc.name().startsWith("_pct_ord")).toList();
         if (cols.size() != staticCols.size()) {
             throw new IllegalStateException("a dynamic pivot's static columns " + cols.stream().map(OutputCol::name).toList()
                     + " are not the typed schema's " + staticCols.stream().map(Type.Column::name).toList());
         }
-        // the keys: the ON column's distinct values over the pivot's source, ascending (the database's column order)
-        SqlExpr on = pivot.on().get(0);
-        if (!(on.type() instanceof com.legend.sql.TypeFact.Typed keyTyped)) {
-            throw new IllegalStateException("a dynamic pivot's key has no typed slot: " + on.type());
-        }
-        SqlExpr keyCol = SqlExpr.Column.of(null, "_pct_k", keyTyped.type(), true, OutputCol.Origin.DERIVED);
-        SqlSelect keys = SqlSelect.starOf(pivot.source())
-                .withProjections(List.of(new SqlSelect.Projection(on, "_pct_k",
-                        new OutputCol("_pct_k", keyTyped.type(), true))))
-                .withDistinct();
-        List<SqlSelect.SortKey> byKey = List.of(new SqlSelect.SortKey(keyCol, true, null, "_pct_k"));
-        SqlExpr keyText = new SqlExpr.Cast(keyCol, SqlType.Scalar.VARCHAR);
+        SqlSelect keys = k.keys();
+        List<SqlSelect.SortKey> byKey = k.byKey();
+        SqlExpr keyText = k.keyText();
         // the header: the static columns', then each key's generated column per USING, presented as the reader
         // reads a pivot name (tdsHeader: literal quotes around a name holding the separator), typed by the template
         List<SqlExpr> headerPieces = new ArrayList<>();
@@ -1083,9 +1080,8 @@ public final class Render {
             headerPieces.add(new SqlExpr.StringLit(tail + "\\'':" + tdsTypeName(template.type())
                     + (template.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                             && b.lower() == 0 ? "[0..1]" : "[1]")));
-            SqlExpr member = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, new SqlExpr.RowJson(rowAlias),
-                    cat(new SqlExpr.StringLit("$.\""), keyText, new SqlExpr.StringLit(tail + "\""))), u.type());
-            cellPieces.add(tdsTextCell(member, template, u.type(), quoteStrings, layouts));
+            cellPieces.add(tdsTextCell(generatedCell(rowAlias, keyText, tail, u.type()), template, u.type(),
+                    quoteStrings, layouts));
         }
         SqlExpr dynamicHeader = joinedOverKeys(cat(headerPieces.toArray(new SqlExpr[0])), keys, byKey);
         SqlExpr header = staticCols.isEmpty() ? dynamicHeader
@@ -1115,30 +1111,19 @@ public final class Render {
     }
 
     /** The CSV wire of a DYNAMIC pivot, built as its TDS text is ({@link #tdsTextOfDynamicPivot}): the header's
-     *  generated names and each row's generated cells from the keys subquery and the row's own JSON, in the CSV's
-     *  cell and escape rules ({@link #cell}, {@link #escapeCsv}). */
+     *  generated names (as the engine labels them, {@link #generatedName}) and each row's generated cells from the
+     *  keys subquery and the row's own JSON, in the CSV's cell and escape rules ({@link #cell}, {@link #escapeCsv}). */
     static SqlSelect csvWireOfDynamicPivot(SqlSelect inner, SqlSource.Pivot pivot, List<Type.Column> staticCols,
             List<Type.Column> templates, String rowAlias) {
-        if (pivot.on().size() != 1) {
-            throw new com.legend.error.NotImplementedException("a dynamic pivot on " + pivot.on().size()
-                    + " columns: its generated names join the keys, which the wire does not spell yet");
-        }
+        PivotKeys k = PivotKeys.of(pivot, "wire");
         List<OutputCol> cols = inner.outputs();
         if (cols.size() != staticCols.size()) {
             throw new IllegalStateException("csv wire: a dynamic pivot's static columns " + cols.stream().map(OutputCol::name).toList()
                     + " are not the typed schema's " + staticCols.stream().map(Type.Column::name).toList());
         }
-        SqlExpr on = pivot.on().get(0);
-        if (!(on.type() instanceof com.legend.sql.TypeFact.Typed keyTyped)) {
-            throw new IllegalStateException("a dynamic pivot's key has no typed slot: " + on.type());
-        }
-        SqlExpr keyCol = SqlExpr.Column.of(null, "_pct_k", keyTyped.type(), true, OutputCol.Origin.DERIVED);
-        SqlSelect keys = SqlSelect.starOf(pivot.source())
-                .withProjections(List.of(new SqlSelect.Projection(on, "_pct_k",
-                        new OutputCol("_pct_k", keyTyped.type(), true))))
-                .withDistinct();
-        List<SqlSelect.SortKey> byKey = List.of(new SqlSelect.SortKey(keyCol, true, null, "_pct_k"));
-        SqlExpr keyText = new SqlExpr.Cast(keyCol, SqlType.Scalar.VARCHAR);
+        SqlSelect keys = k.keys();
+        List<SqlSelect.SortKey> byKey = k.byKey();
+        SqlExpr keyText = k.keyText();
         List<SqlExpr> headerPieces = new ArrayList<>();
         List<SqlExpr> cellPieces = new ArrayList<>();
         for (int i = 0; i < pivot.usings().size(); i++) {
@@ -1151,17 +1136,15 @@ public final class Render {
                 headerPieces.add(new SqlExpr.StringLit(","));
                 cellPieces.add(new SqlExpr.StringLit(","));
             }
-            headerPieces.add(escapeCsv(cat(keyText, new SqlExpr.StringLit(tail))));
-            SqlExpr member = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, new SqlExpr.RowJson(rowAlias),
-                    cat(new SqlExpr.StringLit("$.\""), keyText, new SqlExpr.StringLit(tail + "\""))), u.type());
-            cellPieces.add(cell(member, templates.get(i), u.type(), false));
+            headerPieces.add(escapeCsv(generatedName(keyText, tail)));
+            cellPieces.add(cell(generatedCell(rowAlias, keyText, tail, u.type()), templates.get(i), u.type(), false));
         }
         SqlExpr dynamicHeader = joinedOverKeys(cat(headerPieces.toArray(new SqlExpr[0])), keys, byKey);
         SqlExpr dynamicCells = joinedOverKeys(cat(cellPieces.toArray(new SqlExpr[0])), keys, byKey);
         SqlExpr header = null;
         SqlExpr line = null;
         for (int i = 0; i < cols.size(); i++) {
-            SqlExpr name = escapeCsv(new SqlExpr.StringLit(cols.get(i).name()));
+            SqlExpr name = escapeCsv(new SqlExpr.StringLit(Type.RelationType.presentPivotName(cols.get(i).name())));
             header = header == null ? name : cat(header, new SqlExpr.StringLit(","), name);
             SqlExpr c = cell(SqlExpr.Column.of(rowAlias, cols.get(i)), staticCols.get(i), cols.get(i).type(), false);
             line = line == null ? c : cat(line, new SqlExpr.StringLit(","), c);
@@ -1184,6 +1167,45 @@ public final class Render {
                         new OutputCol("wire", SqlType.Scalar.VARCHAR, false))));
     }
 
+    /** A dynamic pivot's KEYS (the three builders of its text share them): the ON column's distinct values over the
+     *  pivot's source, ascending (the database's column order), each key's text, and the order. One ON column: a
+     *  composite key's generated names join the keys, which no builder spells yet. */
+    private record PivotKeys(SqlSelect keys, List<SqlSelect.SortKey> byKey, SqlExpr keyText) {
+        static PivotKeys of(SqlSource.Pivot pivot, String builder) {
+            if (pivot.on().size() != 1) {
+                throw new com.legend.error.NotImplementedException("a dynamic pivot on " + pivot.on().size()
+                        + " columns: its generated names join the keys, which the " + builder + " does not spell yet");
+            }
+            SqlExpr on = pivot.on().get(0);
+            if (!(on.type() instanceof com.legend.sql.TypeFact.Typed keyTyped)) {
+                throw new IllegalStateException("a dynamic pivot's key has no typed slot: " + on.type());
+            }
+            SqlExpr keyCol = SqlExpr.Column.of(null, "_pct_k", keyTyped.type(), true, OutputCol.Origin.DERIVED);
+            SqlSelect keys = SqlSelect.starOf(pivot.source())
+                    .withProjections(List.of(new SqlSelect.Projection(on, "_pct_k",
+                            new OutputCol("_pct_k", keyTyped.type(), true))))
+                    .withDistinct();
+            List<SqlSelect.SortKey> byKey = List.of(new SqlSelect.SortKey(keyCol, true, null, "_pct_k"));
+            return new PivotKeys(keys, byKey, new SqlExpr.Cast(keyCol, SqlType.Scalar.VARCHAR));
+        }
+    }
+
+    /** A generated column's name as the engine labels it: the key's text, the separator and the USING's alias
+     *  ({@code tail}) between literal single quotes -- the quotes are part of the name on legend-engine's DuckDB SQL
+     *  ({@code concat('''', <key>, '''')}), in its interpreter and in the PCT's expected text; lite's physical column
+     *  is bare and every carrier presents it this way ({@link Type.RelationType#presentPivotName}; the pivot
+     *  homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md). */
+    private static SqlExpr generatedName(SqlExpr keyText, String tail) {
+        return cat(new SqlExpr.StringLit("'"), keyText, new SqlExpr.StringLit(tail + "'"));
+    }
+
+    /** A generated column's cell, read from the row's own JSON by the column's physical name ({@code <key>__|__<alias>})
+     *  in the USING's slot. */
+    private static SqlExpr generatedCell(String rowAlias, SqlExpr keyText, String tail, SqlType slot) {
+        return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, new SqlExpr.RowJson(rowAlias),
+                cat(new SqlExpr.StringLit("$.\""), keyText, new SqlExpr.StringLit(tail + "\""))), slot);
+    }
+
     /** {@code piece}, one per key of {@code keys} in {@code order}, comma-joined; empty for no key. */
     private static SqlExpr joinedOverKeys(SqlExpr piece, SqlSelect keys, List<SqlSelect.SortKey> order) {
         SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(keys, "_pct_keys", null))
@@ -1200,14 +1222,50 @@ public final class Render {
                 cat(new SqlExpr.StringLit(","), text));
     }
 
-    /** The JSON wire of a DYNAMIC pivot: each row its own JSON ({@link SqlExpr.RowJson}, the database's tokens),
-     *  comma-joined between brackets; the pivot's order lifted as {@link #jsonWire}'s is. */
-    static SqlSelect jsonWireOfRows(SqlSelect inner, String rowAlias) {
+    /** The JSON wire of a DYNAMIC pivot, built as its CSV is ({@link #csvWireOfDynamicPivot}): each row an object of
+     *  the static columns' members ({@link #jsonMembers}) and, per key of the keys subquery, each USING's generated
+     *  member -- its key the generated name as the engine labels it ({@link #generatedName}), its value read from
+     *  the row's own JSON ({@link #generatedCell}) and tokenised by its template's type ({@link #jsonCell}, so this
+     *  wire's tokens are every JSON wire's; until the pivot homework of 2026-10-18 the row's own JSON was the wire's
+     *  row: bare names and the database's tokens) -- the rows comma-joined between brackets, the pivot's order lifted
+     *  as {@link #jsonWire}'s is. */
+    static SqlSelect jsonWireOfDynamicPivot(SqlSelect inner, SqlSource.Pivot pivot, List<Type.Column> staticCols,
+            List<Type.Column> templates, String rowAlias, WireRender.Spelling spelling) {
+        PivotKeys k = PivotKeys.of(pivot, "wire");
+        List<OutputCol> cols = inner.outputs();
+        if (cols.size() != staticCols.size()) {
+            throw new IllegalStateException("json wire: a dynamic pivot's static columns " + cols.stream().map(OutputCol::name).toList()
+                    + " are not the typed schema's " + staticCols.stream().map(Type.Column::name).toList());
+        }
+        List<SqlExpr> memberPieces = new ArrayList<>();
+        for (int i = 0; i < pivot.usings().size(); i++) {
+            SqlSource.Pivot.Using u = pivot.usings().get(i);
+            if (u.type() == null) {
+                throw new IllegalStateException("a dynamic pivot's USING '" + u.alias() + "' carries no typed slot");
+            }
+            String tail = Type.RelationType.PIVOT_SEPARATOR + u.alias();
+            if (i > 0) {
+                memberPieces.add(new SqlExpr.StringLit(","));
+            }
+            memberPieces.add(jsonToken(generatedName(k.keyText(), tail)));
+            memberPieces.add(new SqlExpr.StringLit(":"));
+            memberPieces.add(jsonCell(generatedCell(rowAlias, k.keyText(), tail, u.type()), templates.get(i).type(),
+                    u.type(), spelling));
+        }
+        SqlExpr dynamicMembers = joinedOverKeys(cat(memberPieces.toArray(new SqlExpr[0])), k.keys(), k.byKey());
+        List<SqlExpr> cells = new ArrayList<>(cols.size());
+        for (OutputCol col : cols) {
+            cells.add(SqlExpr.Column.of(rowAlias, col));
+        }
+        SqlExpr obj = cols.isEmpty()
+                ? cat(new SqlExpr.StringLit("{"), dynamicMembers, new SqlExpr.StringLit("}"))
+                : cat(new SqlExpr.StringLit("{"),
+                        jsonMembers(cells, cols, new ArrayList<Type.@com.legend.base.Nullable Column>(staticCols), spelling),
+                        commaUnlessEmpty(dynamicMembers), new SqlExpr.StringLit("}"));
         String aggAlias = rowAlias + "_a";
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
-        rowProjs.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.RowJson(rowAlias), SqlType.Scalar.VARCHAR),
-                "_wire_row", new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false)));
-        List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, inner.outputs(), rowAlias, aggAlias, rowProjs);
+        rowProjs.add(new SqlSelect.Projection(obj, "_wire_row", new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false)));
+        List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols, rowAlias, aggAlias, rowProjs);
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
                 List.of(SqlExpr.Column.of(aggAlias, "_wire_row", SqlType.Scalar.VARCHAR, false, OutputCol.Origin.DERIVED),
                         new SqlExpr.StringLit(",")), false, aggOrder);

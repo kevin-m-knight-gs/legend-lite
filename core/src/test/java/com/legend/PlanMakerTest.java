@@ -259,7 +259,11 @@ class PlanMakerTest {
      * A DYNAMIC pivot's text is built by the database alone (the plan path program's step 4,
      * docs/PLAN_PATH_PROGRAM_2026_10_17.md §3, 2026-10-18): the generated columns named from the pivot's keys, the
      * cells read from each row's own JSON by those names, the types the template's -- the same TDS text the legacy
-     * route builds with its metadata probe; the JSON wire each row's own JSON. No probe step, no hole for the runner.
+     * route builds with its metadata probe; the CSV and JSON wires built the same way. No probe step, no hole for the
+     * runner. Every carrier names a generated column as the engine labels it, with the quotes as part of the name
+     * (the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md: legend-engine's DuckDB SQL spells
+     * {@code concat('''', year, '''')}, its interpreter {@code "'" + ... + "'"}, and the PCT's expected text and casts
+     * carry them; until 2026-10-18 the two wires printed the bare physical name, the TDS text alone the engine's).
      */
     @Test
     void aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt() throws Exception {
@@ -274,10 +278,19 @@ class PlanMakerTest {
             assertTrue(text.endsWith("\nNYC,15,5\nSAN,3,2"), text);
             assertTrue(text.startsWith("city:String[") && text.contains("'\\'2000__|__newCol\\'':Integer[1],'\\'2011__|__newCol\\'':Integer[1]"), text);
             ExecutionPlan csv = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.CSV);
-            assertEquals("city,2000__|__newCol,2011__|__newCol\r\nNYC,15,5\r\nSAN,3,2\r\n", PlanCases.run(csv, c));
+            assertEquals("city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n", PlanCases.run(csv, c));
             ExecutionPlan json = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.JSON);
-            assertEquals("[{\"city\":\"NYC\",\"2000__|__newCol\":15,\"2011__|__newCol\":5},"
-                    + "{\"city\":\"SAN\",\"2000__|__newCol\":3,\"2011__|__newCol\":2}]", PlanCases.run(json, c));
+            assertEquals("[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
+                    + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]", PlanCases.run(json, c));
+            // a STATIC pivot (the engine's form: one column, its values, one aggregate) has its columns from the typer,
+            // named bare; both wires present them the same way
+            String statics = TREES + "->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted : y | $y->plus())"
+                    + "->sort(~city->ascending())";
+            assertEquals("city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n", PlanCases.run(
+                    Compiler.query(Compiler.compileModel(model), statics).executionPlan("s::RT", TypedQuery.Output.CSV), c));
+            assertEquals("[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
+                    + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]", PlanCases.run(
+                    Compiler.query(Compiler.compileModel(model), statics).executionPlan("s::RT", TypedQuery.Output.JSON), c));
         }
     }
 

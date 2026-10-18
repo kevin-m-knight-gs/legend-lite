@@ -2101,4 +2101,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `src/main/mongodb/.../MongoDbStatements.java` and `MongoDbDecode.java` (new), the DuckDB host engine-order
   register (-6, re-pinned with the reason), the guards' registers (`JdbcDecode.java`). Next in step 7: the query
   service's switch and the deletions (the program's §7), the whole-text wires retired, the H2 session's lazy
-  execution (D2), the streaming gate.
+  execution (D2), the streaming gate. **The pivot homework landed 2026-10-18** (GATES "The pivot homework";
+  `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md`): `lowering/Render.java` (the wires' names as the engine labels them,
+  the dynamic pivot's JSON wire from its cells, `PivotKeys`), `lowering/WireRender.java`, `PlanMakerTest`, register
+  S78 to S80.
