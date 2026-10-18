@@ -258,6 +258,13 @@ export interface ChartOptions {
   readonly ring?: boolean;
 }
 
+/** The options that are flags, each true or false (a Record over them: an option flag added and not here fails the build). */
+type FlagKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends boolean ? K : never }[keyof T];
+const OPTION_FLAGS: Readonly<Record<FlagKeys<ChartOptions>, true>> = {
+  labels: true, smooth: true, step: true, logAxis: true, zoom: true, brush: true, decal: true, dim: true, toolbox: true,
+  half: true, ring: true,
+};
+
 // The words a saved spec may use, each list exhaustive by construction (a Record over its union): a page's reader
 // refuses a word it does not know -- Python's ll.Page too, which keeps no list of them and asks this reader
 // (headless gridChart).
@@ -389,8 +396,20 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     ?? word('legend', ['top', 'bottom', 'right', 'none']) ?? word('labelPosition', ['inside', 'outside'])
     ?? word('better', ['higher', 'lower']);
   if (optionProblem) return optionProblem;
-  for (const flag of ['half', 'ring'] as const) {
+  for (const flag of Object.keys(OPTION_FLAGS)) {
     if (o[flag] !== undefined && typeof o[flag] !== 'boolean') return `its ${flag} ${JSON.stringify(o[flag])} is not true or false`;
+  }
+  if (spec['frozen'] !== undefined && typeof spec['frozen'] !== 'boolean') {
+    return `its frozen ${JSON.stringify(spec['frozen'])} is not true or false`;
+  }
+  if (o['labelRotate'] !== undefined && typeof o['labelRotate'] !== 'number') {
+    return `its labelRotate ${JSON.stringify(o['labelRotate'])} is not a number`;
+  }
+  // the axis breaks: each a range of the value axis, left out
+  const breaks = o['breaks'];
+  if (breaks !== undefined && !(Array.isArray(breaks) && breaks.every((b) => isRecord(b) && typeof b['from'] === 'number'
+    && typeof b['to'] === 'number' && b['from'] < b['to'] && Object.keys(b).every((k) => k === 'from' || k === 'to')))) {
+    return `its breaks ${JSON.stringify(breaks)} are not a list of ranges (each a from below its to)`;
   }
   // how many it draws, a whole number; a target, a number
   if (o['limit'] !== undefined && !(Number.isInteger(o['limit']) && (o['limit'] as number) >= 1)) {
@@ -420,6 +439,9 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
       if (l['kind'] === 'stat' && !known(STAT_WORDS, l['stat'])) return `layer ${i + 1}'s statistic ${JSON.stringify(l['stat'] ?? null)} is not one of ${LAYER_STATS.join(', ')}`;
       const layerExtra = unknownKey(l, LAYER_KEYS[l['kind'] as ChartLayerKind], `layer ${i + 1} (a ${l['kind']})`);
       if (layerExtra) return layerExtra;
+      if (l['measure'] !== undefined && !(Number.isInteger(l['measure']) && (l['measure'] as number) >= 0)) {
+        return `layer ${i + 1}'s value ${JSON.stringify(l['measure'])} is not one of the chart's (a whole number, 0 its first)`;
+      }
       if ((l['kind'] === 'line' || l['kind'] === 'threshold') && typeof l['value'] !== 'number') return `layer ${i + 1} has no value`;
       if (l['kind'] === 'band' && (l['from'] === undefined || l['to'] === undefined || (l['axis'] !== 'x' && l['axis'] !== 'y'))) {
         return `layer ${i + 1} (a band) needs an axis, a from and a to`;
@@ -861,14 +883,14 @@ function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
 
 /**
  * A chart with another column across (or none), as the cube's grouping moves it (followCube) and as a hand moves it
- * (editChart) -- one rule: what was chosen for the old column, its grain or bins, goes with it; the order is the new
+ * (editChart) -- one rule: what was chosen for the old column, its grain or bins and a drill down it, goes with it; the order is the new
  * column's -- a Pareto's from the largest always (its cumulative share runs along that order), a date's in time,
  * another column's from the largest -- and so is how many it draws, unless the chart was told: a time series' points
  * for a date, a category's default for anything else. A chart of rows (a scatter's X) asks no order and no such limit
  * (chartQuery): its options stay as they are.
  */
 function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot): ChartSpec {
-  const { x: _x, grain: _g, bins: _b, ...rest } = spec;
+  const { x: _x, grain: _g, bins: _b, drill: _d, ...rest } = spec;
   const across = { ...rest, ...(x !== undefined ? { x } : {}) };
   if (plotsRows(spec)) return across;
   const inTime = spec.mark !== 'pareto' && isTemporalAcross(x, s);
@@ -905,18 +927,20 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
 
 /**
  * A chart taking another kind, as the form's change of kind has always made it: a gauge and a scatter matrix drop the
- * column across, a gauge and a kind of one series the split, and a Pareto runs from the largest. Only those: every other
- * slot (a layer, a facet, a label, a size, a hover's measures, a grain, bins) stays, for the rules to judge on the new
- * kind -- refused by name where it has no place, never dropped without a word. Part of a change by hand (editChart).
+ * column across (and its grain or bins with it, as a change of the column across takes them), a gauge and a kind of one
+ * series the split, and a Pareto runs from the largest. Only those: every other slot (a layer, a facet, a label, a size,
+ * a hover's measures) stays, for the rules to judge on the new kind -- refused by name where it has no place, never
+ * dropped without a word. Part of a change by hand (editChart).
  */
 function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
-  const { x, split, ...rest } = spec;
+  const { x, split, grain, bins, ...rest } = spec;
   const keepX = mark !== 'gauge' && mark !== 'matrix' && x !== undefined;
   const keepSplit = !UNSPLIT.has(mark) && split !== undefined;
   return {
     ...rest,
     mark,
-    ...(keepX ? { x } : {}),
+    // the column across's grain or bins go with it (acrossChanged's rule)
+    ...(keepX ? { x, ...(grain !== undefined ? { grain } : {}), ...(bins !== undefined ? { bins } : {}) } : {}),
     ...(keepSplit ? { split } : {}),
     ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
   };
@@ -1121,6 +1145,9 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     out.push(`'${spec.x}' is not a number: it has no bins.`);
   }
   if (spec.grain !== undefined && spec.bins !== undefined) out.push('A column across has a grain or bins, not both.');
+  if (spec.x === undefined && !gridKind && (spec.grain !== undefined || spec.bins !== undefined)) {
+    out.push(`No column is across: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
+  }
   if (gridKind && (spec.grain !== undefined || spec.bins !== undefined)) {
     out.push(`${article} ${kind} draws the grid as shown: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
   }
