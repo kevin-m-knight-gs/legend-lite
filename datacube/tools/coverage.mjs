@@ -62,8 +62,12 @@ for (const record of lcov.split('end_of_record')) {
   const file = /^SF:(.*)$/m.exec(record)?.[1];
   if (!file) continue;
   const n = (key) => Number(new RegExp(`^${key}:(\\d+)$`, 'm').exec(record)?.[1] ?? 0);
-  rows.push({ file: relative(datacube, file), lines: [n('LH'), n('LF')], branches: [n('BRH'), n('BRF')] });
+  rows.push({ file: relative(datacube, resolve(datacube, file)), lines: [n('LH'), n('LF')], branches: [n('BRH'), n('BRF')] });
 }
+// a source file no test loaded has no record: listed as such, its lines its whole length, so it is not missed
+const loaded = new Set(rows.map((r) => r.file));
+const unloaded = files(join(datacube, 'src')).map((f) => relative(datacube, f))
+  .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts') && !loaded.has(f)).sort();
 const pct = ([hit, all]) => (all === 0 ? 100 : (100 * hit) / all);
 rows.sort((a, b) => pct(a.lines) - pct(b.lines) || b.lines[1] - a.lines[1]);
 const sum = (k) => rows.reduce(([h, a], r) => [h + r[k][0], a + r[k][1]], [0, 0]);
@@ -75,7 +79,10 @@ writeFileSync(join(out, 'summary.md'), [
   `${tests.length} test files; ${failed.length} top-level results not ok (needing what only their Bazel target gives, or failing):`,
   ...failed.map((f) => `- ${f}`),
   '',
-  `All of src/: lines ${cell(sum('lines'))}, branches ${cell(sum('branches'))}.`,
+  `Of the source files the tests load: lines ${cell(sum('lines'))}, branches ${cell(sum('branches'))}.`,
+  '',
+  `${unloaded.length} source files no Node test loads (the browser harnesses and Python's suite may):`,
+  ...unloaded.map((f) => `- ${f}`),
   '',
   '| File | Lines | Branches |',
   '|---|---|---|',
