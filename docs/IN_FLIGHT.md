@@ -1974,6 +1974,13 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       which comes after the statement's names, grouping and functions).
     - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
       alone but past `medium`'s 300 s in `//gates:local`.
+  - 2026-10-18, the landing's review and gate (the user's request: the flaky case fixed to be deterministic):
+    - `cypher-parity/lite/grouping.yaml`: `with_distinct_node_then_counted` sorts before its collect (`WITH DISTINCT a
+      ORDER BY a.name`). A collect's list has no order of its own; DuckDB's came back either way over the DISTINCT
+      (two passes and two failures on one head). Re-snapped from Neo4j 2026.09.0 (`[2, ['a', 'c']]`), the other 17
+      grouping answers reproduced unchanged first.
+    - `protocol/sql/PostgresOperators.java`: Postgres's integer division keeps its exact estimate (Snowflake's
+      INT_DIVIDE rounds to six places before it cuts); `sql/dialect/ConstantKeysAsExpressions.java` names its database.
 
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
