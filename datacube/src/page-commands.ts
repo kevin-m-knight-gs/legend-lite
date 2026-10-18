@@ -32,9 +32,13 @@ export type PageCommand =
   | { readonly kind: 'moveSheet'; readonly sheet: string; readonly to: number }
   | { readonly kind: 'removeSheet'; readonly sheet: string }
   | { readonly kind: 'renameTile'; readonly tile: string; readonly title: string | null }
-  /** A grid of a cube of its own (its document made first), on `sheet` -- beside `near` while that band has room. */
+  /**
+   * A grid of a cube of its own (its document made first), on `sheet` -- beside `near` while that band has room. Its
+   * document null: a grid whose source the page cannot write down (the screen's, over rows it cannot name), its view
+   * held with no cube -- a page that cannot be saved, as the screen's Save says.
+   */
   | {
-    readonly kind: 'addGrid'; readonly id?: string; readonly document: CubeDocument; readonly sheet: string;
+    readonly kind: 'addGrid'; readonly id?: string; readonly document: CubeDocument | null; readonly sheet: string;
     readonly near: string | null; readonly title: string | null; readonly columns: number | null;
   }
   /** A chart of grid `near`'s cube (its spec made first, chart-spec.ts chartFrom), beside that grid. */
@@ -186,11 +190,27 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
   return rewritten({ ...next, ...(next.model ? { model: keptFor(next.model, cubes) } : {}) }, { views, cubes, sheets });
 }
 
+/**
+ * The views in the order the screen writes them (page/cube-page.ts views()): the grids in the sheets' reading order --
+ * the order a reopened page adds them in -- then the charts, each in the order it came. A page Python edits is written
+ * as the screen writes it.
+ */
+function inScreenOrder(page: PageDocument): PageDocument {
+  const reading = page.sheets.flatMap((s) => tiles(s.layout));
+  const at = (id: string): number => (reading.includes(id) ? reading.indexOf(id) : reading.length);
+  const grids = page.views.filter((v) => v.kind === 'grid');
+  const views = [
+    ...grids.map((v, i) => ({ v, i })).sort((x, y) => at(x.v.id) - at(y.v.id) || x.i - y.i).map((x) => x.v),
+    ...page.views.filter((v) => v.kind === 'chart'),
+  ];
+  return views.every((v, i) => v === page.views[i]) ? page : { ...page, views };
+}
+
 /** A command applied: the page as the screen's rules leave it, or a refusal in their words (CubeRefusal). */
 export function applyPageCommand(draft: PageDraft, command: PageCommand): PageApplied {
   const page = draft.page;
   const done = (next: PageDocument, held: readonly string[] = draft.held, applied: PageCommand = command): PageApplied =>
-    ({ draft: { page: next, held }, command: applied });
+    ({ draft: { page: inScreenOrder(next), held }, command: applied });
   switch (command.kind) {
     case 'renamePage': {
       const name = named('page', command.name);
@@ -244,7 +264,8 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const near = command.near !== null && tiles(sheet.layout).includes(command.near) ? command.near : undefined;
       const view: PageView = { id, kind: 'grid', cube: id, ...(title !== undefined ? { title } : {}) };
       const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, near, command.columns ?? MAX_COLUMNS)) }));
-      return done(rewritten(placed, { cubes: [...page.cubes, { id, cube: command.document }], views: [...page.views, view] }),
+      const cubes = command.document === null ? page.cubes : [...page.cubes, { id, cube: command.document }];
+      return done(rewritten(placed, { cubes, views: [...page.views, view] }),
         [...draft.held, id], { ...command, id });
     }
     case 'addChart': {
@@ -405,7 +426,7 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'addGrid':
       fields(o, kind, ['id', 'document', 'sheet', 'near', 'title', 'columns']);
       return {
-        kind, ...optionalId(o['id'], "a grid's id"), document: cubeOf(o['document']),
+        kind, ...optionalId(o['id'], "a grid's id"), document: o['document'] === null ? null : cubeOf(o['document']),
         sheet: text(o['sheet'], 'a sheet'), near: textOrNull(o['near'], 'a tile'), title: textOrNull(o['title'], "a tile's title"),
         columns: columnsFrom(o['columns']),
       };

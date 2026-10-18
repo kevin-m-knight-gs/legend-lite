@@ -20,6 +20,10 @@
 // (`document`); reopening adds each grid again under its saved id, through the host's own way of opening its source
 // (`restore`). A grid removed while a frozen chart still reads it is kept off the board for that chart, and saved as a
 // cube with no grid view.
+//
+// ONE PAGE STATE (page-state.ts; docs/DATACUBE_PAGE_STATE_2026_10_18.md): the page as it is saved, held with its
+// history -- kept as the screen is after every change, each structural edit a step -- so Undo and Redo take back a tile
+// removed, a sheet deleted, a tile moved or renamed, a layout, a chart's options, and put the screen at the step.
 
 import { CubePage, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
@@ -27,7 +31,8 @@ import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import { pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
-import type { PageCommand } from '../page-commands.ts';
+import type { PageCommand, PageDraft } from '../page-commands.ts';
+import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
 import type { CubeDocument } from '../cube-document.ts';
@@ -75,7 +80,7 @@ export interface PageAppOptions {
   readonly onRename?: (name: string) => void;
   /** A question to answer yes or no (a sheet deleted with its tiles): the browser's `confirm` unless given. */
   readonly confirm?: (question: string) => boolean;
-  /** Each edit of the page's structure as its page command (page/cube-page.ts onPageCommand; page-commands.ts). */
+  /** Each edit of the page's structure as its page commands (page/cube-page.ts onPageEdit; page-commands.ts). */
   readonly onPageCommand?: (command: PageCommand) => void;
   /** The host's own menu entries (Save, Open, Share, where the planner runs), by their `section`. */
   readonly hostMenu?: () => readonly MenuItem[];
@@ -132,6 +137,12 @@ export class PageApp {
    */
   readonly #grids = new Map<string, { readonly grid: PageGrid; readonly make: GridMaker }>();
   #page: CubePage;
+  /** The page as it is saved, and its history: the page on screen, kept after every change (page-state.ts). */
+  #state!: PageState;
+  /** While the screen is put at a step of the history: what it changes is that step's, not a change of its own. */
+  #syncing = false;
+  /** Each grid the page let go, by its id: its maker, and where it was when it went -- made again by an undo. */
+  readonly #gone = new Map<string, { readonly make: GridMaker; readonly start: GridStart }>();
   #name: string;
   #disposed = false;
   /** The grid whose status bar holds the host's readout. */
@@ -223,6 +234,7 @@ export class PageApp {
     });
     options.empty(this.#empty);
     this.#page = this.#newBoard();
+    this.#state = new PageState(this.#seen());
     this.#paintTitle();
     this.#paintSheets();
     this.#paintEmpty();
@@ -316,6 +328,8 @@ export class PageApp {
   setTitle(name: string): void {
     this.#name = name;
     this.#paintTitle();
+    // its host's to name: no step of the page's history
+    this.#state.keep(this.#seen());
   }
 
   /** Changed since it was saved, or not (the host knows): the name box says so. */
@@ -507,7 +521,9 @@ export class PageApp {
   clear(): void {
     this.#page.dispose();
     this.#grids.clear();
+    this.#gone.clear();
     this.#page = this.#newBoard();
+    this.#state = new PageState(this.#seen());
     this.#paintSheets();
     this.#paintEmpty();
     this.#options.onChange?.();
@@ -577,6 +593,7 @@ export class PageApp {
   restore(page: PageDocument, makers: ReadonlyMap<string, GridMaker>): void {
     this.#page.dispose();
     this.#grids.clear();
+    this.#gone.clear();
     this.#page = this.#newBoard();
     // its grids say how its bar is, as they were saved: not as the page before it had its bar
     this.#foldBar(false);
@@ -598,6 +615,8 @@ export class PageApp {
       this.#page.keepGrid(id, this.#maker(make));
     }
     this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined));
+    // a page opened has no history: its first step is the first edit made on it
+    this.#state = new PageState(this.#seen());
     this.#paintSheets();
     this.#paintEmpty();
     this.#onGridChange();
@@ -621,6 +640,8 @@ export class PageApp {
     return new CubePage({
       host: this.#boardHost,
       onChange: () => {
+        // the page's state is the page on screen: kept after every change, one an edit began a step for or not
+        if (!this.#syncing) this.#state.keep(this.#seen());
         // a layout change can make another grid the first
         this.#rehomeStatus();
         this.#onGridChange();
@@ -641,14 +662,90 @@ export class PageApp {
       sheetLabel: (id) => this.sheetLabel(id),
       onSheets: () => this.#onSheets(),
       sheetTabs: { at: (x, y) => this.#sheetTabs.at(x, y), hover: (id) => this.#sheetTabs.hover(id) },
-      ...(this.#options.onPageCommand ? { onPageCommand: this.#options.onPageCommand } : {}),
+      // each structural edit a step of the page's history, begun before its change is kept; its commands told
+      onPageEdit: (edit) => {
+        this.#state.begin(edit.label);
+        for (const command of edit.commands) this.#options.onPageCommand?.(command);
+      },
+      documentOf: (grid) => this.grid(grid)?.cubeDocument(this.#name),
+      onUndo: (redo) => (redo ? this.redo() : this.undo()),
     });
+  }
+
+  /** The page as it is on screen, as its state holds it: what `document` writes (each grid that can say its source). */
+  #seen(): PageDraft {
+    const cubes: { id: string; cube: CubeDocument }[] = [];
+    for (const id of this.cubes) {
+      const cube = this.grid(id)?.cubeDocument(this.#name);
+      if (cube) cubes.push({ id, cube });
+    }
+    return { page: writePageOf({ name: this.#name, cubes, views: this.views() }), held: this.#page.held };
+  }
+
+  // -- undo and redo ----------------------------------------------------------------------------------------------
+
+  /** The page's last step undone (its menu's Undo; Ctrl+Z on a tile's frame): the screen put at the page before it. */
+  undo(): void {
+    this.#move('undo');
+  }
+
+  /** The last step undone done again. */
+  redo(): void {
+    this.#move('redo');
+  }
+
+  /** What Undo would undo, by name (undefined: nothing, or a locked page: nothing moves). */
+  get undoLabel(): string | undefined {
+    return this.#page.editing ? this.#state.undoLabel : undefined;
+  }
+
+  get redoLabel(): string | undefined {
+    return this.#page.editing ? this.#state.redoLabel : undefined;
+  }
+
+  /** The page as its state holds it (page-state.ts): the page on screen, with its history. */
+  get state(): PageDraft {
+    return this.#state.draft;
+  }
+
+  #move(way: 'undo' | 'redo'): void {
+    // a locked page: nothing moves
+    if (!this.#page.editing || this.#disposed) return;
+    const from = this.#state.draft.page;
+    const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
+    if (!step) return;
+    const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
+    this.#syncing = true;
+    try {
+      this.#page.sync(views(step.draft.page), views(from), (grid) => this.#remake(grid));
+    } finally {
+      this.#syncing = false;
+    }
+    // the screen is the page: what it now shows is the state's (a grid made again writes its own cube)
+    this.#state.keep(this.#seen());
+    this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${step.label}.`);
+    this.#paintSheets();
+    this.#paintEmpty();
+  }
+
+  /** A grid made again, by the maker that made it, starting where it was (on the board, kept, or let go). */
+  #remake(id: string): ((host: HTMLElement, options: SpawnOptions) => PageGrid) | undefined {
+    const live = this.#grids.get(id);
+    const was = live ? { make: live.make, start: { snapshot: live.grid.snapshot, configuration: live.grid.configuration } } : this.#gone.get(id);
+    if (!was) return undefined;
+    this.#gone.delete(id);
+    return this.#maker(was.make, was.start);
   }
 
   /** A tile came or went: grids taken off forgotten, a lone grid shown in the bar, the empty page when it is. */
   #onTiles(): void {
     const live = new Set(this.cubes);
-    for (const id of [...this.#grids.keys()]) if (!live.has(id)) this.#grids.delete(id);
+    for (const [id, { grid, make }] of [...this.#grids]) {
+      if (live.has(id)) continue;
+      // let go: kept to be made again by an undo, starting where it was
+      this.#gone.set(id, { make, start: { snapshot: grid.snapshot, configuration: grid.configuration } });
+      this.#grids.delete(id);
+    }
     this.#paintEmpty();
     this.#onGridChange();
     // a sheet named after its first grid: that grid came or went
@@ -702,8 +799,9 @@ export class PageApp {
       { label: '', items: this.#hostItems('data') },
       { label: '', items: [
         { id: 'page.arrange', label: 'Arrange…', ...(arranged ? {} : { disabled: true }) },
-        { id: 'page.undoLayout', label: 'Undo Layout', ...(page.canUndoLayout ? {} : { disabled: true }) },
-        { id: 'page.redoLayout', label: 'Redo Layout', ...(page.canRedoLayout ? {} : { disabled: true }) },
+        // the page's history: each step by its name, as a grid's own Undo names its
+        { id: 'page.undo', label: this.undoLabel !== undefined ? `Undo ${this.undoLabel}` : 'Undo', ...(this.undoLabel !== undefined ? {} : { disabled: true }) },
+        { id: 'page.redo', label: this.redoLabel !== undefined ? `Redo ${this.redoLabel}` : 'Redo', ...(this.redoLabel !== undefined ? {} : { disabled: true }) },
         { id: 'page.editLayout', label: 'Edit Layout', checked: page.editing },
       ] },
       { label: '', items: [
@@ -732,11 +830,11 @@ export class PageApp {
       case 'page.arrange':
         this.#page.showLayouts(this.#burger.isConnected ? this.#burger : this.#root);
         return;
-      case 'page.undoLayout':
-        this.#page.undoLayout();
+      case 'page.undo':
+        this.undo();
         return;
-      case 'page.redoLayout':
-        this.#page.redoLayout();
+      case 'page.redo':
+        this.redo();
         return;
       case 'page.editLayout':
         this.#page.setEditing(!this.#page.editing);

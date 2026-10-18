@@ -218,6 +218,8 @@ export type MenuActionId =
   | 'page.export'
   | 'page.undoLayout'
   | 'page.redoLayout'
+  | 'page.undo'
+  | 'page.redo'
   | 'page.editLayout'
   | 'view.properties'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)

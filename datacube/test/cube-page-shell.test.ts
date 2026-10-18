@@ -564,7 +564,7 @@ describe('a chart\'s right-click menu: Options..., and Open in grid offered only
   });
 });
 
-describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, each its own layout undo', () => {
+describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page undo', () => {
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
@@ -712,7 +712,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, each its
     assert.equal(sheetOf(b), second);
   });
 
-  it('each sheet has its own layout undo: another sheet\'s arrangement is not undone from this one', async () => {
+  it('one page undo for every sheet, step by step: a sheet added is undone first, then the arrangement before it', async () => {
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
@@ -731,18 +731,165 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, each its
     stacked.click();
     await settle();
     assert.deepEqual(bands(), [[a], [chart]]);
-    assert.notEqual(entry('Undo Layout').getAttribute('aria-disabled'), 'true');
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
-    assert.equal(entry('Undo Layout').getAttribute('aria-disabled'), 'true', 'the new sheet has nothing to undo');
+    assert.equal(pg().sheets.length, 2);
+    // the page's Undo names its step, whichever sheet is shown
+    entry('Undo Add Sheet').click();
+    await settle();
+    assert.equal(pg().sheets.length, 1, 'the sheet added is taken off');
+    entry('Undo Layout Change').click();
+    await settle();
+    assert.deepEqual(bands(), sideBySide, 'then the arrangement before it');
+    // before them, the chart and the grid added: each a step, back to the page as it began
+    entry('Undo Add Chart').click();
+    await settle();
+    assert.equal(tile(chart), null, 'the chart taken off');
+    entry('Undo Add Grid').click();
+    await settle();
+    assert.ok(pg().empty, 'the page as it began');
+    assert.equal(entry('Undo').getAttribute('aria-disabled'), 'true', 'nothing before it');
+    // and done again: the grid made again by its maker, under its id, its chart beside it, the arrangement and the sheet
+    for (const step of ['Redo Add Grid', 'Redo Add Chart', 'Redo Layout Change', 'Redo Add Sheet']) {
+      entry(step).click();
+      await settle();
+    }
+    assert.deepEqual(pg().grids, [a]);
+    assert.ok(tile(chart), 'the chart back');
+    assert.deepEqual(bands(), [[a], [chart]]);
+    assert.equal(pg().sheets.length, 2);
+    assert.equal(entry('Redo').getAttribute('aria-disabled'), 'true');
+  });
+});
+
+describe('the page\'s undo and redo: one page state (page-state.ts), each structural edit one step', () => {
+  beforeEach(setUpPage);
+  afterEach(tearDownPage);
+
+  const viewsOf = (page: PageDocument) => ({ views: page.views, sheets: page.sheets });
+  /** The page as it is saved: what the state must be, and what an undo must put back. */
+  const saved = (): PageDocument => pg().document('Q3')!;
+
+  /**
+   * An edit as one step (docs/DATACUBE_PAGE_STATE_2026_10_18.md): made, the state is the page on screen and what the
+   * screen told, applied to the page before it, is the page after it; undone, the page is as it was before it (its
+   * views, its sheets, its cubes); redone, as it was after it -- the state the page on screen at each.
+   */
+  async function step(what: string, told: PageCommand[], edit: () => Promise<void> | void, label: string): Promise<void> {
+    const before = saved();
+    const n = told.length;
+    await edit();
+    await drawn();
+    const after = saved();
+    assert.deepEqual(pg().state.page, after, `${what}: the state is the page on screen`);
+    assert.equal(pg().undoLabel, label, `${what}: one step, named`);
+    const replayed = applyPageCommands({ page: before, held: idsOf(before) }, told.slice(n)).draft.page;
+    assert.deepEqual(viewsOf(replayed), viewsOf(after), `${what}: what it told replays to the page it made`);
+    pg().undo();
+    await drawn();
+    assert.deepEqual(viewsOf(saved()), viewsOf(before), `${what}, undone: the page as it was`);
+    assert.deepEqual(saved().cubes, before.cubes, `${what}, undone: its cubes as they were`);
+    assert.deepEqual(pg().state.page, saved(), `${what}, undone: the state is the page on screen`);
+    pg().redo();
+    await drawn();
+    assert.deepEqual(viewsOf(saved()), viewsOf(after), `${what}, redone`);
+    assert.deepEqual(saved().cubes, after.cubes, `${what}, redone: its cubes`);
+    assert.deepEqual(pg().state.page, saved(), `${what}, redone: the state is the page on screen`);
+  }
+
+  /** A tile renamed in place: its title bar double-clicked, a name typed, Enter. */
+  function rename(id: string, name: string): void {
+    tile(id).querySelector('.dc-tile-head')!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    const field = tile(id).querySelector<HTMLInputElement>('.dc-tile-rename');
+    assert.ok(field, `${id}'s rename field`);
+    field.value = name;
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+  }
+
+  it('every edit of its structure undone and redone: the page as it was, then as it is, the state the page on screen', async () => {
+    const told: PageCommand[] = [];
+    const { a, b } = await twoGrids({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    let chart = '';
+    await step('a chart added', told, async () => { chart = await chartOf(a); }, 'Add Chart');
+    let other = '';
+    await step('another added', told, async () => { other = await chartOf(b); }, 'Add Chart');
+    await step('a chart frozen', told, () => togglePill(other), 'Chart Change');
+    await step('a tile renamed', told, () => rename(chart, 'Desk mix'), 'Rename Tile');
+    await step('a grid renamed', told, () => rename(b, 'Orders'), 'Rename Tile');
+    await step('a sheet added', told, () => (host.querySelector('.dc-sheet-add') as HTMLElement).click(), 'Add Sheet');
     clickTab('trades.csv');
     await settle();
-    entry('Undo Layout').click();
+    await step('a grid moved to the sheet', told, () => gridMenuItem(b, 'Sheet 2').click(), 'Move to Sheet');
+    await step('a chart moved to a new sheet', told, () => chartMenu(chart).find((i) => label(i) === 'New Sheet')!.click(), 'Move to Sheet');
+    await step('a sheet moved', told, () => tabMenu('Sheet 3', 'Move Left'), 'Move Sheet');
+    await step('a sheet renamed', told, () => {
+      tabOf('Sheet 2').dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+      const field = host.querySelector<HTMLInputElement>('.dc-sheet-tab input')!;
+      field.value = 'Charts';
+      field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    }, 'Rename Sheet');
+    await step('a sheet arranged', told, async () => {
+      clickTab('trades.csv');
+      await settle();
+      pageMenu().find((i) => label(i) === 'Arrange…')!.click();
+      await settle();
+      host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+    }, 'Layout Change');
+    let copy = '';
+    await step('a grid copied', told, async () => {
+      const had = new Set(pg().grids);
+      gridMenuItem(a, 'Copy of Grid').click();
+      await settle();
+      copy = pg().grids.find((g) => !had.has(g))!;
+    }, 'Add Grid');
+    // b, its frozen chart beside it: removed, the chart detached; undone, b made again and the chart following it
+    await step('a grid removed, its frozen chart detached', told, () => removeTile(b), 'Remove Orders');
+    assert.equal(pill(other), 'Detached', 'redone: its grid removed again, the chart detached');
+    pg().undo();
+    await drawn();
+    assert.equal(pill(other), 'Frozen', 'undone: its grid made again, and the chart reads it, not a kept copy');
+    assert.deepEqual([...pg().cubes], pg().grids, 'no grid kept off the board any more');
+    pg().redo();
+    await drawn();
+    await step('a chart removed', told, () => removeTile(chart), 'Remove Desk mix');
+    await step('the copy moved to a named sheet', told, () => gridMenuItem(copy, 'Charts').click(), 'Move to Sheet');
+    await step('a sheet deleted with its tiles', told, () => tabMenu('Charts', 'Delete'), 'Delete Sheet');
+  });
+
+  it('a chart removed while it filters its grid: undone, its selection is back on the grid\'s filter', async () => {
+    const { a } = await twoGrids();
+    const chart = await chartOf(a);
+    await drawn();
+    clickMark(tile(chart), 0, 0);
     await settle();
-    assert.deepEqual(bands(), sideBySide, 'its own arrangement undone, on its own sheet');
-    entry('Redo Layout').click();
+    const filtered = pg().grid(a)!.snapshot.filter;
+    const selection = chartView(chart)!.selection;
+    assert.ok(filtered && selection, 'the click filtered the grid, the chart\'s selection');
+    await removeTile(chart);
+    assert.equal(pg().grid(a)!.snapshot.filter, undefined, 'removed, it took its selection off');
+    pg().undo();
+    await drawn();
+    assert.deepEqual(chartView(chart)!.selection, selection, 'the chart back with its selection');
+    assert.deepEqual(pg().grid(a)!.snapshot.filter, filtered, 'its selection back on the grid\'s filter, by the grid\'s own change');
+    pg().redo();
+    await drawn();
+    assert.equal(pg().grid(a)!.snapshot.filter, undefined, 'redone: taken off again');
+  });
+
+  it('a locked page undoes nothing; Ctrl+Z on a tile\'s frame is the page\'s undo', async () => {
+    const { b } = await twoGrids();
+    await removeTile(b);
+    pg().setLayoutEditing(false);
+    assert.equal(pg().undoLabel, undefined, 'locked: nothing moves');
+    pg().undo();
     await settle();
-    assert.deepEqual(bands(), [[a], [chart]]);
+    assert.equal(pg().grids.length, 1);
+    pg().setLayoutEditing(true);
+    assert.equal(pg().undoLabel, 'Remove Grid 2');
+    const frame = host.querySelector<HTMLElement>('.dc-band-tile')!;
+    frame.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    await drawn();
+    assert.equal(pg().grids.length, 2, 'the grid back');
   });
 });
 

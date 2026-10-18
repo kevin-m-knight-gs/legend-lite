@@ -53,6 +53,18 @@ sheet deleted, a tile moved to another sheet or renamed could not be undone.
   (`refilter`, as a click on its mark does): one more step of the grid's own history.
 - A locked page (view mode) undoes nothing, as Undo Layout did not.
 
+## Behaviour changes
+
+- **The page's menu:** Undo and Redo, each naming its step, in place of Undo Layout and Redo Layout; one history for
+  every sheet (a sheet's arrangement was undone only from that sheet).
+- **A page the commands edit writes its views in the screen's order** (page-commands.ts `inScreenOrder`): the grids in
+  the sheets' reading order, then the charts in the order they came -- so a page Python edits is written as the screen
+  writes it (a grid added after a chart was written after it; a grid moved kept its old place among the views).
+- **`addGrid`'s document may be null:** a grid whose source the page cannot write down (the screen's, over rows it
+  cannot name) -- its view held with no cube, a page that cannot be saved, as the screen's Save already says.
+- **A chart removed that has no spec yet, or a chart's editing grid renamed or moved,** is no step: the page never held
+  it.
+
 ## How it is tested
 
 - `page-state.test.ts`: apply, undo, redo, a new step clearing what was undone, a refused step changing nothing,
