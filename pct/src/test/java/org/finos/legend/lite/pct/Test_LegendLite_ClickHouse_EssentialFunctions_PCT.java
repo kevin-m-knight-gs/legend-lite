@@ -46,7 +46,10 @@ public class Test_LegendLite_ClickHouse_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
-            one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"\nexpected: %33803336-12-17\nactual:   %1474328-10-18\""),
+            // Date32 overflows to 1474328 BC: read as java.time since 2026-10-17 (Executor's DATE re-fetch, the corpus
+            // program's step 1), the cell keeps its era, astronomical year -1474327, where java.sql.Date dropped it
+            // (measured by the dialect program's sibling 1b, 86bbe71eb against f297bcc17)
+            one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"\nexpected: %33803336-12-17\nactual:   %-1474327-10-18\""),
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "\"\nexpected: %1410404-07-12T00:00:00+0000\nactual:   %241296-06-05T07:56:20.896768+0000\""),
             one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "\"\nexpected: %800002016-02-29\nactual:   %2299-12-31\""),
             one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "\"\nexpected: %236611261-10-03\nactual:   %1426840-08-31\""),

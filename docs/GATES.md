@@ -11023,6 +11023,175 @@ The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Done in
     buckets and the same ledger names.
   - Each lane's per-suite census counts on the head are the ceilings above.
 
+## 2026-10-17 — `#SQL{...}#`: the corpus program's first corpus, the PostgreSQL regression suite, and its wrong answers (the seventh line)
+
+Announced in `docs/IN_FLIGHT.md` (86bbe71eb, the corpus program: the compatibility and real-world corpora, SELECTs
+only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY_2026_10_11.md` §9.5.
+
+1. **The harness.** `//core:pg_regress_corpus_test` (manual, in `//gates:heavy`, outside `core_tests_integration`;
+   `PgRegressCorpusTest`) replays the PostgreSQL repository's `src/test/regress` (github.com/postgres/postgres,
+   REL_16_STABLE at 8e928803020e; its `sql/`, `data/` and `parallel_schedule`; PostgreSQL License, kept outside this
+   repository, `-Dsql.corpus.regress`) on the embedded Postgres 16. It runs its schedule's files in order, each on a fresh session,
+   through `Psql`, a script reader with psql's statement splitting, variables and meta-commands. Each read-only
+   statement is judged live, before the script sends it as written:
+   - Postgres's answer, twice, under Postgres's default DateStyle (the island's);
+   - the tables the statement names, declared as a `###Relational` database from the catalog;
+   - the statement as `#SQL{...}#` on the same session, and `SqlParity`'s verdict.
+
+   Statuses beyond SqlParity's: NAMES, UNMODELED, CATALOG, REGISTERED (register row S49's ruled difference), KNOWN
+   (the harness's named ledger: four rows, each with its status, a mark of its detail and its reason),
+   NONDETERMINISTIC and HARNESS. What writes outside the transaction (`nextval`, advisory locks) is not judged. The
+   report (`-Dsql.corpus.report`) ranks each status's reasons and carries legend-lite's SQL for a wrong answer.
+2. **The first run's wrong answers** (FAIL 41, BUG 48, NAMES 86), each traced and fixed:
+   - The reference's reads (`SqlParity.grid`): a Postgres date or timestamp is read as java.time, not java.sql's (a
+     BC year lost its era, and `infinity` was the year 292278994). The snapped `postgres-answers.jsonl` moved for its
+     three BC and infinity cases alone.
+   - `Executor.fetch`: a DATE cell is re-fetched as `LocalDate`, as timestamps were; a BC date had answered its AD
+     twin. It uses the same dialect hook, `SqlDialect.refetchesTimestampAsJavaTime`, so Databricks and Snowflake keep
+     theirs, and `PostgresArmTest` pins it.
+   - Constant integer arithmetic is held to its Postgres type (int2/int4/int8), where the planner's fold had answered
+     past it. A step that may pass its type part-way is refused by name. `StaticFold`'s long sum and difference wrapped
+     and now decline past a long (`StaticFoldTest`); the lowering's negation of the least long wrapped to itself and
+     is now exact (`Scalars`).
+   - The island: a float8 constant past a double's range, two WINDOW definitions of one name (Postgres's error; SQL
+     Anywhere's island keeps the first), `char(n)` to text, a string read with a `real` (refused by name, through
+     `InputDialect.padded`/`singlePrecision`), and FigureColname's naming strengths.
+3. **The independent review** (an agent that wrote none of it) found and the branch fixed:
+   - a unary plus whose operand went untested;
+   - an unsound bound (a product with 0, a divisor's subtree);
+   - NAMES and REGISTERED decided from truncated details;
+   - `count(*)` taken for a select-list star;
+   - a failing judge that left its savepoint open;
+   - KNOWN matched by text alone;
+   - side-effecting statements re-run by the judge;
+   - `SET LOCAL datestyle` sent as a session setting;
+   - the real refusal's other paths (IN, CASE, COALESCE, ANY, lag's default).
+
+   Left as found, recorded:
+   - nested casts of constant arithmetic still write their tests per level (constants only);
+   - a quoted `"char"` is named `bpchar`;
+   - a `(SELECT * ...)` is named `?column?`;
+   - the DATE re-fetch on the cloud drivers is first measured in their lanes.
+4. **The guards it met, dated.** The dialect-leak ledger gets `PgRegressCorpusTest product-name 2` (the embedded
+   Postgres it runs on); SqlToPure's pin is unchanged at 47. Nine lite parity cases were snapped from Postgres and
+   added to both lanes' ledgers, each PASS or BOTH_ERROR on both.
+5. **The run after** (15,493 statements judged, 231 s): PASS 2,637 (from 2,509), FAIL 0, BUG 0, NAMES 0, KNOWN 4,
+   REGISTERED 6, REFUSED 7,219, ERROR 510, UNMODELED 1,452, CATALOG 1,237, BOTH_ERROR 2,259, NONDETERMINISTIC 160,
+   SKIP 7, HARNESS 2.
+6. **The first easy refusal families** (713f7a711, f297bcc17):
+   - A typed constant (`int2 '7'`, `bool 't'`, `float8 '1.5'`) is its string cast to the type. A typed integer
+     constant takes its width in the constant-arithmetic rule.
+   - `E'...'` strings read Postgres's escapes, and `U&'...'` its code points and `UESCAPE`. A byte past ASCII is
+     refused by name; a zero byte and a lone surrogate are Postgres's errors.
+   - Integer arithmetic of a smallint constant beside a value that is not a constant is refused by name. Postgres
+     computes a smallint there; the run after typed constants found `i.f1 * int2 '2'` answering where Postgres raises.
+   - `VALUES (...), (...)` is what Postgres defines it as: a `UNION ALL` of one-row SELECTs naming `column1..N`,
+     built as a balanced tree. There is no new AST node. Rows of different lengths, `DEFAULT` and a set-returning
+     function in a row are Postgres's errors.
+   - Postgres's UNION resolution in `PostgresDialect`'s set-operation hooks:
+     - an untyped NULL takes the other side's type (a UNION's only);
+     - an integer or a numeric beside a double precision becomes a double precision;
+     - an integer beside a numeric, and a NULL beside a numeric, stay refused by name. The typer unites no two
+       Decimal precisions, and a cast to Decimal is the database's DECIMAL (measured: DuckDB rounded 2.5 to 3).
+   - The harness:
+     - a temporary table and public's of the same name are two relations (the 41 "duplicate column" errors);
+     - a statement ordered only inside a subquery is compared unordered;
+     - LIMIT with no ORDER BY joins the KNOWN ledger, now five rows.
+
+   Upstream's parity cases `union_with_agg` and `union_dedup_null` went REFUSED to PASS on both lanes. Six lite VALUES
+   cases were added and snapped. The run after: PASS 2,823 (from 2,637), FAIL 0, BUG 0, NAMES 0, KNOWN 5,
+   REGISTERED 6, REFUSED 7,024, ERROR 518, the rest unchanged. Of the 10,376 statements the island is judged on, 27.2%
+   answer Postgres's rows and none answers wrong.
+7. **The second round, and the review's findings** (60d604f33, 4a3ab1218, d6c7f11b6):
+   - A subquery without FROM (IN, EXISTS, scalar; correlated or not) is no longer refused. It was refused on
+     2026-10-12, when the lowering could not read an enclosing row there.
+   - Read now:
+     - `TABLE name` (or `TABLE tb('...')`);
+     - a table name's `*` (its descendants, which a table read includes anyway);
+     - `U&"..."` identifiers.
+   - Refused by name where the parser had raised a syntax error:
+     - `:=` named arguments;
+     - VARIADIC in a later argument;
+     - TABLESAMPLE after an alias;
+     - CURRENT_USER and the session's other identity values.
+   - The harness:
+     - `SqlParity.rewrite` reads a parenthesized join's tables, TABLE's name and a table's star;
+     - `PgRegressCorpusTest` models another schema's tables;
+     - the judge runs Postgres's reference under `standard_conforming_strings` on, as the island reads strings
+       (`strings.sql` turns it off; the round's two BUGs were that).
+   - The independent review of 713f7a711 and f297bcc17 found 11 wrong answers and 9 crashes on its 108 probes;
+     after the fixes it finds 0 and 0:
+     - **A smallint's width**, lost through abs, coalesce, CASE, min/max, a subquery or a VALUES column.
+       `InputDialect.narrowInteger` marks such a value's column. Integer arithmetic, a negation or abs that the
+       database would compute as a smallint is refused by name.
+     - **VALUES rows.** An aggregate or a window function in a VALUES row is now Postgres's error.
+     - **NULL typing.** An untyped NULL takes a set operation's type only as a bare NULL in a plain SELECT branch.
+       A NULL Postgres had already typed as text now reads as text: a subquery's, a nested set operation's, a
+       DISTINCT's, a VALUES column of NULLs alone (`untypedNullIsText`).
+     - **Escapes.** Malformed ones are rejected: a code point past an int, a surrogate's low half, a UESCAPE
+       character of two bytes.
+     - **Crashes.** A NULL beside a boolean in a set operation, and raw Java exceptions from the lexer.
+
+     The first NULL fix refused 11 statements the corpus had passed. Postgres types a VALUES list's rows together,
+     so the parser now marks a VALUES list's set operations (`SqlAst.SetOperation#values`), and a pair of NULL rows
+     is no branch of its own.
+   - Left as found, recorded:
+     - decimals of two scales in one column fail in the typer, not refused by name (`VALUES (1.5), (2.25)`);
+     - a set operation's column of a smallint and an integer is refused, though Postgres's is an integer.
+   - Parity: 14 lite cases snapped and added to both lanes. Upstream's two `crcs_g5` nested-join cases went
+     REFUSED to PASS. The ClickHouse pin: `testAdjustByDaysBigNumber`'s pinned text keeps the BC era now
+     (`%-1474327-10-18`). The dialect program's siblings 1a and 1b found the lane red on f297bcc17 for it.
+   - The run after (15,493 judged): PASS 2,905, FAIL 0, BUG 0, NAMES 0, KNOWN 5, REGISTERED 6, REFUSED 7,038,
+     ERROR 420. Of the 10,374 statements the island is judged on, 28.0% answer Postgres's rows; none answers wrong.
+8. **Proof.** In the root container (`tools/postgres/as_unprivileged.sh`):
+   - `//gates:core //gates:checks //gates:stress` on 303caa078: 180 of 187 pass. The 6 that failed are the breaks
+     above (the integration shard, the IQ window, the snapped dates, census, guardrails), and
+     `//tools/guards:classpath_test` was skipped (arm64 only).
+   - On 71dd0b482, every target the fixes touch is green: `core_tests_protocol`, `core_tests_compiler`,
+     `core_tests_integration`, `postgres_arm_test`, `sql_parity_test`, `sql_parity_postgres_test`,
+     `sql_island_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `census`, `guardrails`. So are
+     `//gates:stress` and `//core:core_tests` (27 of 27).
+   - Not run here, so CI's: the relational corpus, PCT, warehouse, DataCube, UI and SDLC lanes. The planner change
+     (`StaticFold`, `Scalars`) and the DATE re-fetch reach them.
+   - On f297bcc17, the same eleven targets: ten pass. `census` failed on the dialect-leak pin
+     (`SqlParserTest product-name 3 -> 4`), a test method named for the product. The next commit renames it, and
+     `census` and `core_tests_protocol` pass.
+   - The cloud lanes (`//gates:heavy`, not CI's): the dialect program's sibling sessions measured base 86bbe71eb
+     against f297bcc17 lane by lane. They compared pass/fail, SQL digests, census and channel B lines, and whole test
+     logs with only durations masked. BigQuery's 10 targets: all pass on both, every SQL digest the same, census and
+     channel B identical. Three log lines differ: two are an unordered result's row order, one is generated UUIDs. No
+     DATE cell's text changed, though the re-fetch is exercised (`wire-delivered[BigQuery] TIMESTAMP <- DATE`).
+   - Siblings 1b and 1a measured the rest of the heavy lanes:
+     - 60 targets for DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres, channels A and B;
+     - 32 for Trino, H2, ClickHouse and Postgres;
+     - `//spec:corpus_duckdb` and `//spec:corpus_h2`.
+
+     Every SQL digest was the same. Census and channel B lines were identical. The whole logs were the same, but for
+     run ids. The relational corpora's rosters and registers were byte-identical. One red: `pct_clickhouse_essential`,
+     whose `testAdjustByDaysBigNumber` pin expected the era-less text. The pin moved in 4a3ab1218. On 4f704880e,
+     sibling 1a re-ran the lane: 345 of 345, the SQL digest and the census lines as base's, and the whole log the
+     same line for line.
+   - On the second round's last commit, the eleven targets above, all green:
+     - `core_tests_protocol`, `core_tests_compiler`, `core_tests_integration`, `guardrails`;
+     - `postgres_arm_test`, `sql_island_postgres_test`;
+     - `sql_parity_test`, `sql_parity_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `census`.
+
+     Before that commit, three were red. Census read a product-named call (`SqlToPure product-name 47 -> 48`), now
+     the set it reads. The two IQ lanes flagged nine IQ cases the IQ line had pinned REFUSED, which now PASS on
+     both lanes: the FROM-less subqueries this round reads, in an IN list, EXISTS or a count (`lite/m1a`,
+     `lite/m1gaps`, their ids still saying "refused"). Their ledger rows moved.
+9. **Next.** The refusals, ranked:
+   - functions in FROM, 635 (mostly functions the suite defines);
+   - jsonpath, about 450;
+   - text search, about 500;
+   - duplicate output names, 160;
+   - ROW constructors, 180;
+   - ranges, about 260;
+   - arrays, 190;
+   - the island's syntax errors, 350.
+
+   Then the corpus program's step 2, sqllogictest.
+
 ## 2026-10-17 — The dialect program's Phase 6, part 2: the corpus's databases and the islands' tests are test backends (the ninth line)
 
 Branch `claude/gracious-edison-jcsvzm`, from main 86bbe71e (after #52), 12 commits, 86cae665 to d12474f5. The record:

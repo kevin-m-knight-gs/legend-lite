@@ -74,8 +74,11 @@ public interface SqlDialect {
         return false;
     }
 
-    /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} (the
-     *  BC-faithful carrier the executor reads every timestamp as). Default: it does, and a refusal fails loudly. */
+    /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} and a date cell
+     *  as {@code java.time.LocalDate} (the BC-faithful carriers the executor reads every timestamp and date as; dates
+     *  since 2026-10-17, measured then on pgjdbc, DuckDB's and H2's drivers: the other drivers' JDBC 4.2 support
+     *  of LocalDate is what their LocalDateTime re-fetch already relies on, and is first measured in their cloud
+     *  lanes). Default: it does, and a refusal fails loudly. */
     default boolean refetchesTimestampAsJavaTime() {
         return true;
     }

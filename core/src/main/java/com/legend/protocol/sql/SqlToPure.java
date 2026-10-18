@@ -170,6 +170,9 @@ public final class SqlToPure {
     private final String partition;
     private final String window;
     private int fresh;
+    /** The operands of integer arithmetic over constants, whose range the arithmetic around them holds
+     *  ({@link #heldToWidth}). */
+    private final Set<SqlAst.Expr> heldOutside = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     private SqlToPure(Sources sources, InputDialect dialect, Env env) {
         this.sources = sources;
@@ -352,7 +355,7 @@ public final class SqlToPure {
         }
 
         /** A translation of no {@code detail}: what a dialect knows of its type beyond its kind
-         *  ({@link InputDialect.TypeDetail}) is nothing, as it always is in Postgres's. */
+         *  ({@link InputDialect.TypeDetail}) is nothing, as it is in Postgres's for any value but a column's. */
         public Tx(ValueSpecification vs, Kind kind, boolean nullable,
                 @com.legend.base.Nullable ValueSpecification whenFalse) {
             this(vs, kind, nullable, whenFalse, null);
@@ -442,6 +445,11 @@ public final class SqlToPure {
         /** The column {@code ref} names here or in an enclosing query, nearest first; null for none. */
         @com.legend.base.Nullable Col columnOrNull(SqlAst.ColumnRef ref);
 
+        /** The column {@code ref} reads, before any grouping (as an aggregate's argument reads it); null for none. */
+        default @com.legend.base.Nullable Col readOrNull(SqlAst.ColumnRef ref) {
+            return columnOrNull(ref);
+        }
+
         /** A one-value function's name read as its value, here or in an enclosing query, nearest first; null for
          *  none (Postgres reads a name as a FROM item's only after no query in scope has a column of it). */
         @com.legend.base.Nullable Col functionValue(SqlAst.ColumnRef ref);
@@ -517,8 +525,8 @@ public final class SqlToPure {
         }
 
         Tx postgresQuantifiedTest(SqlAst.BinaryOp op, SqlAst.Expr left, Tx each, SqlAst.Pos pos) {
-            Tx value = left instanceof SqlAst.StringLit s && readsStrings(each.kind()) ? fromString(s, each.kind())
-                    : tx(left);
+            Tx value = left instanceof SqlAst.StringLit s && readsStrings(each.kind())
+                    ? fromString(single(s, each.detail()), each.kind()) : tx(left);
             comparableKinds(value, each, pos);
             return compare(op, value, each);
         }
@@ -999,6 +1007,11 @@ public final class SqlToPure {
         }
 
         @Override
+        public @com.legend.base.Nullable Col readOrNull(SqlAst.ColumnRef ref) {
+            return input.columnOrNull(ref);
+        }
+
+        @Override
         public @com.legend.base.Nullable Col functionValue(SqlAst.ColumnRef ref) {
             Col source = input.functionValue(ref);
             return source == null ? null : key(source, ref);
@@ -1101,6 +1114,31 @@ public final class SqlToPure {
         return f.name().size() == 1 && SET_RETURNING.containsKey(functionName(f.name().get(0)));
     }
 
+    /** Whether {@code e} calls a set-returning function anywhere in it (the parser's VALUES rows, where Postgres
+     *  allows none). */
+    static boolean containsSetReturning(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && setReturning(f)
+                || children(e).stream().anyMatch(SqlToPure::containsSetReturning);
+    }
+
+    /** The error of {@code e} as a VALUES row's cell, or null: a set-returning function, an aggregate or a window
+     *  function in it, outside a subquery (the parser's VALUES lists, which have no rows to read). */
+    static @com.legend.base.Nullable String notInValues(SqlAst.Expr e) {
+        if (containsSetReturning(e)) {
+            return "set-returning functions are not allowed in VALUES";
+        }
+        if (containsWindow(e)) {
+            return "window functions are not allowed in VALUES";
+        }
+        return anyAggregateCall(e) ? "aggregate functions are not allowed in VALUES" : null;
+    }
+
+    private static boolean anyAggregateCall(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                && AGGREGATES.contains(functionName(f.name().get(0)))
+                || children(e).stream().anyMatch(SqlToPure::anyAggregateCall);
+    }
+
     private static void noSetReturning(SqlAst.Expr e) {
         if (e instanceof SqlAst.FunctionCall f && setReturning(f)) {
             throw SqlTranslationException.unsupported("a set-returning function inside an expression is not supported"
@@ -1125,10 +1163,6 @@ public final class SqlToPure {
 
         if (s.items().isEmpty()) {
             throw SqlTranslationException.unsupported("a select list with no columns is not supported yet", s.pos());
-        }
-        if (s.from().isEmpty() && env.outer() != null) {
-            // legend-lite cannot yet lower a row of an enclosing query read by a one-row relation of its own
-            throw SqlTranslationException.unsupported("a subquery without FROM is not supported yet", s.pos());
         }
         if (s.from().isEmpty() && s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns)) {
             throw SqlTranslationException.invalid("with no tables specified, SELECT * is not valid", s.pos());
@@ -1484,7 +1518,17 @@ public final class SqlToPure {
     /** A relation as a FROM item: its columns renamed by the alias's column list, under its qualifier. */
     private Source bound(Rel rel, SqlAst.@com.legend.base.Nullable Ident qualifier, List<SqlAst.Ident> columnAliases,
             SqlAst.Pos pos) {
-        Rel renamed = columnAliases.isEmpty() ? rel : aliased(rel, columnAliases, qualifier, pos);
+        Rel read = rel;
+        if (dialect.untypedNullIsText() && rel.columns().stream().anyMatch(c -> c.kind() == Kind.NULL)) {
+            // the reading query's NULL text, where the dialect types the column so (2026-10-17, the review of the
+            // corpus program's step 1: an untyped NULL read had answered x + 1)
+            List<@com.legend.base.Nullable Tx> texts = new ArrayList<>();
+            for (OutCol c : rel.columns()) {
+                texts.add(c.kind() != Kind.NULL ? null : Tx.value(nullOf(Kind.STRING).vs(), Kind.STRING, true));
+            }
+            read = converted(rel, texts);
+        }
+        Rel renamed = columnAliases.isEmpty() ? read : aliased(read, columnAliases, qualifier, pos);
         List<BCol> cols = new ArrayList<>();
         List<Col> star = new ArrayList<>();
         for (OutCol c : renamed.columns()) {
@@ -1725,7 +1769,8 @@ public final class SqlToPure {
                 || item instanceof SqlAst.SubqueryFrom q && q.lateral();
     }
 
-    private static boolean isSourceFunction(SqlAst.TableFunction f) {
+    /** Whether {@code f} is the island's source function, {@code tb('pkg::Database.table')}. */
+    static boolean isSourceFunction(SqlAst.TableFunction f) {
         return f.name().size() == 1 && TABLE_FUNCTION.equals(functionName(f.name().get(0)));
     }
 
@@ -2617,6 +2662,15 @@ public final class SqlToPure {
      * {@code extend(over(...), ~column: {p, w, r | ...})}.
      */
     private Windowed windows(SqlAst.Select s, Scope scope, ValueSpecification relation, Set<String> present) {
+        // two windows of one name are Postgres's error, whether or not a call reads them (2026-10-17, the regression
+        // suite: WINDOW w AS (...), w AS (...) answered)
+        Set<String> windowNames = new java.util.HashSet<>();
+        for (SqlAst.NamedWindow nw : s.windows()) {
+            String name = nw.name().quoted() ? nw.name().text() : dialect.fold(nw.name().text());
+            if (!windowNames.add(name) && dialect.oneWindowPerName()) {
+                throw SqlTranslationException.invalid("window \"" + name + "\" is already defined", nw.name().pos());
+            }
+        }
         List<SqlAst.Window> calls = new ArrayList<>();
         Map<SqlAst.Window, String> named = new java.util.IdentityHashMap<>();
         for (SqlAst.SelectItem item : s.items()) {
@@ -3189,7 +3243,7 @@ public final class SqlToPure {
     private WindowColumn lagDefault(SqlAst.Expr d, Col arg, ValueSpecification at, ValueSpecification other,
             Scope scope, Set<String> present, List<ColSpec> computed) {
         Tx dflt = d instanceof SqlAst.StringLit s && arg.kind() != Kind.STRING && readsStrings(arg.kind())
-                ? fromString(s, arg.kind()) : tx(d, scope, row);
+                ? fromString(single(s, arg.detail()), arg.kind()) : tx(d, scope, row);
         Kind kind;
         if (dflt.kind() == arg.kind()) {
             kind = arg.kind();
@@ -3414,12 +3468,20 @@ public final class SqlToPure {
                     ? dialect.columnName(ref.parts().get(ref.parts().size() - 1), col.label())
                     : dialect.defaultName(x, ref -> tableOf(scope, ref));
             Output o = passthrough(col, name, passed, present, scope);
-            return new Output(o.name(), o.internal(), o.value(), x.expr(), o.kind(), o.nullable(), o.detail());
+            return new Output(o.name(), o.internal(), o.value(), x.expr(), o.kind(), o.nullable(),
+                    narrowed(o.kind(), o.detail(), x.expr(), scope));
         }
         Tx t = tx(x.expr(), scope, row);
         String name = alias != null ? alias.text() : dialect.defaultName(x, ref -> tableOf(scope, ref));
         return new Output(name, internalFor(name, present), valueOf(t), x.expr(), t.kind(), t.nullable(),
-                t.detail());
+                narrowed(t.kind(), t.detail(), x.expr(), scope));
+    }
+
+    /** A select item's type detail: its value's, else the dialect's narrow integer where the item is one
+     *  ({@link #widened}), so that a query reading the column knows it. */
+    private InputDialect.@com.legend.base.Nullable TypeDetail narrowed(Kind kind,
+            InputDialect.@com.legend.base.Nullable TypeDetail detail, SqlAst.Expr e, Scope scope) {
+        return detail == null && kind == Kind.INTEGER && widened(e, scope) ? dialect.narrowInteger() : detail;
     }
 
     /** A column shown as itself once; shown again, or under another name, it is a computed copy. */
@@ -4655,12 +4717,21 @@ public final class SqlToPure {
     }
 
     private Tx unary(SqlAst.Unary u, Scope scope, String row) {
+        if (u.op() == SqlAst.UnaryOp.MINUS) {
+            holdsOperands(u, u.operand()); // a plus is its operand, which holds itself
+        }
         Tx operand = tx(u.operand(), scope, row);
         return switch (u.op()) {
             case NOT -> not(truth(operand, "NOT", u.pos()));
             case MINUS -> {
                 numericOperand(operand, u.operand());
-                yield strict(operand.kind(), List.of(operand), v -> call("minus", v.get(0)));
+                if (operand.kind() == Kind.INTEGER && constantWidth(u) == null
+                        && narrowValue(u.operand(), operand, scope)) {
+                    throw SqlTranslationException.unsupported("negating a smallint value that is not a constant is not"
+                            + " supported yet: the database negates it as a smallint, raising for -32768, where the"
+                            + " island's integer is wider", u.pos());
+                }
+                yield heldToWidth(strict(operand.kind(), List.of(operand), v -> call("minus", v.get(0))), u);
             }
             case PLUS -> {
                 numericOperand(operand, u.operand());
@@ -4720,6 +4791,7 @@ public final class SqlToPure {
                 return compare(b.op(), sides.get(0), sides.get(1));
             }
             case PLUS, MINUS, TIMES -> {
+                holdsOperands(b, b.left(), b.right());
                 boolean additive = b.op() != SqlAst.BinaryOp.TIMES;
                 if (additive && (intervalConstant(b.left()) != null || intervalConstant(b.right()) != null)) {
                     return intervalArithmetic(b, scope, row);
@@ -4735,17 +4807,22 @@ public final class SqlToPure {
                 Tx r = lr.get(1);
                 numericOperand(l, b.left());
                 numericOperand(r, b.right());
+                noSmallintConstantBeside(b, l, r);
+                noNarrowArithmetic(b, l, r, scope);
                 String fn = b.op() == SqlAst.BinaryOp.PLUS ? "plus" : b.op() == SqlAst.BinaryOp.MINUS ? "minus"
                         : "times";
-                return strict(arithmetic(l.kind(), r.kind()), List.of(l, r),
-                        v -> AppliedFunction.infixRun(fn, List.of(v.get(0), v.get(1))));
+                return heldToWidth(strict(arithmetic(l.kind(), r.kind()), List.of(l, r),
+                        v -> AppliedFunction.infixRun(fn, List.of(v.get(0), v.get(1)))), b);
             }
             case DIVIDE -> {
+                holdsOperands(b, b.left(), b.right());
                 List<Tx> lr = typedOperands(tx(b.left(), scope, row), tx(b.right(), scope, row), "/", b.pos());
                 Tx l = lr.get(0);
                 Tx r = lr.get(1);
                 numericOperand(l, b.left());
                 numericOperand(r, b.right());
+                noSmallintConstantBeside(b, l, r);
+                noNarrowArithmetic(b, l, r, scope);
                 if (l.kind() == Kind.WHOLE && (r.kind() == Kind.INTEGER || r.kind() == Kind.WHOLE)
                         || r.kind() == Kind.WHOLE && l.kind() == Kind.INTEGER) {
                     throw SqlTranslationException.unsupported("dividing a sum of integers by an integer is not supported"
@@ -4753,7 +4830,8 @@ public final class SqlToPure {
                             + " which divide differently (cast it: sum(x)::bigint / n or sum(x)::numeric / n)", b.pos());
                 }
                 if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER) {
-                    return strict(Kind.INTEGER, List.of(l, r), v -> integerQuotient(v.get(0), v.get(1)));
+                    return heldToWidth(strict(Kind.INTEGER, List.of(l, r), v -> integerQuotient(v.get(0), v.get(1))),
+                            b);
                 }
                 // a double's quotient is a double, in Postgres too; a numeric's is exact there, a Float here
                 boolean doubles = (l.kind() == Kind.FLOAT || r.kind() == Kind.FLOAT) && l.kind() != Kind.INEXACT
@@ -4896,12 +4974,29 @@ public final class SqlToPure {
         Tx l = tx(left, scope, row);
         Tx r = tx(right, scope, row);
         if (left instanceof SqlAst.StringLit s && readsStrings(r.kind())) {
-            l = fromString(s, r.kind());
+            l = fromString(single(s, r.detail()), r.kind());
         } else if (right instanceof SqlAst.StringLit s && readsStrings(l.kind())) {
-            r = fromString(s, l.kind());
+            r = fromString(single(s, l.detail()), l.kind());
         }
         comparableKinds(l, r, pos);
         return List.of(l, r);
+    }
+
+    /** {@code s}, a string read as the type of a value of {@code detail}: refused where that is a real (Postgres
+     *  reads the string as a single-precision float, which Pure's Float is not: '1004.3' = a real 1004.3 is true
+     *  there; 2026-10-17, the regression suite): a comparison, IN, BETWEEN, ANY and ALL, lag's and lead's default,
+     *  and (through {@link #stringWithAReal}) CASE, COALESCE and the set operations. */
+    private SqlAst.StringLit single(SqlAst.StringLit s, InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        if (dialect.singlePrecision(detail)) {
+            throw stringWithAReal(s.pos());
+        }
+        return s;
+    }
+
+    /** The refusal of a string read as a real's type. */
+    static SqlTranslationException stringWithAReal(SqlAst.Pos pos) {
+        return SqlTranslationException.unsupported("a string read with a real (float4) value is not supported yet:"
+                + " Postgres reads it as a real", pos);
     }
 
     private static void comparableKinds(Tx l, Tx r, SqlAst.Pos pos) {
@@ -5033,7 +5128,15 @@ public final class SqlToPure {
             case DECIMAL, FLOAT, INEXACT -> {
                 String n = plainNumber(v.strip(), true);
                 if (n != null) {
-                    // a double precision constant is the double nearest its text (round('2.5'::float8) is rint's 2)
+                    // a double precision constant is the double nearest its text (round('2.5'::float8) is rint's 2);
+                    // one past a double's range, or a nonzero one too small for any double, is Postgres's float8in
+                    // error (2026-10-17, the regression suite: '10e-400'::float8)
+                    double nearest = Double.parseDouble(n);
+                    if (kind == Kind.FLOAT && (Double.isInfinite(nearest)
+                            || nearest == 0 && new BigDecimal(n).signum() != 0)) {
+                        throw SqlTranslationException.invalid("\"" + v + "\" is out of range for type double"
+                                + " precision", s.pos());
+                    }
                     return kind == Kind.FLOAT ? Tx.value(call("toFloat", new CDecimal(new BigDecimal(n))), Kind.FLOAT,
                             false) : Tx.value(new CDecimal(new BigDecimal(n)), Kind.DECIMAL, false);
                 }
@@ -5355,7 +5458,7 @@ public final class SqlToPure {
             return nullOf(Kind.NULL);
         }
         if (results.detail() != null && values.stream().allMatch(SqlToPure::isNullConstant)) {
-            // every result a NULL of the type the dialect resolved (none in Postgres's): that NULL
+            // every result a NULL of the type the dialect resolved (none in Postgres's resolution): that NULL
             return Tx.value(nullOf(kind).vs(), kind, true, results.detail());
         }
         return kind == Kind.BOOLEAN ? booleanValue(vs, nullable) : Tx.value(vs, kind, nullable, results.detail());
@@ -5438,11 +5541,18 @@ public final class SqlToPure {
         }
         m.put("reverse", (t, f, a, s, r) -> text1(f, a, "reverseString", Kind.STRING));
         m.put("ascii", (t, f, a, s, r) -> text1(f, a, "ascii", Kind.INTEGER));
-        m.put("abs", (t, f, a, s, r) -> numeric1(f, a, "abs"));
+        m.put("abs", (t, f, a, s, r) -> {
+            if (a.size() == 1 && a.get(0).kind() == Kind.INTEGER && t.narrowValue(f.args().get(0), a.get(0), s)) {
+                throw SqlTranslationException.unsupported("abs of a smallint value is not supported yet: the database"
+                        + " computes it as a smallint, raising for -32768, where the island's integer is wider",
+                        f.pos());
+            }
+            return numeric1(f, a, "abs");
+        });
         m.put("ceil", (t, f, a, s, r) -> numeric1(f, a, "ceiling"));
         m.put("ceiling", (t, f, a, s, r) -> numeric1(f, a, "ceiling"));
         m.put("floor", (t, f, a, s, r) -> numeric1(f, a, "floor"));
-        m.put("coalesce", (t, f, a, s, r) -> coalesce(f, a));
+        m.put("coalesce", (t, f, a, s, r) -> t.coalesce(f, a));
         m.put("current_date", (t, f, a, s, r) -> nullary(f, a, "today", Kind.DATE));
         for (String now : List.of("current_timestamp", "now", "localtimestamp")) {
             m.put(now, (t, f, a, s, r) -> nullary(f, a, "now", Kind.DATETIME));
@@ -5671,11 +5781,11 @@ public final class SqlToPure {
 
     /** {@code coalesce(a, b, ...)}: the first value that is not NULL. Pure's takes two to four values, so a longer
      *  list nests from the right. */
-    private static Tx coalesce(SqlAst.FunctionCall f, List<Tx> arguments) {
+    private Tx coalesce(SqlAst.FunctionCall f, List<Tx> arguments) {
         if (arguments.size() < 2) {
             throw SqlTranslationException.unsupported("coalesce takes two or more arguments here", f.pos());
         }
-        Common common = common("COALESCE", f.args(), arguments, f.pos());
+        Common common = dialect.unify("COALESCE", f.args(), arguments, f.pos());
         List<Tx> args = common.values();
         Kind kind = common.kind();
         if (kind == Kind.NULL) {
@@ -5725,6 +5835,9 @@ public final class SqlToPure {
 
     /** Postgres's 2-byte integer's names. */
     private static final Set<String> SMALL_INTEGERS = Set.of("smallint", "int2");
+
+    /** Postgres's 8-byte integer's names. */
+    private static final Set<String> WIDE_INTEGERS = Set.of("bigint", "int8");
 
     /** The names of text with a length ({@code varchar(n)}): an explicit cast cuts a longer value to n characters. */
     private static final Set<String> VARCHAR_TYPES = Set.of("varchar", "character varying");
@@ -6635,22 +6748,17 @@ public final class SqlToPure {
         // Postgres's error ("integer out of range")
         long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
                 : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
-        if (c.operand() instanceof SqlAst.StringLit s && target == Kind.JSON) {
-            return jsonConstant(s);
-        }
         if (c.operand() instanceof SqlAst.StringLit s) {
-            Tx read = target == Kind.STRING ? Tx.value(new CString(s.value()), Kind.STRING, false)
-                    : fromString(s, target);
-            if (range != null && read.vs() instanceof CInteger n && (n.value().longValue() > range[1]
-                    || n.value().longValue() < range[0])) {
-                throw SqlTranslationException.invalid("value \"" + s.value() + "\" is out of range for type "
-                        + (SMALL_INTEGERS.contains(type) ? "smallint" : "integer"), s.pos());
-            }
-            return read;
+            return stringAs(s, type, target, range);
         }
         Tx x = tx(c.operand(), scope, row);
         if (x.kind() == Kind.NULL) {
             return nullOf(target);
+        }
+        if (target == Kind.STRING && x.kind() == Kind.STRING && dialect.padded(x.detail())) {
+            // a char(n) value as text or varchar drops its padding: Postgres's cast removes the trailing blanks
+            // (2026-10-17, the regression suite: CAST(f1 AS text) of a char(4) answered 'a   ')
+            return strict(Kind.STRING, List.of(x), v -> call("rtrim", v.get(0)));
         }
         if (target == Kind.INTEGER && range != null && x.kind() == Kind.INTEGER && x.vs() instanceof CInteger n) {
             if (n.value().longValue() > range[1] || n.value().longValue() < range[0]) {
@@ -6733,6 +6841,279 @@ public final class SqlToPure {
     private static boolean within(long @com.legend.base.Nullable [] inner, long[] outer) {
         return inner != null && inner[0] >= outer[0] && inner[1] <= outer[1];
     }
+
+    /** {@code x}, the integer value of {@code e}, held to the range of the integer type Postgres gives {@code e} where
+     *  {@code e} is integer arithmetic over constants alone ({@link #constantWidth}): past it, Postgres's error
+     *  ("smallint out of range", "integer out of range", "bigint out of range"), where the planner's fold of the
+     *  constants would answer the exact value (2026-10-17, the regression suite: {@code (-32768)::int2 * (-1)::int2},
+     *  {@code '9223372036854775800'::int8 + '9223372036854775800'::int8}). Over a column the database computes in
+     *  the column's own type, as Postgres does, so nothing is added. The outermost arithmetic of constants alone is
+     *  tested, not each operator in it (each test writes the value three times, so every level tested was 3^n);
+     *  where an operator inside it may pass its own type's range part-way, which the outer test cannot see, it is
+     *  refused (independent review, 2026-10-17: {@code (32767::int2 + 1::int2) * 0::int2} answered 0). A minus before
+     *  a constant is that constant, in its range by construction; arithmetic whose constants bound it within the
+     *  range ({@link #magnitude}: 1 + 2 is at most 3) needs no test. */
+    private Tx heldToWidth(Tx x, SqlAst.Expr e) {
+        if (heldOutside.contains(e) || e instanceof SqlAst.Unary u && u.operand() instanceof SqlAst.IntegerLit) {
+            return x;
+        }
+        Integer width = x.kind() == Kind.INTEGER ? constantWidth(e) : null;
+        if (width == null || fits(magnitude(e), width)) {
+            return x; // not arithmetic of constants, or within the type at every step
+        }
+        for (SqlAst.Expr inner : operands(e)) {
+            mayNotPass(inner);
+        }
+        return width == 2 ? inRange(x, new long[] {Short.MIN_VALUE, Short.MAX_VALUE}, "smallint")
+                : width == 4 ? inRange(x, new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}, "integer")
+                : inRange(x, new long[] {Long.MIN_VALUE, Long.MAX_VALUE}, "bigint");
+    }
+
+    /** Whether {@code bound}, a value's size, is within the integer type of {@code width} bytes: at most
+     *  2^(8w-1) - 1 either way. */
+    private static boolean fits(java.math.@com.legend.base.Nullable BigInteger bound, int width) {
+        return bound != null && bound.bitLength() < 8 * width;
+    }
+
+    /** The operands of {@code e}'s operator, where {@code e} is integer arithmetic or a sign; none otherwise. */
+    private static List<SqlAst.Expr> operands(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.Binary b when ARITHMETIC.contains(b.op()) -> List.of(b.left(), b.right());
+            case SqlAst.Unary u when u.op() != SqlAst.UnaryOp.NOT -> List.of(u.operand());
+            default -> List.of();
+        };
+    }
+
+    /** Refuses {@code e}, integer arithmetic of constants inside arithmetic whose outer test holds it, where its own
+     *  type's range may be passed: the outer test sees only the end of the computation. */
+    private static void mayNotPass(SqlAst.Expr e) {
+        Integer width = operands(e).isEmpty() ? null : constantWidth(e);
+        if (width == null || e instanceof SqlAst.Unary u && u.operand() instanceof SqlAst.IntegerLit) {
+            return;
+        }
+        if (!fits(magnitude(e), width)) {
+            throw SqlTranslationException.unsupported("integer arithmetic of constants that may pass its type's range"
+                    + " part-way is not supported yet", e.pos());
+        }
+        for (SqlAst.Expr inner : operands(e)) {
+            mayNotPass(inner);
+        }
+    }
+
+    /** An upper bound of the size of {@code e}'s value and of every step of arithmetic inside it, from the sizes its
+     *  constants spell (each operator's bound of its operands' bounds, a cast's its type's), null where there is
+     *  none: whether a range test is needed is decided by the constants as written, and the value is still computed
+     *  where it always was. */
+    private static java.math.@com.legend.base.Nullable BigInteger magnitude(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> n.value().abs();
+            case SqlAst.Unary u when u.op() != SqlAst.UnaryOp.NOT -> magnitude(u.operand());
+            case SqlAst.Cast c when constant(c.operand()) && constantWidth(c) != null -> {
+                int width = java.util.Objects.requireNonNull(castWidth(c.type().name()));
+                java.math.BigInteger type = java.math.BigInteger.ONE.shiftLeft(8 * width - 1);
+                java.math.BigInteger operand = c.operand() instanceof SqlAst.StringLit str
+                        ? stringMagnitude(str.value()) : magnitude(c.operand());
+                yield operand == null ? type : operand.min(type);
+            }
+            case SqlAst.TypedLit t when constantWidth(t) != null -> {
+                int width = java.util.Objects.requireNonNull(castWidth(t.type().name()));
+                java.math.BigInteger type = java.math.BigInteger.ONE.shiftLeft(8 * width - 1);
+                java.math.BigInteger value = stringMagnitude(t.value());
+                yield value == null ? type : value.min(type);
+            }
+            case SqlAst.Binary b when ARITHMETIC.contains(b.op()) -> {
+                java.math.BigInteger l = magnitude(b.left());
+                java.math.BigInteger r = magnitude(b.right());
+                // a bound of the result and of each operand, so of every step inside (a product with 0 is no bound of
+                // its other factor; a quotient or a remainder is no larger than its dividend)
+                yield l == null || r == null ? null : switch (b.op()) {
+                    case PLUS, MINUS -> l.add(r);
+                    case TIMES -> l.multiply(r).max(l).max(r);
+                    default -> l.max(r);
+                };
+            }
+            default -> null;
+        };
+    }
+
+    /** The size of a string constant's integer, as an integer type reads it (its plain spelling), else null. */
+    private static java.math.@com.legend.base.Nullable BigInteger stringMagnitude(String v) {
+        String n = plainNumber(v.strip(), false);
+        return n == null ? null : new java.math.BigInteger(n).abs();
+    }
+
+    /** Refuses integer arithmetic of a constant Postgres types smallint ({@code 2::int2}, {@code int2 '2'}) and a
+     *  value that is not a constant: over a smallint column Postgres computes a smallint, raising past 32767, and the
+     *  island's constant is an integer, so the database would compute wider and answer (2026-10-17, the regression
+     *  suite: {@code i.f1 * int2 '2'}). */
+    private static void noSmallintConstantBeside(SqlAst.Binary b, Tx l, Tx r) {
+        Integer lw = constantWidth(b.left());
+        Integer rw = constantWidth(b.right());
+        if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER
+                && (lw != null && lw == 2 && rw == null || rw != null && rw == 2 && lw == null)) {
+            throw SqlTranslationException.unsupported("arithmetic of a smallint constant and a value that is not a"
+                    + " constant is not supported yet: Postgres computes it as a smallint where the value is one",
+                    b.pos());
+        }
+    }
+
+    /** Refuses integer arithmetic over a widened value ({@link #widened}) that the database computes at its narrow
+     *  width: beside another such value, or an integer that is not a wider constant (a column the island cannot tell
+     *  from one of that width). Constants alone are held to their width ({@link #heldToWidth}); beside an integer
+     *  or bigint constant the database computes wider too. */
+    private void noNarrowArithmetic(SqlAst.Binary b, Tx l, Tx r, Scope scope) {
+        if (l.kind() != Kind.INTEGER || r.kind() != Kind.INTEGER || constantWidth(b) != null) {
+            return;
+        }
+        if (narrowValue(b.left(), l, scope) && !widerConstant(b.right()) || narrowValue(b.right(), r, scope)
+                && !widerConstant(b.left())) {
+            throw SqlTranslationException.unsupported("integer arithmetic of a smallint value (a cast to smallint, an"
+                    + " int2 constant, or a column of one) beside a value that is not an integer constant is not"
+                    + " supported yet: the database computes it as a smallint, raising past 32767, where the island's"
+                    + " integer is wider", b.pos());
+        }
+    }
+
+    private static boolean widerConstant(SqlAst.Expr e) {
+        Integer width = constantWidth(e);
+        return width != null && width > 2;
+    }
+
+    private static final Set<SqlAst.BinaryOp> INTEGER_ARITHMETIC = Set.of(SqlAst.BinaryOp.PLUS,
+            SqlAst.BinaryOp.MINUS, SqlAst.BinaryOp.TIMES, SqlAst.BinaryOp.DIVIDE, SqlAst.BinaryOp.MODULO);
+
+    /** Whether {@code e} is an integer the database types narrower than the island computes it (the dialect's
+     *  {@link InputDialect#narrowInteger}: a smallint, 2026-10-17): a cast to smallint or an int2 constant,
+     *  a column holding one, or what keeps its type: a sign, arithmetic of two, coalesce, greatest, least and CASE of
+     *  such values (or NULLs), abs, nullif, min, max and the window functions of one. The review of the corpus
+     *  program's step 1 found the type lost through them: {@code f1 + abs(int2 '1')}, {@code VALUES (int2 '30000')}
+     *  read twice. */
+    private boolean widened(SqlAst.Expr e, Scope scope) {
+        InputDialect.TypeDetail narrow = dialect.narrowInteger();
+        return narrow != null && widened(e, scope, narrow);
+    }
+
+    /** Whether {@code e}, translated as {@code t}, is a widened value ({@link #widened}), or its translation carries
+     *  the narrow detail (a scalar subquery of one). */
+    boolean narrowValue(SqlAst.Expr e, Tx t, Scope scope) {
+        InputDialect.TypeDetail narrow = dialect.narrowInteger();
+        return narrow != null && (narrow.equals(t.detail()) || widened(e, scope, narrow));
+    }
+
+    /** {@link #widened}; a column reference reads {@code scope}, or none where it is null (a subquery's own). */
+    private boolean widened(SqlAst.Expr e, @com.legend.base.Nullable Scope scope, InputDialect.TypeDetail narrow) {
+        return switch (e) {
+            case SqlAst.Cast c -> SMALL_INTEGERS.contains(c.type().name());
+            case SqlAst.TypedLit t -> SMALL_INTEGERS.contains(t.type().name());
+            case SqlAst.ColumnRef ref -> {
+                Col c = scope == null ? null : scope.readOrNull(ref);
+                yield c != null && narrow.equals(c.detail());
+            }
+            case SqlAst.ScalarSubquery q -> q.query() instanceof SqlAst.Select one && one.items().size() == 1
+                    && one.items().get(0) instanceof SqlAst.SelectExpr x && widened(x.expr(), null, narrow);
+            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && widened(u.operand(), scope, narrow);
+            case SqlAst.Binary b -> INTEGER_ARITHMETIC.contains(b.op()) && widened(b.left(), scope, narrow)
+                    && widened(b.right(), scope, narrow);
+            case SqlAst.Case c -> {
+                List<SqlAst.Expr> results = new ArrayList<>();
+                c.whens().forEach(w -> results.add(w.result()));
+                if (c.otherwise() != null) {
+                    results.add(c.otherwise());
+                }
+                yield allNarrow(results, scope, narrow);
+            }
+            case SqlAst.FunctionCall f when f.name().size() == 1 && !f.args().isEmpty() ->
+                    switch (functionName(f.name().get(0))) {
+                        case "coalesce", "greatest", "least" -> allNarrow(f.args(), scope, narrow);
+                        case "abs", "nullif", "min", "max", "first_value", "last_value", "nth_value", "lag", "lead",
+                                "any_value" -> widened(f.args().get(0), scope, narrow);
+                        default -> false;
+                    };
+            default -> false;
+        };
+    }
+
+    /** Whether {@code values} resolve to the narrow type: each one of it or a NULL, one at least of it. */
+    private boolean allNarrow(List<SqlAst.Expr> values, @com.legend.base.Nullable Scope scope,
+            InputDialect.TypeDetail narrow) {
+        boolean any = false;
+        for (SqlAst.Expr v : values) {
+            if (v instanceof SqlAst.NullLit) {
+                continue;
+            }
+            if (!widened(v, scope, narrow)) {
+                return false;
+            }
+            any = true;
+        }
+        return any;
+    }
+
+    /** Marks {@code operands} as held by {@code e} when {@code e} is integer arithmetic over constants alone. */
+    private void holdsOperands(SqlAst.Expr e, SqlAst.Expr... operands) {
+        if (constantWidth(e) != null) {
+            heldOutside.addAll(List.of(operands));
+        }
+    }
+
+    /** The bytes of the integer type Postgres gives {@code e} when it is integer arithmetic over constants (its
+     *  operators' result types: int2 with int2 is int2, else the wider), null otherwise: a constant is int4 where it
+     *  fits, else int8 (a minus before a constant negates the constant, Postgres's doNegate); a cast of a constant to
+     *  smallint, integer or bigint is that type. */
+    private static @com.legend.base.Nullable Integer constantWidth(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> literalWidth(n.value());
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.MINUS && u.operand() instanceof SqlAst.IntegerLit n ->
+                    literalWidth(n.value().negate());
+            case SqlAst.Unary u when u.op() != SqlAst.UnaryOp.NOT -> constantWidth(u.operand());
+            case SqlAst.Cast c when c.type().modifiers().isEmpty() && constant(c.operand()) ->
+                    castWidth(c.type().name());
+            // int2 '1' is '1'::int2
+            case SqlAst.TypedLit t when t.type().modifiers().isEmpty() -> castWidth(t.type().name());
+            case SqlAst.Binary b when ARITHMETIC.contains(b.op()) -> {
+                Integer l = constantWidth(b.left());
+                Integer r = constantWidth(b.right());
+                yield l == null || r == null ? null : Integer.valueOf(Math.max(l, r));
+            }
+            default -> null;
+        };
+    }
+
+    /** A constant integer's width: int4 where it fits, else int8, else none (Postgres's numeric). */
+    private static @com.legend.base.Nullable Integer literalWidth(java.math.BigInteger v) {
+        if (v.bitLength() < 32) {
+            return 4;
+        }
+        return v.bitLength() < 64 ? Integer.valueOf(8) : null;
+    }
+
+    /** An integer type's width by its name, none for another type. */
+    private static @com.legend.base.Nullable Integer castWidth(String type) {
+        if (SMALL_INTEGERS.contains(type)) {
+            return 2;
+        }
+        if (NARROW_INTEGERS.contains(type)) {
+            return 4;
+        }
+        return WIDE_INTEGERS.contains(type) ? Integer.valueOf(8) : null;
+    }
+
+    /** Whether {@code e} is a number or string constant, or arithmetic, a sign or a cast of constants alone. */
+    private static boolean constant(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.NumericLit n -> true;
+            case SqlAst.StringLit str -> true;
+            case SqlAst.TypedLit t -> true;
+            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && constant(u.operand());
+            case SqlAst.Cast c -> constant(c.operand());
+            case SqlAst.Binary b -> ARITHMETIC.contains(b.op()) && constant(b.left()) && constant(b.right());
+            default -> false;
+        };
+    }
+
+    private static final Set<SqlAst.BinaryOp> ARITHMETIC = Set.of(SqlAst.BinaryOp.PLUS, SqlAst.BinaryOp.MINUS,
+            SqlAst.BinaryOp.TIMES, SqlAst.BinaryOp.DIVIDE, SqlAst.BinaryOp.MODULO);
 
     /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value
      *  read as one ({@code []->cast(@Integer)->toOne()} raises, typed as the integer it stands for). */
@@ -6941,9 +7322,35 @@ public final class SqlToPure {
             case "date" -> dateFromString(new SqlAst.StringLit(lit.value(), lit.pos()), Kind.DATE);
             case "timestamp", "timestamp without time zone" ->
                     dateFromString(new SqlAst.StringLit(lit.value(), lit.pos()), Kind.DATETIME);
-            default -> throw SqlTranslationException.unsupported("constants of type " + lit.type().name() + " are not"
-                    + " supported yet", lit.pos());
+            default -> {
+                // type 'string' is the string cast to the type, as Postgres reads it: int2 '1', bool 't', float8
+                // '1.5' (2026-10-17, the regression suite's 269 such constants)
+                String type = lit.type().name();
+                Kind target = CAST_TYPES.get(type);
+                if (target == null || !lit.type().modifiers().isEmpty()) {
+                    throw SqlTranslationException.unsupported("constants of type " + type + " are not supported yet",
+                            lit.pos());
+                }
+                long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
+                        : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
+                yield stringAs(new SqlAst.StringLit(lit.value(), lit.pos()), type, target, range);
+            }
         };
+    }
+
+    /** A string constant cast to {@code type}, of kind {@code target}: read by the type's input rules; an integer
+     *  past {@code range} (an integer's or a smallint's) is Postgres's error. */
+    private static Tx stringAs(SqlAst.StringLit s, String type, Kind target, long @com.legend.base.Nullable [] range) {
+        if (target == Kind.JSON) {
+            return jsonConstant(s);
+        }
+        Tx read = target == Kind.STRING ? Tx.value(new CString(s.value()), Kind.STRING, false) : fromString(s, target);
+        if (range != null && read.vs() instanceof CInteger n && (n.value().longValue() > range[1]
+                || n.value().longValue() < range[0])) {
+            throw SqlTranslationException.invalid("value \"" + s.value() + "\" is out of range for type "
+                    + (SMALL_INTEGERS.contains(type) ? "smallint" : "integer"), s.pos());
+        }
+        return read;
     }
 
     /** A string constant read as a date or a timestamp by Postgres's rules ({@link PostgresDateTime}): ISO 8601 and

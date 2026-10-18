@@ -25,11 +25,26 @@ class PostgresArmTest {
     /** Postgres's test backend: this JVM's embedded server, its sessions, the connection a model declares for them. */
     private static final TestBackend POSTGRES = TestBackends.of(DatabaseType.Postgres);
 
-    @Test
-    @DisplayName("a Postgres connection resolves through the product path and runs a query")
-    void thePostgresArmOpensARealPostgres() throws Exception {
-        // The arm sends no user (its connections authenticate as Test or NoAuth), so the driver logs in
-        // as the operating-system account: give that account a login role on the test's own server.
+    /** The arm's model: one table on Postgres's backend, its connection the backend's. */
+    private static final String ARM_MODEL = """
+            ###Relational
+            Database store::PgDB ( Table T ( ID INTEGER PRIMARY KEY ) )
+
+            ###Connection
+            RelationalDatabaseConnection store::PgConn {
+                %s
+            }
+
+            ###Runtime
+            Runtime test::PgRuntime {
+                mappings: [ ];
+                connections: [ store::PgDB: [ environment: store::PgConn ] ];
+            }
+            """;
+
+    /** The arm sends no user (its connections authenticate as Test or NoAuth), so the driver logs in as the
+     *  operating-system account: give that account a login role on the test's own server. */
+    private static void loginRole() throws Exception {
         String account = System.getProperty("user.name");
         try (Connection admin = POSTGRES.open();
                 PreparedStatement exists = admin.prepareStatement("SELECT 1 FROM pg_roles WHERE rolname = ?")) {
@@ -42,22 +57,13 @@ class PostgresArmTest {
                 }
             }
         }
+    }
 
-        String model = """
-                ###Relational
-                Database store::PgDB ( Table T ( ID INTEGER PRIMARY KEY ) )
-
-                ###Connection
-                RelationalDatabaseConnection store::PgConn {
-                    %s
-                }
-
-                ###Runtime
-                Runtime test::PgRuntime {
-                    mappings: [ ];
-                    connections: [ store::PgDB: [ environment: store::PgConn ] ];
-                }
-                """.formatted(POSTGRES.connectionBody());
+    @Test
+    @DisplayName("a Postgres connection resolves through the product path and runs a query")
+    void thePostgresArmOpensARealPostgres() throws Exception {
+        loginRole();
+        String model = ARM_MODEL.formatted(POSTGRES.connectionBody());
 
         try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), "test::PgRuntime");
                 Statement s = lease.connection().createStatement();
@@ -67,6 +73,19 @@ class PostgresArmTest {
             assertTrue(r.next());
             assertEquals(42, r.getInt(1));
         }
+    }
+
+    @Test
+    @DisplayName("a date before Christ answers with its era")
+    void aDateBeforeChristKeepsItsEra() throws Exception {
+        // the executor read a DATE through java.sql.Date, which drops a BC date's era: 44 BC came back as 44 AD
+        // (2026-10-17, the #SQL{} island's regression-suite corpus); it re-fetches the cell as java.time
+        loginRole();
+        var result = new QueryService().execute(ARM_MODEL.formatted(POSTGRES.connectionBody()),
+                "#SQL{select make_date(-44, 3, 15) as d}#", "test::PgRuntime");
+        Object d = result.rows().get(0).values().get(0);
+        assertTrue(d instanceof com.legend.values.PureDateLiteral.StrictDate date && date.year() == -43
+                && date.month() == 3 && date.day() == 15, String.valueOf(d));
     }
 
     @Test

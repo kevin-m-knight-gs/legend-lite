@@ -111,7 +111,7 @@ public interface InputDialect {
     SqlToPure.Kind kindOf(String pureType, @com.legend.base.Nullable String storeType);
 
     /** What the dialect knows of a FROM source column's type beyond its kind, carried in {@link SqlToPure.Tx#detail()}
-     *  wherever the column is read: none in Postgres's. */
+     *  wherever the column is read: in Postgres's, a column's char(n) or real store type alone (2026-10-17). */
     default @com.legend.base.Nullable TypeDetail detailOf(String pureType, @com.legend.base.Nullable String storeType) {
         return null;
     }
@@ -131,6 +131,37 @@ public interface InputDialect {
 
     /** {@code b}'s translation: its operands are translated {@code at} its place. */
     SqlToPure.Tx binary(SqlAst.Binary b, SqlToPure.At at);
+
+    /** Whether a value of this store detail ({@link #detailOf}) is blank-padded text whose cast to text drops the
+     *  padding (Postgres's {@code char(n)}; 2026-10-17). None by default. */
+    default boolean padded(@com.legend.base.Nullable TypeDetail detail) {
+        return false;
+    }
+
+    /** Whether a string compared with a value of this store detail is read as a single-precision float, which Pure's
+     *  Float is not, so the comparison is refused (Postgres's {@code real}; 2026-10-17). None by default. */
+    default boolean singlePrecision(@com.legend.base.Nullable TypeDetail detail) {
+        return false;
+    }
+
+    /** Whether an untyped NULL that a subquery or a WITH query outputs is text to the query reading it (the column
+     *  then reads as a NULL text), else it stays untyped; false by default. */
+    default boolean untypedNullIsText() {
+        return false;
+    }
+
+    /** The detail of an integer the dialect's database types narrower than the island's integer, and computes
+     *  arithmetic of at that width, raising past it (Postgres's smallint: a cast to smallint or an int2 constant, which
+     *  the island writes as a wider integer; 2026-10-17); null where there is none, by default. The translator marks
+     *  such a value's column with it and refuses the arithmetic the database would compute narrow. */
+    default @com.legend.base.Nullable TypeDetail narrowInteger() {
+        return null;
+    }
+
+    /** Whether two WINDOW definitions of one name are an error (Postgres's, by default), else the first one counts. */
+    default boolean oneWindowPerName() {
+        return true;
+    }
 
     /** {@code u}'s translation ({@code -x}, {@code +x}, {@code NOT c}): Postgres's unless the dialect says otherwise. */
     default SqlToPure.Tx unary(SqlAst.Unary u, SqlToPure.At at) {
@@ -358,7 +389,8 @@ public interface InputDialect {
     }
 
     /** What a dialect knows of a value's type beyond its {@link SqlToPure.Kind} (a width, a scale, a length): opaque
-     *  to the translator, which carries it in {@link SqlToPure.Tx#detail()}. Postgres's translation has none. */
+     *  to the translator, which carries it in {@link SqlToPure.Tx#detail()} and asks the dialect about it
+     *  ({@link #padded}, {@link #singlePrecision}). Postgres's is a column's char(n) or real store type. */
     interface TypeDetail {
     }
 
