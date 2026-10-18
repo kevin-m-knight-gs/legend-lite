@@ -264,4 +264,13 @@ class PostgresDialectTest {
                 FROM trades AS "t0\"""", sql);
         assertFalse(sql.matches("(?s).*unnest\\((?!\\(SELECT ).*"), "an unnest whose argument is not held: " + sql);
     }
+
+    @Test
+    void aPartialDateInDateArithmeticHasAYearOfFourDigits() {
+        // Postgres reads a leading field of fewer than three digits as no year ('5-01-01' is 2001-05-01, measured
+        // 2026-10-18): the year 5 padded to the first of its period is written 0005 (the independent review)
+        String sql = plan("->extend(~[y: r|%5->dateDiff(%6-03, meta::pure::functions::date::DurationUnit.MONTHS)])"
+                + "->select(~[id, y])");
+        assertTrue(sql.contains("DATE '0005-01-01'") && sql.contains("DATE '0006-03-01'"), sql);
+    }
 }

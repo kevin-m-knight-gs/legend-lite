@@ -697,7 +697,7 @@ Database types planned with it: Snowflake.
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
 | `SHA256` | emulated | `SHA2(…, 256)` |  | 1 |
-| `RANDOM` | emulated | `UNIFORM(0::FLOAT, 1::FLOAT, RANDOM())` |  | 0 |
+| `RANDOM` | emulated | `(UNIFORM(0, 9007199254740991, RANDOM()) / 9007199254740992::FLOAT)` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | emulated | `CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ)` |  | 0 |
@@ -1819,7 +1819,7 @@ Database types planned with it: SQLite.
 | `MD5` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
 | `SHA1` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
 | `SHA256` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
-| `RANDOM` | emulated | `((random() + 9223372036854775808) / 18446744073709551616.0)` |  | 0 |
+| `RANDOM` | emulated | `((random() & 9007199254740991) / 9007199254740992.0)` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | emulated | `date('now')` |  | 0 |
 | `NOW` | emulated | `strftime('%Y-%m-%d %H:%M:%f', 'now')` |  | 0 |

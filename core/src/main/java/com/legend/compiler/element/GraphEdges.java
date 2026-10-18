@@ -375,7 +375,10 @@ public record GraphEdges(List<Edge> edges) {
             "nanoseconds", "timeOfDay");
 
     /** The profile at its path, declaring exactly the eight stereotypes and no tag: checked for each edge class
-     *  (the island reads the stereotypes by the profile's full name). */
+     *  (the island reads the stereotypes by the profile's full name). Exactly, not at least (the independent review
+     *  asked, 2026-10-18; kept): the path names the graph project's one profile, so a declaration with fewer is an
+     *  older one, refused by name until the model declares the current one, and a stereotype beyond these would be
+     *  read as nothing, where a marker the island does not know must not pass silently. */
     private static void checkProfile(Source src, ClassDefinition cd) {
         ProfileDefinition p = src.findProfile(PlatformTypes.GRAPH_PROFILE).orElse(null);
         if (p == null) {

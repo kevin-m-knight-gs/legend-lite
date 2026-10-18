@@ -2368,3 +2368,23 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   Later, 2026-10-18: the 3 setups were the oracle's, not Neo4j's (it ran the TCK's openCypher 9 setups under Cypher 25,
   which narrows `CREATE`; a setup now runs under `CYPHER 5`, `tools/neo4j-oracle/snap.py`): all three pass on both
   lanes, PASS 3979 of 5041 on both, the TCK at 3600 of 3880. Left outside the write clauses: the 2 signed years.
+- **Announced here as landed, 2026-10-18 (the independent review of the branch before its PR, the study's §12.93;
+  the user: "Fix them before PR"): the other lines' files these fixes touched** — `compiler/spec/UserCallInliner.java`
+  (a bound `random()` or `generateGuid()` read twice, or once per row, is refused by name: the substitution writes the
+  term at each read and the database draws at each place; a call whose parameter binds one stands, as a recursive
+  call does), `sql/dialect/Postgres.java` (the exact float `REM` written inline, its NULL arm, so it runs under a
+  grouped computed key: a scalar subquery cannot read an ungrouped column), `H2.java` (`TIME(9)`: H2's `TIME` keeps no
+  fraction of a second, measured 2.1.214), `SQLite.java` and `Snowflake.java` (`random()` in `[0, 1)`: SQLite's
+  shifted formula answered exactly 1.0 within 1024 of the top, measured; Snowflake's `UNIFORM` is inclusive),
+  `lowering/Render.java` (the streamed JSON rows carry a hidden sort key, as the snapshot's hoist does),
+  `lowering/Scalars.java` and `MatchFold.java` (a partial date in date arithmetic written with a year of four digits),
+  `resolver/StoreResolver.java` (the to-many `elementId` lambda typed by its function type), `model/RelationalDataType.java`
+  (`fromName` reads `TIMESTAMP_NS`), `compiler/element/GraphEdges.java` (the exact profile check kept, its reason
+  written). `docs/dialect-capability/` regenerated.
+- **Found by this line in other lines' code, 2026-10-18 (the database owner's):** Postgres has no year zero, so a date
+  before the year 1 reads apart by lane: `EXTRACT(YEAR FROM DATE '0001-01-01' - 1)` is -1 on Postgres and 0 on DuckDB
+  (and in Neo4j's and Java's proleptic count), so Pure's `year()` of such a date, and any text built from it, differs
+  by lane. The Cypher island raises by name where its text would spell a year before 1 (S88). And Postgres reads a date
+  literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
+  line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
+  by `Scalars`' cell reader would still be written as Pure spells it.

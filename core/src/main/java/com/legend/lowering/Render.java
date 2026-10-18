@@ -312,7 +312,8 @@ public final class Render {
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
                     : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
-            OutputCol outCol = out == null ? null : cols.stream()
+            // the inner's own outputs, as the hoist's: a hidden sort column (withSortOutputs) is one, not one of cols
+            OutputCol outCol = out == null ? null : inner.outputs().stream()
                     .filter(oc -> oc.name().equals(out)).findFirst()
                     .orElse(null);
             if (outCol == null) {

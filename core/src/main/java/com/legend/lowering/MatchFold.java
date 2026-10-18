@@ -120,7 +120,7 @@ final class MatchFold {
      *  reads a leading field of fewer than three digits as no year of four ({@code '1-01-01'} as 2001-01-01,
      *  {@code '10-01-01'} as 2001-10-01, measured 2026-10-18), where {@code 0001-01-01} is the year 1 on every
      *  database. A year outside 0 to 9999 keeps Pure's spelling. */
-    private static String iso(String text, int year) {
+    static String iso(String text, int year) {
         return year >= 0 && year < 1000
                 ? String.format(java.util.Locale.ROOT, "%04d", year) + text.substring(Integer.toString(year).length())
                 : text;

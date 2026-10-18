@@ -359,5 +359,16 @@ class CypherIslandIntegrationTest {
         assertEquals(expect("Bob", "Alice", "Charlie"),
                 rows(run("MATCH (p:Person) WHERE p.age IS NOT NULL WITH p.name AS name, p.age * 2 AS twice"
                         + " RETURN name ORDER BY twice DESC")));
+        // the streamed JSON rows carry it too, outside the row objects (Render.jsonWireRows read its sort keys among
+        // the outputs it shows, and refused the hidden one: the independent review, 2026-10-18)
+        java.io.StringWriter streamed = new java.io.StringWriter();
+        try {
+            com.legend.Execution.executeStreaming(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name"
+                    + " ORDER BY p.age}#", "test::RT", session, streamed);
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        }
+        assertEquals("[{\"name\":\"Charlie\"},{\"name\":\"Alice\"},{\"name\":\"Bob\"},{\"name\":\"Diana\"}]",
+                streamed.toString().replace(" ", "").replace("\n", ""));
     }
 }

@@ -3049,11 +3049,13 @@ final class Scalars {
     static SqlExpr dateArg(TypedSpec typed,
                                    SqlExpr lowered) {
         if (typed instanceof TypedCDate d) {
+            // (a year below 1000 written with four digits, as a date literal's is: the independent review,
+            // 2026-10-18)
             if (d.value() instanceof PureDateLiteral.Year y) {
-                return new SqlExpr.DateLit(y.toEngineString() + "-01-01");
+                return new SqlExpr.DateLit(MatchFold.iso(y.toEngineString() + "-01-01", y.year()));
             }
             if (d.value() instanceof PureDateLiteral.YearMonth ym) {
-                return new SqlExpr.DateLit(ym.toEngineString() + "-01");
+                return new SqlExpr.DateLit(MatchFold.iso(ym.toEngineString() + "-01", ym.year()));
             }
         }
         return lowered;

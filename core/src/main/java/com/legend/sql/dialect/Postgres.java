@@ -1527,53 +1527,67 @@ public final class Postgres extends AnsiSqlRenderer {
      * an estimate off by one still leaves an integer: the scaling by powers of two and the cast to BIGINT are exact),
      * both are scaled to the one power, the numeric remainder of the two integers is taken (exact), and the result
      * scaled back, a double exactly (the numeric quotient to a thousand places, far below the least double's unit).
-     * The sign is the dividend's (a zero too); NaN for a NaN, an infinite dividend or a zero divisor; the dividend
-     * for an infinite divisor, a zero dividend or one smaller than the divisor. Each operand is written once, in a
-     * scalar subquery (so a nested remainder does not double its text); one holding a window function is refused,
-     * since the subquery would compute it over its own one row.
+     * Null where either operand is (the arms after test values, and an arm true of the one would answer for a null
+     * other: 2026-10-18, the independent review). The sign is the dividend's (a zero too); NaN for a NaN, an
+     * infinite dividend or a zero divisor; the dividend for an infinite divisor, a zero dividend or one smaller than
+     * the divisor. Each operand is written where it is read (about a hundred times; a remainder of a remainder its
+     * square): a scalar subquery reading it once cannot stand in a grouped select whose key is an expression, since
+     * Postgres matches only a grouped column inside a subquery ("subquery uses ungrouped column", measured
+     * 2026-10-18 over the Cypher island's {@code WITH a * 1.5 AS g, count(*) AS c RETURN g % 2.0}). An operand that
+     * draws afresh at each reading (random(), a uuid) is refused by name, since it would draw again.
      */
     private SqlWriter exactRemainder(SqlWriter writer, List<SqlExpr> a) {
-        if (a.stream().anyMatch(Postgres::windowed)) {
-            throw new DialectCapability("REM over a Float of a window function reached Postgres: its exact"
-                    + " remainder is a subquery, which would compute the window over one row");
+        if (a.stream().anyMatch(Postgres::drawsAfresh)) {
+            throw new DialectCapability("REM over a Float of random() or a uuid reached Postgres: its exact remainder"
+                    + " writes each operand where it reads it, which would draw it again");
         }
-        String two = "power(CAST(2 AS NUMERIC), ";
-        String scaledX = "__mx * " + two + "__k - __kx)";
-        String scaledY = "__my * " + two + "__k - __ky)";
-        writer.append("(SELECT CASE WHEN __x = 'NaN' OR __y = 'NaN' OR __y = 0 OR abs(__x) = 'Infinity'"
-                + " THEN CAST('NaN' AS DOUBLE PRECISION)"
-                + " WHEN abs(__y) = 'Infinity' OR __x = 0 OR abs(__x) < abs(__y) THEN __x"
-                + " WHEN __x < 0 THEN -__r ELSE __r END"
-                + " FROM (SELECT __x, __y, CASE WHEN __k >= 0 THEN CAST(round(mod(" + scaledX + ", " + scaledY
-                + "), 1000) / " + two + "__k) AS DOUBLE PRECISION)"
-                + " ELSE CAST(mod(" + scaledX + ", " + scaledY + ") * " + two + "-__k) AS DOUBLE PRECISION) END"
-                + " AS __r FROM (SELECT __x, __y, __kx, __ky, greatest(__kx, __ky) AS __k, " + mantissa("__x", "__kx")
-                + " AS __mx, " + mantissa("__y", "__ky") + " AS __my FROM (SELECT __x, __y, " + exponent("__x")
-                + " AS __kx, " + exponent("__y") + " AS __ky FROM (SELECT CAST(");
-        writer.expr(a.get(0), 0).append(" AS DOUBLE PRECISION) AS __x, CAST(").expr(a.get(1), 0);
-        return writer.append(" AS DOUBLE PRECISION) AS __y) AS __rem0) AS __rem1) AS __rem2) AS __rem3)");
+        SqlWriter.Piece x = w -> w.append("CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION)");
+        SqlWriter.Piece y = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS DOUBLE PRECISION)");
+        SqlWriter.Piece kx = exponent(x);
+        SqlWriter.Piece ky = exponent(y);
+        // (the common power never below zero: a larger one scales the integers up, exact in NUMERIC, and the result
+        // is then one division, written once)
+        SqlWriter.Piece k = w -> w.append("greatest(").piece(kx).append(", ").piece(ky).append(", 0)");
+        SqlWriter.Piece scaledX = scaled(mantissa(x, kx), k, kx);
+        SqlWriter.Piece scaledY = scaled(mantissa(y, ky), k, ky);
+        SqlWriter.Piece r = w -> w.append("CAST(round(mod(").piece(scaledX).append(", ").piece(scaledY)
+                .append("), 1000) / power(CAST(2 AS NUMERIC), ").piece(k).append(") AS DOUBLE PRECISION)");
+        return writer.append("(CASE WHEN ").piece(x).append(" IS NULL OR ").piece(y).append(" IS NULL THEN CAST(NULL"
+                + " AS DOUBLE PRECISION) WHEN ").piece(x).append(" = 'NaN' OR ").piece(y).append(" = 'NaN' OR ")
+                .piece(y).append(" = 0 OR abs(").piece(x).append(") = 'Infinity' THEN CAST('NaN' AS DOUBLE PRECISION)"
+                + " WHEN abs(").piece(y).append(") = 'Infinity' OR ").piece(x).append(" = 0 OR abs(").piece(x)
+                .append(") < abs(").piece(y).append(") THEN ").piece(x).append(" ELSE CASE WHEN ").piece(x)
+                .append(" < 0 THEN CAST(-1 AS DOUBLE PRECISION) ELSE CAST(1 AS DOUBLE PRECISION) END * ").piece(r)
+                .append(" END)");
     }
 
     /** The power of two {@link #exactRemainder} scales a finite non-zero double {@code v} by: 60 less its
      *  logarithm's floor (null for a zero, an infinity or a NaN, which take no part in it). */
-    private static String exponent(String v) {
-        return "CASE WHEN abs(" + v + ") > 0 AND abs(" + v + ") < 'Infinity' THEN 60 - CAST(floor(ln(abs(" + v
-                + ")) / ln(2)) AS INTEGER) END";
+    private static SqlWriter.Piece exponent(SqlWriter.Piece v) {
+        return w -> w.append("CASE WHEN abs(").piece(v).append(") > 0 AND abs(").piece(v).append(") < 'Infinity' THEN"
+                + " 60 - CAST(floor(ln(abs(").piece(v).append(")) / ln(2)) AS INTEGER) END");
     }
 
     /** {@code |v|} times two to the {@code k} (two steps, so neither overflows), an integer, as a NUMERIC. */
-    private static String mantissa(String v, String k) {
-        return "CAST(CAST(abs(" + v + ") * power(CAST(2 AS DOUBLE PRECISION), div(" + k + ", 2)) * power(CAST(2 AS"
-                + " DOUBLE PRECISION), " + k + " - div(" + k + ", 2)) AS BIGINT) AS NUMERIC)";
+    private static SqlWriter.Piece mantissa(SqlWriter.Piece v, SqlWriter.Piece k) {
+        return w -> w.append("CAST(CAST(abs(").piece(v).append(") * power(CAST(2 AS DOUBLE PRECISION), div(").piece(k)
+                .append(", 2)) * power(CAST(2 AS DOUBLE PRECISION), ").piece(k).append(" - div(").piece(k)
+                .append(", 2)) AS BIGINT) AS NUMERIC)");
     }
 
-    /** Whether {@code e} holds a window function (a scalar subquery's own query is not searched). */
-    private static boolean windowed(SqlExpr e) {
-        if (e instanceof SqlExpr.WindowCall) {
+    /** An operand's integer {@code m} scaled from its own power {@code kv} to the common one {@code k}, at least
+     *  its own (exact: a numeric power of two of a non-negative exponent). */
+    private static SqlWriter.Piece scaled(SqlWriter.Piece m, SqlWriter.Piece k, SqlWriter.Piece kv) {
+        return w -> w.piece(m).append(" * power(CAST(2 AS NUMERIC), ").piece(k).append(" - ").piece(kv).append(")");
+    }
+
+    /** Whether {@code e} holds a call that draws afresh at each reading (the database's random, a uuid). */
+    private static boolean drawsAfresh(SqlExpr e) {
+        if (e instanceof SqlExpr.Call c && (c.fn() == SqlFn.RANDOM || c.fn() == SqlFn.GUID)) {
             return true;
         }
         for (SqlExpr k : e.children()) {
-            if (windowed(k)) {
+            if (drawsAfresh(k)) {
                 return true;
             }
         }

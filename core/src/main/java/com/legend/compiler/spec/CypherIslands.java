@@ -362,6 +362,13 @@ public final class CypherIslands {
             if (found.isEmpty()) {
                 return;
             }
+            if (found.size() > 1) {
+                // a procedure is one function: several of the name would be chosen among by nothing (the
+                // independent review, 2026-10-18)
+                throw new com.legend.error.NotImplementedException("the procedure " + name + ": the model declares "
+                        + found.size() + " functions " + name.replace(".", "::") + " (overloads), and a procedure"
+                        + " names one; not supported yet");
+            }
             com.legend.compiler.element.TypedFunction f = found.get(0);
             sink.procedure(name.replace(".", "::"));
             for (com.legend.compiler.element.TypedParameter p : f.parameters()) {
@@ -395,7 +402,8 @@ public final class CypherIslands {
                     case STRICT_TIME -> "StrictTime";
                 };
             }
-            return t.toString();
+            // (another type by its name, which the translator refuses by name)
+            return t.typeName();
         }
 
         @Override

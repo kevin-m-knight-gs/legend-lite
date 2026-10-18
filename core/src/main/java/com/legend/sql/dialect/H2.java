@@ -44,7 +44,9 @@ public class H2 extends AnsiSqlRenderer {
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
             case JSON -> "JSON";
-            case TIME -> "TIME";
+            // to the nanosecond: H2's TIME keeps no fraction of a second (its default precision is 0, measured
+            // 2.1.214; the independent review, 2026-10-18)
+            case TIME -> "TIME(9)";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -303,7 +305,7 @@ public class H2 extends AnsiSqlRenderer {
                 case BIT -> "BIT";
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
-                case TIME -> "TIME";
+                case TIME -> "TIME(9)"; // (a fraction of a second kept, as the cast's)
                 case TIMESTAMP_NS -> "TIMESTAMP(9)";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";

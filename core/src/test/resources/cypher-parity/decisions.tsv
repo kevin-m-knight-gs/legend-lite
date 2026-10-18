@@ -30,3 +30,6 @@ tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offs
 # 2026-10-18, W13 leg 5 (docs/CYPHER_STUDY_2026_10_15.md §12.89): the Postgres lane seeds this case now (a stored
 # nanosecond zoned time as its parts, no TIMESTAMP_NS column), so S66 decides it there as on DuckDB
 lite/stored/a_stored_zoned_time_compared_with_a_zoned_literal	S66	[["'a'", "true", "true"], ["'b'", "false", "false"]]	[["'a'", "true", "true"], ["'b'", "false", "false"]]
+# 2026-10-18, the independent review (docs/CYPHER_STUDY_2026_10_15.md §12.93): a text of a year before 1 raises on
+# both lanes, where Neo4j spells 0000-12-31 (the databases count the years before 1 apart, S88)
+lite/review/a_year_before_1_in_a_text	S88	ERROR	ERROR

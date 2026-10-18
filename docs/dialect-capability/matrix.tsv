@@ -771,7 +771,7 @@ Snowflake	Snowflake	call	HASH	emulated	hashSigned		5
 Snowflake	Snowflake	call	MD5	spelled	md5		1
 Snowflake	Snowflake	call	SHA1	spelled	sha1		1
 Snowflake	Snowflake	call	SHA256	emulated	SHA2(…, 256)		1
-Snowflake	Snowflake	call	RANDOM	emulated	UNIFORM(0::FLOAT, 1::FLOAT, RANDOM())		0
+Snowflake	Snowflake	call	RANDOM	emulated	(UNIFORM(0, 9007199254740991, RANDOM()) / 9007199254740992::FLOAT)		0
 Snowflake	Snowflake	call	EXTRACT	emulated	extract		24
 Snowflake	Snowflake	call	TODAY	spelled	current_date		0
 Snowflake	Snowflake	call	NOW	emulated	CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ)		0
@@ -2091,7 +2091,7 @@ SQLite	SQLite	call	HASH	refused	hashCode reached SQLite, which has no hash funct
 SQLite	SQLite	call	MD5	refused	SQLite has no digest function reached SQLite:		1
 SQLite	SQLite	call	SHA1	refused	SQLite has no digest function reached SQLite:		1
 SQLite	SQLite	call	SHA256	refused	SQLite has no digest function reached SQLite:		1
-SQLite	SQLite	call	RANDOM	emulated	((random() + 9223372036854775808) / 18446744073709551616.0)		0
+SQLite	SQLite	call	RANDOM	emulated	((random() & 9007199254740991) / 9007199254740992.0)		0
 SQLite	SQLite	call	EXTRACT	emulated	extract		24
 SQLite	SQLite	call	TODAY	emulated	date('now')		0
 SQLite	SQLite	call	NOW	emulated	strftime('%Y-%m-%d %H:%M:%f', 'now')		0

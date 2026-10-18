@@ -142,6 +142,7 @@ public sealed interface RelationalDataType permits
             case "TIMESTAMP"      -> new Timestamp();
             case "DATE"           -> new Date_();
             case "TIME"           -> new Time();
+            case "TIMESTAMP_NS"   -> new TimestampNs();
             case "DISTINCT"       -> new Distinct();
             case "OTHER"          -> new Other();
             // JSON is the same semi-structured carrier (engine DDL accepts both).

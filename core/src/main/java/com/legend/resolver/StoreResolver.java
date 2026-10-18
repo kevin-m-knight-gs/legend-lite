@@ -1316,9 +1316,11 @@ public final class StoreResolver {
             String v = "_identity" + freshVarCounter++;
             var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
             TypedSpec each = new TypedVariable(v, new ExprType(ct, one));
-            return new TypedMap(instance, new TypedLambda(List.of(v),
-                    List.of(identityText(each, classFqn, keys.get(0), cs, one)),
-                    new ExprType(Type.Primitive.STRING, com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE)),
+            TypedSpec identity = identityText(each, classFqn, keys.get(0), cs, one);
+            // (the lambda is typed by its function type, as every lambda is: {ct[1] -> String[1]})
+            return new TypedMap(instance, new TypedLambda(List.of(v), List.of(identity),
+                    new ExprType(new Type.FunctionType(List.of(new Type.Param(ct, one)),
+                            new Type.Param(identity.info().type(), identity.info().multiplicity())), one)),
                     new ExprType(Type.Primitive.STRING, mult));
         }
         return identityText(instance, classFqn, keys.get(0), cs, mult);
