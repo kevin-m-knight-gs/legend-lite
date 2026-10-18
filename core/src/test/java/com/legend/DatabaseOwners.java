@@ -35,11 +35,16 @@ import java.util.regex.Pattern;
  *   <li>an <b>input language</b> (the SQL a user writes, {@code protocol/sql/}, D11): {@code PostgresDialect} and
  *       {@code PostgresDateTime} Postgres's, the {@code iq} package IQ's (Sybase's); the translator they share is no
  *       owner;</li>
+ *   <li>a <b>host</b> (a module whose engine is one database by design, the census's SINGLE-BACKEND-APP; the program's
+ *       Phase 7, 2026-10-18): the warehouse is one DuckDB, the host of every catalog, which attaches other databases
+ *       through DuckDB's extensions (D4). Its sources name DuckDB, in their code and their strings; another database
+ *       only in a file named for it ({@code Postgres}, {@code PostgresUrl}, {@code PostgresCatalogTest}) and in
+ *       {@code Attachment}, the registry of the databases it attaches;</li>
  *   <li>a <b>vocabulary</b> (the model language: the lexer, the parser and its grammars, the protocol, the model, D9):
  *       it may parse and carry any database's name, and decides nothing by one;</li>
  *   <li>the <b>registries</b> ({@code database.Databases}, a declared type to its dialect; {@code exec.Connectors}, to
- *       its connector; {@code testbackend.TestBackends}, to its test backend) and the guards, which name every database
- *       by design.</li>
+ *       its connector; {@code testbackend.TestBackends}, to its test backend; the warehouse's {@code Attachment}, to
+ *       how it attaches one) and the guards, which name every database by design.</li>
  * </ul>
  * The dialect package's tests name several databases by design (one test compares them) and are owners of every one.
  */
@@ -48,7 +53,7 @@ final class DatabaseOwners {
     private DatabaseOwners() {
     }
 
-    enum Kind { DIALECT, CONNECTOR, BACKEND, NAMED_TEST, INPUT_LANGUAGE, VOCABULARY, EVERY }
+    enum Kind { DIALECT, CONNECTOR, BACKEND, NAMED_TEST, INPUT_LANGUAGE, HOST, VOCABULARY, EVERY }
 
     /** An owner: its kind, and the databases it may name (for a vocabulary or the registry, every one). */
     record Owner(Kind kind, Set<String> databases) {
@@ -123,6 +128,12 @@ final class DatabaseOwners {
             // database's name and connection as the vocabulary does ({@code protocol/sql/}'s tests excepted, as above)
             TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/");
 
+    /** The warehouse's sources (D4): a host, whose engine is DuckDB. */
+    private static final String WAREHOUSE = "warehouse/src/";
+
+    /** The warehouse's engine: the database every one of its catalogs runs in. */
+    private static final String WAREHOUSE_HOST = "DuckDB";
+
     /** Sources that name every database by design: the registry and the guards that count names. */
     private static final List<String> EVERY = List.of(
             MAIN + "database/Databases.java",
@@ -148,7 +159,10 @@ final class DatabaseOwners {
             "core/src/test/java/com/legend/ArchitectureTest.java",
             "core/src/test/java/com/legend/DialectLeakRatchetTest.java",
             "core/src/test/java/com/legend/DialectOwnerExclusivityTest.java",
-            "core/src/test/java/com/legend/DatabaseOwners.java");
+            "core/src/test/java/com/legend/DatabaseOwners.java",
+            // 2026-10-18, the dialect program's Phase 7: the warehouse's registry of the databases a catalog attaches
+            // (D4), Databases' counterpart there: one row and one exhaustive switch arm per database
+            WAREHOUSE + "main/java/com/legend/warehouse/server/Attachment.java");
 
 
     /** The owner {@code rel} (a source's path from the repository root, {@code source} its text) is, or null when it
@@ -161,6 +175,11 @@ final class DatabaseOwners {
             Set<String> own = ownAndParent(rel, source);
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);
+        }
+        if (rel.startsWith(WAREHOUSE)) {
+            Set<String> own = new LinkedHashSet<>(Set.of(WAREHOUSE_HOST));
+            own.addAll(named(className(rel)));
+            return new Owner(Kind.HOST, own);
         }
         if (isConnector(rel)) {
             return new Owner(Kind.CONNECTOR, ownAndParent(rel, source));

@@ -44,9 +44,10 @@ class DialectLeakRatchetTest {
 
     private static final String LEDGER = "core/src/test/resources/dialect-leaks/ledger.tsv";
 
-    /** The Java sources the census target declares (core, and the modules that test it). */
+    /** The Java sources the census target declares (core, the modules that test it, and since 2026-10-18 the
+     *  warehouse's own code, a host owner: DatabaseOwners). */
     private static final List<String> ROOTS = List.of("core/src", "pct/src", "spec/src", "parser-equivalence/src",
-            "warehouse/src/test/java");
+            "warehouse/src/main/java", "warehouse/src/test/java");
 
     private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2Modern|H2|Postgres|Snowflake|Databricks|BigQuery"
             + "|SQLite|MariaDb|MySql|Trino|ClickHouse|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";

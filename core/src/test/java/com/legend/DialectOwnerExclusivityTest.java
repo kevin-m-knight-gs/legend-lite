@@ -53,14 +53,8 @@ class DialectOwnerExclusivityTest {
             // question, not this guard's.
             new Crossing("core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java", "DuckDB", 9,
                     "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
-            // 2026-10-16 (registered as measured, the dialect program's Phase 6; its strings counted since the audit
-            // of the branch): the warehouse is one DuckDB that attaches Postgres catalogs (the plan's D4, mixed-engine
-            // by design), so its tests named for those catalogs read the DuckDB side's library and extension flag, and
-            // send DuckDB's SQL to Postgres to see it refused. The warehouse is Phase 7's.
-            new Crossing("warehouse/src/test/java/com/legend/warehouse/server/PostgresCatalogTest.java", "DuckDB", 13,
-                    "the warehouse's Postgres catalogs are attached to its DuckDB: the test reads DuckDB's flags"),
-            new Crossing("warehouse/src/test/java/com/legend/warehouse/WarehousePostgresLiveTest.java", "DuckDB", 3,
-                    "DuckDB's SQL, sent to the warehouse's Postgres catalog, is refused there"),
+            // (2026-10-18, the dialect program's Phase 7: the warehouse's two crossings, its Postgres catalog tests
+            // naming DuckDB, left this list: the warehouse is a host owner, its engine DuckDB (DatabaseOwners).)
             // 2026-10-16 (registered as measured, the dialect program's Phase 6, the audit of the branch): two DuckDB
             // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
             // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
@@ -85,7 +79,7 @@ class DialectOwnerExclusivityTest {
         // the tests too (2026-10-16, the dialect program's Phase 6): the test backends, and every test named for a
         // database, are owners there
         for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.get(1), "core/src/test/java", "pct/src/test/java",
-                "spec/src/test/java", "parser-equivalence/src", "warehouse/src/test/java")) {
+                "spec/src/test/java", "parser-equivalence/src", "warehouse/src/main/java", "warehouse/src/test/java")) {
             String rel = SourceFiles.path(f);
             if (!rel.endsWith(".java")) {
                 continue;
@@ -103,8 +97,10 @@ class DialectOwnerExclusivityTest {
             // skips an owner, the boundary census skips a connector); a test backend's alike, and a test named for a
             // database (Phase 6, the audit of the branch: its JDBC URLs and its models are its own database's, and the
             // leak ratchet's jdbc-url count no longer reaches them)
+            // the warehouse's too (a host, 2026-10-18, the dialect program's Phase 7): its messages and its fixtures
+            // name its own engine, and another database only where that database owns the file
             if (owner.kind() == DatabaseOwners.Kind.CONNECTOR || owner.kind() == DatabaseOwners.Kind.BACKEND
-                    || owner.kind() == DatabaseOwners.Kind.NAMED_TEST) {
+                    || owner.kind() == DatabaseOwners.Kind.NAMED_TEST || owner.kind() == DatabaseOwners.Kind.HOST) {
                 read.addAll(lines.strings());
             }
             for (String line : read) {
@@ -282,6 +278,16 @@ class DialectOwnerExclusivityTest {
         assertEquals(Set.of(), DatabaseOwners.of(exec + "DatabaseConnector.java", "interface DatabaseConnector")
                 .databases());
         assertEquals(DatabaseOwners.Kind.EVERY, DatabaseOwners.of(exec + "Connectors.java", "").kind());
+        // the warehouse (2026-10-18, the dialect program's Phase 7): a host, its engine DuckDB; a file named for an
+        // attached database names that one too; its registry of attached databases every one
+        String warehouse = "warehouse/src/main/java/com/legend/warehouse/server/";
+        assertEquals(Set.of("DuckDB"), DatabaseOwners.of(warehouse + "WarehouseServer.java", "").databases());
+        assertEquals(Set.of("DuckDB", "Postgres"), DatabaseOwners.of(warehouse + "PostgresUrl.java", "").databases());
+        assertEquals(Set.of("DuckDB", "Postgres"), DatabaseOwners.of(
+                "warehouse/src/test/java/com/legend/warehouse/WarehousePostgresLiveTest.java", "").databases());
+        assertEquals(DatabaseOwners.Kind.HOST, DatabaseOwners.of(
+                "warehouse/src/test/java/com/legend/warehouse/TestServer.java", "").kind());
+        assertEquals(DatabaseOwners.Kind.EVERY, DatabaseOwners.of(warehouse + "Attachment.java", "").kind());
     }
 
     /** Every name the ratchet counts as a database is one the register knows: the two read the same names. */

@@ -369,6 +369,7 @@ _CENSUS_READS = _CORE_READS + [
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",
+    "//warehouse:main_java",
     "//warehouse:test_java",
 ]
 
