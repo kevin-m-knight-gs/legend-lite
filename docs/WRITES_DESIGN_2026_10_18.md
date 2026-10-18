@@ -322,8 +322,14 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
 **The judge lands first, so a write case can never pass by doing nothing.**
 
 - **Neo4j is the verdict only, never the schema.**
-  - `snap.py` runs each write case in an explicit transaction, dumps the graph after the query, and rolls back.
-  - The answers file gains the TCK's side-effect counts and Neo4j's post-graph.
+  - `snap.py` runs each case's query in an explicit transaction and commits it: Neo4j checks some writes only at
+    commit (a node deleted with its relationships left raises then), and the next case empties the graph. For a query
+    Neo4j's summary marks as writing, it dumps the graph after (each element the graph before held keeping its
+    ordinal), then runs the control query over it. (The first draft rolled back; the commit-time check made it
+    commit, measured on the DELETE scenarios, 2026-10-18.)
+  - The answers file gains Neo4j's post-graph (`after`) and the control query's answer (`control`). The side effects
+    are the diff of the two graphs, computed the TCK's way, and `snap.sh --check` holds that diff to every TCK
+    side-effect table (all 248 agree, and the 2935 "no side effects").
   - Nothing in lite's model is taken from them.
 - **The schema on A is lite's own inference,** from two sources it owns:
   - the pre-graph's data, as today;
@@ -337,12 +343,13 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
   - a relationship type the pre-graph lacks becomes a junction table (any number of links), or an edge class when the
     query writes its properties.
 - **B needs no schema.**
-- **Each case runs in a transaction the harness owns:** the statement through the island, then the side-effect
-  counts, then the post-graph read back through the island, then the control query if any. Then it rolls back, so no
-  case leaks into the next.
+- **Each case runs in a transaction the harness owns:** the statement through the island, then the post-graph read
+  back through the island (the oracle's own dump queries), then the side effects (lite's diff of its two reads),
+  then the control query if any. Then it rolls back, so no case leaks into the next. The graph before is read back
+  once per seeded graph and must be Neo4j's dump, or the judge is broken there (a JUDGE problem fails the lane).
 - **The verdict has four parts:**
   - the rows, as today;
-  - the side-effect counts, against the TCK's table;
+  - the side-effect counts, lite's diff against Neo4j's (which is the TCK's table);
   - the post-graph, against Neo4j's, compared structurally;
   - the control queries' rows.
 - **Write errors** are judged as BOTH_ERROR is today, but against the error raised, not a refusal.

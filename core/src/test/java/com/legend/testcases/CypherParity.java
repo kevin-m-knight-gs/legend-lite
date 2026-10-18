@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -42,12 +43,15 @@ public final class CypherParity {
     /**
      * A case: its key ({@code file/id}), its query, its setup statements, its parameters as written, the Cypher
      * version it names (null for the default), what the TCK expects (null for a lite case), why the harness skips it
-     * (null to run), and a lite case's decision and expect.
+     * (null to run), a lite case's decision and expect, the procedures it declares, its control query (null when
+     * none: a query run after a write, reading the graph it left), and the TCK's side-effect counts (null when the
+     * scenario states none; Neo4j's own diff judges, and is checked against these, the writes design's §6).
      */
     public record Case(String file, String id, String query, List<String> setup, String paramsText,
             @com.legend.base.Nullable String version, CypherTck.@com.legend.base.Nullable Expect expect,
             @com.legend.base.Nullable String skip, @com.legend.base.Nullable String decision,
-            @com.legend.base.Nullable String expectText, List<CypherTck.Procedure> procedures) {
+            @com.legend.base.Nullable String expectText, List<CypherTck.Procedure> procedures,
+            @com.legend.base.Nullable String control, @com.legend.base.Nullable Map<String, Integer> sideEffects) {
 
         public String key() {
             return file + "/" + id;
@@ -64,13 +68,22 @@ public final class CypherParity {
 
         public String sha() {
             return CypherAnswers.sha(query, cypherVersion(), setup, paramsText, decision, expectText,
-                    CypherTck.Procedure.text(procedures));
+                    CypherTck.Procedure.text(procedures), control);
         }
 
         /** The island as the lane runs it: the parameters bound into the query's text, the version named outside
          *  the query made its prefix. */
         public String island() {
-            String q = bindParameters(implicitArguments(query), paramsText);
+            return island(bindParameters(implicitArguments(query), paramsText));
+        }
+
+        /** The control query's island, under the case's version (the oracle runs it so). */
+        public String controlIsland() {
+            return island(java.util.Objects.requireNonNull(control, "no control query"));
+        }
+
+        private String island(String text) {
+            String q = text;
             if (version != null && !PREFIX.matcher(q).lookingAt()) {
                 q = "CYPHER " + version + " " + q;
             }
@@ -138,14 +151,16 @@ public final class CypherParity {
         for (CypherTck.Scenario s : CypherTck.read(tckDir)) {
             int slash = s.key().lastIndexOf('/');
             out.add(new Case(s.key().substring(0, slash), s.key().substring(slash + 1), s.query(), s.setup(),
-                    s.paramsText(), null, s.expect(), s.skip(), null, null, s.procedures()));
+                    s.paramsText(), null, s.expect(), s.skip(), null, null, s.procedures(), s.control(),
+                    s.sideEffects()));
         }
         out.addAll(liteCases(liteDir));
         return out;
     }
 
     /** lite's own cases, read as the oracle reads them ({@code snap.py}, {@code lite_cases}): the YAML subset of
-     *  {@code - id:} items whose values are a quoted line or a {@code |} block. */
+     *  {@code - id:} items whose values are a quoted line or a {@code |} block ({@code control:} a write case's
+     *  control query). */
     public static List<Case> liteCases(Path liteDir) throws IOException {
         List<Case> out = new ArrayList<>();
         if (!Files.isDirectory(liteDir)) {
@@ -187,7 +202,8 @@ public final class CypherParity {
                         item.getOrDefault("params", ""), item.get("version"),
                         procedures != null && expect != null ? CypherTck.expectOf(expect) : null, item.get("skip"),
                         item.get("decision"), expect,
-                        procedures == null ? List.of() : CypherTck.Procedure.parseAll(procedures)));
+                        procedures == null ? List.of() : CypherTck.Procedure.parseAll(procedures),
+                        item.get("control"), null));
             }
         }
         return out;
@@ -269,6 +285,14 @@ public final class CypherParity {
 
         /** Runs {@code island} over {@code model} on this lane's database. */
         ExecutionResult run(String model, String island) throws Exception;
+
+        /** Opens a transaction the harness owns around one write case (its statement, the graph read back after it,
+         *  its control query); {@link #rollback} ends it, so that no case's writes reach the next case over the same
+         *  seeded tables (the writes design's §6). */
+        void begin() throws Exception;
+
+        /** Rolls back the transaction {@link #begin} opened. */
+        void rollback() throws Exception;
     }
 
     /** A decided case ({@code cypher-parity/decisions.tsv}) on one lane: the register row that decides it, and
@@ -337,9 +361,12 @@ public final class CypherParity {
         return problems;
     }
 
-    /** Every case's outcome on {@code lane}: the cases grouped by their graph, each graph seeded once. */
+    /** Every case's outcome on {@code lane}: the cases grouped by their graph, each graph seeded once. A graph some
+     *  write case runs over is read back through the island once it is seeded ({@link #readBack}): the state lite's
+     *  side effects are counted from, which must be the graph Neo4j's dump holds, or the judge is broken there (a
+     *  problem added to {@code problems}, naming the graph's first case). */
     public static Map<String, SqlParity.Outcome> run(List<Case> cases, Map<String, CypherAnswers.Answer> answers,
-            Map<String, Decision> decisions, Lane lane) throws Exception {
+            Map<String, Decision> decisions, Lane lane, List<String> problems) throws Exception {
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
         Map<String, List<Case>> byGraph = new LinkedHashMap<>();
         Map<String, CypherGraph.Inferred> inferred = new LinkedHashMap<>();
@@ -381,21 +408,79 @@ public final class CypherParity {
                 continue;
             }
             String model = CypherGraph.model(inf, lane.connection());
+            Read before = null;
+            String unread = null;
+            Case first = e.getValue().stream().filter(c -> writes(c, answers.get(c.key()))).findFirst().orElse(null);
+            if (first != null) {
+                CypherAnswers.Answer a = java.util.Objects.requireNonNull(answers.get(first.key()));
+                try {
+                    before = readBack(model, lane);
+                    if (!sameGraph(before, Read.of(java.util.Objects.requireNonNull(a.graph())))) {
+                        unread = "the graph read back through the island is not Neo4j's: " + before.describe()
+                                + ", Neo4j " + Read.of(a.graph()).describe();
+                    }
+                } catch (Exception | StackOverflowError unreadable) {
+                    unread = "the graph could not be read back through the island: " + oneLine(unreadable);
+                }
+                if (unread != null) {
+                    problems.add("JUDGE: " + first.key() + ": " + unread);
+                    before = null;
+                }
+            }
             for (Case c : e.getValue()) {
                 outcomes.put(c.key(), outcome(c, java.util.Objects.requireNonNull(answers.get(c.key())),
-                        decisions.get(c.key()), model, lane));
+                        decisions.get(c.key()), model, lane, before, unread));
             }
         }
         return outcomes;
     }
 
+    /** Whether a case writes (the writes design's §6): Neo4j's summary marked its query as writing, or it reads the
+     *  graph back by a control query. */
+    static boolean writes(Case c, CypherAnswers.@com.legend.base.Nullable Answer a) {
+        return a != null && (a.after() != null || c.control() != null);
+    }
+
     /** One case on one lane, its graph seeded: its island run through lite, judged against Neo4j's answer, or
-     *  against the rows its decision names. */
+     *  against the rows its decision names. A write (the writes design's §6) runs in a transaction the harness owns
+     *  and rolls back, and passes only on all four of its verdicts: the rows, the graph it left, its side effects
+     *  and its control query's rows ({@link #writeOutcome}); {@code before} is the seeded graph as the island reads
+     *  it, null when it could not be read ({@code unread} says why). */
     public static SqlParity.Outcome outcome(Case c, CypherAnswers.Answer a, @com.legend.base.Nullable Decision decided,
-            String model, Lane lane) {
+            String model, Lane lane, @com.legend.base.Nullable Read before, @com.legend.base.Nullable String unread) {
         if (!c.procedures().isEmpty()) {
             return procedureOutcome(c, model + CypherGraph.procedures(c.procedures()), lane);
         }
+        if (!writes(c, a)) {
+            return rowsOutcome(c, a, decided, model, lane);
+        }
+        try {
+            lane.begin();
+        } catch (Exception e) {
+            return new SqlParity.Outcome(SqlParity.Status.ERROR, "harness: the transaction: " + oneLine(e));
+        }
+        try {
+            SqlParity.Outcome rows = rowsOutcome(c, a, decided, model, lane);
+            if (rows.status() != SqlParity.Status.PASS) {
+                return rows;
+            }
+            if (before == null) {
+                return new SqlParity.Outcome(SqlParity.Status.ERROR, "harness: " + unread);
+            }
+            SqlParity.Outcome wrote = writeOutcome(c, a, model, lane, before);
+            return wrote == null ? rows : wrote;
+        } finally {
+            try {
+                lane.rollback();
+            } catch (Exception e) {
+                throw new IllegalStateException("harness: the rollback after " + c.key(), e);
+            }
+        }
+    }
+
+    /** A case's rows judged against Neo4j's answer, or against the rows its decision names. */
+    private static SqlParity.Outcome rowsOutcome(Case c, CypherAnswers.Answer a,
+            @com.legend.base.Nullable Decision decided, String model, Lane lane) {
         ExecutionResult result;
         try {
             result = lane.run(model, c.island());
@@ -556,6 +641,268 @@ public final class CypherParity {
         String m = e.getClass().getSimpleName() + ": " + e.getMessage();
         m = m.replace('\n', ' ').replace('\t', ' ');
         return m.length() > 300 ? m.substring(0, 300) + "..." : m;
+    }
+
+    // ------------------------------------------------------------------ writes (the writes design's §6)
+
+    /** A relationship of a read graph: its ends' identities and its value. */
+    public record Edge(String start, String end, CypherValues.Rel rel) {
+    }
+
+    /** A graph as the write judge compares it: each node and relationship by its identity (an ordinal of Neo4j's
+     *  dump, an {@code elementId} of lite's read-back), each a value of the TCK's grammar. */
+    public record Read(Map<String, CypherValues.Node> nodes, Map<String, Edge> rels) {
+
+        /** Neo4j's dump: its ordinals as the identities (a write's {@code after} keeps the ordinals of the elements
+         *  the graph before held), its properties read in the value grammar. */
+        public static Read of(CypherAnswers.Graph g) {
+            Map<String, CypherValues.Node> nodes = new LinkedHashMap<>();
+            for (CypherAnswers.GraphNode n : g.nodes()) {
+                Map<String, CypherValues.Value> props = new java.util.TreeMap<>();
+                n.props().forEach((k, v) -> props.put(k, CypherValues.parse(v)));
+                nodes.put(String.valueOf(n.id()), new CypherValues.Node(new java.util.TreeSet<>(n.labels()), props));
+            }
+            Map<String, Edge> rels = new LinkedHashMap<>();
+            for (CypherAnswers.GraphRel r : g.rels()) {
+                Map<String, CypherValues.Value> props = new java.util.TreeMap<>();
+                r.props().forEach((k, v) -> props.put(k, CypherValues.parse(v)));
+                rels.put(String.valueOf(r.id()), new Edge(String.valueOf(r.start()), String.valueOf(r.end()),
+                        new CypherValues.Rel(r.type(), props)));
+            }
+            return new Read(nodes, rels);
+        }
+
+        /** The graph's elements, for a verdict's message: the first few nodes and relationships. */
+        public String describe() {
+            List<String> out = new ArrayList<>();
+            nodes.values().stream().limit(4).forEach(n -> out.add(CypherValues.text(n)));
+            rels.values().stream().limit(4).forEach(r -> out.add(CypherValues.text(nodes.get(r.start()))
+                    + "-" + CypherValues.text(r.rel()) + "->" + CypherValues.text(nodes.get(r.end()))));
+            return nodes.size() + " nodes, " + rels.size() + " relationships " + out;
+        }
+    }
+
+    /** The two queries the oracle dumps a graph by ({@code snap.py}, {@code dump}), run through the island. */
+    private static final String READ_NODES = "MATCH (n) RETURN elementId(n) AS id, labels(n) AS labels,"
+            + " properties(n) AS props";
+    private static final String READ_RELS = "MATCH (a)-[r]->(b) RETURN elementId(r) AS id, elementId(a) AS a,"
+            + " elementId(b) AS b, type(r) AS type, properties(r) AS props";
+
+    /** The lane's graph read back through the island, by the oracle's own dump queries: each node by its
+     *  {@code elementId}, its labels and properties; each relationship by its {@code elementId}, its ends', its type
+     *  and properties. Two elements read back with one identity is the harness's error (the side effects count
+     *  identities). */
+    public static Read readBack(String model, Lane lane) throws Exception {
+        String use = "USE " + CypherGraph.DATASPACE + " ";
+        Map<String, CypherValues.Node> nodes = new LinkedHashMap<>();
+        for (var row : lane.run(model, "#Cypher{" + use + READ_NODES + "}#").rows()) {
+            List<Object> v = row.values();
+            String id = String.valueOf(v.get(0));
+            java.util.TreeSet<String> labels = new java.util.TreeSet<>();
+            for (CypherValues.Value l : ((CypherValues.Lst) CypherValues.ofCell(v.get(1))).items()) {
+                labels.add(((CypherValues.Str) l).value());
+            }
+            if (nodes.put(id, new CypherValues.Node(labels, props(v.get(2)))) != null) {
+                throw new IllegalStateException("harness: two nodes read back with the identity " + id);
+            }
+        }
+        Map<String, Edge> rels = new LinkedHashMap<>();
+        for (var row : lane.run(model, "#Cypher{" + use + READ_RELS + "}#").rows()) {
+            List<Object> v = row.values();
+            String id = String.valueOf(v.get(0));
+            if (rels.put(id, new Edge(String.valueOf(v.get(1)), String.valueOf(v.get(2)),
+                    new CypherValues.Rel(String.valueOf(v.get(3)), props(v.get(4))))) != null) {
+                throw new IllegalStateException("harness: two relationships read back with the identity " + id);
+            }
+        }
+        return new Read(nodes, rels);
+    }
+
+    /** A {@code properties(x)} cell as its entries, a null among them dropped (a stored null is no property). */
+    private static Map<String, CypherValues.Value> props(@com.legend.base.Nullable Object cell) {
+        Map<String, CypherValues.Value> out = new java.util.TreeMap<>();
+        ((CypherValues.Mp) CypherValues.ofCell(cell)).entries().forEach((k, v) -> {
+            if (!(v instanceof CypherValues.Null)) {
+                out.put(k, v);
+            }
+        });
+        return out;
+    }
+
+    /** Whether two read graphs are the same graph by shape: the same bag of nodes (labels, properties), and the same
+     *  bag of relationships (type, properties, the two nodes' labels and properties); the identities are each
+     *  side's own. */
+    public static boolean sameGraph(Read x, Read y) {
+        return CypherValues.sameBag(new ArrayList<>(x.nodes().values()), new ArrayList<>(y.nodes().values()), false)
+                && CypherValues.sameBag(edges(x), edges(y), false);
+    }
+
+    private static List<CypherValues.Value> edges(Read g) {
+        List<CypherValues.Value> out = new ArrayList<>();
+        for (Edge e : g.rels().values()) {
+            out.add(new CypherValues.Lst(List.of(java.util.Objects.requireNonNull(g.nodes().get(e.start())),
+                    e.rel(), java.util.Objects.requireNonNull(g.nodes().get(e.end())))));
+        }
+        return out;
+    }
+
+    /**
+     * The TCK's side effects as the diff of two reads of one graph (the oracle's {@code side_effects} computes the
+     * same, checked against every TCK table by {@code snap.sh --check}): the nodes and relationships created and
+     * deleted (by identity), the label names the graph gained and lost (distinct names, not per node), and the
+     * (element, key, value) triples it gained and lost (an overwrite is one of each). The non-zero counts, keyed as
+     * the TCK keys them ({@code +nodes}, {@code -properties}, ...).
+     */
+    public static Map<String, Integer> sideEffects(Read before, Read after) {
+        Map<String, Set<List<String>>> b = state(before);
+        Map<String, Set<List<String>>> a = state(after);
+        Map<String, Integer> out = new java.util.TreeMap<>();
+        for (String k : List.of("nodes", "relationships", "labels", "properties")) {
+            long plus = a.get(k).stream().filter(x -> !b.get(k).contains(x)).count();
+            long minus = b.get(k).stream().filter(x -> !a.get(k).contains(x)).count();
+            if (plus > 0) {
+                out.put("+" + k, (int) plus);
+            }
+            if (minus > 0) {
+                out.put("-" + k, (int) minus);
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, Set<List<String>>> state(Read g) {
+        Set<List<String>> labels = new java.util.HashSet<>();
+        Set<List<String>> props = new java.util.HashSet<>();
+        g.nodes().forEach((id, n) -> {
+            n.labels().forEach(l -> labels.add(List.of(l)));
+            n.props().forEach((k, v) -> props.add(List.of("n", id, k, CypherValues.text(v))));
+        });
+        g.rels().forEach((id, r) -> r.rel().props().forEach((k, v) -> props.add(List.of("r", id, k,
+                CypherValues.text(v)))));
+        Set<List<String>> nodes = new java.util.HashSet<>();
+        g.nodes().keySet().forEach(id -> nodes.add(List.of(id)));
+        Set<List<String>> rels = new java.util.HashSet<>();
+        g.rels().keySet().forEach(id -> rels.add(List.of(id)));
+        return Map.of("nodes", nodes, "relationships", rels, "labels", labels, "properties", props);
+    }
+
+    /** A write's verdicts past its rows: the graph it left, read back through the island, against Neo4j's by shape;
+     *  its side effects, lite's diff against Neo4j's; its control query's rows against Neo4j's. Null when all agree. */
+    private static SqlParity.@com.legend.base.Nullable Outcome writeOutcome(Case c, CypherAnswers.Answer a,
+            String model, Lane lane, Read before) {
+        Read neoBefore = Read.of(java.util.Objects.requireNonNull(a.graph()));
+        Read neoAfter = a.after() == null ? neoBefore : Read.of(a.after());
+        Read after;
+        try {
+            after = readBack(model, lane);
+        } catch (Exception | StackOverflowError e) {
+            return new SqlParity.Outcome(SqlParity.Status.ERROR, "harness: the graph after the write could not be"
+                    + " read back through the island: " + oneLine(e));
+        }
+        if (!sameGraph(after, neoAfter)) {
+            return new SqlParity.Outcome(SqlParity.Status.FAIL, "the graph after: Neo4j " + neoAfter.describe()
+                    + ", lite " + after.describe());
+        }
+        Map<String, Integer> neo = sideEffects(neoBefore, neoAfter);
+        Map<String, Integer> lite = sideEffects(before, after);
+        if (!neo.equals(lite)) {
+            return new SqlParity.Outcome(SqlParity.Status.FAIL, "side effects: Neo4j " + neo + ", lite " + lite);
+        }
+        return c.control() == null ? null : controlOutcome(c, java.util.Objects.requireNonNull(a.control(),
+                "no snapped answer to the control query of " + c.key()), model, lane);
+    }
+
+    /** The control query's rows against Neo4j's (in order where it orders), or both raising; a refusal by name is
+     *  the case's refusal. Null when they agree. */
+    private static SqlParity.@com.legend.base.Nullable Outcome controlOutcome(Case c, CypherAnswers.Control control,
+            String model, Lane lane) {
+        ExecutionResult result;
+        try {
+            result = lane.run(model, c.controlIsland());
+        } catch (Exception | StackOverflowError e) {
+            if (control.error() != null) {
+                return null;
+            }
+            boolean refusal = e instanceof com.legend.error.NotImplementedException;
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                refusal |= t instanceof com.legend.sql.dialect.DialectCapability;
+            }
+            return new SqlParity.Outcome(refusal ? SqlParity.Status.REFUSED : SqlParity.Status.ERROR,
+                    "the control query: " + oneLine(e));
+        }
+        if (control.error() != null) {
+            return new SqlParity.Outcome(SqlParity.Status.BUG, "the control query: Neo4j rejects it ("
+                    + control.error().code() + ") and legend-lite answered rows");
+        }
+        SqlParity.Grid actual = SqlParity.grid(result);
+        if (!java.util.Objects.equals(control.columns(), actual.columns())) {
+            return new SqlParity.Outcome(SqlParity.Status.FAIL, "the control query's columns: Neo4j "
+                    + control.columns() + ", lite " + actual.columns());
+        }
+        List<List<CypherValues.Value>> expected = new ArrayList<>();
+        for (List<String> row : java.util.Objects.requireNonNull(control.rows())) {
+            expected.add(CypherValues.row(row));
+        }
+        List<List<CypherValues.Value>> got = new ArrayList<>();
+        for (var row : result.rows()) {
+            List<CypherValues.Value> cells = new ArrayList<>();
+            for (Object cell : row.values()) {
+                cells.add(CypherValues.ofCell(cell));
+            }
+            got.add(cells);
+        }
+        boolean ordered = java.util.Objects.requireNonNull(c.control()).toUpperCase(java.util.Locale.ROOT)
+                .contains("ORDER BY");
+        return CypherValues.sameRows(expected, got, ordered, false) ? null : new SqlParity.Outcome(
+                SqlParity.Status.FAIL, "the control query: Neo4j " + expected.size() + " rows " + firstRows(expected)
+                        + ", lite " + got.size() + " rows " + firstRows(got));
+    }
+
+    /**
+     * The write cases by what a graph over a domain model (graph A, the writes design's §3) needs to hold them: the
+     * graph after the write inside the schema the harness infers from the graph before it (the two graphs together
+     * imply the same model), outside it (a label, relationship type or property the graph before lacks, a value of
+     * another type, more relationships than a storage chosen from the graph before holds), or a node's labels
+     * changed (on A a node's label is its class), or a graph the harness cannot model at all. Counted over the cases
+     * Neo4j's summary marks as writing (the writes design's §8, leg 1).
+     */
+    public static Map<String, Integer> writeGroups(List<Case> cases, Map<String, CypherAnswers.Answer> answers) {
+        Map<String, Integer> out = new java.util.TreeMap<>();
+        for (Case c : cases) {
+            CypherAnswers.Answer a = answers.get(c.key());
+            if (a == null || a.after() == null || a.graph() == null) {
+                continue;
+            }
+            out.merge(writeGroup(a.graph(), a.after()), 1, Integer::sum);
+        }
+        return out;
+    }
+
+    static String writeGroup(CypherAnswers.Graph before, CypherAnswers.Graph after) {
+        Map<Integer, List<String>> labels = new java.util.HashMap<>();
+        before.nodes().forEach(n -> labels.put(n.id(), n.labels()));
+        for (CypherAnswers.GraphNode n : after.nodes()) {
+            if (labels.containsKey(n.id()) && !labels.get(n.id()).equals(n.labels())) {
+                return "a node's labels changed";
+            }
+        }
+        // the two graphs as one (the graph after renumbered past the graph before): the schema that holds both
+        int offset = 1 + Math.max(before.nodes().stream().mapToInt(CypherAnswers.GraphNode::id).max().orElse(0),
+                after.nodes().stream().mapToInt(CypherAnswers.GraphNode::id).max().orElse(0));
+        int relOffset = 1 + Math.max(before.rels().stream().mapToInt(CypherAnswers.GraphRel::id).max().orElse(0),
+                after.rels().stream().mapToInt(CypherAnswers.GraphRel::id).max().orElse(0));
+        List<CypherAnswers.GraphNode> nodes = new ArrayList<>(before.nodes());
+        after.nodes().forEach(n -> nodes.add(new CypherAnswers.GraphNode(n.id() + offset, n.labels(), n.props())));
+        List<CypherAnswers.GraphRel> rels = new ArrayList<>(before.rels());
+        after.rels().forEach(r -> rels.add(new CypherAnswers.GraphRel(r.id() + relOffset, r.start() + offset,
+                r.end() + offset, r.type(), r.props())));
+        try {
+            String model = CypherGraph.infer(before).model();
+            return CypherGraph.infer(new CypherAnswers.Graph(nodes, rels)).model().equals(model)
+                    ? "inside the graph before's schema" : "outside the graph before's schema";
+        } catch (CypherGraph.Unsupported u) {
+            return "a graph the harness cannot model";
+        }
     }
 
     // ------------------------------------------------------------------ the refusal census

@@ -67,9 +67,22 @@ class CypherParityPostgresTest {
                 public ExecutionResult run(String model, String island) throws Exception {
                     return service.execute(model, island, CypherGraph.RUNTIME, admin);
                 }
-            });
+
+                @Override
+                public void begin() throws Exception {
+                    admin.setAutoCommit(false);
+                }
+
+                @Override
+                public void rollback() throws Exception {
+                    admin.rollback();
+                    admin.setAutoCommit(true);
+                }
+            }, problems);
         }
         CypherParity.census(outcomes, "postgres");
+        System.out.println("the write cases by what a graph over a domain model needs: "
+                + CypherParity.writeGroups(cases, answers.answers()));
         String update = System.getProperty("cypher.parity.update");
         problems.addAll(CypherParity.ratchet(cases, outcomes, Runfile.property("cypher.parity.ledger"), "postgres",
                 update == null ? null : Path.of(update)));
