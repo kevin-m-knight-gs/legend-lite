@@ -46,14 +46,15 @@ const env = {
   UPSTREAM_PLANS: runfile(join(datacube, 'test', 'fixtures', 'upstream-plans.json')),
 };
 
-const tests = readdirSync(join(datacube, 'test')).filter((f) => f.endsWith('.test.ts')).sort().map((f) => join('test', f));
+const tests = readdirSync(join(datacube, 'test')).filter((f) => f.endsWith('.test.ts')).sort().map((f) => join(datacube, 'test', f));
 const ran = spawnSync(process.execPath, [
   '--experimental-wasm-exnref', '--experimental-strip-types', '--disable-warning=ExperimentalWarning',
-  '--test', '--test-concurrency=2', '--experimental-test-coverage', '--test-coverage-include=src/**',
+  '--test', '--test-concurrency=2', '--experimental-test-coverage', `--test-coverage-include=${join(datacube, 'src')}/**`,
   '--test-reporter=lcov', `--test-reporter-destination=${join(out, 'lcov.info')}`,
   '--test-reporter=tap', `--test-reporter-destination=${join(out, 'tests.txt')}`,
   ...tests,
-], { cwd: datacube, env, stdio: 'inherit', timeout: 60 * 60 * 1000 });
+  // run from the report's folder: a test's database writes its files where it runs (upload.test.ts), never in the tree
+], { cwd: out, env, stdio: 'inherit', timeout: 60 * 60 * 1000 });
 
 // the lcov records, summed per source file
 const lcov = readFileSync(join(out, 'lcov.info'), 'utf8');
