@@ -12,12 +12,13 @@
 // calc-presets.ts) -- or the grid's own row (a sunburst's rings). What happens here is placement: a category's index,
 // a value's position, a calendar's years, all by comparing what the rows say.
 
-import { axisName, drilledView, facetColumns, markLabel, MAX_FACETS, measureName, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
+import { AXIS_UPPER, axisName, drilledView, facetColumns, markLabel, MAX_FACETS, measureName, rangesAcross, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
 import { paretoName, waterfallNames } from './calc-presets.ts';
 import {
   asOption,
   chartOption,
   column,
+  compareScalars,
   defaultLabel,
   describe,
   distinct,
@@ -123,8 +124,24 @@ export function kindOption(
     ...tooltip, trigger: 'item' as const,
     formatter: (p: { dataIndex: number; data?: { ci?: number } }) => hover(p.data?.ci ?? p.dataIndex, drawn),
   });
+  // A PERIOD'S OR A BIN'S END (chart-spec.ts AXIS_UPPER), the database's, for a click on a category of periods or bins
+  // to filter to its range (markConditions): the greatest its rows say -- compared, never computed (chartOption's rule).
+  // The clicked item says its category where its index does not (a calendar's day, in its year's series)
+  const upperCol = rangesAcross(spec) ? column(rows, AXIS_UPPER) : undefined;
+  const upperAt = (dataIndex: number, datum?: unknown): Scalar | undefined => {
+    const ci = (datum as { ci?: number } | undefined)?.ci ?? dataIndex;
+    if (!upperCol || categories[ci] === undefined) return undefined;
+    const want = keyText(categories[ci]!);
+    let best: Scalar | undefined;
+    xCol.values.forEach((xv, i) => {
+      const u = upperCol.values[i] ?? null;
+      if (keyText(xv) !== want || u === null) return;
+      if (best === undefined || best === null || compareScalars(u, best, upperCol.type) > 0) best = u;
+    });
+    return best;
+  };
   const done = (option: object, keyAt: ChartDrawing['keyAt'] = (_s, i) => keyOf(i)): ChartDrawing => ({
-    option: asOption(option), keyAt, notes, description: describe(spec, rows),
+    option: asOption(option), keyAt, notes, description: describe(spec, rows), ...(upperCol ? { upperAt } : {}),
   });
   // a point on a category: [category, value] -- or [value, category] across a horizontal chart
   const pointAt = (ci: number, v: number | null): (number | null)[] => (horizontal ? [v, ci] : [ci, v]);

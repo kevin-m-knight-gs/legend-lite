@@ -131,7 +131,7 @@ export interface ChartDrawing {
    * For a chart of bins: the edge of the bin after the clicked one (the least category above it), so a click filters
    * to the bin's range; undefined for the last bin, or a chart that is not of bins.
    */
-  upperAt?(dataIndex: number): Scalar | undefined;
+  upperAt?(dataIndex: number, datum?: unknown): Scalar | undefined;
   /**
    * What a brush took (batch 2 item 11), from ECharts' brush areas: the categories inside a range across (in order,
    * with the edge after the last for a chart of bins), or a scatter's rectangle. Null when nothing was taken.

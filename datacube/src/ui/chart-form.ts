@@ -267,7 +267,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       { value: 'right', label: 'Right' },
       { value: 'none', label: 'None' },
     ] as const, (v) => { if (v) h.setOption('legend', v); })),
-    checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v)),
+    // a box plot writes none of its five figures on its box (the phase 5 audit): no checkbox that does nothing
+    ...(box ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),
   );
   if (!scatter) {
     const hint = doc.createElement('p');

@@ -295,16 +295,19 @@ The audit of the other twins is `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`.
 
 ### Batch 4: new aggregates, and the kinds they unlock
 
-The rule holds -- the database computes, the chart draws. The aggregates (§3.2 item 6) join `AggregateFn` and Python's
-`AGGREGATES`; then:
+The rule holds -- the database computes, the chart draws. The aggregates (§3.2 item 6) join `AggregateFn` (Python
+takes DataCube's); then:
 
 **Built (2026-10-18, the roadmap run's phase 5, `docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`):** the quartiles
 `percentile25` and `percentile75` (Pure's `percentile(0.25)` and `(0.75)`, continuous; offered on every number column by
 the compiler's own answers, `generated/offer-facts.ts`) as aggregates of the grid and of a chart; the **box plot**
 (`mark: 'boxplot'`): one number column's five figures -- `min`, `percentile25`, `median`, `percentile75`, `max`, in that
 order (`BOX_FNS`) -- per category, drawn by ECharts' boxplot series, ordered by its median, drillable, one series; a
-chart told the kind takes its first value's column's five figures (`editChart`); and the histogram, the bins preset
-with a count. Both on the Statistics sheet of the "more kinds" example page. Python writes a box plot as any chart
+chart told the kind takes its first value's column's five figures (`editChart`), and leaving it for a kind of one value
+keeps its median. The histogram needed nothing new -- the bins preset with a count, as batch 2 built it -- and has an
+example of its own beside the box plots, on the Statistics sheet of the "more kinds" example page. The phase's audit
+also made a click on a batch 3 kind's period or bin (a range or a box plot by month, a calendar's day) filter to its
+range, and a pie, a lollipop, a KPI and a heatmap refuse a second value by name (they draw their first alone). Python writes a box plot as any chart
 (`grid.chart('boxplot', x=...)`), and an Integer's quartile -- a `Number` the database may answer as an exact decimal --
 reaches `GridView` as a `Decimal`.
 

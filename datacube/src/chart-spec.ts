@@ -944,8 +944,10 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
 /**
  * A chart taking another kind, as the form's change of kind has always made it: a gauge and a scatter matrix drop the
  * column across (and its grain or bins with it, as a change of the column across takes them), a gauge and a kind of one
- * series the split, a Pareto runs from the largest, and a box plot plots its first value's column's five figures
- * (boxMeasures; a group-level column, already one figure per group, has none: kept, for the rules to refuse). Only those: every other slot (a layer, a facet, a label, a size,
+ * series the split, a Pareto runs from the largest, a box plot plots its first value's column's five figures
+ * (boxMeasures; a group-level column, already one figure per group, has none: kept, for the rules to refuse), and a box
+ * plot taking a kind of one value keeps its median, the figure it was ordered by (its four others would be drawn by no
+ * kind of one value, the phase 5 audit). Only those: every other slot (a layer, a facet, a label, a size,
  * a hover's measures) stays, for the rules to judge on the new kind -- refused by name where it has no place, never
  * dropped without a word. Part of a change by hand (editChart).
  */
@@ -961,6 +963,7 @@ function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
     ...(keepSplit ? { split } : {}),
     ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
     ...(mark === 'boxplot' && rest.y[0] !== undefined && rest.y[0].fn !== 'value' ? { y: boxMeasures(rest.y[0].column) } : {}),
+    ...(spec.mark === 'boxplot' && !SEVERAL_VALUES.has(mark) && rest.y[2] !== undefined ? { y: [rest.y[2]] } : {}),
   };
 }
 
@@ -1137,18 +1140,29 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   }
   if (spec.mark === 'boxplot') {
     const column = spec.y[0]?.column;
-    if (column === undefined || !same(spec.y, boxMeasures(column))) {
-      out.push('A box plot plots five figures of one column: its min, percentile25, median, percentile75 and max, in that order.');
-    } else {
-      const type = rowColumns(s).find((c) => c.name === column)?.type;
+    const figures = spec.y.map((m) => ({ column: m.column, fn: m.fn }));
+    const five = column === undefined ? [] : boxMeasures(column);
+    if (column !== undefined && same(figures, five)) {
+      // a chart's own calculated column is one of its columns (chartColumns offers it), as `xType` reads it below
+      const type = [...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === column)?.type;
       if (known.has(column) && !isNumeric(type)) out.push(`'${column}' is not a number: it has no quartiles.`);
+    } else if (figures.length === five.length && figures.every((m) => m.column === column)
+      && same([...figures].map((m) => m.fn).sort(), [...BOX_FNS].sort())) {
+      out.push(`A box plot's five figures go in order: ${BOX_FNS.join(', ')}.`);
+    } else {
+      out.push(`A box plot plots five figures of one column: its ${BOX_FNS.join(', ')}.`);
+    }
+    if (spec.y.some((m) => m.mark !== undefined || m.axis !== undefined)) {
+      out.push('A box plot draws its five figures as one box: a value\'s own mark or axis has no place on it.');
     }
   }
   if (spec.mark === 'radar' && spec.y.length < 3) out.push('A radar needs three values or more, one per spoke.');
   if (spec.mark === 'parallel' && spec.y.length < 2) out.push('Parallel coordinates need two values or more, one per axis.');
+  // a pie, a lollipop, a KPI and a heatmap draw their first value alone: the others would be asked and never drawn
   if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'calendar'
     || spec.mark === 'funnel' || spec.mark === 'rose' || spec.mark === 'stream' || spec.mark === 'sankey'
-    || spec.mark === 'chord') && spec.y.length > 1) {
+    || spec.mark === 'chord' || spec.mark === 'pie' || spec.mark === 'lollipop' || spec.mark === 'kpi'
+    || spec.mark === 'heatmap') && spec.y.length > 1) {
     out.push(`${article} ${kind} plots one value.`);
   }
   // a Pareto runs from the largest: its cumulative share is along that order, so the chart's order is it

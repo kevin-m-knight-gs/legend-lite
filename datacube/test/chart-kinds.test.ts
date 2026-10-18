@@ -5,12 +5,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { element } from '../../pure-protocol/src/index.ts';
-import { boxMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
+import { element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
+import { AXIS_UPPER, boxMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
 import { chartOption, describe as describeChart, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
 import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
-import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
+import { grainName, paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
 import * as echarts from 'echarts/core';
+import { JSDOM } from 'jsdom';
+import { paintChartForm } from '../src/ui/chart-form.ts';
 import { SVGRenderer } from 'echarts/renderers';
 import '../src/chart-render.ts';
 import '../src/chart-render-kinds.ts';
@@ -462,7 +464,7 @@ describe('batch 4: a box plot, its five figures the database\'s', () => {
   it('plots its one number column\'s five figures, in order; one series; no show-as', () => {
     assert.deepEqual(chartProblems(BOX, CUBE), []);
     assert.match(problems(of('boxplot')), /five figures of one column/);
-    assert.match(problems(of('boxplot', { y: [...boxMeasures('revenue')].reverse() })), /in that order/);
+    assert.match(problems(of('boxplot', { y: [...boxMeasures('revenue')].reverse() })), /five figures go in order/);
     assert.match(problems(of('boxplot', { y: [...boxMeasures('revenue').slice(0, 4), { column: 'cost', fn: 'max' }] })), /five figures of one column/);
     assert.match(problems(of('boxplot', { y: boxMeasures('channel') })), /'channel' is not a number: it has no quartiles/);
     assert.match(problems({ ...BOX, split: 'channel' }), /A box plot draws one series/);
@@ -511,5 +513,70 @@ describe('batch 4: a box plot, its five figures the database\'s', () => {
     const side = kindOption({ ...BOX, options: { ...OPTIONS, orientation: 'horizontal' } }, rows);
     assert.equal((side.option as { yAxis: { type: string } }).yAxis.type, 'category');
     assert.ok(svg(side).includes('EMEA'));
+  });
+});
+
+describe('the phase 5 audit: what each fix pins', () => {
+  const BOX = of('boxplot', { y: boxMeasures('revenue') });
+  const problems = (spec: ChartSpec) => chartProblems(spec, CUBE).join(' ');
+  it('a chart\'s own calculated number column has quartiles, as the form offers it', () => {
+    const calc = { stage: 'row' as const, column: {
+      name: 'double', lambda: lambda(['x'], fn('times', property(variable('x'), 'revenue'), { _type: 'integer', value: 2 } as never)),
+      type: 'Float',
+    } };
+    assert.deepEqual(chartProblems({ ...BOX, y: boxMeasures('double'), calcs: [calc] }, CUBE), []);
+  });
+  it('a box plot by month or by bins says each box\'s end, so its click filters to the period', () => {
+    const across = grainName('sold', 'month');
+    const rows = table([
+      { name: across, type: 'StrictDate', values: ['2024-01-01', '2024-02-01'] },
+      ...boxMeasures('revenue').map((m, k) => ({ name: `${m.fn}_revenue`, type: 'Float', values: [10 + k, 20 + k] })),
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-02-01', '2024-03-01'] },
+    ]);
+    const d = kindOption({ ...BOX, x: 'sold', grain: 'month' }, rows);
+    assert.equal(d.upperAt?.(1, { ci: 1 }), '2024-03-01');
+    assert.equal(d.upperAt?.(0), '2024-02-01');
+    // a calendar's day says its category itself: its index is within its year's series
+    const days = table([
+      { name: grainName('sold', 'day'), type: 'StrictDate', values: ['2023-12-31', '2024-01-01'] },
+      { name: 'sum_revenue', type: 'Float', values: [1, 2] },
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-01-01', '2024-01-02'] },
+    ]);
+    const cal = kindOption(of('calendar', { x: 'sold', grain: 'day' }), days);
+    assert.equal(cal.upperAt?.(0, { ci: 1 }), '2024-01-02');
+  });
+  it('a box plot taking a kind of one value keeps its median; a kind of several keeps the five, for its rules', () => {
+    assert.deepEqual(editChart(BOX, { mark: 'bar' }, CUBE).y, [{ column: 'revenue', fn: 'median' }]);
+    assert.deepEqual(editChart(BOX, { mark: 'pie' }, CUBE).y, [{ column: 'revenue', fn: 'median' }]);
+    assert.deepEqual(editChart(BOX, { mark: 'dumbbell' }, CUBE).y, BOX.y);
+  });
+  it('a pie, a lollipop, a KPI and a heatmap draw one value: a second is refused, never asked and left undrawn', () => {
+    const two = [REVENUE_SUM, { column: 'cost', fn: 'sum' } as const];
+    for (const mark of ['pie', 'lollipop', 'kpi', 'heatmap'] as const) {
+      assert.match(problems(of(mark, { y: two, ...(mark === 'heatmap' ? { split: 'channel' } : {}) })), /plots one value/, mark);
+    }
+  });
+  it('the form of a box plot picks its column -- its five figures with it -- and offers no aggregate and no values to show', () => {
+    const doc = new JSDOM('<!doctype html><div id="form"></div>').window.document;
+    const form = doc.getElementById('form')!;
+    let spec: ChartSpec = BOX;
+    paintChartForm({
+      doc, spec: () => spec, snapshot: () => CUBE, setOption: () => undefined,
+      set: (change) => { spec = editChart(spec, change, CUBE); },
+    }, form);
+    const labels = [...form.querySelectorAll('.dc-field-label')].map((l) => l.textContent);
+    assert.ok(labels.includes('Value:') && !labels.includes('Aggregate:'), labels.join(' '));
+    assert.ok(!(form.textContent ?? '').includes('Show values'));
+    const value = [...form.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Value:')!
+      .querySelector('select')!;
+    value.value = 'cost';
+    value.dispatchEvent(new doc.defaultView!.Event('change'));
+    assert.deepEqual(spec.y, boxMeasures('cost'));
+  });
+  it('the five figures in another order, or carrying a mark or an axis, are refused in their own words', () => {
+    const swapped = [BOX.y[1]!, BOX.y[0]!, ...BOX.y.slice(2)];
+    assert.match(problems({ ...BOX, y: swapped }), /five figures go in order: min, percentile25, median, percentile75, max/);
+    const placed = { ...BOX, y: BOX.y.map((m) => ({ ...m, axis: 'left' as const })) };
+    assert.deepEqual(chartProblems(placed, CUBE), ['A box plot draws its five figures as one box: a value\'s own mark or axis has no place on it.']);
   });
 });

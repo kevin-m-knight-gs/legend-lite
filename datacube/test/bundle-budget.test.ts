@@ -171,8 +171,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  DataCube's app follows a page Python serves by its commands (app/live-follow.ts: which way a move is followed, and
  *  each grid closed or frame moved refused so the page opens again), with its page name and "changed since saved".
  *  Imported, not fetched: a chunk of its own costs more than it saves (its shared code split out with it). Measured
- *  288,919. */
-const BUDGET = 289_500;
+ *  288,919.
+ *  289,500 -> 290,000 (2026-10-18, chart batch 4, the roadmap run's phase 5: docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md
+ *  Batch 4): the quartile aggregates (their labels and the compiler's offers for them) and the box plot's rules in
+ *  chart-spec.ts, which the grid carries for its charts' panel; the box plot's drawing is chart-kinds.ts's chunk.
+ *  Measured 289,651 before the phase's audit fixes. */
+const BUDGET = 290_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -205,8 +209,10 @@ const BUDGET = 289_500;
  *  docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): this is the page Python shows, which now follows Python's changes by
  *  their commands -- the live page's changes (python-host.ts, the grid command reader with them) and the app applying
  *  them (datacube-app.ts followLive). The page commands' rules come only with the first commands (a chunk of their
- *  own: page-ids.ts keeps the screen's ids apart from them). Measured 277,563. */
-const ENGINE_BUDGET = 278_500;
+ *  own: page-ids.ts keeps the screen's ids apart from them). Measured 277,563.
+ *  278,500 -> 279,000 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
+ *  date). Measured 278,735 before the phase's audit fixes. */
+const ENGINE_BUDGET = 279_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -290,8 +296,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  291,000 -> 293,000 (2026-10-18, the command program's stage 2: page-level undo -- the grid's notes of the same date).
  *  Measured 292,353.
  *  293,000 -> 296,000 (2026-10-18, the command program's stage 3: a notebook's page follows Python's changes by their
- *  commands -- the engine page's note of the same date). Measured 295,033. */
-const WIDGET_BUDGET = 296_000;
+ *  commands -- the engine page's note of the same date). Measured 295,033.
+ *  296,000 -> 296,500 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
+ *  date). Measured 296,208 before the phase's audit fixes. */
+const WIDGET_BUDGET = 296_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

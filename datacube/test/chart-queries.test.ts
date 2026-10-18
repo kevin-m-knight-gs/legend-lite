@@ -373,6 +373,27 @@ describe('batch 4, planned and run: a box plot\'s figures are the database\'s', 
     assert.deepEqual(values(t, 'percentile75_revenue').map(Number), [250, 275]);
     assert.deepEqual(values(t, 'max_revenue').map(Number), [300, 400]);
   });
+  it('a pivot cell on a quartile: each region\'s own rows only (the cell\'s condition inside the map), and the total over all', async () => {
+    const { levelLambda, pinnedPivotFacts } = await import('../src/query.ts');
+    const s: CubeSnapshot = {
+      ...cube,
+      rows: [],
+      pivotOn: ['region'],
+      pivotValues: ['AMER', 'EMEA'],
+      pivotTotal: { placement: 'right' },
+      columns: cube.columns.map((c) => (c.name === 'cost' ? { ...c, aggregate: 'percentile25' as const } : c)),
+    };
+    const t = await engine.execute(await planner.plan(levelLambda(s, undefined, pinnedPivotFacts(s) ?? undefined)), 0);
+    const cell = (part: string): number => {
+      const c = t.columns.find((x) => x.name.includes(part) && x.name.includes('cost'));
+      assert.ok(c, `a column for ${part} (the answer has ${t.columns.map((x) => x.name).join(', ')})`);
+      return Number(c.values[0]);
+    };
+    // AMER's costs 40, 90, 100 and EMEA's 60, 150, 200; every cost 40, 60, 90, 100, 150, 200
+    assert.equal(cell('AMER'), 65);
+    assert.equal(cell('EMEA'), 105);
+    assert.equal(cell('total'), 67.5);
+  });
   it('a grid column on the first or third quartile, planned and run at its level', async () => {
     const { levelLambda } = await import('../src/query.ts');
     const s: CubeSnapshot = {
