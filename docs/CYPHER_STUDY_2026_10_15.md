@@ -5717,3 +5717,58 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
   tests' pins of the translator's text moved with the year-range texts and the delayed egress, `CypherToPureTest`; `projectArm`
   back under the 250-line ceiling by its ungrouped projection, `ungroupedProjection`; the native claims regenerated,
   `UserCallInliner` reading `random` and `generateGuid`).
+
+### 12.94 Writes, leg 1: the judge (2026-10-18)
+
+- **What it is.** The first leg of the writes (`docs/WRITES_DESIGN_2026_10_18.md` §6 and §8): before any write
+  runs, the harness judges one on four counts, so that a write case cannot pass by doing nothing. It is harness-only,
+  but for four island fixes the judge's own check found (below). The island still refuses every write clause.
+- **The oracle** (`tools/neo4j-oracle/snap.py`). Each case's query runs in an explicit transaction that is
+  committed: Neo4j checks some writes only at commit (a node deleted with its relationships left raises then, the
+  error the DELETE scenarios expect; a rolled-back draft missed it, measured), and the next case empties the graph.
+  For a query Neo4j's result summary marks as writing, the graph is dumped again after it (`after`), each element the
+  first dump held keeping its ordinal there; a case's control query then runs over it (`control`).
+  - **The side effects** are the diff of the two dumps, the TCK's way: nodes and relationships created and deleted,
+    label names gained and lost (distinct names, not per node), and (element, key, value) triples gained and lost (an
+    overwrite one of each). `snap.sh --check` holds that diff to every TCK table: all 248 tables of counts agree, and
+    the 2935 "no side effects". `CypherParityTest.theJudgesDiffIsTheTcksSideEffects` holds the Java diff to the same
+    248.
+  - **The answers:** 276 writes carry their graph after, 31 their control query's answer. Every other answer is
+    unchanged up to Neo4j's row order and ordinals (measured against the file before), and `--write` now keeps an
+    answer that agrees with the live one, so a re-snap moves only what moved. The check: 0 problems over 5062 cases.
+- **The reader** (`CypherTck`) reads a scenario's control query and its side-effect table; the control query's own
+  expectation is not read (Neo4j's answer to it judges). The 33 SKIPs run: 31 REFUSED at their write clause, and 2
+  BOTH_ERROR.
+- **The verdict** (`CypherParity`). A case Neo4j marks as writing, or with a control query, runs in a transaction the
+  harness owns (`Lane.begin`, `Lane.rollback`), rolled back after, so that no case's writes reach the next case over
+  the same seeded tables. It passes only on all four counts:
+  - the rows, as before;
+  - the graph it left, read back through the island by the oracle's own two dump queries
+    (`MATCH (n) RETURN elementId(n), labels(n), properties(n)` and its relationships' twin), against Neo4j's `after`
+    by shape;
+  - the side effects, lite's diff of its two reads against Neo4j's diff of its two dumps;
+  - the control query's rows.
+
+  The graph before is read back once per seeded graph and must be Neo4j's dump, or the judge is broken there: a JUDGE
+  problem, which fails the lane. Every graph a write case runs over reads back as Neo4j's on DuckDB.
+- **What the check found.** The first run read back none of the 76 graphs. Four fixes, each a reading the TCK's reads
+  never reached:
+  - `elementId(x)` in a query was refused (the island used identities only inside comparisons): it returns lite's
+    identity, `'<class>:<key>'` of a node or edge instance, an association relationship's ordered pair of its ends
+    (S74), null for an absent node (S76 amended; `CypherIslandIntegrationTest`);
+  - a relationship a hop that finds nothing binds (a pattern no way of the model reads) had no identity: it is marked
+    absent and its identity is null, as an absent node's;
+  - an untyped pattern over a node holding a Variant property read the property as a relationship to a class named
+    Variant, a TypeInferenceException where Neo4j answers no rows (Merge1/[8]'s graph): the model adapter no longer
+    reports a Variant as an end, as its `report` already read it as a value;
+  - two links of one association between the same two nodes share their identity (S74) and nothing else tells them
+    apart (no property: that would be an edge class, keyed by its row): the read-back numbers them by occurrence.
+- **The measured groups** (§8: what a graph over a domain model needs; `CypherParity.writeGroups`, printed by both
+  lanes). Of the 276 cases Neo4j marks as writing: 111 leave a graph inside the schema the harness infers from the
+  graph before (the two graphs together imply the same model); 127 leave one outside it (a label, type or property the
+  graph before lacks, a value of another type, more links than a storage chosen from the graph before holds); 26
+  change a node's labels (on A a label is the class: refused there, run on B); and 12 are graphs the harness cannot
+  model at all.
+- **Moved to leg 5:** A's schema from the query's typed writes (§6). The parser refuses a write clause before it
+  builds one, so there is nothing typed to infer from yet; it lands with the clauses.
+- **The lanes.** CENSUS

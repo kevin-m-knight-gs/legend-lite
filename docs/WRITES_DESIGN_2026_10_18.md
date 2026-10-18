@@ -381,14 +381,19 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
 
 ## 8. Legs
 
-1. **The judge (harness only).**
-   - `snap.py`: the post-graph and side effects in a rolled-back transaction, recorded in the answers file.
+1. **The judge (harness only). Landed 2026-10-18** (`docs/CYPHER_STUDY_2026_10_15.md` §12.94).
+   - `snap.py`: the post-graph and the control queries' answers, recorded in the answers file; the side effects the
+     diff of the two graphs, checked against every TCK table. (Committed, not rolled back: Neo4j checks some writes
+     at commit.)
    - `CypherParity`: per-case transaction and rollback, the side-effect counts, the post-graph compare, the control
      queries.
-   - `CypherGraph`: A's schema from the pre-graph plus the query's typed writes.
-   - The measured size of each group: writes inside the pre-graph's schema, writes that need the inferred schema,
-     label changes.
-   - The 245 stay REFUSED, but none can pass vacuously.
+   - The measured size of each group, of the 276 cases Neo4j marks as writing: 111 inside the pre-graph's schema,
+     127 that need the inferred schema, 26 label changes, 12 graphs the harness cannot model.
+   - The 245 stay REFUSED (the 33 SKIPs now run: 31 REFUSED, 2 BOTH_ERROR), but none can pass vacuously.
+   - **Moved to leg 5:** `CypherGraph`'s A schema from the query's typed writes. The parser refuses a write clause
+     before it builds one, so the inference lands with the clauses.
+   - Found on the way, fixed in the island: `elementId(x)` returned; an absent relationship's identity null; a
+     Variant property no relationship end.
 2. **L0 and L1.**
    - The four `SqlDml` records, with DuckDB, Postgres and H2 arms and `renderStatement`.
    - `write` lowered for real; `update`, `delete` and `merge` declared and lowered.
@@ -397,6 +402,7 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
 3. **The spike: the native store as a platform class model** (§4, L2'). It decides B's cost and its legs.
 4. **`#SQL` DML** on L1, judged by Postgres 16.
 5. **L2 and Cypher on A:**
+   - `CypherGraph`'s A schema from the pre-graph plus the query's typed writes (moved from leg 1);
    - the direct-mapping check, the property-to-column rename, key minting, staging;
    - then CREATE, SET/REMOVE of properties, DELETE/DETACH DELETE, MERGE.
 6. **B and Cypher on B:** the platform schema, then every write clause, label changes included; the 33 control queries

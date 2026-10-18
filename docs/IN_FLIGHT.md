@@ -2407,3 +2407,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 
   Leg 1 is harness-only: the judge (`tools/neo4j-oracle/snap.py`, `testcases/CypherParity`, `CypherTck` and
   `CypherGraph`).
+- **Landed on the branch, 2026-10-18: writes leg 1, the judge** (the study's §12.94). The oracle records a write's
+  graph after it and its control query's answer; the side effects are the two graphs' diff, which agrees with every
+  TCK table; a write case is judged in a transaction the harness rolls back, on its rows, the graph it left, its side
+  effects and its control query. The island gained `elementId(x)` in a query (S76 amended), a null identity for an
+  absent relationship, and no longer reads a Variant property as a relationship end. No file of another line.
