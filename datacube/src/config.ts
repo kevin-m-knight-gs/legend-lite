@@ -279,6 +279,14 @@ export const CUBE_SETTINGS = {
   pivotStatisticColumnPlacement: true, pivotMeasuresFirst: true, dimensions: true, columns: true, columnOrder: true,
 } as const satisfies Record<keyof CubeConfiguration, true>;
 
+/** The settings a configuration always has (its type's required keys): cleared, each takes its product default
+ *  (withSettings), and a saved cube never unsets one (readCube). The compiler holds the list to the type, both ways. */
+type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T];
+export const REQUIRED_SETTINGS = {
+  showRootAggregation: true, showGroupedColumns: true, showDragZones: true, showTitleBar: true, showLeafCount: true,
+  treeColumnSort: true, showTruncationWarning: true, appearance: true, showSelectionStats: true, columns: true,
+} as const satisfies Record<RequiredKeys<CubeConfiguration>, true>;
+
 export const COLUMN_SETTINGS = {
   displayName: true, kind: true, aggregateFn: true, aggregationParameters: true, hidden: true, blurred: true,
   pinned: true, widthMode: true, width: true, minWidth: true, maxWidth: true, format: true, appearance: true,
@@ -398,7 +406,11 @@ export function withSettings(
   config: CubeConfiguration,
   patch: Patch<CubeConfiguration>,
 ): CubeConfiguration {
-  return prune<CubeConfiguration>({ ...config, ...patch });
+  const next = prune<CubeConfiguration>({ ...config, ...patch });
+  // a setting every grid has, cleared, is its product default again: unset, every reader would take it as off
+  const keys = Object.keys(REQUIRED_SETTINGS) as (keyof typeof REQUIRED_SETTINGS)[];
+  const restored = Object.fromEntries(keys.filter((k) => next[k] === undefined).map((k) => [k, DEFAULT_CONFIGURATION[k]]));
+  return { ...next, ...restored };
 }
 
 /**
@@ -683,8 +695,11 @@ export function applyToSnapshot(
 ): CubeSnapshot {
   const columns: ColumnSpec[] = snapshot.columns.map((spec) => {
     const c = columnConfig(config, spec.name);
+    // kept out of the pivot as the aggregate is: the configuration's alone, so a setting cleared there (Column
+    // Properties' box unticked) leaves the query too -- each change is folded into the query folded before it
+    const { excludedFromPivot: _previous, ...rest } = withoutAggregate(spec);
     const next: ColumnSpec = {
-      ...withoutAggregate(spec),
+      ...rest,
       ...(c.kind !== undefined ? { kind: c.kind } : {}),
       ...(c.excludedFromPivot !== undefined
         ? { excludedFromPivot: c.excludedFromPivot }
@@ -700,7 +715,8 @@ export function applyToSnapshot(
     ...aggregateOf(columnConfig(config, d.name)),
   }));
   const {
-    maxRows: _previousLimit, pivotTotal: _previousTotal, pivotSort: _previousSort, ...unlimited
+    maxRows: _previousLimit, pivotTotal: _previousTotal, pivotSort: _previousSort, keepGroupedColumns: _previousKeep,
+    ...unlimited
   } = snapshot;
   // Horizontal Pivots > each key's direction: the order of its VALUES
   // across the header, which the values query asks the database for.
