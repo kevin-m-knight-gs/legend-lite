@@ -568,18 +568,6 @@ public final class LiteralSpelling {
         // fabricates garbage (audit: 1e18 printed ...042.42...); every
         // double >= 2^53 is fraction-free, so all large magnitudes take
         // this branch.
-        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(new SqlExpr.Cast(x, SqlType.Scalar.HUGEINT),
-                        SqlType.Scalar.VARCHAR),
-                new SqlExpr.StringLit(".0"));
-        SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
-                new SqlExpr.Cast(new SqlExpr.Cast(x, new SqlType.Decimal(38, 18)),
-                        SqlType.Scalar.VARCHAR),
-                new SqlExpr.StringLit("0"));
-        SqlExpr fixed = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
-                SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
-                plain);
         // the exponent marker in either case: DuckDB and Postgres write 2.5e-07, H2 1.5E15 (the output matrix,
         // docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3 gap 2, 2026-10-18)
         SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
@@ -597,6 +585,22 @@ public final class LiteralSpelling {
                         SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-17)),
                 SqlExpr.Call.of(SqlFn.LESS,
                         SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(9.007199254740992e15)));
+        // each cast reads the value only where its branch is taken (NULL elsewhere, never read): a database that
+        // computes every branch of a CASE -- ClickHouse, whose constant folding casts a constant whatever its guard --
+        // otherwise failed the cast of a value the branch never takes (cosh(-100), 1.3E43, out of Decimal(38,18):
+        // DECIMAL_OVERFLOW; step 9, 2026-10-19, the ClickHouse lane on the plan route)
+        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
+                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(fractionFree, x), SqlType.Scalar.HUGEINT),
+                        SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit(".0"));
+        SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
+                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new SqlType.Decimal(38, 18)),
+                        SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit("0"));
+        SqlExpr fixed = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
+                SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
+                plain);
         // a whole value the database writes without a fraction (Postgres's double 3, an integer slot a Float
         // declares) takes Pure's .0: a Float's text always has a fraction (the output layer's step 5, 2026-10-18)
         SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
@@ -607,6 +611,11 @@ public final class LiteralSpelling {
         whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed));
         whens.add(new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0"))));
         return new SqlExpr.Case(whens, s);
+    }
+
+    /** {@code x} where {@code guard} holds, else NULL. */
+    private static SqlExpr onlyWhere(SqlExpr guard, SqlExpr x) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(guard, x)), null);
     }
 
     /** The text of a double that is no number, in Pure's spelling, which is Java's ({@code NaN}, {@code Infinity},
