@@ -50,9 +50,14 @@ public class Test_LegendLite_Trino_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
             one("meta::pure::functions::collection::tests::map::testMapInstance_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
             one("meta::pure::functions::lang::tests::letFn::testAssignNewInstance_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
-            // TRINO'S OWN LIMIT: no temporary table, so no table only one session sees: the server engine's system
-            // database (the metamodel's tables) has nowhere to live
-            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a session's own table reached Trino, which has no temporary tables: metamodel_classes\"")
+            // TRINO'S OWN LIMIT (re-measured on the plan route, step 9, 2026-10-19, the harness's session): no
+            // temporary table, so no table only one session sees: the system metamodel store, the session's own
+            // tables on a server engine, has nowhere to live
+            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a session's own table reached Trino, which has no temporary tables: metamodel_classes\""),
+            // step 9, 2026-10-19, the plan route (as on the DuckDB lane, register S82): a model element referenced as a
+            // value crosses by its simple name, and the text carrier's reader resolves the name by compiling it, which
+            // five TestClasses defeat
+            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches")
     );
 
     public static Test suite() {

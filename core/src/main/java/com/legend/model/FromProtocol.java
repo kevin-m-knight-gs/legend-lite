@@ -755,10 +755,12 @@ public final class FromProtocol {
                     .StaticDatasource(s.host(), (int) s.port(),
                             s.databaseName());
             case Protocol.PTrinoSpec s -> new ConnectionSpecification
-                    .StaticDatasource(s.host(), (int) s.port(),
-                            s.catalog() == null ? "" : s.catalog());
+                    .Trino(s.host(), (int) s.port(), s.catalog(), s.schema(),
+                            s.clientTags(),
+                            s.sslSpecification() != null
+                                    && s.sslSpecification().ssl());
             // the db-extension specs fold to the static host/port/name
-            // shape as Redshift and Trino do — DECLARED connections; an
+            // shape as Redshift does — DECLARED connections; an
             // execution leg for any of them widens the model shape then
             case Protocol.PAuroraSpec s -> new ConnectionSpecification
                     .StaticDatasource(s.host(), (int) s.port(), s.name());

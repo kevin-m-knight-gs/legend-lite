@@ -71,7 +71,22 @@ public class Test_LegendLite_H2_RelationFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
             one("meta::pure::functions::relation::tests::project::testSimpleProject_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),   // lite only: the engine passes it on H2
             one("meta::pure::functions::relation::tests::project::testSimpleProjectList_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),   // lite only: the engine passes it on H2
-            one("meta::pure::functions::relation::tests::composition::testFilterPostProject_Function_1__Boolean_1_", "Function \"LATERAL\" not found")   // lite only: the engine passes it on H2
+            one("meta::pure::functions::relation::tests::composition::testFilterPostProject_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),   // lite only: the engine passes it on H2
+            // PIVOTS ON THE PLAN ROUTE (step 9, 2026-10-19, the H2 lane's first run on the plan route: 455 of 469,
+            // fourteen pivots; the four cast ones answer since the cast's keys became the pivot's named values,
+            // register S83): pinned by name, not fixed here (one shared item, owned by the session that merges the
+            // lanes); the engine refuses every pivot on H2 (register S80). An uncast dynamic pivot's text reads each
+            // row's JSON, which H2's dialect has no form for
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\"")
     );
 
     public static Test suite() {
