@@ -18006,6 +18006,18 @@ public final class CypherToPure {
         }
     }
 
+    /** A node or relationship of a MERGE's pattern ({@link Writer#merge}): its pattern; the column of its id in the
+     *  store (a carried node's staged key; a free node's or a relationship's, the id it matches or is minted);
+     *  whether the clause matches or creates it ({@code free}: its first occurrence in the pattern) or the rows
+     *  carry it; each property's column (its value, computed once per row) and kind. */
+    private record Merged(PatternElement pattern, String key, boolean free, boolean carried, Map<String, String> props,
+            Map<String, Kind> kinds) {
+    }
+
+    /** Ids a clause minted ({@link Writer#greatest}): the staged rows holding them and their column. */
+    private record Mint(ValueSpecification rows, String column) {
+    }
+
     /** The program of one statement that updates the graph ({@link #program}). */
     private final class Writer {
         private final List<Clause> clauses;
@@ -18017,6 +18029,11 @@ public final class CypherToPure {
         private int at;
         /** The staged rows' column of each carried node's and relationship's id in the store, by variable. */
         private Map<String, String> keys = Map.of();
+        /** The store's greatest node and relationship ids when the statement starts ({@link #highWater}), staged. */
+        private @com.legend.base.Nullable Rows highWater;
+        /** The ids the statement's clauses minted, node and relationship, by the staged rows and their column. */
+        private final List<Mint> mintedNodes = new ArrayList<>();
+        private final List<Mint> mintedRels = new ArrayList<>();
 
         Writer(CypherAst.Statement s) {
             this.clauses = mergedCreates(s.clauses());
@@ -18071,6 +18088,9 @@ public final class CypherToPure {
                         + " yet (the writes design's leg 5): a native graph store, <<graph.Native>>, is written",
                         first.pos());
             }
+            if (clauses.stream().anyMatch(c -> c instanceof CypherAst.Create || c instanceof CypherAst.Merge)) {
+                highWater = highWater();
+            }
             State state = null;
             for (int i = 0; i < clauses.size(); i++) {
                 Clause c = clauses.get(i);
@@ -18105,7 +18125,7 @@ public final class CypherToPure {
                     case CypherAst.SetClause st -> state = set(st, state, scope);
                     case CypherAst.Remove rm -> state = remove(rm, state, scope);
                     case CypherAst.Delete dl -> state = delete(dl, state, scope);
-                    case CypherAst.Merge mg -> throw CypherErrors.unsupported("MERGE is not supported yet", mg.pos());
+                    case CypherAst.Merge mg -> state = merge(mg, state, scope);
                     case CypherAst.OtherClause o -> throw CypherErrors.unsupported(o.keyword()
                             + " is not supported yet", o.pos());
                 }
@@ -18248,9 +18268,14 @@ public final class CypherToPure {
                 keyed.put(c.name(), key);
             }
             ValueSpecification vs = specs.isEmpty() ? rows.vs() : call("extend", rows.vs(), new ColSpecArray(specs));
+            keys = keyed;
+            return staged(vs, columns);
+        }
+
+        /** {@code let s = rows->stage()} of rows as they are: computed once, read by the statements after. */
+        private Rows staged(ValueSpecification vs, List<Col> columns) {
             String name = SYNTHETIC + "stage" + (++stages);
             statements.add(call("letFunction", new CString(name), call(STAGE, vs)));
-            keys = keyed;
             return new Rows(new Variable(name), columns);
         }
 
@@ -18335,6 +18360,10 @@ public final class CypherToPure {
             }
             Rows minted = minted(rows, nodeElements, relElements, names, cr.pos());
             Rows staged = stage(minted);
+            nodeElements.forEach(el -> mintedNodes.add(new Mint(staged.vs(), java.util.Objects.requireNonNull(
+                    el.minted()))));
+            relElements.forEach(el -> mintedRels.add(new Mint(staged.vs(), java.util.Objects.requireNonNull(
+                    el.minted()))));
             RowScope scopeOver = new RowScope(staged);
             List<Reread> reread = new ArrayList<>();
             for (int j = 0; j < newNodes.size(); j++) {
@@ -18381,18 +18410,44 @@ public final class CypherToPure {
             return refreshed(staged, reread, cr.pos());
         }
 
-        /** The rows with an id minted for each node and relationship the clause creates: the store's greatest id
-         *  (none: 0) plus the row's number times the clause's count of them plus the element's place; beside each a
-         *  created element's identity, its id's text. */
+        /** The store's greatest node and relationship ids as the statement starts, one row of them (none: null),
+         *  staged before any clause writes: an id minted is greater than each and than every id minted since, so an id
+         *  the statement deletes is not given again within it (the judge, and a carried row, read a node by its id). */
+        private Rows highWater() {
+            List<ValueSpecification> greatest = new ArrayList<>();
+            for (String t : List.of("nodes", "rels")) {
+                greatest.add(call("aggregate", table(t), new ColSpecArray(List.of(new ColSpec(t, lambda("x",
+                        new AppliedProperty(new Variable("x"), "id")), lambda("y", call("max", new Variable("y"))),
+                        null)))));
+            }
+            return staged(call("join", greatest.get(0), greatest.get(1), new EnumValue(JOIN_KIND, "INNER"),
+                    new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(new CBoolean(true)))),
+                    List.of(new Col("nodes", Kind.INTEGER, true), new Col("rels", Kind.INTEGER, true)));
+        }
+
+        /** The greatest id of the table {@code table} the statement has held: the store's as it started, the ones
+         *  minted since ({@code minted}); one row. */
+        private ValueSpecification greatest(String table, List<Mint> minted, String name) {
+            ValueSpecification ids = call("project", java.util.Objects.requireNonNull(highWater).vs(), new ColSpecArray(
+                    List.of(new ColSpec("id", lambda("r", read(table)), null, null))));
+            for (Mint m : minted) {
+                ids = call("concatenate", ids, call("project", m.rows(), new ColSpecArray(List.of(new ColSpec("id",
+                        lambda("r", read(m.column())), null, null)))));
+            }
+            return call("aggregate", ids, new ColSpecArray(List.of(new ColSpec(name, lambda("x", new AppliedProperty(
+                    new Variable("x"), "id")), lambda("y", call("max", new Variable("y"))), null))));
+        }
+
+        /** The rows with an id minted for each node and relationship the clause creates: the greatest id the
+         *  statement has held ({@link #greatest}; none: 0) plus the row's number times the clause's count of them
+         *  plus the element's place; beside each a created element's identity, its id's text. */
         private Rows minted(Rows rows, List<Element> nodes, List<Element> rels, Set<String> names, Pos at) {
             if (nodes.isEmpty() && rels.isEmpty()) {
                 return rows;
             }
             List<Col> columns = new ArrayList<>(rows.columns());
             String number = freshName(names);
-            ValueSpecification vs = call("extend", rows.vs(), call("over", new PureCollection(List.of())),
-                    new ColSpec(number, new LambdaFunction(List.of(new Variable("p"), new Variable("w"),
-                    new Variable("r")), List.of(call("rowNumber", new Variable("p"), new Variable("r")))), null, null));
+            ValueSpecification vs = numbered(rows.vs(), number);
             columns.add(new Col(number, Kind.INTEGER, false));
             List<ColSpec> ids = new ArrayList<>();
             for (List<Element> group : List.of(nodes, rels)) {
@@ -18400,9 +18455,8 @@ public final class CypherToPure {
                     continue;
                 }
                 String greatest = freshName(names);
-                ValueSpecification max = call("aggregate", table(group == nodes ? "nodes" : "rels"),
-                        new ColSpecArray(List.of(new ColSpec(greatest, lambda("x", new AppliedProperty(new Variable("x"),
-                        "id")), lambda("y", call("max", new Variable("y"))), null))));
+                ValueSpecification max = group == nodes ? greatest("nodes", mintedNodes, greatest)
+                        : greatest("rels", mintedRels, greatest);
                 vs = call("join", vs, max, new EnumValue(JOIN_KIND, "INNER"), new LambdaFunction(List.of(
                         new Variable("l"), new Variable("r")), List.of(new CBoolean(true))));
                 columns.add(new Col(greatest, Kind.INTEGER, true));
@@ -18427,6 +18481,14 @@ public final class CypherToPure {
             }
             vs = call("extend", vs, new ColSpecArray(texts));
             return new Rows(vs, columns);
+        }
+
+        /** The rows with each one's number beside it (1, 2, ...: the database's order) in the column
+         *  {@code number}. */
+        private static ValueSpecification numbered(ValueSpecification rows, String number) {
+            return call("extend", rows, call("over", new PureCollection(List.of())), new ColSpec(number,
+                    new LambdaFunction(List.of(new Variable("p"), new Variable("w"), new Variable("r")), List.of(
+                    call("rowNumber", new Variable("p"), new Variable("r")))), null, null));
         }
 
         /** A created element's identity column: its minted id's text. */
@@ -18477,6 +18539,14 @@ public final class CypherToPure {
             if (isNull(value)) {
                 return null;
             }
+            Tx t = propertyValue(key, value, at);
+            writeProperty(staged, el, key, SqlToPure.valueOf(t), t.kind(), t.nullable());
+            return t.kind();
+        }
+
+        /** A property's value as the store holds one: a scalar, or a list of scalars (a Variant); a map, a list of
+         *  maps or lists, Neo4j's error; a kind no column holds yet, refused by name. */
+        private Tx propertyValue(String key, Val value, Pos at) {
             if (value instanceof MapVal || value instanceof ListVal l && l.elements().stream().anyMatch(
                     e -> e instanceof MapVal || e instanceof ListVal)) {
                 throw CypherErrors.invalid("Property values can only be of primitive types or arrays thereof", at);
@@ -18486,30 +18556,36 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property written (" + key + ") is not"
                         + " supported yet", at);
             }
-            String column = valueColumn(t.kind());
-            if (column == null) {
+            if (valueColumn(t.kind()) == null) {
                 throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property written (" + key + ") is not"
                         + " supported yet", at);
             }
-            ValueSpecification v = SqlToPure.valueOf(t);
+            return t;
+        }
+
+        /** The property {@code key} of {@code el} written, the value {@code v} (of a row of the staged rows' {@code r})
+         *  in the column of its kind and, for a scalar, its JSON beside it, once per row where the element and the
+         *  value are present. */
+        private void writeProperty(Rows staged, Element el, String key, ValueSpecification v, Kind kind,
+                boolean nullable) {
+            String column = java.util.Objects.requireNonNull(valueColumn(kind));
             List<ColSpec> row = new ArrayList<>();
             row.add(new ColSpec(el.owner(), lambda("r", key(el)), null, null));
             row.add(new ColSpec("key", lambda("r", new CString(key)), null, null));
             row.add(new ColSpec("slot", lambda("r", new CString("")), null, null));
-            row.add(new ColSpec(column, lambda("r", t.nullable() ? call("toOne", v) : v), null, null));
+            row.add(new ColSpec(column, lambda("r", nullable ? call("toOne", v) : v), null, null));
             if (!column.equals("v_json")) {
-                row.add(new ColSpec("v_json", lambda("r", call("toVariant", t.nullable() ? call("toOne", v) : v)), null,
+                row.add(new ColSpec("v_json", lambda("r", call("toVariant", nullable ? call("toOne", v) : v)), null,
                         null));
             }
             ValueSpecification present = el.minted() != null ? null : call("isNotEmpty", read(el.key()));
-            if (t.nullable()) {
+            if (nullable) {
                 ValueSpecification has = call("isNotEmpty", v);
                 present = present == null ? has : call("and", present, has);
             }
             ValueSpecification rows = present == null ? staged.vs() : call("filter", staged.vs(), lambda("r", present));
             statements.add(call("write", call("distinct", call("project", rows, new ColSpecArray(row))),
                     table(el.propTable())));
-            return t.kind();
         }
 
         /** The rows of {@code el}'s property table, of the keys {@code keys} (every key when null), deleted where
@@ -18544,9 +18620,16 @@ public final class CypherToPure {
          *  touched read again after. */
         private State set(CypherAst.SetClause st, @com.legend.base.Nullable State state, Set<String> scope) {
             Rows staged = stage(carried(state, scope, st.pos()));
-            RowScope over = new RowScope(staged);
             Map<String, Map<String, Kind>> written = new LinkedHashMap<>();
-            for (CypherAst.SetItem item : st.items()) {
+            setItems(staged, st.items(), written);
+            return refreshed(staged, rereads(staged, written), st.pos());
+        }
+
+        /** A SET's items over the staged rows {@code staged} (or some of them), the properties each element's items
+         *  wrote added to {@code written} by kind ({@link Kind#NULL} for one removed). */
+        private void setItems(Rows staged, List<CypherAst.SetItem> items, Map<String, Map<String, Kind>> written) {
+            RowScope over = new RowScope(staged);
+            for (CypherAst.SetItem item : items) {
                 switch (item) {
                     case CypherAst.SetProperty sp -> {
                         Element el = element(staged, targetOf(sp.target()), sp.pos());
@@ -18593,7 +18676,6 @@ public final class CypherToPure {
                     }
                 }
             }
-            return refreshed(staged, rereads(staged, written), st.pos());
         }
 
         /** {@code REMOVE item, ...}: a property's row deleted, labels taken from the node's label set; the elements it
@@ -18741,6 +18823,428 @@ public final class CypherToPure {
             return out;
         }
 
+        // -------------------------------------------------------------- MERGE
+
+        /** {@code MERGE pattern [ON CREATE SET ...] [ON MATCH SET ...]}, Neo4j's row by row (a row reads what the rows
+         *  before it created), in three steps over the staged rows. The pattern is matched against the store: each
+         *  free node and relationship joined from its table by its labels, type and ends, each property a row of its
+         *  table holding the value. The rows it matches none of are grouped by their merge key (the carried nodes the
+         *  pattern names and its properties' values) and each group's pattern is created once: its first row creates
+         *  it, the others match what it created. Then ON CREATE's items run over the creating rows, ON MATCH's over the
+         *  others. A null property value raises Neo4j's error. */
+        private State merge(CypherAst.Merge mg, @com.legend.base.Nullable State state, Set<String> scope) {
+            PathPattern p = mg.pattern();
+            if (p.variable() != null && !hidden(p.variable())) {
+                throw CypherErrors.unsupported("a named path merged (MERGE p = ...) is not supported yet", p.pos());
+            }
+            Rows rows = carried(state, scope, mg.pos());
+            Set<String> names = new HashSet<>();
+            rows.columns().forEach(c -> names.add(c.name()));
+            String ordinal = freshName(names);
+            List<Col> columns = new ArrayList<>(rows.columns());
+            columns.add(new Col(ordinal, Kind.INTEGER, false));
+            // each property's value, computed once per row
+            RowScope over = new RowScope(rows);
+            List<ColSpec> values = new ArrayList<>();
+            List<Map<String, String>> propColumns = new ArrayList<>();
+            List<Map<String, Kind>> propKinds = new ArrayList<>();
+            List<String[]> nulls = new ArrayList<>();
+            for (PatternElement e : p.elements()) {
+                Map<String, String> cols = new LinkedHashMap<>();
+                Map<String, Kind> kinds = new LinkedHashMap<>();
+                for (Map.Entry<String, Expr> prop : patternProps(e).entrySet()) {
+                    String message = "Cannot merge the following " + (e instanceof NodePattern ? "node" : "relationship")
+                            + " because of null property value for '" + prop.getKey() + "'";
+                    Val v = val(prop.getValue(), over);
+                    if (isNull(v)) {
+                        nulls.add(new String[] {null, message});
+                        continue;
+                    }
+                    Tx t = propertyValue(prop.getKey(), v, prop.getValue().pos());
+                    String c = freshName(names);
+                    values.add(new ColSpec(c, lambda("r", SqlToPure.valueOf(t)), null, null));
+                    columns.add(new Col(c, t.kind(), t.nullable()));
+                    if (t.nullable()) {
+                        nulls.add(new String[] {c, message});
+                    }
+                    cols.put(prop.getKey(), c);
+                    kinds.put(prop.getKey(), t.kind());
+                }
+                propColumns.add(cols);
+                propKinds.add(kinds);
+            }
+            ValueSpecification numbered = numbered(rows.vs(), ordinal);
+            Rows staged = stage(new Rows(values.isEmpty() ? numbered : call("extend", numbered,
+                    new ColSpecArray(values)), columns));
+            for (String[] n : nulls) {
+                // (a null literal: every row raises)
+                guard(staged, n[0] == null ? call("greaterThan", read(ordinal), new CInteger(0L))
+                        : call("isEmpty", read(n[0])), n[1]);
+            }
+            List<Merged> elements = mergedElements(p, staged, scope, propColumns, propKinds, names);
+            Rows matched = matched(staged, elements, names);
+            // the rows the store matches none of
+            ValueSpecification unmatched = call("filter", staged.vs(), lambda("r", call("equal", call("size", call(
+                    "filter", matched.vs(), lambda("m", call("equal", new AppliedProperty(new Variable("m"), ordinal),
+                    read(ordinal))))), new CInteger(0L))));
+            // their merge keys: each a group's column
+            Map<String, String> groupOf = new LinkedHashMap<>();
+            for (Merged el : elements) {
+                List<String> sources = new ArrayList<>(el.props().values());
+                if (el.carried()) {
+                    sources.add(0, el.key());
+                }
+                for (String s : sources) {
+                    if (!groupOf.containsKey(s)) {
+                        groupOf.put(s, freshName(names));
+                    }
+                }
+            }
+            String creator = freshName(names);
+            Rows created = created(unmatched, staged, elements, groupOf, ordinal, creator, names, mg.pos());
+            // the rows the pattern's creation reads: each unmatched row with its group's, the first of the group
+            // creating it
+            ValueSpecification cond = null;
+            for (Map.Entry<String, String> g : groupOf.entrySet()) {
+                ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), g.getKey()),
+                        new AppliedProperty(new Variable("r"), g.getValue()));
+                cond = cond == null ? eq : call("and", cond, eq);
+            }
+            ValueSpecification made = call("join", unmatched, created.vs(), new EnumValue(JOIN_KIND, "INNER"),
+                    new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(cond == null
+                    ? new CBoolean(true) : cond)));
+            String flag = freshName(names);
+            List<Col> keyColumns = new ArrayList<>();
+            for (Merged el : elements) {
+                if (el.free()) {
+                    keyColumns.add(new Col(el.key(), Kind.INTEGER, false));
+                }
+            }
+            List<Col> both = new ArrayList<>(concat(staged.columns(), keyColumns));
+            both.add(new Col(flag, Kind.BOOLEAN, false));
+            ValueSpecification union = call("concatenate", selected(call("extend", matched.vs(), new ColSpecArray(
+                    List.of(new ColSpec(flag, lambda("r", new CBoolean(false)), null, null)))), both), selected(call(
+                    "extend", made, new ColSpecArray(List.of(new ColSpec(flag, lambda("r", call("equal", read(ordinal),
+                    read(creator))), null, null)))), both));
+            // each named free node's and relationship's identity: its id's text
+            List<ColSpec> texts = new ArrayList<>();
+            List<Reread> rereads = new ArrayList<>();
+            for (Merged el : elements) {
+                String v = variableOf(el.pattern());
+                if (!el.free() || v == null || hidden(v)) {
+                    continue;
+                }
+                String text = freshName(names);
+                texts.add(new ColSpec(text, lambda("r", plus(new CString(":"), call("toString", read(el.key())))), null,
+                        null));
+                both.add(new Col(text, Kind.STRING, false));
+                if (el.pattern() instanceof NodePattern n) {
+                    rereads.add(new Reread(v, text, el.key(), storedProps(true, n.labels(), el.kinds(), n.pos()), null));
+                } else {
+                    RelPattern r = (RelPattern) el.pattern();
+                    rereads.add(new Reread(v, text, el.key(), storedProps(false, r.types(), el.kinds(), r.pos()),
+                            r.types().get(0)));
+                }
+            }
+            Rows merged = new Rows(texts.isEmpty() ? union : call("extend", union, new ColSpecArray(texts)), both);
+            if (mg.onCreate().isEmpty() && mg.onMatch().isEmpty()) {
+                return refreshed(merged, rereads, mg.pos());
+            }
+            Rows again = stage(refreshed(merged, rereads, mg.pos(), true));
+            Map<String, Map<String, Kind>> written = new LinkedHashMap<>();
+            setItems(new Rows(call("filter", again.vs(), lambda("r", read(flag))), again.columns()), mg.onCreate(),
+                    written);
+            setItems(new Rows(call("filter", again.vs(), lambda("r", call("not", read(flag)))), again.columns()),
+                    mg.onMatch(), written);
+            return refreshed(again, rereads(again, written), mg.pos());
+        }
+
+        /** A MERGE's pattern's elements: a node the rows carry by its staged key (a row holding it null raises: the
+         *  pattern has a relationship from it), a free node (its first occurrence) or a relationship by a fresh key
+         *  column, the store's id it matches or the one minted for it. */
+        private List<Merged> mergedElements(PathPattern p, Rows staged, Set<String> scope,
+                List<Map<String, String>> propColumns, List<Map<String, Kind>> propKinds, Set<String> names) {
+            List<Merged> out = new ArrayList<>();
+            Map<String, String> freeKeys = new HashMap<>();
+            for (int i = 0; i < p.elements().size(); i++) {
+                PatternElement e = p.elements().get(i);
+                String v = variableOf(e);
+                if (e instanceof NodePattern n && v != null && scope.contains(v)) {
+                    Element el = element(staged, v, n.pos());
+                    if (el == null) {
+                        throw CypherErrors.unsupported("MERGE from " + v + ", a node the rows hold as null, is not"
+                                + " supported yet", n.pos());
+                    }
+                    guard(staged, call("isEmpty", read(el.key())), "Failed to create relationship, node `" + v
+                            + "` is missing");
+                    out.add(new Merged(e, el.key(), false, true, propColumns.get(i), propKinds.get(i)));
+                } else if (e instanceof NodePattern && v != null && freeKeys.containsKey(v)) {
+                    out.add(new Merged(e, freeKeys.get(v), false, false, propColumns.get(i), propKinds.get(i)));
+                } else {
+                    String key = freshName(names);
+                    if (v != null) {
+                        freeKeys.put(v, key);
+                    }
+                    out.add(new Merged(e, key, true, false, propColumns.get(i), propKinds.get(i)));
+                }
+            }
+            return out;
+        }
+
+        /** The staged rows each with every way the store matches the pattern (none: the row dropped): each free node
+         *  joined from the nodes holding its labels, each relationship from those of its type its ends' keys meet,
+         *  each property held by a row of its table; staged, the free elements' keys beside the rows' columns. */
+        private Rows matched(Rows staged, List<Merged> elements, Set<String> names) {
+            ValueSpecification m = staged.vs();
+            // (the column of the far end of the relationship before: a free node joins on it)
+            String other = null;
+            for (int i = 0; i < elements.size(); i++) {
+                Merged el = elements.get(i);
+                if (el.pattern() instanceof NodePattern n) {
+                    if (el.free()) {
+                        ValueSpecification nodes = table("nodes");
+                        ValueSpecification labelled = null;
+                        for (String l : new java.util.LinkedHashSet<>(n.labels())) {
+                            ValueSpecification has = call("contains", call("toOne", new AppliedProperty(
+                                    new Variable("x"), "labels")), new CString(":" + l + ":"));
+                            labelled = labelled == null ? has : call("and", labelled, has);
+                        }
+                        if (labelled != null) {
+                            nodes = call("filter", nodes, lambda("x", labelled));
+                        }
+                        nodes = call("rename", call("select", nodes, new ColSpecArray(List.of(new ColSpec("id", null,
+                                null, null)))), new ColSpec("id", null, null, null), new ColSpec(el.key(), null, null,
+                                null));
+                        m = call("join", m, nodes, new EnumValue(JOIN_KIND, "INNER"), other == null
+                                ? new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(
+                                new CBoolean(true))) : joinedOn(other, el.key()));
+                    }
+                    other = null;
+                    continue;
+                }
+                RelPattern r = (RelPattern) el.pattern();
+                Merged near = elements.get(i - 1);
+                Merged far = elements.get(i + 1);
+                String src = freshName(names);
+                String dst = freshName(names);
+                ValueSpecification rels = call("rename", call("rename", call("rename", call("select", call("filter",
+                        table("rels"), lambda("x", call("equal", new AppliedProperty(new Variable("x"), "type"),
+                        new CString(r.types().get(0))))), new ColSpecArray(List.of(new ColSpec("id", null, null, null),
+                        new ColSpec("src_id", null, null, null), new ColSpec("dst_id", null, null, null)))),
+                        new ColSpec("id", null, null, null), new ColSpec(el.key(), null, null, null)),
+                        new ColSpec("src_id", null, null, null), new ColSpec(src, null, null, null)),
+                        new ColSpec("dst_id", null, null, null), new ColSpec(dst, null, null, null));
+                ValueSpecification out = ends(near.key(), far.free() ? null : far.key(), src, dst);
+                ValueSpecification in = ends(near.key(), far.free() ? null : far.key(), dst, src);
+                ValueSpecification cond = switch (r.direction()) {
+                    case OUT -> out;
+                    case IN -> in;
+                    case BOTH -> call("or", out, in);
+                };
+                m = call("join", m, rels, new EnumValue(JOIN_KIND, "INNER"), new LambdaFunction(List.of(
+                        new Variable("l"), new Variable("r")), List.of(cond)));
+                if (far.free()) {
+                    if (r.direction() == CypherAst.Direction.BOTH) {
+                        other = freshName(names);
+                        m = call("extend", m, new ColSpecArray(List.of(new ColSpec(other, lambda("r", call("if", call(
+                                "equal", read(src), read(near.key())), thunk(read(dst)), thunk(read(src)))), null,
+                                null))));
+                    } else {
+                        other = r.direction() == CypherAst.Direction.IN ? src : dst;
+                    }
+                }
+            }
+            for (Merged el : elements) {
+                boolean node = el.pattern() instanceof NodePattern;
+                for (Map.Entry<String, String> prop : el.props().entrySet()) {
+                    String column = java.util.Objects.requireNonNull(valueColumn(java.util.Objects.requireNonNull(
+                            el.kinds().get(prop.getKey()))));
+                    ValueSpecification q = new Variable("q");
+                    ValueSpecification held = call("and", call("and", call("and", call("equal", new AppliedProperty(q,
+                            node ? "node_id" : "rel_id"), read(el.key())), call("equal", new AppliedProperty(q, "key"),
+                            new CString(prop.getKey()))), call("equal", new AppliedProperty(q, "slot"),
+                            new CString(""))), call("equal", new AppliedProperty(q, column), read(prop.getValue())));
+                    m = call("filter", m, lambda("r", call("greaterThan", call("size", call("filter", table(node
+                            ? "node_props" : "rel_props"), lambda("q", held))), new CInteger(0L))));
+                }
+            }
+            List<Col> columns = new ArrayList<>(staged.columns());
+            for (Merged el : elements) {
+                if (el.free()) {
+                    columns.add(new Col(el.key(), Kind.INTEGER, false));
+                }
+            }
+            return staged(selected(m, columns), columns);
+        }
+
+        /** A relationship's join condition: the left row's {@code near} key its {@code from} end, its {@code far} key
+         *  (when the pattern has one: a free far node joins after) its {@code to} end. */
+        private static ValueSpecification ends(String near, @com.legend.base.Nullable String far, String from,
+                String to) {
+            ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), near), new AppliedProperty(
+                    new Variable("r"), from));
+            return far == null ? eq : call("and", eq, call("equal", new AppliedProperty(new Variable("l"), far),
+                    new AppliedProperty(new Variable("r"), to)));
+        }
+
+        /** The pattern created once per group of the unmatched rows (their merge keys' columns {@code groupOf}, the
+         *  first row's number {@code creator}): each free node's and relationship's id minted, its row, its
+         *  properties' rows from the group's values; staged, the groups' rows. */
+        private Rows created(ValueSpecification unmatched, Rows staged, List<Merged> elements,
+                Map<String, String> groupOf, String ordinal, String creator, Set<String> names, Pos at) {
+            List<ColSpec> copies = new ArrayList<>();
+            List<ColSpec> groupKeys = new ArrayList<>();
+            List<Col> groupColumns = new ArrayList<>();
+            for (Map.Entry<String, String> g : groupOf.entrySet()) {
+                copies.add(new ColSpec(g.getValue(), lambda("r", read(g.getKey())), null, null));
+                groupKeys.add(new ColSpec(g.getValue(), null, null, null));
+                Col source = java.util.Objects.requireNonNull(column(staged, g.getKey()));
+                groupColumns.add(new Col(g.getValue(), source.kind(), true));
+            }
+            ColSpec first = new ColSpec(creator, lambda("x", new AppliedProperty(new Variable("x"), ordinal)),
+                    lambda("y", call("min", new Variable("y"))), null);
+            ValueSpecification groups = groupOf.isEmpty()
+                    ? call("filter", call("aggregate", unmatched, new ColSpecArray(List.of(first))), lambda("r",
+                            call("isNotEmpty", read(creator))))
+                    : call("groupBy", call("extend", unmatched, new ColSpecArray(copies)), new ColSpecArray(groupKeys),
+                            new ColSpecArray(List.of(first)));
+            groupColumns.add(new Col(creator, Kind.INTEGER, true));
+            List<Element> nodes = new ArrayList<>();
+            List<Element> rels = new ArrayList<>();
+            for (Merged el : elements) {
+                if (el.free()) {
+                    boolean node = el.pattern() instanceof NodePattern;
+                    (node ? nodes : rels).add(new Element(el.key(), node, null, el.key(), el.key()));
+                }
+            }
+            Rows minted = minted(new Rows(groups, groupColumns), nodes, rels, names, at);
+            Rows created = staged(minted.vs(), minted.columns());
+            nodes.forEach(el -> mintedNodes.add(new Mint(created.vs(), el.key())));
+            rels.forEach(el -> mintedRels.add(new Mint(created.vs(), el.key())));
+            for (int i = 0; i < elements.size(); i++) {
+                Merged el = elements.get(i);
+                if (!el.free()) {
+                    continue;
+                }
+                boolean node = el.pattern() instanceof NodePattern;
+                List<ColSpec> row = new ArrayList<>();
+                row.add(new ColSpec("id", lambda("r", read(el.key())), null, null));
+                if (el.pattern() instanceof NodePattern n) {
+                    row.add(new ColSpec("labels", lambda("r", new CString(labelText(n.labels()))), null, null));
+                } else {
+                    RelPattern r = (RelPattern) el.pattern();
+                    String near = endKey(elements.get(i - 1), groupOf);
+                    String far = endKey(elements.get(i + 1), groupOf);
+                    boolean in = r.direction() == CypherAst.Direction.IN;
+                    row.add(new ColSpec("type", lambda("r", new CString(r.types().get(0))), null, null));
+                    row.add(new ColSpec("src_id", lambda("r", read(in ? far : near)), null, null));
+                    row.add(new ColSpec("dst_id", lambda("r", read(in ? near : far)), null, null));
+                }
+                statements.add(call("write", call("project", created.vs(), new ColSpecArray(row)), table(node
+                        ? "nodes" : "rels")));
+                Element w = new Element(el.key(), node, null, el.key(), el.key());
+                for (Map.Entry<String, String> prop : el.props().entrySet()) {
+                    writeProperty(created, w, prop.getKey(), read(java.util.Objects.requireNonNull(groupOf.get(
+                            prop.getValue()))), java.util.Objects.requireNonNull(el.kinds().get(prop.getKey())), false);
+                }
+            }
+            return created;
+        }
+
+        /** The column of a relationship's end's id among the created groups' rows: a carried node's group's, a free
+         *  one's minted id. */
+        private static String endKey(Merged end, Map<String, String> groupOf) {
+            return end.carried() ? java.util.Objects.requireNonNull(groupOf.get(end.key())) : end.key();
+        }
+
+        /** The rows' columns {@code columns} (but the virtual ones), in their order. */
+        private static ValueSpecification selected(ValueSpecification rows, List<Col> columns) {
+            List<ColSpec> kept = new ArrayList<>();
+            for (Col c : columns) {
+                if (!c.virtual()) {
+                    kept.add(new ColSpec(c.name(), null, null, null));
+                }
+            }
+            return call("select", rows, new ColSpecArray(kept));
+        }
+
+        /** A statement raising {@code message} where a staged row meets {@code condition} (the database's). */
+        private void guard(Rows staged, ValueSpecification condition, String message) {
+            statements.add(call("project", staged.vs(), new ColSpecArray(List.of(new ColSpec(SYNTHETIC + "guard",
+                    lambda("r", raisingWhere(condition, message, new CInteger(1L))), null, null)))));
+        }
+
+        /** The properties a node of {@code labels} (a relationship of the one type {@code labels} names) may hold, by
+         *  kind: those of the model's classes carrying the labels (the edge classes of the type) and the pattern's
+         *  own ({@code written}), a key typed two ways a Variant; and every key the statement writes, a Variant where
+         *  neither types it (the store holds every value's JSON beside it). */
+        private Map<String, Kind> storedProps(boolean node, List<String> labels, Map<String, Kind> written, Pos at) {
+            List<String> classes = new ArrayList<>();
+            if (node) {
+                Set<String> edgeClasses = new HashSet<>();
+                edges().forEach(e -> edgeClasses.add(e.classPath()));
+                for (String c : model.classes()) {
+                    if (!valueClasses().contains(c) && !edgeClasses.contains(c)
+                            && new HashSet<>(model.labels(c)).containsAll(labels)) {
+                        classes.add(c);
+                    }
+                }
+            } else {
+                for (Edge e : edges()) {
+                    if (e.type().equals(labels.get(0))) {
+                        classes.add(e.classPath());
+                    }
+                }
+            }
+            Map<String, Kind> out = new LinkedHashMap<>();
+            for (String c : classes) {
+                for (Property p : properties(c)) {
+                    if (!p.classTyped() && !p.enumTyped() && !p.many()) {
+                        out.merge(p.name(), kindOf(p, at), (a, b) -> a == b ? a : Kind.JSON);
+                    }
+                }
+            }
+            written.forEach((k, kind) -> out.merge(k, kind, (a, b) -> a == b ? a : Kind.JSON));
+            for (String k : writtenKeys()) {
+                out.putIfAbsent(k, Kind.JSON);
+            }
+            return out;
+        }
+
+        /** Every property key the statement's clauses write. */
+        private Set<String> writtenKeys() {
+            Set<String> out = new java.util.LinkedHashSet<>();
+            for (Clause c : clauses) {
+                switch (c) {
+                    case CypherAst.Create cr -> cr.patterns().forEach(p -> p.elements().forEach(
+                            e -> out.addAll(patternProps(e).keySet())));
+                    case CypherAst.Merge mg -> {
+                        mg.pattern().elements().forEach(e -> out.addAll(patternProps(e).keySet()));
+                        itemKeys(mg.onCreate(), out);
+                        itemKeys(mg.onMatch(), out);
+                    }
+                    case CypherAst.SetClause st -> itemKeys(st.items(), out);
+                    default -> { }
+                }
+            }
+            return out;
+        }
+
+        /** The keys a SET's items write (a map's, when it is written out). */
+        private static void itemKeys(List<CypherAst.SetItem> items, Set<String> out) {
+            for (CypherAst.SetItem item : items) {
+                switch (item) {
+                    case CypherAst.SetProperty sp -> out.add(sp.key());
+                    case CypherAst.SetProperties sp -> {
+                        if (sp.value() instanceof CypherAst.MapLit m) {
+                            out.addAll(m.entries().keySet());
+                        }
+                    }
+                    case CypherAst.SetLabels sl -> { }
+                }
+            }
+        }
+
         // -------------------------------------------------------------- DELETE
 
         /** {@code [DETACH] DELETE x, ...}: each relationship's property rows and row deleted, each node's (DETACH: its
@@ -18809,10 +19313,16 @@ public final class CypherToPure {
          *  properties; each a left join, so an element the store no longer holds reads as absent. Every other column
          *  as it was. */
         private Rows refreshed(Rows staged, List<Reread> all, Pos at) {
+            return refreshed(staged, all, at, false);
+        }
+
+        /** {@link #refreshed(Rows, List, Pos)}, every element of {@code all} read again when {@code force} (the
+         *  clause's own items read them), else only those a later clause reads. */
+        private Rows refreshed(Rows staged, List<Reread> all, Pos at, boolean force) {
             // (only what a later clause reads: a chain of writes the statement ends with reads nothing back)
             Set<String> used = usedAfter(this.at);
-            List<Reread> reread = all.stream().filter(rr -> used.contains(STAR) || used.contains(rr.variable()))
-                    .toList();
+            List<Reread> reread = all.stream().filter(rr -> force || used.contains(STAR)
+                    || used.contains(rr.variable())).toList();
             if (reread.isEmpty()) {
                 return staged;
             }
@@ -18931,10 +19441,10 @@ public final class CypherToPure {
         return out;
     }
 
-    /** Neo4j's static errors of the clauses that update the graph, before any is read: a node a CREATE names that
-     *  the rows bind, given labels or properties again, or a relationship it names that they bind
-     *  (VariableAlreadyBound); a relationship created without one type or a direction, or of variable length;
-     *  a variable a write reads that nothing binds (UndefinedVariable). */
+    /** Neo4j's static errors of the clauses that update the graph, before any is read: a node a CREATE or MERGE
+     *  names that the rows bind, given labels or properties again (or named alone), or a relationship it names that
+     *  they bind (VariableAlreadyBound); a relationship created or merged without one type, created without a
+     *  direction, or of variable length; a variable a write reads that nothing binds (UndefinedVariable). */
     private static void checkWrites(List<Clause> clauses) {
         Set<String> bound = new HashSet<>();
         for (Clause c : clauses) {
@@ -19010,23 +19520,53 @@ public final class CypherToPure {
                     }
                     bound.addAll(here);
                 }
-                case CypherAst.Merge mg -> patternVariables(mg.pattern(), bound);
-                case CypherAst.SetClause st -> {
-                    for (CypherAst.SetItem item : st.items()) {
-                        switch (item) {
-                            case CypherAst.SetProperty sp -> {
-                                undefined(sp.target(), bound, Set.of());
-                                undefined(sp.value(), bound, Set.of());
+                case CypherAst.Merge mg -> {
+                    Set<String> here = new HashSet<>();
+                    PathPattern p = mg.pattern();
+                    for (PatternElement e : p.elements()) {
+                        if (e instanceof NodePattern n) {
+                            if (n.variable() != null && bound.contains(n.variable())
+                                    && (!n.labels().isEmpty() || n.mapped() || p.elements().size() == 1)) {
+                                throw CypherErrors.invalid("Variable `" + n.variable() + "` already declared",
+                                        n.pos());
                             }
-                            case CypherAst.SetProperties sp -> {
-                                undefined(new CypherAst.Var(sp.variable(), sp.pos()), bound, Set.of());
-                                undefined(sp.value(), bound, Set.of());
+                            for (Expr x : n.properties().values()) {
+                                undefined(x, bound, here);
                             }
-                            case CypherAst.SetLabels sl -> undefined(new CypherAst.Var(sl.variable(), sl.pos()), bound,
-                                    Set.of());
+                            if (n.variable() != null) {
+                                here.add(n.variable());
+                            }
+                        } else if (e instanceof RelPattern r) {
+                            if (r.types().size() != 1) {
+                                throw CypherErrors.invalid("Exactly one relationship type must be specified for"
+                                        + " MERGE. Did you forget to prefix your relationship type with a ':'?",
+                                        r.pos());
+                            }
+                            if (r.lengthRange() != null) {
+                                throw CypherErrors.invalid("Variable length relationships cannot be used in MERGE",
+                                        r.pos());
+                            }
+                            if (r.variable() != null && (bound.contains(r.variable())
+                                    || here.contains(r.variable()))) {
+                                throw CypherErrors.invalid("Variable `" + r.variable() + "` already declared",
+                                        r.pos());
+                            }
+                            for (Expr x : r.properties().values()) {
+                                undefined(x, bound, here);
+                            }
+                            if (r.variable() != null) {
+                                here.add(r.variable());
+                            }
                         }
                     }
+                    if (p.variable() != null) {
+                        here.add(p.variable());
+                    }
+                    bound.addAll(here);
+                    mg.onCreate().forEach(item -> undefined(item, bound));
+                    mg.onMatch().forEach(item -> undefined(item, bound));
                 }
+                case CypherAst.SetClause st -> st.items().forEach(item -> undefined(item, bound));
                 case CypherAst.Remove rm -> {
                     for (CypherAst.RemoveItem item : rm.items()) {
                         switch (item) {
@@ -19039,6 +19579,21 @@ public final class CypherToPure {
                 case CypherAst.Delete dl -> dl.targets().forEach(t -> undefined(t, bound, Set.of()));
                 default -> { }
             }
+        }
+    }
+
+    /** Neo4j's UndefinedVariable for a variable a SET item reads that {@code bound} does not bind. */
+    private static void undefined(CypherAst.SetItem item, Set<String> bound) {
+        switch (item) {
+            case CypherAst.SetProperty sp -> {
+                undefined(sp.target(), bound, Set.of());
+                undefined(sp.value(), bound, Set.of());
+            }
+            case CypherAst.SetProperties sp -> {
+                undefined(new CypherAst.Var(sp.variable(), sp.pos()), bound, Set.of());
+                undefined(sp.value(), bound, Set.of());
+            }
+            case CypherAst.SetLabels sl -> undefined(new CypherAst.Var(sl.variable(), sl.pos()), bound, Set.of());
         }
     }
 
@@ -19098,6 +19653,16 @@ public final class CypherToPure {
             case CypherAst.CountStar c -> { }
             default -> out.add(STAR);
         }
+    }
+
+    /** A pattern element's property map. */
+    private static Map<String, Expr> patternProps(PatternElement e) {
+        return e instanceof NodePattern n ? n.properties() : ((RelPattern) e).properties();
+    }
+
+    /** A pattern element's variable, null for none. */
+    private static @com.legend.base.Nullable String variableOf(PatternElement e) {
+        return e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
     }
 
     /** The variables a pattern binds: its nodes', its relationships', its own. */
