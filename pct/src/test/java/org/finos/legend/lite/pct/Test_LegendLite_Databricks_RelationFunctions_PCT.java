@@ -34,7 +34,26 @@ public class Test_LegendLite_Databricks_RelationFunctions_PCT extends PCTReportC
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
-            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\"")
+            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
+            // 2026-10-19, step 9, the Databricks lane on the plan route: PIVOTS, pinned by name, not fixed (the
+            // brief, docs/STEP9_LANE_BRIEF_2026_10_19.md §5.4: the emulation is one shared item, owned by the session
+            // that merges the lanes). A pivot's text on the plan route needs the row as JSON, which only DuckDB has;
+            // the composition tests' pivot is planned as a dynamic one, whose values the plan route cannot discover
+            // on a server (the legacy route's needsStaticPivot ran a query first)
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot_Function_1__Boolean_1_", "a dynamic pivot reached Databricks: needsStaticPivot discovers its values"),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit_Function_1__Boolean_1_", "a dynamic pivot reached Databricks: needsStaticPivot discovers its values"),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort_Function_1__Boolean_1_", "a dynamic pivot reached Databricks: needsStaticPivot discovers its values"),
+            one("meta::pure::functions::relation::tests::composition::test_Pivot_Filter_Function_1__Boolean_1_", "a dynamic pivot reached Databricks: needsStaticPivot discovers its values")
     );
 
     public static Test suite() {

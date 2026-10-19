@@ -50,9 +50,14 @@ public class Test_LegendLite_Databricks_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
+            // 2026-10-19, step 9, the Databricks lane on the plan route (as the DuckDB lane's, 2026-10-18): the value
+            // lane converts a Float root to DOUBLE, whose digits are ...784 where the legacy route's were ...780; the
+            // fix is the value lane keeping a DECIMAL slot exact under a Float root (an item of step 9)
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
+            // 2026-10-19, step 9, the plan route (as on DuckDB): the NaN cell is spelled NaN and Pure's parseFloat
+            // refuses the character (the legacy route's Java BigDecimal said "Infinite or NaN")
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "[FIELD_NOT_FOUND] No such struct field `__id` in `errorMessage`, `errorType`."),
@@ -61,9 +66,13 @@ public class Test_LegendLite_Databricks_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L HOUR to TIMESTAMP '2016-02-29 00:00:00'."),
             one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 9600000000L MONTH to TIMESTAMP '2016-02-29 00:00:00'."),
             one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L WEEK to TIMESTAMP '2016-02-29 00:00:00'."),
-            // DATABRICKS' OWN LIMIT: the driver hands a BC date-time back as the Timestamp's text, its sign lost
-            // (measured: 21458-01-08 for -21457-01-08)
-            one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"\nexpected: %-21457-01-08T20:48:00+0000\nactual:   %21458-01-08T20:48:00+0000\"")
+            // (testAdjustByMinutesBigNumber's pin, the driver's BC date-time with its sign lost, left 2026-10-19, step 9:
+            // the plan route spells a date-time with date_format, which keeps the sign, and a year past 9999 without
+            // the pattern's '+', Databricks.strftime)
+            // 2026-10-19, step 9, the plan route (as on DuckDB, 2026-10-18): a heterogeneous class collection meeting
+            // at an abstract ancestor crosses as JSON without its class, which the text carrier has no form for; the
+            // legacy route rebuilt the instances in Java. Register S81.
+            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form")
     );
 
     public static Test suite() {
