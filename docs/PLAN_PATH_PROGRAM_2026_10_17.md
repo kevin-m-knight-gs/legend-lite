@@ -302,6 +302,17 @@ does not close while any of them has neither a fix nor a recorded ruling by the 
   Postgres' `row_to_json`, the others' measured when the arm lands), a render item per dialect; a lane whose database
   has none pins them by name (the engine refuses every pivot on H2, S80). The cast form is not residue: it answers
   on every dialect since 2026-10-19 (S83).
+- **A declared SERVER connection opened by the plan's runner with its credentials** (found 2026-10-19 by the server
+  lanes: `Sessions.openingFor` admits no credential -- every authentication but `NoAuth`, `DefaultH2` and `TestAuth`
+  is refused by name -- and has no opening for Trino, ClickHouse, Snowflake, Databricks or BigQuery, so a plan on
+  such a database has no session of its own, and on Postgres, MariaDB and MySQL the driver logs in as the OS user).
+  The PCT runs a server lane's plan on the harness's own session meanwhile (`PctBackend.planSessions`, as the legacy
+  route did), which judges everything but the opening. Resolved by legend-engine's own form: the connection's
+  authentication (`UserNamePassword` with vault references, `ApiToken`, `SnowflakePublic`,
+  `GCPApplicationDefaultCredentials`) resolved through a vault the host configures (properties, environment, a
+  secrets service), the driver properties built from it, and an `Opening.Url` arm per server type from its
+  specification; the MongoDB connector's vault reference for its password is the one precedent. A product item of
+  the database owner, before a user's plan runs on a server.
 
 **What never goes through a plan, and should not**: compiling a model, the language server, diagrams, tests that
 assert a compile error, the corpus buckets that exercise the engine's own machinery (routing internals,
@@ -319,6 +330,13 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-19, step 9: the system metamodel store on a server engine as the session's own temporary tables**
+  (GATES "the system metamodel store on a server engine"): `Class.all()` on every server lane was refused by the
+  runner (the plan's setup on the user's database); the referenced tables are now the target's session statements on
+  a server engine (the legacy system database's form, the user's design of 2026-10-11), read by the query under their
+  session names, the setup untouched; Trino refuses by name. Verdicts: the plan maker's test on DuckDB, Postgres and
+  Trino, four core lanes, the DuckDB grammar suite, and `testBasic` passing on the embedded MariaDB (its grammar
+  suite 134 of 137 here); the other server lanes judge it at the siblings' merge.
 - **2026-10-19, step 9: every lane flipped, a plan written for the session's server version, six sibling sessions
   started, the cast over a dynamic pivot landed on every dialect** (GATES "step 9: every PCT lane flipped"):
   `throughThePlan` true for every lane (`83f2810`); the H2 lane's 414 version refusals fixed by planning for the

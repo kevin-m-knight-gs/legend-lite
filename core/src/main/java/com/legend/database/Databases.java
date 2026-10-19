@@ -98,6 +98,19 @@ public final class Databases {
         };
     }
 
+    /** Whether {@code type} runs IN THIS PROCESS (an embedded engine, a private instance of which the platform opens:
+     *  H2, DuckDB, SQLite) or on a SERVER. The system metamodel store's tables are a private instance's own tables in
+     *  their schema, and a server session's own TEMPORARY tables (exec.SystemDatabase's form, the user's ruling of
+     *  2026-10-11; a plan's, the plan path program's step 9, 2026-10-19). */
+    public static boolean inProcess(DatabaseType type) {
+        return switch (type) {
+            case H2, DuckDB, SQLite -> true;
+            case Postgres, DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino,
+                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL,
+                 MongoDB -> false;
+        };
+    }
+
     /** legend-engine's IN-list-to-temp-table facts for {@code type}: the temp table's name prefix and the list size past
      *  which the engine uses one (null: never, for this database). */
     public record InListTempTables(String tablePrefix, @com.legend.base.Nullable Integer threshold) {

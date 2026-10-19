@@ -562,6 +562,55 @@ class PlanMakerTest {
         return ((ExecutionPlan.Relation) ((ExecutionPlan.TextResult) plan.root()).type()).columns();
     }
 
+    /** The PCT's {@code getAll::testBasic} shape: the system metamodel store read by a plan. */
+    private static final String CLASSES = "|meta::pure::metamodel::type::Class.all()->isEmpty()";
+
+    /**
+     * The system metamodel store's tables, in the form the plan's database takes (the plan path program's step 9):
+     * on an engine in this process, the target's setup, in their schema (2026-10-18); on a SERVER engine, the
+     * session's own TEMPORARY tables (the legacy system database's form, the user's design of 2026-10-11), made by
+     * the session's statements and read by the query under their session names, with no setup for the user's
+     * database (2026-10-19: every server lane had pinned {@code testBasic} by "the plan has setup for it: never run
+     * on it"); a server without temporary tables (Trino) refuses by name.
+     */
+    @Test
+    void theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer() throws Exception {
+        ExecutionPlan duck = plan(DatabaseType.DuckDB, CLASSES, TypedQuery.Output.TDS_TEXT);
+        ExecutionPlan.Target inProcess = target(duck);
+        assertTrue(inProcess.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+                && st.sql().contains("classes")), inProcess.setup().toString());
+        assertEquals(List.of("SET TimeZone='UTC'"), inProcess.session());
+        assertFalse(((ExecutionPlan.TextResult) duck.root()).sql().statement().contains("metamodel_classes"));
+        try (Connection c = fresh(DatabaseType.DuckDB)) {
+            assertEquals("value:Boolean[1]\nfalse", PlanCases.run(duck, c));
+        }
+
+        ExecutionPlan pg = plan(DatabaseType.Postgres, CLASSES, TypedQuery.Output.TDS_TEXT);
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(pg, CLASSES);
+        ExecutionPlan.Target server = target(pg);
+        assertTrue(server.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+                && st.sql().contains("classes")), server.setup().toString());
+        List<String> session = server.session();
+        // the dialect's own session statements first (Postgres: its time zone), then the session's tables
+        int create = -1;
+        for (int i = 0; i < session.size(); i++) {
+            if (session.get(i).contains("metamodel_classes")) {
+                create = i;
+                break;
+            }
+        }
+        assertTrue(create >= 0 && create + 1 < session.size(), session.toString());
+        assertTrue(session.get(create).toLowerCase(java.util.Locale.ROOT).contains("temporary"), session.get(create));
+        String insert = session.get(create + 1);
+        assertTrue(insert.toUpperCase(java.util.Locale.ROOT).startsWith("INSERT INTO") && insert.contains("metamodel_classes"),
+                insert.substring(0, Math.min(120, insert.length())));
+        String sql = ((ExecutionPlan.TextResult) pg.root()).sql().statement();
+        assertTrue(sql.contains("metamodel_classes") && !sql.contains("metamodel.classes"), sql);
+
+        var refused = assertThrows(RuntimeException.class, () -> plan(DatabaseType.Trino, CLASSES, TypedQuery.Output.TDS_TEXT));
+        assertTrue(refused.getMessage().contains("no temporary tables"), refused.getMessage());
+    }
+
     private static ExecutionPlan plan(DatabaseType type, String query, TypedQuery.Output output) {
         return Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT", output);
     }

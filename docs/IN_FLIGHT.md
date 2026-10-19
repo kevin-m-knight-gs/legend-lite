@@ -2124,4 +2124,12 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `SqlPostProcessors`, `SubselectPrune`, `DynamicPivot`, `MirJson`), `executionplan/PlanJson.java` (format 7),
   `lowering/Lowerer.java` (`castOverDynamicPivot` names the keys), `lowering/Pivots.java`, the emulations
   (`CarrierStrategies`, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Databricks`, `MongoDbPipeline`), `PlanMakerTest`,
-  register S83. The siblings pin pivots by name; the merge removes the four cast cases' pins.
+  register S83. The siblings pin pivots by name; the merge removes the four cast cases' pins. **The second shared
+  item, 2026-10-19: the system metamodel store on a server engine** (`Class.all()`, pinned on every server lane):
+  `database/Databases.java` (`inProcess`, from `exec/Sessions.java`), `PlanMaker.java` (`Metamodel`: the session's
+  temporary tables and the query's renames on a server), `PlanMakerTest`; the merge removes the `testBasic` pins.
+  **The harness's one rule for the plan's session, 2026-10-19** (the server lanes found the platform opens no
+  session with credentials): `pct/.../extension/PctBackend.java` (`planSessions`: a server lane's plan on the
+  harness's own session, a new one per plan from `Lane.openSystem`; an in-process lane's and MongoDB's on the plan's
+  own), `PctPlanRoute.java`; the siblings merge it and drop their lane-local forms. The platform's item is §7's
+  residue (a declared server connection opened with its credentials through a vault).

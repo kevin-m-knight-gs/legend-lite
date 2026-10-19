@@ -10653,6 +10653,53 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-19 — The plan path program, step 9: the system metamodel store on a server engine, as the session's own tables
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9. The second shared item the siblings pin (the brief
+§5.4): `Class.all()` (the PCT's `getAll::testBasic`) on every server lane was refused by the runner, "the plan has
+setup for it: never run on it" (`PlanSessions.refuseSetup`): step 9's first landing wrote the store's tables into the
+plan's SETUP, the private instance's form (their schema, the bulk loader), and a database reached by a URL is the
+user's, which a plan never sets up.
+
+**The form, the user's design of 2026-10-11 for the legacy route (`exec.SystemDatabase`, cloud doc §14) carried
+onto the plan:** on a server engine (`Databases.inProcess` false: the fact moved to the plan side, `Sessions.inProcess`
+reads it) the referenced tables are the SESSION's own TEMPORARY tables -- `Ddl.metamodelTemporary` through each
+dialect's `sessionTable` (a temporary table and one INSERT of its rows; Databricks' temporary view; BigQuery's `CREATE
+TEMP TABLE`; the measured per-engine needs of §14 as they were), named `metamodel_<table>` (`Ddl.systemTable`), written
+as the target's SESSION statements after the dialect's own, so the runner makes them on every session the plan opens
+(a URL session is opened afresh per run) and the server drops them with it; the query reads them under those names
+through the plan maker's rename (`SqlPostProcessors.apply`, the legacy route's own pass); the target's setup carries
+none of them, so nothing permanent is made in the user's database and the refusal stands for what it was written for
+(declared test data). An engine in this process keeps the first landing's form. Trino, which has no temporary table,
+refuses by name at plan time ("no temporary tables"), as the legacy route did. `PlanMaker.Metamodel` carries the
+three facts (setup, session, renames); no plan format change (the session statements were text already).
+
+**What the server lanes still need, lane configuration, not code (cloud doc §14):** Snowflake's session needs a
+current schema for a temporary table (the runtime connection's `schema` property); BigQuery's a session
+(`EnableSession=1` on the runtime connection); MySQL reads a temporary table once per query ("Can't reopen table"),
+so a self-joining metamodel query fails there by that message, as before.
+
+**The plan's session on a server lane, the harness's (the same landing).** The server lanes found the platform opens
+a declared server connection with no credential (`Sessions.openingFor`: `auth: Test` names no user, every other
+authentication refused by name, no opening for Trino, ClickHouse or the clouds), so the driver logged in as the OS user
+(MySQL 8.4: refused; Postgres: "role does not exist") or not at all; two siblings had worked around it in two ways.
+One rule now, `PctBackend.planSessions`: a server lane's plan runs on the harness's own session, a new one per plan from
+the lane's `openSystem` (ClickHouse's HTTP session, Snowflake's schema, BigQuery's session: what a session's own
+tables need), checked by the runner against the target and given its session statements; an in-process lane's and
+MongoDB's plans keep the plan's own; a plan with setup on a server lane is refused by name as before. The platform's
+item, a declared server connection opened with its credentials through a vault, is the program's §7 residue.
+
+**Verdicts (2026-10-19):** `PlanMakerTest.theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer`
+(DuckDB: the setup form, run, `value:Boolean[1]\nfalse`; Postgres: the session's temporary table and its INSERT, the
+query reading `metamodel_classes`, no setup, the plan round-tripping; Trino refused by name);
+`//core:core_tests_root`, `_architecture`, `_exec`, `_integration` pass; `//pct:pct_duckdb_grammar` passes (`testBasic`
+on DuckDB as it was). **A real server, here:** `//pct:pct_mariadb_grammar` 134 of 137 with `testBasic` passing on the
+embedded MariaDB through the session's temporary tables, on the plan's own session and again on the harness's; the
+three failures are the namesake (S82) and the two the MariaDB sibling fixed in its lane the same day (the raise read
+back by the plan runner, a JSON null member). The
+siblings' other server lanes judge the rest at the merge (each pinned `testBasic` by the refusal; the merge removes
+the pins).
+
 ## 2026-10-19 — The plan path program, step 9: every PCT lane flipped, the siblings started, a cast over a dynamic pivot on every dialect
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9 (its §9 and `docs/IN_FLIGHT.md` carry the lines).
