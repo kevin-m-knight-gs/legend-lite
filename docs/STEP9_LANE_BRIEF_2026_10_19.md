@@ -35,15 +35,15 @@ schedules them, except Trino at `--jobs=1` (two Trino servers beside two JVMs we
 
 | Container | Lanes | Channel A | Then channel B (regression) | Notes |
 |---|---|---|---|---|
-| snowflake | Snowflake | `//pct:pct_snowflake` | `//pct:pct_channel_b_snowflake` if it exists | cloud: §4 below |
-| bigquery | BigQuery | `//pct:pct_bigquery` | none | cloud: §4 below |
-| databricks | Databricks | `//pct:pct_databricks` | `//pct:pct_channel_b_databricks` if it exists | cloud: §4 below |
+| snowflake | Snowflake | `//pct:pct_snowflake` | `//pct:pct_channel_b_snowflake` | cloud: §4 below |
+| bigquery | BigQuery | `//pct:pct_bigquery` | `//pct:pct_channel_b_bigquery` | cloud: §4 below |
+| databricks | Databricks | `//pct:pct_databricks` | `//pct:pct_channel_b_databricks` | cloud: §4 below |
 | trino-h2 | Trino, then H2 | `//pct:pct_trino --jobs=1`, `//pct:pct_h2` | `//pct:pct_channel_b_trino --jobs=1`, `//pct:pct_channel_b_h2` | the embedded Trino coordinator |
-| postgres-sqlite-mongodb | Postgres, SQLite, MongoDB | `//pct:pct_postgres` under `tools/postgres/as_unprivileged.sh` (§3), `//pct:pct_sqlite`, `//pct:pct_mongodb` | `//pct:pct_channel_b_postgres` (same wrapper), `//pct:pct_channel_b_sqlite`, `//pct:pct_channel_b_mongodb` | the embedded Postgres refuses root |
+| postgres-sqlite-mongodb | Postgres, SQLite, MongoDB | `//pct:pct_postgres` under `tools/postgres/as_unprivileged.sh` (§3), `//pct:pct_sqlite`, `//pct:pct_mongodb` | `//pct:pct_channel_b_postgres` (same wrapper), `//pct:pct_channel_b_sqlite`; MongoDB has no channel B target | the embedded Postgres refuses root |
 | mariadb-mysql-clickhouse | MariaDB, MySQL, ClickHouse | `//pct:pct_mariadb`, `//pct:pct_mysql`, `//pct:pct_clickhouse` | the three `//pct:pct_channel_b_<db>` | three embedded servers, one at a time |
 
-DuckDB is done (this session, exact). A channel B target that does not exist for a database is skipped and said so
-(`bazel query 'attr(name, "pct_channel_b_<db>", //pct:all)'` lists what exists).
+DuckDB is done (this session, exact). The channel B targets above are the ones that exist (`bazel query
+'attr(name, "pct_channel_b_", //pct:all)'`, 2026-10-19): every database but MongoDB has one.
 
 ## 3. The container's setup, once (about half an hour before the first test)
 
