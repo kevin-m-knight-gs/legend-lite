@@ -343,8 +343,11 @@ aside -- by one value, and says the values it found no country for, and a countr
 `at: {lat, lon}`, two number columns -- sized by one value; its query groups by the place's name, latitude and
 longitude (never an average of positions), and a row with no position is said. Both draw one series of one value,
 ask for 250 places (`MAP_LIMIT`), and are placed by their own columns: they do not follow the grid's grouping. A click
-filters to the place, as a bar's does. Drawn by `chart-maps.ts`; ECharts' map chart, its geo component and the shapes
-are a chunk of their own (`chart-render-maps.ts`), fetched with the first map. Python writes them as any chart
+filters to the place, as a bar's does. Drawn by `chart-maps.ts`, the shapes in its chunk; ECharts' map chart and its
+geo component are a chunk of their own (`chart-render-maps.ts`, handed the shapes to register); both are fetched with
+the first map. Its audit: a map is not offered Open in grid (Update would not change its places) and its pill says it
+does not regroup; its limit stays the world's whatever is across, and a chart leaving it takes its own default again; a
+map has no grain or bins, and a bubble map's name is not one of its places; a place with no value is said. Python writes them as any chart
 (`grid.chart('map', x=...)`, `grid.chart('bubblemap', x=..., at={'lat': ..., 'lon': ...})`). On the Maps sheet of the
 "more kinds" example page.
 

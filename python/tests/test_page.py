@@ -559,6 +559,13 @@ class Document(Paged):
                                  ('bar', {'x': 'city', 'at': {'lat': 'lat', 'lon': 'lon'}}, 'places nothing')]:
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
                 grid.chart(mark, **given)
+        # a chart made a bubble map by plot, told its places; and its places changed (the phase 6 audit)
+        bar = grid.chart('bar', x='city')
+        bar.plot('bubblemap', at={'lat': 'lat', 'lon': 'lon'})
+        bubbles = [v['spec'] for v in page.to_dict()['views'] if v['kind'] == 'chart'][-1]
+        self.assertEqual((bubbles['mark'], bubbles['at']), ('bubblemap', {'lat': 'lat', 'lon': 'lon'}))
+        with self.assertRaisesRegex(ValueError, 'longitude'):
+            bar.plot(at={'lat': 'lat'})
 
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()

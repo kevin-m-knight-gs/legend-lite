@@ -936,8 +936,10 @@ function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot):
   const across = { ...rest, ...(x !== undefined ? { x } : {}) };
   if (plotsRows(spec)) return across;
   const inTime = spec.mark !== 'pareto' && isTemporalAcross(x, s);
-  // the limit the old column was given by default, never one the chart was told
-  const limit = inTime && spec.options.limit === DEFAULT_CHART_LIMIT ? TIME_LIMIT
+  // the limit the old column was given by default, never one the chart was told; a map's is the world's, whatever is
+  // across (the phase 6 audit: a map made from a date across lost it to the time default's change back)
+  const limit = MAP_MARKS.has(spec.mark) ? spec.options.limit
+    : inTime && spec.options.limit === DEFAULT_CHART_LIMIT ? TIME_LIMIT
     : !inTime && spec.options.limit === TIME_LIMIT ? DEFAULT_CHART_LIMIT : spec.options.limit;
   return {
     ...across,
@@ -978,7 +980,7 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
  * a hover's measures) stays, for the rules to judge on the new kind -- refused by name where it has no place, never
  * dropped without a word. Part of a change by hand (editChart).
  */
-function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
+function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
   const { x, split, grain, bins, at: _at, ...rest } = spec;
   // a bubble map's places go with it: no other kind places anything by latitude and longitude
   const at = mark === 'bubblemap' ? spec.at : undefined;
@@ -994,8 +996,11 @@ function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
     ...(mark === 'boxplot' && rest.y[0] !== undefined && rest.y[0].fn !== 'value' ? { y: boxMeasures(rest.y[0].column) } : {}),
     ...(spec.mark === 'boxplot' && !SEVERAL_VALUES.has(mark) && rest.y[2] !== undefined ? { y: [rest.y[2]] } : {}),
     ...(at !== undefined ? { at } : {}),
-    // a map asks for the world's countries, not the first fifty
-    ...(MAP_MARKS.has(mark) && !MAP_MARKS.has(spec.mark) ? { options: { ...rest.options, limit: Math.max(rest.options.limit, MAP_LIMIT) } } : {}),
+    // a map asks for the world's countries; leaving one, a chart asks for its own default again (a date across's, or
+    // the first fifty) -- the default a map was given, never one it was told
+    ...(MAP_MARKS.has(mark) && !MAP_MARKS.has(spec.mark) ? { options: { ...rest.options, limit: MAP_LIMIT } } : {}),
+    ...(!MAP_MARKS.has(mark) && MAP_MARKS.has(spec.mark) && rest.options.limit === MAP_LIMIT
+      ? { options: { ...rest.options, limit: keepX && isTemporalAcross(x, s) ? TIME_LIMIT : DEFAULT_CHART_LIMIT } } : {}),
   };
 }
 
@@ -1036,7 +1041,7 @@ export type ChartChange = {
  */
 export function editChart(spec: ChartSpec, change: ChartChange, s: CubeSnapshot): ChartSpec {
   const told = (key: string): boolean => Object.hasOwn(change, key);
-  const shaped = change.mark !== undefined && change.mark !== spec.mark ? asMark(spec, change.mark) : spec;
+  const shaped = change.mark !== undefined && change.mark !== spec.mark ? asMark(spec, change.mark, s) : spec;
   const x = change.x ?? undefined;
   const moved = told('x') && x !== spec.x ? acrossChanged(shaped, x, s) : shaped;
   const { options, ...slots } = change;
@@ -1202,8 +1207,16 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
       if (!known.has(c)) out.push(`The cube has no column '${c}'.`);
       else if (!isNumeric(type)) out.push(`'${c}' is not a number: it places nothing.`);
     }
+    // a place's name is one column and its position two others: grouped by each once (the phase 6 audit)
+    if (spec.x !== undefined && (spec.x === spec.at?.lat || spec.x === spec.at?.lon)) {
+      out.push(`'${spec.x}' is a place's ${spec.x === spec.at?.lat ? 'latitude' : 'longitude'}: name the places by another column.`);
+    }
   } else if (spec.at !== undefined) {
     out.push(`${article} ${kind} places nothing by latitude and longitude: only a bubble map does.`);
+  }
+  // a map's places are countries or points, never periods or bins: a click on one would have no range to filter to
+  if (MAP_MARKS.has(spec.mark) && (spec.grain !== undefined || spec.bins !== undefined)) {
+    out.push(`${article} ${kind} places each row by what it names: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
   }
   if (spec.mark === 'radar' && spec.y.length < 3) out.push('A radar needs three values or more, one per spoke.');
   if (spec.mark === 'parallel' && spec.y.length < 2) out.push('Parallel coordinates need two values or more, one per axis.');
@@ -1295,7 +1308,9 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   }
   // a group-level column of the cube's that reads a column of the grid's grouping the chart does not group by would be
   // computed over the chart's rows as if that column were there: refused, not answered wrongly
-  const keys = new Set([spec.x, spec.split, axisName(spec)].filter((c): c is string => c !== undefined));
+  // a bubble map's places are its grouping too (chartSnapshot's keys)
+  const placeKeys = spec.mark === 'bubblemap' ? [spec.at?.lat, spec.at?.lon] : [];
+  const keys = new Set([spec.x, spec.split, axisName(spec), ...placeKeys].filter((c): c is string => c !== undefined));
   const dimensions = new Set(rowColumns(s).filter((c) => c.kind === 'dimension').map((c) => c.name));
   const byName = new Map(groupLevelColumns(s, spec).map((d) => [d.name, d]));
   const reads = (name: string, seen = new Set<string>()): string[] => {

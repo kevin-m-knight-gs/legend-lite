@@ -566,6 +566,21 @@ describe('a chart\'s right-click menu: Options..., and Open in grid offered only
     // offered exactly when it opens one (either way out of the mismatch: the entry disabled, or an editing grid)
     assert.equal(offered, opened, `offered: ${String(offered)}, but clicked it opened ${opened ? 'an' : 'no'} editing grid`);
   });
+
+  it('a map: Open in grid is not offered (its places are its own columns, which Update would not change), and its pill says so', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const doc = pg().document('Q3')!;
+    reopen({ ...doc, views: doc.views.map((v) => (v.kind !== 'chart' ? v : { ...v, spec: { ...v.spec, mark: 'map' as const, frozen: true } })) });
+    await settle();
+    assert.equal(chartView(chart)!.spec.mark, 'map');
+    assert.equal(chartMenu(chart).find((i) => label(i) === 'Open in grid')?.getAttribute('aria-disabled'), 'true');
+    await togglePill(chart);
+    const title = tile(chart).querySelector<HTMLElement>('.dc-tile-actions .dc-titlebar-toggle')!.title;
+    assert.match(title, /a map is placed by its own columns, not the grid's grouping/);
+  });
 });
 
 describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page undo', () => {

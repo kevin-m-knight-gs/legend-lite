@@ -28,7 +28,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { chartValuesAsColumns, followCube, GRID_MARKS, type ChartSpec } from '../chart-spec.ts';
+import { chartValuesAsColumns, followCube, GRID_MARKS, MAP_MARKS, type ChartSpec } from '../chart-spec.ts';
 import { applyToSnapshot, type CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
@@ -985,7 +985,10 @@ export class CubePage {
         ? 'Its grid was removed: this chart keeps its own copy of that grid\'s query. Right-click > Open in grid to change it.'
         : frozen
           ? 'Frozen: it keeps its grouping as the grid is pivoted. Click to follow the grid again.'
-          : 'Dynamic: it re-draws as the grid is pivoted, grouped and filtered. Click to freeze it as it is.';
+          // a map is placed by its own columns (chart-spec.ts live): the grid's grouping leaves it as it is
+          : panel.spec !== null && MAP_MARKS.has(panel.spec.mark)
+            ? 'Dynamic: it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping. Click to freeze it as it is.'
+            : 'Dynamic: it re-draws as the grid is pivoted, grouped and filtered. Click to freeze it as it is.';
     };
     const panel = new ChartPanel(body, {
       // its spec changed by hand -- its options, a drill, frozen or following again -- is a step of the page's
@@ -1479,10 +1482,13 @@ let crosshairs = 0;
 
 /**
  * Whether Open in grid can edit a chart: its grouping is a column across (a gauge has none, nor a KPI without a trend),
- * and it is not a scatter's rows nor the grid as shown. The one rule: the menu offers the entry exactly when it opens a grid.
+ * and it is not a scatter's rows, the grid as shown, nor a map (placed by its own columns, which a grid's grouping
+ * written back would not change: Update would do nothing, the phase 6 audit). The one rule: the menu offers the entry
+ * exactly when it opens a grid.
  */
 function editableInGrid(spec: ChartSpec | null): spec is ChartSpec & { readonly x: string } {
-  return spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark) && spec.x !== undefined;
+  return spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark)
+    && !MAP_MARKS.has(spec.mark) && spec.x !== undefined;
 }
 
 /** `layout` without the tiles `leave` names: each one's place closed by its neighbours, as a removal closes it. */

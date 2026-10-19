@@ -152,6 +152,7 @@ export function mapOption(
   const lonCol = column(rows, at.lon);
   const points: { value: [number, number, number]; row: number }[] = [];
   const unplaced: string[] = [];
+  const unvalued: string[] = [];
   xCol.values.forEach((v, i) => {
     const lat = numberOf(latCol?.values[i] ?? null, latCol?.type);
     const lon = numberOf(lonCol?.values[i] ?? null, lonCol?.type);
@@ -160,11 +161,20 @@ export function mapOption(
       unplaced.push(placeText(v));
       return;
     }
-    if (value === null) return;
+    // a place with no value has no bubble: said, as a scatter's point with no size is
+    if (value === null) {
+      unvalued.push(placeText(v));
+      return;
+    }
     seen(value);
     points.push({ value: [lon, lat, value], row: i });
   });
   said(unplaced, 'place');
+  if (unvalued.length > 0) {
+    const named = unvalued.slice(0, NAMED_MISSING).join(', ');
+    const more = unvalued.length > NAMED_MISSING ? ` and ${unvalued.length - NAMED_MISSING} more` : '';
+    notes.push(`${unvalued.length} ${unvalued.length === 1 ? 'place has' : 'places have'} no ${measureTitle(first)} to size by: ${named}${more}.`);
+  }
   return {
     option: asOption({
       ...base,

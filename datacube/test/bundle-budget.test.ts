@@ -39,6 +39,18 @@ function outputsOf(bundle: string): ReadonlyMap<string, Output> {
 
 const PAGE = outputsOf(join(DEMO, 'bundle.js'));
 
+/** The chunks a page's first chart fetches: its renderer's and its drawing's, with all they import. */
+function firstChart(): ReadonlySet<string> {
+  const fetched = new Set<string>();
+  const visit = (f: string): void => {
+    if (fetched.has(f)) return;
+    fetched.add(f);
+    for (const s of PAGE.get(f)?.statics ?? []) visit(s);
+  };
+  [...PAGE.keys()].filter((f) => dirname(f) === CHUNKS && (holds(f, 'src/chart-render.ts') || holds(f, 'src/chart-option.ts'))).forEach(visit);
+  return fetched;
+}
+
 /** Whether a file of a bundle holds code of `module`: ECharts (any of its modules), or one of DataCube's by its path in
  *  the package (`src/chart-render.ts`; the record names it from wherever esbuild ran, so by its end). */
 function holds(file: string, module: string, outputs: ReadonlyMap<string, Output> = PAGE): boolean {
@@ -343,15 +355,9 @@ describe('the page loads ECharts only when a chart draws', () => {
 
   it(`the first chart fetches at most ${CHART_BUDGET.toLocaleString()} bytes more, gzipped: ECharts and the drawing`, () => {
     // what a chart adds to the page, beside the grid's own budget (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5)
-    // ECharts' chunks and the drawing's that a first chart fetches: those its renderer and drawing import, so a chunk
-    // only batch 3's kinds and the maps share (ECharts code of their own) is theirs, not a first chart's
-    const fetched = new Set<string>();
-    const visit = (f: string): void => {
-      if (fetched.has(f)) return;
-      fetched.add(f);
-      for (const s of PAGE.get(f)?.statics ?? []) visit(s);
-    };
-    chunksOf().filter((f) => holds(f, 'src/chart-render.ts') || holds(f, 'src/chart-option.ts')).forEach(visit);
+    // ECharts' chunks and the drawing's that a first chart fetches (firstChart): a chunk only batch 3's kinds and the
+    // maps share is theirs, counted with the kinds
+    const fetched = firstChart();
     const chart = chunksOf().filter((f) => (holds(f, 'echarts') || holds(f, 'src/chart-option.ts')) && !isKinds(f) && !isMaps(f)
       && fetched.has(f));
     assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
@@ -363,8 +369,14 @@ describe('the page loads ECharts only when a chart draws', () => {
     for (const f of startup()) assert.ok(!isKinds(f) && !holds(f, 'src/chart-kinds.ts'), `${f} carries batch 3's kinds`);
     const kinds = chunksOf().filter(isKinds);
     assert.equal(kinds.length, 2, 'the kinds\' drawing and their ECharts charts, a chunk each');
-    assert.ok(kinds.length >= 1, 'the kinds\' chunks are found');
-    const size = kinds.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    // with them, the ECharts code they share only with the maps' chunks: fetched with the first of either, counted here
+    // (the phase 6 audit: a chunk in no budget)
+    const shared = chunksOf().filter((f) => holds(f, 'echarts') && !isKinds(f) && !isMaps(f) && !firstChart().has(f));
+    for (const f of shared) {
+      assert.ok([...PAGE].every(([importer, out]) => !out.statics.includes(f) || isKinds(importer) || isMaps(importer)),
+        `${f} holds ECharts code a first chart does not fetch, and is fetched by something other than the kinds or the maps`);
+    }
+    const size = [...kinds, ...shared].reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= KINDS_BUDGET, `batch 3's kinds fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${KINDS_BUDGET.toLocaleString()}`);
   });
 

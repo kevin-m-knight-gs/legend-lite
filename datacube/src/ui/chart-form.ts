@@ -205,7 +205,9 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   );
   if (bubbles) {
     // where each place is: a number column of its latitude, another of its longitude (the chart groups by them)
-    const numbers = [...dimensions, ...measures].filter((c) => isNumeric(c.type)).map((c) => ({ value: c.name, label: c.name }));
+    // a number column once, whether a dimension or a measure (chartColumns lists a numeric dimension among both)
+    const numbers = [...new Set([...dimensions, ...measures].filter((c) => isNumeric(c.type)).map((c) => c.name))]
+      .map((name) => ({ value: name, label: name }));
     const place = (which: 'lat' | 'lon', text: string): HTMLElement => field(doc, text, dropdown<string>(
       doc, spec.at?.[which], numbers, (v) => {
         // the one chosen so far, or both: the rules ask for the other by name until it is chosen
@@ -277,12 +279,13 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   }
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter') form.append(...lookFields(h, spec));
   form.append(
-    field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
+    // a map draws no legend (its colour scale is its key): no choice of where it goes (the phase 6 audit)
+    ...(map || bubbles ? [] : [field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
       { value: 'top', label: 'Top' },
       { value: 'bottom', label: 'Bottom' },
       { value: 'right', label: 'Right' },
       { value: 'none', label: 'None' },
-    ] as const, (v) => { if (v) h.setOption('legend', v); })),
+    ] as const, (v) => { if (v) h.setOption('legend', v); }))]),
     // a box plot writes none of its five figures on its box (the phase 5 audit), nor a map its values on its places:
     // no checkbox that does nothing
     ...(box || map || bubbles ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),

@@ -611,9 +611,10 @@ class Chart(Tile):
         return next((g for g in self._page.grids if g._view['cube'] == cube), None)
 
     def plot(self, mark: str | None = None, *, x: Any = _KEEP, y: Any = _KEEP, split: Any = _KEEP,
-             frozen: bool | None = None) -> Chart:
+             frozen: bool | None = None, at: Any = _KEEP) -> Chart:
         """What it plots changed, as DataCube's options form changes it (chart-spec.ts editChart): its ``mark``, ``x``
-        (None: none), ``y``, ``split`` (None: none) or ``frozen`` (False: following its grid); what is not given stays, a
+        (None: none), ``y``, ``split`` (None: none), a bubble map's places ``at`` (``{'lat': ..., 'lon': ...}``; None:
+        none) or ``frozen`` (False: following its grid); what is not given stays, a
         new column across takes its own order and a grain or bins go with the old one, and a live chart told its ``x``,
         ``y`` or ``split`` freezes unless told ``frozen``. DataCube makes the edit and judges it (_made): a detached chart
         against its cube, which stays."""
@@ -621,6 +622,7 @@ class Chart(Tile):
         given = {**({'mark': mark} if mark is not None else {}), **({'x': x} if x is not _KEEP else {}),
                  **({'y': _measures(y)} if y is not _KEEP else {}),
                  **({'split': split} if split is not _KEEP else {}),
+                 **({'at': None if at is None else _carried(at)} if at is not _KEEP else {}),
                  **({'frozen': True if frozen else None} if frozen is not None else {})}
         self._page._apply_page([{'kind': 'setChart', 'chart': self._id,
                                  'spec': _made(self._page, view['cube'], given, view['spec'])}])
