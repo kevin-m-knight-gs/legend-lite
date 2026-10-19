@@ -445,6 +445,11 @@ public final class Postgres extends AnsiSqlRenderer {
                     .piece(json).append(") WITH ORDINALITY AS __j" + depth + "(" + e + ", " + o + ") ORDER BY " + o)
                     .append(") END)");
         }
+        // an instance: NULL for jsonb's null too, as a list's is (an absent property crossed as JSON's null, and a
+        // field read of it was a present, empty instance; step 9, 2026-10-19)
+        if (t instanceof SqlType.Struct) {
+            return w -> w.append("NULLIF(").piece(json).append(", 'null'::jsonb)");
+        }
         return json;
     }
 
