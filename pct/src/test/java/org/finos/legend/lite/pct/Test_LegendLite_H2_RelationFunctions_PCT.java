@@ -73,14 +73,10 @@ public class Test_LegendLite_H2_RelationFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::relation::tests::project::testSimpleProjectList_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),   // lite only: the engine passes it on H2
             one("meta::pure::functions::relation::tests::composition::testFilterPostProject_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),   // lite only: the engine passes it on H2
             // PIVOTS ON THE PLAN ROUTE (step 9, 2026-10-19, the H2 lane's first run on the plan route: 455 of 469,
-            // these fourteen): pinned by name, not fixed here (one shared item, owned by the session that merges the
-            // lanes); the engine refuses every pivot on H2 (register S80). A static pivot has no emulation on the plan
-            // route yet ...
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot_Function_1__Boolean_1_", "\"pivot reached a dialect without a PIVOT strategy\""),
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit_Function_1__Boolean_1_", "\"pivot reached a dialect without a PIVOT strategy\""),
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort_Function_1__Boolean_1_", "\"pivot reached a dialect without a PIVOT strategy\""),
-            one("meta::pure::functions::relation::tests::composition::test_Pivot_Filter_Function_1__Boolean_1_", "\"pivot reached a dialect without a PIVOT strategy\""),
-            // ... and a dynamic pivot's text reads each row's JSON, which H2's dialect has no form for
+            // fourteen pivots; the four cast ones answer since the cast's keys became the pivot's named values,
+            // register S83): pinned by name, not fixed here (one shared item, owned by the session that merges the
+            // lanes); the engine refuses every pivot on H2 (register S80). An uncast dynamic pivot's text reads each
+            // row's JSON, which H2's dialect has no form for
             one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"variant navigation reached a dialect without JSON support\""),
