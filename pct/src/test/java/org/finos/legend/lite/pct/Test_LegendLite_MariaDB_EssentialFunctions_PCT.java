@@ -63,7 +63,15 @@ public class Test_LegendLite_MariaDB_EssentialFunctions_PCT extends PCTReportCon
             one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"a date past the year 9999 has no MariaDB value\""),
             // MARIADB'S OWN LIMIT: no named time zone without the server's zone tables (loaded from the host's
             // zoneinfo, which a hermetic server does not read)
-            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached MariaDB: MariaDB knows no named time zone but UTC without its zone tables\"")
+            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached MariaDB: MariaDB knows no named time zone but UTC without its zone tables\""),
+            // step 9, 2026-10-19, the plan route: the TDS text's GROUP_CONCAT carries no order, and this server drops a
+            // derived table's ORDER BY (no LIMIT); the dedup's order key (__dd_index) is no output of the select that
+            // orders by it, behind a SELECT * wrapper, so Render.hoistOrder finds none to carry, and the rows arrive in
+            // the window's partition order. Open: the text's aggregate ordered by the relation's own order, carried out
+            one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "\"\nexpected: [1, 2, '1', '3', 3]\nactual:   ['1', '3', 1, 2, 3]\""),
+            // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor crosses
+            // as JSON without its class, which the text carrier has no form for; register S81 (as on DuckDB)
+            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "\"the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form\"")
     );
 
     public static Test suite() {

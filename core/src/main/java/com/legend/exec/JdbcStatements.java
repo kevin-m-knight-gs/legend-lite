@@ -53,7 +53,7 @@ final class JdbcStatements implements Statements {
             StatementOrigin.sent(statement);
             st.execute(statement);
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e);
+            throw PlanSessions.dataError(e, c);
         }
     }
 
@@ -71,7 +71,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e);
+            throw PlanSessions.dataError(e, c);
         }
     }
 
@@ -98,7 +98,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e);
+            throw PlanSessions.dataError(e, c);
         }
     }
 

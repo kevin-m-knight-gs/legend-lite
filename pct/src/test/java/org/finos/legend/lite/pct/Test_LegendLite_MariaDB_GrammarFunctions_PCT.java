@@ -45,7 +45,10 @@ public class Test_LegendLite_MariaDB_GrammarFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
             // MARIADB'S OWN LIMIT: a DATE or DATETIME is of the years 1000-9999 (a five-digit year has no value;
             // raised where an interval is added, a wrong comparison where a literal is one)
-            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Assert failed\"")
+            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Assert failed\""),
+            // step 9, 2026-10-19, the plan route: a model element referenced as a value crosses by its simple name, and
+            // five TestClasses defeat the text carrier's reader; register S82 (as on DuckDB)
+            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches:\n    meta::json::tests::TestClass\n    meta::pure::functions::collection::tests::removeAll::TestClass\n    meta::pure::functions::lang::tests::letFn::TestClass\n    meta::pure::metamodel::serialization::grammar::tests::testNew::TestClass\n    meta::pure::tds::toRelation::TestClass -- TestClass\"")
     );
 
     public static Test suite() {
