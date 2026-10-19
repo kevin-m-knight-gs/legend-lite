@@ -41,7 +41,10 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             // Float is a double (numeric charter Rule 2) -- deliberate, on every dialect
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "expected: 0\nactual:   1"),
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123456780.0"),
+            // step 9, 2026-10-19, the plan route: the value lane's Float root as Postgres's DOUBLE text (15 significant
+            // digits), where the legacy route's Java text was ...780; both lose the literal's decimals (the DuckDB
+            // lane's pin, the same cause: the value lane keeping a DECIMAL slot exact is an item of step 9)
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123457000.0"),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "expected: 1\nactual:   2"),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "expected: 4\nactual:   5"),
             // Postgres raises differently (its own error, or a different position or wording)
@@ -56,16 +59,19 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::date::tests::testMinuteError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 36"),
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 29"),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 36"),
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Infinite or NaN"),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Infinite or NaN"),
+            // step 9, 2026-10-19, the plan route: the NaN cell spelled NaN by the text carrier, refused by Pure's
+            // parseFloat (the legacy route's Java BigDecimal said "Infinite or NaN"; the DuckDB lane's pin, the same cause)
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\""),
             // a comparator dedup's CASE: its list branch loses the LITERAL label in the shared carrier pass, its
             // reduction keeps it (Unknown); the fix is a semantic dedup node (CARRIER_REDESIGN tenet #1), not a dialect's
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
-            // a Variant cell (instances of two subclasses) reaches the bridge as pgjdbc's PGobject: no DriverCells reads
-            // it, as DuckDbCells reads DuckDB's node (2026-10-12: delivering it as text in normalize broke main's
-            // Postgres parity, which reads the PGobject); a Postgres DriverCells is the fix, the plan's P5 connector
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "no typed conversion for org.postgresql.util.PGobject (type=ClassType[fqn=meta::pure::functions::collection::tests::model::CO_GeographicEntity])"),
+            // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor
+            // (CO_Address and CO_Location as CO_GeographicEntity) crosses as JSON without its class, which the text
+            // carrier has no form for (the DuckDB lane's pin, the same cause; register S81). The legacy route's
+            // message was pgjdbc's PGobject reaching the bridge unread.
+            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form"),
             // refused by name: a construct the Postgres dialect does not spell yet
             one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
