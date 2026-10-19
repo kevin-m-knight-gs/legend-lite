@@ -469,8 +469,19 @@ public final class Databricks extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter structLit(SqlWriter writer, SqlExpr.StructLit st) {
+        // a NULL member is VOID to Spark, which a list function over it refuses (`transform` of an instance's absent
+        // to-many property, and of a to-many property read off an absent to-one instance, measured 2026-10-19; step 9,
+        // the Databricks lane's testAssignNewInstance): a composite member's NULL is written in its declared type
         return writer.append("named_struct(")
-                .join(st.fields(), ", ", (w, f) -> w.append(stringLit(f.name())).append(", ").expr(f.value(), 0))
+                .join(st.fields(), ", ", (w, f) -> {
+                    w.append(stringLit(f.name())).append(", ");
+                    if (f.value() instanceof SqlExpr.NullLit && (f.declared() instanceof SqlType.Array
+                            || f.declared() instanceof SqlType.Struct || f.declared() instanceof SqlType.Map)) {
+                        w.append("CAST(NULL AS ").append(castTypeName(f.declared())).append(")");
+                    } else {
+                        w.expr(f.value(), 0);
+                    }
+                })
                 .append(")");
     }
 
