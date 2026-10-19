@@ -1497,6 +1497,7 @@ core_layer_queries(not_layers = {
     "duckdb_load": "the drivers' bulk loader, beside the layers",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
+    "postgres_cells": "Postgres's JSON cells behind the DriverCells seam, beside the drivers (the plan path program's step 9, 2026-10-19)",
     "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",
     "test_cases": "the test cases core's tests and postgres_arm_test share, not product code",

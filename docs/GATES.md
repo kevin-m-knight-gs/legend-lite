@@ -10711,6 +10711,12 @@ then those six under `tools/postgres/as_unprivileged.sh ubuntu` 6 of 6 (`postgre
 `//parser-equivalence:update_ratchets_test`) passed at the reconciliation. The server lanes' channel A and B verdicts
 are the siblings' on their containers (above, and the entry below). The Snowflake and BigQuery lanes never ran: both
 containers' permission layer refused the credential read from Secrets Manager, reported to the user, not worked around.
+`//gates:checks`, run for the first time on the program's branch: 137 of 139 (one skipped), the one failure
+`//tools/deps:core_layering_test` naming four facts its register did not carry, each registered with its step
+(`tools/deps/core-layers.txt`, `core/BUILD.bazel`'s `not_layers`): `postgres_cells` beside the drivers, not a layer;
+`plan` reaches `execution_plan` (step 1a, `PlanColumns`); `driver` reaches `execution_plan` (step 7, `JudgePlans`);
+`exec` reaches `json` (steps 6 and 9, the typed-row decode of a cell delivered as JSON text). The layering and closure
+guards pass on the registration.
 
 ## 2026-10-19 — The plan path program, step 9: the siblings' lanes merged; channel B on the server lanes measured, four causes fixed, the rest named
 
