@@ -198,8 +198,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  with their undo, each grid's lens on its queries (runner.ts lensed, cube.ts and app.ts setLens, its status bar's
  *  readout), a chart's click taken as one -- and a class as a source (cube-document.ts, app/sources.ts openedClass). The
  *  filter bar, the class source's rules and the page commands are chunks fetched with a page's first class grid or
- *  filter. Measured 296,324; 297,275 before the bar and the class helper were made lazy. */
-const BUDGET = 296_500;
+ *  filter. Measured 296,324; 297,275 before the bar and the class helper were made lazy.
+ *  296,500 -> 297,000 (2026-10-19, step 3's audit: a class's cube opened after the others and left out when its rows
+ *  are not here, filter edits one after another, a chart's mark split between the page and its grid, Open in Grid's
+ *  grid given the page's filters as they change). Measured 296,653. */
+const BUDGET = 297_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -239,8 +242,9 @@ const BUDGET = 296_500;
  *  279,416.
  *  280,000 -> 281,000 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 280,228.
  *  281,000 -> 285,000 (2026-10-19, the model plan's step 3: the page's filters and a class as a source -- the grid's note
- *  of the same date). Measured 284,804. */
-const ENGINE_BUDGET = 285_000;
+ *  of the same date). Measured 284,804.
+ *  285,000 -> 285,500 (2026-10-19, step 3's audit -- the grid's note of the same date). Measured 285,174. */
+const ENGINE_BUDGET = 285_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -344,8 +348,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  296,883.
  *  297,500 -> 298,500 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 297,692.
  *  298,500 -> 302,600 (2026-10-19, the model plan's step 3: the page's filters and a class as a source -- the grid's
- *  note of the same date). Measured 302,450. */
-const WIDGET_BUDGET = 302_600;
+ *  note of the same date). Measured 302,450.
+ *  302,600 -> 303,000 (2026-10-19, step 3's audit -- the grid's note of the same date). Measured 302,803. */
+const WIDGET_BUDGET = 303_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
