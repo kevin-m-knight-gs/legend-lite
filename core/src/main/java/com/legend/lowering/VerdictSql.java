@@ -1609,16 +1609,20 @@ public final class VerdictSql {
                         new SqlExpr.FloatLit(Double.MAX_VALUE)),
                 SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, va),
                         new SqlExpr.FloatLit(Double.MAX_VALUE)));
+        // the leniency's constants are DOUBLES, said so: a dialect whose numeric charter spells a Float literal as
+        // an exact Decimal (ClickHouse) refused the arithmetic over Float64 cells, "no supertype for Decimal(2, 1),
+        // Float64" (channel B on ClickHouse, step 9, 2026-10-19)
+        SqlExpr zero = new SqlExpr.Cast(new SqlExpr.FloatLit(0.0), SqlType.Scalar.DOUBLE);
+        SqlExpr two = new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE);
         SqlExpr twoUlp = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, big, new SqlExpr.FloatLit(0.0)),
-                new SqlExpr.FloatLit(0.0))),
-                SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.FloatLit(2.0),
-                        SqlExpr.Call.of(SqlFn.POW, new SqlExpr.FloatLit(2.0),
+                SqlExpr.Call.of(SqlFn.EQUAL, big, zero), zero)),
+                SqlExpr.Call.of(SqlFn.TIMES, two,
+                        SqlExpr.Call.of(SqlFn.POW, two,
                                 SqlExpr.Call.of(SqlFn.MINUS,
                                         SqlExpr.Call.of(SqlFn.FLOOR,
                                                 SqlExpr.Call.of(SqlFn.DIVIDE,
                                                         SqlExpr.Call.of(SqlFn.LN, big),
-                                                        SqlExpr.Call.of(SqlFn.LN, new SqlExpr.FloatLit(2.0)))),
+                                                        SqlExpr.Call.of(SqlFn.LN, two))),
                                         new SqlExpr.IntLit(52)))));
         SqlExpr pairOk = SqlExpr.Call.of(SqlFn.OR,
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col(ec, C), col(ac, C)),
