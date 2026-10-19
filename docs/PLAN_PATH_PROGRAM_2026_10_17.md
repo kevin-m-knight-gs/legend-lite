@@ -294,6 +294,14 @@ does not close while any of them has neither a fix nor a recorded ruling by the 
   root; the judges' numeric canon decides whether it lands or is ruled engine parity (the engine's adapters pin it).
 - **The inverse trigonometric NaN** (`testArcSineError`, `testArcCosineError`): engine parity (its relational
   adapters ledger both; H2 answers NaN); stays unless ruled otherwise.
+- **An uncast dynamic pivot's text on a dialect without a row-to-JSON form** (ten relation cases per lane, the
+  `testPivot_*` family without a cast; found 2026-10-19 on H2 and SQLite, "a row as JSON reached a dialect without a
+  row-to-JSON form", "variant navigation reached a dialect without JSON support"): the database builds such a
+  pivot's TDS text from each row's own JSON (step 4), a form only DuckDB's dialect writes today. Resolved by each
+  dialect's own row-to-JSON arm where the database has one (H2 and MariaDB's `JSON_OBJECT`, SQLite's `json_object`,
+  Postgres' `row_to_json`, the others' measured when the arm lands), a render item per dialect; a lane whose database
+  has none pins them by name (the engine refuses every pivot on H2, S80). The cast form is not residue: it answers
+  on every dialect since 2026-10-19 (S83).
 
 **What never goes through a plan, and should not**: compiling a model, the language server, diagrams, tests that
 assert a compile error, the corpus buckets that exercise the engine's own machinery (routing internals,
@@ -311,6 +319,14 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-19, step 9: every lane flipped, a plan written for the session's server version, six sibling sessions
+  started, the cast over a dynamic pivot landed on every dialect** (GATES "step 9: every PCT lane flipped"):
+  `throughThePlan` true for every lane (`83f2810`); the H2 lane's 414 version refusals fixed by planning for the
+  session's server (`2b7bad3`); the siblings (`docs/STEP9_LANE_BRIEF_2026_10_19.md`) burn their lanes down on their
+  own branches while this session landed the shared item: the keys a cast names are the pivot's named values and
+  every static emulation pivots on them (S83), so the four composition cases pass on every lane. Verdicts: nine core
+  lanes pass, DuckDB's relation suite exact, H2 459 of 469 and SQLite's relation suite 459 of 469 (the ten uncast
+  dynamic pivots each, §7's residue). Next: the siblings' merge, the corpus lanes and the core gate on it.
 - **2026-10-18, step 9, first landing: the DuckDB PCT lane exact on the plan route** (GATES "step 9, first
   landing"): the flipped lane's first run failed 12 of 1,249; fixed at the root: a Number-typed value read by the
   wire header's type and a Number root labelled by its cell's own numeric slot, its Decimal spelled with its D by the

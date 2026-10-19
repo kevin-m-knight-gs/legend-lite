@@ -106,7 +106,12 @@ do not loop.
      Measured before the siblings started (2026-10-19): H2 on the plan route 455 of 469, every failure a pivot (10
      dynamic, 4 static); SQLite 1,227 of 1,249: 14 pivots, the three DuckDB message-moved pins, the namesake, the
      heterogeneous collection, and one `[SQLITE_TOOBIG] String or BLOB exceeds size limit (statement too long)` to
-     root-cause (which statement, and why its text is so long).
+     root-cause (which statement, and why its text is so long). **Landed in the parent session the same day, after
+     the siblings started (register S83):** the four "static" cases were dynamic pivots a cast names
+     (`test_Pivot_Filter` and the three `test_Extend_Filter_Select_*_Pivot_*` composition cases); the cast's keys are
+     now the pivot's named values, pivoted on by every emulation, so they pass on every lane (H2 459 of 469, SQLite's
+     relation suite 459 of 469, the ten left the uncast dynamic pivots' text road). A sibling that pinned them pins
+     nothing wrong: the merge removes those four pins.
    - `Class.all()` on a server lane: the plan's metamodel setup is refused on a database reached by a URL ("the plan
      has setup for it: never run on it", `PlanSessions`); pin by name and report it -- the fix (the system tables as
      the session's temporary tables, as the legacy `SystemDatabase` did) is a shared item, not yours.

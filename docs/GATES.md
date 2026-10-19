@@ -10653,6 +10653,50 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-19 — The plan path program, step 9: every PCT lane flipped, the siblings started, a cast over a dynamic pivot on every dialect
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9 (its §9 and `docs/IN_FLIGHT.md` carry the lines).
+
+**Every lane flipped (`83f2810`).** `PctBackend.throughThePlan` is true for every lane. **A plan written for the
+session's server version (`2b7bad3`):** the H2 lane on the plan route refused 414 of 469 cases on the version alone
+(the plan for the engine-parity H2 2.1 and 2.2, the lane's session the modern 2.4); `PctBackend.serverVersion` reads
+the session's version once, `PctPlanRoute` passes it, `TypedQuery.executionPlan`'s last argument hands it to
+`PlanMaker`, which asks the dialect for the one spelling for that version (`SqlDialect.forServer`) and narrows the
+plan's servers to its major.minor. H2 then 455 of 469, every failure a pivot. Verdicts then: `//core:core_tests_root`
+and `//pct:pct_duckdb_relation` pass.
+
+**The six sibling sessions (from `385ef14`; the brief `docs/STEP9_LANE_BRIEF_2026_10_19.md`):** one container per
+cloud database (snowflake, bigquery, databricks), trino with h2, postgres with sqlite and mongodb, mariadb with mysql
+and clickhouse; each on its own branch `claude/step9-<container>`, fixing at the root or pinning by name, channel B as
+the regression, reporting to this session. Their landing is a later entry.
+
+**The shared item, landed here: a cast over a dynamic pivot on a dialect without a dynamic PIVOT (register S83).**
+H2's and SQLite's four "static" failures (`test_Pivot_Filter`, `test_Extend_Filter_Select_ComplexGroupBy_Pivot`,
+`test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort`, `test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit`;
+"pivot reached a dialect without a PIVOT strategy", "a pivot reached SQLite unemulated") were dynamic pivots
+(`pivot(~[year], ~[newCol: ...])`, no values) a cast names: the lowering projected the cast's columns from the pivot
+(step 7) but the pivot's IN stayed empty, so every static emulation stood aside and the writer refused. Now the keys
+the cast names are the pivot's NAMED values (`SqlSource.Pivot.named`: `'2011__|__newCol'` names 2011, each the ON
+key's typed literal -- an integer, text or boolean slot, another refused by name), set by
+`Lowerer.castOverDynamicPivot`; `Pivot.values()` is IN's values, else the named ones, and every emulation pivots on
+it (`CarrierStrategies` PV1, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Databricks.pivotSource`,
+`MongoDbPipeline.pivot`; a generated column's slot is the USING's where the pivot's outputs carry none,
+`CarrierStrategies.generatedSlot`). No row is pinned by them (a static IN filters its rows at the lowering,
+`Pivots.lower`; the named values do not): a group whose key the cast does not name keeps its row with its named cells
+null, as DuckDB's dynamic form answers through the same cast. DuckDB reads `in()` alone and keeps the dynamic form
+(engine-exact; a named key no row has stays its error there, a null column elsewhere: S83). The plan JSON carries
+`named` (format 7; `PlanJsonTest`'s two version pins moved with the reason).
+`PlanMakerTest.aCastOverADynamicPivotAnswersOnADatabaseWithoutADynamicPivot`: the same text on DuckDB (its PIVOT) and
+H2 (`CASE WHEN ... = 2011`, no PIVOT), the plan round-tripping.
+
+**Verdicts (2026-10-19):** `//core:core_tests_root`, `_lowering`, `_sql`, `_exec`, `_integration`, `_compiler`,
+`_resolver`, `_architecture` and `//core:mongodb_plan_test` pass (9 of 9; the root lane once the two version pins
+moved); `//pct:pct_duckdb_relation` passes (the DuckDB lane stays exact); `//pct:pct_h2` 459 of 469 (was 455) and
+`//pct:pct_sqlite_relation` 459 of 469 (was 455), the ten left on each the uncast dynamic pivots' text road
+("variant navigation reached a dialect without JSON support", "a row as JSON reached a dialect without a row-to-JSON
+form"), a named residue of the program (§7) the siblings pin by name. The core gate and the corpus lanes run at the
+siblings' merge.
+
 ## 2026-10-18 — The plan path program, step 9, first landing: the DuckDB PCT lane on the plan route, its twelve failures fixed or named
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9 (announced in its §9 and `docs/IN_FLIGHT.md` with the
