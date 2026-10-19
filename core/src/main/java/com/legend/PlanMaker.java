@@ -272,7 +272,8 @@ final class PlanMaker {
                 }
             }
         }
-        return new Metamodel(List.copyOf(setup), List.copyOf(session), Map.copyOf(renames));
+        return new Metamodel(List.copyOf(setup), List.copyOf(session),
+                java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(renames)));
     }
 
     private static void collectSystemTables(com.legend.compiler.spec.typed.TypedSpec n, java.util.Set<String> out) {

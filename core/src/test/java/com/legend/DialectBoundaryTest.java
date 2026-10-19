@@ -104,12 +104,15 @@ class DialectBoundaryTest {
     // (20 -> 21); Sessions' two refusals by name, no JDBC product and no JDBC opening (24 -> 26); the storeless
     // runtime's refusal of the relational form, its runtime being the engine's MongoDBConnection (5 -> 6)
     private static final Map<String, Integer> DATABASE_TYPE_CASES = Map.of(
-            "Databases.java", 21,           // the owner: a declared type's dialect, engine text and plan facts
-            "Sessions.java", 26,            // the session owner: each type's product name, URL and opening (Phase 5)
+            // Databases 21 -> 23, Sessions 26 -> 25 (2026-10-19, the plan path program's step 9: whether a type runs in
+            // this process is the plan side's fact, Databases.inProcess, which Sessions reads; Sessions gains Trino's
+            // opening); PlanJson 4 -> 5 (2026-10-19: the Trino specification's tag)
+            "Databases.java", 23,           // the owner: a declared type's dialect, engine text and plan facts
+            "Sessions.java", 25,            // the session owner: each type's product name, URL and opening (Phase 5)
             "EngineText.java", 7,           // legend-engine's golden text per database, root layer only
             // a connection specification's tag (same names as the types) when a plan's JSON is read: each
             // specification's own fields, the connector's (Phase 5)
-            "PlanJson.java", 4,
+            "PlanJson.java", 5,
             // the test runtime a type declares (core/.../test): its specification text, the harness's (Phase 6)
             "StorelessRuntime.java", 6);
 
@@ -160,8 +163,10 @@ class DialectBoundaryTest {
     /** Lines spelling a JDBC URL, by file: only the execution side's session owner opens a database (C3b). */
     // Sessions.java 9 -> 10 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): a MariaDB connection's
     // declared static datasource is jdbc:mariadb://
+    // Sessions.java 10 -> 11 (2026-10-19, the plan path program's step 9): a Trino connection's declared
+    // specification is jdbc:trino://
     private static final Map<String, Integer> JDBC_URLS = Map.of(
-            "Sessions.java", 10);           // the declared specifications' URLs and the in-memory instances
+            "Sessions.java", 11);           // the declared specifications' URLs and the in-memory instances
 
     @Test
     void eachDatabaseDecisionHasOneOwner() throws IOException {

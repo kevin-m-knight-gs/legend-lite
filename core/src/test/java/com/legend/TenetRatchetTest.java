@@ -71,7 +71,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("guardrail")
 class TenetRatchetTest {
 
-    private static final int RESULT_SET_ACCESSOR_SITES = 15;
+    // 15 -> 20 (2026-10-18/19, the plan path program's step 6, typed rows: JdbcDecode reads a driver's typed
+    // cells by the plan's slots, six sites of carriage -- a Map, an Array, a Struct, a Struct's attributes --
+    // beside Executor's nine, which step 11 deletes with the legacy executor; the number then goes down)
+    private static final int RESULT_SET_ACCESSOR_SITES = 20;
 
     private static final List<String> DRIVERS = List.of("org.duckdb", "org.h2.", "org.sqlite", "org.postgresql",
             "org.mariadb", "com.mysql", "com.clickhouse", "io.trino", "net.snowflake", "com.databricks", "com.simba",

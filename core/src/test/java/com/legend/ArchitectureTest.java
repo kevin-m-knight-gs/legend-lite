@@ -769,7 +769,9 @@ final class ArchitectureTest {
             java.util.Map.entry("GridProbe", 3),
             java.util.Map.entry("ColumnProbe", 1),   // PctProbe, renamed for what it does (2026-10-17)
             java.util.Map.entry("PureAsserts", 1),
-            java.util.Map.entry("Sessions", 2),
+            // 2 -> 3 (2026-10-19, the plan path program's step 9): whether a database type runs in this process is
+            // the plan side's fact (Databases.inProcess), read by the session owner
+            java.util.Map.entry("Sessions", 3),
             java.util.Map.entry("SetupRunner", 3),
             java.util.Map.entry("SqlReplayReferee", 1),
             java.util.Map.entry("SystemDatabase", 3),
@@ -1095,6 +1097,12 @@ final class ArchitectureTest {
             // 2026-10-18 (the plan path program's step 6): the runner's typed-row decode has the same arm -- a cell
             // whose plan column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
             .and().doNotHaveFullyQualifiedName("com.legend.exec.RowDecode")
+            // 2026-10-18 (step 6, the typed rows): the plan runner's decode of a driver's cell by the plan column's
+            // slot has the same LITERAL arm, over the cell's text; 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12):
+            // the MongoDB connector's decode of a document's cell by the same slot label. Registered 2026-10-19 at
+            // step 9's merge, where the guard lanes outside the core suite first ran on the program's branch.
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.JdbcDecode")
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.MongoDbDecode")
             .and().doNotHaveFullyQualifiedName("com.legend.values.LiteralText")
             .should().dependOnClassesThat().haveFullyQualifiedName(
                 "com.legend.values.LiteralText")

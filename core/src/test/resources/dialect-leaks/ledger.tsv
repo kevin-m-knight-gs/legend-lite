@@ -17,14 +17,17 @@ core/src/main/java/com/legend/compiler/spec/SqlIslands.java	product-name	2
 core/src/main/java/com/legend/exec/H2Settings.java	product-name	2
 core/src/main/java/com/legend/exec/PlanSessions.java	product-call	1
 core/src/main/java/com/legend/exec/Sessions.java	database-type	3
-core/src/main/java/com/legend/exec/Sessions.java	jdbc-url	10
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (10 -> 11)
+core/src/main/java/com/legend/exec/Sessions.java	jdbc-url	11
 core/src/main/java/com/legend/exec/Sessions.java	product-call	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 # 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D4 and D12: Sessions names MongoDB on four more lines, each a refusal by name (no in-process instance, no JDBC product, no JDBC opening: its connector opens it through the plan runner); 65 -> 69.
-core/src/main/java/com/legend/exec/Sessions.java	product-name	69
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (69 -> 92)
+core/src/main/java/com/legend/exec/Sessions.java	product-name	92
 core/src/main/java/com/legend/executionplan/PlanJson.java	database-type	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	27
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (27 -> 30)
+core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	30
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 # 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
 core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
@@ -51,9 +54,11 @@ core/src/test/java/com/legend/AssertErrorNativeTest.java	database-type	1
 core/src/test/java/com/legend/AssertErrorNativeTest.java	jdbc-url	1
 core/src/test/java/com/legend/AssertErrorNativeTest.java	product-name	1
 core/src/test/java/com/legend/AssertVerdictSpliceTest.java	jdbc-url	1
-core/src/test/java/com/legend/AssertVerdictsTest.java	database-type	1
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (1 -> 2)
+core/src/test/java/com/legend/AssertVerdictsTest.java	database-type	2
 core/src/test/java/com/legend/AssertVerdictsTest.java	jdbc-url	1
-core/src/test/java/com/legend/AssertVerdictsTest.java	product-name	1
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (1 -> 2)
+core/src/test/java/com/legend/AssertVerdictsTest.java	product-name	2
 core/src/test/java/com/legend/AuditRound3Test.java	database-type	2
 core/src/test/java/com/legend/AuditRound3Test.java	jdbc-url	2
 core/src/test/java/com/legend/AuditRound3Test.java	product-name	2
@@ -71,10 +76,12 @@ core/src/test/java/com/legend/OutputMatrixTest.java	database-type	1
 core/src/test/java/com/legend/OutputMatrixTest.java	jdbc-url	2
 core/src/test/java/com/legend/OutputMatrixTest.java	product-name	5
 # 2026-10-18, the plan path program's step 4 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): the dynamic pivot's test names DuckDB, the one database whose pivot the plan path runs, as the plan maker's other tests do (database-type 27 -> 30, product-name 40 -> 43).
-core/src/test/java/com/legend/PlanMakerTest.java	database-type	30
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (30 -> 41)
+core/src/test/java/com/legend/PlanMakerTest.java	database-type	41
 core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	4
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/PlanMakerTest.java	product-name	43
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (43 -> 57)
+core/src/test/java/com/legend/PlanMakerTest.java	product-name	57
 core/src/test/java/com/legend/PlanOnJavaBase.java	product-name	4
 core/src/test/java/com/legend/StoreTypesTest.java	jdbc-url	1
 core/src/test/java/com/legend/StoreTypesTest.java	product-name	2
@@ -124,12 +131,16 @@ core/src/test/java/com/legend/exec/ExecuteInDbTest.java	database-type	1
 core/src/test/java/com/legend/exec/ExecuteInDbTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/ExecuteInDbTest.java	product-name	1
 core/src/test/java/com/legend/exec/ExecutorTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/InstanceIdentityTest.java	database-type	1
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (1 -> 2)
+core/src/test/java/com/legend/exec/InstanceIdentityTest.java	database-type	2
 core/src/test/java/com/legend/exec/InstanceIdentityTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/InstanceIdentityTest.java	product-name	1
-core/src/test/java/com/legend/exec/LiteralChannelTest.java	database-type	1
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (1 -> 2)
+core/src/test/java/com/legend/exec/InstanceIdentityTest.java	product-name	2
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (1 -> 2)
+core/src/test/java/com/legend/exec/LiteralChannelTest.java	database-type	2
 core/src/test/java/com/legend/exec/LiteralChannelTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/LiteralChannelTest.java	product-name	1
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (1 -> 2)
+core/src/test/java/com/legend/exec/LiteralChannelTest.java	product-name	2
 core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	database-type	3
 core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	jdbc-url	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
@@ -137,10 +148,13 @@ core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	product
 core/src/test/java/com/legend/exec/Phase1AuditTest.java	database-type	5
 core/src/test/java/com/legend/exec/Phase1AuditTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/Phase1AuditTest.java	product-name	5
-core/src/test/java/com/legend/exec/PlanRunnerTest.java	database-type	17
-core/src/test/java/com/legend/exec/PlanRunnerTest.java	jdbc-url	2
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (17 -> 18)
+core/src/test/java/com/legend/exec/PlanRunnerTest.java	database-type	18
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (2 -> 3)
+core/src/test/java/com/legend/exec/PlanRunnerTest.java	jdbc-url	3
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/exec/PlanRunnerTest.java	product-name	32
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (32 -> 37)
+core/src/test/java/com/legend/exec/PlanRunnerTest.java	product-name	37
 core/src/test/java/com/legend/exec/RawGridSchemaTest.java	database-type	1
 core/src/test/java/com/legend/exec/RawGridSchemaTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/RawGridSchemaTest.java	product-name	1
@@ -162,7 +176,8 @@ core/src/test/java/com/legend/exec/WireTypesTest.java	product-name	4
 core/src/test/java/com/legend/executionplan/PlanJsonTest.java	database-type	3
 core/src/test/java/com/legend/executionplan/PlanJsonTest.java	jdbc-url	1
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-core/src/test/java/com/legend/executionplan/PlanJsonTest.java	product-name	12
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (12 -> 14)
+core/src/test/java/com/legend/executionplan/PlanJsonTest.java	product-name	14
 core/src/test/java/com/legend/integration/AsOfJoinCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/AssociationIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/ComputedProjectIntegrationTest.java	jdbc-url	6
@@ -542,7 +557,8 @@ pct/src/test/java/org/finos/legend/lite/pct/extension/CloudLane.java	product-nam
 pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	database-type	12
 pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	jdbc-url	3
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
-pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	product-name	69
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (69 -> 71)
+pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	product-name	71
 spec/src/test/java/com/legend/generators/Phase3bProbesTest.java	product-name	3
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 spec/src/test/java/com/legend/harness/H2ExtensionFunctions.java	product-name	12
@@ -576,3 +592,23 @@ warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	product-name
 warehouse/src/test/java/com/legend/warehouse/WarehousePostgresLiveTest.java	product-name	7
 warehouse/src/test/java/com/legend/warehouse/server/AppModeTest.java	product-name	11
 warehouse/src/test/java/com/legend/warehouse/server/PostgresCatalogTest.java	product-name	22
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/main/postgres/com/legend/exec/PostgresCells.java	driver	1
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/main/postgres/com/legend/exec/PostgresCells.java	product-name	2
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/JudgesOnPlansTest.java	database-type	4
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/JudgesOnPlansTest.java	jdbc-url	2
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/JudgesOnPlansTest.java	product-name	12
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/exec/JdbcDecodeTest.java	jdbc-url	5
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/exec/JdbcDecodeTest.java	product-name	3
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/exec/SeamBenchmarkTest.java	database-type	3
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/exec/SeamBenchmarkTest.java	jdbc-url	3
+# 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (new)
+core/src/test/java/com/legend/exec/SeamBenchmarkTest.java	product-name	15

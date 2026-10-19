@@ -99,6 +99,12 @@ class JdbcSurfaceCensusTest {
             // C3c (2026-10-04): DuckDB's own JSON cell type, recognised beside its driver (DriverCells) — it
             // moved out of Executor, which matched the class by name; carriage only (the node's text)
             "core/src/main/duckdb/com/legend/exec/DuckDbCells.java",
+            // 2026-10-19 (the plan path program's step 9): Postgres's json and jsonb cells, a PGobject's text,
+            // recognised beside its driver as DuckDB's are (DriverCells); carriage only (the cell's text)
+            "core/src/main/postgres/com/legend/exec/PostgresCells.java",
+            // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12): the MongoDB connector's decode of a document's
+            // cells by the plan's slots, beside its driver; carriage only (the connector's own result in)
+            "core/src/main/mongodb/com/legend/exec/MongoDbDecode.java",
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED

@@ -3502,8 +3502,8 @@ public final class Lowerer {
 
     /**
      * The key a cast's generated column names, as the pivot's ON key spells it: an integer slot's text as an
-     * integer literal, a text slot's as a string, a boolean slot's as a boolean (a composite key, the lowering's own
-     * concatenation, is text). Another slot, or a text the slot cannot read, is refused by name (invariant 4).
+     * integer literal, a text slot's as a string (a composite key, the lowering's own concatenation, is text).
+     * Another slot (a boolean key is unwitnessed), or a text the slot cannot read, is refused by name (invariant 4).
      */
     private static SqlExpr pivotKeyLiteral(SqlSource.Pivot pivot, String text, String column) {
         if (pivot.on().size() != 1) {
@@ -3528,13 +3528,6 @@ public final class Lowerer {
                 }
             }
             case VARCHAR -> new SqlExpr.StringLit(text);
-            case BOOLEAN -> {
-                if (!text.equals("true") && !text.equals("false")) {
-                    throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over a boolean"
-                            + " pivot key, but '" + text + "' is no boolean");
-                }
-                yield new SqlExpr.BoolLit(text.equals("true"));
-            }
             default -> throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over a pivot"
                     + " key of type " + scalar + ": no literal spelling");
         };

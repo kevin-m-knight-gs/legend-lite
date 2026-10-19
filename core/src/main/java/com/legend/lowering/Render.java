@@ -1170,7 +1170,7 @@ public final class Render {
     /** A dynamic pivot's KEYS (the three builders of its text share them): the ON column's distinct values over the
      *  pivot's source, ascending (the database's column order), each key's text, and the order. One ON column: a
      *  composite key's generated names join the keys, which no builder spells yet. */
-    private record PivotKeys(SqlSelect keys, List<SqlSelect.SortKey> byKey, SqlExpr keyText) {
+    record PivotKeys(SqlSelect keys, List<SqlSelect.SortKey> byKey, SqlExpr keyText) {
         static PivotKeys of(SqlSource.Pivot pivot, String builder) {
             if (pivot.on().size() != 1) {
                 throw new com.legend.error.NotImplementedException("a dynamic pivot on " + pivot.on().size()

@@ -527,7 +527,8 @@ class JavaEvalLedgerTest {
             // 2593 -> 2599 (2026-09-20, lean ladder rung 4): SideRows.scalarRow — a
             // declared-one operand handed to VerdictSql as a one-row relation; plan
             // wiring, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/HostJudge.java", 806),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
+            // 806 -> 804 (2026-10-19, re-pinned to the measured count after the plan path program's step 6)
+            Map.entry("core/src/main/java/com/legend/HostJudge.java", 804),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
             Map.entry("core/src/main/java/com/legend/DatabaseJudge.java", 595),   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
             Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1249),   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
@@ -700,7 +701,11 @@ class JavaEvalLedgerTest {
             // 2296 -> 2297 (2026-10-16, the dialect program's Phase 3: the test-data generator's plan takes its engine-text dialect and connection from the caller, two arguments on a second line, where it hard-coded H2's; nothing evaluated); 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the cross-store plan's four engine-text renderers are one, which also writes each node's select list; nothing evaluated); 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four StatementExecutor execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
             // 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the test-data specification's class is the model's, ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS, one line where PlatformTypes' took two; nothing evaluated)
             // 2296 -> 2297 (2026-10-18, the plan path program's step 3, the text carrier: the legacy executor hands the classes' canonical layouts to the TDS text it wraps, one more argument on its own line, so a class instance's cell is spelled over them; nothing evaluated; the executor is deleted by the program's step 10)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2297),
+            // 2297 -> 2323 (2026-10-18, the plan path program's step 7: the legacy executor PLANS a side for the
+            // judges, planHostSide -- the let prefix, the inliner's splice, the natives' staging, the store
+            // resolution, the wire reconciliation -- so both judges' sides take the one road; nothing evaluated;
+            // the executor is deleted by the program's step 11; measured 2026-10-19 at step 9's merge)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2323),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1028,6 +1033,9 @@ class JavaEvalLedgerTest {
      * surface and registers consciously. Exact in both directions. */
     private static final java.util.Set<String> EXEC_CLASSES =
             java.util.Set.of(
+                    // 2026-10-18 (the plan path program's step 6, typed rows): a JSON row's cells read by the
+                    // plan's columns, each by its three type facts; decode only, nothing evaluated
+                    "RowDecode.java",
                     // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution
                     // plan boundary step 2's opening piece (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): CsvSeed.java, Ddl.java and RowLoad.java left the register (no JDBC, no
@@ -1236,6 +1244,9 @@ class JavaEvalLedgerTest {
      * evaluators. */
     private static final java.util.Set<String> ROOT_CLASSES =
             java.util.Set.of(
+                    // 2026-10-18 (the plan path program's step 6, both judges on plans): the judges' plans and
+                    // the agreement gate's arm -- plan, run through the plan runner, compare; nothing evaluated
+                    "AgreementArm.java", "JudgePlans.java",
                     "AggAwareActivities.java", "AssertErrorNative.java",
                     "AssertVerdicts.java",
                     // task #27 (2026-09-21): the router's two arms — HostJudge (both
