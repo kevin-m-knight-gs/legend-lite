@@ -332,15 +332,22 @@ final class JdbcDecode {
             }
             return out;
         }
-        // a map carried as its entries, a list of (key, value) structs
+        // a map carried as its entries: a list of (key, value) structs, or of JSON objects {"key", "value"}
+        // (Postgres's jsonb[]; found by channel B on Postgres, step 9, 2026-10-19)
         if (v instanceof java.sql.Array a) {
             for (Object entry : (Object[]) a.getArray()) {
-                if (!(entry instanceof java.sql.Struct s) || s.getAttributes().length != 2) {
-                    throw new IllegalStateException("column '" + c.name() + "': a map cell's entry is not a"
-                            + " (key, value) struct: " + entry);
+                if (entry instanceof java.sql.Struct s && s.getAttributes().length == 2) {
+                    Object[] attrs = s.getAttributes();
+                    out.put(decode(attrs[0], key), decode(attrs[1], value));
+                    continue;
                 }
-                Object[] attrs = s.getAttributes();
-                out.put(decode(attrs[0], key), decode(attrs[1], value));
+                Json.Node node = Json.parse(jsonText(entry, c));
+                if (node instanceof Json.Obj o && o.fields().containsKey("key") && o.fields().containsKey("value")) {
+                    out.put(RowDecode.cell(o.fields().get("key"), key), RowDecode.cell(o.fields().get("value"), value));
+                    continue;
+                }
+                throw new IllegalStateException("column '" + c.name() + "': a map cell's entry is neither a"
+                        + " (key, value) struct nor a {\"key\", \"value\"} object: " + entry);
             }
             return out;
         }

@@ -324,12 +324,27 @@ legend_java_library(
         # MongoDB's connector rides with the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a running core
         # is given its connectors as it is given its drivers, by ServiceLoader
         ":mongodb_connector",
+        # Postgres's JSON cells (jsonb as JSON text) behind the DriverCells seam, as DuckDB's (step 9, 2026-10-19)
+        ":postgres_cells",
         "@duckdb_jdbc//jar",
         "@h2//jar",
         "@postgresql//jar",
         "@sqlite_jdbc//jar",
     ],
     visibility = ["//datacube:__pkg__", "//pct:__pkg__", "//spec:__pkg__"],
+)
+
+# Postgres's JSON cells (a json or jsonb PGobject as its JSON text) behind core's DriverCells seam, found by
+# ServiceLoader: it rides with the drivers, so core still compiles against none (step 9, 2026-10-19).
+legend_java_library(
+    name = "postgres_cells",
+    srcs = glob(["src/main/postgres/**/*.java"]),
+    resources = glob(["src/main/postgres/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/postgres",
+    deps = [
+        ":core",
+        "@postgresql//jar",
+    ],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
