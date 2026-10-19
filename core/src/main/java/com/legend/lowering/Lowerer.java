@@ -3418,6 +3418,12 @@ public final class Lowerer {
      * cast spells it (a generated name presented quoted, {@link Type.RelationType#presentPivotName}); its slot is
      * the pivot's USING's for a generated column (nullable: a group may have no row for a key) and the source's for
      * a static one. A name that is neither is refused.
+     *
+     * <p>The keys the cast names are the pivot's NAMED values ({@link SqlSource.Pivot#named}, the plan path program's
+     * step 9, 2026-10-19), each the ON key's typed literal: a dialect without a native dynamic PIVOT (H2, Postgres,
+     * SQLite, MariaDB, Trino, ClickHouse, Snowflake, Databricks, BigQuery, MongoDB) pivots on them as on a static
+     * IN, with no row pinned; DuckDB runs the dynamic form. A key whose slot has no literal spelling here is refused
+     * by name.
      */
     private SqlSelect castOverDynamicPivot(SqlSelect base, Map<String, Type.Column> src, Type.RelationType tgtRow) {
         List<SqlSource.Pivot> dynamic = TdsTextWrap.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
@@ -3427,7 +3433,29 @@ public final class Lowerer {
         }
         SqlSource.Pivot pivot = dynamic.get(0);
         String sep = Type.RelationType.PIVOT_SEPARATOR;
-        SqlSelect isolated = isolate(base);
+        List<SqlExpr> named = new ArrayList<>();
+        for (Type.Column tc : tgtRow.columns()) {
+            if (src.containsKey(tc.name())) {
+                continue;
+            }
+            String physical = physicalPivotName(tc.name());
+            int at = physical.lastIndexOf(sep);
+            if (at >= 0) {
+                SqlExpr key = pivotKeyLiteral(pivot, physical.substring(0, at), tc.name());
+                if (named.stream().noneMatch(key::equals)) {
+                    named.add(key);
+                }
+            }
+        }
+        SqlSource.Pivot withNamed = new SqlSource.Pivot(pivot.source(), pivot.on(), pivot.in(), List.copyOf(named),
+                pivot.usings(), pivot.alias(), pivot.outputs());
+        SqlSelect renamed = (SqlSelect) new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                return s == pivot ? withNamed : s;
+            }
+        }.rewrite(base);
+        SqlSelect isolated = isolate(renamed);
         String alias = ((SqlSource.Subselect) isolated.from()).alias();
         List<SqlSelect.Projection> projs = new ArrayList<>();
         for (Type.Column tc : tgtRow.columns()) {
@@ -3448,8 +3476,7 @@ public final class Lowerer {
                 read = SqlExpr.Column.of(alias, known.name(), typed.type(), typed.nullable(), origin);
                 out = new OutputCol(tc.name(), typed.type(), typed.nullable());
             } else {
-                String physical = tc.name().length() >= 2 && tc.name().startsWith("'") && tc.name().endsWith("'")
-                        ? tc.name().substring(1, tc.name().length() - 1) : tc.name();
+                String physical = physicalPivotName(tc.name());
                 int at = physical.lastIndexOf(sep);
                 String tail = at < 0 ? "" : physical.substring(at + sep.length());
                 SqlSource.Pivot.Using using = pivot.usings().stream().filter(u -> u.alias().equals(tail)).findFirst()
@@ -3465,6 +3492,52 @@ public final class Lowerer {
             projs.add(new SqlSelect.Projection(read, tc.name(), out));
         }
         return isolated.withProjections(projs);
+    }
+
+    /** A generated column's PHYSICAL name from the one a cast spells (the engine's label carries the quotes). */
+    private static String physicalPivotName(String name) {
+        return name.length() >= 2 && name.startsWith("'") && name.endsWith("'")
+                ? name.substring(1, name.length() - 1) : name;
+    }
+
+    /**
+     * The key a cast's generated column names, as the pivot's ON key spells it: an integer slot's text as an
+     * integer literal, a text slot's as a string, a boolean slot's as a boolean (a composite key, the lowering's own
+     * concatenation, is text). Another slot, or a text the slot cannot read, is refused by name (invariant 4).
+     */
+    private static SqlExpr pivotKeyLiteral(SqlSource.Pivot pivot, String text, String column) {
+        if (pivot.on().size() != 1) {
+            throw new NotImplementedException("cast(@Relation<...>) over a pivot on " + pivot.on().size()
+                    + " keys: the named value '" + column + "' belongs to no one key");
+        }
+        if (!(pivot.on().get(0).type() instanceof com.legend.sql.TypeFact.Typed typed)) {
+            throw new IllegalStateException("cast(@Relation<...>): the pivot's key carries no typed slot, so the named"
+                    + " value '" + column + "' has no literal");
+        }
+        if (!(typed.type() instanceof SqlType.Scalar scalar)) {
+            throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over a pivot key of type "
+                    + typed.type() + ": no literal spelling");
+        }
+        return switch (scalar) {
+            case INTEGER, BIGINT, HUGEINT -> {
+                try {
+                    yield new SqlExpr.IntLit(Long.parseLong(text));
+                } catch (NumberFormatException e) {
+                    throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over an integer"
+                            + " pivot key, but '" + text + "' is no integer");
+                }
+            }
+            case VARCHAR -> new SqlExpr.StringLit(text);
+            case BOOLEAN -> {
+                if (!text.equals("true") && !text.equals("false")) {
+                    throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over a boolean"
+                            + " pivot key, but '" + text + "' is no boolean");
+                }
+                yield new SqlExpr.BoolLit(text.equals("true"));
+            }
+            default -> throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over a pivot"
+                    + " key of type " + scalar + ": no literal spelling");
+        };
     }
 
     /**

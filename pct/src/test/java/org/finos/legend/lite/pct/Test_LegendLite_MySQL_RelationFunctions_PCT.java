@@ -57,10 +57,6 @@ public class Test_LegendLite_MySQL_RelationFunctions_PCT extends PCTReportConfig
             // step 9, 2026-10-19, the plan route: a pivot. A dynamic pivot's text needs the row as JSON, which only DuckDB
             // has; a static pivot has no emulation on the plan route yet (the grouped CASE-aggregate form, the base
             // dialect's, is one shared item owned by the merging session). Pinned by name, not fixed (the brief's §5.4)
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot_Function_1__Boolean_1_", "\"a pivot reached MySQL unemulated: it has no PIVOT\""),
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit_Function_1__Boolean_1_", "\"a pivot reached MySQL unemulated: it has no PIVOT\""),
-            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort_Function_1__Boolean_1_", "\"a pivot reached MySQL unemulated: it has no PIVOT\""),
-            one("meta::pure::functions::relation::tests::composition::test_Pivot_Filter_Function_1__Boolean_1_", "\"a pivot reached MySQL unemulated: it has no PIVOT\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),

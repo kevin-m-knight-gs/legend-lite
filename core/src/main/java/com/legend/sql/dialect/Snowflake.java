@@ -2967,7 +2967,8 @@ public final class Snowflake extends AnsiSqlRenderer {
     static final class PivotAsGroupBy extends com.legend.sql.SqlRewriter {
         @Override
         protected SqlSource source(SqlSource s) {
-            if (!(s instanceof SqlSource.Pivot p) || p.in().isEmpty() || p.on().size() != 1) {
+            // a dynamic pivot a cast names pivots on the named values (SqlSource.Pivot.values, step 9, 2026-10-19)
+            if (!(s instanceof SqlSource.Pivot p) || p.values().isEmpty() || p.on().size() != 1) {
                 return s;
             }
             List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -2979,7 +2980,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                     ps.add(new SqlSelect.Projection(g, oc.name(), oc));
                 }
             }
-            for (SqlExpr v : p.in()) {
+            for (SqlExpr v : p.values()) {
                 for (SqlSource.Pivot.Using u : p.usings()) {
                     SqlAgg.Reducer agg = u.agg();
                     List<SqlExpr> args = new ArrayList<>(agg.args());
@@ -2989,10 +2990,8 @@ public final class Snowflake extends AnsiSqlRenderer {
                     args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null));
                     String name = valueText(v) + "__|__" + u.alias();
-                    com.legend.sql.OutputCol slot = p.outputs().stream().filter(o -> o.name().equals(name))
-                            .findFirst().orElse(null);
                     ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()),
-                            name, slot));
+                            name, CarrierStrategies.generatedSlot(p, u, name)));
                 }
             }
             SqlSelect sel = SqlSelect.starOf(p.source()).withProjections(ps).withGroupBy(group);

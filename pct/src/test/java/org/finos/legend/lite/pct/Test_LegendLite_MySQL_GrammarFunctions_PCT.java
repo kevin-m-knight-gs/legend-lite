@@ -46,10 +46,6 @@ public class Test_LegendLite_MySQL_GrammarFunctions_PCT extends PCTReportConfigu
             // MYSQL'S OWN LIMIT: a DATE or DATETIME is of the years 1000-9999 (a five-digit year has no value; raised
             // where an interval is added, a wrong comparison where a literal is one)
             one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Assert failed\""),
-            // step 9, 2026-10-19, the plan route: Class.all() reads the metamodel store, which the plan writes as setup
-            // steps of its target, and a database reached by a URL is never given setup (PlanSessions). The fix (the
-            // system tables as the session's temporary tables, as the legacy SystemDatabase did) is a shared item
-            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"connection 'storeless::Connection' is a database reached by a URL, and the plan has setup for it: never run on it\""),
             // step 9, 2026-10-19, the plan route: a model element referenced as a value crosses by its simple name, and
             // five TestClasses defeat the text carrier's reader; register S82 (as on DuckDB)
             one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches:\n    meta::json::tests::TestClass\n    meta::pure::functions::collection::tests::removeAll::TestClass\n    meta::pure::functions::lang::tests::letFn::TestClass\n    meta::pure::metamodel::serialization::grammar::tests::testNew::TestClass\n    meta::pure::tds::toRelation::TestClass -- TestClass\"")

@@ -280,26 +280,33 @@ public final class PctBackend {
         return lane().open();
     }
 
-    /** The sessions channel A's plans run on ({@link PctPlanRoute}): the plan's own, opened by its target
-     *  ({@link com.legend.exec.PlanSessions#shared}) -- but on MariaDB, MySQL and ClickHouse the lane's own session
-     *  ({@link #connect}), checked by the runner against the target and given the target's session statements as any
-     *  session is. Step 9, 2026-10-19: the storeless runtime declares the server's coordinates with {@code auth: Test},
-     *  which names no user, and the platform opens a JDBC session with no credential, so the driver connected as the
-     *  OS user (on MySQL 8.4 root's caching_sha2_password, which the MariaDB driver refuses: the whole lane failed to
-     *  connect; on MariaDB root, met by currentUserId()), and ClickHouse has no JDBC opening at all. The lane's session
-     *  is the harness's user, as the legacy route's was. A plan with setup (the metamodel store) still goes to its
-     *  target, which refuses setup for a database reached by a URL, by name. Open: a declared connection's user for a
-     *  server lane, and ClickHouse's opening (a shared item). */
+    /**
+     * The sessions channel A's plans run on ({@link PctPlanRoute}; step 9, 2026-10-19). An in-process lane's plan
+     * opens its own session from its target ({@link com.legend.exec.PlanSessions#shared}: the declared in-memory
+     * database, set up by the plan), as MongoDB's does through its connector. A SERVER lane's plan runs on the
+     * harness's own session, as the legacy route's did ({@code PctExecuteNative} opened one per case): a NEW session
+     * per plan, opened as the lane's SYSTEM session ({@code Lane.openSystem}: the one that holds a session's own
+     * tables -- ClickHouse's HTTP session, Snowflake's schema, BigQuery's session -- which the plan's session
+     * statements make for the system metamodel store), checked by the runner against the plan's target and given the
+     * target's session statements as any session is, and closed after. The platform cannot open it itself: the
+     * storeless runtime declares the server's coordinates with {@code auth: Test}, which names no user, and
+     * {@code Sessions.openingFor} admits no credential and has no opening for Trino, ClickHouse or the clouds, so the
+     * driver connected as the OS user (MySQL 8.4's root by caching_sha2_password, refused; Postgres's "role does not
+     * exist") or not at all. A declared server connection opened with its credentials through a vault is the
+     * platform's item (the program's §7 residue), not this harness's. A plan with setup on a server lane goes to the
+     * plan's own source, which refuses it by name: the server's database is the user's.
+     */
     public static com.legend.exec.PlanSessions.Source planSessions() {
         com.legend.exec.PlanSessions.Source own = com.legend.exec.PlanSessions.shared();
         return switch (lane()) {
-            case MARIADB, MYSQL, CLICKHOUSE -> target -> {
+            case DUCKDB, H2, SQLITE, MONGODB -> own;
+            case POSTGRES, MARIADB, MYSQL, TRINO, CLICKHOUSE, DATABRICKS, SNOWFLAKE, BIGQUERY -> target -> {
                 if (!target.setup().isEmpty()) {
                     return own.open(target);
                 }
                 Connection c;
                 try {
-                    c = connect();
+                    c = lane().openSystem();
                 } catch (SQLException e) {
                     throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
                             + e.getMessage(), e);
@@ -315,12 +322,12 @@ public final class PctBackend {
                         try {
                             c.close();
                         } catch (SQLException e) {
-                            throw new IllegalStateException(e.getMessage(), e);
+                            throw new IllegalStateException("the " + name() + " lane's session could not be closed: "
+                                    + e.getMessage(), e);
                         }
                     }
                 };
             };
-            case DUCKDB, H2, SQLITE, POSTGRES, TRINO, DATABRICKS, SNOWFLAKE, BIGQUERY, MONGODB -> own;
         };
     }
 
