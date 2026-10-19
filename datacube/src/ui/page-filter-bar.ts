@@ -136,7 +136,12 @@ export class PageFilterBar {
     const said = doc.createElement('span');
     said.className = 'dc-page-filter-said';
 
-    const cls = (): BarClass => classes.find((c) => c.path === classSelect.value) ?? classes[0]!;
+    const cls = (): BarClass => {
+      // the select offers these classes alone
+      const chosen = classes.find((c) => c.path === classSelect.value);
+      if (!chosen) throw new Error(`no class ${classSelect.value} on the page`);
+      return chosen;
+    };
     const typeOf = (p: string): string | undefined => cls().properties.find((x) => x.name === p)?.type;
     const fillOperators = (): void => {
       const type = typeOf(propertySelect.value);

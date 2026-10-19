@@ -894,7 +894,8 @@ export function pageSources(d: SourcesOf): PageSources {
       const r = rebuilt(saved, source, columns, name, capped);
       return {
         label: name,
-        notes: [...(left.length > 0 ? [`${name}: not shown, ${left.join(', ')}`] : []), ...r.notes],
+        // what it leaves out, said when it is first opened: a saved grid's reopening is no change of it
+        notes: [...(left.length > 0 && !saved ? [`${name}: not shown, ${left.join(', ')}`] : []), ...r.notes],
         make: gridMaker(r.snapshot, r.configuration, [], {
           ...rowsPlace(rows), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
         }),

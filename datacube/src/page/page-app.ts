@@ -169,6 +169,9 @@ export class PageApp {
   readonly #lensKeys = new Map<string, string>();
   /** The views of a page being restored: whose chart a click filter came from, before the charts are on the board. */
   #restoring: readonly PageView[] | undefined;
+  /** The filter edits, one after another: each decided on the page as the one before left it (two quick clicks of one
+   *  chart replace its filter, never add two). */
+  #filterQueue: Promise<unknown> = Promise.resolve();
   /** The filter bar's place, below the page's bar; the bar itself fetched with a page's first class grid or filter
    *  (ui/page-filter-bar.ts: a grid-only page never downloads it). */
   readonly #filterSlot: HTMLElement;
@@ -585,7 +588,7 @@ export class PageApp {
   }
 
   /**
-   * THE PAGE AS IT IS SAVED (page-document.ts, version 4): one cube per grid -- on the board, then kept off it for a
+   * THE PAGE AS IT IS SAVED (page-document.ts, version 5): one cube per grid -- on the board, then kept off it for a
    * detached chart -- each the grid's own cube document, under the grid's id; the views and the sheets; the page's
    * model (where its classes are), when it has one. `unknown`: fields a newer writer put in the page and in each cube,
    * written back as they were. Undefined when a grid cannot say its source, or there is nothing on the page.
@@ -887,22 +890,36 @@ export class PageApp {
    */
   async setFilter(f: { readonly id?: string; readonly class: string; readonly condition: FilterNode; readonly from?: string },
     label = 'Filter'): Promise<string> {
-    const applied = await this.#filterCommand({
+    const applied = await this.#filterCommand(() => ({
       kind: 'setPageFilter', ...(f.id !== undefined ? { id: f.id } : {}), class: f.class, condition: f.condition, from: f.from ?? null,
-    }, label);
+    }), label);
     const made = applied[0];
-    return made?.kind === 'setPageFilter' && made.id !== undefined ? made.id : '';
+    if (made?.kind !== 'setPageFilter' || made.id === undefined) throw new Error('the page filter was set with no id');
+    return made.id;
   }
 
   /** A filter of the page taken off, as one step: every grid it reached unfiltered by it. */
   async removeFilter(id: string, label = 'Remove Filter'): Promise<void> {
-    await this.#filterCommand({ kind: 'removePageFilter', filter: id }, label);
+    await this.#filterCommand(() => ({ kind: 'removePageFilter', filter: id }), label);
   }
 
-  async #filterCommand(command: PageCommand, label: string): Promise<PageCommand[]> {
+  /**
+   * A filter edit, after the ones before it: `make` decides its command on the page as they left it (undefined: nothing
+   * to do now), applied by the page commands' rule as one step named `label`.
+   */
+  #filterCommand(make: () => PageCommand | undefined, label: string): Promise<PageCommand[]> {
+    const run = this.#filterQueue.then(() => this.#applyFilterCommand(make, label));
+    // the queue goes on past a refusal: its caller hears it
+    this.#filterQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  async #applyFilterCommand(make: () => PageCommand | undefined, label: string): Promise<PageCommand[]> {
     // the page commands' rules, fetched with the first filter (a page with none never downloads them)
     const { applyToState } = await import('../page-commands.ts');
     if (this.#disposed) return [];
+    const command = make();
+    if (command === undefined) return [];
     this.#state.keep(this.#seen());
     const applied = applyToState(this.#state, [command], label);
     this.#filters = this.#state.draft.page.filters ?? [];
@@ -954,7 +971,8 @@ export class PageApp {
     const views = this.#viewsNow();
     const classes = new Map<string, BarClass>();
     const reach = new Map<string, { tiles: number; not: string[] }>(this.#filters.map((f) => [f.id, { tiles: 0, not: [] }]));
-    for (const id of this.cubes) {
+    // the grids on the board (a grid kept off it for a detached chart reads as its chart does, but is no tile to count)
+    for (const id of this.grids) {
       const grid = this.grid(id);
       const source = grid?.cubeSource;
       if (!grid || source?._type !== 'class') continue;
@@ -979,13 +997,19 @@ export class PageApp {
     void import('../ui/page-filter-bar.ts').then(({ PageFilterBar: Bar }) => {
       if (this.#disposed) return;
       const made = new Bar(this.#doc, {
-        remove: (id) => void this.removeFilter(id).catch((e: unknown) => this.#refused(e)),
+        // its x clicked twice before it was painted again: the second finds nothing to take off
+        remove: (id) => void this.#filterCommand(() => (this.#filters.some((f) => f.id === id)
+          ? { kind: 'removePageFilter', filter: id } : undefined), 'Remove Filter').catch((e: unknown) => this.#refused(e)),
         add: (cls, condition) => void this.setFilter({ class: cls, condition }).catch((e: unknown) => this.#refused(e)),
       });
       this.#filterSlot.replaceWith(made.element);
       this.#filterBar = made;
       // painted as the page is now, which may have moved on while the bar was fetched
       this.#paintFilters();
+    }).catch((e: unknown) => {
+      // not fetched (the network): said, and asked for again at the next change
+      this.#filterBarLoading = false;
+      this.#refused(new Error(`the page's filter bar did not load: ${e instanceof Error ? e.message : String(e)}`));
     });
   }
 
@@ -994,23 +1018,26 @@ export class PageApp {
    * from that chart -- replacing its last, or, the same mark again or none, taken off -- reaching every other grid over
    * the class. A condition on anything else (a calculated column) is the grid's own, as on any grid: not taken (false).
    */
-  #pick(chart: string, grid: string, conditions: readonly FilterNode[] | null): boolean {
+  #pick(chart: string, grid: string, conditions: readonly FilterNode[] | null): readonly FilterNode[] | null {
     const source = this.grid(grid)?.cubeSource;
-    if (source?._type !== 'class') return false;
-    const last = this.#filters.find((f) => f.from === chart);
-    const clear = (): boolean => {
-      if (!last) return false;
-      void this.removeFilter(last.id, 'Clear Chart Filter').catch((e: unknown) => this.#refused(e));
-      return true;
-    };
-    if (conditions === null || conditions.length === 0) return clear();
-    const condition: FilterNode = conditions.length === 1 ? conditions[0]! : { kind: 'and', children: [...conditions] };
+    if (source?._type !== 'class') return null;
     const properties = new Set(source.columns.map((c) => c.name));
-    if (![...namedProperties(condition)].every((p) => properties.has(p))) return false;
-    if (last && JSON.stringify(last.condition) === JSON.stringify(condition)) return clear();
-    void this.setFilter({ ...(last ? { id: last.id } : {}), class: source.class, condition, from: chart }, 'Filter to Chart Mark')
-      .catch((e: unknown) => this.#refused(e));
-    return true;
+    const onClass = (c: FilterNode): boolean => [...namedProperties(c)].every((p) => properties.has(p));
+    // the mark's conditions on the class's properties are the page's; the rest (a calculated column's) its grid's own
+    const mine = (conditions ?? []).filter(onClass);
+    const own = (conditions ?? []).filter((c) => !onClass(c));
+    const condition: FilterNode | undefined = mine.length === 0 ? undefined
+      : mine.length === 1 ? mine[0]! : { kind: 'and', children: mine };
+    // decided on the page as the edits before it leave it: the chart's last filter replaced, or -- the same mark again,
+    // or none of it on the class -- taken off
+    void this.#filterCommand((): PageCommand | undefined => {
+      const last = this.#filters.find((f) => f.from === chart);
+      if (condition === undefined || (last && JSON.stringify(last.condition) === JSON.stringify(condition))) {
+        return last ? { kind: 'removePageFilter', filter: last.id } : undefined;
+      }
+      return { kind: 'setPageFilter', ...(last ? { id: last.id } : {}), class: source.class, condition, from: chart };
+    }, condition === undefined ? 'Clear Chart Filter' : 'Filter to Chart Mark').catch((e: unknown) => this.#refused(e));
+    return conditions === null ? null : own;
   }
 
   // -- the page's menu --------------------------------------------------------------

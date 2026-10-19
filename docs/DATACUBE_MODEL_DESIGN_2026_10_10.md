@@ -721,3 +721,35 @@ one class (§13): relationships, a filter through an end, and the column chooser
 - Planned in the tab: a class made by the writer read back by its class source, a page filter in it, rows checked on
   DuckDB (as test/model-join.test.ts plans a class).
 - Python: a page's filter commands, and a class grid's rows.
+
+### 16.4 As built (2026-10-19, `claude/datacube-model-dashboards`)
+
+- **The class source** (cube-document.ts `ClassSource`; class-source.ts): read strictly; a grid over a class shows the
+  class's to-one properties of a type a column has, its own then its supertypes', each named when left out; its query
+  `Class.all()->project(~[...])`. Opened in the tab (app/sources.ts `openedClass`): the project's files at the pin, the
+  host's compiler through the class's mapping and runtime, one row asked for at open so a table not open here is said.
+  Offered from a grid made a class: **Add a Grid over Trade** (its menu). The page's model keeps its pin (`revision`,
+  page-model.ts `pin`, from each model action's save; Python's too).
+- **Page filters** (page-filters.ts, ui/page-filter-bar.ts, page/page-app.ts): the page document's `filters` (version 5),
+  set and taken off by the page commands `setPageFilter` and `removePageFilter` (the screen's bar, a chart's click, and
+  headless `pageFilter` for Python all build them). A filter reaches a grid as a **lens** (runner.ts `QueryLens`,
+  cube.ts `setLens`): every query the grid runs -- its levels, typing, pivot values, charts', exports' -- has the
+  class's `getAll` filtered first, and the grid's own state, undo and saved cube never hold it. Each grid it reaches
+  says so in its status bar (`Page: region = EMEA`); the bar says how many grids each filter reaches and which it
+  cannot (a property their class lacks). A chart's click on a class's grid on its properties is a page filter from that
+  chart (dashed in the bar), its own grid left whole; the same mark again takes it off; a removed chart takes its
+  click's filter with it.
+- **Audited** by a reviewer that wrote none of it: a filter id given twice after a reopen (now: a page's filters'
+  ids are taken), a class grid opened before its file's grid (now: a class's cube opens last, and one whose rows are
+  not here is left out and said, never the whole page refused), the page replaced while a class grid was added, a
+  mark's calculated-column part (now: the page takes the properties' part, the grid the rest), two quick clicks, Open in
+  Grid's grid (now re-lensed with its grid), the bar's failed fetch, a lens matching nothing (now refused), defaults.
+- **What judges it**: unit (page-filters, page-commands, page-document, cube-document, create-class); planned in the
+  tab on DuckDB (class-source: a class the writer made, read back, filtered; a controller given the lens); jsdom
+  (page-app: filters set, undone, redone, refused, saved and reopened; a chart's click through ECharts); the browser
+  (verify-class: Add a Grid over Trade, a filter from the bar, saved and reopened filtered).
+- **Not built here**: the source picker's Classes section (the menu entry is the way in); Python's pages over classes
+  -- `page.grid(page.cls('Trade'))`, `page.filter` -- since Python's pages are frame-only end to end (load, read,
+  serving); headless `pageFilter` is ready for it (step 3b); "Add a Grid over" is offered only where the page plans and
+  runs its own SQL (the tab), so a Python-served page never gets a class grid it cannot follow. Re-pinning open class
+  grids when the page re-pins (step 5).

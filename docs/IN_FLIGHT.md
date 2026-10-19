@@ -1003,7 +1003,14 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   (the model view), 6 (promote and publish: its SDLC half was the Studio line's, asked of the user) and 7 (measures in
   the model), each on its own branch stacked on the run's (`claude/datacube-model-dashboards` first), audited, pushed
   with no PR. Files announced per step here before they are touched; core only with its own announcement. D5b stays
-  unclaimed: it is in the SQL plan's ground, asked of the user.
+  unclaimed: it is in the SQL plan's ground, asked of the user. **Step 3 done and audited** (2026-10-19,
+  `claude/datacube-model-dashboards`, the design's §16): DataCube only -- `cube-document.ts`, `class-source.ts` (new),
+  `page-filters.ts` (new), `page-document.ts` (version 5), `page-commands.ts`, `page-ids.ts`, `page-model.ts`,
+  `create-class.ts`, `model-actions.ts`, `runner.ts`, `cube.ts`, `app.ts`, `grid-commands.ts` (its filter reader
+  exported), `page/page-app.ts`, `page/cube-page.ts`, `ui/page-filter-bar.ts` (new), `app/sources.ts`,
+  `app/datacube-app.ts`, `headless/page.ts`, `headless/grid.ts`, `headless/entry.ts`; `pure-protocol/src/relation.ts`
+  (`projectObjects`); Python's `page.py` (the pin). Nothing of core; not the SQL plan's ground. **Next: step 4**
+  (combining in prep), on `claude/datacube-model-prep`, stacked.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

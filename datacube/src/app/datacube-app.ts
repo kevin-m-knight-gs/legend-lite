@@ -20,6 +20,7 @@ import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
 import {
+  openingOrder,
   pageContent,
   pageDefinitionText,
   pageToJson,
@@ -681,15 +682,25 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const notes: string[] = [];
       sources.reserve(Object.values(doc.model?.tables ?? {}));
       try {
-        for (const { id: cubeId, cube } of doc.cubes) {
-          const o = await sources.reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
+        // a class's grid after the grids whose tables it reads (page-document.ts openingOrder)
+        for (const { id: cubeId, cube } of openingOrder(doc.cubes)) {
+          let o: Opened | undefined;
+          let why = 'not opened';
+          try {
+            o = await sources.reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
+          } catch (e) {
+            // a class whose rows are not here (its table read by no grid of the tab) is left out and said, as a file
+            // not given is: the page's other grids open
+            if (cube.source._type !== 'class') throw e;
+            why = e instanceof Error ? e.message : String(e);
+          }
           if (o) read.push(o);
           if (!newest()) {
             for (const r of read) await r.discard?.();
             return;
           }
           if (!o) {
-            notes.push(`left out: ${cube.source.name} (not opened)`);
+            notes.push(`left out: ${cube.source.name} (${why})`);
             continue;
           }
           makers.set(cubeId, o.make);
@@ -1106,16 +1117,22 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // only where the page plans and runs its own SQL (the tab): a page another editor serves (Python's) holds no grid
     // over a class until its pages can follow one (the model plan's step 3b)
     if (services.engine.local) classGrid = (cube) => {
-      const model = current.model;
-      const cls = cube === undefined ? undefined : model?.classes?.[cube];
-      const writing = services.engine.modelWriting;
-      if (!model || cls === undefined || !writing) return;
       void (async () => {
+        const model = current.model;
+        const cls = cube === undefined ? undefined : model?.classes?.[cube];
+        const writing = services.engine.modelWriting;
+        if (!model || cls === undefined || cube === undefined) throw new Error('this grid was made no class of the page');
+        if (!writing) throw new Error('this page writes no model');
+        // the page on screen now: one put in its place meanwhile (another opened, a blank page) gets no grid of this one
+        const shown = placed;
         // the class at the page's pin, through the place's runtime: the tables its store names are the page's own
-        // what it leaves out is said when it is saved and opened again, as an added source's is
         const { classAt } = await import('../class-source.ts');
         const opened = await sources.openedClass(classAt(model, cls, writing.place), undefined, gridCapped(page.cubes.length + 1));
-        page.addGrid(opened.make, { near: cube! });
+        if (placed !== shown) {
+          await opened.discard?.();
+          return;
+        }
+        page.addGrid(opened.make, { near: cube });
       })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
     /** The chosen source IN PLACE of the page: it empties, then one grid over the source (its only one: gridCapped). */

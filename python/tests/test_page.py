@@ -1015,7 +1015,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'shows no cube of this page'):
             ll.Page.load(listed, frames={'trades': trades()})
         # an older page is not read (the user, 2026-10-17), in DataCube's words
-        with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 4\): it is no longer read'):
+        with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 5\): it is no longer read'):
             ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()})
         # and what Python adds: a page in Python is over frames
         elsewhere = copy.deepcopy(doc)

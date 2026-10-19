@@ -130,7 +130,8 @@ const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => Pag
  * page has it (a cube kept for a detached chart has no view of its own: its id is taken all the same).
  */
 function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'chart' | 'sheet' | 'filter'): string {
-  const taken = [...draft.held, ...draft.page.cubes.map((c) => c.id)];
+  // a filter's id is taken while the page has it, whatever `held` lost (a page opened again holds its tiles' ids only)
+  const taken = [...draft.held, ...draft.page.cubes.map((c) => c.id), ...(draft.page.filters ?? []).map((f) => f.id)];
   if (given === undefined) return nextPageId(taken, kind);
   if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
   if (!new RegExp(`^${kind}-\\d+$`).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N, not '${given}'`);

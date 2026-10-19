@@ -15,7 +15,7 @@ in DataCube, said in code (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md).
     page.save('q3.page.json')           # DataCube's own page document (Export > Page File writes the same)
     again = ll.Page.load('q3.page.json', frames={'trades': trades_df})
 
-A page IS its document: DataCube's page document (version 4; datacube/src/page-document.ts), the one copy of it. Its
+A page IS its document: DataCube's page document (version 5; datacube/src/page-document.ts), the one copy of it. Its
 grids, charts and sheets are handles onto it -- each its id -- whose methods edit it in place, each edit checked at the
 line that makes it (a column the frame has, a calculated column the compiler types, a word DataCube's vocabulary has).
 So whatever DataCube writes in a page is kept as it is, read back from where it is open by taking the open page's
@@ -1077,7 +1077,7 @@ class Page:
     # -- the document --------------------------------------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
-        """The page as DataCube's page document (version 4), a copy: what is done to it is not done to the page. A
+        """The page as DataCube's page document (version 5), a copy: what is done to it is not done to the page. A
         calculated column's numbers are exact (``Decimal``), as the compiler writes them: ``to_json`` and ``save`` write
         them so. It is the page's document as Python holds it; ``to_json`` and ``save`` write it as DataCube writes it
         (its reader's, headless: a chart's options filled, a key DataCube does not know left out)."""

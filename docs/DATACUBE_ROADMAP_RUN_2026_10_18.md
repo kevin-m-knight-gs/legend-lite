@@ -33,7 +33,8 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | 6 | Charts batch 5: maps | `claude/datacube-charts-maps` | done, audited |
 | 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | `claude/datacube-charts-more` | done, audited |
 | 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | `claude/datacube-followups` | the first done, audited; the other two skipped |
-| 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | -- | skipped: the other line's, in flight |
+| 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | -- | skipped then; taken over 2026-10-19 (below) |
+| 10 | The model plan's step 3: dashboards on classes (F1) | `claude/datacube-model-dashboards` | done, audited |
 
 ## Skipped, to come back to at the end
 
@@ -134,13 +135,27 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   filter; a chart's click told as that page filter instead of its own grid's (`chart-render.ts` `onPick`); the page
   document and the page commands carry it, so Python, undo and the live channel follow.
 
+- **Taken over, 2026-10-19 (the user: "we should take everything over from the other datacube lane, it's dead"):**
+  the model plan from step 3 (`docs/IN_FLIGHT.md`, this run's entry). **Phase 10, step 3, dashboards on classes**
+  (`claude/datacube-model-dashboards`; the design note and its "as built" are `docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`
+  §16): a cube source over a class at the page's pin, **Add a Grid over <Class>**, page filters by a class's property
+  (the page document's version 5, two page commands, a lens on every query a grid runs, the filter bar), a chart's
+  click as one. Audited by a reviewer that wrote none of it: ten findings, all fixed, each with a test that fails
+  without it (a filter id given twice after a reopen; a class grid opened before its file's grid; the page replaced
+  while a class grid was added; a mark's calculated-column part; two quick clicks; Open in Grid's grid; the bar's
+  failed fetch said; a lens that matched nothing refused; defaults made refusals; stale words). **Not built, named:**
+  Python's pages over classes (step 3b: Python's pages are frame-only end to end -- load, read, serving -- so
+  `page.grid(page.cls(...))` and `page.filter` wait on that; headless `pageFilter` is ready for them); the source
+  picker's Classes section; re-pinning open class grids when the page re-pins (step 5).
+
 ## At the end: what to come back to
 
 - **For the user to decide:** the chart-with-problems rule (phase 1: refuse, as Python does, or keep and show, as the
   screen does); the map-preparation tool (phase 6: prepared and committed, taken for now); whether this line takes F1
   (phase 9).
 - **For other lines:** the graph mode questions for the Cypher line (phase 4); `true`/`false` quoted by the compiler's
-  printer and table-model writer (phase 8, core); F1-F5 (the other DataCube line); D5b (the other DataCube line).
+  printer and table-model writer (phase 8, core); D5b (the other DataCube line's, in the SQL plan's ground: asked of
+  the user). F1-F5 are this run's since 2026-10-19 (phase 10 on).
 - **Not built, named in each phase's note:** undo told to command-following hosts (phase 2); the reverse live channel
   (phase 3); corr, covariance, minBy/maxBy and the kinds waiting on them, percentile lines, the ECDF and the rest of
   batch 4 (phase 5); provinces, the borders by viewpoint, the US insets, a user's own shapes (phase 6); a Marimekko's

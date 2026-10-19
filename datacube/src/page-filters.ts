@@ -113,11 +113,21 @@ export function filterWords(f: PageFilter): string {
 
 // ---------------------------------------------------------------- what reaches a grid
 
-/** Every `getAll` of `cls` in `query`, its rows filtered by `where` (over `$x`) first. */
+/**
+ * Every `getAll` of `cls` in `query`, its rows filtered by `where` (over `$x`) first. A query that reads no `getAll` of
+ * the class is refused: the filter the page says is on the grid is never left off it unsaid.
+ */
 export function filteredByClass(query: Lambda, cls: string, where: ValueSpecification): Lambda {
+  let found = false;
   const isAll = (n: ValueSpecification): boolean => n._type === 'func' && n.function === 'getAll'
     && n.parameters.length === 1 && n.parameters[0]!._type === 'packageableElementPtr' && n.parameters[0]!.fullPath === cls;
-  return transform(query, (n) => (isAll(n) ? fn('filter', n, lambda(['x'], where)) : n)) as Lambda;
+  const out = transform(query, (n) => {
+    if (!isAll(n)) return n;
+    found = true;
+    return fn('filter', n, lambda(['x'], where));
+  }) as Lambda;
+  if (!found) throw new CubeRefusal(`the page's filters are on ${cls}, and this query reads no ${cls.slice(cls.lastIndexOf(':') + 1)}.all()`);
+  return out;
 }
 
 /** What the page's filters do to one grid. */

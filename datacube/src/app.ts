@@ -441,6 +441,8 @@ export class CubeApp {
   /** The page's filters on it (setLens), and in words: said in its status bar. */
   #lens: QueryLens | undefined;
   #lensSaid: string | undefined;
+  /** The grids it spawned for its charts (Open in Grid): given its lens whenever it is given one. */
+  readonly #spawnedGrids = new Set<CubeApp>();
   readonly #grid: DataGrid;
   readonly #pivots: PivotPanel;
   /** The same zones again, as a list in the sidebar. */
@@ -896,6 +898,11 @@ export class CubeApp {
     this.#lens = lens;
     // what filters it, said in its status bar beside its own filter: a page's filter is not the grid's own
     this.#lensSaid = lens ? said : undefined;
+    // a grid it spawned (Open in Grid's, editing a chart of it) reads as it does, the page's filters changing with it
+    for (const grid of [...this.#spawnedGrids]) {
+      if (grid.#disposed) this.#spawnedGrids.delete(grid);
+      else void grid.setLens(lens, run, said);
+    }
     if (run) await this.#owner.refresh();
   }
 
@@ -2768,8 +2775,10 @@ export class CubeApp {
           ...(spawned?.exportPage ? { exportPage: spawned.exportPage } : {}),
           ...(spawned?.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
         });
-        // it reads its rows as this grid does: the page's filters on this grid's class too (Open in Grid's chart)
+        // it reads its rows as this grid does: the page's filters on this grid's class too (Open in Grid's chart), now
+        // and as they change
         if (this.#lens) void grid.setLens(this.#lens, false, this.#lensSaid);
+        this.#spawnedGrids.add(grid);
         return grid;
       },
     };

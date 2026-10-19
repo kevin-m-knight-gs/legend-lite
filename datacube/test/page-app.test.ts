@@ -819,11 +819,76 @@ describe('a chart\'s click on a grid over a class (§16.2): a page filter from t
     // the mark's conditions, as the chart said them (a bar of a region, of a desk), on the class's properties
     assert.match(JSON.stringify(f.condition), /"column":"region"/);
     assert.ok(filtered(b.plans), 'the other grid over the class ran filtered');
-    assert.ok(!filtered(a.plans), 'the clicked chart\'s own grid is left whole');
+    // the clicked chart's own grid, run again: whole, no page filter on it
+    await (page.grid(gridA) as CubeApp).open();
+    await settle();
+    assert.ok(a.plans.length > 0 && !filtered(a.plans), 'the clicked chart\'s own grid is left whole');
     assert.equal(page.document('Q3')!.cubes.find((c) => c.id === gridA)!.cube.query.filter, undefined,
       'nothing on the clicked grid\'s own filter');
     instance.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
     await settle();
     assert.equal(page.filters.length, 0, 'the same mark again: taken off');
+  });
+
+  /** A grid over Trade whose class has only `columns` (its grid's other columns, as a calculated column is, not the class's). */
+  const overNarrow = (planner: Recording, columns: typeof COLUMNS): GridMaker => (gridHost, spawned, start) => new CubeApp(gridHost,
+    start?.snapshot ?? { ...SNAPSHOT, source: { query: classRelation(TRADE, COLUMNS.map((c) => c.name)) } }, {
+      engine, planner, compact: true, sourceLabel: 'Trade',
+      cubeSource: { _type: 'class', name: 'Trade', class: TRADE, project: 'datacube:trades', workspace: 'datacube',
+        revision: '3', mapping: 'trades::mapping::Model', runtime: 'trades::runtime::Browser', columns },
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: 'Trade' }, ...(page ? { windowHost: page.root } : {}), ...spawned,
+    });
+
+  it('a mark naming a property and another column: the property\'s part the page\'s, the rest the grid\'s own (the audit\'s 4)', async () => {
+    newPage();
+    const gridA = page.addGrid(overNarrow(new Recording(), COLUMNS.filter((c) => c.name !== 'desk')));
+    await settle();
+    const chart = await chartOf(gridA);
+    await settle();
+    const instance = echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!;
+    instance.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    assert.equal(page.filters.length, 1);
+    assert.doesNotMatch(JSON.stringify(page.filters[0]!.condition), /"column":"desk"/, 'the page\'s part names the class\'s properties only');
+    assert.match(JSON.stringify(page.filters[0]!.condition), /"column":"region"/);
+    const own = JSON.stringify(page.document('Q3')!.cubes.find((c) => c.id === gridA)!.cube.query.filter ?? null);
+    assert.match(own, /"column":"desk"/, 'the rest, on the grid\'s own filter');
+    assert.doesNotMatch(own, /"column":"region"/);
+  });
+
+  it('two quick clicks on two marks: one filter from the chart, the second\'s (the audit\'s 5)', async () => {
+    newPage();
+    const gridA = page.addGrid(overClass(new Recording()));
+    page.addGrid(overClass(new Recording()));
+    await settle();
+    const chart = await chartOf(gridA);
+    await settle();
+    const instance = echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!;
+    instance.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    instance.trigger('click', { seriesIndex: 0, dataIndex: 1 } as never);
+    await settle();
+    assert.equal(page.filters.length, 1, 'never two from one chart (two clicks must not filter to nothing)');
+  });
+
+  it('a grid spawned to edit a chart (Open in Grid) reads as its grid does, the page\'s filters changing with it (the audit\'s 6)', async () => {
+    newPage();
+    const a = new Recording();
+    const gridA = page.addGrid(overClass(a));
+    await settle();
+    const host2 = dom.window.document.createElement('div') as unknown as HTMLElement;
+    const editing = (page.grid(gridA) as CubeApp).chartSource().spawn(host2, (page.grid(gridA) as CubeApp).snapshot) as CubeApp;
+    await page.setFilter({ class: TRADE, condition: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } });
+    await settle();
+    a.plans.length = 0;
+    await editing.open();
+    await settle();
+    assert.ok(filtered(a.plans), 'the editing grid reads the class filtered too');
+    await page.removeFilter(page.filters[0]!.id);
+    await settle();
+    a.plans.length = 0;
+    await editing.open();
+    await settle();
+    assert.ok(a.plans.length > 0 && !filtered(a.plans), 'the filter taken off: the editing grid reads it whole again');
+    editing.dispose();
   });
 });

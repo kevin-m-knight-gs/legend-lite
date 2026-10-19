@@ -10,7 +10,7 @@ import { toJson } from '../../pure-protocol/src/index.ts';
 import { classLambda } from '../src/class-source.ts';
 import type { ClassSource, CubeSource } from '../src/cube-document.ts';
 import { applyPageCommand, applyPageCommands, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
-import { pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
+import { openingOrder, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
 import { conditionWords, filterWords, filteredByClass, gridLens, readPageFilter, readPageFilters, type PageFilter } from '../src/page-filters.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { pageApply, pageFilter } from '../src/headless/page.ts';
@@ -70,12 +70,21 @@ describe('what reaches a grid: the class\'s rows filtered before its columns are
     { id: 'filter-3', class: 'other::Customer', condition: EMEA },
   ];
 
+  it('a query that reads no getAll of the class is refused, never left unfiltered unsaid (the audit\'s 8)', () => {
+    assert.throws(() => filteredByClass(classLambda('other::Customer', ['region']), TRADE, { _type: 'var', name: 'w' }),
+      (e: unknown) => e instanceof CubeRefusal && /reads no Trade\.all\(\)/.test(e.message));
+  });
+
+  it('a saved page\'s cubes open with a class\'s after every other, wherever its tile sits (the audit\'s 2)', () => {
+    const cubes = classPage.cubes.map((c, i) => (i === 0 ? c : { ...c, cube: frames.cubes[i]!.cube }));
+    assert.deepEqual(openingOrder(cubes).map((c) => c.id), [cubes[1]!.id, cubes[0]!.id]);
+  });
+
   it('every getAll of the class, filtered first -- the query around it as it was', () => {
     const query = classLambda(TRADE, ['region']);
     const where = { _type: 'var' as const, name: 'w' };
     const out = filteredByClass(query, TRADE, where);
     assert.equal(toJson(out), toJson(classLambda(TRADE, ['region'], where)));
-    assert.equal(toJson(filteredByClass(query, 'other::Customer', where)), toJson(query), 'another class: unchanged');
   });
 
   it('a grid over a class: its class\'s filters ANDed, but its own chart\'s click; none over another source', () => {
@@ -113,6 +122,17 @@ describe('page filters set and taken off by page commands, kept by the page docu
     assert.equal(gone.page.filters, undefined, 'none: no field');
     const next = applyPageCommand(gone, set(EMEA));
     assert.equal((next.command as { id: string }).id, 'filter-2', 'filter-1 was held: never given out again');
+  });
+
+  it('a page opened again holds its tiles\' ids alone: a filter it has keeps its id, the next one another (the audit\'s 1)', () => {
+    const saved = readPage(pageToJson(applyPageCommand(draft(), set(EMEA)).draft.page));
+    // opened again: what it has held is what it holds (idsOf: its tiles, cubes and sheets)
+    const again = applyPageCommand({ page: saved, held: idsOf(saved) }, set(BIG));
+    assert.equal((again.command as { id: string }).id, 'filter-2');
+    assert.deepEqual(readPage(pageToJson(again.draft.page)).filters?.map((f) => f.id), ['filter-1', 'filter-2']);
+    // set again by its id: replaced, still one
+    const replaced = apply(set(BIG, null, 'filter-1'), { page: saved, held: idsOf(saved) });
+    assert.deepEqual(replaced.page.filters, [{ id: 'filter-1', class: TRADE, condition: BIG }]);
   });
 
   it('refused in words: a class no grid reads, a property its grids have not, a chart not over it, a filter not there', () => {
