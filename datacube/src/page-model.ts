@@ -5,6 +5,7 @@
 // (model-changes/, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4); this is only the page's record.
 
 import type { NewProject } from '../../model-changes/src/project.ts';
+import type { ClassAt } from './class-source.ts';
 
 /** Where the page's model is, as the page document keeps it. */
 export interface PageModelRef {
@@ -34,6 +35,20 @@ export const PAGE_WORKSPACE = 'datacube';
 /** A page's project, as the library makes it: in DataCube's group, named after the page. */
 export function pageProject(pageName: string): NewProject {
   return { name: pageName, group: PAGE_GROUP, description: 'The classes of a DataCube page (Create a Class…)' };
+}
+
+/**
+ * Where a class of the page's model is read (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.1): the page's project at its
+ * pin, through what the writer makes beside every class -- the model's mapping, `<pkg>::mapping::Model`, and the place's
+ * runtime, `<pkg>::runtime::<Place>` (core's CreateClass: the layout model-actions.ts reads a project's facts through).
+ * Refused while the page's model has no saved revision.
+ */
+export function classAt(ref: PageModelRef, cls: string, place: string): ClassAt {
+  if (ref.revision === undefined) throw new Error(`the page's project ${ref.project} has no saved revision yet: make its class again`);
+  return {
+    class: cls, project: ref.project, workspace: ref.workspace, revision: ref.revision,
+    mapping: `${ref.package}::mapping::Model`, runtime: `${ref.package}::runtime::${place}`,
+  };
 }
 
 export class PageModel {

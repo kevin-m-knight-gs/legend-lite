@@ -8,6 +8,17 @@ import {
   colSpecs, derive, element, fn, isIdentifier, lambda, property, variable, type Lambda, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 
+/** Where a class is read (cube-document.ts ClassSource, without what it shows): its project at a revision, through its
+ *  mapping and runtime. */
+export interface ClassAt {
+  readonly class: string;
+  readonly project: string;
+  readonly workspace: string;
+  readonly revision: string;
+  readonly mapping: string;
+  readonly runtime: string;
+}
+
 /** A model element as the compiler gives it (PureModelContextData's): what a class source reads of one. */
 export interface ClassElement {
   readonly _type: string;

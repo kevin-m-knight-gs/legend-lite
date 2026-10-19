@@ -10,7 +10,10 @@ import { openDatabase } from '#test-host';
 import { accessor, eq, from, lit, property, toJson, variable } from '../../pure-protocol/src/index.ts';
 import { projectText } from '../../model-changes/src/project.ts';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { classLambda, classProperties, type ClassElement } from '../src/class-source.ts';
+import { classLambda, classProperties, classRelation, type ClassElement } from '../src/class-source.ts';
+import { CubeController } from '../src/cube.ts';
+import { rawRows, type ClassSource } from '../src/cube-document.ts';
+import { gridLens } from '../src/page-filters.ts';
 import type { ClassAction } from '../src/model-writer.ts';
 import { plannerFor } from './catalog-builder.ts';
 
@@ -112,6 +115,34 @@ describe('a class made by the writer, read back by its class source', () => {
       const rows = await engine.run(plan.sql, 0);
       const ids = rows.columns[0]!.values.map(Number).sort();
       assert.deepEqual(ids, [1, 3], 'the EMEA trades, the filter on the class');
+    } finally {
+      planner.dispose();
+    }
+  });
+
+  it('a grid over it, given the page\'s lens: its queries read the class\'s rows filtered, its own state unchanged', async () => {
+    const made = await writer.createClass('', 'trades', TRADE);
+    const cls = made.classes[0]!;
+    const text = projectText(made.changes.map((c) => ({ pureCode: c.pureCode ?? '' })));
+    const planner = plannerFor(text, cls.runtime, { mapping: cls.mapping });
+    try {
+      const columns = [{ name: 'tradeId', type: 'Integer' }, { name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
+      const source: ClassSource = { _type: 'class', name: 'Trade', class: cls.class, project: 'p', workspace: 'w', revision: '1',
+        mapping: cls.mapping, runtime: cls.runtime, columns };
+      const snapshot = rawRows(classRelation(cls.class, columns.map((c) => c.name)), columns);
+      const controller = new CubeController(engine, planner);
+      const all = await controller.level(snapshot);
+      assert.equal(all.rowCount, 4);
+      // the page's filter on Trade: notional over 10, as the filter bar or a chart's click sets it
+      const { lens } = gridLens([{ id: 'filter-1', class: cls.class,
+        condition: { kind: 'condition', column: 'notional', operator: 'greaterThan', value: 10 } }], source, new Set());
+      controller.setLens(lens);
+      const some = await controller.level(snapshot);
+      assert.deepEqual(some.columns[0]!.values.map(Number).sort(), [1, 2], 'the trades over 10 (a null notional is none)');
+      assert.equal(JSON.stringify(snapshot.source.query), JSON.stringify(classRelation(cls.class, columns.map((c) => c.name))),
+        'the grid\'s own source is its class, unfiltered');
+      controller.setLens(undefined);
+      assert.equal((await controller.level(snapshot)).rowCount, 4, 'taken off: every row again');
     } finally {
       planner.dispose();
     }

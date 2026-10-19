@@ -224,7 +224,7 @@ async function compiled(planner: LitePlanner, state: { snapshot: CubeSnapshot; t
 }
 
 /** A filter as Python hands one in: its own conditions' operands, not yet the editor's values or columns. */
-type GivenFilter =
+export type GivenFilter =
   | { readonly kind: 'and' | 'or'; readonly children: readonly GivenFilter[] }
   | { readonly kind: 'not'; readonly child: GivenFilter }
   | { readonly kind: 'condition'; readonly column: unknown; readonly operator: unknown; readonly operand?: unknown };
@@ -249,7 +249,7 @@ const OPERAND_TOLD: Readonly<Record<'single' | 'list' | 'column', (op: string) =
  * editor's own terms. An empty group is no filter at the top (`nested` false: the editor's normal form, `filter([])`)
  * and refused inside one, where the editor's conversion would leave it out: an API call has no half-written row.
  */
-function draftFrom(given: GivenFilter, types: ReadonlyMap<string, string | undefined>, nested = false): DraftNode | string {
+export function draftFrom(given: GivenFilter, types: ReadonlyMap<string, string | undefined>, nested = false): DraftNode | string {
   switch (given.kind) {
     case 'and':
     case 'or': {

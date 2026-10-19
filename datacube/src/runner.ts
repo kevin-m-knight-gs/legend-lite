@@ -98,6 +98,28 @@ export interface QueryRunner {
 }
 
 /**
+ * A REWRITE OF EVERY QUERY A GRID RUNS, set by its host and never part of the grid's own state (a dashboard's page
+ * filters on its class: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2, page-filters.ts).
+ */
+export type QueryLens = (query: Lambda) => Lambda;
+
+/**
+ * `runner`, each query it plans, runs, compiles or types first rewritten by `lens`: a grid's levels, its typing, its
+ * pivot's values, its charts', its exports' and its drills' queries alike. A parse and a print are the person's own.
+ */
+export function lensed(runner: QueryRunner, lens: QueryLens): QueryRunner {
+  return {
+    name: runner.name,
+    run: (query, snapshot, scope, signal) => runner.run(lens(query), snapshot, scope, signal),
+    stream: (query, snapshot, onChunk, signal) => runner.stream(lens(query), snapshot, onChunk, signal),
+    compile: (query, snapshot, signal) => runner.compile(lens(query), snapshot, signal),
+    relationType: (query, signal) => runner.relationType(lens(query), signal),
+    parse: (text, signal) => runner.parse(text, signal),
+    print: (query, style, signal) => runner.print(query, style, signal),
+  };
+}
+
+/**
  * WHERE A QUERY IS PLANNED AND RUN, as one step (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a host's two pieces --
  * its planner's plan, and its runner executing the plan's SQL on the connection, the rows typed by the plan by the
  * executor of the language they become (§15.3a) -- and the questions only the planner answers. The tab's host plans in

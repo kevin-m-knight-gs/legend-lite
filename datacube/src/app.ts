@@ -19,7 +19,7 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
 import type { WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { sessionExpired } from '../../engine-client/src/warehouse-session.ts';
-import { isQueryFailure, type QueryRunner } from './runner.ts';
+import { isQueryFailure, type QueryLens, type QueryRunner } from './runner.ts';
 import {
   CubeController,
   type CubeControllerOptions,
@@ -438,6 +438,8 @@ export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
   readonly #controller: CubeController;
+  /** The page's filters on it, in words (setLens): said in its status bar. */
+  #lensSaid: string | undefined;
   readonly #grid: DataGrid;
   readonly #pivots: PivotPanel;
   /** The same zones again, as a list in the sidebar. */
@@ -875,6 +877,24 @@ export class CubeApp {
   /** Run the cube and show it: the first query. Not an undo step. */
   async open(): Promise<void> {
     await this.#owner.refresh();
+  }
+
+  /** Where its rows come from, as it is saved (a class: a dashboard's tile, which the page's filters reach). */
+  get cubeSource(): CubeSource | undefined {
+    return this.#options.cubeSource;
+  }
+
+  /**
+   * EVERY QUERY THIS GRID RUNS REWRITTEN BY ITS HOST (runner.ts QueryLens: a dashboard's page filters on its class,
+   * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2) -- never its own state, so its undo, its saved document and its
+   * copies are the grid's alone. `run`: the grid runs again with it now, as a refresh (not a step of its own history);
+   * else its next query has it (a grid made, before it opens).
+   */
+  async setLens(lens: QueryLens | undefined, run: boolean, said?: string): Promise<void> {
+    this.#controller.setLens(lens);
+    // what filters it, said in its status bar beside its own filter: a page's filter is not the grid's own
+    this.#lensSaid = lens ? said : undefined;
+    if (run) await this.#owner.refresh();
   }
 
   /**
@@ -1357,6 +1377,14 @@ export class CubeApp {
       : 'Filter the cube';
     filter.addEventListener('click', () => this.openFilters());
     left.append(filter);
+    // the page's filters on it (a dashboard's: setLens), in words -- each tile says what filters it
+    if (this.#lensSaid !== undefined) {
+      const page = doc.createElement('span');
+      page.className = 'dc-status-page-filter';
+      page.textContent = `Page: ${this.#lensSaid}`;
+      page.title = 'The page\u2019s filters on this grid\u2019s class: set and taken off in the page\u2019s filter bar';
+      left.append(page);
+    }
 
     // THE RESULT, AND WHAT IT COST, in the one bar that is already
     // about the result.

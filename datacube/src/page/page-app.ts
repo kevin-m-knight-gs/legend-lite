@@ -30,12 +30,16 @@ import { MenuView } from '../ui/menu-view.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
-import { pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
+import { filtersFor, pageToJson, writePageOf, type PageDocument, type PageView, type PageViews } from '../page-document.ts';
+import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
+import { PageFilterBar, type BarClass } from '../ui/page-filter-bar.ts';
+import type { QueryLens } from '../runner.ts';
+import type { FilterNode } from '../snapshot.ts';
 import type { PageCommand, PageDraft } from '../page-commands.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
-import type { CubeDocument } from '../cube-document.ts';
+import type { CubeDocument, CubeSource } from '../cube-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
@@ -57,6 +61,10 @@ export interface PageGrid extends SpawnedGrid {
   setChrome(patch: { readonly showTitleBar?: boolean }): void;
   /** Its status bar's readout from the host asked for again: the page's first grid changed. */
   refreshHostStatus(): void;
+  /** Where its rows come from, as it is saved: a class's grid is one the page's filters reach. */
+  readonly cubeSource?: CubeSource | undefined;
+  /** Every query it runs rewritten by the page (its filters on the grid's class), `said` in words; `run`: run again now. */
+  setLens?(lens: QueryLens | undefined, run: boolean, said?: string): Promise<void>;
 }
 
 /**
@@ -154,6 +162,14 @@ export class PageApp {
   #disposed = false;
   /** The grid whose status bar holds the host's readout. */
   #first: PageGrid | undefined;
+  /** THE PAGE'S FILTERS (page-filters.ts, §16.2), as its state holds them: set by page commands, put on its grids'
+   *  queries by each one's lens. */
+  #filters: readonly PageFilter[] = [];
+  /** Each grid's lens as last given it, by what made it (page-filters.ts gridLens's key): the same, not run again. */
+  readonly #lensKeys = new Map<string, string>();
+  /** The views of a page being restored: whose chart a click filter came from, before the charts are on the board. */
+  #restoring: readonly PageView[] | undefined;
+  readonly #filterBar: PageFilterBar;
 
   constructor(options: PageAppOptions) {
     this.#options = options;
@@ -232,7 +248,11 @@ export class PageApp {
     this.#empty = doc.createElement('div');
     this.#empty.className = 'dc-page-empty';
     this.#emptySheet = this.#newEmptySheet();
-    root.append(bar, this.#boardHost, this.#emptySheet, this.#empty);
+    this.#filterBar = new PageFilterBar(doc, {
+      remove: (id) => void this.removeFilter(id).catch((e: unknown) => this.#refused(e)),
+      add: (cls, condition) => void this.setFilter({ class: cls, condition }).catch((e: unknown) => this.#refused(e)),
+    });
+    root.append(bar, this.#filterBar.element, this.#boardHost, this.#emptySheet, this.#empty);
     options.host.replaceChildren(root);
     this.#root = root;
     this.#menu = new MenuView(doc, {
@@ -474,7 +494,13 @@ export class PageApp {
         // made while the bar is folded: it says so too, or the bar would come back once it is the only grid
         ...(this.barFolded ? { titleBarHidden: true } : {}),
       }, start);
-      if (id !== undefined) this.#grids.set(id, { grid, make });
+      if (id !== undefined) {
+        this.#grids.set(id, { grid, make });
+        // the page's filters on its class, before its first query: it opens filtered
+        const lens = this.#lensOf(id, grid);
+        this.#lensKeys.set(id, lens.key);
+        if (lens.lens) void grid.setLens?.(lens.lens, false, this.#lensWords(lens.taken));
+      }
       return grid;
     };
   }
@@ -529,6 +555,8 @@ export class PageApp {
     this.#page.dispose();
     this.#grids.clear();
     this.#gone.clear();
+    this.#filters = [];
+    this.#lensKeys.clear();
     this.#page = this.#newBoard();
     this.#state = new PageState(this.#seen());
     this.#paintSheets();
@@ -573,7 +601,7 @@ export class PageApp {
       cubes.push({ id, cube });
     }
     return writePageOf({
-      name, cubes, views: this.views(),
+      name, cubes, views: this.views(), filters: this.#filters,
       ...(unknown?.model ? { model: unknown.model } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
     });
@@ -601,6 +629,10 @@ export class PageApp {
     this.#page.dispose();
     this.#grids.clear();
     this.#gone.clear();
+    // its filters first: each grid opens with them (a chart's click, by the views it will have)
+    this.#filters = page.filters ?? [];
+    this.#lensKeys.clear();
+    this.#restoring = page.views;
     this.#page = this.#newBoard();
     // its grids say how its bar is, as they were saved: not as the page before it had its bar
     this.#foldBar(false);
@@ -622,6 +654,10 @@ export class PageApp {
       this.#page.keepGrid(id, this.#maker(make));
     }
     this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined));
+    this.#restoring = undefined;
+    // a click filter whose chart was left out (its grid's source not opened) goes with it
+    this.#filters = filtersFor(this.#filters, this.views().views);
+    this.#applyLenses();
     // a page opened has no history: its first step is the first edit made on it
     this.#state = new PageState(this.#seen());
     this.#paintSheets();
@@ -647,6 +683,12 @@ export class PageApp {
     return new CubePage({
       host: this.#boardHost,
       onChange: () => {
+        // a chart removed takes its click's filter with it (page-document.ts filtersFor); a chart or a grid come or
+        // gone changes what each grid's lens is -- not while a page is restored, its charts not yet on the board
+        if (!this.#restoring) {
+          this.#filters = filtersFor(this.#filters, this.views().views);
+          this.#applyLenses();
+        }
         // the page's state is the page on screen: kept after every change, one an edit began a step for or not
         if (!this.#syncing) this.#state.keep(this.#seen());
         // a grid let go that no step can bring back any more is forgotten (its host lets its source go)
@@ -679,6 +721,7 @@ export class PageApp {
       },
       documentOf: (grid) => this.grid(grid)?.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
+      onPick: (chart, grid, conditions) => this.#pick(chart, grid, conditions),
     });
   }
 
@@ -689,7 +732,7 @@ export class PageApp {
       const cube = this.grid(id)?.cubeDocument(this.#name);
       if (cube) cubes.push({ id, cube });
     }
-    return { page: writePageOf({ name: this.#name, cubes, views: this.views() }), held: this.#page.held };
+    return { page: writePageOf({ name: this.#name, cubes, views: this.views(), filters: this.#filters }), held: this.#page.held };
   }
 
   // -- undo and redo ----------------------------------------------------------------------------------------------
@@ -754,6 +797,9 @@ export class PageApp {
     } finally {
       this.#syncing = false;
     }
+    // its filters as the editor's commands leave them, on every grid they reach
+    this.#filters = to.filters ?? [];
+    this.#applyLenses();
     this.#state = new PageState(this.#seen());
     this.#paintSheets();
     this.#paintEmpty();
@@ -772,6 +818,9 @@ export class PageApp {
     } finally {
       this.#syncing = false;
     }
+    // the page's filters as the step has them, on every grid they reach
+    this.#filters = step.draft.page.filters ?? [];
+    this.#applyLenses();
     // the screen is the page: what it now shows is the state's (a grid made again writes its own cube)
     this.#state.keep(this.#seen());
     this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${step.label}.`);
@@ -814,6 +863,128 @@ export class PageApp {
     this.#emptySheet.hidden = !bare;
     this.#root.classList.toggle('dc-page-is-empty', empty);
     this.#page.showAlone(empty ? null : this.#alone);
+    this.#paintFilters();
+  }
+
+  // -- the page's filters (page-filters.ts; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2) --------------------------
+
+  /** The page's filters, as its state holds them. */
+  get filters(): readonly PageFilter[] {
+    return this.#filters;
+  }
+
+  /**
+   * A FILTER OF THE PAGE SET -- the one of its id replaced, else added -- as one step named `label`, by the page
+   * commands' one rule (page-commands.ts setPageFilter, Python's too): refused in its words, nothing changed. Every grid
+   * over its class is filtered. Resolves to its id.
+   */
+  async setFilter(f: { readonly id?: string; readonly class: string; readonly condition: FilterNode; readonly from?: string },
+    label = 'Filter'): Promise<string> {
+    const applied = await this.#filterCommand({
+      kind: 'setPageFilter', ...(f.id !== undefined ? { id: f.id } : {}), class: f.class, condition: f.condition, from: f.from ?? null,
+    }, label);
+    const made = applied[0];
+    return made?.kind === 'setPageFilter' && made.id !== undefined ? made.id : '';
+  }
+
+  /** A filter of the page taken off, as one step: every grid it reached unfiltered by it. */
+  async removeFilter(id: string, label = 'Remove Filter'): Promise<void> {
+    await this.#filterCommand({ kind: 'removePageFilter', filter: id }, label);
+  }
+
+  async #filterCommand(command: PageCommand, label: string): Promise<PageCommand[]> {
+    // the page commands' rules, fetched with the first filter (a page with none never downloads them)
+    const { applyToState } = await import('../page-commands.ts');
+    if (this.#disposed) return [];
+    this.#state.keep(this.#seen());
+    const applied = applyToState(this.#state, [command], label);
+    this.#filters = this.#state.draft.page.filters ?? [];
+    this.#applyLenses();
+    this.#paintFilters();
+    for (const c of applied) this.#options.onPageCommand?.(c);
+    this.#options.onChange?.();
+    return applied;
+  }
+
+  #refused(e: unknown): void {
+    const said = e instanceof Error ? e.message : String(e);
+    if (this.#options.refuse) this.#options.refuse(said);
+    else this.#page.say(said);
+  }
+
+  /** The page's views as a lens reads them: a page being restored's, else the board's. */
+  #viewsNow(): readonly PageView[] {
+    return this.#restoring ?? this.views().views;
+  }
+
+  /** What the page's filters make of grid `id`'s queries, `views` the page's: a click filter is not its own chart's grid's. */
+  #lensOf(id: string, grid: PageGrid, views: readonly PageView[] = this.#viewsNow()): ReturnType<typeof gridLens> {
+    const charts = new Set(views.filter((v) => v.kind === 'chart' && v.cube === id).map((v) => v.id));
+    return gridLens(this.#filters, grid.cubeSource, charts);
+  }
+
+  /** Each grid given the lens the page's filters make for it now: one whose lens changed runs again. */
+  #applyLenses(): void {
+    const views = this.#viewsNow();
+    for (const id of this.cubes) {
+      const grid = this.grid(id);
+      if (!grid?.setLens) continue;
+      const lens = this.#lensOf(id, grid, views);
+      if (this.#lensKeys.get(id) === lens.key) continue;
+      this.#lensKeys.set(id, lens.key);
+      void grid.setLens(lens.lens, true, this.#lensWords(lens.taken));
+    }
+    this.#paintFilters();
+  }
+
+  /** The filters a grid takes, in words, its class named once: `region = EMEA; notional > 100`. */
+  #lensWords(taken: readonly string[]): string {
+    return this.#filters.filter((f) => taken.includes(f.id)).map((f) => conditionWords(f.condition)).join('; ');
+  }
+
+  /** The filter bar: each filter in words, what it reaches; Add a Filter on the classes the page's grids read. */
+  #paintFilters(): void {
+    const views = this.#viewsNow();
+    const classes = new Map<string, BarClass>();
+    const reach = new Map<string, { tiles: number; not: string[] }>(this.#filters.map((f) => [f.id, { tiles: 0, not: [] }]));
+    for (const id of this.cubes) {
+      const grid = this.grid(id);
+      const source = grid?.cubeSource;
+      if (!grid || source?._type !== 'class') continue;
+      if (!classes.has(source.class)) classes.set(source.class, { path: source.class, name: source.name, properties: source.columns });
+      const lens = this.#lensOf(id, grid, views);
+      for (const f of lens.taken) reach.get(f)!.tiles += 1;
+      for (const r of lens.refused) reach.get(r.id)?.not.push(`not ${this.#page.title(id) ?? id} (${r.why})`);
+    }
+    this.#filterBar.render(this.#filters.map((f) => {
+      const r = reach.get(f.id)!;
+      const tiles = `${r.tiles} ${r.tiles === 1 ? 'grid' : 'grids'}`;
+      return { id: f.id, words: filterWords(f), reach: r.not.length > 0 ? `${tiles}; ${r.not.join('; ')}` : tiles, fromChart: f.from !== undefined };
+    }), [...classes.values()]);
+  }
+
+  /**
+   * A CHART'S CLICK on a grid over a class (§16.2): its mark's conditions on the class's properties are a page filter
+   * from that chart -- replacing its last, or, the same mark again or none, taken off -- reaching every other grid over
+   * the class. A condition on anything else (a calculated column) is the grid's own, as on any grid: not taken (false).
+   */
+  #pick(chart: string, grid: string, conditions: readonly FilterNode[] | null): boolean {
+    const source = this.grid(grid)?.cubeSource;
+    if (source?._type !== 'class') return false;
+    const last = this.#filters.find((f) => f.from === chart);
+    const clear = (): boolean => {
+      if (!last) return false;
+      void this.removeFilter(last.id, 'Clear Chart Filter').catch((e: unknown) => this.#refused(e));
+      return true;
+    };
+    if (conditions === null || conditions.length === 0) return clear();
+    const condition: FilterNode = conditions.length === 1 ? conditions[0]! : { kind: 'and', children: [...conditions] };
+    const properties = new Set(source.columns.map((c) => c.name));
+    if (![...namedProperties(condition)].every((p) => properties.has(p))) return false;
+    if (last && JSON.stringify(last.condition) === JSON.stringify(condition)) return clear();
+    void this.setFilter({ ...(last ? { id: last.id } : {}), class: source.class, condition, from: chart }, 'Filter to Chart Mark')
+      .catch((e: unknown) => this.#refused(e));
+    return true;
   }
 
   // -- the page's menu --------------------------------------------------------------

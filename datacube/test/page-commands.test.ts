@@ -169,6 +169,9 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'removeTile', tile: 'chart' },
     { kind: 'arrange', sheet: 'sheet-1', preset: 'rows:1-1', order: ['grid', 'chart'] },
     { kind: 'layout', sheet: 'sheet-2', layout: sheet(trades, 'sheet-2').layout },
+    // a page filter's two (applied over a page of class grids: test/page-filters.test.ts)
+    { kind: 'setPageFilter', id: 'filter-1', class: 'trades::domain::Trade', condition: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }, from: null },
+    { kind: 'removePageFilter', filter: 'filter-1' },
   ];
 
   it('every kind, through JSON and back', () => {

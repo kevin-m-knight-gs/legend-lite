@@ -28,16 +28,17 @@ import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
 import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { PageModelRef } from './page-model.ts';
+import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
- * 4: the page's model, where its classes are (2026-10-10, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.3). 3: sheets,
- * each its own bands (2026-10-09, docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on
- * a 12-column grid. Only 4 is read.
+ * 5: the page's filters, by a class's property (2026-10-19, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2). 4: the
+ * page's model, where its classes are (2026-10-10, §15.3). 3: sheets, each its own bands (2026-10-09,
+ * docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on a 12-column grid. Only 5 is read.
  */
-export const PAGE_VERSION = 4;
+export const PAGE_VERSION = 5;
 /** The sheet a page of one sheet has: a new page's, and a cube alone's. */
 export const FIRST_SHEET = 'sheet-1';
 
@@ -103,6 +104,8 @@ export interface PageDocument extends PageViews {
   readonly cubes: readonly { readonly id: string; readonly cube: CubeDocument }[];
   /** Where the page's classes are (Create a Class…): its project in the model home; none until its first class. */
   readonly model?: PageModelRef;
+  /** Its filters, by a class's property (page-filters.ts): none, none written. */
+  readonly filters?: readonly PageFilter[];
   /** Top-level fields a newer writer added, kept verbatim. */
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
@@ -126,7 +129,7 @@ export class PageNoCubeError extends PageDocumentError {
   }
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model']);
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -138,8 +141,10 @@ export function writePage(o: {
   readonly cube: CubeDocument;
   readonly views: PageViews;
   readonly model?: PageModelRef;
+  readonly filters?: readonly PageFilter[];
   readonly unknown?: Readonly<Record<string, unknown>>;
 }): PageDocument {
+  const filters = filtersFor(o.filters ?? [], o.views.views);
   return {
     kind: PAGE_KIND,
     version: PAGE_VERSION,
@@ -149,6 +154,7 @@ export function writePage(o: {
     views: o.views.views,
     sheets: o.views.sheets,
     ...(o.model ? { model: keptFor(o.model, [{ id: PAGE_CUBE }]) } : {}),
+    ...(filters.length > 0 ? { filters } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
 }
@@ -162,8 +168,10 @@ export function writePageOf(o: {
   readonly cubes: readonly { readonly id: string; readonly cube: CubeDocument }[];
   readonly views: PageViews;
   readonly model?: PageModelRef;
+  readonly filters?: readonly PageFilter[];
   readonly unknown?: Readonly<Record<string, unknown>>;
 }): PageDocument {
+  const filters = filtersFor(o.filters ?? [], o.views.views);
   return {
     kind: PAGE_KIND,
     version: PAGE_VERSION,
@@ -173,6 +181,7 @@ export function writePageOf(o: {
     views: o.views.views,
     sheets: o.views.sheets,
     ...(o.model ? { model: keptFor(o.model, o.cubes) } : {}),
+    ...(filters.length > 0 ? { filters } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
 }
@@ -193,6 +202,15 @@ export function keptFor(model: PageModelRef, cubes: readonly { readonly id: stri
   // reader refuses as it refuses a table's
   const { classes: _was, ...rest } = model;
   return { ...rest, tables, ...(Object.keys(classes).length > 0 ? { classes } : {}) };
+}
+
+/**
+ * The page's filters as the page writes them: a chart's click kept only while the page holds that chart -- a chart
+ * removed takes the filter its click made with it, as the reader holds every click to a chart of the page.
+ */
+export function filtersFor(filters: readonly PageFilter[], views: readonly PageView[]): readonly PageFilter[] {
+  const charts = new Set(views.filter((v) => v.kind === 'chart').map((v) => v.id));
+  return filters.filter((f) => f.from === undefined || charts.has(f.from));
 }
 
 /** The page as a JSON-ready object: each cube as its own document writes itself. */
@@ -222,6 +240,8 @@ export function pageDefinitionText(page: PageDocument): string {
     sheets: page.sheets,
     // its classes' project: made, or a grid's table kept, the page has changed
     ...(page.model ? { model: page.model } : {}),
+    // a filter set or taken off, the page has changed
+    ...(page.filters ? { filters: page.filters } : {}),
   });
 }
 
@@ -287,6 +307,16 @@ export function readPage(input: string | unknown): PageDocument {
   const unknown: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) if (!KNOWN.has(k)) unknown[k] = plain(v);
   const model = raw['model'] === undefined ? undefined : readModel(plain(raw['model']), ids);
+  let filters: readonly PageFilter[] | undefined;
+  if (raw['filters'] !== undefined) {
+    try {
+      filters = readPageFilters(plain(raw['filters']), new Set(views.filter((v) => v.kind === 'chart').map((v) => v.id)));
+    } catch (e) {
+      throw new PageDocumentError(e instanceof Error ? e.message : String(e));
+    }
+    // none is written as no field: an empty list is no page's
+    if (filters.length === 0) throw new PageDocumentError("'filters' is an empty list: a page with none has no field");
+  }
 
   return {
     kind: PAGE_KIND,
@@ -296,6 +326,7 @@ export function readPage(input: string | unknown): PageDocument {
     views,
     sheets,
     ...(model ? { model } : {}),
+    ...(filters ? { filters } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   };
 }

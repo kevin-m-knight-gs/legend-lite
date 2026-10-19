@@ -10,6 +10,8 @@ import {
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, readPageCommand } from '../page-commands.ts';
 import { CubeRefusal } from '../snapshot.ts';
+import { toFilterNode } from '../filter-operators.ts';
+import { draftFrom, type GivenFilter } from './grid.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PageDocument } from '../page-document.ts';
 
@@ -79,6 +81,34 @@ export function pageApply(page: string, held: string, commands: string): string 
 }
 
 /**
+ * A PAGE FILTER AS PYTHON ASKS FOR ONE (Page.filter; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2): `given`,
+ * `{class, filter, id?}` -- the class by its path or its name, one a grid of the page reads; the condition as Python's
+ * grid filter hands one in (grid.ts draftFrom: the filter editor's operands, each operator one its property's type is
+ * offered), over the class's properties as the page's grids over it read them (their class sources' columns) -- made the
+ * setPageFilter command the screen's Add a Filter makes, for pageApply. JSON: `{command}`, or `{problems}`, in DataCube's
+ * words.
+ */
+export function pageFilter(page: string, given: string): string {
+  const doc = heldPage(page);
+  const asked = JSON.parse(given) as { class: string; filter: GivenFilter; id?: string };
+  const sources = doc.cubes.map((c) => c.cube.source).flatMap((s) => (s._type === 'class' ? [s] : []));
+  const over = sources.filter((s) => s.class === asked.class || s.name === asked.class);
+  const classes = [...new Set(over.map((s) => s.class))];
+  if (classes.length !== 1) {
+    const all = [...new Set(sources.map((s) => s.class))];
+    return JSON.stringify({ problems: [classes.length === 0
+      ? `no grid of the page reads a class ${JSON.stringify(asked.class)}${all.length ? ` (its grids read ${all.join(', ')})` : ' (none reads a class)'}`
+      : `${asked.class} names ${classes.join(' and ')}: give the class's path`] });
+  }
+  const types = new Map<string, string | undefined>(over.flatMap((s) => s.columns.map((c) => [c.name, c.type] as const)));
+  const draft = draftFrom(asked.filter, types);
+  if (typeof draft === 'string') return JSON.stringify({ problems: [draft] });
+  const condition = toFilterNode(draft, (c) => types.get(c));
+  if (condition === null) return JSON.stringify({ problems: ['a page filter lets something through: give it a condition'] });
+  return `{"command":${toJson({ kind: 'setPageFilter', ...(asked.id !== undefined ? { id: asked.id } : {}), class: classes[0]!, condition, from: null })}}`;
+}
+
+/**
  * A page as Python holds it, read as the page commands take it: written by DataCube's writers (pageNew, pageRead,
  * gridApply), so its parts are read as they are -- a new page has no cube yet, which readPage refuses -- but each cube
  * by its own reader (readCube: a calculated column's numbers exact, every other number plain, as DataCube holds a
@@ -87,9 +117,9 @@ export function pageApply(page: string, held: string, commands: string): string 
 function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
-  const { kind, version, name, views, sheets, model, ...unknown } = rest;
+  const { kind, version, name, views, sheets, model, filters, ...unknown } = rest;
   return {
-    kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}),
+    kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}), ...(filters !== undefined ? { filters } : {}),
     cubes: cubes.map((c, i) => ({ id: c.id, cube: readCube(exact[i]!.cube) })),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   } as unknown as PageDocument;

@@ -48,6 +48,8 @@ import {
 import type { Receipt } from '../../engine-client/src/receipt.ts';
 import {
   PlanThenRun,
+  lensed,
+  type QueryLens,
   type QueryRunner,
   type RunOutcome,
 } from './runner.ts';
@@ -294,6 +296,8 @@ export class CubeController {
   readonly #guard = new EpochGuard();
   readonly #snaps: SnapManager | HostSnaps;
   readonly #options: CubeControllerOptions;
+  /** Its host's rewrite of every query it runs (runner.ts QueryLens): a dashboard's page filters; none, none. */
+  #lens: QueryLens | undefined;
 
   /**
    * Two arrangements, and the choice is the CALL, not a flag.
@@ -354,7 +358,18 @@ export class CubeController {
    * plane is the user's choice.
    */
   get #runner(): QueryRunner {
-    return this.#snaps.isSnapped && this.#copy ? this.#copy : this.#liveRunner;
+    const runner = this.#snaps.isSnapped && this.#copy ? this.#copy : this.#liveRunner;
+    return this.#lens ? lensed(runner, this.#lens) : runner;
+  }
+
+  /**
+   * Every query from now rewritten by `lens` -- its host's (a dashboard's page filters on the grid's class, §16.2),
+   * never the cube's state: its undo, its saved document and its copies stay the cube's own. Which planner and engine
+   * answer is unchanged (settled at construction). A snap's pull is the cube's own source, unrewritten: a class grid
+   * has nothing to snap into.
+   */
+  setLens(lens: QueryLens | undefined): void {
+    this.#lens = lens;
   }
 
   /** Which arrangement answers queries, for diagnostics. */

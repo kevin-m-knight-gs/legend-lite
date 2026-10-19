@@ -269,9 +269,12 @@ class OnThePage(unittest.TestCase):
         self.assertEqual((ref['workspace'], ref['package']), ('datacube', 'tradesByDesk'))
         self.assertTrue(ref['project'].startswith('datacube:trades-by-desk'), ref)
         self.assertEqual(ref['classes'], {trades._view['cube']: trade})
+        # pinned to the revision its class was saved as (page-model.ts pin): where its class grids are read
+        self.assertEqual(ref['revision'], self.sdlc.revision(ref['project'], ref['workspace'])['id'])
         desk = desks.create_class(columns={'desk': 'key'})
         self.assertEqual(desk, 'tradesByDesk::domain::ModelDesk')
         self.assertEqual(page.model['project'], ref['project'], "the page's one project")
+        self.assertNotEqual(page.model['revision'], ref['revision'], 'a class made: the page pinned to the new revision')
         # how many of each end: preset from whether its key is unique over its grid's rows, as the window presets it
         association = page.create_association((trade, 'desk'), (desk, 'desk'), name='TradeDesk')
         self.assertEqual(association, 'tradesByDesk::domain::TradeDesk')

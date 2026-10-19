@@ -20,6 +20,8 @@ import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { classRelation } from '../src/class-source.ts';
+import * as echarts from 'echarts/core';
 
 let dom: JSDOM;
 let host: HTMLElement;
@@ -667,5 +669,144 @@ describe('a page of its own', () => {
     assert.equal(files.length, 1);
     assert.equal(files[0]![0], 'Q3.page.json');
     assert.equal(readPage(files[0]![1]).cubes[0]!.cube.source.name, 'picked.csv');
+  });
+});
+
+describe('a dashboard\'s page filters (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2): on a class, reaching its grids', () => {
+  const TRADE = 'trades::domain::Trade';
+  const COLUMNS = SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type }));
+  const EMEA = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+
+  /** A planner that keeps every query it plans: what the grid asked the database for. */
+  class Recording extends StubPlanner {
+    readonly plans: string[] = [];
+    override async plan(query?: unknown): ReturnType<StubPlanner['plan']> {
+      this.plans.push(JSON.stringify(query));
+      return super.plan();
+    }
+  }
+
+  /** A grid over the class Trade (its class source), its planner the one handed in. */
+  const overClass = (planner: Recording): GridMaker => (gridHost, spawned, start) => new CubeApp(gridHost,
+    start?.snapshot ?? { ...SNAPSHOT, source: { query: classRelation(TRADE, COLUMNS.map((c) => c.name)) } }, {
+      engine, planner, compact: true, sourceLabel: 'Trade',
+      cubeSource: { _type: 'class', name: 'Trade', class: TRADE, project: 'datacube:trades', workspace: 'datacube',
+        revision: '3', mapping: 'trades::mapping::Model', runtime: 'trades::runtime::Browser', columns: COLUMNS },
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: 'Trade' }, ...(page ? { windowHost: page.root } : {}), ...spawned,
+    });
+  const filtered = (plans: readonly string[]): boolean => plans.some((p) => p.includes('"function":"filter"') && p.includes('"function":"getAll"'));
+  const chips = (): string[] => [...host.querySelectorAll('.dc-page-filter')].map((c) => `${c.querySelector('.dc-page-filter-words')?.textContent} / ${c.querySelector('.dc-page-filter-reach')?.textContent}`);
+
+  it('set from the page: every grid over the class runs filtered, a grid over a file does not; undone, none is', async () => {
+    newPage();
+    const a = new Recording();
+    const b = new Recording();
+    page.addGrid(overClass(a));
+    page.addGrid(overClass(b));
+    page.addGrid(over('trades.csv'));
+    await settle();
+    assert.equal(filtered([...a.plans, ...b.plans]), false);
+    assert.equal((host.querySelector('.dc-page-filters') as HTMLElement).hidden, false, 'a page with a class grid has the bar');
+    const id = await page.setFilter({ class: TRADE, condition: EMEA });
+    await settle();
+    assert.equal(id, 'filter-1');
+    assert.ok(filtered(a.plans) && filtered(b.plans), 'both class grids ran again, filtered');
+    assert.deepEqual(chips(), ['Trade: region = EMEA / 2 grids']);
+    // each tile says what filters it: the class grids, in their status bars; the file's grid, nothing
+    assert.deepEqual([...host.querySelectorAll('.dc-status-page-filter')].map((s) => s.textContent),
+      ['Page: region = EMEA', 'Page: region = EMEA']);
+    assert.equal(page.undoLabel, 'Filter');
+    // the grids' own state is theirs: the filter is the page's, saved with it, never in a grid's cube
+    const doc = page.document('Q3')!;
+    assert.deepEqual(doc.filters, [{ id: 'filter-1', class: TRADE, condition: EMEA }]);
+    assert.ok(doc.cubes.every((c) => c.cube.query.filter === undefined));
+    a.plans.length = 0;
+    page.undo();
+    await settle();
+    assert.equal(page.filters.length, 0);
+    assert.deepEqual(chips(), []);
+    assert.ok(a.plans.length > 0 && !filtered(a.plans), 'undone: it ran again, unfiltered');
+    page.redo();
+    await settle();
+    assert.deepEqual(page.filters.map((f) => f.id), ['filter-1']);
+  });
+
+  it('refused in words, nothing changed: a property the class has not', async () => {
+    newPage();
+    page.addGrid(overClass(new Recording()));
+    await settle();
+    const before = page.undoLabel;
+    await assert.rejects(page.setFilter({ class: TRADE, condition: { ...EMEA, column: 'colour' } }), /Trade has no colour/);
+    assert.equal(page.filters.length, 0);
+    assert.equal(page.undoLabel, before, 'no step of it');
+  });
+
+  it('a saved page reopened: each class grid opens filtered from its first query', async () => {
+    newPage();
+    page.addGrid(overClass(new Recording()));
+    await settle();
+    await page.setFilter({ class: TRADE, condition: EMEA });
+    const doc = readPage(pageToJson(page.document('Q3')!));
+    page.dispose();
+    newPage();
+    const again = new Recording();
+    page.restore(doc, new Map([[doc.cubes[0]!.id, overClass(again)]]));
+    await settle();
+    assert.ok(again.plans.length > 0 && again.plans.every((p) => !p.includes('"function":"getAll"') || p.includes('"function":"filter"')),
+      'no query of it read the class unfiltered');
+    assert.deepEqual(chips(), ['Trade: region = EMEA / 1 grid']);
+  });
+});
+
+describe('a chart\'s click on a grid over a class (§16.2): a page filter from that chart, its own grid left whole', () => {
+  const TRADE = 'trades::domain::Trade';
+  const COLUMNS = SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type }));
+
+  class Recording extends StubPlanner {
+    readonly plans: string[] = [];
+    override async plan(query?: unknown): ReturnType<StubPlanner['plan']> {
+      this.plans.push(JSON.stringify(query));
+      return super.plan();
+    }
+  }
+  const overClass = (planner: Recording): GridMaker => (gridHost, spawned, start) => new CubeApp(gridHost,
+    start?.snapshot ?? { ...SNAPSHOT, source: { query: classRelation(TRADE, COLUMNS.map((c) => c.name)) } }, {
+      engine, planner, compact: true, sourceLabel: 'Trade',
+      cubeSource: { _type: 'class', name: 'Trade', class: TRADE, project: 'datacube:trades', workspace: 'datacube',
+        revision: '3', mapping: 'trades::mapping::Model', runtime: 'trades::runtime::Browser', columns: COLUMNS },
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: 'Trade' }, ...(page ? { windowHost: page.root } : {}), ...spawned,
+    });
+  const filtered = (plans: readonly string[]): boolean => plans.some((p) => p.includes('"function":"filter"') && p.includes('"function":"getAll"'));
+
+  it('the click filters every other grid over the class; the same mark again takes it off', async () => {
+    newPage();
+    const a = new Recording();
+    const b = new Recording();
+    const gridA = page.addGrid(overClass(a));
+    page.addGrid(overClass(b));
+    await settle();
+    const chart = await chartOf(gridA);
+    await settle();
+    // the mark clicked, as ECharts tells the chart (chart-render.ts: its click on a bar)
+    const mounted = tile(chart).querySelector<HTMLElement>('[_echarts_instance_]');
+    assert.ok(mounted, 'the chart is mounted');
+    const instance = echarts.getInstanceByDom(mounted)!;
+    a.plans.length = 0;
+    b.plans.length = 0;
+    instance.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    assert.equal(page.filters.length, 1);
+    const f = page.filters[0]!;
+    assert.equal(f.from, chart);
+    assert.equal(f.class, TRADE);
+    // the mark's conditions, as the chart said them (a bar of a region, of a desk), on the class's properties
+    assert.match(JSON.stringify(f.condition), /"column":"region"/);
+    assert.ok(filtered(b.plans), 'the other grid over the class ran filtered');
+    assert.ok(!filtered(a.plans), 'the clicked chart\'s own grid is left whole');
+    assert.equal(page.document('Q3')!.cubes.find((c) => c.id === gridA)!.cube.query.filter, undefined,
+      'nothing on the clicked grid\'s own filter');
+    instance.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    assert.equal(page.filters.length, 0, 'the same mark again: taken off');
   });
 });

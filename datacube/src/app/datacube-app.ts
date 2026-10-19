@@ -29,7 +29,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
-import type { PageModelRef } from '../page-model.ts';
+import { classAt, type PageModelRef } from '../page-model.ts';
 import { classLambda, duplicateLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
@@ -53,6 +53,8 @@ const CREATE_CLASS = { id: 'host.createClass', label: 'Create a Class\u2026', se
  *  too, its class one end. */
 const CREATE_ASSOCIATION = { id: 'host.createAssociation', label: 'Create an Association\u2026', section: 'data' } as const;
 const CREATE_DATA_SPACE = { id: 'host.createDataSpace', label: 'Create a Data Space\u2026', section: 'data' } as const;
+/** ADD A GRID OVER <CLASS> (§16.1): a grid made a class, its class read beside it -- a dashboard's tile. */
+const CLASS_GRID_ID = 'host.classGrid' as const;
 
 /** What the app opens first. */
 export type AppStart =
@@ -213,12 +215,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         foldPanel: (start !== undefined && start.tree === undefined) || place.foldPanel === true,
         // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes; and, where the
         // page has a model home and the host writes models, Create a Class… of the grid's rows
-        hostMenu: () => [
-          ...planeMenu(),
-          ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
-        ],
+        hostMenu: () => {
+          const cls = spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id];
+          return [
+            ...planeMenu(),
+            ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
+            ...(cls !== undefined && classGrid
+              ? [{ id: CLASS_GRID_ID, label: `Add a Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'data' as const }] : []),
+          ];
+        },
         onHostMenu: (item) => {
-          if (item.id === CREATE_CLASS.id) createClass?.(created, place, spawned.id);
+          if (item.id === CLASS_GRID_ID) classGrid?.(spawned.id);
+          else if (item.id === CREATE_CLASS.id) createClass?.(created, place, spawned.id);
           else if (item.id === CREATE_ASSOCIATION.id) createAssociation?.(spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id]);
           else onHostItem(item);
         },
@@ -329,6 +337,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    *  home. */
   let createAssociation: ((first?: string) => void) | undefined;
   let createDataSpace: (() => void) | undefined;
+  /** ADD A GRID OVER <CLASS> (§16.1): the class grid `cube` was made, read beside it at the page's pin. */
+  let classGrid: ((cube: string | undefined) => void) | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page renamed in its name box: its name from now (once the page can be saved, a change until it is). */
@@ -1092,6 +1102,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     };
     createClass = (grid, place, cube) => {
       void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
+    };
+    classGrid = (cube) => {
+      const model = current.model;
+      const cls = cube === undefined ? undefined : model?.classes?.[cube];
+      const writing = services.engine.modelWriting;
+      if (!model || cls === undefined || !writing) return;
+      void (async () => {
+        // the class at the page's pin, through the place's runtime: the tables its store names are the page's own
+        // what it leaves out is said when it is saved and opened again, as an added source's is
+        const opened = await sources.openedClass(classAt(model, cls, writing.place), undefined, gridCapped(page.cubes.length + 1));
+        page.addGrid(opened.make, { near: cube! });
+      })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
     /** The chosen source IN PLACE of the page: it empties, then one grid over the source (its only one: gridCapped). */
     async function openInPlace(chosen: Chosen): Promise<void> {

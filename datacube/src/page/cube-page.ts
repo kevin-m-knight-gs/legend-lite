@@ -174,6 +174,12 @@ export interface CubePageOptions {
   readonly documentOf?: (grid: string) => CubeDocument | undefined;
   /** Ctrl+Z (Ctrl+Shift+Z: `redo`) on a tile's frame: the page's own undo (a page of its own); absent, Undo Layout. */
   readonly onUndo?: (redo: boolean) => void;
+  /**
+   * A chart's click (its mark's conditions; null, taken off) the page takes instead of the chart's own grid: a page
+   * filter, on a grid over a class (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2). True: taken -- the chart's grid is
+   * left as it is; false or absent: the click filters the chart's own grid, as it always has.
+   */
+  readonly onPick?: (chart: string, grid: string, conditions: readonly FilterNode[] | null) => boolean;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -1446,6 +1452,18 @@ export class CubePage {
   #select(id: string, conditions: readonly FilterNode[] | null): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
+    // taken by the page (a page filter on a class): the chart's own grid is not filtered -- what it filtered before by
+    // its own clicks taken off it
+    if (chart.link.grid !== null && this.#options.onPick?.(id, chart.link.grid, conditions)) {
+      if (chart.conditions.length > 0) {
+        this.#sourceOf(chart.link).refilter(chart.conditions, [], 'clear chart selection');
+        chart.conditions = [];
+        chart.key = '';
+        this.#paintSelection(id);
+        this.#options.onChange();
+      }
+      return;
+    }
     // the chart said the mark as conditions (chart-spec.ts `markConditions`): a value, a period's or a bin's range
     const next: FilterNode[] = conditions === null ? [] : [...conditions];
     const key = JSON.stringify(next);

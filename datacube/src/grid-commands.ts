@@ -338,7 +338,7 @@ function filterValueFrom(v: unknown): FilterValue {
  * none, a value, a list, another column), a group of them, a not -- or why not. What it names (a column the grid has)
  * is the apply's to judge.
  */
-function filterFrom(v: unknown): FilterNode {
+export function readFilterNode(v: unknown): FilterNode {
   if (!isObject(v)) throw new CubeRefusal(`a filter is a condition, a group or a not, not ${JSON.stringify(v)}`);
   switch (v['kind']) {
     case 'condition': {
@@ -368,11 +368,11 @@ function filterFrom(v: unknown): FilterNode {
     case 'or': {
       fields(v, v['kind'], ['children'], 'a group');
       if (!Array.isArray(v['children'])) throw new CubeRefusal("a group's children are a list of filters");
-      return { kind: v['kind'], children: v['children'].map(filterFrom) };
+      return { kind: v['kind'], children: v['children'].map(readFilterNode) };
     }
     case 'not':
       fields(v, 'not', ['child'], 'a not');
-      return { kind: 'not', child: filterFrom(v['child']) };
+      return { kind: 'not', child: readFilterNode(v['child']) };
     default:
       throw new CubeRefusal(`a filter is a condition, an and, an or or a not, not ${JSON.stringify(v['kind'])}`);
   }
@@ -456,13 +456,13 @@ export function readGridCommand(given: unknown): GridCommand {
       return { kind, patch: o['patch'] };
     case 'filter':
       fields(o, kind, ['filter']);
-      return { kind, filter: o['filter'] === null ? null : filterFrom(o['filter']) };
+      return { kind, filter: o['filter'] === null ? null : readFilterNode(o['filter']) };
     case 'addFilter':
       fields(o, kind, ['condition']);
       if (!isObject(o['condition']) || o['condition']['kind'] !== 'condition') {
         throw new CubeRefusal(`a filter added is one condition, not ${JSON.stringify(o['condition'])}`);
       }
-      return { kind, condition: filterFrom(o['condition']) };
+      return { kind, condition: readFilterNode(o['condition']) };
     case 'calculate':
       fields(o, kind, ['level', 'column']);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);

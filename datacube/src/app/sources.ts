@@ -14,7 +14,8 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { Query, QueryReader } from '../../../query-store/src/index.ts';
-import { lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { from, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import type { ClassAt, ClassElement } from '../class-source.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
@@ -22,6 +23,7 @@ import {
   fileSource,
   frameSource,
   rebuilt,
+  type ClassSource,
   type CubeDocument,
   type CubeSource,
   type FileSource,
@@ -177,6 +179,9 @@ export interface PageSources {
   openedRecord(q: SavedQueryRecord): Promise<OpenedQuery>;
   /** A frame of the host's (Python's dataframe) for a grid: fresh, or a saved cube rebuilt over it. */
   openedFrame(name: string, saved?: CubeDocument, capped?: boolean): Promise<Opened>;
+  /** A class of a project in the model home, at a revision, for a grid (a dashboard's tile): fresh, or a saved cube
+   *  rebuilt over it. */
+  openedClass(at: ClassAt, saved?: CubeDocument, capped?: boolean): Promise<Opened>;
   /** The frame a grid reads, by its id: what following the host's frames refreshes. */
   frameOf(id: string): string | undefined;
   /** A frame's version as the page last read it; undefined when no grid has read it. */
@@ -853,6 +858,54 @@ export function pageSources(d: SourcesOf): PageSources {
     };
   }
 
+  // -- a class of a project in the model home (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.1) ----------------------
+
+  /**
+   * A CLASS for a grid: the project's files at the revision as one model text, planned by the host's compiler through
+   * the class's mapping and runtime (a saved query's way, C5); its properties the grid's columns, each under its own
+   * name. Its rows are where the host's database has them -- the tables the page that made it read in -- so one not
+   * open here is refused when it opens, in words, never its sample read in its place.
+   */
+  async function openedClass(at: ClassAt, saved?: CubeDocument, capped = false): Promise<Opened> {
+    const name = at.class.slice(at.class.lastIndexOf(':') + 1);
+    if (!modelHome) throw new Error(`“${name}” is a class of ${at.project}: this page reaches no model home`);
+    // fetched the first time a class is opened: a page with no class grid never downloads them
+    const [{ classProperties, classRelation }, { projectText }, home] = await Promise.all([
+      import('../class-source.ts'), import('../../../sdlc-client/src/project-text.ts'), modelHome.connect()]);
+    const model = projectText(await home.client.pure({ project: at.project, workspace: at.workspace, revision: at.revision }));
+    const { shown, left } = classProperties(await services.engine.reading.elements(model) as ClassElement[], at.class);
+    const rows = services.engine.rows(model, at.runtime, { mapping: at.mapping });
+    try {
+      const source = classRelation(at.class, shown);
+      const columns = await sourceColumns(typer(rows), source);
+      // its rows, asked for once: a table its store names that is not open in this tab is said now, by the database
+      const first = lambda([], from(source).limit(1).node);
+      try {
+        if (rows.runner) await rows.runner.host.planAndRun(first, 0);
+        else await rows.engine.run((await rows.planner.plan(first)).sql, 0);
+      } catch (e) {
+        throw new Error(`“${name}” cannot read its rows here (${e instanceof Error ? e.message : String(e)}): a class reads `
+          + 'the tables the page that made it opened -- open that page, or its file, first');
+      }
+      const cubeSource: ClassSource = {
+        _type: 'class', name, class: at.class, project: at.project, workspace: at.workspace, revision: at.revision,
+        mapping: at.mapping, runtime: at.runtime, columns: columns.map((c) => ({ name: c.name, type: c.type })),
+      };
+      const r = rebuilt(saved, source, columns, name, capped);
+      return {
+        label: name,
+        notes: [...(left.length > 0 ? [`${name}: not shown, ${left.join(', ')}`] : []), ...r.notes],
+        make: gridMaker(r.snapshot, r.configuration, [], {
+          ...rowsPlace(rows), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+        }),
+        discard: async () => letGo(rows),
+      };
+    } catch (e) {
+      letGo(rows);
+      throw e;
+    }
+  }
+
   // -- every kind --------------------------------------------------------------------------------------------------
 
   function opened(chosen: Chosen, capped: boolean): Promise<Opened> {
@@ -886,6 +939,8 @@ export function pageSources(d: SourcesOf): PageSources {
     if (src._type === 'remoteFile') return reopenRemote(src, doc, several);
     // a dataframe's rows are the Python's that serves it: opened where the host has its frames, refused elsewhere
     if (src._type === 'frame') return openedFrame(src.name, doc, several);
+    // a class at the revision its grid was read at: its pin, kept by its source (§16.1)
+    if (src._type === 'class') return openedClass(src, doc, several);
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);
     const got = await fileFor(doc, keys);
     if (!got) return undefined;
@@ -989,6 +1044,7 @@ export function pageSources(d: SourcesOf): PageSources {
     reopened,
     openedRecord,
     openedFrame,
+    openedClass,
     frameOf: (id) => {
       const src = gridPlaces.get(id)?.cubeSource;
       return src?._type === 'frame' ? src.name : undefined;

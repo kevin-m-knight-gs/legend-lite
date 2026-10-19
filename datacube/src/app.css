@@ -75,6 +75,26 @@
 .dc-page-status { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
 .dc-page-alone { flex: none; align-self: stretch; display: flex; align-items: center; }
+
+/* THE PAGE'S FILTERS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2): below the bar on a page with a grid over a
+   class -- each filter a chip in words, what it reaches beside it, its x; Add a Filter's form inline */
+.dc-page-filters { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1);
+  padding: 2px var(--dc-pad-2); border-bottom: 1px solid var(--dc-border-color); font-size: var(--dc-text-sm-size); }
+.dc-page-filters[hidden] { display: none; }
+.dc-page-filters-label { color: var(--dc-muted); }
+.dc-page-filters-chips { display: contents; }
+.dc-page-filter { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px 0 6px; height: 18px;
+  border: 1px solid var(--tw-sky-600); border-radius: 9px; background: var(--tw-sky-50); }
+.dc-page-filter-click { border-style: dashed; }
+.dc-page-filter-reach { color: var(--dc-muted); }
+.dc-page-filter-remove, .dc-page-filter-add, .dc-page-filter-apply, .dc-page-filter-cancel {
+  font: inherit; border: none; background: transparent; color: var(--tw-sky-600); cursor: pointer; padding: 0 4px; }
+.dc-page-filter-form { display: inline-flex; align-items: center; gap: 4px; }
+.dc-page-filter-form[hidden] { display: none; }
+.dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
+.dc-page-filter-said { color: var(--dc-muted); }
+/* a grid the page's filters reach says so in its status bar, beside its own filter */
+.dc-status-page-filter { color: var(--tw-sky-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
 

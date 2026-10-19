@@ -226,6 +226,68 @@ try {
     && document.querySelector('.dc-class .dc-primary:not([disabled])'), undefined, { timeout: 30_000 })
     .then(() => check(true, 'reopened: the class made again writes nothing (its grid reads the table its store names)'),
       async () => bad(`reopened, the class made again writes: ${(await files()).join(', ')}`));
+  await page.locator('.dc-class .dc-picker-button.dc-quiet').click();
+  await page.locator('.dc-class').waitFor({ state: 'detached', timeout: 10_000 });
+
+  // A DASHBOARD'S TILE (§16.1): the grid made Trade gets Add a Grid over Trade -- the class read beside it at the page's
+  // pin, its properties its columns, the same rows its table holds
+  const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.dataset.column));
+  const rowsOf = async (tile) => Number((/([\d,]+) rows \u00d7/.exec((await tile.textContent()) ?? '')?.[1] ?? 'NaN').replace(/,/g, ''));
+  const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) }).first();
+  await page.locator('.dc-tile-menu').nth(0).click();
+  await item('Add a Grid over Trade').click();
+  const classTile = tileWith('tradeId');
+  await classTile.locator('.dc-th[data-column="notional"]').waitFor({ timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 3, undefined, { timeout: 60_000 });
+  check(JSON.stringify(await columnsOf(classTile)) === JSON.stringify(['tradeId', 'notional']),
+    `the class's grid: its properties, under their own names (${await columnsOf(classTile)})`);
+  const fileTile = tileWith('trade_id');
+  await page.waitForFunction(() => /40 rows/.test(document.body.textContent ?? ''), undefined, { timeout: 30_000 });
+  check(await rowsOf(classTile) === 40, `it reads its table's 40 rows (${await rowsOf(classTile)})`);
+
+  // THE PAGE'S FILTER (§16.2): set in the filter bar on the class's property, it filters the class's grid -- before its
+  // columns are taken -- and never the file's grid, nor any grid's own filter
+  await page.locator('.dc-page-filter-add').click();
+  await page.locator('.dc-page-filter-property').selectOption('notional');
+  await page.locator('.dc-page-filter-operator').selectOption('greaterThan');
+  await page.fill('.dc-page-filter-value', '2000');
+  await page.locator('.dc-page-filter-apply').click();
+  await page.waitForFunction(() => document.querySelector('.dc-page-filter-words')?.textContent === 'Trade: notional > 2000',
+    undefined, { timeout: 30_000 });
+  await page.waitForFunction(() => /21 rows/.test(document.body.textContent ?? ''), undefined, { timeout: 30_000 })
+    .catch(() => undefined);
+  check(await rowsOf(classTile) === 21 && await rowsOf(fileTile) === 40,
+    `the class's grid filtered (${await rowsOf(classTile)} of 40 rows), the file's not (${await rowsOf(fileTile)})`);
+  check((await page.locator('.dc-page-filter-reach').textContent()) === '1 grid', 'the bar says what it reaches');
+  check(/Page: notional > 2000/.test((await classTile.locator('.dc-status-page-filter').textContent()) ?? ''),
+    'the class\'s grid says what filters it');
+
+  // SAVED AND OPENED AGAIN: the class's grid reopened at the revision it was read at, the page's filter on it again
+  await page.click('.dc-titlebar-menu');
+  await item('Save').click();
+  await page.waitForFunction(() => !document.title.startsWith('\u2022'), undefined, { timeout: 30_000 });
+  await page.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
+  await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
+  await page.click('.dc-titlebar-menu');
+  await item('Open\u2026').click();
+  const saved = page.locator('#cubelib .dc-lib-row', { hasText: 'Classes' });
+  await saved.waitFor({ timeout: 10_000 });
+  await saved.locator('.dc-lib-button', { hasText: 'Open' }).click();
+  for (let asked = 0; asked < 2; asked += 1) {
+    await page.waitForSelector('#cubelib .dc-lib-ask:not([hidden])', { timeout: 30_000 });
+    const ask = await page.locator('#cubelib .dc-lib-ask').textContent() ?? '';
+    await page.setInputFiles('#cubelib .dc-lib-choose', /customers\.csv/.test(ask) ? customers : trades);
+    await page.waitForFunction((n) => !document.querySelector('#cubelib .dc-lib-ask:not([hidden])')
+      || !document.querySelector('#cubelib .dc-lib-ask')?.textContent?.includes(n), /customers\.csv/.test(ask) ? 'customers.csv' : 'trades.csv',
+    { timeout: 30_000 });
+  }
+  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 3, undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelector('.dc-page-filter-words')?.textContent === 'Trade: notional > 2000',
+    undefined, { timeout: 30_000 }).then(() => check(true, 'reopened: the page\'s filter is back in its bar'),
+    () => bad('reopened: the page\'s filter is not in its bar'));
+  await page.waitForFunction(() => /21 rows/.test(document.body.textContent ?? ''), undefined, { timeout: 30_000 })
+    .catch(() => undefined);
+  check(await rowsOf(tileWith('tradeId')) === 21, `reopened: the class's grid filtered again (${await rowsOf(tileWith('tradeId'))} rows)`);
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or other alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
 

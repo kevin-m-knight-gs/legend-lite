@@ -7,7 +7,7 @@
 const numberOf = (id: string): number => Number(/-(\d+)$/.exec(id)?.[1] ?? 0);
 
 /** A new id of `kind` (`chart-4`): after every one of its kind the page has held, so never one a handle had. */
-export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'sheet'): string {
+export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'sheet' | 'filter'): string {
   return `${kind}-${Math.max(0, ...held.filter((h) => h.startsWith(`${kind}-`)).map(numberOf)) + 1}`;
 }
 

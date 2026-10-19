@@ -13,7 +13,7 @@ import {
 import { forget, ingest, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelNames } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
-import { nameGiven, pageApply, pageNew, pageRead } from './page.ts';
+import { nameGiven, pageApply, pageFilter, pageNew, pageRead } from './page.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -43,6 +43,10 @@ export { layoutBands, layoutTiles };
  *  it: what Python's pages ask when one is loaded, read back, laid out or saved. And a new page as DataCube starts one:
  *  what Python's ll.Page() asks. And a page edited by commands (page-commands.ts): what Python's page edits send. */
 export { pageApply, pageNew, pageRead };
+
+/** A page filter on a class's property, made as the screen's Add a Filter makes one (a setPageFilter command, for
+ *  pageApply): what Python's page.filter asks. */
+export { pageFilter };
 
 /** A page's, a tile's or a sheet's name as a person gives it, by DataCube's one rule: what Python's names ask. */
 export { nameGiven };

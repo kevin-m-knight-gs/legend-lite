@@ -159,7 +159,7 @@ describe('a saved page', () => {
     const back = readPage(JSON.stringify(withMore));
     assert.deepEqual(back.unknown, { variables: [{ name: 'asOf' }] });
     assert.deepEqual(JSON.parse(pageToJson(back)).variables, [{ name: 'asOf' }]);
-    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 5 })), /newer version \(5 > 4\)/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 6 })), /newer version \(6 > 5\)/);
   });
 
   it('keeps where its classes are -- its project, its workspace, its package, each grid\'s table -- strictly', () => {
@@ -289,7 +289,7 @@ describe('a saved page', () => {
     };
     const back = readPage(pageToJson(writePage({ name: 'Q3 page', cube: CUBE, views: sheets })));
     assert.deepEqual(back.sheets, sheets.sheets);
-    assert.equal(back.version, 4);
+    assert.equal(back.version, 5);
   });
 
   it('holds a stack of tiles in one place: its tiles in their tabs\' order, read back as they were', () => {
@@ -310,9 +310,9 @@ describe('a saved page', () => {
 
   it('refuses a page saved by an older version, by its version: no older page is read (the user, 2026-10-17)', () => {
     const { sheets: _sheets, ...raw } = JSON.parse(pageToJson(page()));
-    for (const version of [1, 2, 3]) {
+    for (const version of [1, 2, 3, 4]) {
       assert.throws(() => readPage(JSON.stringify({ ...raw, version, layout: LAYOUT })),
-        new RegExp(`saved by an older version \\(${version} < 4\\): it is no longer read`));
+        new RegExp(`saved by an older version \\(${version} < 5\\): it is no longer read`));
     }
   });
 });

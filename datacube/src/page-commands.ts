@@ -16,6 +16,8 @@ import {
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
 import { chartTitle, nextPageId } from './page-ids.ts';
+import { namedProperties, type PageFilter } from './page-filters.ts';
+import { readFilterNode } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from './snapshot.ts';
 
@@ -56,11 +58,22 @@ export type PageCommand =
   | { readonly kind: 'removeTile'; readonly tile: string }
   | { readonly kind: 'arrange'; readonly sheet: string; readonly preset: string; readonly order: readonly string[] | null }
   /** A sheet's layout, whole: a drag, a resize, a drop on another tile's middle -- every tile of the sheet in it once. */
-  | { readonly kind: 'layout'; readonly sheet: string; readonly layout: PageLayout };
+  | { readonly kind: 'layout'; readonly sheet: string; readonly layout: PageLayout }
+  /**
+   * A page filter (page-filters.ts, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2), set: the one of its id replaced,
+   * else added -- its id allocated when left out. Its class one a grid of the page reads; `from`, the chart whose click
+   * made it, or null.
+   */
+  | {
+    readonly kind: 'setPageFilter'; readonly id?: string; readonly class: string; readonly condition: FilterNode;
+    readonly from: string | null;
+  }
+  /** A page filter taken off. */
+  | { readonly kind: 'removePageFilter'; readonly filter: string };
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
+  'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
@@ -116,7 +129,7 @@ const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => Pag
  * A fresh id for a command that makes one, or the one it names -- refused when the page has held it, or a cube of the
  * page has it (a cube kept for a detached chart has no view of its own: its id is taken all the same).
  */
-function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'chart' | 'sheet'): string {
+function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'chart' | 'sheet' | 'filter'): string {
   const taken = [...draft.held, ...draft.page.cubes.map((c) => c.id)];
   if (given === undefined) return nextPageId(taken, kind);
   if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
@@ -125,13 +138,36 @@ function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'ch
 }
 
 /** The page written again by its own writer (page-document.ts writePageOf): its name each cube's too, its model kept
- *  for the cubes it holds. */
-function rewritten(page: PageDocument, change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets'>>): PageDocument {
+ *  for the cubes it holds, a chart's click filter for the charts it holds. */
+function rewritten(page: PageDocument, change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets' | 'filters'>>): PageDocument {
   const next = { ...page, ...change };
   return writePageOf({
     name: next.name, cubes: next.cubes, views: { views: next.views, sheets: next.sheets },
-    ...(next.model ? { model: next.model } : {}), ...(next.unknown ? { unknown: next.unknown } : {}),
+    ...(next.model ? { model: next.model } : {}), ...(next.filters ? { filters: next.filters } : {}),
+    ...(next.unknown ? { unknown: next.unknown } : {}),
   });
+}
+
+/**
+ * A PAGE FILTER as `setPageFilter` sets it, or why not: its class one a grid of the page reads (a class source), every
+ * property it names one that class's grids have, its chart one of the page's over that class.
+ */
+function pageFilter(page: PageDocument, id: string, command: Extract<PageCommand, { kind: 'setPageFilter' }>): PageFilter {
+  const sources = page.cubes.map((c) => c.cube.source).filter((s) => s._type === 'class' && s.class === command.class);
+  const name = command.class.slice(command.class.lastIndexOf(':') + 1);
+  if (sources.length === 0) throw new CubeRefusal(`no grid of the page reads ${command.class}: a page filter is on a class a grid reads`);
+  const has = new Set(sources.flatMap((s) => s.columns.map((c) => c.name)));
+  const missing = [...namedProperties(command.condition)].filter((p) => !has.has(p));
+  if (missing.length > 0) {
+    throw new CubeRefusal(`${name} has no ${missing.join(', ')} (its grids show ${[...has].join(', ')})`);
+  }
+  if (command.from !== null) {
+    const chart = page.views.find((v) => v.id === command.from);
+    if (chart?.kind !== 'chart') throw new CubeRefusal(`'${command.from}' is no chart of the page`);
+    const over = page.cubes.find((c) => c.id === chart.cube)?.cube.source;
+    if (over?._type !== 'class' || over.class !== command.class) throw new CubeRefusal(`'${command.from}' is no chart of a grid over ${name}`);
+  }
+  return { id, class: command.class, condition: command.condition, ...(command.from !== null ? { from: command.from } : {}) };
 }
 
 /** A chart's selection taken off its cube's filter (the screen's #select(id, null)), and off the chart. */
@@ -329,6 +365,24 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       }
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: saved(bands) })));
     }
+    case 'setPageFilter': {
+      const filters = page.filters ?? [];
+      const was = command.id !== undefined ? filters.find((f) => f.id === command.id) : undefined;
+      // its own id again replaces it; another given is a fresh one, as a tile's is
+      const id = was ? was.id : freshId(draft, command.id, 'filter');
+      const filter = pageFilter(page, id, command);
+      const next = was ? filters.map((f) => (f.id === id ? filter : f)) : [...filters, filter];
+      return done(rewritten(page, { filters: next }), was ? draft.held : [...draft.held, id], { ...command, id });
+    }
+    case 'removePageFilter': {
+      const filters = page.filters ?? [];
+      if (!filters.some((f) => f.id === command.filter)) {
+        throw new CubeRefusal(`'${command.filter}' is not a filter of the page${filters.length ? ` (${filters.map((f) => f.id).join(', ')})` : ''}`);
+      }
+      const left = filters.filter((f) => f.id !== command.filter);
+      const { filters: _all, ...rest } = page;
+      return done(rewritten(left.length > 0 ? { ...rest, filters: left } : rest, {}));
+    }
   }
 }
 
@@ -474,6 +528,15 @@ export function readPageCommand(given: unknown): PageCommand {
       fields(o, kind, ['sheet', 'layout']);
       if (!isObject(o['layout'])) throw new CubeRefusal("a sheet's layout is {kind: 'bands', fit, bands}");
       return { kind, sheet: text(o['sheet'], 'a sheet'), layout: o['layout'] as unknown as PageLayout };
+    case 'setPageFilter':
+      fields(o, kind, ['id', 'class', 'condition', 'from']);
+      return {
+        kind, ...optionalId(o['id'], "a page filter's id"), class: text(o['class'], "a page filter's class"),
+        condition: readFilterNode(o['condition']), from: textOrNull(o['from'], 'the chart a page filter came from'),
+      };
+    case 'removePageFilter':
+      fields(o, kind, ['filter']);
+      return { kind, filter: text(o['filter'], 'a page filter') };
     default:
       throw new CubeRefusal(`'${kind}' is not a page's command: ${PAGE_COMMAND_KINDS.join(', ')}`);
   }
