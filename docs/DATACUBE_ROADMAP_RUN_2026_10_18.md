@@ -30,7 +30,7 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | 3 | Command program stage 3: the live channel between Python and an open page | `claude/datacube-live-commands` | done, audited |
 | 4 | Graph mode: design note, then the G0 spike over main's Cypher island | `claude/datacube-graph-mode` | done, audited |
 | 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | `claude/datacube-charts-stats` | done, audited |
-| 6 | Charts batch 5: maps | | |
+| 6 | Charts batch 5: maps | `claude/datacube-charts-maps` | done, audited |
 | 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | | |
 | 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | | |
 | 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | | |
@@ -88,3 +88,17 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   `prices` sample); percentile reference lines (a percentile window, a new `WindowFunction`); the ECDF (a `cumeDist`
   show-as); the violin, error bars, hexbin and KPI change. Noticed, not changed: "Show values" also does nothing on a
   radar, parallel coordinates, a polar bar, a Sankey, a streamgraph and a calendar.
+- **Phase 6** (`docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`, Batch 5): a map (each country by its ISO code or name,
+  coloured by a value) and a bubble map (a bubble at each place's latitude and longitude, the new `at` slot), on Natural
+  Earth's 1:110m countries in the Equal Earth projection; the drawing and the shapes, and ECharts' map chart, are
+  chunks of their own; Python writes both; a Maps sheet on the "more kinds" example page. **For the user:** the design's
+  open question 2 (the map-preparation tool) taken for now as "prepared once and committed with how it was made"
+  (`datacube/tools/maps/prepare.py`, standard library, the published file's sha256 pinned) -- say if a build-time run
+  is wanted instead. Its audit: eight findings, all taken with a test each (checked to fail without it): no Open in
+  grid on a map (Update would not change its places) and its pill says it does not regroup; a map's limit kept as the
+  world's from a date across, and a chart leaving a map takes its own default again; no grain or bins on a map, a
+  bubble map's name not one of its places, a group-level value reading a place allowed; a place with no value said;
+  Python's `Chart.plot(at=...)`; the form's places listed once and no legend on a map; the ECharts code only the kinds
+  and maps share given a budget. **Skipped, to come back to:** provinces and states (one file per country), the borders
+  as each of 31 countries draws them (a deployment's default and a user's setting), the US with Alaska and Hawaii set in,
+  a user's own shapes.
