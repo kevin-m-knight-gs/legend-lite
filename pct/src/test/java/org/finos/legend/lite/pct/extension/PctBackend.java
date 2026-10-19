@@ -280,6 +280,28 @@ public final class PctBackend {
         return lane().open();
     }
 
+    private static volatile @com.legend.base.Nullable String serverVersion;
+
+    /** The version of the server this lane's sessions connect to, read once off one session (the plan route plans
+     *  for it: H2's dialect spells by the version, `TypedQuery.executionPlan`'s last argument; step 9, 2026-10-19);
+     *  null for the lane with no JDBC session (MongoDB). */
+    public static @com.legend.base.Nullable String serverVersion() {
+        if (lane() == Lane.MONGODB) {
+            return null;
+        }
+        String v = serverVersion;
+        if (v == null) {
+            try (Connection c = connect()) {
+                v = com.legend.exec.Sessions.version(c);
+            } catch (SQLException e) {
+                throw new IllegalStateException("the " + name() + " lane's server version could not be read: "
+                        + e.getMessage(), e);
+            }
+            serverVersion = v;
+        }
+        return v;
+    }
+
     /** The host's system connections: a server lane's own engine, opened by {@link Lane#openSystem}; none for an
      *  in-process lane. */
     public static java.util.Map<DatabaseType, com.legend.exec.Sessions.Opener> systemConnections() {

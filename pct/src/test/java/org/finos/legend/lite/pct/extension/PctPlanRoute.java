@@ -29,9 +29,10 @@ final class PctPlanRoute {
     }
 
     static ExecutionResult execute(String model, String expression) throws IOException {
+        // the plan for the server this lane's sessions are (H2's dialect spells by the version; step 9, 2026-10-19)
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
                 .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT,
-                        Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING));
+                        Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING), PctBackend.serverVersion());
         StringWriter out = new StringWriter();
         PlanRunner.run(plan, Map.of(), PlanSessions.shared(), out);
         return new ExecutionResult.TdsText(out.toString(), com.legend.compiler.element.type.Type.Primitive.STRING);

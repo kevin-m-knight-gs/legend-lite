@@ -36,6 +36,18 @@ final class PlanMaker {
      *  feature flags {@code features}; each declared parameter a value the statement binds where it is used. */
     static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime, TypedQuery.Output output,
             java.util.Set<com.legend.platform.Feature> features) {
+        return plan(query, runtime, output, features, null);
+    }
+
+    /** {@link #plan(TypedQuery, String, TypedQuery.Output, java.util.Set)} for a session whose server is
+     *  {@code serverVersion} (the caller's session fact, as the legacy seam read it off the connection,
+     *  {@code SqlDialect.forServer}): where the database's spelling depends on the version (H2: 2.1 and 2.2 the
+     *  engine-parity dialect, 2.3 and later the modern one), the plan is written in that version's dialect and names
+     *  that version as what it is for, so its runner accepts the session; null plans for the dialect's declared
+     *  target. The plan path program's step 9, 2026-10-19: the H2 PCT lane runs the modern H2, and a plan for the
+     *  declared target was refused by its runner on every case. */
+    static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime, TypedQuery.Output output,
+            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
         List<QueryParameters.Declared> declared = query.parameters();
         List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
         for (QueryParameters.Declared p : declared) {
@@ -46,7 +58,12 @@ final class PlanMaker {
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect);
+        ExecutionPlan.Servers servers = Databases.servers(decided.type());
+        if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
+            dialect = dialect.forServer(serverVersion);
+            servers = new ExecutionPlan.Servers.Versions(List.of(majorMinor(serverVersion)));
+        }
+        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect, servers);
         ExprType root = l.root().info();
         // an enumeration parameter compared with a mapped column: through that place's value table
         SqlQuery lowered = com.legend.sql.EnumValueTables.apply(l.plan());
@@ -177,7 +194,7 @@ final class PlanMaker {
     /** Where the plan runs: the database {@code decided}, the server versions and session statements of its dialect,
      *  and the setup its runtime's connections declare, every statement final for that database. */
     private static ExecutionPlan.Target target(com.legend.database.Target decided, String runtime,
-            Compiler.LoweredQuery l, SqlDialect dialect) {
+            Compiler.LoweredQuery l, SqlDialect dialect, ExecutionPlan.Servers servers) {
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
@@ -185,7 +202,15 @@ final class PlanMaker {
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
                 setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), decided.type(), dialect));
         steps.addAll(metamodelSteps(l, decided.type(), dialect));
-        return new ExecutionPlan.Target(database, Databases.servers(decided.type()), dialect.sessionSetup(), steps);
+        return new ExecutionPlan.Target(database, servers, dialect.sessionSetup(), steps);
+    }
+
+    /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
+     *  its runner checks the session's version against. A version with no dot is itself. */
+    private static String majorMinor(String version) {
+        int first = version.indexOf('.');
+        int second = first < 0 ? -1 : version.indexOf('.', first + 1);
+        return second < 0 ? version : version.substring(0, second);
     }
 
     /**

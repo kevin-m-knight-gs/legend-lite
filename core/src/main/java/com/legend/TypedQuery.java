@@ -170,6 +170,16 @@ public final class TypedQuery {
         return PlanMaker.plan(this, runtime, output, features);
     }
 
+    /** {@link #executionPlan(String, Output, java.util.Set)} for a session whose server is {@code serverVersion}
+     *  (the caller's fact, read off its session): where the database's spelling depends on the version (H2), the
+     *  plan is written in that version's dialect and names it as what it is for; null plans for the dialect's
+     *  declared target (2026-10-19, the plan path program's step 9). */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+            Output output, java.util.Set<com.legend.platform.Feature> features,
+            @com.legend.base.Nullable String serverVersion) {
+        return PlanMaker.plan(this, runtime, output, features, serverVersion);
+    }
+
     /**
      * The SQL whose one value is the whole relation as the JSON wire ({@code [row, ...]}, each row the database's own
      * {@code json_object}), in the runtime's dialect: what legend-lite's server runs for execute's rows

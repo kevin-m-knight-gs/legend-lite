@@ -16,6 +16,11 @@ route (the query service on the lane's JDBC session) no longer taken. The DuckDB
 "The plan path program, step 9, first landing"): 12 failures of 1,249, fixed at their root or pinned by name, exact
 on its chain. That entry is the pattern for every fix below; read it before touching code.
 
+**The server's version.** A plan is written for the server its session will be: the lane reads its session's
+version once (`PctBackend.serverVersion`) and plans for it (`TypedQuery.executionPlan`'s last argument; H2's dialect
+spells by the version, the modern H2 2.4 the lane runs is not the engine-parity 2.1). Before that, the H2 lane
+refused 414 cases on the version alone. A lane whose spelling depends on no version is unaffected.
+
 The two channels: channel A (`//pct:pct_<db>`, the five suites `essential`, `grammar`, `relation`, `standard`,
 `unclassified`; the H2 lane has the relation suite only) now runs on the plan route; channel B
 (`//pct:pct_channel_b_<db>`, lite's own compiler over the PCT sources) still runs the legacy executor until step 8
@@ -92,8 +97,16 @@ do not loop.
    - **Refuse to guess.** No fallback, no default, no silent coercion (AGENTS.md invariant 4): a value the plan path
      cannot carry is refused by name and pinned, never approximated.
 4. Known shapes you will meet (each has a precedent):
-   - A pivot through the TDS text on a dialect without a row-to-JSON form (H2): refused as "a row as JSON reached a
-     dialect without a row-to-JSON form"; pin by name (register S80; the engine refuses every pivot on H2).
+   - **Pivots, static and dynamic: pin by name, do not fix.** A dynamic pivot's text needs the row as JSON, which
+     only DuckDB has ("a row as JSON reached a dialect without a row-to-JSON form", "variant navigation reached a
+     dialect without JSON support"); a static pivot has no emulation on the plan route yet ("pivot reached a dialect
+     without a PIVOT strategy", "a pivot reached SQLite unemulated"). The static form's emulation (a grouped select
+     with one CASE-aggregate per value, rendered by the base dialect) is ONE shared item owned by the session that
+     merges your branch; six separate attempts would conflict. The engine refuses every pivot on H2 (register S80).
+     Measured before the siblings started (2026-10-19): H2 on the plan route 455 of 469, every failure a pivot (10
+     dynamic, 4 static); SQLite 1,227 of 1,249: 14 pivots, the three DuckDB message-moved pins, the namesake, the
+     heterogeneous collection, and one `[SQLITE_TOOBIG] String or BLOB exceeds size limit (statement too long)` to
+     root-cause (which statement, and why its text is so long).
    - `Class.all()` on a server lane: the plan's metamodel setup is refused on a database reached by a URL ("the plan
      has setup for it: never run on it", `PlanSessions`); pin by name and report it -- the fix (the system tables as
      the session's temporary tables, as the legacy `SystemDatabase` did) is a shared item, not yours.
