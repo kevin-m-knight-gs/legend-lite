@@ -45,7 +45,11 @@ public class Test_LegendLite_Databricks_GrammarFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // HARNESS SERIALIZATION LOSS (as on DuckDB): the captured $address never reaches the serialized text
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\"")
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
+            // 2026-10-19, step 9, the plan route (as on DuckDB, 2026-10-18): a model element referenced as a value
+            // crosses by its simple name, and the text carrier's reader resolves the name by compiling it, which five
+            // TestClasses defeat. Register S82.
+            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches")
     );
 
     public static Test suite() {

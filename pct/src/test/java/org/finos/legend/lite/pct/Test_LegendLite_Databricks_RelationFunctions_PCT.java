@@ -34,7 +34,21 @@ public class Test_LegendLite_Databricks_RelationFunctions_PCT extends PCTReportC
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
-            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\"")
+            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
+            // 2026-10-19, step 9, the Databricks lane on the plan route: PIVOTS, pinned by name, not fixed (the
+            // brief, docs/STEP9_LANE_BRIEF_2026_10_19.md §5.4: the emulation is one shared item, owned by the session
+            // that merges the lanes). A dynamic pivot's text on the plan route needs the row as JSON, which only
+            // DuckDB has (the four composition pivots over a cast pass since the merge of bccf473, register S83)
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form")
     );
 
     public static Test suite() {
