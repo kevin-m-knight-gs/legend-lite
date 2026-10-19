@@ -31,7 +31,7 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | 4 | Graph mode: design note, then the G0 spike over main's Cypher island | `claude/datacube-graph-mode` | done, audited |
 | 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | `claude/datacube-charts-stats` | done, audited |
 | 6 | Charts batch 5: maps | `claude/datacube-charts-maps` | done, audited |
-| 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | | |
+| 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | `claude/datacube-charts-more` | done, audited |
 | 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | | |
 | 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | | |
 
@@ -102,3 +102,13 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   and maps share given a budget. **Skipped, to come back to:** provinces and states (one file per country), the borders
   as each of 31 countries draws them (a deployment's default and a user's setting), the US with Alaska and Hawaii set in,
   a user's own shapes.
+- **Phase 7** (`docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`, batch 3's section): a Marimekko and a waffle (shares as
+  cells, each cell's edges or range the database's: running totals, a lag, rounding) and a Gantt (two dates per row
+  on a time axis); Python writes them; on the "more kinds" example page. Its audit: ten findings; nine taken with a test
+  each (checked to fail without it): a whole of nothing divided by zero (DuckDB failed the cast, Postgres the
+  division) -- now empty shares, said; a waffle's ranges meet (its start the lag of the range before); values below
+  zero said on a waffle and a Marimekko; a Marimekko cell's click on a period filtered to the wrong one; its column
+  names overlapped the axis's labels; a Gantt took a time of day; a map's limit spread overrode a kind's order; form
+  options these kinds do not draw; a Gantt's start picked a sum. Answered, not changed: "At most" counts a Marimekko's
+  cells, not its columns -- a cut chart says so in the panel's own words ("The first N by the chosen order"); a
+  Marimekko's own limit is a choice left for later.
