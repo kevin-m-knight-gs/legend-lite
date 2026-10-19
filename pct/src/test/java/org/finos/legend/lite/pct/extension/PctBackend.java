@@ -3,8 +3,6 @@
 
 package org.finos.legend.lite.pct.extension;
 
-import com.legend.exec.PlanSessions;
-import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testing.EmbeddedClickHouse;
 import com.legend.testing.EmbeddedMariaDb;
@@ -282,33 +280,54 @@ public final class PctBackend {
         return lane().open();
     }
 
-    /** Where the plan route's runner takes its session (step 9, 2026-10-19, the Databricks lane): the session the
-     *  plan's target opens ({@link PlanSessions#shared}) on every lane whose declared connection the platform opens;
-     *  on the Databricks lane the lane's own session ({@link #connect}), as the legacy route had it -- its storeless
-     *  runtime declares the warehouse's coordinates with an ApiToken credential by reference, which the platform's
-     *  session opener refuses by name (no vault reaches it), the credential being the harness's properties file's
-     *  (CloudLane). The runner still checks the session against the target and runs its session statements; a plan
-     *  with setup is refused as {@link PlanSessions#shared} refuses one on a database reached by a URL: the account's
-     *  warehouse is never set up by a plan. Snowflake and BigQuery declare their credentials the same way and meet
-     *  the same refusal; their lanes are their own containers'. */
-    static PlanSessions.Source planSessions() {
-        Lane lane = lane();
-        return switch (lane) {
-            case DATABRICKS -> target -> {
-                if (!target.setup().isEmpty()
-                        && target.database() instanceof ExecutionPlan.Database.Declared d) {
-                    throw new IllegalStateException("connection '" + d.connection().qualifiedName() + "' is the "
-                            + lane.type + " account's warehouse, and the plan has setup for it: never run on it");
+    /**
+     * The sessions channel A's plans run on ({@link PctPlanRoute}; step 9, 2026-10-19). An in-process lane's plan
+     * opens its own session from its target ({@link com.legend.exec.PlanSessions#shared}: the declared in-memory
+     * database, set up by the plan), as MongoDB's does through its connector. A SERVER lane's plan runs on the
+     * harness's own session, as the legacy route's did ({@code PctExecuteNative} opened one per case): a NEW session
+     * per plan, opened as the lane's SYSTEM session ({@code Lane.openSystem}: the one that holds a session's own
+     * tables -- ClickHouse's HTTP session, Snowflake's schema, BigQuery's session -- which the plan's session
+     * statements make for the system metamodel store), checked by the runner against the plan's target and given the
+     * target's session statements as any session is, and closed after. The platform cannot open it itself: the
+     * storeless runtime declares the server's coordinates with {@code auth: Test}, which names no user, and
+     * {@code Sessions.openingFor} admits no credential and has no opening for Trino, ClickHouse or the clouds, so the
+     * driver connected as the OS user (MySQL 8.4's root by caching_sha2_password, refused; Postgres's "role does not
+     * exist") or not at all. A declared server connection opened with its credentials through a vault is the
+     * platform's item (the program's §7 residue), not this harness's. A plan with setup on a server lane goes to the
+     * plan's own source, which refuses it by name: the server's database is the user's.
+     */
+    public static com.legend.exec.PlanSessions.Source planSessions() {
+        com.legend.exec.PlanSessions.Source own = com.legend.exec.PlanSessions.shared();
+        return switch (lane()) {
+            case DUCKDB, H2, SQLITE, MONGODB -> own;
+            case POSTGRES, MARIADB, MYSQL, TRINO, CLICKHOUSE, DATABRICKS, SNOWFLAKE, BIGQUERY -> target -> {
+                if (!target.setup().isEmpty()) {
+                    return own.open(target);
                 }
+                Connection c;
                 try {
-                    return PlanSessions.given(connect()).open(target);
+                    c = lane().openSystem();
                 } catch (SQLException e) {
                     throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
                             + e.getMessage(), e);
                 }
+                return new com.legend.exec.Sessions.Session() {
+                    @Override
+                    public Connection connection() {
+                        return c;
+                    }
+
+                    @Override
+                    public void close() {
+                        try {
+                            c.close();
+                        } catch (SQLException e) {
+                            throw new IllegalStateException("the " + name() + " lane's session could not be closed: "
+                                    + e.getMessage(), e);
+                        }
+                    }
+                };
             };
-            case DUCKDB, H2, SQLITE, MARIADB, MYSQL, TRINO, CLICKHOUSE, POSTGRES, SNOWFLAKE, BIGQUERY, MONGODB ->
-                    PlanSessions.shared();
         };
     }
 

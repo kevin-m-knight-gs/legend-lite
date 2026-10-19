@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -347,6 +348,42 @@ class PlanMakerTest {
         }
     }
 
+    /**
+     * A cast over a DYNAMIC pivot on a database without a dynamic PIVOT (the plan path program's step 9, 2026-10-19:
+     * the PCT's four composition cases, {@code test_Pivot_Filter} among them, refused on every lane but DuckDB with
+     * "pivot reached a dialect without a PIVOT strategy"): the keys the cast names are the pivot's NAMED values
+     * ({@code SqlSource.Pivot.named}), each the ON key's typed literal, which the dialect's static emulation pivots
+     * on (H2's grouped CASE aggregation) with no row pinned -- the group whose key the cast does not name keeps its
+     * row, its named cells null, as DuckDB's dynamic form answers through the same cast. DuckDB itself keeps the
+     * dynamic form (engine-exact); the plan round-trips with the named values (format 7).
+     */
+    @Test
+    void aCastOverADynamicPivotAnswersOnADatabaseWithoutADynamicPivot() throws Exception {
+        String cast = "->cast(@meta::pure::metamodel::relation::Relation<(city:String[0..1], country:String[0..1],"
+                + " '\\'2011__|__newCol\\'':Integer[0..1], '\\'2012__|__newCol\\'':Integer[0..1])>)";
+        String query = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + cast
+                + "->sort(~city->ascending())";
+        String expected;
+        try (Connection c = fresh(DatabaseType.DuckDB)) {
+            ExecutionPlan duck = Compiler.query(Compiler.compileModel(model(DatabaseType.DuckDB.name())), query)
+                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
+            assertTrue(((ExecutionPlan.TextResult) duck.root()).sql().statement().contains("PIVOT"), "DuckDB's dynamic form");
+            expected = PlanCases.run(duck, c);
+        }
+        // the 2000 group (SAN's 2000 trees, NYC's 15000) keeps its row with its named cells null
+        assertEquals("city:String[0..1],country:String[0..1],'\\'2011__|__newCol\\'':Integer[0..1],"
+                + "'\\'2012__|__newCol\\'':Integer[0..1]\nLDN,UK,3000,null\nNYC,USA,5000,15200\nSAN,USA,2600,null", expected);
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(DatabaseType.H2.name())), query)
+                .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
+        String h2 = ((ExecutionPlan.TextResult) plan.root()).sql().statement();
+        assertFalse(h2.contains("PIVOT"), h2);
+        assertTrue(h2.contains("CASE WHEN") && h2.contains("= 2011") && h2.contains("= 2012"), h2);
+        try (Connection c = fresh(DatabaseType.H2)) {
+            assertEquals(expected, PlanCases.run(plan, c));
+        }
+    }
+
     @Test
     void aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput() throws Exception {
         for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
@@ -523,6 +560,55 @@ class PlanMakerTest {
 
     private static List<ExecutionPlan.Column> columns(ExecutionPlan plan) {
         return ((ExecutionPlan.Relation) ((ExecutionPlan.TextResult) plan.root()).type()).columns();
+    }
+
+    /** The PCT's {@code getAll::testBasic} shape: the system metamodel store read by a plan. */
+    private static final String CLASSES = "|meta::pure::metamodel::type::Class.all()->isEmpty()";
+
+    /**
+     * The system metamodel store's tables, in the form the plan's database takes (the plan path program's step 9):
+     * on an engine in this process, the target's setup, in their schema (2026-10-18); on a SERVER engine, the
+     * session's own TEMPORARY tables (the legacy system database's form, the user's design of 2026-10-11), made by
+     * the session's statements and read by the query under their session names, with no setup for the user's
+     * database (2026-10-19: every server lane had pinned {@code testBasic} by "the plan has setup for it: never run
+     * on it"); a server without temporary tables (Trino) refuses by name.
+     */
+    @Test
+    void theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer() throws Exception {
+        ExecutionPlan duck = plan(DatabaseType.DuckDB, CLASSES, TypedQuery.Output.TDS_TEXT);
+        ExecutionPlan.Target inProcess = target(duck);
+        assertTrue(inProcess.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+                && st.sql().contains("classes")), inProcess.setup().toString());
+        assertEquals(List.of("SET TimeZone='UTC'"), inProcess.session());
+        assertFalse(((ExecutionPlan.TextResult) duck.root()).sql().statement().contains("metamodel_classes"));
+        try (Connection c = fresh(DatabaseType.DuckDB)) {
+            assertEquals("value:Boolean[1]\nfalse", PlanCases.run(duck, c));
+        }
+
+        ExecutionPlan pg = plan(DatabaseType.Postgres, CLASSES, TypedQuery.Output.TDS_TEXT);
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(pg, CLASSES);
+        ExecutionPlan.Target server = target(pg);
+        assertTrue(server.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+                && st.sql().contains("classes")), server.setup().toString());
+        List<String> session = server.session();
+        // the dialect's own session statements first (Postgres: its time zone), then the session's tables
+        int create = -1;
+        for (int i = 0; i < session.size(); i++) {
+            if (session.get(i).contains("metamodel_classes")) {
+                create = i;
+                break;
+            }
+        }
+        assertTrue(create >= 0 && create + 1 < session.size(), session.toString());
+        assertTrue(session.get(create).toLowerCase(java.util.Locale.ROOT).contains("temporary"), session.get(create));
+        String insert = session.get(create + 1);
+        assertTrue(insert.toUpperCase(java.util.Locale.ROOT).startsWith("INSERT INTO") && insert.contains("metamodel_classes"),
+                insert.substring(0, Math.min(120, insert.length())));
+        String sql = ((ExecutionPlan.TextResult) pg.root()).sql().statement();
+        assertTrue(sql.contains("metamodel_classes") && !sql.contains("metamodel.classes"), sql);
+
+        var refused = assertThrows(RuntimeException.class, () -> plan(DatabaseType.Trino, CLASSES, TypedQuery.Output.TDS_TEXT));
+        assertTrue(refused.getMessage().contains("no temporary tables"), refused.getMessage());
     }
 
     private static ExecutionPlan plan(DatabaseType type, String query, TypedQuery.Output output) {

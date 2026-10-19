@@ -33,6 +33,7 @@ final class PctPlanRoute {
                 .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT,
                         Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING), PctBackend.serverVersion());
         StringWriter out = new StringWriter();
+        // the plan's own session for an in-process lane, the harness's for a server lane (PctBackend.planSessions)
         PlanRunner.run(plan, Map.of(), PctBackend.planSessions(), out);
         return new ExecutionResult.TdsText(out.toString(), com.legend.compiler.element.type.Type.Primitive.STRING);
     }
