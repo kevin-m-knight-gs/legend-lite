@@ -658,3 +658,66 @@ Agreed after Create a Class landed (0cee56761): **the routes are named after Leg
 Dashboard pages and filters across tiles (step 3); relation joins in prep (step 4); the model view, walking related
 properties in the column chooser, filters through an association's ends (step 5); Create a Service…, promote, bundles,
 publishing (step 6, and the Studio line's S23).
+
+## 16. Step 3, dashboards on classes, as it will be built (2026-10-19)
+
+Taken over from the other DataCube line with the rest of the plan (the user, 2026-10-19). §5 is what it builds, with
+one class (§13): relationships, a filter through an end, and the column chooser's tree are step 5's.
+
+### 16.1 A grid over a class: the class source
+
+- **A cube source of its own kind**, `{"_type": "class", name, class, project, workspace, revision, mapping, runtime,
+  columns}` (cube-document.ts): the class by its path, the project and the exact revision it is read at (the pin, §6),
+  the mapping and runtime it runs through (Create a Class's answer: `<pkg>::mapping::Model`, `<pkg>::runtime::<Place>`),
+  and the columns it had. Like a saved query, it says what the source IS, so a grid saved alone reopens wherever that
+  project is in the model home -- never a copy of the model.
+- **Its query**: `<class>.all()->project(~[p: x|$x.p, ...])`, a column per property, under the property's own name --
+  every property of a primitive type and a to-one multiplicity, in the class's order (to-many and class-typed
+  properties, the ends of associations, are step 5's tree; left out and said). The class's properties are read from
+  the project's files at the pin by the host's compiler (`reading.elements`, as a saved query's data space is), never
+  from a name's look.
+- **Its planner**: the project's files at the pin as one model text (`sdlc.pure` at the revision), planned by the host's
+  `engine.rows(text, runtime, {mapping})`, as a saved query's is: the class's store is the place's one Database, its
+  tables the ones the page's grids read in under their kept names (§15.3).
+- **Its rows are where the host's database has them**: a class tile whose table is not open in this tab (a dashboard
+  page opened without the page or file that reads it) is refused when it opens, its table named -- never its sample read
+  in its place. Rows that travel with a page are step 6's (a bundle; materialized when published).
+- **The pin**: the page's model gains `revision` -- the revision its last model action saved (`Created.revision`, kept
+  from now; Python's too). A class grid opens at the page's pin; a later Create a Class… re-pins the page, and the class
+  grids open already keep the revision their source names until opened again (classes are never written over, §15.4, so
+  the older pin still reads the same class). Re-pinning open tiles is step 5's, where classes change under dashboards.
+- **Where it is offered**: a grid made a class gets **Add a Grid over Trade** in its menu (the class read beside it,
+  on the page); the source picker's **Classes** section lists the page's project's classes at its pin. Python:
+  `page.grid(page.cls('Trade'))`.
+
+### 16.2 Page filters, by a class's property
+
+- **A page filter** (`PageDocument.filters`, the page document's version 5): `{id, class, condition}` -- the class by
+  its path and a filter condition (snapshot.ts `FilterNode`, the grid's own filter editor's) on its properties, `$x.p`
+  being a property as it is a column. A chart's click makes one too, marked with the chart (`from`).
+- **What it reaches**: every class tile over the same class (§5.2, one class); a tile over a relation or another class
+  not at all -- the filter bar says how many tiles each filter reaches. A filter on a property the tile's class (at its
+  pin) lacks is refused for that tile, said on the bar.
+- **Where it goes**: into the tile's class query, before its columns are taken --
+  `Trade.all()->filter(x|$x.region == 'EMEA')->project(~[...])` -- as the grid's source, never its saved filter: the
+  cube document keeps its class source unfiltered, and the page puts its filters back on every open. So a grid exported
+  alone is the grid alone.
+- **A chart's click on a class tile**: its conditions on property columns become one page filter, `from` the chart --
+  replacing that chart's last (two clicks must not filter to nothing), cleared by its chip or a click on the same mark.
+  It reaches every other class tile over the class; **the clicked chart's own grid is left unfiltered** (batch 1: the
+  tile clicked keeps showing every mark, the chip naming the one chosen). A condition on a calculated column reaches its
+  own tile only (§5.2): it filters that grid, as a click does on a relation's tile.
+- **One change each**: a page command (`setPageFilter`, `removePageFilter`, page-commands.ts), so undo, Python and the
+  live channel follow as every page edit does.
+- **The bar**: the page's filters above its sheets, each in words ("Trade: region is EMEA"), removable; **Add a filter**
+  on a page with class tiles: a class, a property, the operator and value as the grid's filter editor offers them.
+- Python: `page.filter('Trade.region', ['EMEA'])` (a list, `in`; one value, `equal`), `page.filters`,
+  `page.remove_filter(id)`.
+
+### 16.3 What judges it
+
+- Unit: the class source read and written (refusals named); the class query and a page filter put into it; page
+  commands applied and refused; a click's conditions split into a page filter and the grid's own.
+- Planned in the tab: a class made by the writer read back by its class source, a page filter in it, rows checked on
+  DuckDB (as test/model-join.test.ts plans a class).
+- Python: a page's filter commands, and a class grid's rows.
