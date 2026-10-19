@@ -162,14 +162,14 @@ class PlanJsonTest {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":6,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":7,"), json);  // 7 since 2026-10-19: a pivot's named values
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v6 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v7 plan"), refused.getMessage());
     }
 
     @Test

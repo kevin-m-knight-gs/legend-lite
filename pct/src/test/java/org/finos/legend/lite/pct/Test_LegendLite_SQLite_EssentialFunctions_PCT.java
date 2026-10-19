@@ -54,7 +54,10 @@ public class Test_LegendLite_SQLite_EssentialFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+            // step 9, 2026-10-19, the plan route: the value lane converts a Float root to DOUBLE, whose digits are
+            // ...784 where the legacy route's Java text was ...780; both lose the literal's decimals (the DuckDB
+            // lane's pin, the same cause: the value lane keeping a DECIMAL slot exact is an item of step 9)
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ACOS is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ASIN is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
@@ -64,7 +67,11 @@ public class Test_LegendLite_SQLite_EssentialFunctions_PCT extends PCTReportConf
             // raised here; a five-digit year compares as text)
             one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"a date past the years 0000-9999 has no SQLite value\""),
             // SQLITE'S OWN LIMIT: no time zones but UTC
-            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached SQLite: SQLite has no time zones but UTC\"")
+            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached SQLite: SQLite has no time zones but UTC\""),
+            // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor
+            // (CO_Address and CO_Location as CO_GeographicEntity) crosses as JSON without its class, which the text
+            // carrier has no form for (the DuckDB lane's pin, the same cause; register S81)
+            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form")
     );
 
     public static Test suite() {

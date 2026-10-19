@@ -10653,6 +10653,97 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-19 — The plan path program, step 9: the system metamodel store on a server engine, as the session's own tables
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9. The second shared item the siblings pin (the brief
+§5.4): `Class.all()` (the PCT's `getAll::testBasic`) on every server lane was refused by the runner, "the plan has
+setup for it: never run on it" (`PlanSessions.refuseSetup`): step 9's first landing wrote the store's tables into the
+plan's SETUP, the private instance's form (their schema, the bulk loader), and a database reached by a URL is the
+user's, which a plan never sets up.
+
+**The form, the user's design of 2026-10-11 for the legacy route (`exec.SystemDatabase`, cloud doc §14) carried
+onto the plan:** on a server engine (`Databases.inProcess` false: the fact moved to the plan side, `Sessions.inProcess`
+reads it) the referenced tables are the SESSION's own TEMPORARY tables -- `Ddl.metamodelTemporary` through each
+dialect's `sessionTable` (a temporary table and one INSERT of its rows; Databricks' temporary view; BigQuery's `CREATE
+TEMP TABLE`; the measured per-engine needs of §14 as they were), named `metamodel_<table>` (`Ddl.systemTable`), written
+as the target's SESSION statements after the dialect's own, so the runner makes them on every session the plan opens
+(a URL session is opened afresh per run) and the server drops them with it; the query reads them under those names
+through the plan maker's rename (`SqlPostProcessors.apply`, the legacy route's own pass); the target's setup carries
+none of them, so nothing permanent is made in the user's database and the refusal stands for what it was written for
+(declared test data). An engine in this process keeps the first landing's form. Trino, which has no temporary table,
+refuses by name at plan time ("no temporary tables"), as the legacy route did. `PlanMaker.Metamodel` carries the
+three facts (setup, session, renames); no plan format change (the session statements were text already).
+
+**What the server lanes still need, lane configuration, not code (cloud doc §14):** Snowflake's session needs a
+current schema for a temporary table (the runtime connection's `schema` property); BigQuery's a session
+(`EnableSession=1` on the runtime connection); MySQL reads a temporary table once per query ("Can't reopen table"),
+so a self-joining metamodel query fails there by that message, as before.
+
+**The plan's session on a server lane, the harness's (the same landing).** The server lanes found the platform opens
+a declared server connection with no credential (`Sessions.openingFor`: `auth: Test` names no user, every other
+authentication refused by name, no opening for Trino, ClickHouse or the clouds), so the driver logged in as the OS user
+(MySQL 8.4: refused; Postgres: "role does not exist") or not at all; two siblings had worked around it in two ways.
+One rule now, `PctBackend.planSessions`: a server lane's plan runs on the harness's own session, a new one per plan from
+the lane's `openSystem` (ClickHouse's HTTP session, Snowflake's schema, BigQuery's session: what a session's own
+tables need), checked by the runner against the target and given its session statements; an in-process lane's and
+MongoDB's plans keep the plan's own; a plan with setup on a server lane is refused by name as before. The platform's
+item, a declared server connection opened with its credentials through a vault, is the program's §7 residue.
+
+**Verdicts (2026-10-19):** `PlanMakerTest.theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer`
+(DuckDB: the setup form, run, `value:Boolean[1]\nfalse`; Postgres: the session's temporary table and its INSERT, the
+query reading `metamodel_classes`, no setup, the plan round-tripping; Trino refused by name);
+`//core:core_tests_root`, `_architecture`, `_exec`, `_integration` pass; `//pct:pct_duckdb_grammar` passes (`testBasic`
+on DuckDB as it was). **A real server, here:** `//pct:pct_mariadb_grammar` 134 of 137 with `testBasic` passing on the
+embedded MariaDB through the session's temporary tables, on the plan's own session and again on the harness's; the
+three failures are the namesake (S82) and the two the MariaDB sibling fixed in its lane the same day (the raise read
+back by the plan runner, a JSON null member). The
+siblings' other server lanes judge the rest at the merge (each pinned `testBasic` by the refusal; the merge removes
+the pins).
+
+## 2026-10-19 — The plan path program, step 9: every PCT lane flipped, the siblings started, a cast over a dynamic pivot on every dialect
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9 (its §9 and `docs/IN_FLIGHT.md` carry the lines).
+
+**Every lane flipped (`83f2810`).** `PctBackend.throughThePlan` is true for every lane. **A plan written for the
+session's server version (`2b7bad3`):** the H2 lane on the plan route refused 414 of 469 cases on the version alone
+(the plan for the engine-parity H2 2.1 and 2.2, the lane's session the modern 2.4); `PctBackend.serverVersion` reads
+the session's version once, `PctPlanRoute` passes it, `TypedQuery.executionPlan`'s last argument hands it to
+`PlanMaker`, which asks the dialect for the one spelling for that version (`SqlDialect.forServer`) and narrows the
+plan's servers to its major.minor. H2 then 455 of 469, every failure a pivot. Verdicts then: `//core:core_tests_root`
+and `//pct:pct_duckdb_relation` pass.
+
+**The six sibling sessions (from `385ef14`; the brief `docs/STEP9_LANE_BRIEF_2026_10_19.md`):** one container per
+cloud database (snowflake, bigquery, databricks), trino with h2, postgres with sqlite and mongodb, mariadb with mysql
+and clickhouse; each on its own branch `claude/step9-<container>`, fixing at the root or pinning by name, channel B as
+the regression, reporting to this session. Their landing is a later entry.
+
+**The shared item, landed here: a cast over a dynamic pivot on a dialect without a dynamic PIVOT (register S83).**
+H2's and SQLite's four "static" failures (`test_Pivot_Filter`, `test_Extend_Filter_Select_ComplexGroupBy_Pivot`,
+`test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort`, `test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit`;
+"pivot reached a dialect without a PIVOT strategy", "a pivot reached SQLite unemulated") were dynamic pivots
+(`pivot(~[year], ~[newCol: ...])`, no values) a cast names: the lowering projected the cast's columns from the pivot
+(step 7) but the pivot's IN stayed empty, so every static emulation stood aside and the writer refused. Now the keys
+the cast names are the pivot's NAMED values (`SqlSource.Pivot.named`: `'2011__|__newCol'` names 2011, each the ON
+key's typed literal -- an integer, text or boolean slot, another refused by name), set by
+`Lowerer.castOverDynamicPivot`; `Pivot.values()` is IN's values, else the named ones, and every emulation pivots on
+it (`CarrierStrategies` PV1, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Databricks.pivotSource`,
+`MongoDbPipeline.pivot`; a generated column's slot is the USING's where the pivot's outputs carry none,
+`CarrierStrategies.generatedSlot`). No row is pinned by them (a static IN filters its rows at the lowering,
+`Pivots.lower`; the named values do not): a group whose key the cast does not name keeps its row with its named cells
+null, as DuckDB's dynamic form answers through the same cast. DuckDB reads `in()` alone and keeps the dynamic form
+(engine-exact; a named key no row has stays its error there, a null column elsewhere: S83). The plan JSON carries
+`named` (format 7; `PlanJsonTest`'s two version pins moved with the reason).
+`PlanMakerTest.aCastOverADynamicPivotAnswersOnADatabaseWithoutADynamicPivot`: the same text on DuckDB (its PIVOT) and
+H2 (`CASE WHEN ... = 2011`, no PIVOT), the plan round-tripping.
+
+**Verdicts (2026-10-19):** `//core:core_tests_root`, `_lowering`, `_sql`, `_exec`, `_integration`, `_compiler`,
+`_resolver`, `_architecture` and `//core:mongodb_plan_test` pass (9 of 9; the root lane once the two version pins
+moved); `//pct:pct_duckdb_relation` passes (the DuckDB lane stays exact); `//pct:pct_h2` 459 of 469 (was 455) and
+`//pct:pct_sqlite_relation` 459 of 469 (was 455), the ten left on each the uncast dynamic pivots' text road
+("variant navigation reached a dialect without JSON support", "a row as JSON reached a dialect without a row-to-JSON
+form"), a named residue of the program (§7) the siblings pin by name. The core gate and the corpus lanes run at the
+siblings' merge.
+
 ## 2026-10-18 — The plan path program, step 9, first landing: the DuckDB PCT lane on the plan route, its twelve failures fixed or named
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9 (announced in its §9 and `docs/IN_FLIGHT.md` with the

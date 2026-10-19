@@ -399,7 +399,8 @@ final class MongoDbPipeline {
      * exist only once the database is asked. One ON column: a static pivot's values are one column's.
      */
     private void pivot(SqlWriter w, SqlSource.Pivot p, Stages st, Shape shape) {
-        if (p.in().isEmpty()) {
+        // a dynamic pivot a cast names pivots on the named values (SqlSource.Pivot.values, step 9, 2026-10-19)
+        if (p.values().isEmpty()) {
             throw new DialectCapability("a dynamic pivot reached MongoDb: its columns are known only once the"
                     + " database is asked (a static pivot, its values given, has its grouped form)");
         }
@@ -412,6 +413,17 @@ final class MongoDbPipeline {
         String separator = PIVOT_SEPARATOR;
         List<OutputCol> keys = p.outputs().stream().filter(c -> !c.name().contains(separator)).toList();
         List<OutputCol> pivoted = p.outputs().stream().filter(c -> c.name().contains(separator)).toList();
+        if (pivoted.isEmpty() && p.in().isEmpty()) {
+            // a dynamic pivot a cast names: its columns are the named values' by each USING, the cast reads them by
+            // their bare names (step 9, 2026-10-19)
+            List<OutputCol> named = new ArrayList<>();
+            for (SqlExpr v : p.named()) {
+                for (SqlSource.Pivot.Using u : p.usings()) {
+                    named.add(CarrierStrategies.generatedSlot(p, u, pivotValueText(v) + separator + u.alias()));
+                }
+            }
+            pivoted = named;
+        }
         // the first group: by the keys and the ON value, each USING aggregate accumulated
         st.begin(w).append("{\"$group\": {\"_id\": {");
         for (int i = 0; i < keys.size(); i++) {
@@ -462,14 +474,14 @@ final class MongoDbPipeline {
                 }
             }
             SqlExpr value = null;
-            for (SqlExpr v : p.in()) {
+            for (SqlExpr v : p.values()) {
                 if (valueText.equals(pivotValueText(v))) {
                     value = v;
                 }
             }
             if (using < 0 || value == null) {
                 throw new IllegalStateException("the pivot column " + c.name() + " names no USING alias and value"
-                        + " of the pivot (" + p.in() + ", " + p.usings().stream().map(SqlSource.Pivot.Using::alias)
+                        + " of the pivot (" + p.values() + ", " + p.usings().stream().map(SqlSource.Pivot.Using::alias)
                         .toList() + ")");
             }
             w.append(keys.isEmpty() && pivoted.indexOf(c) == 0 ? "" : ", ").append(MongoJson.key(c.name()))

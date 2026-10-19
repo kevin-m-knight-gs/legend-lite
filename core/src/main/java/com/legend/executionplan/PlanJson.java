@@ -44,8 +44,9 @@ public final class PlanJson {
      *  facts -- its multiplicity, the SQL type of its slot, its store's declared type or null -- and the typed SQL
      *  tree, every MIR variant its own tag ({@link MirJson}; docs/PLAN_PATH_PROGRAM_2026_10_17.md §3); 6 since
      *  2026-10-18: a tabular result's columns carry the same three type facts (the plan path program's step 6: the
-     *  runner decodes typed rows by them), where they carried a name, a type and a SQL type. */
-    public static final int VERSION = 6;
+     *  runner decodes typed rows by them), where they carried a name, a type and a SQL type; 7 since 2026-10-19: a
+     *  pivot carries the values a cast over it names ({@code named}, the plan path program's step 9) beside its IN. */
+    public static final int VERSION = 7;
 
     private PlanJson() {
     }

@@ -17,6 +17,7 @@ import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * THE PLANNER MAKES LITE PLANS (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2): a typed query planned
@@ -58,15 +59,18 @@ final class PlanMaker {
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Servers servers = Databases.servers(decided.type());
+        ExecutionPlan.Servers servers = Databases.serversFor(decided.type(), serverVersion);
         if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
             dialect = dialect.forServer(serverVersion);
-            servers = new ExecutionPlan.Servers.Versions(List.of(majorMinor(serverVersion)));
         }
-        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect, servers);
+        Metamodel metamodel = metamodel(l, decided.type(), dialect);
+        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect, servers,
+                metamodel);
         ExprType root = l.root().info();
-        // an enumeration parameter compared with a mapped column: through that place's value table
-        SqlQuery lowered = com.legend.sql.EnumValueTables.apply(l.plan());
+        // an enumeration parameter compared with a mapped column: through that place's value table; a system
+        // metamodel table on a server read by its session name (Metamodel.renames)
+        SqlQuery lowered = com.legend.lowering.SqlPostProcessors.apply(
+                com.legend.sql.EnumValueTables.apply(l.plan()), metamodel.renames());
         ExecutionPlan.Node node = switch (com.legend.plan.ResultShape.of(l.root())) {
             case GRAPH -> switch (output) {
                 case CSV -> throw new com.legend.error.NotImplementedException("graph results have no CSV wire");
@@ -194,63 +198,81 @@ final class PlanMaker {
     /** Where the plan runs: the database {@code decided}, the server versions and session statements of its dialect,
      *  and the setup its runtime's connections declare, every statement final for that database. */
     private static ExecutionPlan.Target target(com.legend.database.Target decided, String runtime,
-            Compiler.LoweredQuery l, SqlDialect dialect, ExecutionPlan.Servers servers) {
+            Compiler.LoweredQuery l, SqlDialect dialect, ExecutionPlan.Servers servers, Metamodel metamodel) {
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
         };
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
                 setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), decided.type(), dialect));
-        steps.addAll(metamodelSteps(l, decided.type(), dialect));
-        return new ExecutionPlan.Target(database, servers, dialect.sessionSetup(), steps);
+        steps.addAll(metamodel.setup());
+        List<String> session = new ArrayList<>(dialect.sessionSetup());
+        session.addAll(metamodel.session());
+        return new ExecutionPlan.Target(database, servers, session, steps);
     }
 
-    /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
-     *  its runner checks the session's version against. A version with no dot is itself. */
-    private static String majorMinor(String version) {
-        int first = version.indexOf('.');
-        int second = first < 0 ? -1 : version.indexOf('.', first + 1);
-        return second < 0 ? version : version.substring(0, second);
+    /**
+     * The system metamodel store's tables a plan carries, in the form its database takes: {@code setup}, the target's
+     * setup steps (an engine in this process); {@code session}, statements of the session's own, run on every session
+     * the plan opens (a server engine); {@code renames}, the query's references to read a session table by its name.
+     */
+    record Metamodel(List<ExecutionPlan.SetupStep> setup, List<String> session, Map<String, String> renames) {
+        static final Metamodel NONE = new Metamodel(List.of(), List.of(), Map.of());
     }
 
     /**
      * The system metamodel store's tables a query reads ({@code Class.all()}: the typed tree's references to
-     * {@link com.legend.builtin.SystemMetamodel#STORE_FQN}), set up on the plan's target as the legacy route seeded
-     * them on the graph's own system database ({@code exec.SystemDatabase}; the plan path program's step 9,
-     * 2026-10-18): each referenced table created and loaded with the graph's facts ({@link MetamodelSeeds}, written
-     * at plan time), so a model-free runner answers the query on the plan's session. A query reading no such table
-     * adds no step; a table of no rows is created empty.
+     * {@link com.legend.builtin.SystemMetamodel#STORE_FQN}), carried by the plan as the legacy route seeded them on
+     * the graph's own system database ({@code exec.SystemDatabase}; the plan path program's step 9): each referenced
+     * table with the graph's facts ({@link MetamodelSeeds}, written at plan time), so a model-free runner answers the
+     * query on the plan's session. On an engine in this process (2026-10-18) the tables are the target's setup, in
+     * their schema, as the private instance held them. On a SERVER engine (2026-10-19; the user's design of
+     * 2026-10-11 for the legacy route) they are the session's own TEMPORARY tables, made by the session's statements
+     * on every session the plan opens and gone with it (no other session sees them, nothing permanent is made in the
+     * user's database, so a plan with them runs on a database reached by a URL), each named
+     * {@link com.legend.setup.Ddl#systemTable} and read by that name through the query's renames; a dialect without
+     * temporary tables (Trino) refuses by name. A query reading no such table adds nothing; a table of no rows is
+     * created empty.
      */
-    private static List<ExecutionPlan.SetupStep> metamodelSteps(Compiler.LoweredQuery l,
-            ConnectionDefinition.DatabaseType type, SqlDialect dialect) {
+    private static Metamodel metamodel(Compiler.LoweredQuery l, ConnectionDefinition.DatabaseType type,
+            SqlDialect dialect) {
         java.util.Set<String> tables = new java.util.TreeSet<>();
         collectSystemTables(l.root(), tables);
         if (tables.isEmpty()) {
-            return List.of();
+            return Metamodel.NONE;
         }
         com.legend.model.DatabaseDefinition store = l.ctx()
                 .findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
+        boolean inProcess = Databases.inProcess(type);
         boolean bulk = Databases.loadsRowsInBulk(type);
-        List<ExecutionPlan.SetupStep> out = new ArrayList<>();
+        List<ExecutionPlan.SetupStep> setup = new ArrayList<>();
+        List<String> session = new ArrayList<>();
+        Map<String, String> renames = new java.util.LinkedHashMap<>();
         for (com.legend.model.DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
             for (com.legend.model.DatabaseDefinition.TableDefinition def : schema.tables()) {
                 // a reference names its table schema-qualified (metamodel.classes)
                 if (!tables.contains(schema.name() + "." + def.name()) && !tables.contains(def.name())) {
                     continue;
                 }
-                for (String statement : com.legend.setup.Ddl.metamodelSeed(def, schema.name(), dialect)) {
-                    out.add(new ExecutionPlan.SetupStep.Statement(statement));
-                }
                 List<List<String>> rows = MetamodelSeeds.rows(def.name(), l.ctx());
-                if (!rows.isEmpty()) {
-                    RowLoad load = com.legend.setup.Ddl.metamodelRows(def, schema.name(), rows);
-                    out.add(bulk ? load.staged(dialect)
-                            : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
+                if (inProcess) {
+                    for (String statement : com.legend.setup.Ddl.metamodelSeed(def, schema.name(), dialect)) {
+                        setup.add(new ExecutionPlan.SetupStep.Statement(statement));
+                    }
+                    if (!rows.isEmpty()) {
+                        RowLoad load = com.legend.setup.Ddl.metamodelRows(def, schema.name(), rows);
+                        setup.add(bulk ? load.staged(dialect)
+                                : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
+                    }
+                } else {
+                    session.addAll(com.legend.setup.Ddl.metamodelTemporary(def, schema.name(), rows, dialect));
+                    renames.put(schema.name() + "." + def.name(),
+                            com.legend.setup.Ddl.systemTable(schema.name(), def.name()));
                 }
             }
         }
-        return out;
+        return new Metamodel(List.copyOf(setup), List.copyOf(session), Map.copyOf(renames));
     }
 
     private static void collectSystemTables(com.legend.compiler.spec.typed.TypedSpec n, java.util.Set<String> out) {

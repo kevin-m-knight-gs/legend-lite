@@ -196,6 +196,7 @@ public final class MirJson {
                 o.put("source", source(p.source()));
                 o.put("on", exprs(p.on()));
                 o.put("in", exprs(p.in()));
+                o.put("named", exprs(p.named()));
                 List<Object> usings = new ArrayList<>();
                 for (SqlSource.Pivot.Using u : p.usings()) {
                     Map<String, Object> uo = new LinkedHashMap<>();
@@ -867,7 +868,8 @@ public final class MirJson {
                             u.getString("alias"), t == null ? null : readType(t)));
                 }
                 yield new SqlSource.Pivot(readSource(o.getObj("source")), readExprs(o.getArr("on")),
-                        readExprs(o.getArr("in")), usings, o.getString("alias"), readOutputCols(o.getArr("outputs")));
+                        readExprs(o.getArr("in")), readExprs(o.getArr("named")), usings, o.getString("alias"),
+                        readOutputCols(o.getArr("outputs")));
             }
             case values -> {
                 List<List<SqlExpr>> rows = new ArrayList<>();

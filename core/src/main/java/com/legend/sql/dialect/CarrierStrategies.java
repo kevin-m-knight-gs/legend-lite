@@ -32,6 +32,21 @@ public final class CarrierStrategies extends SqlRewriter {
     /** The declared slot for {@code name} in a source's output list,
      * or null when the list makes no claim (outputs-from-projections:
      * the rewritten projection carries the slot it preserves). */
+    /** A generated column's slot: the pivot's own output of that name (a static pivot's, typed by the typer), else
+     *  the USING's typed result, nullable (a named value no row has: a group's cell is null). */
+    static com.legend.sql.OutputCol generatedSlot(com.legend.sql.SqlSource.Pivot p,
+            com.legend.sql.SqlSource.Pivot.Using u, String name) {
+        com.legend.sql.OutputCol own = slot(p.outputs(), name);
+        if (own != null) {
+            return own;
+        }
+        if (u.type() == null) {
+            throw new IllegalStateException("the pivot's USING '" + u.alias() + "' carries no typed slot, so its"
+                    + " generated column '" + name + "' has none");
+        }
+        return new com.legend.sql.OutputCol(name, u.type(), true);
+    }
+
     private static com.legend.sql.@com.legend.base.Nullable OutputCol slot(
             List<com.legend.sql.OutputCol> outs, String name) {
         for (com.legend.sql.OutputCol c : outs) {
@@ -347,8 +362,9 @@ public final class CarrierStrategies extends SqlRewriter {
                 return em;
             }
         }
+        // a dynamic pivot a cast names pivots on the named values (SqlSource.Pivot.values, step 9, 2026-10-19)
         if (!(s instanceof com.legend.sql.SqlSource.Pivot p)
-                || p.in().isEmpty() || p.on().size() != 1) {
+                || p.values().isEmpty() || p.on().size() != 1) {
             return s;
         }
         List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -360,7 +376,7 @@ public final class CarrierStrategies extends SqlRewriter {
                 ps.add(new SqlSelect.Projection(g, oc.name(), oc));
             }
         }
-        for (SqlExpr v : p.in()) {
+        for (SqlExpr v : p.values()) {
             for (com.legend.sql.SqlSource.Pivot.Using u : p.usings()) {
                 SqlAgg.Reducer agg = u.agg();
                 List<SqlExpr> args = new ArrayList<>(agg.args());
@@ -375,7 +391,7 @@ public final class CarrierStrategies extends SqlRewriter {
                 ps.add(new SqlSelect.Projection(
                         new SqlAgg.Reducer(agg.fn(), args, agg.distinct(),
                                 agg.orderBy()),
-                        pname, slot(p.outputs(), pname)));
+                        pname, generatedSlot(p, u, pname)));
             }
         }
         SqlSelect sel = SqlSelect.starOf(p.source())

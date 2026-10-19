@@ -24,7 +24,7 @@ final class UnqualifyPivotArgs extends SqlRewriter {
         }
         return new SqlSource.Pivot(p.source(),
                 p.on().stream().map(UnqualifyPivotArgs::unqualify).toList(),
-                p.in(),
+                p.in(), p.named(),
                 p.usings().stream().map(u -> new SqlSource.Pivot.Using(
                         (SqlAgg.Reducer) unqualify(u.agg()), u.alias(), u.type())).toList(),
                 p.alias(), p.outputs());
