@@ -4,7 +4,6 @@
 package com.legend.integration;
 
 import com.legend.exec.ExecutionResult;
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
@@ -24,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * typed by the checker, lowered to the DML statement that inserts the relation's rows ({@code Lowerer.lowerStoreWrite}),
  * rendered by the dialect and run by the database, its value the database's update count. A program that writes runs
  * in one transaction: its writes land together or not at all, and a transaction its caller opened is joined, not
- * committed. On DuckDB and H2 here; on Postgres 16 by {@code StoreWritesPostgresTest}.
+ * committed. Each database the writes are measured on runs {@link #writes} in a test named for it (DatabaseOwners:
+ * a database is named only by its owners).
  */
 class StoreWritesExecutionTest {
 
@@ -50,22 +50,12 @@ class StoreWritesExecutionTest {
             Runtime w::RT { mappings: [ w::M ]; connections: [ w::DB: [ c: w::Conn ] ]; }
             """;
 
-    @Test
-    void duckDbWrites() throws Exception {
-        writes(TestBackends.of(DatabaseType.DuckDB));
-    }
-
-    @Test
-    void h2Writes() throws Exception {
-        writes(TestBackends.of(DatabaseType.H2));
-    }
-
     /** The checker refuses, by name, a write that names a column the table lacks, a value of another type, a
      *  destination that is not a store table, and a set value of many. */
     @Test
     void theCheckerRefusesAWriteTheTableCannotHold() {
         var ctx = com.legend.Compiler.compileModel(
-                MODEL.formatted(TestBackends.of(DatabaseType.DuckDB).connectionBody()));
+                MODEL.formatted(TestBackends.platform().connectionBody()));
         for (var refused : List.of(
                 List.of("#>{w::DB.SRC}#->extend(~X:r|1)->write(#>{w::DB.T}#)", "'X' is not a column of w::DB.T"),
                 List.of("#>{w::DB.SRC}#->select(~[NAME])->rename(~NAME, ~AGE)->write(#>{w::DB.T}#)",

@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 class StoreWritesPostgresTest {
 
     @Test
-    void postgresWrites() throws Exception {
+    void writes() throws Exception {
         StoreWritesExecutionTest.writes(TestBackends.of(DatabaseType.Postgres));
     }
 }

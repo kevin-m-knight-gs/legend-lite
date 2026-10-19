@@ -696,7 +696,12 @@ class JavaEvalLedgerTest {
             // 2296 -> 2298 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
             // datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types (one entry
             // each); a type mapped, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2298),
+            // 2298 -> 2329 (2026-10-18, the writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): a store
+            // write at the statement's root is lowered to its DML statement, rendered by the dialect and handed to the
+            // database (storeWrite; its value the database's update count), the Lowerer's construction shared with
+            // lowerAndPrepare (lowererFor), and a program that writes a store runs inside one transaction
+            // (Executor.inTransaction); dispatch and sequencing, nothing evaluated in Java
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2329),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
