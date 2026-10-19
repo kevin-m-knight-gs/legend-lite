@@ -567,6 +567,27 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'longitude'):
             bar.plot(at={'lat': 'lat'})
 
+    def test_batch_3_leftovers_are_written_and_refused_as_datacube_draws_them(self):
+        page = ll.Page('Leftovers')
+        tasks = pd.DataFrame({'desk': ['FX', 'FX', 'Rates'], 'region': ['EMEA', 'AMER', 'EMEA'],
+                              'day': pd.to_datetime(['2024-01-02', '2024-03-04', '2024-02-01']).date,
+                              'pnl': [1.5, 2.0, 0.5]})
+        grid = page.grid(tasks, name='tasks', rows=['desk'], measures={'pnl': 'sum'})
+        grid.chart('waffle', x='desk')
+        # a Marimekko lays its columns out in their order across: DataCube's new chart of one takes that order
+        grid.chart('marimekko', x='region', split='desk')
+        grid.chart('gantt', x='desk', y=[('day', 'min'), ('day', 'max')])
+        specs = [v['spec'] for v in page.to_dict()['views'] if v['kind'] == 'chart']
+        self.assertEqual([s['mark'] for s in specs], ['waffle', 'marimekko', 'gantt'])
+        self.assertEqual(specs[1]['options']['sort'], {'by': 'x', 'direction': 'asc'})
+        for mark, given, why in [('marimekko', {'x': 'region'}, 'made of'),
+                                 ('marimekko', {'x': 'region', 'split': 'desk', 'options': {'sort': {'by': 'y', 'direction': 'desc'}}}, 'order by category'),
+                                 ('waffle', {'x': 'desk', 'y': [('pnl', 'sum'), ('pnl', 'max')]}, 'one value'),
+                                 ('gantt', {'x': 'desk'}, 'min or max of a date column'),
+                                 ('gantt', {'x': 'desk', 'y': [('day', 'min'), ('pnl', 'max')]}, 'min or max of a date column')]:
+            with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
+                grid.chart(mark, **given)
+
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()
         # a hand on its split freezes it, as in DataCube's options

@@ -1018,7 +1018,8 @@ const MARK_WORDS: Record<ChartSpec['mark'], string> = {
   pareto: 'Pareto chart', funnel: 'Funnel', rose: 'Rose chart', polar: 'Polar bar chart', radar: 'Radar chart',
   parallel: 'Parallel coordinates', sankey: 'Sankey diagram', chord: 'Chord diagram', stream: 'Streamgraph',
   calendar: 'Calendar heatmap', gauge: 'Gauge', sunburst: 'Sunburst', tree: 'Tree', matrix: 'Scatter matrix',
-  boxplot: 'Box plot', map: 'Map', bubblemap: 'Bubble map',
+  boxplot: 'Box plot', map: 'Map', bubblemap: 'Bubble map', marimekko: 'Marimekko chart', waffle: 'Waffle chart',
+  gantt: 'Gantt chart',
 };
 
 /** A KPI as drawn: its number as the grid writes it, how it stands against its target, and its trend's line. */

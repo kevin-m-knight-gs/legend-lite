@@ -190,8 +190,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  Measured 289,651 before the phase's audit fixes.
  *  290,000 -> 291,000 (2026-10-18, chart batch 5, the roadmap run's phase 6: the design note's Batch 5): the maps' rules
  *  in chart-spec.ts (a map reads a country's code or name; a bubble map's places, `at`) and the panel's routing to
- *  them; their drawing, shapes and ECharts are chunks of their own (MAPS_BUDGET). Measured 290,341. */
-const BUDGET = 291_000;
+ *  them; their drawing, shapes and ECharts are chunks of their own (MAPS_BUDGET). Measured 290,341.
+ *  291,000 -> 292,000 (2026-10-18, batch 3's leftovers, the roadmap run's phase 7: a Marimekko's, a waffle's and a
+ *  Gantt's rules and the database's layouts for them, calc-presets.ts, in the grid's chart rules). Measured 291,127. */
+const BUDGET = 292_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -228,8 +230,9 @@ const BUDGET = 291_000;
  *  278,500 -> 279,000 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
  *  date). Measured 278,735 before the phase's audit fixes.
  *  279,000 -> 280,000 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
- *  279,416. */
-const ENGINE_BUDGET = 280_000;
+ *  279,416.
+ *  280,000 -> 281,000 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 280,228. */
+const ENGINE_BUDGET = 281_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -268,8 +271,11 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
  *  batch 3's later kinds (small multiples, a bubble).
  *  100,000 -> 66,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
  *  "does minify buy anything if already zipped?" -- it does, about a third): batch 3's kinds all in. Measured 62,426;
- *  unminified, the same tree 95,848. */
-const KINDS_BUDGET = 66_000;
+ *  unminified, the same tree 95,848.
+ *  66,000 -> 68,000 (2026-10-18, the roadmap run's phases 5-7: the box plot, the click's period end on these kinds,
+ *  batch 3's leftovers -- a Marimekko, a waffle, a Gantt -- and ECharts code these kinds share only with the maps,
+ *  counted here since phase 6's audit). Measured 66,807. */
+const KINDS_BUDGET = 68_000;
 
 const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
 /** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's
@@ -327,8 +333,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  296,000 -> 296,500 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
  *  date). Measured 296,208 before the phase's audit fixes.
  *  296,500 -> 297,500 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
- *  296,883. */
-const WIDGET_BUDGET = 297_500;
+ *  296,883.
+ *  297,500 -> 298,500 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 297,692. */
+const WIDGET_BUDGET = 298_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

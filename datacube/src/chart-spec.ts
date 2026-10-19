@@ -14,7 +14,7 @@
 
 import { allColumns, copiedColumn, measuresAsColumns, type GridDraft } from './grid-edits.ts';
 import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
-import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
+import { binColumns, binName, grainColumn, grainEndColumn, grainName, marimekkoColumns, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waffleColumns, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
@@ -39,7 +39,9 @@ export type ChartMark =
   // batch 4 (statistics): a box per category, its five figures the database's (BOX_FNS)
   | 'boxplot'
   // batch 5 (maps, §4): drawn by chart-maps.ts on the world's countries, a chunk of its own
-  | 'map' | 'bubblemap';
+  | 'map' | 'bubblemap'
+  // batch 3's leftovers: shares as cells (a Marimekko, a waffle), and a start and an end per row (a Gantt)
+  | 'marimekko' | 'waffle' | 'gantt';
 
 /** Batch 5's maps: drawn by chart-maps.ts on Natural Earth's countries, fetched with the first of them. */
 export const MAP_MARKS: ReadonlySet<ChartMark> = new Set(['map', 'bubblemap']);
@@ -53,7 +55,7 @@ export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst'
 /** Batch 3's kinds: drawn by chart-kinds.ts, fetched with the first of them (the rarer ECharts charts with it). */
 export const KIND_MARKS: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar', 'parallel',
-  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix', 'boxplot',
+  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix', 'boxplot', 'marimekko', 'waffle', 'gantt',
 ]);
 
 /** The kinds that plot ROWS, not groups: a scatter, and a scatter matrix (every pair of its values). */
@@ -85,11 +87,11 @@ const DRILLABLE: ReadonlySet<ChartMark> = new Set([
 /** The kinds that draw one series of categories: no split (a colour per value) has a place on them. */
 export const UNSPLIT: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar', 'gauge',
-  'boxplot', 'map', 'bubblemap',
+  'boxplot', 'map', 'bubblemap', 'waffle', 'gantt',
 ]);
 
 /** The kinds that plot several values of their own: following the cube, they keep them. */
-const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel', 'boxplot']);
+const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel', 'boxplot', 'gantt']);
 
 /** The kinds that need a second grouping (the split): a heatmap's rows, a flow's target, a stream's layers. */
 export const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
@@ -97,6 +99,7 @@ export const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
   sankey: 'A Sankey needs a second column, where each flow goes (Split by).',
   chord: 'A chord diagram needs a second column, where each flow goes (Split by).',
   stream: 'A streamgraph needs a second column, for its layers (Split by).',
+  marimekko: 'A Marimekko needs a second column, what each of its columns is made of (Split by).',
 };
 
 /** The kinds that need a date across. */
@@ -551,12 +554,15 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
   { value: 'boxplot', label: 'Box plot' },
   { value: 'map', label: 'Map' },
   { value: 'bubblemap', label: 'Bubble map' },
+  { value: 'marimekko', label: 'Marimekko' },
+  { value: 'waffle', label: 'Waffle' },
+  { value: 'gantt', label: 'Gantt' },
 ];
 
 /** A kind's name, as a sentence says it ("a Pareto", "a polar bar"). */
 export function markLabel(mark: ChartMark): string {
   const l = CHART_MARKS.find((m) => m.value === mark)?.label ?? mark;
-  return l === 'KPI' || l === 'Sankey' || l === 'Pareto' ? l : l.toLowerCase();
+  return l === 'KPI' || l === 'Sankey' || l === 'Pareto' || l === 'Marimekko' || l === 'Gantt' ? l : l.toLowerCase();
 }
 
 export const DEFAULT_CHART_LIMIT = 50;
@@ -941,10 +947,11 @@ function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot):
   const limit = MAP_MARKS.has(spec.mark) ? spec.options.limit
     : inTime && spec.options.limit === DEFAULT_CHART_LIMIT ? TIME_LIMIT
     : !inTime && spec.options.limit === TIME_LIMIT ? DEFAULT_CHART_LIMIT : spec.options.limit;
-  return {
-    ...across,
-    options: { ...spec.options, sort: inTime ? { by: 'x', direction: 'asc' } : { by: 'y', direction: 'desc' }, limit },
-  };
+  // a Marimekko runs in its order across and a Gantt from the earliest start, whatever is across (their own orders:
+  // asMark's)
+  const own = spec.mark === 'marimekko' || spec.mark === 'gantt';
+  const sort = own ? spec.options.sort : inTime ? { by: 'x' as const, direction: 'asc' as const } : { by: 'y' as const, direction: 'desc' as const };
+  return { ...across, options: { ...spec.options, sort, limit } };
 }
 
 /**
@@ -993,6 +1000,9 @@ function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
     ...(keepX ? { x, ...(grain !== undefined ? { grain } : {}), ...(bins !== undefined ? { bins } : {}) } : {}),
     ...(keepSplit ? { split } : {}),
     ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
+    // a Marimekko lays its columns out in their order across; a Gantt runs from the earliest start
+    ...(mark === 'marimekko' ? { options: { ...rest.options, sort: { by: 'x', direction: 'asc' } } } : {}),
+    ...(mark === 'gantt' ? { options: { ...rest.options, sort: { by: 'y', direction: 'asc' } } } : {}),
     ...(mark === 'boxplot' && rest.y[0] !== undefined && rest.y[0].fn !== 'value' ? { y: boxMeasures(rest.y[0].column) } : {}),
     ...(spec.mark === 'boxplot' && !SEVERAL_VALUES.has(mark) && rest.y[2] !== undefined ? { y: [rest.y[2]] } : {}),
     ...(at !== undefined ? { at } : {}),
@@ -1218,13 +1228,25 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if (MAP_MARKS.has(spec.mark) && (spec.grain !== undefined || spec.bins !== undefined)) {
     out.push(`${article} ${kind} places each row by what it names: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
   }
+  // A GANTT runs each row from its start to its end: two values, each a date column's least or greatest
+  if (spec.mark === 'gantt') {
+    const dated = (m: ChartMeasure): boolean => (m.fn === 'min' || m.fn === 'max')
+      && isTemporal([...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === m.column)?.type);
+    if (spec.y.length !== 2 || !spec.y.every(dated)) {
+      out.push('A Gantt runs each row from a start to an end: two values, each the min or max of a date column.');
+    }
+  }
+  if (spec.mark === 'marimekko' && (spec.options.sort.by !== 'x')) {
+    out.push('A Marimekko lays its columns out in their order across: order by category.');
+  }
   if (spec.mark === 'radar' && spec.y.length < 3) out.push('A radar needs three values or more, one per spoke.');
   if (spec.mark === 'parallel' && spec.y.length < 2) out.push('Parallel coordinates need two values or more, one per axis.');
   // a pie, a lollipop, a KPI and a heatmap draw their first value alone: the others would be asked and never drawn
   if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'calendar'
     || spec.mark === 'funnel' || spec.mark === 'rose' || spec.mark === 'stream' || spec.mark === 'sankey'
     || spec.mark === 'chord' || spec.mark === 'pie' || spec.mark === 'lollipop' || spec.mark === 'kpi'
-    || spec.mark === 'heatmap' || MAP_MARKS.has(spec.mark)) && spec.y.length > 1) {
+    || spec.mark === 'heatmap' || MAP_MARKS.has(spec.mark) || spec.mark === 'marimekko' || spec.mark === 'waffle')
+    && spec.y.length > 1) {
     out.push(`${article} ${kind} plots one value.`);
   }
   // a Pareto runs from the largest: its cumulative share is along that order, so the chart's order is it
@@ -1234,8 +1256,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if (spec.mark === 'gauge' && spec.options.target === undefined) {
     out.push('A gauge needs a target: its scale runs from zero to it.');
   }
-  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'boxplot')
-    && spec.y.some((m) => m.showAs)) {
+  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'boxplot'
+    || spec.mark === 'marimekko' || spec.mark === 'waffle' || spec.mark === 'gantt') && spec.y.some((m) => m.showAs)) {
     out.push(`${article} ${kind} computes its own figures: a value shown as something else has no place on it.`);
   }
   // a grain takes a date to its period, bins a number to its bin: on any other column they mean nothing
@@ -1423,6 +1445,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     if (spec.mark === 'waterfall') shown.push(...waterfallColumns(base, chartOrder(spec, across, base)));
     if (spec.mark === 'pareto') shown.push(...paretoColumns(base, across));
     if (spec.mark === 'pie' && spec.split !== undefined) shown.push(ringTotalColumn(base, across));
+    if (spec.mark === 'marimekko' && spec.split !== undefined) shown.push(...marimekkoColumns(base, across, spec.split, spec.options.sort.direction));
+    if (spec.mark === 'waffle') shown.push(...waffleColumns(base, chartOrder(spec, across, base)));
   }
   const rowCalcs = [...axisCalcs(spec), ...(spec.calcs ?? []).filter((c) => c.stage === 'row').map((c) => c.column)];
   // what the chart reads, and what the cube's filter reads (its literals are

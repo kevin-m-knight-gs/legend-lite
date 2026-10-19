@@ -253,7 +253,23 @@ on another kind, with a brush or a slider, or coloured by value.
 **Step 3, built 2026-10-14**: the scatter matrix (`matrix`): two to five values, each pair plotted against each other
 from the cube's rows (as a scatter, not groups), each value's name on the diagonal, a colour per value of the split.
 
-Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt).
+Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt) -- **built
+2026-10-18** (the roadmap run's phase 7, `docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`), each with the layout the database
+computes:
+
+- **A Marimekko** (`mark: 'marimekko'`, its split needed): each column across as wide as its share of the whole, each
+  cell up it as tall as its share of the column. The database gives each cell its four edges, shares between 0 and 1
+  (`calc-presets.ts marimekkoColumns`: a running total through the cell less the running total within its column, over
+  the whole, is where its column starts; that plus the column's total, where it ends; the running total within the
+  column, over the column's total, where the cell ends) -- in the order across, which it must be ordered by.
+- **A waffle** (`mark: 'waffle'`): a hundred cells, ten by ten, each category the cells from its running share before it
+  to its running share through it, each rounded by the database (`waffleColumns`) -- a running total rounded, so the
+  cells add up to a hundred exactly. The chart colours each cell by the range that holds it.
+- **A Gantt** (`mark: 'gantt'`): each row a bar from a start to an end on a time axis -- two values, each the min or max
+  of a date column (the database's least and greatest), run from the earliest start.
+
+Each draws one value (a Gantt two), takes no show-as (it computes its own figures), and is on the "more kinds" example
+page with its family.
 
 **Its audit (2026-10-14)** found and fixed: a live chart of one series (a waterfall, a lollipop) took the cube's
 second grouping as its split and was refused with no way to take it off -- following the cube, such a kind takes no
@@ -263,8 +279,8 @@ day grain; a waterfall cut by "At most" called its last bar the total ("Total sh
 with DataCube's; the notebook's loader asks the next open cube's channel when one does not answer in 30 seconds.
 **A saved pie with a split changes look**: it was drawn as one ring from each category's first row (a split silently
 dropped); it is now two rings, the split outside. `options.half` and `options.ring` are checked words (true or false);
-a DataCube from before batch 3 draws a full pie or a dial for them, as it reads version 2. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
-design so the page does not compute), Gantt (a start and an end per row: dates as measures).
+a DataCube from before batch 3 draws a full pie or a dial for them, as it reads version 2. Named then, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout
+to design so the page does not compute), Gantt (a start and an end per row: dates as measures) -- built since, above.
 
 **The rules written once (2026-10-15, before batches 2 and 3 landed; the review of 2d24022).** The DataCube + Python
 line's review found Python's chart rules (`page.py _drawable`) a copy of `chartProblems`, held to it only by the shared

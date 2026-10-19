@@ -9,7 +9,7 @@ import { element, fn, lambda, property, variable } from '../../pure-protocol/src
 import { AXIS_UPPER, boxMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
 import { chartOption, describe as describeChart, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
 import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
-import { grainName, paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
+import { grainName, marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
 import * as echarts from 'echarts/core';
 import { JSDOM } from 'jsdom';
 import { paintChartForm } from '../src/ui/chart-form.ts';
@@ -578,5 +578,100 @@ describe('the phase 5 audit: what each fix pins', () => {
     assert.match(problems({ ...BOX, y: swapped }), /five figures go in order: min, percentile25, median, percentile75, max/);
     const placed = { ...BOX, y: BOX.y.map((m) => ({ ...m, axis: 'left' as const })) };
     assert.deepEqual(chartProblems(placed, CUBE), ['A box plot draws its five figures as one box: a value\'s own mark or axis has no place on it.']);
+  });
+});
+
+describe('batch 3\'s leftovers: a Marimekko and a waffle (shares as cells, the database\'s), and a Gantt', () => {
+  const problems = (spec: ChartSpec) => chartProblems(spec, CUBE).join(' ');
+  const MEKKO = of('marimekko', { split: 'channel', options: { ...OPTIONS, sort: { by: 'x', direction: 'asc' } } });
+  const GANTT = of('gantt', { y: [{ column: 'day', fn: 'min' }, { column: 'day', fn: 'max' }], options: { ...OPTIONS, sort: { by: 'y', direction: 'asc' } } });
+  it('their rules: a Marimekko\'s split, its order across and one value; a waffle\'s one value; a Gantt\'s two dates', () => {
+    assert.deepEqual(chartProblems(MEKKO, CUBE), []);
+    const { split: _split, ...unsplit } = MEKKO;
+    assert.match(problems(unsplit), /what each of its columns is made of/);
+    assert.match(problems({ ...MEKKO, options: OPTIONS }), /order by category/);
+    assert.match(problems({ ...MEKKO, y: [REVENUE_SUM, { column: 'cost', fn: 'sum' }] }), /A Marimekko plots one value/);
+    assert.deepEqual(chartProblems(of('waffle'), CUBE), []);
+    assert.match(problems(of('waffle', { split: 'channel' })), /A waffle draws one series/);
+    assert.match(problems(of('waffle', { y: [REVENUE_SUM, { column: 'cost', fn: 'sum' }] })), /A waffle plots one value/);
+    assert.match(problems(of('waffle', { y: [{ ...REVENUE_SUM, showAs: { kind: 'rank' } }] })), /computes its own figures/);
+    assert.deepEqual(chartProblems(GANTT, CUBE), []);
+    assert.match(problems(of('gantt')), /two values, each the min or max of a date column/);
+    assert.match(problems({ ...GANTT, y: [{ column: 'day', fn: 'min' }, { column: 'revenue', fn: 'max' }] }), /each the min or max of a date column/);
+    assert.match(problems({ ...GANTT, y: [{ column: 'day', fn: 'min' }, { column: 'day', fn: 'unique' }] }), /each the min or max of a date column/);
+  });
+  it('a chart told the kind takes its order: a Marimekko across, a Gantt from the earliest start', () => {
+    assert.deepEqual(editChart(of('bar', { split: 'channel' }), { mark: 'marimekko' }, CUBE).options.sort, { by: 'x', direction: 'asc' });
+    assert.deepEqual(editChart(of('bar'), { mark: 'gantt' }, CUBE).options.sort, { by: 'y', direction: 'asc' });
+    // and keeps it as its column across changes, as Python's grid.chart(mark, x=...) tells both at once
+    assert.deepEqual(editChart(of('bar', { split: 'channel' }), { mark: 'marimekko', x: 'channel', split: 'region' }, CUBE).options.sort,
+      { by: 'x', direction: 'asc' });
+    assert.deepEqual(editChart(of('bar'), { mark: 'gantt', x: 'channel' }, CUBE).options.sort, { by: 'y', direction: 'asc' });
+  });
+  it('the database computes each cell: a Marimekko\'s four edges, a waffle\'s range of cells along the chart\'s order', () => {
+    const m = chartSnapshot(CUBE, MEKKO);
+    const names = marimekkoNames('sum_revenue');
+    for (const n of [names.x0, names.x1, names.y0, names.y1, names.width]) assert.ok(m.groupDerived?.some((d) => d.name === n), n);
+    const running = m.groupDerived?.find((d) => d.name === `${names.x0}__running`);
+    assert.deepEqual(running?.window?.order, [{ column: 'region', direction: 'asc' }, { column: 'channel', direction: 'asc' }]);
+    const w = chartSnapshot(CUBE, of('waffle'));
+    const { from, to } = waffleNames('sum_revenue');
+    assert.ok(w.groupDerived?.some((d) => d.name === from) && w.groupDerived?.some((d) => d.name === to));
+    assert.deepEqual(w.groupDerived?.find((d) => d.name === `${to}__running`)?.window?.order,
+      [{ column: 'sum_revenue', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+  });
+  it('a Marimekko drawn: a cell per row from its edges, a series per part, each cell\'s click its column and part', () => {
+    const n = marimekkoNames('sum_revenue');
+    const rows = table([
+      { name: 'region', type: 'String', values: ['AMER', 'AMER', 'EMEA'] },
+      { name: 'channel', type: 'String', values: ['Online', 'Store', 'Online'] },
+      { name: 'sum_revenue', type: 'Float', values: [300, 100, 400] },
+      { name: n.x0, type: 'Float', values: [0, 0, 0.5] },
+      { name: n.x1, type: 'Float', values: [0.5, 0.5, 1] },
+      { name: n.y0, type: 'Float', values: [0, 0.75, 0] },
+      { name: n.y1, type: 'Float', values: [0.75, 1, 1] },
+    ]);
+    const d = kindOption(MEKKO, rows);
+    const series = (d.option as { series: { name: string; data: { value: number[]; key?: object }[] }[] }).series;
+    assert.deepEqual(series.slice(0, 2).map((x) => [x.name, x.data.map((c) => c.value)]), [
+      ['Online', [[0, 0.5, 0, 0.75], [0.5, 1, 0, 1]]],
+      ['Store', [[0, 0.5, 0.75, 1]]],
+    ]);
+    assert.deepEqual(d.keyAt(1, 0, series[1]!.data[0]), { region: 'AMER', channel: 'Store' });
+    const out = svg(d);
+    assert.ok(out.includes('AMER') && out.includes('EMEA'), 'each column named under it');
+  });
+  it('a waffle drawn: each category the cells of its range; a category with none said', () => {
+    const { from, to } = waffleNames('sum_revenue');
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'LATAM'] },
+      { name: 'sum_revenue', type: 'Float', values: [600, 400, -5] },
+      { name: from, type: 'Integer', values: [0, 60, 100] },
+      { name: to, type: 'Integer', values: [60, 100, 100] },
+    ]);
+    const d = kindOption(of('waffle'), rows);
+    const series = (d.option as { series: { name: string; data: { value: number[]; ci: number }[] }[] }).series;
+    assert.deepEqual(series.map((x) => x.data.length), [60, 40, 0]);
+    assert.deepEqual(series[1]!.data[0]!.value, [0, 6], 'the 61st cell: the seventh row\'s first');
+    assert.match(d.notes.join(' '), /1 category fills no cell .*: LATAM/);
+    assert.deepEqual(d.keyAt(1, 3, series[1]!.data[3]), { region: 'APAC' });
+    assert.ok(svg(d).length > 1000);
+  });
+  it('a Gantt drawn: each row a bar from its start to its end on a time axis; a row with no end said', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'AMER'] },
+      { name: 'min_day', type: 'StrictDate', values: ['2024-01-15', '2024-02-01', '2024-03-01'] },
+      { name: 'max_day', type: 'StrictDate', values: ['2024-03-05', '2024-02-20', null] },
+    ]);
+    const d = kindOption(GANTT, rows);
+    const option = d.option as { xAxis: { type: string }; series: { data: { value: number[]; ci: number }[] }[] };
+    assert.equal(option.xAxis.type, 'time');
+    assert.deepEqual(option.series[0]!.data.map((b) => [b.ci, b.value[1], b.value[2]]), [
+      [0, new Date(2024, 0, 15).getTime(), new Date(2024, 2, 5).getTime()],
+      [1, new Date(2024, 1, 1).getTime(), new Date(2024, 1, 20).getTime()],
+    ]);
+    assert.match(d.notes.join(' '), /1 row has no start or no end: AMER/);
+    assert.deepEqual(d.keyAt(0, 1, option.series[0]!.data[1]), { region: 'APAC' });
+    assert.ok(svg(d).includes('EMEA'));
   });
 });

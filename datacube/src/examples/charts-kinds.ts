@@ -1,6 +1,6 @@
 // The example page of batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3, §3.3): every new kind over the sales
-// sample, a sheet per family, each simple to complex -- and batch 4's box plots, with a histogram, on Statistics, and
-// batch 5's maps on Maps. Built as batch 2's page is (charts-dashboard.ts salesPage), so it
+// sample, a sheet per family, each simple to complex -- and batch 4's box plots, with a histogram, on Statistics,
+// batch 5's maps on Maps, and batch 3's leftovers (a waffle and a Marimekko, a Gantt) with their families. Built as batch 2's page is (charts-dashboard.ts salesPage), so it
 // moves with the spec; test/examples.test.ts reads it back and finds every chart drawable, and
 // test/chart-queries.test.ts plans and runs each chart's query on the sample.
 
@@ -50,6 +50,10 @@ const SHEETS: readonly ExampleSheet[] = [
       chart('k-sunburst', 'The grid as shown, as rings: a sunburst', { mark: 'sunburst', x: 'region' }),
       chart('k-tree', 'The grid as shown, as branches: a tree', { mark: 'tree', x: 'region' }),
       chart('k-treemap', 'The grid as shown, as blocks: a treemap', { mark: 'treemap', x: 'region' }),
+      chart('k-waffle', 'Revenue by channel, in a hundred cells: a waffle', { mark: 'waffle', x: 'channel' }),
+      chart('k-mekko', 'Revenue by region, each made of its channels: a Marimekko', {
+        mark: 'marimekko', x: 'region', split: 'channel', options: { sort: { by: 'x', direction: 'asc' } },
+      }),
     ],
   },
   {
@@ -73,6 +77,10 @@ const SHEETS: readonly ExampleSheet[] = [
       }),
       chart('k-heatmap', 'Revenue by month and region: a heatmap', {
         mark: 'heatmap', x: 'sold', grain: 'month', split: 'region', options: BY_TIME,
+      }),
+      chart('k-gantt', 'When each product first and last sold: a Gantt', {
+        mark: 'gantt', x: 'product', y: [{ column: 'sold', fn: 'min' }, { column: 'sold', fn: 'max' }],
+        options: { sort: { by: 'y', direction: 'asc' } },
       }),
     ],
   },

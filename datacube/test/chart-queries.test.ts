@@ -10,7 +10,7 @@ import { openDatabase } from '#test-host';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { boxMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, measureName, type ChartSpec } from '../src/chart-spec.ts';
-import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
+import { marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -413,5 +413,35 @@ describe('batch 4, planned and run: a box plot\'s figures are the database\'s', 
     assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
     assert.deepEqual(values(t, 'cost').map(Number), [65, 105]);
     assert.deepEqual(values(t, 'revenue').map(Number), [275, 250]);
+  });
+});
+
+describe('batch 3\'s leftovers, planned and run: the database lays out each cell', () => {
+  it('a Marimekko: each region as wide as its share of the whole, each sale up it as tall as its share of the region', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'marimekko', split: 'sold' });
+    const n = marimekkoNames('sum_revenue');
+    const at = (region: string, sold: string): number[] => {
+      const i = values(t, 'region').findIndex((r, k) => r === region && String(values(t, 'sold')[k]).startsWith(sold));
+      return [n.x0, n.x1, n.y0, n.y1].map((c) => Number(Number(values(t, c)[i]).toFixed(4)));
+    };
+    // AMER sold 400, 50, 150 and EMEA 100, 200, 300: 600 each of 1,200, AMER first across
+    assert.deepEqual(at('AMER', '2024-01-20'), [0, 0.5, 0, 0.6667]);
+    assert.deepEqual(at('AMER', '2024-02-25'), [0, 0.5, 0.6667, 0.75]);
+    assert.deepEqual(at('AMER', '2024-03-30'), [0, 0.5, 0.75, 1]);
+    assert.deepEqual(at('EMEA', '2024-03-05'), [0.5, 1, 0.5, 1]);
+  });
+  it('a waffle: each region the cells from its running share before it to its running share through it, a hundred in all', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'waffle', options: { ...DEFAULT_OPTIONS, sort: { by: 'y', direction: 'desc' } } });
+    const { from, to } = waffleNames('sum_revenue');
+    // 600 each: AMER first by name
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, from).map(Number), [0, 50]);
+    assert.deepEqual(values(t, to).map(Number), [50, 100]);
+  });
+  it('a Gantt: each region\'s first and last sale, the dates the database answers', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'gantt', y: [{ column: 'sold', fn: 'min' }, { column: 'sold', fn: 'max' }] });
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, 'min_sold').map((d) => String(d).slice(0, 10)), ['2024-01-20', '2024-01-15']);
+    assert.deepEqual(values(t, 'max_sold').map((d) => String(d).slice(0, 10)), ['2024-03-30', '2024-03-05']);
   });
 });

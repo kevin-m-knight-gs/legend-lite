@@ -33,7 +33,7 @@ import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 
 /** What each kind calls its split. Which kinds draw one series (no split) and which need one are the rulebook's. */
 const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
-  heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:',
+  heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:', marimekko: 'Made of:',
 };
 
 /** The most values one chart plots side by side (bars, lines). */
@@ -79,6 +79,10 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   // a map's column across names each row's country; a bubble map's names each place, put where two columns say
   const map = spec.mark === 'map';
   const bubbles = spec.mark === 'bubblemap';
+  // a Gantt's values are dates -- each the least or greatest of a date column -- not numbers
+  const gantt = spec.mark === 'gantt';
+  const dates = [...new Set([...dimensions, ...measures].filter((c) => isTemporal(c.type)).map((c) => c.name))]
+    .map((name) => ({ value: name, label: name }));
   const across = scatter
     ? [...measures, ...dimensions].map((c) => ({ value: c.name, label: c.name }))
     : dims;
@@ -185,10 +189,12 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     ...presetFields(h, spec, typeOf.get(spec.x ?? '')),
     // every handler reads the spec as it is AT THE EVENT, never the one
     // this form was painted from: a stale copy undid the edit before it
-    field(doc, scatter ? 'Y:' : 'Value:', dropdown<string>(
-      doc, scatter || box ? first?.column : plottedValue,
-      scatter || box ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
-      (v) => (box ? v && h.set({ y: boxMeasures(v) }, true) : pick(v, currentFn())),
+    field(doc, scatter ? 'Y:' : gantt ? 'Start:' : 'Value:', dropdown<string>(
+      doc, scatter || box || gantt ? first?.column : plottedValue,
+      gantt ? dates : scatter || box ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
+      (v) => (box ? v && h.set({ y: boxMeasures(v) }, true)
+        : gantt ? v && h.set({ y: [{ column: v, fn: currentFn() ?? 'min' }, ...current(h).y.slice(1)] }, true)
+        : pick(v, currentFn())),
     )),
     ...(scatter || box || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
       doc, currentFn(), fns,
@@ -242,6 +248,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   if (spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'radar' || spec.mark === 'parallel' || spec.mark === 'polar') {
     form.append(...measureRows(h, spec, plotted, typeOf, false));
   }
+  // a Gantt's end: a date column's greatest, as its start is one's least
+  if (gantt) form.append(...measureRows(h, spec, dates, typeOf, false, 'max'));
   if (spec.mark === 'bar' || spec.mark === 'lollipop' || spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'polar'
     || box) {
     form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, spec.mark === 'polar' ? [
@@ -303,7 +311,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
  * its own kind of mark and its value axis (by unit unless told), shown as it says; one added or taken away. A split
  * draws the first measure once per value, so the others wait until it is taken off.
  */
-function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>, combination = true): HTMLElement[] {
+function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>, combination = true, added: AggregateFn = 'sum'): HTMLElement[] {
   const doc = h.doc;
   const GROUP = 'group:';
   const out: HTMLElement[] = [];
@@ -367,7 +375,7 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     if (!now || !first) return;
     const next = plotted.find((p) => !p.value.startsWith(GROUP) && p.value !== first.column) ?? plotted[0];
     if (!next) return;
-    h.set({ y: [...now.y, { column: next.value, fn: 'sum', ...(combination ? { mark: 'line' as const } : {}) }] }, true);
+    h.set({ y: [...now.y, { column: next.value, fn: added, ...(combination ? { mark: 'line' as const } : {}) }] }, true);
   });
   out.push(add);
   return out;
