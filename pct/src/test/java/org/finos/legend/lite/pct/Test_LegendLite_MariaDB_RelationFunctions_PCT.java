@@ -48,7 +48,29 @@ public class Test_LegendLite_MariaDB_RelationFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
             // MARIADB'S OWN LIMIT: a recursive CTE takes no outer reference (measured), so a fold over a row's list
             // is no walk
-            one("meta::pure::functions::relation::tests::extend::testVariantColumn_fold_Function_1__Boolean_1_", "\"a fold that reads a row reached MariaDB, whose recursive CTE cannot read an outer column (measured: Unknown column)\"")
+            one("meta::pure::functions::relation::tests::extend::testVariantColumn_fold_Function_1__Boolean_1_", "\"a fold that reads a row reached MariaDB, whose recursive CTE cannot read an outer column (measured: Unknown column)\""),
+            // step 9, 2026-10-19, the plan route: a pivot. A dynamic pivot's text needs the row as JSON, which only DuckDB
+            // has; a static pivot has no emulation on the plan route yet (the grouped CASE-aggregate form, the base
+            // dialect's, is one shared item owned by the merging session). Pinned by name, not fixed (the brief's §5.4)
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot_Function_1__Boolean_1_", "\"a pivot reached MariaDB unemulated: it has no PIVOT\""),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit_Function_1__Boolean_1_", "\"a pivot reached MariaDB unemulated: it has no PIVOT\""),
+            one("meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort_Function_1__Boolean_1_", "\"a pivot reached MariaDB unemulated: it has no PIVOT\""),
+            one("meta::pure::functions::relation::tests::composition::test_Pivot_Filter_Function_1__Boolean_1_", "\"a pivot reached MariaDB unemulated: it has no PIVOT\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
+            // step 9, 2026-10-19, the plan route: the plan's session opens by the declared connection, which names no
+            // user (TestAuth), so the driver connects as the OS user: root in the cloud container, which is also the
+            // JVM's user that currentUserId() answers, so the join meets the row 'root' (the legacy route's session was
+            // the harness's user 'legend'). Open: the declared connection's user for a server lane
+            one("meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,col,user,id2,name\n   1,More Test 1,user1,null,null\n   2,More Test 2,root,null,null\n#'\nactual:   '#TDS\n   id,col,user,id2,name\n   1,More Test 1,user1,null,null\n   2,More Test 2,root,3,Pierre\n#'\"")
     );
 
     public static Test suite() {

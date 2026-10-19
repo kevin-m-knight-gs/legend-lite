@@ -144,6 +144,15 @@ public final class MySql extends MariaDb {
                 .append(")) END)");
     }
 
+    /** A JSON null is JSON here, which a string compares unequal to: the null is read by its type, as
+     *  {@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)} reads it. */
+    @Override
+    protected SqlWriter.Piece jsonMember(SqlWriter.Piece json, SqlWriter.Piece path) {
+        return w -> w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
+                .append(")) = 'NULL' THEN NULL ELSE JSON_EXTRACT(").piece(json).append(", ").piece(path)
+                .append(") END)");
+    }
+
     @Override
     protected String jsonText(String json, String path) {
         return "(CASE WHEN JSON_TYPE(JSON_EXTRACT(" + json + ", " + path + ")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE("

@@ -150,6 +150,14 @@ public class MariaDb extends AnsiSqlRenderer {
         return w -> w.append("JSON_VALUE(").piece(json).append(", ").piece(path).append(")");
     }
 
+    /** A list, struct or map at {@code path}, as its JSON, a JSON null NULL: {@code JSON_EXTRACT} answers a JSON
+     *  null as the text {@code null}, which no {@code IS NULL} sees (measured on MariaDB 11.4: an absent [0..1]
+     *  struct member was spelled as an instance of no properties on the plan route; step 9, 2026-10-19). A JSON
+     *  string is quoted there, so no string is that text. */
+    protected SqlWriter.Piece jsonMember(SqlWriter.Piece json, SqlWriter.Piece path) {
+        return w -> w.append("NULLIF(JSON_EXTRACT(").piece(json).append(", ").piece(path).append("), 'null')");
+    }
+
     /** {@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)} of SQL text: a column's JSON at a path's text. */
     protected String jsonText(String json, String path) {
         return "JSON_VALUE(" + json + ", " + path + ")";
@@ -1086,6 +1094,9 @@ public class MariaDb extends AnsiSqlRenderer {
     /** A JSON text's value at {@code path} as a value of type {@code t}: a nested value or a Variant its JSON
      *  ({@code JSON_EXTRACT}), a scalar its SQL value ({@code JSON_VALUE}, a string unquoted) cast to its type. */
     private SqlWriter.Piece valueAt(SqlWriter.Piece json, SqlWriter.Piece path, @com.legend.base.Nullable SqlType t) {
+        if (t instanceof SqlType.Array || t instanceof SqlType.Struct || t instanceof SqlType.Map) {
+            return jsonMember(json, path);
+        }
         if (nested(t)) {
             return w -> w.append("JSON_EXTRACT(").piece(json).append(", ").piece(path).append(")");
         }
