@@ -257,7 +257,9 @@ public final class Databricks extends AnsiSqlRenderer {
      *  Spark joins the value's alias and the aggregate's with {@code _}, so the aggregate's carries the tail. */
     @Override
     protected SqlWriter pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
-        if (p.in().isEmpty()) {
+        // a dynamic pivot a cast names pivots on the named values (SqlSource.Pivot.values, step 9, 2026-10-19)
+        List<SqlExpr> values = p.values();
+        if (values.isEmpty()) {
             throw new IllegalStateException("a dynamic pivot reached Databricks: needsStaticPivot discovers its values");
         }
         if (p.on().size() != 1) {
@@ -275,7 +277,7 @@ public final class Databricks extends AnsiSqlRenderer {
         } else {
             writer.expr(on, 0);
         }
-        writer.append(" IN (").join(p.in(), ", ", (w, v) -> w.expr(v, 0).append(" AS ")
+        writer.append(" IN (").join(values, ", ", (w, v) -> w.expr(v, 0).append(" AS ")
                 .append(ident(one ? pivotValueText(v) + "__|__" + p.usings().get(0).alias() : pivotValueText(v))));
         return writer.append("))) AS ").append(ident(p.alias()));
     }

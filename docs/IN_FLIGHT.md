@@ -2111,3 +2111,17 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (the `Class<T>` arm), `lowering/Lowerer.java` (the Number root's label), `lowering/Render.java` (a Number-typed Decimal cell's D),
   `PlanMaker.java` (`metamodelSteps`), `core/BUILD.bazel` (`MetamodelSeeds`, `OpSeeds` into the planner), the adapter
   (the header's type; `PctDisciplineTest`'s ceiling), the essential and grammar suites' pins, registers S81 and S82.
+  **Every lane flipped 2026-10-19** (`83f2810`; `throughThePlan` true for all), a plan written for the session's
+  server version (`2b7bad3`: `PlanMaker.plan`'s last argument, `TypedQuery.executionPlan`, `PctBackend.serverVersion`,
+  `PctPlanRoute`). **Six sibling sessions started 2026-10-19 from `385ef14`** (the user: "spin up separate compute
+  sessions ... bin pack optimally"; the brief `docs/STEP9_LANE_BRIEF_2026_10_19.md`), each on its own branch, none
+  pushing here: `claude/step9-snowflake`, `claude/step9-bigquery`, `claude/step9-databricks`, `claude/step9-trino-h2`,
+  `claude/step9-postgres-sqlite-mongodb`, `claude/step9-mariadb-mysql-clickhouse`; each fixes its lanes' failures at
+  the root or pins by name, runs channel B as the regression, reports to this session, which merges them and runs the
+  corpus lanes and the core gate. **This session's shared item meanwhile: the cast over a dynamic pivot on a dialect
+  without a dynamic PIVOT** (the PCT's four composition cases, refused on every lane but DuckDB): `sql/SqlSource.java`
+  (`Pivot.named`, `values`), every pivot construction site (`SqlRewriter`, `AliasPrefix`, `UnqualifyPivotArgs`,
+  `SqlPostProcessors`, `SubselectPrune`, `DynamicPivot`, `MirJson`), `executionplan/PlanJson.java` (format 7),
+  `lowering/Lowerer.java` (`castOverDynamicPivot` names the keys), `lowering/Pivots.java`, the emulations
+  (`CarrierStrategies`, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Databricks`, `MongoDbPipeline`), `PlanMakerTest`,
+  register S83. The siblings pin pivots by name; the merge removes the four cast cases' pins.

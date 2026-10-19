@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -344,6 +345,42 @@ class PlanMakerTest {
             ExecutionPlan csv = Compiler.query(ctx, pivot + "->filter(x | $x.city == 'NYC')").executionPlan("s::RT", TypedQuery.Output.CSV);
             assertEquals("city,country,'2000__|__newCol','2011__|__newCol','2012__|__newCol'\r\nNYC,USA,15000,5000,15200\r\n",
                     PlanCases.run(csv, c));
+        }
+    }
+
+    /**
+     * A cast over a DYNAMIC pivot on a database without a dynamic PIVOT (the plan path program's step 9, 2026-10-19:
+     * the PCT's four composition cases, {@code test_Pivot_Filter} among them, refused on every lane but DuckDB with
+     * "pivot reached a dialect without a PIVOT strategy"): the keys the cast names are the pivot's NAMED values
+     * ({@code SqlSource.Pivot.named}), each the ON key's typed literal, which the dialect's static emulation pivots
+     * on (H2's grouped CASE aggregation) with no row pinned -- the group whose key the cast does not name keeps its
+     * row, its named cells null, as DuckDB's dynamic form answers through the same cast. DuckDB itself keeps the
+     * dynamic form (engine-exact); the plan round-trips with the named values (format 7).
+     */
+    @Test
+    void aCastOverADynamicPivotAnswersOnADatabaseWithoutADynamicPivot() throws Exception {
+        String cast = "->cast(@meta::pure::metamodel::relation::Relation<(city:String[0..1], country:String[0..1],"
+                + " '\\'2011__|__newCol\\'':Integer[0..1], '\\'2012__|__newCol\\'':Integer[0..1])>)";
+        String query = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + cast
+                + "->sort(~city->ascending())";
+        String expected;
+        try (Connection c = fresh(DatabaseType.DuckDB)) {
+            ExecutionPlan duck = Compiler.query(Compiler.compileModel(model(DatabaseType.DuckDB.name())), query)
+                    .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
+            assertTrue(((ExecutionPlan.TextResult) duck.root()).sql().statement().contains("PIVOT"), "DuckDB's dynamic form");
+            expected = PlanCases.run(duck, c);
+        }
+        // the 2000 group (SAN's 2000 trees, NYC's 15000) keeps its row with its named cells null
+        assertEquals("city:String[0..1],country:String[0..1],'\\'2011__|__newCol\\'':Integer[0..1],"
+                + "'\\'2012__|__newCol\\'':Integer[0..1]\nLDN,UK,3000,null\nNYC,USA,5000,15200\nSAN,USA,2600,null", expected);
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(DatabaseType.H2.name())), query)
+                .executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
+        String h2 = ((ExecutionPlan.TextResult) plan.root()).sql().statement();
+        assertFalse(h2.contains("PIVOT"), h2);
+        assertTrue(h2.contains("CASE WHEN") && h2.contains("= 2011") && h2.contains("= 2012"), h2);
+        try (Connection c = fresh(DatabaseType.H2)) {
+            assertEquals(expected, PlanCases.run(plan, c));
         }
     }
 
