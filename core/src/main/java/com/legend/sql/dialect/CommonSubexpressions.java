@@ -38,8 +38,23 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
 
     private final int[] fresh = {0};
 
+    /** The selects already rewritten, by content: an equal select is rewritten as it was, so equal copies of one
+     *  value (a float's bound text in each branch) stay equal, their binds' names too, and are bound as one above
+     *  them (step 9, 2026-10-19: each copy's fresh names had made 108 equal canons distinct, 1.29 MB on SQLite). */
+    private final Map<SqlSelect, SqlQuery> rewritten = new java.util.HashMap<>();
+
     @Override
     protected SqlQuery select(SqlSelect s) {
+        SqlQuery known = rewritten.get(s);
+        if (known != null) {
+            return known;
+        }
+        SqlQuery out = selectOnce(s);
+        rewritten.put(s, out);
+        return out;
+    }
+
+    private SqlQuery selectOnce(SqlSelect s) {
         if (ExplosionMarkers.isMarker(s)) {
             return s;
         }
@@ -207,6 +222,16 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
         }
         long n = !(e instanceof SqlExpr.Call c) ? 1
                 : WALKS.contains(c.fn()) ? 200 : SUBQUERIES.contains(c.fn()) ? 20 : 1;
+        // a bind's expressions are no child of its node: its size is theirs
+        if (e instanceof SqlExpr.ScalarSubquery q && q.subquery() instanceof SqlSelect use
+                && use.from() instanceof SqlSource.Subselect sub && sub.inner() instanceof SqlSelect bind) {
+            for (SqlSelect.Projection p : use.projections()) {
+                n = Math.min(Long.MAX_VALUE / 2, n + size(p.expr(), sizes));
+            }
+            for (SqlSelect.Projection p : bind.projections()) {
+                n = Math.min(Long.MAX_VALUE / 2, n + size(p.expr(), sizes));
+            }
+        }
         for (SqlExpr k : e.children()) {
             n = Math.min(Long.MAX_VALUE / 2, n + size(k, sizes));
         }
