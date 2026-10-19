@@ -1,8 +1,8 @@
 # Writes: one write layer, two kinds of graph (design sprint, 2026-10-18)
 
-**Status:** design agreed in conversation with the user on 2026-10-18 (§7 records each call). Leg 1 and leg 2 start
-now. Leg 3 (a spike) decides the cost of the native store before its legs are planned in detail. Nothing here is
-built yet.
+**Status:** design agreed in conversation with the user on 2026-10-18 (§7 records each call). Legs 1 (the judge) and
+2 (L0 and L1, the store writes) landed on 2026-10-18 (§8). Leg 3 (a spike) decides the cost of the native store before
+its legs are planned in detail.
 
 **Asked for:** writes for the `#Cypher{...}#` island, designed so that the Postgres `#SQL{...}#` island's DML (and
 GraphQL mutations later) land on the same layer, instead of each front end getting its own.
@@ -394,11 +394,24 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      before it builds one, so the inference lands with the clauses.
    - Found on the way, fixed in the island: `elementId(x)` returned; an absent relationship's identity null; a
      Variant property no relationship end.
-2. **L0 and L1.**
-   - The four `SqlDml` records, with DuckDB, Postgres and H2 arms and `renderStatement`.
-   - `write` lowered for real; `update`, `delete` and `merge` declared and lowered.
-   - `Execution.executeWrite`, with transactions and update counts.
-   - Per-dialect tests, including that a failed write leaves the table unchanged.
+2. **L0 and L1. Landed 2026-10-18** (GATES' ninety-third landing).
+   - The four `SqlDml` records (`InsertSelect`, `Update`, `DeleteWhere`, `Merge`), spelled by DuckDB, H2 and Postgres
+     in the standard forms measured on each (H2 has no `ON CONFLICT`, so the upsert is `MERGE` on all three); every
+     other dialect refuses each by name. `StoreWritesTest`.
+   - `write` lowered for real; `delete`, `update` and `merge` lite natives (`LITE_SURFACE`), typed by `WriteChecker`
+     against the table's columns by name (S89), lowered by `Lowerer.lowerStoreWrite`.
+   - The execution: `StatementExecutor` runs a store write at the statement's root (never through the effect arms,
+     which reseed), its value the database's update count (`Executor.executeUpdate`); a program that writes runs in
+     one transaction (`Executor.inTransaction`), a caller's open transaction joined. It is `Execution.execute`'s own
+     path, so no separate `executeWrite` entry was needed; `LoweredStatement` was not needed either (a write is the
+     statement's root, lowered on its own).
+   - Tests on DuckDB, H2 and Postgres 16: counts, column subsets, a failing write leaving the table as it was, a failing
+     second write rolling the first back, a caller's transaction joined, a class query's rows, a source whose physical
+     column order differs from its declaration, the checker's refusals. `StoreWritesExecutionTest`,
+     `StoreWritesPostgresTest`.
+   - **Deferred:** `renderStatement(SqlDml)` (text plus `?` binds). A write runs as text, as a query does at
+     execution; a bound parameter in a DML statement is refused by name, and the bound form comes with write plans
+     (leg 7). In a query's plan (`TypedQuery.plan`), each write is refused by name.
 3. **The spike: the native store as a platform class model** (§4, L2'). It decides B's cost and its legs.
 4. **`#SQL` DML** on L1, judged by Postgres 16.
 5. **L2 and Cypher on A:**
