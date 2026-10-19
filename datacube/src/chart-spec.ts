@@ -322,7 +322,7 @@ const known = (words: Readonly<Record<string, true>>, v: unknown): boolean => ty
 // it has no place for -- a newer DataCube's, or one misspelt -- is refused by name, never ignored
 const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
   version: true, mark: true, x: true, grain: true, bins: true, y: true, split: true, size: true, label: true,
-  tooltip: true, facet: true, layers: true, calcs: true, drill: true, options: true, frozen: true, at: true,
+  tooltip: true, facet: true, at: true, layers: true, calcs: true, drill: true, options: true, frozen: true,
 };
 const PLACE_KEYS: Readonly<Record<keyof ChartPlace, true>> = { lat: true, lon: true };
 const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = { column: true, fn: true, mark: true, axis: true, showAs: true };
