@@ -10716,7 +10716,8 @@ containers' permission layer refused the credential read from Secrets Manager, r
 (`tools/deps/core-layers.txt`, `core/BUILD.bazel`'s `not_layers`): `postgres_cells` beside the drivers, not a layer;
 `plan` reaches `execution_plan` (step 1a, `PlanColumns`); `driver` reaches `execution_plan` (step 7, `JudgePlans`);
 `exec` reaches `json` (steps 6 and 9, the typed-row decode of a cell delivered as JSON text). The layering and closure
-guards pass on the registration.
+guards pass on the registration, and `//gates:checks` re-run is 138 of 139, `//tools/guards:classpath_test` skipped (its
+own platform condition).
 
 ## 2026-10-19 — The plan path program, step 9: the siblings' lanes merged; channel B on the server lanes measured, four causes fixed, the rest named
 
