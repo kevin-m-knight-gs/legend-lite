@@ -17999,7 +17999,11 @@ public final class CypherToPure {
      *  column of its identity's text, its properties' kinds (its own before the write and the ones the write set),
      *  and, for a relationship, its type. */
     private record Reread(String variable, String identity, String key, Map<String, Kind> props,
-            @com.legend.base.Nullable String type) {
+            @com.legend.base.Nullable String type, @com.legend.base.Nullable String typeColumn) {
+        Reread(String variable, String identity, String key, Map<String, Kind> props,
+                @com.legend.base.Nullable String type) {
+            this(variable, identity, key, props, type, null);
+        }
     }
 
     /** The program of one statement that updates the graph ({@link #program}). */
@@ -18473,7 +18477,8 @@ public final class CypherToPure {
             if (isNull(value)) {
                 return null;
             }
-            if (value instanceof MapVal) {
+            if (value instanceof MapVal || value instanceof ListVal l && l.elements().stream().anyMatch(
+                    e -> e instanceof MapVal || e instanceof ListVal)) {
                 throw CypherErrors.invalid("Property values can only be of primitive types or arrays thereof", at);
             }
             Tx t = scalarOf(value, at);
@@ -18625,7 +18630,7 @@ public final class CypherToPure {
             if (!el.node()) {
                 throw CypherErrors.invalid("Type mismatch: expected Node but was Relationship", at);
             }
-            ValueSpecification text = new AppliedProperty(new Variable("n"), "labels");
+            ValueSpecification text = call("toOne", new AppliedProperty(new Variable("n"), "labels"));
             for (String l : new java.util.LinkedHashSet<>(labels)) {
                 String token = ":" + l + ":";
                 text = add ? call("if", call("contains", text, new CString(token)), thunk(text),
@@ -18725,13 +18730,13 @@ public final class CypherToPure {
                     }
                 });
                 Element el = java.util.Objects.requireNonNull(element(staged, w.getKey(), pos));
-                String type = null;
+                String typeColumn = null;
                 for (Col c : staged.columns()) {
                     if (c.name().equals(w.getKey()) && c.detail() instanceof RelShape rs) {
-                        type = rs.type();
+                        typeColumn = rs.type();
                     }
                 }
-                out.add(new Reread(w.getKey(), identityText(el), el.key(), props, type));
+                out.add(new Reread(w.getKey(), identityText(el), el.key(), props, null, typeColumn));
             }
             return out;
         }
@@ -18825,7 +18830,7 @@ public final class CypherToPure {
                         dropped.add(ns.labels());
                         ns.props().values().forEach(p -> dropped.add(p.column()));
                     } else if (c.detail() instanceof RelShape rs) {
-                        dropped.add(rs.type());
+                        // (its type's column stays: a write does not change a relationship's type)
                         rs.props().values().forEach(p -> dropped.add(p.column()));
                     }
                     continue;
@@ -18835,7 +18840,7 @@ public final class CypherToPure {
             columns.removeIf(c -> dropped.contains(c.name()));
             ValueSpecification vs = staged.vs();
             for (Reread rr : reread) {
-                boolean node = rr.type() == null;
+                boolean node = rr.type() == null && rr.typeColumn() == null;
                 String typeOrLabels;
                 if (node) {
                     String id = freshName(names);
@@ -18853,6 +18858,8 @@ public final class CypherToPure {
                     columns.add(new Col(typeOrLabels, Kind.STRING, true));
                     dropped.add(id);
                     dropped.add(text);
+                } else if (rr.typeColumn() != null) {
+                    typeOrLabels = rr.typeColumn();
                 } else {
                     typeOrLabels = freshName(names);
                     vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(typeOrLabels, lambda("r",
@@ -18911,7 +18918,8 @@ public final class CypherToPure {
 
     /** A label set's text ({@code :A:B:}) as the labels' JSON ({@code ["A","B"]}), the database's. */
     private static ValueSpecification labelsJson(ValueSpecification text) {
-        ValueSpecification inner = call("substring", text, new CInteger(1L), AppliedFunction.infixRun("minus",
+        // (substr: Pure's offsets, from 0, the end excluded)
+        ValueSpecification inner = call("substr", text, new CInteger(1L), AppliedFunction.infixRun("minus",
                 List.of(call("length", text), new CInteger(1L))));
         return call("if", call("equal", text, new CString(":")), thunk(new CString("[]")), thunk(plus(new CString(
                 "[\""), call("replace", inner, new CString(":"), new CString("\",\"")), new CString("\"]"))));

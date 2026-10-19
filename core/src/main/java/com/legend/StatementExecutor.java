@@ -2174,13 +2174,24 @@ final class StatementExecutor {
                 java.util.Map.of(), false, false);
     }
 
-    /** The one store a prepared statement's rows read, or none ({@code ""}): what a staged let's table is read under. */
-    static String storeOf(java.util.List<TypedSpec> body) {
+    /** The store a staged let's table is read under: the one store its rows read, else (rows of no table) the one the
+     *  runtime binds; the session's temporary table is that store's connection's. */
+    static String storeOf(java.util.List<TypedSpec> body, ExecEnv env) {
         java.util.Set<String> stores = new java.util.TreeSet<>();
         for (TypedSpec s : body) {
             collectStores(s, stores);
         }
-        return stores.size() == 1 ? stores.iterator().next() : "";
+        if (stores.size() == 1) {
+            return stores.iterator().next();
+        }
+        java.util.Set<String> bound = env.runtimeFqn() == null ? java.util.Set.of()
+                : env.ctx().findRuntime(env.runtimeFqn()).map(rt -> rt.connectionBindings().keySet())
+                        .orElse(java.util.Set.of());
+        if (stores.isEmpty() && bound.size() == 1) {
+            return bound.iterator().next();
+        }
+        throw new com.legend.error.NotImplementedException("rows staged (stage) that read " + stores + " under a"
+                + " runtime binding " + bound + ": a staged let's table is one store's");
     }
 
     /** The staged lets' temporary tables dropped once the program has run (a failed program's transaction takes

@@ -100,7 +100,7 @@ public final class BodyCompiler {
                     seg.value(pv);
                     staged.add(table);
                     letPrefix.add(new TypedLet(let.name(), StatementExecutor.stagedRows(table, rows.info(),
-                            StatementExecutor.storeOf(pv.body())), let.info()));
+                            StatementExecutor.storeOf(pv.body(), seg.env())), let.info()));
                     continue;
                 }
                 if (rhs instanceof TypedNativeCall ec
