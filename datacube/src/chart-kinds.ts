@@ -255,6 +255,11 @@ export function kindOption(
       const splitCol = spec.split !== undefined ? column(rows, spec.split) : undefined;
       const edge = { x0: column(rows, names.x0), x1: column(rows, names.x1), y0: column(rows, names.y0), y1: column(rows, names.y1) };
       if (!splitCol || !edge.x0 || !edge.x1 || !edge.y0 || !edge.y1) return empty('Nothing to draw.');
+      // parts of a whole: a value below zero has no place in one (its cell would be drawn upside down, its column's
+      // total less than its parts) -- said, the chart not drawn (the phase 7 audit)
+      const below = xCol.values.filter((_, i) => (num(first, i) ?? 0) < 0).length;
+      if (below > 0) return empty(`A Marimekko shows parts of a whole: ${below} ${below === 1 ? 'value is' : 'values are'} below zero.`);
+      const ciOf = new Map(categories.map((c, ci) => [keyText(c), ci] as const));
       const at4 = (i: number): [number, number, number, number] | null => {
         const v = [edge.x0!, edge.x1!, edge.y0!, edge.y1!].map((c) => numberOf(c.values[i] ?? null, c.type));
         return v.every((n) => n !== null && Number.isFinite(n)) ? v as [number, number, number, number] : null;
@@ -272,10 +277,11 @@ export function kindOption(
           if (keyText(splitCol.values[i] ?? null) !== keyText(g)) return [];
           const e = at4(i);
           if (e === null) {
-            unplaced.push(`${label(xv, spec.x!, xCol.type)} / ${label(g, spec.split!, splitCol.type)}`);
+            unplaced.push(`${catLabels[ciOf.get(keyText(xv)) ?? -1] ?? label(xv, spec.x!, xCol.type)} / ${label(g, spec.split!, splitCol.type)}`);
             return [];
           }
-          return [{ value: e, row: i, key: { [spec.x!]: xv, [spec.split!]: g } }];
+          // its category, for a click on a period or a bin to find its end (upperAt): its index is its part's series'
+          return [{ value: e, row: i, ci: ciOf.get(keyText(xv)), key: { [spec.x!]: xv, [spec.split!]: g } }];
         }),
         renderItem: (_params: unknown, api: CustomApi) => {
           const p0 = api.coord([api.value(0) as number, api.value(3) as number]);
@@ -290,8 +296,9 @@ export function kindOption(
       }));
       if (unplaced.length > 0) notes.push(`${unplaced.length} ${unplaced.length === 1 ? 'cell' : 'cells'} not drawn (no share): ${unplaced.slice(0, 5).join(', ')}.`);
       // each column named under it, at its own start: placed by the database's edges
-      const named = categories.map((_, ci) => at(ci)).filter((i) => i >= 0 && at4(i) !== null)
-        .map((i) => ({ value: [at4(i)![0], at4(i)![1]], text: label(xCol.values[i] ?? null, spec.x!, xCol.type) }));
+      // a period named as the axis names it (Jan 2024), as the other kinds do
+      const named = categories.map((_, ci) => [ci, at(ci)] as const).filter(([, i]) => i >= 0 && at4(i) !== null)
+        .map(([ci, i]) => ({ value: [at4(i)![0], at4(i)![1]], text: catLabels[ci] ?? '' }));
       const columnNames = {
         type: 'custom', name: spec.x!, silent: true, tooltip: { show: false },
         data: named,
@@ -317,12 +324,14 @@ export function kindOption(
           formatter: (p: { data?: { row?: number; key?: MarkKey } }) => {
             const i = p.data?.row;
             if (i === undefined) return '';
-            return [`<b>${escapeHtml(label(xCol.values[i] ?? null, spec.x!, xCol.type))}</b> / ${escapeHtml(label(splitCol.values[i] ?? null, spec.split!, splitCol.type))}`,
+            const ci = ciOf.get(keyText(xCol.values[i] ?? null));
+            return [`<b>${escapeHtml(catLabels[ci ?? -1] ?? '')}</b> / ${escapeHtml(label(splitCol.values[i] ?? null, spec.split!, splitCol.type))}`,
               `${escapeHtml(measureTitle(first))}: <b>${escapeHtml(write(first, num(first, i)))}</b>`].join('<br>');
           },
         },
         legend: { ...legendOf(spec, shown.length, theme), data: shown.map((g) => label(g, spec.split!, splitCol.type)) },
-        xAxis: { ...shareAxis, splitLine: { show: false } },
+        // the columns' names stand under them, in the band an axis's labels would take: the widths show the shares
+        xAxis: { ...shareAxis, splitLine: { show: false }, axisLabel: { show: false } },
         yAxis: shareAxis,
         series: [...series, columnNames],
       }, (_s, _i, datum) => (datum as { key?: MarkKey } | undefined)?.key ?? null);
@@ -335,6 +344,12 @@ export function kindOption(
       const fromCol = column(rows, names.from);
       const toCol = column(rows, names.to);
       if (!fromCol || !toCol) return empty('Nothing to draw.');
+      const below = categories.filter((_, ci) => (num(first, at(ci)) ?? 0) < 0).length;
+      if (below > 0) return empty(`A waffle shows parts of a whole: ${below} ${below === 1 ? 'value is' : 'values are'} below zero.`);
+      // a whole of nothing has no cells to share (the database's ranges empty)
+      if (categories.every((_, ci) => toCol.values[at(ci)] === null || toCol.values[at(ci)] === undefined)) {
+        return empty('The values add up to nothing: a waffle has no hundred to share.');
+      }
       if (categories.length > MAX_SERIES) notes.push(`${categories.length} categories: a waffle reads ${MAX_SERIES} or fewer best.`);
       const ranges = categories.map((_, ci) => {
         const f = numberOf(fromCol.values[at(ci)] ?? null, fromCol.type);
@@ -388,6 +403,7 @@ export function kindOption(
         return v === null || v === undefined ? null : localTime(String(v));
       };
       const undated: string[] = [];
+      const backwards: string[] = [];
       const bars = categories.flatMap((_, ci) => {
         const a = time(startCol, at(ci));
         const b = time(endCol, at(ci));
@@ -395,8 +411,10 @@ export function kindOption(
           undated.push(catLabels[ci] ?? '');
           return [];
         }
+        if (b < a) backwards.push(catLabels[ci] ?? '');
         return [{ value: [ci, a, b], ci }];
       });
+      if (backwards.length > 0) notes.push(`${backwards.length} ${backwards.length === 1 ? 'row ends' : 'rows end'} before ${backwards.length === 1 ? 'it starts' : 'they start'}: ${backwards.slice(0, 5).join(', ')}.`);
       if (undated.length > 0) notes.push(`${undated.length} ${undated.length === 1 ? 'row has' : 'rows have'} no start or no end: ${undated.slice(0, 5).join(', ')}.`);
       const dateText = (m: ChartMeasure, c: typeof startCol, i: number): string => label(c.values[i] ?? null, m.column, c.type);
       return done({

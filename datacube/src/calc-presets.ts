@@ -333,6 +333,14 @@ export function ringTotalColumn(measure: string, across: string): DerivedColumn 
   };
 }
 
+/**
+ * A part over a whole that may be nothing: empty when the whole is zero (a P&L that nets to nothing), as a change from
+ * nothing is (showAsColumns' percentChange) -- where a database would refuse the division, or answer infinity.
+ */
+function share(part: ValueSpecification, whole: string): ValueSpecification {
+  return fn('if', fn('equal', one(whole), lit.integer(0)), lambda([], collection([])), lambda([], divide(part, one(whole))));
+}
+
 /** A Marimekko's columns: where each column starts across and how wide it is, where each cell starts up and ends. */
 export function marimekkoNames(measure: string): {
   readonly x0: string; readonly x1: string; readonly width: string; readonly y0: string; readonly y1: string;
@@ -365,11 +373,11 @@ export function marimekkoColumns(measure: string, across: string, split: string,
       window: { fn: 'sum', column: measure, partition: [], frame: 'running', order: [{ column: across, direction }, { column: split, direction: 'asc' }] },
     },
     { name: within, window: { fn: 'sum', column: measure, partition: [across], frame: 'running', order: [{ column: split, direction: 'asc' }] } },
-    { name: x0, lambda: row(divide(minus(one(run), one(within)), one(all))) },
-    { name: x1, lambda: row(divide(plus(minus(one(run), one(within)), one(total)), one(all))) },
-    { name: width, lambda: row(divide(one(total), one(all))) },
-    { name: y0, lambda: row(divide(minus(one(within), one(measure)), one(total))) },
-    { name: y1, lambda: row(divide(one(within), one(total))) },
+    { name: x0, lambda: row(share(minus(one(run), one(within)), all)) },
+    { name: x1, lambda: row(share(plus(minus(one(run), one(within)), one(total)), all)) },
+    { name: width, lambda: row(share(one(total), all)) },
+    { name: y0, lambda: row(share(minus(one(within), one(measure)), total)) },
+    { name: y1, lambda: row(share(one(within), total)) },
   ];
 }
 
@@ -382,22 +390,26 @@ export function waffleNames(measure: string): { readonly from: string; readonly 
 export const WAFFLE_CELLS = 100;
 
 /**
- * A WAFFLE'S CELLS, the database's (batch 3's leftovers): each category fills the cells from its running share before
- * it to its running share through it, each a hundredth, rounded -- a running total rounded, never each share on its
- * own, so the cells add up to a hundred exactly. In the chart's own order (`order`, ties broken by the category); the
- * chart colours each cell by the category whose range holds it, comparing, never counting.
+ * A WAFFLE'S CELLS, the database's (batch 3's leftovers): each category fills the cells from where the category before
+ * it ended to its running share through it, each a hundredth, rounded -- a running total rounded, never each share on
+ * its own, so the ranges meet and add up to a hundred exactly. In the chart's own order (`order`, ties broken by the
+ * category); a whole of nothing has no cells (empty, as a share of nothing is). The chart colours each cell by the
+ * category whose range holds it, comparing, never counting.
  */
 export function waffleColumns(measure: string, order: readonly SortSpec[]): DerivedColumn[] {
   const { from, to } = waffleNames(measure);
   const run = `${to}__running`;
   const all = `${to}__all`;
-  const cells = (through: ValueSpecification): ValueSpecification =>
-    fn('round', times(divide(through, one(all)), lit.integer(WAFFLE_CELLS)));
+  const before = `${from}__before`;
+  // a range starts where the one before it ended (the same column, the row before: a lag), never at its own share
+  // rounded again -- two roundings of nearly one figure can part by a cell; the first starts at the first cell
   return [
     { name: run, window: { fn: 'sum', column: measure, partition: [], order: [...order], frame: 'running' } },
     { name: all, window: wholeOf('sum', measure) },
-    { name: from, lambda: row(cells(minus(one(run), one(measure)))) },
-    { name: to, lambda: row(cells(one(run))) },
+    { name: to, lambda: row(fn('if', fn('equal', one(all), lit.integer(0)), lambda([], collection([])),
+      lambda([], fn('round', times(divide(one(run), one(all)), lit.integer(WAFFLE_CELLS)))))) },
+    { name: before, window: { fn: 'lag', column: to, partition: [], order: [...order] } },
+    { name: from, lambda: row(fn('if', fn('isEmpty', col(before)), lambda([], lit.integer(0)), lambda([], one(before)))) },
   ];
 }
 

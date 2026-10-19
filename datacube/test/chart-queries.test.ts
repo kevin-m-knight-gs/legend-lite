@@ -438,6 +438,17 @@ describe('batch 3\'s leftovers, planned and run: the database lays out each cell
     assert.deepEqual(values(t, from).map(Number), [0, 50]);
     assert.deepEqual(values(t, to).map(Number), [50, 100]);
   });
+  it('a whole of nothing: the waffle\'s ranges and the Marimekko\'s shares empty, never a division by zero', async () => {
+    // a value that nets to nothing in every region: each sale less itself
+    const flat: CubeSnapshot = { ...cube, derived: [{ name: 'flat', lambda: await row('$x.revenue->toOne() - $x.revenue->toOne()') }] };
+    const waffle = await rows({ ...BY_REGION, mark: 'waffle', y: [{ column: 'flat', fn: 'sum' }] }, flat);
+    const { from, to } = waffleNames('sum_flat');
+    assert.deepEqual(values(waffle, to), [null, null]);
+    assert.deepEqual(values(waffle, from).map(Number), [0, 0]);
+    const mekko = await rows({ ...BY_REGION, mark: 'marimekko', split: 'sold', y: [{ column: 'flat', fn: 'sum' }] }, flat);
+    const n = marimekkoNames('sum_flat');
+    assert.ok([n.x0, n.x1, n.y0, n.y1].every((c) => values(mekko, c).every((v) => v === null)));
+  });
   it('a Gantt: each region\'s first and last sale, the dates the database answers', async () => {
     const t = await rows({ ...BY_REGION, mark: 'gantt', y: [{ column: 'sold', fn: 'min' }, { column: 'sold', fn: 'max' }] });
     assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);

@@ -193,7 +193,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       doc, scatter || box || gantt ? first?.column : plottedValue,
       gantt ? dates : scatter || box ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
       (v) => (box ? v && h.set({ y: boxMeasures(v) }, true)
-        : gantt ? v && h.set({ y: [{ column: v, fn: currentFn() ?? 'min' }, ...current(h).y.slice(1)] }, true)
+        // a Gantt's start is a date column's least, unless its aggregate already gives a date (the phase 7 audit)
+        : gantt ? v && h.set({ y: [{ column: v, fn: currentFn() === 'max' ? 'max' : 'min' }, ...current(h).y.slice(1)] }, true)
         : pick(v, currentFn())),
     )),
     ...(scatter || box || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
@@ -287,8 +288,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   }
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter') form.append(...lookFields(h, spec));
   form.append(
-    // a map draws no legend (its colour scale is its key): no choice of where it goes (the phase 6 audit)
-    ...(map || bubbles ? [] : [field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
+    // a map draws no legend (its colour scale is its key), nor a Gantt (one series): no choice of where it goes
+    ...(map || bubbles || gantt ? [] : [field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
       { value: 'top', label: 'Top' },
       { value: 'bottom', label: 'Bottom' },
       { value: 'right', label: 'Right' },
@@ -296,7 +297,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     ] as const, (v) => { if (v) h.setOption('legend', v); }))]),
     // a box plot writes none of its five figures on its box (the phase 5 audit), nor a map its values on its places:
     // no checkbox that does nothing
-    ...(box || map || bubbles ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),
+    ...(box || map || bubbles || gantt || spec.mark === 'marimekko' || spec.mark === 'waffle'
+      ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),
   );
   if (!scatter) {
     const hint = doc.createElement('p');

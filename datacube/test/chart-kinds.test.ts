@@ -645,7 +645,7 @@ describe('batch 3\'s leftovers: a Marimekko and a waffle (shares as cells, the d
     const { from, to } = waffleNames('sum_revenue');
     const rows = table([
       { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'LATAM'] },
-      { name: 'sum_revenue', type: 'Float', values: [600, 400, -5] },
+      { name: 'sum_revenue', type: 'Float', values: [600, 400, 0] },
       { name: from, type: 'Integer', values: [0, 60, 100] },
       { name: to, type: 'Integer', values: [60, 100, 100] },
     ]);
@@ -655,7 +655,10 @@ describe('batch 3\'s leftovers: a Marimekko and a waffle (shares as cells, the d
     assert.deepEqual(series[1]!.data[0]!.value, [0, 6], 'the 61st cell: the seventh row\'s first');
     assert.match(d.notes.join(' '), /1 category fills no cell .*: LATAM/);
     assert.deepEqual(d.keyAt(1, 3, series[1]!.data[3]), { region: 'APAC' });
-    assert.ok(svg(d).length > 1000);
+    // a hundred cells drawn: the SVG's shapes beyond those of the waffle drawn with none
+    const shapes = (out: string): number => out.split('<path').length;
+    const bare = { ...d, option: { ...(d.option as object), series: series.map((x) => ({ ...x, data: [] })) } } as ChartDrawing;
+    assert.equal(shapes(svg(d)) - shapes(svg(bare)), 100);
   });
   it('a Gantt drawn: each row a bar from its start to its end on a time axis; a row with no end said', () => {
     const rows = table([
@@ -673,5 +676,89 @@ describe('batch 3\'s leftovers: a Marimekko and a waffle (shares as cells, the d
     assert.match(d.notes.join(' '), /1 row has no start or no end: AMER/);
     assert.deepEqual(d.keyAt(0, 1, option.series[0]!.data[1]), { region: 'APAC' });
     assert.ok(svg(d).includes('EMEA'));
+  });
+});
+
+describe('the phase 7 audit: what each fix pins', () => {
+  const MEKKO = of('marimekko', { split: 'channel', options: { ...OPTIONS, sort: { by: 'x', direction: 'asc' } } });
+  it('a Marimekko cell knows its category: a click on a period filters to that period\'s end; its names are the axis\'s', () => {
+    const n = marimekkoNames('sum_revenue');
+    const across = grainName('day', 'month');
+    const rows = table([
+      { name: across, type: 'StrictDate', values: ['2024-01-01', '2024-02-01', '2024-02-01'] },
+      { name: 'channel', type: 'String', values: ['Online', 'Online', 'Store'] },
+      { name: 'sum_revenue', type: 'Float', values: [1, 1, 2] },
+      { name: n.x0, type: 'Float', values: [0, 0.25, 0.25] },
+      { name: n.x1, type: 'Float', values: [0.25, 1, 1] },
+      { name: n.y0, type: 'Float', values: [0, 0, 0.33] },
+      { name: n.y1, type: 'Float', values: [1, 0.33, 1] },
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-02-01', '2024-03-01', '2024-03-01'] },
+    ]);
+    const d = kindOption({ ...MEKKO, x: 'day', grain: 'month' }, rows);
+    const series = (d.option as { series: { data: { ci?: number; text?: string }[] }[]; xAxis: { axisLabel: { show: boolean } } }).series;
+    // the Store cell is its series' first, in February's column
+    assert.equal(d.upperAt?.(0, series[1]!.data[0]), '2024-03-01');
+    assert.deepEqual(series[2]!.data.map((c) => c.text), ['Jan 2024', 'Feb 2024']);
+    assert.equal((d.option as { xAxis: { axisLabel: { show: boolean } } }).xAxis.axisLabel.show, false);
+  });
+  it('a waffle or a Marimekko of values below zero, or a whole of nothing, says so rather than drawing a wrong whole', () => {
+    const { from, to } = waffleNames('sum_revenue');
+    const negative = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC'] },
+      { name: 'sum_revenue', type: 'Float', values: [50, -20] },
+      { name: from, type: 'Integer', values: [0, 100] },
+      { name: to, type: 'Integer', values: [100, 70] },
+    ]);
+    assert.deepEqual(kindOption(of('waffle'), negative).notes, ['A waffle shows parts of a whole: 1 value is below zero.']);
+    const nothing = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC'] },
+      { name: 'sum_revenue', type: 'Float', values: [0, 0] },
+      { name: from, type: 'Integer', values: [0, null] },
+      { name: to, type: 'Integer', values: [null, null] },
+    ]);
+    assert.deepEqual(kindOption(of('waffle'), nothing).notes, ['The values add up to nothing: a waffle has no hundred to share.']);
+    const n = marimekkoNames('sum_revenue');
+    const mekko = table([
+      { name: 'region', type: 'String', values: ['EMEA'] }, { name: 'channel', type: 'String', values: ['Online'] },
+      { name: 'sum_revenue', type: 'Float', values: [-1] },
+      ...[n.x0, n.x1, n.y0, n.y1].map((name) => ({ name, type: 'Float', values: [0] })),
+    ]);
+    assert.deepEqual(kindOption(MEKKO, mekko).notes, ['A Marimekko shows parts of a whole: 1 value is below zero.']);
+  });
+  it('a Gantt of a time of day is refused; one that ends before it starts is said', () => {
+    const timed: CubeSnapshot = { ...CUBE, columns: [...CUBE.columns, { name: 'at', type: 'StrictTime' }] };
+    assert.match(chartProblems(of('gantt', { y: [{ column: 'at', fn: 'min' }, { column: 'at', fn: 'max' }] }), timed).join(' '), /min or max of a date column/);
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA'] },
+      { name: 'min_day', type: 'StrictDate', values: ['2024-03-01'] },
+      { name: 'max_day', type: 'StrictDate', values: ['2024-01-01'] },
+    ]);
+    const gantt = of('gantt', { y: [{ column: 'day', fn: 'min' }, { column: 'day', fn: 'max' }] });
+    assert.match(kindOption(gantt, rows).notes.join(' '), /1 row ends before it starts: EMEA/);
+  });
+  it('a map taking a Marimekko or a Gantt takes the kind\'s order (the options built once)', () => {
+    const map: ChartSpec = of('map', { x: 'region', options: { ...OPTIONS, limit: 250 } });
+    const mekko = editChart(map, { mark: 'marimekko', split: 'channel' }, CUBE);
+    assert.deepEqual([mekko.options.sort, mekko.options.limit], [{ by: 'x', direction: 'asc' }, 50]);
+    assert.deepEqual(editChart(map, { mark: 'gantt' }, CUBE).options.sort, { by: 'y', direction: 'asc' });
+  });
+  it('the form: no values to show on these kinds, no legend on a Gantt, and its start a date column\'s least', () => {
+    const doc = new JSDOM('<!doctype html><div id="form"></div>').window.document;
+    const form = doc.getElementById('form')!;
+    let spec: ChartSpec = { ...of('bar'), mark: 'gantt', y: [{ column: 'revenue', fn: 'sum' }] };
+    paintChartForm({ doc, spec: () => spec, snapshot: () => CUBE, setOption: () => undefined,
+      set: (change) => { spec = editChart(spec, change, CUBE); } }, form);
+    const labels = [...form.querySelectorAll('.dc-field-label')].map((l) => l.textContent);
+    assert.ok(!labels.includes('Legend:') && !(form.textContent ?? '').includes('Show values'), labels.join(' '));
+    const start = [...form.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Start:')!
+      .querySelector('select')!;
+    start.value = 'day';
+    start.dispatchEvent(new doc.defaultView!.Event('change'));
+    assert.deepEqual(spec.y[0], { column: 'day', fn: 'min' });
+    for (const mark of ['marimekko', 'waffle'] as const) {
+      const f = doc.createElement('div');
+      paintChartForm({ doc, spec: () => of(mark, { split: 'channel' }), snapshot: () => CUBE, setOption: () => undefined, set: () => undefined }, f);
+      assert.ok(!(f.textContent ?? '').includes('Show values'), mark);
+    }
   });
 });

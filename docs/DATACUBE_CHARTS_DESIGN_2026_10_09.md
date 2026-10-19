@@ -262,14 +262,19 @@ computes:
   (`calc-presets.ts marimekkoColumns`: a running total through the cell less the running total within its column, over
   the whole, is where its column starts; that plus the column's total, where it ends; the running total within the
   column, over the column's total, where the cell ends) -- in the order across, which it must be ordered by.
-- **A waffle** (`mark: 'waffle'`): a hundred cells, ten by ten, each category the cells from its running share before it
-  to its running share through it, each rounded by the database (`waffleColumns`) -- a running total rounded, so the
-  cells add up to a hundred exactly. The chart colours each cell by the range that holds it.
+- **A waffle** (`mark: 'waffle'`): a hundred cells, ten by ten, each category the cells from where the category before
+  it ended (the database's lag of the same column) to its running share through it, rounded by the database
+  (`waffleColumns`) -- a running total rounded, so the ranges meet and add up to a hundred exactly. The chart colours
+  each cell by the range that holds it.
 - **A Gantt** (`mark: 'gantt'`): each row a bar from a start to an end on a time axis -- two values, each the min or max
   of a date column (the database's least and greatest), run from the earliest start.
 
 Each draws one value (a Gantt two), takes no show-as (it computes its own figures), and is on the "more kinds" example
-page with its family.
+page with its family. Their audit: a whole of nothing gives empty shares (never a division by zero, which failed the
+query), said by the chart; a waffle or a Marimekko of values below zero says so rather than drawing a wrong whole; a
+Marimekko cell knows its category (a click on a period filters to it) and its columns are named as the axis names a
+period; a Gantt takes dates or instants, never a time of day, and says a row that ends before it starts; the form shows
+none of the options these kinds do not draw.
 
 **Its audit (2026-10-14)** found and fixed: a live chart of one series (a waterfall, a lollipop) took the cube's
 second grouping as its split and was refused with no way to take it off -- following the cube, such a kind takes no

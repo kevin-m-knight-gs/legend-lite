@@ -993,24 +993,26 @@ function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
   const at = mark === 'bubblemap' ? spec.at : undefined;
   const keepX = mark !== 'gauge' && mark !== 'matrix' && x !== undefined;
   const keepSplit = !UNSPLIT.has(mark) && split !== undefined;
+  // the options built once (the phase 7 audit: a kind's order was lost to a map's limit spread after it): a Pareto runs
+  // from the largest, a Marimekko in its order across, a Gantt from the earliest start; a map asks for the world's
+  // countries, and leaving one a chart asks for its own default again (a date across's, or the first fifty) -- the
+  // default a map was given, never one it was told
+  const sort: ChartOptions['sort'] | undefined = mark === 'pareto' ? { by: 'y', direction: 'desc' }
+    : mark === 'marimekko' ? { by: 'x', direction: 'asc' } : mark === 'gantt' ? { by: 'y', direction: 'asc' } : undefined;
+  const limit = MAP_MARKS.has(mark) && !MAP_MARKS.has(spec.mark) ? MAP_LIMIT
+    : !MAP_MARKS.has(mark) && MAP_MARKS.has(spec.mark) && rest.options.limit === MAP_LIMIT
+      ? (keepX && isTemporalAcross(x, s) ? TIME_LIMIT : DEFAULT_CHART_LIMIT) : undefined;
   return {
     ...rest,
     mark,
     // the column across's grain or bins go with it (acrossChanged's rule)
     ...(keepX ? { x, ...(grain !== undefined ? { grain } : {}), ...(bins !== undefined ? { bins } : {}) } : {}),
     ...(keepSplit ? { split } : {}),
-    ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
-    // a Marimekko lays its columns out in their order across; a Gantt runs from the earliest start
-    ...(mark === 'marimekko' ? { options: { ...rest.options, sort: { by: 'x', direction: 'asc' } } } : {}),
-    ...(mark === 'gantt' ? { options: { ...rest.options, sort: { by: 'y', direction: 'asc' } } } : {}),
+    ...(sort !== undefined || limit !== undefined
+      ? { options: { ...rest.options, ...(sort !== undefined ? { sort } : {}), ...(limit !== undefined ? { limit } : {}) } } : {}),
     ...(mark === 'boxplot' && rest.y[0] !== undefined && rest.y[0].fn !== 'value' ? { y: boxMeasures(rest.y[0].column) } : {}),
     ...(spec.mark === 'boxplot' && !SEVERAL_VALUES.has(mark) && rest.y[2] !== undefined ? { y: [rest.y[2]] } : {}),
     ...(at !== undefined ? { at } : {}),
-    // a map asks for the world's countries; leaving one, a chart asks for its own default again (a date across's, or
-    // the first fifty) -- the default a map was given, never one it was told
-    ...(MAP_MARKS.has(mark) && !MAP_MARKS.has(spec.mark) ? { options: { ...rest.options, limit: MAP_LIMIT } } : {}),
-    ...(!MAP_MARKS.has(mark) && MAP_MARKS.has(spec.mark) && rest.options.limit === MAP_LIMIT
-      ? { options: { ...rest.options, limit: keepX && isTemporalAcross(x, s) ? TIME_LIMIT : DEFAULT_CHART_LIMIT } } : {}),
   };
 }
 
@@ -1230,8 +1232,11 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   }
   // A GANTT runs each row from its start to its end: two values, each a date column's least or greatest
   if (spec.mark === 'gantt') {
-    const dated = (m: ChartMeasure): boolean => (m.fn === 'min' || m.fn === 'max')
-      && isTemporal([...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === m.column)?.type);
+    // a date or an instant: a time of day alone has no place on a calendar's axis (the phase 7 audit)
+    const dated = (m: ChartMeasure): boolean => {
+      const type = [...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === m.column)?.type;
+      return (m.fn === 'min' || m.fn === 'max') && isTemporal(type) && !isTimeOfDay(type);
+    };
     if (spec.y.length !== 2 || !spec.y.every(dated)) {
       out.push('A Gantt runs each row from a start to an end: two values, each the min or max of a date column.');
     }
