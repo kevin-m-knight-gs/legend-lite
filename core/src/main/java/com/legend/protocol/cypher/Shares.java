@@ -20,8 +20,6 @@ import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -454,6 +452,8 @@ final class Shares {
         private final IdentityHashMap<ValueSpecification, String> digests = new IdentityHashMap<>();
         private final IdentityHashMap<ValueSpecification, Set<String>> free = new IdentityHashMap<>();
         private final IdentityHashMap<ValueSpecification, Long> sizes = new IdentityHashMap<>();
+        /** Each spelling seen (a node's own and its children's digests): its digest. */
+        private final Map<String, String> spellings = new HashMap<>();
         final Set<String> marks = new java.util.LinkedHashSet<>();
         final Map<String, Long> occurrences = new HashMap<>();
         final Set<String> always = new HashSet<>();
@@ -701,8 +701,10 @@ final class Shares {
             return out;
         }
 
-        /** Equal for equal values (their spelling, source positions aside); a node of a kind not spelled out here is
-         *  equal only to itself, so an unknown kind can only miss a saving, never merge two different values. */
+        /** Equal for equal values (their spelling, source positions aside): each node's own spelling and its
+         *  children's digests, numbered as first seen (hash-consing: two values share a digest exactly when they are
+         *  spelled alike, with no hash to collide); a node of a kind not spelled out here is equal only to itself, so
+         *  an unknown kind can only miss a saving, never merge two different values. */
         String digest(ValueSpecification n) {
             String d = digests.get(n);
             if (d != null) {
@@ -717,7 +719,7 @@ final class Shares {
                 for (ValueSpecification k : n.children()) {
                     b.append(digest(k)).append(',');
                 }
-                d = sha(b.append(')').toString());
+                d = spellings.computeIfAbsent(b.append(')').toString(), k -> "H" + spellings.size());
             }
             digests.put(n, d);
             return d;
@@ -747,14 +749,6 @@ final class Shares {
             };
         }
 
-        private static String sha(String s) {
-            try {
-                byte[] h = MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));
-                return java.util.HexFormat.of().formatHex(h, 0, 16);
-            } catch (java.security.NoSuchAlgorithmException e) {
-                throw new IllegalStateException(e);
-            }
-        }
     }
 
     private static long add(long a, long b) {
