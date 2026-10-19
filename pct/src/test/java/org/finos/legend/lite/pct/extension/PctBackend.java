@@ -280,6 +280,50 @@ public final class PctBackend {
         return lane().open();
     }
 
+    /** The sessions channel A's plans run on ({@link PctPlanRoute}): the plan's own, opened by its target
+     *  ({@link com.legend.exec.PlanSessions#shared}) -- but on MariaDB, MySQL and ClickHouse the lane's own session
+     *  ({@link #connect}), checked by the runner against the target and given the target's session statements as any
+     *  session is. Step 9, 2026-10-19: the storeless runtime declares the server's coordinates with {@code auth: Test},
+     *  which names no user, and the platform opens a JDBC session with no credential, so the driver connected as the
+     *  OS user (on MySQL 8.4 root's caching_sha2_password, which the MariaDB driver refuses: the whole lane failed to
+     *  connect; on MariaDB root, met by currentUserId()), and ClickHouse has no JDBC opening at all. The lane's session
+     *  is the harness's user, as the legacy route's was. A plan with setup (the metamodel store) still goes to its
+     *  target, which refuses setup for a database reached by a URL, by name. Open: a declared connection's user for a
+     *  server lane, and ClickHouse's opening (a shared item). */
+    public static com.legend.exec.PlanSessions.Source planSessions() {
+        com.legend.exec.PlanSessions.Source own = com.legend.exec.PlanSessions.shared();
+        return switch (lane()) {
+            case MARIADB, MYSQL, CLICKHOUSE -> target -> {
+                if (!target.setup().isEmpty()) {
+                    return own.open(target);
+                }
+                Connection c;
+                try {
+                    c = connect();
+                } catch (SQLException e) {
+                    throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
+                            + e.getMessage(), e);
+                }
+                return new com.legend.exec.Sessions.Session() {
+                    @Override
+                    public Connection connection() {
+                        return c;
+                    }
+
+                    @Override
+                    public void close() {
+                        try {
+                            c.close();
+                        } catch (SQLException e) {
+                            throw new IllegalStateException(e.getMessage(), e);
+                        }
+                    }
+                };
+            };
+            case DUCKDB, H2, SQLITE, POSTGRES, TRINO, DATABRICKS, SNOWFLAKE, BIGQUERY, MONGODB -> own;
+        };
+    }
+
     private static volatile @com.legend.base.Nullable String serverVersion;
 
     /** The version of the server this lane's sessions connect to, read once off one session (the plan route plans

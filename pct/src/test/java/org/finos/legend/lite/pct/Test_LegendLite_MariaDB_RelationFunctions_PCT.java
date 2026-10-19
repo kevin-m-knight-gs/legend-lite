@@ -65,12 +65,7 @@ public class Test_LegendLite_MariaDB_RelationFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
             one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            // step 9, 2026-10-19, the plan route: the plan's session opens by the declared connection, which names no
-            // user (TestAuth), so the driver connects as the OS user: root in the cloud container, which is also the
-            // JVM's user that currentUserId() answers, so the join meets the row 'root' (the legacy route's session was
-            // the harness's user 'legend'). Open: the declared connection's user for a server lane
-            one("meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,col,user,id2,name\n   1,More Test 1,user1,null,null\n   2,More Test 2,root,null,null\n#'\nactual:   '#TDS\n   id,col,user,id2,name\n   1,More Test 1,user1,null,null\n   2,More Test 2,root,3,Pierre\n#'\"")
+            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\"")
     );
 
     public static Test suite() {
