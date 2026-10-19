@@ -321,7 +321,7 @@ final class JdbcDecode {
         throw refused(v, c);
     }
 
-    private static Object map(Object v, ExecutionPlan.Column c) throws SQLException {
+    private static @com.legend.base.Nullable Object map(Object v, ExecutionPlan.Column c) throws SQLException {
         ExecutionPlan.Column[] kv = RowDecode.mapSlots(c);
         ExecutionPlan.Column key = kv[0];
         ExecutionPlan.Column value = kv[1];
@@ -343,6 +343,18 @@ final class JdbcDecode {
                 out.put(decode(attrs[0], key), decode(attrs[1], value));
             }
             return out;
+        }
+        // a map the database carries as JSON (SQLite's text, MariaDB's and MySQL's JSON, Postgres's jsonb, as a
+        // struct is): its entries by the slot's key and value, the JSON row's own map cell (RowDecode); a JSON null
+        // is an absent map. Found by channel B on SQLite (step 9, 2026-10-19: the six map put and putAll cases
+        // refused since the typed rows of step 6, which the DuckDB and H2 lanes, whose drivers deliver a Map, never
+        // met).
+        Json.Node node = Json.parse(jsonText(v, c));
+        if (node instanceof Json.Null) {
+            return null;
+        }
+        if (node instanceof Json.Obj) {
+            return RowDecode.cell(node, c);
         }
         throw refused(v, c);
     }
