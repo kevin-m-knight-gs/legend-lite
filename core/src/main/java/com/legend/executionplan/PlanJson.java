@@ -64,8 +64,8 @@ public final class PlanJson {
 
     enum ServersTag { every, versions }
 
-    enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Snowflake, Spanner, Databricks,
-        BigQuery }
+    enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Trino, Snowflake, Spanner,
+        Databricks, BigQuery }
 
     enum AuthenticationTag { NoAuth, DefaultH2, TestAuth, GCPApplicationDefaultCredentials, UsernamePassword,
         DelegatedKerberos, VaultUserNamePassword, SnowflakePublic, ApiToken, MiddleTierUserNamePassword, OAuth,
@@ -319,6 +319,15 @@ public final class PlanJson {
                 o.put("host", x.host());
                 o.put("port", x.port());
                 o.put("database", x.database());
+            }
+            case ConnectionSpecification.Trino x -> {
+                o.put("_type", SpecificationTag.Trino.name());
+                o.put("host", x.host());
+                o.put("port", x.port());
+                putIfSet(o, "catalog", x.catalog());
+                putIfSet(o, "schema", x.schema());
+                putIfSet(o, "clientTags", x.clientTags());
+                o.put("ssl", x.ssl());
             }
             case ConnectionSpecification.Snowflake x -> {
                 o.put("_type", SpecificationTag.Snowflake.name());
@@ -588,6 +597,9 @@ public final class PlanJson {
                     o.getString("directory"), o.getBool("autoServerMode"));
             case StaticDatasource -> new ConnectionSpecification.StaticDatasource(o.getString("host"),
                     o.getInt("port"), o.getString("database"));
+            case Trino -> new ConnectionSpecification.Trino(o.getString("host"), o.getInt("port"),
+                    o.getStringOr("catalog", null), o.getStringOr("schema", null), o.getStringOr("clientTags", null),
+                    o.getBool("ssl"));
             case Snowflake -> new ConnectionSpecification.Snowflake(o.getString("databaseName"),
                     o.getString("accountName"), o.getString("warehouseName"), o.getString("region"),
                     o.getStringOr("accountType", null), o.getStringOr("cloudType", null),

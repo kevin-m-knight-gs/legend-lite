@@ -1095,13 +1095,45 @@ public final class Trino extends AnsiSqlRenderer {
         return writer.append(", ").piece(zone(a.get(0))).append(") AS TIMESTAMP(6))");
     }
 
-    /** The {@code STRFTIME} arm of {@link #call}. */
+    /** The {@code STRFTIME} arm of {@link #call}: {@code format_datetime}, whose Joda letters carry no digit finer
+     *  than a millisecond (measured 2026-10-19, Trino 483: {@code 'SSSSSS'} of {@code 13:11:11.338001} is
+     *  {@code 338000}), so a microsecond or nanosecond part is the value's own six digits, the tail of its
+     *  {@code TIMESTAMP(6)} text (a nanosecond part padded with {@code 000}, as the Joda form was), the parts around
+     *  it {@code format_datetime}'s. */
     private SqlWriter strftime(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
             throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
         }
-        return writer.append("format_datetime(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+        List<SqlWriter.Piece> pieces = new ArrayList<>();
+        List<com.legend.sql.DateFmt> run = new ArrayList<>();
+        for (com.legend.sql.DateFmt p : fl.parts()) {
+            if (p == com.legend.sql.DateFmt.Part.SUBSEC_MICRO || p == com.legend.sql.DateFmt.Part.SUBSEC_NANO) {
+                if (!run.isEmpty()) {
+                    pieces.add(formatDatetime(a.get(0), new SqlExpr.FormatLit(run)));
+                    run = new ArrayList<>();
+                }
+                pieces.add(w -> w.append("substr(CAST(CAST(").expr(a.get(0), 0)
+                        .append(" AS TIMESTAMP(6)) AS VARCHAR), -6)"));
+                if (p == com.legend.sql.DateFmt.Part.SUBSEC_NANO) {
+                    pieces.add(w -> w.append("'000'"));
+                }
+            } else {
+                run.add(p);
+            }
+        }
+        if (!run.isEmpty() || pieces.isEmpty()) {
+            pieces.add(formatDatetime(a.get(0), new SqlExpr.FormatLit(run)));
+        }
+        if (pieces.size() == 1) {
+            return writer.piece(pieces.get(0));
+        }
+        return writer.append("concat(").join(pieces, ", ", SqlWriter::piece).append(")");
+    }
+
+    /** {@code format_datetime(x, format)}. */
+    private static SqlWriter.Piece formatDatetime(SqlExpr x, SqlExpr.FormatLit format) {
+        return w -> w.append("format_datetime(").expr(x, 0).append(", ").expr(format, 0).append(")");
     }
 
     /** The {@code STRPTIME} arm of {@link #call}. */
@@ -1516,18 +1548,21 @@ public final class Trino extends AnsiSqlRenderer {
         return writer;
     }
 
-    /** The {@code STRING_AGG} arm of {@link #reducer}: {@code listagg(...) WITHIN GROUP (ORDER BY ...)}. */
+    /** The {@code STRING_AGG} arm of {@link #reducer}: {@code listagg(...) WITHIN GROUP (ORDER BY ...)}; one of no order
+     *  {@code array_join(array_agg(...), sep)}, the values in the order they come, as DuckDB's {@code string_agg} and
+     *  H2's {@code listagg} read them (step 9, 2026-10-19: listagg needs an order, and the values' own sorted a
+     *  collection's TDS text lines -- {@code reverse}, {@code sort} by a key, {@code [10, 2]} as text -- where the rows
+     *  come in the collection's order). Both skip a null value and answer null over no rows. */
     private SqlWriter listagg(SqlWriter writer, SqlAgg.Reducer r) {
         if (r.args().size() != 2) {
             throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached Trino");
         }
-        writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
-                .append(") WITHIN GROUP (ORDER BY ");
         if (r.orderBy().isEmpty()) {
-            // no order: the values' own (listagg needs one); the platform's comparison is unordered
-            return writer.expr(r.args().get(0), 0).append(")");
+            return writer.append("array_join(array_agg(").append(r.distinct() ? "DISTINCT " : "")
+                    .expr(r.args().get(0), 0).append("), ").expr(r.args().get(1), 0).append(")");
         }
-        return writer.join(r.orderBy(), ", ", this::aggregateOrderKey).append(")");
+        return writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
+                .append(") WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey).append(")");
     }
 
     /** The {@code LIST} arm of {@link #reducer}. */
@@ -1689,6 +1724,15 @@ public final class Trino extends AnsiSqlRenderer {
             case SqlAgg.Reducer r when r.fn() == SqlAgg.Fn.STRING_AGG && r.orderBy().isEmpty()
                     && !w.orderBy().isEmpty() ->
                     reducer(writer, new SqlAgg.Reducer(r.fn(), r.args(), r.distinct(), w.orderBy(), r.type()));
+            // a windowed listagg of no order at all: the values' own (listagg needs one, and an array_join cannot
+            // wrap a window function); the platform's comparison is unordered
+            case SqlAgg.Reducer r when r.fn() == SqlAgg.Fn.STRING_AGG && r.orderBy().isEmpty() -> {
+                if (r.args().size() != 2) {
+                    throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached Trino");
+                }
+                writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
+                        .append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0).append(")");
+            }
             case SqlAgg.Reducer r -> reducer(writer, r);
             case SqlAgg.RankingFn r -> writer.append(aggregateName(r.fn())).append("(").list(r.args()).append(")");
             case SqlAgg.ValueFn v -> writer.append(aggregateName(v.fn())).append("(").list(v.args()).append(")");

@@ -198,6 +198,7 @@ public final class Sessions {
                 case ConnectionSpecification.LocalH2 x -> refused(def);
                 case ConnectionSpecification.EmbeddedH2 x -> refused(def);
                 case ConnectionSpecification.StaticDatasource x -> refused(def);
+                case ConnectionSpecification.Trino x -> refused(def);
                 case ConnectionSpecification.Snowflake x -> refused(def);
                 case ConnectionSpecification.Spanner x -> refused(def);
                 case ConnectionSpecification.Databricks x -> refused(def);
@@ -209,6 +210,7 @@ public final class Sessions {
                 case ConnectionSpecification.LocalH2 x -> refused(def);
                 case ConnectionSpecification.EmbeddedH2 x -> refused(def);
                 case ConnectionSpecification.StaticDatasource x -> refused(def);
+                case ConnectionSpecification.Trino x -> refused(def);
                 case ConnectionSpecification.Snowflake x -> refused(def);
                 case ConnectionSpecification.Spanner x -> refused(def);
                 case ConnectionSpecification.Databricks x -> refused(def);
@@ -225,6 +227,7 @@ public final class Sessions {
                 // legend-engine's test specification and an in-memory one: the opener names it
                 case ConnectionSpecification.LocalH2 h -> new Opening.Named(null);
                 case ConnectionSpecification.InMemory() -> new Opening.Named(null);
+                case ConnectionSpecification.Trino x -> refused(def);
                 case ConnectionSpecification.Snowflake x -> refused(def);
                 case ConnectionSpecification.Spanner x -> refused(def);
                 case ConnectionSpecification.Databricks x -> refused(def);
@@ -237,6 +240,7 @@ public final class Sessions {
                 case ConnectionSpecification.LocalFile x -> refused(def);
                 case ConnectionSpecification.LocalH2 x -> refused(def);
                 case ConnectionSpecification.EmbeddedH2 x -> refused(def);
+                case ConnectionSpecification.Trino x -> refused(def);
                 case ConnectionSpecification.Snowflake x -> refused(def);
                 case ConnectionSpecification.Spanner x -> refused(def);
                 case ConnectionSpecification.Databricks x -> refused(def);
@@ -250,6 +254,7 @@ public final class Sessions {
                 case ConnectionSpecification.LocalFile x -> refused(def);
                 case ConnectionSpecification.LocalH2 x -> refused(def);
                 case ConnectionSpecification.EmbeddedH2 x -> refused(def);
+                case ConnectionSpecification.Trino x -> refused(def);
                 case ConnectionSpecification.Snowflake x -> refused(def);
                 case ConnectionSpecification.Spanner x -> refused(def);
                 case ConnectionSpecification.Databricks x -> refused(def);
@@ -259,11 +264,76 @@ public final class Sessions {
             case MongoDB -> throw new com.legend.error.NotImplementedException("connection '" + def.qualifiedName()
                     + "' declares MongoDB, which no JDBC opening reaches: its connector opens it, through the plan"
                     + " runner");
-            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
+            // legend-engine's TrinoManager.buildURL: the session's catalog, then its schema, in the URL's path (step
+            // 9, 2026-10-19: the Trino lane on the plan route); TLS and query tags are refused by name, never dropped
+            case Trino -> switch (spec) {
+                case ConnectionSpecification.Trino t -> new Opening.Url(trinoUrl(def, t));
+                case ConnectionSpecification.InMemory x -> refused(def);
+                case ConnectionSpecification.LocalFile x -> refused(def);
+                case ConnectionSpecification.LocalH2 x -> refused(def);
+                case ConnectionSpecification.EmbeddedH2 x -> refused(def);
+                case ConnectionSpecification.StaticDatasource x -> refused(def);
+                case ConnectionSpecification.Snowflake x -> refused(def);
+                case ConnectionSpecification.Spanner x -> refused(def);
+                case ConnectionSpecification.Databricks x -> refused(def);
+                case ConnectionSpecification.BigQuery x -> refused(def);
+            };
+            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, BigQuery,
                  Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
                     throw new com.legend.error.NotImplementedException("connections to database type '"
                             + def.databaseType() + "' are not implemented (connection '" + def.qualifiedName() + "')");
         };
+    }
+
+    private static String trinoUrl(ConnectionDefinition def, ConnectionSpecification.Trino t) {
+        if (t.ssl()) {
+            throw new com.legend.error.NotImplementedException("a Trino connection over TLS is not implemented"
+                    + " (connection '" + def.qualifiedName() + "')");
+        }
+        if (t.clientTags() != null) {
+            throw new com.legend.error.NotImplementedException("a Trino connection's client tags are not implemented"
+                    + " (connection '" + def.qualifiedName() + "')");
+        }
+        if (t.catalog() == null && t.schema() != null) {
+            throw new com.legend.error.NotImplementedException("a Trino connection with a schema and no catalog"
+                    + " names no session (connection '" + def.qualifiedName() + "')");
+        }
+        String path = t.catalog() == null ? "" : t.catalog() + (t.schema() == null ? "" : "/" + t.schema());
+        // explicitPrepare=false: the driver sends a prepared statement as one EXECUTE IMMEDIATE, its parameters still
+        // bound by the server, instead of a PREPARE carrying the text in a header and an EXECUTE (measured 2026-10-19,
+        // Trino 483: the 689 KB statement of format('%s %f', ['fox', 1.5]) answers in 3 to 14 s so, as it does as a
+        // plain statement, and through PREPARE fills the coordinator's 2 GB heap until it dies, 185 s)
+        return "jdbc:trino://" + t.host() + ":" + t.port() + "/" + path + "?user=" + trinoUser(def)
+                + "&explicitPrepare=false";
+    }
+
+    /** The user a Trino session names: a session names one even unauthenticated (legend-engine's TrinoManager sends
+     *  the credential's user). The test authentications are legend-engine's DefaultH2AuthenticationStrategy (its
+     *  TestDatabaseAuthenticationStrategy extends it), whose credential's user is {@code sa}; no authentication names
+     *  no user, and is refused by name. */
+    private static String trinoUser(ConnectionDefinition def) {
+        return switch (def.authentication()) {
+            case AuthenticationSpec.TestAuth a -> "sa";
+            case AuthenticationSpec.DefaultH2 a -> "sa";
+            case AuthenticationSpec.NoAuth a -> throw new com.legend.error.NotImplementedException("a Trino session"
+                    + " names a user, and a connection of no authentication names none (connection '"
+                    + def.qualifiedName() + "')");
+            case AuthenticationSpec.UsernamePassword a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.DelegatedKerberos a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.VaultUserNamePassword a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.SnowflakePublic a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.GCPApplicationDefaultCredentials a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.ApiToken a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.MiddleTierUserNamePassword a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.OAuth a -> throw refusedTrinoUser(def);
+            case AuthenticationSpec.GcpWorkloadIdentityFederation a -> throw refusedTrinoUser(def);
+        };
+    }
+
+    /** An authentication {@link #authentication} refuses before a session is opened: reaching here is a defect. */
+    private static IllegalStateException refusedTrinoUser(ConnectionDefinition def) {
+        return new IllegalStateException(def.authentication().getClass().getSimpleName() + " authentication reached"
+                + " the Trino opening past its check (connection '" + def.qualifiedName() + "')");
     }
 
     private static Opening refused(ConnectionDefinition def) {

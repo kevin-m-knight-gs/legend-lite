@@ -53,11 +53,20 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
+            // step 9, 2026-10-19, the Trino lane on the plan route: the NaN cell crosses as the text carrier spells it
+            // (Trino's JSON text of a NaN double, quoted) and Pure's parseFloat refuses its first character, where the
+            // legacy route's Java BigDecimal said "Infinite or NaN" (the DuckDB lane's pin, the same cause)
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character \" is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character \" is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "line 1:33: Column reference '__id' is invalid\""),
+            // step 9, 2026-10-19, the plan route: the same refusal, its position in the plan's longer statement
+            // (line 9:39 where the legacy route's was 1:33), pinned without the position
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "Column reference '__id' is invalid\""),
+            // step 9, 2026-10-19, the plan route (as on the DuckDB lane, register S81): a heterogeneous class
+            // collection meeting at an abstract ancestor crosses as JSON without its class, which the text carrier has
+            // no form for; the legacy route rebuilt the instances in Java
+            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form"),
             // TRINO'S OWN LIMIT: a ROW's fields are typed, and an unset property is a NULL of no type (no sibling
             // types it); were it typed, a ROW holding a NULL compares NULL and contains refuses one (measured), where
             // Pure's equality of two such instances is true
