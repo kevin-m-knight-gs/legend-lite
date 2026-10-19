@@ -35,9 +35,8 @@ public class Test_LegendLite_MongoDB_StandardFunctions_PCT extends PCTReportConf
     // Re-measured 2026-10-17 after the cross-lane pass (§11.4: base64 and the string distances composed, a value
     // root's date precision, the day truncation typed DATE).
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // VALUE DIFFERENCES, measured
-            one("meta::pure::functions::math::tests::max::testMax_NumbersArray_Function_1__Boolean_1_", "\"\nexpected: 1.0D\nactual:   1.0\""),
-            one("meta::pure::functions::math::tests::min::testMin_NumbersArray_Function_1__Boolean_1_", "\"\nexpected: 1.0D\nactual:   1.0\"")
+            // VALUE DIFFERENCES, measured: none (step 9, 2026-10-19: testMax_NumbersArray, testMin_NumbersArray
+            // unpinned, a Number root's Decimal cell spelled with its D since the DuckDB lane's landing)
     );
 
     public static Test suite() {

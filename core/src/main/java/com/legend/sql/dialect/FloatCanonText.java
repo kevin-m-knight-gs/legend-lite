@@ -32,6 +32,7 @@ final class FloatCanonText {
 
         private final boolean bindText;
         private final int[] fresh = {0};
+        private final java.util.Map<SqlExpr, SqlExpr> spelledCalls = new java.util.HashMap<>();
 
         /** {@code bindText}: the double's text is a column of a one-row derived table, written once, under a scalar
          *  subquery ({@code (SELECT <spelling over t> FROM (SELECT CAST(v AS VARCHAR) AS t) AS __fcN)}, the shape a
@@ -45,6 +46,13 @@ final class FloatCanonText {
             if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_CANON) {
                 if (!bindText) {
                     return of(c.args().get(0));
+                }
+                // an equal call is the same node, its alias too: a repeated canon is then one subtree a common-
+                // subexpression binding writes once (step 9, 2026-10-19: a mixed list's float decoded in each branch
+                // of format was 1.29 MB on SQLite, each copy under its own alias, so never equal)
+                SqlExpr known = spelledCalls.get(c);
+                if (known != null) {
+                    return known;
                 }
                 String alias = "__fc" + fresh[0]++;
                 SqlExpr text = new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.VARCHAR);
@@ -61,7 +69,9 @@ final class FloatCanonText {
                                 new com.legend.sql.OutputCol("v", SqlType.Scalar.VARCHAR, true))), false,
                         new com.legend.sql.SqlSource.Subselect(bind, alias, null), null, List.of(), null, null, List.of(),
                         null, null, List.of());
-                return new SqlExpr.ScalarSubquery(use);
+                SqlExpr spelledCall = new SqlExpr.ScalarSubquery(use);
+                spelledCalls.put(c, spelledCall);
+                return spelledCall;
             }
             return super.expr(e);
         }

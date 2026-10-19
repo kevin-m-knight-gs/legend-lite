@@ -1030,7 +1030,9 @@ public final class LiteralSpelling {
 
     /** The elements of {@code arr} in Pure's grammar, comma-joined: {@code 1, 2}. */
     private static SqlExpr elementsText(SqlExpr arr, Type element, SqlType elementSlot, Layouts layouts) {
-        SqlExpr e = SqlExpr.Column.derived(null, "__e");
+        // the element typed by its slot, so a field read off it is typed too (a dialect that decodes a field by its
+        // type, Postgres's jsonb, refused "a field of unknown type" on every list of instances; step 9, 2026-10-19)
+        SqlExpr e = SqlExpr.Column.of(null, "__e", elementSlot, true, com.legend.sql.OutputCol.Origin.DERIVED);
         return joined(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, arr,
                 new SqlExpr.Lambda(List.of("__e"), pureValueText(e, element, elementSlot, layouts))));
     }

@@ -445,6 +445,11 @@ public final class Postgres extends AnsiSqlRenderer {
                     .piece(json).append(") WITH ORDINALITY AS __j" + depth + "(" + e + ", " + o + ") ORDER BY " + o)
                     .append(") END)");
         }
+        // an instance: NULL for jsonb's null too, as a list's is (an absent property crossed as JSON's null, and a
+        // field read of it was a present, empty instance; step 9, 2026-10-19)
+        if (t instanceof SqlType.Struct) {
+            return w -> w.append("NULLIF(").piece(json).append(", 'null'::jsonb)");
+        }
         return json;
     }
 
@@ -1187,11 +1192,22 @@ public final class Postgres extends AnsiSqlRenderer {
             String label = p.alias() != null ? aliasIdent(p.alias()) : implicitLabel(p);
             return label == null ? writer : writer.append(" AS ").append(label);
         }
+        // error() projected under a slot is typed as the slot, as a CASE branch that raises is: text there met the
+        // slot's readers (to_char of a Date slot: "function to_char(character varying, unknown) does not exist",
+        // the planner refusing before the raise could; step 9, 2026-10-19)
+        if (p.out() != null && p.expr() instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
+            writer.piece(raise(c.args(), p.out().type()));
+            String label = p.alias() != null ? aliasIdent(p.alias()) : implicitLabel(p);
+            return label == null ? writer : writer.append(" AS ").append(label);
+        }
         // the empty collection in a scalar slot is written as an untyped NULL, which Postgres types as text: the
-        // slot's own type, so the column is what the plan declares
+        // slot's own type, so the column is what the plan declares; a struct slot's is its carrier, jsonb (a field
+        // read off a text NULL was "operator does not exist: text -> unknown", zip of empty lists; step 9, 2026-10-19)
         if (p.out() != null && p.expr().type() instanceof com.legend.sql.TypeFact.Bottom
-                && (p.out().type() instanceof SqlType.Scalar || p.out().type() instanceof SqlType.Decimal)) {
-            writer.append("CAST(").expr(p.expr(), 0).append(" AS " + castTypeName(p.out().type()) + ")");
+                && (p.out().type() instanceof SqlType.Scalar || p.out().type() instanceof SqlType.Decimal
+                    || p.out().type() instanceof SqlType.Struct)) {
+            writer.append("CAST(").expr(p.expr(), 0).append(" AS " + (p.out().type() instanceof SqlType.Struct
+                    ? carrier(p.out().type()) : castTypeName(p.out().type())) + ")");
             String label = p.alias() != null ? aliasIdent(p.alias()) : implicitLabel(p);
             return label == null ? writer : writer.append(" AS ").append(label);
         }

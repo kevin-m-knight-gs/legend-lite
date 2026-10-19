@@ -39,13 +39,11 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
     // pinned is the identity tests (instances compared by reference, as on the DuckDB lane), a user element
     // referenced by its simple name, and an instance nested past the layout's depth.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // VALUE DIFFERENCES, measured
+            // VALUE DIFFERENCES, measured (step 9, 2026-10-19: testDecimalMinus, testDecimalPlus, testDecimalTimes
+            // unpinned, a Decimal read by the wire header's type since the DuckDB lane's landing)
             one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
             one("meta::pure::functions::math::tests::divide::testDecimalDivide_Function_1__Boolean_1_", "\"\nexpected: 0.5238095238095238\nactual:   0.5238095238095238095238095238095238\""),
-            one("meta::pure::functions::math::tests::minus::testDecimalMinus_Function_1__Boolean_1_", "\"\nexpected: -4.0D\nactual:   -4.0\""),
-            one("meta::pure::functions::math::tests::plus::testDecimalPlus_Function_1__Boolean_1_", "\"\nexpected: 6.0D\nactual:   6.0\""),
-            one("meta::pure::functions::math::tests::times::testDecimalTimes_Function_1__Boolean_1_", "\"\nexpected: 353791.470D\nactual:   353791.47\""),
             // THE PLATFORM'S OWN (pinned on the DuckDB lane too, by the same cause)
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
@@ -57,8 +55,9 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 40523 (Location40523): 'PlanExecutor error during aggregation :: caused by :: 'year' must evaluate to an integer in the range 1 to 9999, found 10999'"),
-            // MONGODB'S OWN, refused by name
-            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a schema-qualified table (metamodel.classes) reached MongoDb: a collection has no schema (its database is the connection's)\""),
+            // MONGODB'S OWN, refused by name (step 9, 2026-10-19: the metamodel store is the session's temporary
+            // tables since the parent's 33abc9a, which MongoDB has none of; the message moved from the schema's)
+            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a temporary table reached MongoDb, which has no temporary collection\""),
             // THE TDS TEXT ROUTE: a value the text does not carry (an empty string, a class instance, a List, a Map, an Any)
             one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined!")
     );
