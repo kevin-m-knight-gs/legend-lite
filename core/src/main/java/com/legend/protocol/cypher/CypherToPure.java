@@ -1039,6 +1039,11 @@ public final class CypherToPure {
                     }
                 }
                 case CypherAst.Use u -> { }
+                case CypherAst.Create cr -> { }
+                case CypherAst.Merge mg -> { }
+                case CypherAst.SetClause st -> { }
+                case CypherAst.Remove rm -> { }
+                case CypherAst.Delete dl -> { }
                 case CypherAst.OtherClause o -> { }
             }
         }
@@ -1274,9 +1279,9 @@ public final class CypherToPure {
         List<Clause> clauses = unrolledOverPaths(written);
         State state = null;
         for (Clause c : clauses) {
-            if (c instanceof CypherAst.OtherClause o) {
+            if (c instanceof CypherAst.OtherClause || updates(c)) {
                 // refused by name first: a UNION after a RETURN is a UNION, not a misplaced RETURN
-                throw CypherErrors.unsupported(o.keyword() + " is not supported yet", o.pos());
+                throw CypherErrors.unsupported(keyword(c) + " is not supported yet", c.pos());
             }
         }
         if (clauses.isEmpty()) {
@@ -1296,6 +1301,12 @@ public final class CypherToPure {
                                 + " preceded by an importing WITH clause", u.pos());
                     }
                 }
+                case CypherAst.Create cr -> throw CypherErrors.unsupported("CREATE is not supported yet", cr.pos());
+                case CypherAst.Merge mg -> throw CypherErrors.unsupported("MERGE is not supported yet", mg.pos());
+                case CypherAst.SetClause st -> throw CypherErrors.unsupported("SET is not supported yet", st.pos());
+                case CypherAst.Remove rm -> throw CypherErrors.unsupported("REMOVE is not supported yet", rm.pos());
+                case CypherAst.Delete dl -> throw CypherErrors.unsupported(keyword(dl) + " is not supported yet",
+                        dl.pos());
                 case CypherAst.OtherClause o -> throw CypherErrors.unsupported(o.keyword() + " is not supported yet",
                         o.pos());
                 case CypherAst.ProcedureCall p -> state = procedureCall(p, state, last);
@@ -1327,8 +1338,19 @@ public final class CypherToPure {
             case CypherAst.Return r -> "RETURN";
             case CypherAst.Use u -> "USE";
             case CypherAst.ProcedureCall p -> "CALL";
+            case CypherAst.Create cr -> "CREATE";
+            case CypherAst.Merge mg -> "MERGE";
+            case CypherAst.SetClause st -> "SET";
+            case CypherAst.Remove rm -> "REMOVE";
+            case CypherAst.Delete dl -> dl.detach() ? "DETACH DELETE" : "DELETE";
             case CypherAst.OtherClause o -> o.keyword();
         };
+    }
+
+    /** Whether a clause updates the graph (the writes design's §5). */
+    private static boolean updates(Clause c) {
+        return c instanceof CypherAst.Create || c instanceof CypherAst.Merge || c instanceof CypherAst.SetClause
+                || c instanceof CypherAst.Remove || c instanceof CypherAst.Delete;
     }
 
     // ------------------------------------------------------------------ CALL
