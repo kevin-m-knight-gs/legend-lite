@@ -32,8 +32,8 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | 5 | Charts batch 4: the statistics aggregates and the kinds they unlock | `claude/datacube-charts-stats` | done, audited |
 | 6 | Charts batch 5: maps | `claude/datacube-charts-maps` | done, audited |
 | 7 | Charts batch 3's leftovers: Marimekko, waffle, Gantt | `claude/datacube-charts-more` | done, audited |
-| 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | | |
-| 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | | |
+| 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | `claude/datacube-followups` | the first done, audited; the other two skipped |
+| 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | -- | skipped: the other line's, in flight |
 
 ## Skipped, to come back to at the end
 
@@ -112,3 +112,38 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   options these kinds do not draw; a Gantt's start picked a sum. Answered, not changed: "At most" counts a Marimekko's
   cells, not its columns -- a cut chart says so in the panel's own words ("The first N by the chosen order"); a
   Marimekko's own limit is a choice left for later.
+- **Phase 8** (branch `claude/datacube-followups`): the identifier rule once -- pure-protocol's `isIdentifier` (an
+  identifier's letters, not `true` or `false`), which DataCube asks everywhere it asks whether a name is bare (a column
+  reference, a frame source, a file's table name, a suggested package, the column editor's lambda head); a column named
+  `true` is spelled `$x.'true'`. Its audit: six findings; four taken (the file's table name and the suggested package,
+  the comments, the grammar test's assertion), each fix with a test checked to fail without it. **For the compiler
+  line (core, not changed here):** the compiler's printer (`PureComposer.isUnquotedIdentifier`) and the table-model
+  writer (`CatalogModel.ident`) still write `true` and `false` bare, so a column named `true` from a file fails before
+  DataCube sees it, and Edit Column's print of `$x.'true'` reads back as a literal; quoting them where upstream does
+  not needs a `docs/SEMANTICS_REGISTER.md` row. **Skipped, to come back to:** "the pinned queries compiled in a test"
+  and "a Python refusal that drops keys" -- the run could not find which queries and which refusal the other line
+  meant (no record of them beyond the one line), so nothing was guessed at.
+- **Phase 9, skipped:** F1-F5 are steps 3-7 of the model plan (`docs/DATACUBE_MODEL_DESIGN_2026_10_10.md` §13), the
+  other DataCube line's, in flight there in their order (`docs/IN_FLIGHT.md`, "Now: the model plan"); the user's
+  ruling of 2026-10-14 puts page filters and cross-filtering on classes, as that plan's step 3; step 6 (promote and
+  publish) is built on the Studio line's SDLC and Depot, its shape brought to that line first; step 7 (measures in the
+  model) is BI and ETL plan B4. Building them here, without coordinating (this run messages no other session), would
+  collide with that line. Where F1 would plug in, if the user wants this line to take it: a page filter as one more
+  condition of each tile's query over the same class, given to the grid's controller (`cube.ts`, where each level's
+  query is built from the snapshot) and to a chart's snapshot (`ui/chart-panel.ts`), never into a tile's own saved
+  filter; a chart's click told as that page filter instead of its own grid's (`chart-render.ts` `onPick`); the page
+  document and the page commands carry it, so Python, undo and the live channel follow.
+
+## At the end: what to come back to
+
+- **For the user to decide:** the chart-with-problems rule (phase 1: refuse, as Python does, or keep and show, as the
+  screen does); the map-preparation tool (phase 6: prepared and committed, taken for now); whether this line takes F1
+  (phase 9).
+- **For other lines:** the graph mode questions for the Cypher line (phase 4); `true`/`false` quoted by the compiler's
+  printer and table-model writer (phase 8, core); F1-F5 (the other DataCube line); D5b (the other DataCube line).
+- **Not built, named in each phase's note:** undo told to command-following hosts (phase 2); the reverse live channel
+  (phase 3); corr, covariance, minBy/maxBy and the kinds waiting on them, percentile lines, the ECDF and the rest of
+  batch 4 (phase 5); provinces, the borders by viewpoint, the US insets, a user's own shapes (phase 6); a Marimekko's
+  own limit (phase 7); phase 8's other two follow-ups.
+- **Skipped up front:** previews (Netlify secrets), "SQL out of clients" (waits on the user), D5b.
+
