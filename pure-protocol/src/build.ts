@@ -8,11 +8,22 @@ import type {
   Multiplicity, PackageableElementPtr, RelationColumn, ValueSpecification, Variable,
 } from './wire.ts';
 
-const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** An identifier's letters, as the grammar's lexer reads one: a letter or `_`, then letters, digits and `_`. */
+export const IDENTIFIER_LETTERS = '[A-Za-z_][A-Za-z0-9_]*';
+const IDENT = new RegExp(`^${IDENTIFIER_LETTERS}$`);
+
+/**
+ * THE identifier rule (the one copy DataCube asks: the other DataCube line's follow-up, 2026-10-18): a name the grammar
+ * reads bare -- an identifier's letters, and not `true` or `false`, which its lexer reads as literals. Any other name
+ * is quoted where the grammar quotes one (a column: `$x.'true'`), or refused where it quotes none (a variable).
+ */
+export function isIdentifier(n: string): boolean {
+  return IDENT.test(n) && n !== 'true' && n !== 'false';
+}
 
 /** A parameter or variable name: an identifier (the grammar quotes nothing else). */
 function name(n: string, what: string): string {
-  if (!IDENT.test(n)) throw new ProtocolError(`${what} '${n}' is not an identifier`);
+  if (!isIdentifier(n)) throw new ProtocolError(`${what} '${n}' is not an identifier`);
   return n;
 }
 

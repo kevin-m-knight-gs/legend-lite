@@ -229,6 +229,9 @@ describe('a cube over a dataframe: by its name on the engine that serves it, nev
     const named = JSON.parse(cubeToJson(over(FRAME)));
     named.source.name = 'trades; drop';
     assert.throws(() => readCube(named), /the frame source has no name/);
+    // nor a literal's word: Python's frames refuse it as a name (frames._NAME), as the grammar reads it as a literal
+    named.source.name = 'true';
+    assert.throws(() => readCube(named), /the frame source has no name/);
     const noColumns = JSON.parse(cubeToJson(over(FRAME)));
     delete noColumns.source.columns;
     assert.throws(() => readCube(noColumns), /the frame source has no columns/);

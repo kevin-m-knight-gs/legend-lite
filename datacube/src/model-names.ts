@@ -3,6 +3,8 @@
 // model-actions.ts and theirs), so the page's startup carries none of it. Where a class's rows are -- the host's
 // database, its place in the class's model (`Browser`, `Python`) -- is the host's to say (services.ts ModelWriting).
 
+import { isIdentifier } from '../../pure-protocol/src/index.ts';
+
 /**
  * The class a source's name suggests: its file's name without the extension, in upper camel case, singular --
  * `trades.csv` a `Trade`, `order_lines.parquet` an `OrderLine`. A suggestion only: the person names it.
@@ -46,9 +48,9 @@ export function suggestedDataSpaceName(pageName: string): string {
   return pkg.charAt(0).toUpperCase() + pkg.slice(1);
 }
 
-/** A Pure name: letters, digits and `_`, not led by a digit, and no word Pure reads as a literal. */
+/** A Pure name: letters, digits and `_`, not led by a digit, and no word Pure reads as a literal (pure-protocol's rule). */
 export function isPureName(name: string): boolean {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && name !== 'true' && name !== 'false';
+  return isIdentifier(name);
 }
 
 /** A package: Pure names joined by `::`. */

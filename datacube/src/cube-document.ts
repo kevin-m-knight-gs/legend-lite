@@ -28,6 +28,7 @@ import {
   ExactNumber,
   ProtocolError,
   fromJson,
+  isIdentifier,
   readLambda,
   toJson as protocolJson,
   type ValueSpecification,
@@ -323,8 +324,8 @@ function readRemoteSource(s: Record<string, unknown>): RemoteSource {
 }
 
 function readFrameSource(s: Record<string, unknown>): FrameSource {
-  if (typeof s['name'] !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(s['name'])) {
-    throw new CubeDocumentError('the frame source has no name (a plain identifier: letters, digits, \'_\')');
+  if (typeof s['name'] !== 'string' || !isIdentifier(s['name'])) {
+    throw new CubeDocumentError('the frame source has no name (a plain identifier: letters, digits, \'_\', not true or false)');
   }
   if (!hasColumns(s)) throw new CubeDocumentError('the frame source has no columns');
   return s as unknown as FrameSource;

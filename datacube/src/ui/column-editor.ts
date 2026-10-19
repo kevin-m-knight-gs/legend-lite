@@ -26,7 +26,7 @@ import {
 import { explodeLambda, explodeName, explodeType, type Extraction } from '../json-shape.ts';
 import { buildJsonFields, freeName, type JsonColumnReader } from './json-fields.ts';
 import type { CompileOutcome } from '../cube.ts';
-import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { IDENTIFIER_LETTERS, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { PivotColumn } from '../query.ts';
 import { docHint } from './docs.ts';
 import { emptyOperands, isEmptyOperandRefusal, sayEmpty, type EmptyAs } from '../calc-fix.ts';
@@ -145,7 +145,7 @@ const KINDS: readonly KindMeta[] = [
  * the whole lambda, this only decides what the box shows.
  */
 function splitHead(text: string): { readonly head: string; readonly body: string } {
-  const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\|/.exec(text);
+  const m = new RegExp(`^\\s*(${IDENTIFIER_LETTERS})\\s*\\|`).exec(text);
   return m ? { head: `${m[1]}|`, body: text.slice(m[0].length).replace(/^ /, '') } : { head: 'x|', body: text };
 }
 
