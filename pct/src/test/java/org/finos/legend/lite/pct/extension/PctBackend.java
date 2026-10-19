@@ -252,11 +252,8 @@ public final class PctBackend {
         Lane lane = lane();
         return switch (lane) {
             case DUCKDB, H2, SQLITE -> com.legend.test.StorelessRuntime.with(model, lane.type);
-            case POSTGRES -> {
-                admitTheJvmUserOnPostgres();
-                yield com.legend.test.StorelessRuntime.onServer(model, lane.type, "127.0.0.1",
-                        EmbeddedPostgres.shared().port(), "postgres");
-            }
+            case POSTGRES -> com.legend.test.StorelessRuntime.onServer(model, lane.type, "127.0.0.1",
+                    EmbeddedPostgres.shared().port(), "postgres");
             case MARIADB -> com.legend.test.StorelessRuntime.onServer(model, lane.type, "127.0.0.1",
                     EmbeddedMariaDb.shared().port(), "pct");
             case MYSQL -> com.legend.test.StorelessRuntime.onServer(model, lane.type, "127.0.0.1",
@@ -276,45 +273,6 @@ public final class PctBackend {
                         EmbeddedMongoDb.DATABASE, EmbeddedMongoDb.USER, MONGODB_PASSWORD_PROPERTY);
             }
         };
-    }
-
-    private static volatile boolean postgresAdmitsTheJvmUser;
-
-    /** The Postgres lane's server admits the session its storeless runtime declares (step 9, 2026-10-19): the plan's
-     *  session opens {@code auth: Test} by the URL alone, and the driver then names the JVM's own user (Postgres's
-     *  rule, libpq's too), where the cluster's {@code initdb} made only {@link EmbeddedPostgres#USER} -- so the plan
-     *  route met {@code FATAL: role "<user>" does not exist} on every case. The lane, the server's host, makes that
-     *  login role once (a superuser, as the cluster's trust authentication admits every role); nothing is defaulted
-     *  in the session: it connects as the driver says, and the host admits it. */
-    private static void admitTheJvmUserOnPostgres() {
-        if (postgresAdmitsTheJvmUser) {
-            return;
-        }
-        synchronized (PctBackend.class) {
-            if (postgresAdmitsTheJvmUser) {
-                return;
-            }
-            String user = System.getProperty("user.name");
-            if (!EmbeddedPostgres.USER.equals(user)) {
-                try (Connection c = Lane.POSTGRES.open();
-                     java.sql.PreparedStatement exists = c.prepareStatement("SELECT 1 FROM pg_roles WHERE rolname = ?")) {
-                    exists.setString(1, user);
-                    boolean present;
-                    try (java.sql.ResultSet rs = exists.executeQuery()) {
-                        present = rs.next();
-                    }
-                    if (!present) {
-                        try (java.sql.Statement s = c.createStatement()) {
-                            s.execute("CREATE ROLE \"" + user.replace("\"", "\"\"") + "\" SUPERUSER LOGIN");
-                        }
-                    }
-                } catch (SQLException e) {
-                    throw new IllegalStateException("the Postgres lane could not admit the JVM's user '" + user
-                            + "', whom the plan's session connects as: " + e.getMessage(), e);
-                }
-            }
-            postgresAdmitsTheJvmUser = true;
-        }
     }
 
     /** A session on this lane's database. */
