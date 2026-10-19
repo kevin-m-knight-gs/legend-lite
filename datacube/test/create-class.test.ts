@@ -34,6 +34,9 @@ describe('the names DataCube offers', () => {
   it('a package from the page: lower camel case, a Pure name', () => {
     assert.equal(suggestedPackage('Trades by desk'), 'tradesByDesk');
     assert.equal(suggestedPackage('trades'), 'trades');
+    // a page called True suggests a package isPackage takes: suffixed, never the literal (the phase 8 audit)
+    assert.equal(suggestedPackage('True'), 'true_');
+    assert.ok(isPackage(suggestedPackage('false')));
     assert.equal(suggestedPackage(''), 'datacube');
     assert.equal(suggestedDataSpaceName('Trades by desk'), 'TradesByDesk');
     assert.ok(isPackage('trades::desk') && !isPackage('trades::') && !isPackage('1x'));

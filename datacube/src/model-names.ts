@@ -39,7 +39,9 @@ export function suggestedPackage(pageName: string): string {
     return (i === 0 ? w.charAt(0).toLowerCase() : w.charAt(0).toUpperCase()) + rest;
   }).join('');
   if (name === '') return 'datacube';
-  return /^[0-9]/.test(name) ? `_${name}` : name;
+  const led = /^[0-9]/.test(name) ? `_${name}` : name;
+  // a page called "True" suggests no package Pure reads as a literal (isPackage would refuse it): `true_`
+  return isPureName(led) ? led : `${led}_`;
 }
 
 /** The data space a page's name suggests: its words in upper camel case (`Trades by desk` `TradesByDesk`). */

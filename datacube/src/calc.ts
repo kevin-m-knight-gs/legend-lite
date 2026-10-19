@@ -146,8 +146,10 @@ export const CALC_OPERATORS: readonly Completion[] = [
  * A column reference, spelled for a Pure lambda.
  *
  * A generated pivot name carries the separator and is not a plain
- * identifier, so it needs the quoted form -- which is exactly the
- * spelling the serialiser uses for the same column.
+ * identifier, so it needs the quoted form; so do `true` and `false`,
+ * which the grammar reads as literals. (The compiler's printer still
+ * writes those two bare -- a core-side gap noted in the roadmap run's
+ * ledger, phase 8.)
  */
 export function columnRef(name: string): string {
   // a name the grammar reads bare (pure-protocol's rule: `true` and `false` are literals, so quoted)

@@ -10,6 +10,7 @@ import type { Scalar } from '../../engine-client/src/result.ts';
 import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
 import { mountRemote, type S3Credentials } from './remote.ts';
 import { runHostOperations } from '../../engine-client/src/host-operations.ts';
+import { isIdentifier } from '../../pure-protocol/src/index.ts';
 
 /**
  * The duckdb-wasm surface used here.
@@ -51,13 +52,17 @@ export function formatOf(fileName: string): UploadFormat {
  * The name reaches both SQL and a Pure Database declaration, and a
  * file can be called anything at all, so everything outside
  * [A-Za-z0-9_] goes. A leading digit gets a prefix because a bare
- * `2024_trades` is not an identifier.
+ * `2024_trades` is not an identifier, and a word the grammar reads as
+ * a literal (`true.csv`) a suffix, as the compiler's own writer gives
+ * one (ModelChanges.identifier: `true_`) -- one identifier rule,
+ * pure-protocol's isIdentifier (the phase 8 audit).
  */
 export function tableNameOf(fileName: string): string {
   const stem = fileName.replace(/\.gz$/i, '').replace(/\.[^.]*$/, '');
   const cleaned = stem.replace(/[^A-Za-z0-9_]+/g, '_')
     .replace(/^_+|_+$/g, '') || 'data';
-  return /^[0-9]/.test(cleaned) ? `t_${cleaned}` : cleaned;
+  const led = /^[0-9]/.test(cleaned) ? `t_${cleaned}` : cleaned;
+  return isIdentifier(led) ? led : `${led}_`;
 }
 
 /**

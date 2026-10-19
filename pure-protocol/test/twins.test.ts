@@ -86,8 +86,7 @@ describe('the identifier rule, once (the other DataCube line\'s follow-up): what
     // legend-lite's own grammar agrees: `$x.true` is no property true, `$x.'true'` is
     const quoted = JSON.parse(await parse("x|$x.'true'")) as { body: { property?: string }[] };
     assert.equal(quoted.body[0]?.property, 'true');
-    const bare = await parse('x|$x.true').then((j) => (JSON.parse(j) as { body: { property?: string }[] }).body[0]?.property, () => undefined);
-    assert.notEqual(bare, 'true');
+    await assert.rejects(parse('x|$x.true'), /expected property name/);
     // a variable the grammar cannot quote is refused where it is made
     assert.throws(() => variable('true'), ProtocolError);
   });

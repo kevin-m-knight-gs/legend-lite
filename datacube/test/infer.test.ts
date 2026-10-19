@@ -19,6 +19,9 @@ describe('tableNameOf', () => {
 
   it('never starts with a digit', () => {
     assert.equal(tableNameOf('2024.csv'), 't_2024');
+    // a word the grammar reads as a literal is no table's name: suffixed, as the compiler's writer suffixes it
+    assert.equal(tableNameOf('true.csv'), 'true_');
+    assert.equal(tableNameOf('False.csv'), 'False');
   });
 
   it('always yields something', () => {
