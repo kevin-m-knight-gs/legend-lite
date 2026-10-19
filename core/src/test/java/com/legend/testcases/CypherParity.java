@@ -293,6 +293,12 @@ public final class CypherParity {
 
         /** Rolls back the transaction {@link #begin} opened. */
         void rollback() throws Exception;
+
+        /** Runs one statement of the harness's own on this lane's database: a native store's view (the native
+         *  realization, {@link CypherGraph.Native}). */
+        default void execute(String sql) throws Exception {
+            throw new IllegalStateException("this lane runs no native realization: " + sql);
+        }
     }
 
     /** A decided case ({@code cypher-parity/decisions.tsv}) on one lane: the register row that decides it, and
@@ -367,7 +373,17 @@ public final class CypherParity {
      *  problem added to {@code problems}, naming the graph's first case). */
     public static Map<String, SqlParity.Outcome> run(List<Case> cases, Map<String, CypherAnswers.Answer> answers,
             Map<String, Decision> decisions, Lane lane, List<String> problems) throws Exception {
+        return run(cases, answers, decisions, lane, problems, CypherGraph.Realization.DOMAIN);
+    }
+
+    /** {@link #run} with the graphs realized as {@code realization} says: the domain model's own tables, or the
+     *  native store's with the model's tables views over them (the writes design's §3 and §8, leg 3). */
+    public static Map<String, SqlParity.Outcome> run(List<Case> cases, Map<String, CypherAnswers.Answer> answers,
+            Map<String, Decision> decisions, Lane lane, List<String> problems, CypherGraph.Realization realization)
+            throws Exception {
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
+        // (the native store's views live from the graph seeded before: dropped before its tables are made again)
+        List<String> liveViews = new ArrayList<>();
         Map<String, List<Case>> byGraph = new LinkedHashMap<>();
         Map<String, CypherGraph.Inferred> inferred = new LinkedHashMap<>();
         for (Case c : cases) {
@@ -386,7 +402,7 @@ public final class CypherParity {
             }
             CypherGraph.Inferred inf;
             try {
-                inf = CypherGraph.infer(java.util.Objects.requireNonNull(a.graph()));
+                inf = CypherGraph.infer(java.util.Objects.requireNonNull(a.graph()), realization);
             } catch (CypherGraph.Unsupported u) {
                 outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.SKIP, u.getMessage()));
                 continue;
@@ -397,7 +413,21 @@ public final class CypherParity {
         for (Map.Entry<String, List<Case>> e : byGraph.entrySet()) {
             CypherGraph.Inferred inf = inferred.get(e.getKey());
             try {
-                lane.seed(inf.tables());
+                CypherGraph.Native store = inf.nativeStore();
+                if (store == null) {
+                    lane.seed(inf.tables());
+                } else {
+                    for (String v : liveViews) {
+                        lane.execute("DROP VIEW IF EXISTS " + v);
+                    }
+                    liveViews.clear();
+                    lane.seed(store.tables());
+                    for (int i = 0; i < store.views().size(); i++) {
+                        lane.execute("DROP VIEW IF EXISTS " + store.viewNames().get(i));
+                        lane.execute(store.views().get(i));
+                        liveViews.add(store.viewNames().get(i));
+                    }
+                }
             } catch (Exception seeding) {
                 // the graph's tables could not be made: every case over it is an error of the harness, named (the
                 // harness's last column a dialect refused, TIMESTAMP_NS on a microsecond engine, went with W13 leg 6)
@@ -980,6 +1010,20 @@ public final class CypherParity {
             + " cypher-parity/), each case's status per lane: the ratchet\n# CypherParityTest and"
             + " CypherParityPostgresTest hold (core/src/test/java/com/legend/testcases/CypherParity.java; the"
             + " statuses are SqlParity's)\n";
+
+    /** The native store's ledger (cypher-parity/native-ledger.tsv): each case's status over the native store, a
+     *  lane of its own beside the domain lanes (the writes design's §3 B). */
+    public static List<String> nativeRatchet(List<Case> cases, Map<String, SqlParity.Outcome> outcomes, Path ledger,
+            @com.legend.base.Nullable Path update) throws IOException {
+        return SqlParity.ratchet("the Cypher parity corpus over the native store", "cypher-parity",
+                NATIVE_LEDGER_HEADER, cases.stream().map(Case::asSql).toList(), outcomes, ledger, List.of("native"),
+                "native", update);
+    }
+
+    private static final String NATIVE_LEDGER_HEADER = "# the Cypher parity corpus over the native store (the"
+            + " writes design's graph B: nodes, node_props, rels, rel_props, the model's tables views over them),\n#"
+            + " each case's status: the ratchet CypherParityNativeTest holds (core/src/test/java/com/legend/testcases/"
+            + "CypherParity.java; the statuses are SqlParity's)\n";
 
     public static List<String> ratchet(List<Case> cases, Map<String, SqlParity.Outcome> outcomes, Path ledger,
             String lane, @com.legend.base.Nullable Path update) throws IOException {

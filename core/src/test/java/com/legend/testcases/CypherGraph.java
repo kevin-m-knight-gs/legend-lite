@@ -55,8 +55,151 @@ public final class CypherGraph {
     }
 
     /** The model's text (classes, associations, the database, the mapping; the lane appends the connection and
-     *  the runtime), its tables with their rows, and a key over the dump (two cases with one graph seed once). */
-    public record Inferred(String model, List<SqlParity.Table> tables, String graphKey) {
+     *  the runtime), its tables with their rows, and a key over the dump (two cases with one graph seed once); for
+     *  the native realization, the native store that holds the graph instead ({@link Native}). */
+    public record Inferred(String model, List<SqlParity.Table> tables, String graphKey,
+            @com.legend.base.Nullable Native nativeStore) {
+        public Inferred(String model, List<SqlParity.Table> tables, String graphKey) {
+            this(model, tables, graphKey, null);
+        }
+    }
+
+    /** How the model's tables hold the graph (docs/WRITES_DESIGN_2026_10_18.md §3): a table per class, its columns
+     *  the properties ({@link #DOMAIN}, graph A, a domain model's own tables), or the native store's fixed tables
+     *  ({@link #NATIVE}, graph B: a node and its label set, a property per row, a relationship and its type, a
+     *  relationship's property per row), the model's tables views over them. */
+    public enum Realization { DOMAIN, NATIVE }
+
+    /**
+     * The native store (graph B) of a graph: its four tables with their rows and the views that read them as the
+     * model's tables, so the model, its mapping and the island are the domain realization's own.
+     * <ul>
+     *   <li>{@code nodes (id, labels)}: a node and its label set, as one text ({@link #labelText});</li>
+     *   <li>{@code node_props (node_id, key, slot, v_int, v_float, v_str, v_bool, v_date, v_ts, v_time, v_json)}: a
+     *       property's value, one row per slot of it (a scalar's slot {@code ''}; a duration's, a zoned or a
+     *       nanosecond value's, its parts), in the column of the slot's type, and a scalar's JSON beside it (what a
+     *       property typed two ways reads);</li>
+     *   <li>{@code rels (id, type, src_id, dst_id)} and {@code rel_props (rel_id, ...)}, alike.</li>
+     * </ul>
+     * Every relationship type is a junction (or an edge class's bridge): a foreign key holds one end, which writes
+     * would outgrow.
+     */
+    public record Native(List<SqlParity.Table> tables, List<String> views, List<String> viewNames) {
+    }
+
+    /** The native store's label-set text: the labels sorted, each closed by {@code :} after an opening one
+     *  ({@code :A:B:}); no label is {@code :}. */
+    public static String labelText(java.util.Collection<String> labels) {
+        java.util.TreeSet<String> sorted = new java.util.TreeSet<>(labels);
+        return sorted.isEmpty() ? ":" : ":" + String.join(":", sorted) + ":";
+    }
+
+    /** The native store's tables, by their declared columns. */
+    private static final List<SqlParity.Column> NODE_COLUMNS = List.of(new SqlParity.Column("id", "BIGINT"),
+            new SqlParity.Column("labels", "VARCHAR(4000)"));
+    private static final List<SqlParity.Column> REL_COLUMNS = List.of(new SqlParity.Column("id", "BIGINT"),
+            new SqlParity.Column("type", "VARCHAR(4000)"), new SqlParity.Column("src_id", "BIGINT"),
+            new SqlParity.Column("dst_id", "BIGINT"));
+    /** A property row's value columns, by the SQL type of the slot they hold. */
+    private static final List<String[]> VALUE_COLUMNS = List.of(new String[] {"v_int", "BIGINT"},
+            new String[] {"v_float", "DOUBLE PRECISION"}, new String[] {"v_str", "VARCHAR(4000)"},
+            new String[] {"v_bool", "BOOLEAN"}, new String[] {"v_date", "DATE"}, new String[] {"v_ts", "TIMESTAMP"},
+            new String[] {"v_time", "TIME"}, new String[] {"v_json", "JSONB"});
+
+    private static List<SqlParity.Column> propColumns(String owner) {
+        List<SqlParity.Column> out = new ArrayList<>(List.of(new SqlParity.Column(owner, "BIGINT"),
+                new SqlParity.Column("key", "VARCHAR(4000)"), new SqlParity.Column("slot", "VARCHAR(4000)")));
+        VALUE_COLUMNS.forEach(v -> out.add(new SqlParity.Column(v[0], v[1])));
+        return out;
+    }
+
+    /** The value column a slot of SQL type {@code sqlType} is held in. */
+    private static String valueColumn(String sqlType) {
+        for (String[] v : VALUE_COLUMNS) {
+            if (v[1].equals(sqlType)) {
+                return v[0];
+            }
+        }
+        throw new IllegalStateException("no native value column for " + sqlType);
+    }
+
+    /** A column of a model table and the property slot it reads: its property's key, its slot ({@code ''} for a
+     *  scalar), its SQL type. */
+    private record Provenance(String column, String key, String slot, String sqlType) {
+    }
+
+    /** The native store's property rows of one element ({@code owner} its id) from its model row: each cell a row of
+     *  its slot, in the column of the slot's type, a scalar's JSON beside it. */
+    private static void propRows(long owner, List<Object> row, int first, List<Provenance> provenance,
+            List<List<Object>> out) {
+        for (int i = 0; i < provenance.size(); i++) {
+            Object cell = row.get(first + i);
+            if (cell == null) {
+                continue;
+            }
+            Provenance pv = provenance.get(i);
+            List<Object> prop = new ArrayList<>(java.util.Collections.nCopies(3 + VALUE_COLUMNS.size(), null));
+            prop.set(0, owner);
+            prop.set(1, pv.key());
+            prop.set(2, pv.slot());
+            String column = valueColumn(pv.sqlType());
+            for (int v = 0; v < VALUE_COLUMNS.size(); v++) {
+                if (VALUE_COLUMNS.get(v)[0].equals(column)) {
+                    prop.set(3 + v, cell);
+                }
+            }
+            if (pv.slot().isEmpty() && !column.equals("v_json")) {
+                String json = switch (cell) {
+                    case Long l -> l.toString();
+                    case Double d -> Double.isNaN(d) || Double.isInfinite(d) ? null : Double.toString(d);
+                    case Boolean b -> b.toString();
+                    case String str when column.equals("v_str") -> com.legend.json.Json.toCompact(str);
+                    default -> null;
+                };
+                prop.set(3 + VALUE_COLUMNS.size() - 1, json);
+            }
+            out.add(prop);
+        }
+    }
+
+    /** The view over the native store that reads as the model table {@code table}: {@code from} the elements it
+     *  holds, each provenance column a scalar read of its slot's row. */
+    private static String view(String table, String head, String propTable, String owner,
+            List<Provenance> provenance, String from) {
+        StringBuilder sql = new StringBuilder("CREATE VIEW " + table + " AS SELECT " + head);
+        for (Provenance pv : provenance) {
+            sql.append(", (SELECT p.").append(valueColumn(pv.sqlType())).append(" FROM ").append(propTable)
+                    .append(" p WHERE p.").append(owner).append(" = e.id AND p.key = '").append(pv.key())
+                    .append("' AND p.slot = '").append(pv.slot()).append("') AS ").append(pv.column());
+        }
+        return sql.append(' ').append(from).toString();
+    }
+
+    /** The slots of an embedded value of {@code type}, as {@link #embeddedColumns} names its columns. */
+    private static List<String> embeddedSlots(String type, boolean[] zonedNanos, boolean zonedRegion) {
+        List<String> slotNames = new ArrayList<>(slotsOf(type, zonedNanos));
+        if (type.equals(ZONED_DATETIME) && zonedRegion) {
+            slotNames.add(ZONE_SLOT);
+        }
+        return slotNames;
+    }
+
+    private static String slotSqlType(String slot) {
+        return slot.equals(ZONE_SLOT) ? "VARCHAR(4000)" : slot.equals("date") ? "DATE"
+                : slot.equals("instant") ? "TIMESTAMP" : "BIGINT";
+    }
+
+    /** The provenance of {@code property}'s columns ({@code column} its scalar column, or each slot's). */
+    private static void provenance(String property, String column, String type, boolean[] zonedNanos,
+            boolean zonedRegion, List<Provenance> out) {
+        if (embeddedValue(type)) {
+            for (String slot : embeddedSlots(type, zonedNanos, zonedRegion)) {
+                out.add(new Provenance(column + "_" + slot.toLowerCase(Locale.ROOT), property, slot,
+                        slotSqlType(slot)));
+            }
+            return;
+        }
+        out.add(new Provenance(column, property, "", sqlType(type)));
     }
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
@@ -145,6 +288,16 @@ public final class CypherGraph {
             + " nanoseconds, timeOfDay];\n}\n";
 
     public static Inferred infer(CypherAnswers.Graph g) throws Unsupported {
+        return infer(g, Realization.DOMAIN);
+    }
+
+    public static Inferred infer(CypherAnswers.Graph g, Realization realization) throws Unsupported {
+        boolean nativeStore = realization == Realization.NATIVE;
+        // the native store's rows and views (the native realization's)
+        List<List<Object>> nodePropRows = new ArrayList<>();
+        List<List<Object>> relPropRows = new ArrayList<>();
+        List<String> views = new ArrayList<>();
+        List<String> viewNames = new ArrayList<>();
         Map<String, Cls> classes = new TreeMap<>();
         Map<Integer, Cls> classOfNode = new HashMap<>();
         Map<String, String> tableOwner = new HashMap<>();
@@ -373,6 +526,11 @@ public final class CypherGraph {
                 }
                 edgeClasses.append("}\n");
                 edgeDdl.put(t.table(), ddl.append(")\n").toString());
+                List<Provenance> edgeProvenance = new ArrayList<>();
+                for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
+                    provenance(p.getKey(), "p_" + p.getKey().toLowerCase(Locale.ROOT), p.getValue(), zonedNanos,
+                            zonedRegion, edgeProvenance);
+                }
                 List<List<Object>> rows = new ArrayList<>();
                 for (CypherAnswers.GraphRel r : t.rels) {
                     List<Object> row = new ArrayList<>();
@@ -389,8 +547,16 @@ public final class CypherGraph {
                                 ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text));
                     }
                     rows.add(row);
+                    if (nativeStore) {
+                        propRows((long) r.id(), row, 3, edgeProvenance, relPropRows);
+                    }
                 }
                 junctions.add(new SqlParity.Table(t.table(), columns, rows));
+                if (nativeStore) {
+                    viewNames.add(t.table());
+                    views.add(view(t.table(), "e.id AS id, e.src_id AS src_id, e.dst_id AS dst_id", "rel_props",
+                            "rel_id", edgeProvenance, ends(t)));
+                }
                 edgeMappings.append("    ").append(edge).append(": Relational\n    {\n        ~mainTable [g::DB] ")
                         .append(t.table()).append('\n').append(String.join(",\n", propertyMappings))
                         .append(propertyMappings.isEmpty() ? "" : "\n").append("    }\n");
@@ -430,7 +596,7 @@ public final class CypherGraph {
             String assoc = "g::R_" + t.name;
             String column = "r_" + t.sql;
             String target = src == dst ? "{target}." : dst.table + ".";
-            if (maxOut <= 1) {
+            if (maxOut <= 1 && !nativeStore) {
                 // the start node holds at most one end node: a foreign key on the start class's table
                 src.fkColumns.put(t.name, column);
                 src.ends.add(t.name + ": g::" + dst.name + "[0..1];");
@@ -448,7 +614,7 @@ public final class CypherGraph {
                 associationMappings.append("    ").append(assoc).append(": Relational { AssociationMapping ( ")
                         .append(t.name).append(": [g::DB]@").append(t.name).append(", ").append(in)
                         .append(": [g::DB]@").append(inJoin).append(" ) }\n");
-            } else if (maxIn <= 1) {
+            } else if (maxIn <= 1 && !nativeStore) {
                 // the end node holds at most one start node: a foreign key on the end class's table
                 String col = column + "_in";
                 dst.fkColumns.put(in, col);
@@ -479,6 +645,11 @@ public final class CypherGraph {
                 }
                 junctions.add(new SqlParity.Table(junction, List.of(new SqlParity.Column("src_id", "BIGINT"),
                         new SqlParity.Column("dst_id", "BIGINT")), rows));
+                if (nativeStore) {
+                    viewNames.add(junction);
+                    views.add(view(junction, "e.src_id AS src_id, e.dst_id AS dst_id", "rel_props", "rel_id",
+                            List.of(), ends(t)));
+                }
                 src.ends.add(t.name + ": g::" + dst.name + "[*];");
                 dst.ends.add(in + ": g::" + src.name + "[*];");
                 joins.append("    Join ").append(t.name).append("_a(").append(src.table).append(".id = ")
@@ -539,8 +710,10 @@ public final class CypherGraph {
             mapping.append("    g::").append(c.name).append(": Relational\n    {\n        ~mainTable [g::DB] ")
                     .append(c.table).append('\n');
             List<String> propertyMappings = new ArrayList<>();
+            List<Provenance> classProvenance = new ArrayList<>();
             for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                 String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
+                provenance(p.getKey(), column, p.getValue(), zonedNanos, zonedRegion, classProvenance);
                 pure.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
                 if (embeddedValue(p.getValue())) {
                     propertyMappings.add(embeddedColumns(p.getKey(), column, p.getValue(), c.table, zonedNanos,
@@ -592,8 +765,20 @@ public final class CypherGraph {
                     row.add(fk.get(column));
                 }
                 rows.add(row);
+                if (nativeStore) {
+                    propRows((long) n.id(), row, 1, classProvenance, nodePropRows);
+                }
             }
             tables.add(new SqlParity.Table(c.table, columns, rows));
+            if (nativeStore) {
+                viewNames.add(c.table);
+                // (a label among others is a marker class that holds no node of its own: a node of that label
+                // alone is its set's anonymous class's, as the domain realization holds it)
+                views.add(view(c.table, "e.id AS id", "node_props", "node_id", classProvenance,
+                        !c.anonymous && otherLabels.contains(c.name) ? "FROM nodes e WHERE 1 = 0"
+                        : "FROM nodes e WHERE e.labels = '" + labelText(c.anonymous ? c.supers : List.of(c.name))
+                        + "'"));
+            }
         }
         for (SqlParity.Table j : junctions) {
             if (j.columns().size() == 2) {
@@ -623,7 +808,32 @@ public final class CypherGraph {
                 + "###DataSpace\nDataSpace <<graph::graph.Open>> " + DATASPACE + "\n{\n  executionContexts:\n  [\n"
                 + "    {\n      name: 'default';\n      mapping: " + MAPPING + ";\n    }\n  ];\n"
                 + "  defaultExecutionContext: 'default';\n  elements: [ " + String.join(", ", scope) + " ];\n}\n";
-        return new Inferred(model, tables, graphKey(g));
+        if (!nativeStore) {
+            return new Inferred(model, tables, graphKey(g));
+        }
+        List<List<Object>> nodeRows = new ArrayList<>();
+        for (CypherAnswers.GraphNode n : g.nodes()) {
+            nodeRows.add(List.of((long) n.id(), labelText(n.labels())));
+        }
+        List<List<Object>> relRows = new ArrayList<>();
+        for (CypherAnswers.GraphRel r : g.rels()) {
+            relRows.add(List.of((long) r.id(), r.type(), (long) r.start(), (long) r.end()));
+        }
+        return new Inferred(model, tables, graphKey(g), new Native(List.of(
+                new SqlParity.Table("nodes", NODE_COLUMNS, nodeRows),
+                new SqlParity.Table("node_props", propColumns("node_id"), nodePropRows),
+                new SqlParity.Table("rels", REL_COLUMNS, relRows),
+                new SqlParity.Table("rel_props", propColumns("rel_id"), relPropRows)), views, viewNames));
+    }
+
+    /** The relationships of {@code t} over the native store: its type, between nodes of its two classes' label
+     *  sets (a type joining several pairs is one edge class per pair). */
+    private static String ends(RelType t) {
+        Cls src = java.util.Objects.requireNonNull(t.src);
+        Cls dst = java.util.Objects.requireNonNull(t.dst);
+        return "FROM rels e JOIN nodes s ON s.id = e.src_id JOIN nodes d ON d.id = e.dst_id WHERE e.type = '"
+                + t.name + "' AND s.labels = '" + labelText(src.anonymous ? src.supers : List.of(src.name))
+                + "' AND d.labels = '" + labelText(dst.anonymous ? dst.supers : List.of(dst.name)) + "'";
     }
 
     /** The class {@code name}, declared once: anonymous and extending {@code supers} as its first declaration says

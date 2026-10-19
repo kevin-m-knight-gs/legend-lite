@@ -1,8 +1,8 @@
 # Writes: one write layer, two kinds of graph (design sprint, 2026-10-18)
 
 **Status:** design agreed in conversation with the user on 2026-10-18 (§7 records each call). Legs 1 (the judge) and
-2 (L0 and L1, the store writes) landed on 2026-10-18 (§8). Leg 3 (a spike) decides the cost of the native store before
-its legs are planned in detail.
+2 (L0 and L1, the store writes) landed on 2026-10-18; leg 3 (the spike) answered on 2026-10-19: the native store is
+the class model over its own tables, contained work (§8).
 
 **Asked for:** writes for the `#Cypher{...}#` island, designed so that the Postgres `#SQL{...}#` island's DML (and
 GraphQL mutations later) land on the same layer, instead of each front end getting its own.
@@ -413,6 +413,38 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      execution; a bound parameter in a DML statement is refused by name, and the bound form comes with write plans
      (leg 7). In a query's plan (`TypedQuery.plan`), each write is refused by name.
 3. **The spike: the native store as a platform class model** (§4, L2'). It decides B's cost and its legs.
+   **Answered 2026-10-19: yes, contained work.**
+   - **How:** graph B is the domain realization's own class model, mapping and island, realized over the native
+     store's fixed tables through views. The views are the platform's over its own system tables (the world map's
+     tenet), and every one is a table the mapping already maps (`CypherGraph.Realization.NATIVE`,
+     `CypherGraph.Native`).
+   - **The layout, decided:** narrow rows, not one JSON column per node.
+     - `nodes (id, labels)`: the label set as one canonical text (`:A:B:`), so a class's view is one equality.
+     - `node_props (node_id, key, slot, v_int, v_float, v_str, v_bool, v_date, v_ts, v_time, v_json)`: one row
+       per property slot (a scalar's slot `''`; a duration's, a zoned or a nanosecond value's, its parts). Each
+       value sits in the column of its slot's type, with a scalar's JSON beside it for a property typed two ways.
+     - `rels (id, type, src_id, dst_id)` and `rel_props`, alike.
+     - Why: every Cypher write is then one of L1's four verbs over a row. A property set is a `merge` on (node, key,
+       slot), a removal a `delete`, a label change an `update` of `labels`, a create an insert. A JSON column would
+       need JSON-editing functions in every dialect.
+   - **Every relationship type is a junction** (or an edge class's bridge) in the views. A foreign key holds one
+     end, which writes would outgrow.
+   - **Measured** (`//core:cypher_parity_native_test`, DuckDB, the whole corpus): PASS 3989 against the domain lane's
+     3997 (a first run, 3981, found one view's mistake: a label among others is a marker class holding no node of
+     its own). The rest is the same but for:
+     - two refusals more (a deep pattern now fans out over a junction) and two fewer (a hop the domain graph held
+       in a foreign key reads over a junction);
+     - eight failures and one error from translator gaps over many-to-many associations, which the domain lane's
+       graphs (mostly foreign keys) did not exercise: a pattern comprehension's list over a hop that finds nothing is
+       `[null]`, not `[]`; two optional hops' columns.
+
+     The native lane has a ledger of its own (`cypher-parity/native-ledger.tsv`).
+   - **What it leaves for B's writes (leg 6):**
+     - staging: the rows in hand materialized once into a session temp table before each write clause, with the
+       ids the clause mints;
+     - the write-schema: the labels, keys and types a query's writes introduce, typed by the translator itself, so
+       the model has their classes and views;
+     - the clauses, each over the staged rows and the narrow tables.
 4. **`#SQL` DML** on L1, judged by Postgres 16.
 5. **L2 and Cypher on A:**
    - `CypherGraph`'s A schema from the pre-graph plus the query's typed writes (moved from leg 1);
@@ -424,6 +456,10 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
    - write plans in `ExecutionPlan`;
    - GraphQL mutations, once `#GQL{...}#` compiles;
    - Persistence-style ingest modes over `merge`.
+
+**The order since 2026-10-19 (the user: "keep going ... until we have all Cypher and TCK completely working end to
+end"):** 3, then 6 (the TCK's write cases judged on B, which writes through L1 alone), then 5 (A, which needs L2's
+inverse), then 4 (`#SQL` DML), then 7.
 
 **Expected end state:**
 - the TCK at 3878 of 3880 (all but the 2 signed years) on B;
