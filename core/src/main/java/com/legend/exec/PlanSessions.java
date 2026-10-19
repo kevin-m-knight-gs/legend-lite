@@ -215,4 +215,12 @@ public final class PlanSessions {
         SQLException un = RaisedErrors.unwrapped(e);
         return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
     }
+
+    /** {@link #dataError(SQLException)} for a statement that failed on {@code session}: a raise the session holds is
+     *  read back ({@link RaisedErrors#unwrapped(SQLException, Connection)}: MariaDB and MySQL keep a raise's text in
+     *  the session, their errors cannot carry it), as the legacy executor read it (step 9, 2026-10-19). */
+    static com.legend.error.DataError dataError(SQLException e, Connection session) {
+        SQLException un = RaisedErrors.unwrapped(e, session);
+        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+    }
 }
