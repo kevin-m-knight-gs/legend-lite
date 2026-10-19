@@ -11947,6 +11947,46 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-18 — Writes, leg 2: the store writes (L0 and L1) — the ninety-third landing
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §4 and §8 (leg 2). A query can now
+write a store table, and the database does the writing.
+- **The verbs:** upstream's `rel->write(#>{db.t}#)` is lowered for real (it only counted rows before), and three lite
+  natives stand beside it: `#>{db.t}#->delete(r | pred)`, `#>{db.t}#->update(r | pred, ~[c: r | expr])` and
+  `rel->merge(#>{db.t}#, ~[keys])`. Each is the database's statement (`INSERT ... SELECT`, `DELETE`, `UPDATE ... SET`,
+  `MERGE`), and its value is the database's update count.
+- **Typing:** `WriteChecker` types each against the table's columns by name (the design's "columns by name"; upstream
+  binds one `T` and aligns by position, SEMANTICS_REGISTER S89). A column a write names must be the table's, of its type
+  or both numeric; a set value holds at most one value; a merge's keys are columns of both. A nullable column may write
+  into a NOT NULL one: a null there is the database's error.
+- **The MIR and the dialects:** `SqlDml.InsertSelect`, `Update`, `DeleteWhere` and `Merge`, spelled by DuckDB, H2 and
+  Postgres in the standard forms measured on each (H2 has no `ON CONFLICT`, so the upsert is `MERGE` on all three);
+  every other dialect refuses each by name.
+- **Execution:** `StatementExecutor` runs a store write at the statement's root, beside the effect arms and not through
+  them (an effect reseeds the session, which would wipe the write); `Executor.executeUpdate` returns the count. A
+  program that writes a store (directly or through a user function) runs in one transaction (`Executor.inTransaction`):
+  its writes land together or not at all, and a transaction the caller opened is joined, not committed. In a query's
+  plan each write is refused by name; `renderStatement(SqlDml)` (bound parameters) waits for write plans (leg 7).
+- **Found on the way, fixed:** the rows a write inserts are named in its select (`SELECT *` is the database's column
+  order, which the store declaration need not be); a MERGE reads its source's columns as a query reads a derived
+  table's (Postgres folds a stored column's name).
+- **Guards, each with its dated justification:** `LITE_SURFACE` 4 → 7, `NOT_UPSTREAM_MAX` 56 → 59, the implementation
+  kinds' Form 219 → 222 (regenerated), `Executor.java`'s broad catch pinned at 1 (the transaction's rollback, which
+  rethrows); the native claims and `Pure.java`'s overload groups regenerated; the lite invention census.
+- **Tests:** `StoreWritesTest` (each statement run on DuckDB and H2, Postgres's text pinned and run on Postgres 16 by a
+  probe, every other dialect refusing); `StoreWritesExecutionTest` on DuckDB and H2 and `StoreWritesPostgresTest` on the
+  embedded Postgres 16 (its own target, in `//gates:core`): counts, column subsets, a failing write leaving the table,
+  a failing second write rolling back the first, a caller's transaction joined, a class query's rows, update, delete,
+  merge, a source whose physical column order differs from its declaration, the checker's refusals.
+- **Proof:** on the branch, merged with main 167018c4 (#57): `bazel test --lockfile_mode=error //gates:local`
+  (`--local_test_jobs=2`): 373 of 384 passed and 1 was skipped. Of the ten failures, nine start an embedded Postgres,
+  which refuses root; all nine pass under `tools/postgres/as_unprivileged.sh` (three after a full disk was cleared:
+  the Bazel disk cache and temporary extractions). The tenth, `//core:census`, found two things this leg had broken,
+  both fixed in 5c8e0be7 and the census green after: the shared store-write test named DuckDB and H2 (each database
+  now has its own test, as Postgres's had), and `StatementExecutor` grew past its Java-evaluation pin (2298 → 2329,
+  dated: dispatch and a transaction scope, nothing evaluated). `//core:guardrails`, `//spec:spec_tests` and the
+  generated-file checks green; the Cypher lanes unchanged (the island is untouched).
+
 ## 2026-10-18 — `#Cypher{...}#`: the ninety-second landing — writes, leg 1: the judge
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.94, the plan `docs/WRITES_DESIGN_2026_10_18.md`

@@ -2412,3 +2412,21 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   TCK table; a write case is judged in a transaction the harness rolls back, on its rows, the graph it left, its side
   effects and its control query. The island gained `elementId(x)` in a query (S76 amended), a null identity for an
   absent relationship, and no longer reads a Variant property as a relationship end. No file of another line.
+- **Landed on the branch, 2026-10-18: writes leg 2, the store writes** (GATES' ninety-third landing; the design's §8).
+  `rel->write(#>{db.t}#)` lowered for real, and lite's `delete`, `update` and `merge` over a store table, each the
+  database's statement, its value the update count, a program that writes in one transaction. Files of other lines,
+  as announced, with what differs:
+  - the database owner's: `sql/SqlDml.java` (the four records), `sql/dialect/AnsiSqlRenderer.java` (the base refuses
+    each by name; the standard spellings), `DuckDb.java`, `H2.java`, `Postgres.java` (opting in), `SQLite.java` and
+    `EngineStyleH2.java` (their switches' new arms delegate to the refusal). No `SqlDdl` identity column (leg 5's) and
+    no `renderStatement(SqlDml)` (deferred to write plans, leg 7: a DML statement runs as text);
+  - the execution seam: `exec/Executor.java` (`executeUpdate`, `inTransaction`; one transaction per PROGRAM, not per
+    statement) and `StatementExecutor.java` (the store-write arm, the transaction around a program that writes; no
+    separate `Execution.executeWrite`);
+  - the compiler's: `compiler/spec/WriteChecker.java`, `StatementEffects.java` (`isStoreWrite`, `writesStore`),
+    `Typer.java` (three routes), `typed/TypedSpec.java` (the `TypedStoreWrite` family), `platform/CoreFn.java`,
+    `builtin/Pure.java` (the natives, `LITE_SURFACE`), `resolver/StoreResolver.java` (a write's rows resolved),
+    `lowering/Lowerer.java` (`lowerStoreWrite`; no `LoweredStatement`), `lowering/CollectionLanes.java`;
+  - guards and generated files: the governance, not-upstream, implementation-kind, broad-catch and Java-evaluation
+    pins (each dated), the native claims, `core/BUILD.bazel` and `gates/BUILD.bazel` (`//core:store_writes_postgres_test`).
+  The `#SQL` island's DML is leg 4's, asked of the seventh line before it lands.
