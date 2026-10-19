@@ -1000,7 +1000,7 @@ class Document(Paged):
         unplaced['sheets'][0]['layout']['bands'] = []
         with self.assertRaisesRegex(ValueError, 'no sheet has a place for grid-1'):
             ll.Page.load(unplaced, frames={'trades': trades()})
-        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 4\)'):
+        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 5\)'):
             ll.Page.load({**doc, 'version': 99}, frames={'trades': trades()})
         twice = copy.deepcopy(doc)
         twice['sheets'].append({'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})

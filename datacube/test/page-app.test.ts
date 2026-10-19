@@ -741,6 +741,23 @@ describe('a dashboard\'s page filters (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md 
     assert.equal(page.undoLabel, before, 'no step of it');
   });
 
+  it('another editor\'s commands (the live channel): a grid they add with a filter opens filtered from its first query', async () => {
+    newPage();
+    page.addGrid(overClass(new Recording()));
+    await settle();
+    const doc = page.document('Q3')!;
+    const added = new Recording();
+    const grid = `grid-${page.cubes.length + 1}`;
+    await page.follow([
+      { kind: 'addGrid', id: grid, document: doc.cubes[0]!.cube, sheet: doc.sheets[0]!.id, near: null, title: null, columns: null },
+      { kind: 'setPageFilter', class: TRADE, condition: EMEA, from: null },
+    ], new Map([[grid, overClass(added)]]));
+    await settle();
+    assert.ok(added.plans.length > 0 && added.plans.every((p) => !p.includes('"function":"getAll"') || p.includes('"function":"filter"')),
+      'no query of it read the class unfiltered');
+    assert.deepEqual(page.filters.map((f) => f.id), ['filter-1']);
+  });
+
   it('a saved page reopened: each class grid opens filtered from its first query', async () => {
     newPage();
     page.addGrid(overClass(new Recording()));

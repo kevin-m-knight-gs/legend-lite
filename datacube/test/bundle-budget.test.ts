@@ -192,8 +192,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  in chart-spec.ts (a map reads a country's code or name; a bubble map's places, `at`) and the panel's routing to
  *  them; their drawing, shapes and ECharts are chunks of their own (MAPS_BUDGET). Measured 290,341.
  *  291,000 -> 292,000 (2026-10-18, batch 3's leftovers, the roadmap run's phase 7: a Marimekko's, a waffle's and a
- *  Gantt's rules and the database's layouts for them, calc-presets.ts, in the grid's chart rules). Measured 291,127. */
-const BUDGET = 292_000;
+ *  Gantt's rules and the database's layouts for them, calc-presets.ts, in the grid's chart rules). Measured 291,127.
+ *  292,000 -> 296,500 (2026-10-19, the model plan's step 3, dashboards on classes: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+ *  §16): the page's filters at startup -- their reader in the page document's (page-filters.ts), the page holding them
+ *  with their undo, each grid's lens on its queries (runner.ts lensed, cube.ts and app.ts setLens, its status bar's
+ *  readout), a chart's click taken as one -- and a class as a source (cube-document.ts, app/sources.ts openedClass). The
+ *  filter bar, the class source's rules and the page commands are chunks fetched with a page's first class grid or
+ *  filter. Measured 296,324; 297,275 before the bar and the class helper were made lazy. */
+const BUDGET = 296_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -231,8 +237,10 @@ const BUDGET = 292_000;
  *  date). Measured 278,735 before the phase's audit fixes.
  *  279,000 -> 280,000 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
  *  279,416.
- *  280,000 -> 281,000 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 280,228. */
-const ENGINE_BUDGET = 281_000;
+ *  280,000 -> 281,000 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 280,228.
+ *  281,000 -> 285,000 (2026-10-19, the model plan's step 3: the page's filters and a class as a source -- the grid's note
+ *  of the same date). Measured 284,804. */
+const ENGINE_BUDGET = 285_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -334,8 +342,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 296,208 before the phase's audit fixes.
  *  296,500 -> 297,500 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
  *  296,883.
- *  297,500 -> 298,500 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 297,692. */
-const WIDGET_BUDGET = 298_500;
+ *  297,500 -> 298,500 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 297,692.
+ *  298,500 -> 302,600 (2026-10-19, the model plan's step 3: the page's filters and a class as a source -- the grid's
+ *  note of the same date). Measured 302,450. */
+const WIDGET_BUDGET = 302_600;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

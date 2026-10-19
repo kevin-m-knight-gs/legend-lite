@@ -232,7 +232,11 @@ try {
   // A DASHBOARD'S TILE (§16.1): the grid made Trade gets Add a Grid over Trade -- the class read beside it at the page's
   // pin, its properties its columns, the same rows its table holds
   const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.dataset.column));
-  const rowsOf = async (tile) => Number((/([\d,]+) rows \u00d7/.exec((await tile.textContent()) ?? '')?.[1] ?? 'NaN').replace(/,/g, ''));
+  // a grid's own readout of its rows (its status bar's `40 rows × 4 cols in 3ms`), and a wait for it to say `n`
+  const rowsOf = async (tile) => Number((/^([\d,]+) rows/.exec((await tile.locator('.dc-status-rows').first().textContent()) ?? '')?.[1]
+    ?? 'NaN').replace(/,/g, ''));
+  const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText: new RegExp(`^${n} rows`) }).first()
+    .waitFor({ timeout: 30_000 }).catch(() => undefined);
   const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) }).first();
   await page.locator('.dc-tile-menu').nth(0).click();
   await item('Add a Grid over Trade').click();
@@ -242,7 +246,7 @@ try {
   check(JSON.stringify(await columnsOf(classTile)) === JSON.stringify(['tradeId', 'notional']),
     `the class's grid: its properties, under their own names (${await columnsOf(classTile)})`);
   const fileTile = tileWith('trade_id');
-  await page.waitForFunction(() => /40 rows/.test(document.body.textContent ?? ''), undefined, { timeout: 30_000 });
+  await untilRows(classTile, 40);
   check(await rowsOf(classTile) === 40, `it reads its table's 40 rows (${await rowsOf(classTile)})`);
 
   // THE PAGE'S FILTER (§16.2): set in the filter bar on the class's property, it filters the class's grid -- before its
@@ -254,8 +258,7 @@ try {
   await page.locator('.dc-page-filter-apply').click();
   await page.waitForFunction(() => document.querySelector('.dc-page-filter-words')?.textContent === 'Trade: notional > 2000',
     undefined, { timeout: 30_000 });
-  await page.waitForFunction(() => /21 rows/.test(document.body.textContent ?? ''), undefined, { timeout: 30_000 })
-    .catch(() => undefined);
+  await untilRows(classTile, 21);
   check(await rowsOf(classTile) === 21 && await rowsOf(fileTile) === 40,
     `the class's grid filtered (${await rowsOf(classTile)} of 40 rows), the file's not (${await rowsOf(fileTile)})`);
   check((await page.locator('.dc-page-filter-reach').textContent()) === '1 grid', 'the bar says what it reaches');
@@ -265,7 +268,9 @@ try {
   // SAVED AND OPENED AGAIN: the class's grid reopened at the revision it was read at, the page's filter on it again
   await page.click('.dc-titlebar-menu');
   await item('Save').click();
-  await page.waitForFunction(() => !document.title.startsWith('\u2022'), undefined, { timeout: 30_000 });
+  await page.locator('.dc-save').waitFor({ timeout: 10_000 });
+  await page.locator('.dc-save-foot .dc-primary').click();
+  await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
   await page.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await page.click('.dc-titlebar-menu');
@@ -285,8 +290,7 @@ try {
   await page.waitForFunction(() => document.querySelector('.dc-page-filter-words')?.textContent === 'Trade: notional > 2000',
     undefined, { timeout: 30_000 }).then(() => check(true, 'reopened: the page\'s filter is back in its bar'),
     () => bad('reopened: the page\'s filter is not in its bar'));
-  await page.waitForFunction(() => /21 rows/.test(document.body.textContent ?? ''), undefined, { timeout: 30_000 })
-    .catch(() => undefined);
+  await untilRows(tileWith('tradeId'), 21);
   check(await rowsOf(tileWith('tradeId')) === 21, `reopened: the class's grid filtered again (${await rowsOf(tileWith('tradeId'))} rows)`);
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or other alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);

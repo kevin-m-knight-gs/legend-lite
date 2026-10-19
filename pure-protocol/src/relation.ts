@@ -84,6 +84,17 @@ export function over(partition: readonly string[], sort: readonly AppliedFunctio
 
 export type JoinKind = 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
 
+// ---- objects as rows ----
+
+/**
+ * `instances->project(~[name: x|$x.p, ...])`: a class's instances (`Trade.all()`, filtered or not) as a relation, a
+ * column per lambda -- the Relation API's project of objects (legend-engine's `meta::pure::functions::relation::project`,
+ * its columns a colSpec array), never TDS's project of lambdas and names.
+ */
+export function projectObjects(instances: ValueSpecification, columns: readonly ColSpec[]): Relation {
+  return new Relation(fn('project', instances, colSpecs(columns)));
+}
+
 // ---- the chain ----
 
 /** A relation, being built. Every method returns a new one. */

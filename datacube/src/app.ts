@@ -438,7 +438,8 @@ export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
   readonly #controller: CubeController;
-  /** The page's filters on it, in words (setLens): said in its status bar. */
+  /** The page's filters on it (setLens), and in words: said in its status bar. */
+  #lens: QueryLens | undefined;
   #lensSaid: string | undefined;
   readonly #grid: DataGrid;
   readonly #pivots: PivotPanel;
@@ -892,6 +893,7 @@ export class CubeApp {
    */
   async setLens(lens: QueryLens | undefined, run: boolean, said?: string): Promise<void> {
     this.#controller.setLens(lens);
+    this.#lens = lens;
     // what filters it, said in its status bar beside its own filter: a page's filter is not the grid's own
     this.#lensSaid = lens ? said : undefined;
     if (run) await this.#owner.refresh();
@@ -2741,7 +2743,7 @@ export class CubeApp {
         const source: CubeAppQuerySource = o.runner
           ? { runner: o.runner }
           : { engine: o.engine, planner: o.planner, ...(o.live ? { live: o.live } : {}) };
-        return new CubeApp(host, snapshot, {
+        const grid = new CubeApp(host, snapshot, {
           ...source,
           ...(o.snapTarget ? { snapTarget: o.snapTarget } : {}),
           ...(o.hostSnap ? { hostSnap: o.hostSnap } : {}),
@@ -2766,6 +2768,9 @@ export class CubeApp {
           ...(spawned?.exportPage ? { exportPage: spawned.exportPage } : {}),
           ...(spawned?.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
         });
+        // it reads its rows as this grid does: the page's filters on this grid's class too (Open in Grid's chart)
+        if (this.#lens) void grid.setLens(this.#lens, false, this.#lensSaid);
+        return grid;
       },
     };
   }

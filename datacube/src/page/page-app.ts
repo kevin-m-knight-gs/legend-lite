@@ -32,7 +32,7 @@ import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import { filtersFor, pageToJson, writePageOf, type PageDocument, type PageView, type PageViews } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
-import { PageFilterBar, type BarClass } from '../ui/page-filter-bar.ts';
+import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
 import type { FilterNode } from '../snapshot.ts';
 import type { PageCommand, PageDraft } from '../page-commands.ts';
@@ -169,7 +169,11 @@ export class PageApp {
   readonly #lensKeys = new Map<string, string>();
   /** The views of a page being restored: whose chart a click filter came from, before the charts are on the board. */
   #restoring: readonly PageView[] | undefined;
-  readonly #filterBar: PageFilterBar;
+  /** The filter bar's place, below the page's bar; the bar itself fetched with a page's first class grid or filter
+   *  (ui/page-filter-bar.ts: a grid-only page never downloads it). */
+  readonly #filterSlot: HTMLElement;
+  #filterBar: PageFilterBar | undefined;
+  #filterBarLoading = false;
 
   constructor(options: PageAppOptions) {
     this.#options = options;
@@ -248,11 +252,10 @@ export class PageApp {
     this.#empty = doc.createElement('div');
     this.#empty.className = 'dc-page-empty';
     this.#emptySheet = this.#newEmptySheet();
-    this.#filterBar = new PageFilterBar(doc, {
-      remove: (id) => void this.removeFilter(id).catch((e: unknown) => this.#refused(e)),
-      add: (cls, condition) => void this.setFilter({ class: cls, condition }).catch((e: unknown) => this.#refused(e)),
-    });
-    root.append(bar, this.#filterBar.element, this.#boardHost, this.#emptySheet, this.#empty);
+    this.#filterSlot = doc.createElement('div');
+    this.#filterSlot.className = 'dc-page-filters';
+    this.#filterSlot.hidden = true;
+    root.append(bar, this.#filterSlot, this.#boardHost, this.#emptySheet, this.#empty);
     options.host.replaceChildren(root);
     this.#root = root;
     this.#menu = new MenuView(doc, {
@@ -788,6 +791,9 @@ export class PageApp {
     const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
     // its name too (a page renamed in Python): the host reads it back (`title`)
     if (to.name !== from.name) this.setTitle(to.name);
+    // its filters as the editor's commands leave them: a grid they add opens with them
+    this.#filters = to.filters ?? [];
+    this.#restoring = to.views;
     this.#syncing = true;
     try {
       this.#page.sync(views(to), views(from), (grid) => {
@@ -796,9 +802,8 @@ export class PageApp {
       });
     } finally {
       this.#syncing = false;
+      this.#restoring = undefined;
     }
-    // its filters as the editor's commands leave them, on every grid they reach
-    this.#filters = to.filters ?? [];
     this.#applyLenses();
     this.#state = new PageState(this.#seen());
     this.#paintSheets();
@@ -812,14 +817,16 @@ export class PageApp {
     const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
     if (!step) return;
     const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
+    // the page's filters as the step has them: a grid it makes again opens with them
+    this.#filters = step.draft.page.filters ?? [];
+    this.#restoring = step.draft.page.views;
     this.#syncing = true;
     try {
       this.#page.sync(views(step.draft.page), views(from), (grid) => this.#remake(grid));
     } finally {
       this.#syncing = false;
+      this.#restoring = undefined;
     }
-    // the page's filters as the step has them, on every grid they reach
-    this.#filters = step.draft.page.filters ?? [];
     this.#applyLenses();
     // the screen is the page: what it now shows is the state's (a grid made again writes its own cube)
     this.#state.keep(this.#seen());
@@ -956,11 +963,30 @@ export class PageApp {
       for (const f of lens.taken) reach.get(f)!.tiles += 1;
       for (const r of lens.refused) reach.get(r.id)?.not.push(`not ${this.#page.title(id) ?? id} (${r.why})`);
     }
-    this.#filterBar.render(this.#filters.map((f) => {
+    const shown: BarFilter[] = this.#filters.map((f) => {
       const r = reach.get(f.id)!;
       const tiles = `${r.tiles} ${r.tiles === 1 ? 'grid' : 'grids'}`;
       return { id: f.id, words: filterWords(f), reach: r.not.length > 0 ? `${tiles}; ${r.not.join('; ')}` : tiles, fromChart: f.from !== undefined };
-    }), [...classes.values()]);
+    });
+    if (this.#filterBar) {
+      this.#filterBar.render(shown, [...classes.values()]);
+      return;
+    }
+    // no bar yet, and none needed: a page with no class grid and no filter
+    if (shown.length === 0 && classes.size === 0) return;
+    if (this.#filterBarLoading) return;
+    this.#filterBarLoading = true;
+    void import('../ui/page-filter-bar.ts').then(({ PageFilterBar: Bar }) => {
+      if (this.#disposed) return;
+      const made = new Bar(this.#doc, {
+        remove: (id) => void this.removeFilter(id).catch((e: unknown) => this.#refused(e)),
+        add: (cls, condition) => void this.setFilter({ class: cls, condition }).catch((e: unknown) => this.#refused(e)),
+      });
+      this.#filterSlot.replaceWith(made.element);
+      this.#filterBar = made;
+      // painted as the page is now, which may have moved on while the bar was fetched
+      this.#paintFilters();
+    });
   }
 
   /**

@@ -29,7 +29,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
-import { classAt, type PageModelRef } from '../page-model.ts';
+import type { PageModelRef } from '../page-model.ts';
 import { classLambda, duplicateLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
@@ -1103,7 +1103,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     createClass = (grid, place, cube) => {
       void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
     };
-    classGrid = (cube) => {
+    // only where the page plans and runs its own SQL (the tab): a page another editor serves (Python's) holds no grid
+    // over a class until its pages can follow one (the model plan's step 3b)
+    if (services.engine.local) classGrid = (cube) => {
       const model = current.model;
       const cls = cube === undefined ? undefined : model?.classes?.[cube];
       const writing = services.engine.modelWriting;
@@ -1111,6 +1113,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       void (async () => {
         // the class at the page's pin, through the place's runtime: the tables its store names are the page's own
         // what it leaves out is said when it is saved and opened again, as an added source's is
+        const { classAt } = await import('../class-source.ts');
         const opened = await sources.openedClass(classAt(model, cls, writing.place), undefined, gridCapped(page.cubes.length + 1));
         page.addGrid(opened.make, { near: cube! });
       })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));

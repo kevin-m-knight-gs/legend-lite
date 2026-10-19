@@ -5,8 +5,9 @@
 // host's compiler gives them (`reading.elements`), never from a name's look. No DOM, no planner: tested alone.
 
 import {
-  colSpecs, derive, element, fn, isIdentifier, lambda, property, variable, type Lambda, type ValueSpecification,
+  derive, element, fn, isIdentifier, lambda, projectObjects, property, variable, type Lambda, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import type { PageModelRef } from './page-model.ts';
 
 /** Where a class is read (cube-document.ts ClassSource, without what it shows): its project at a revision, through its
  *  mapping and runtime. */
@@ -17,6 +18,20 @@ export interface ClassAt {
   readonly revision: string;
   readonly mapping: string;
   readonly runtime: string;
+}
+
+/**
+ * Where a class of the page's model is read (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.1): the page's project at its
+ * pin, through what the writer makes beside every class -- the model's mapping, `<pkg>::mapping::Model`, and the place's
+ * runtime, `<pkg>::runtime::<Place>` (core's CreateClass: the layout model-actions.ts reads a project's facts through).
+ * Refused while the page's model has no saved revision.
+ */
+export function classAt(ref: PageModelRef, cls: string, place: string): ClassAt {
+  if (ref.revision === undefined) throw new Error(`the page's project ${ref.project} has no saved revision yet: make its class again`);
+  return {
+    class: cls, project: ref.project, workspace: ref.workspace, revision: ref.revision,
+    mapping: `${ref.package}::mapping::Model`, runtime: `${ref.package}::runtime::${place}`,
+  };
 }
 
 /** A model element as the compiler gives it (PureModelContextData's): what a class source reads of one. */
@@ -89,7 +104,7 @@ export function classProperties(elements: readonly ClassElement[], cls: string):
 export function classRelation(cls: string, properties: readonly string[], where?: ValueSpecification): ValueSpecification {
   const all = fn('getAll', element(cls));
   const rows = where === undefined ? all : fn('filter', all, lambda(['x'], where));
-  return fn('project', rows, colSpecs(properties.map((p) => derive(p, lambda(['x'], property(variable('x'), p))))));
+  return projectObjects(rows, properties.map((p) => derive(p, lambda(['x'], property(variable('x'), p))))).node;
 }
 
 /** The class source's query as a lambda of no parameters: what the planner types and plans. */
