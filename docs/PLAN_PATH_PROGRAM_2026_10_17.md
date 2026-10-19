@@ -302,6 +302,17 @@ does not close while any of them has neither a fix nor a recorded ruling by the 
   Postgres' `row_to_json`, the others' measured when the arm lands), a render item per dialect; a lane whose database
   has none pins them by name (the engine refuses every pivot on H2, S80). The cast form is not residue: it answers
   on every dialect since 2026-10-19 (S83).
+- **A declared SERVER connection opened by the plan's runner with its credentials** (found 2026-10-19 by the server
+  lanes: `Sessions.openingFor` admits no credential -- every authentication but `NoAuth`, `DefaultH2` and `TestAuth`
+  is refused by name -- and has no opening for Trino, ClickHouse, Snowflake, Databricks or BigQuery, so a plan on
+  such a database has no session of its own, and on Postgres, MariaDB and MySQL the driver logs in as the OS user).
+  The PCT runs a server lane's plan on the harness's own session meanwhile (`PctBackend.planSessions`, as the legacy
+  route did), which judges everything but the opening. Resolved by legend-engine's own form: the connection's
+  authentication (`UserNamePassword` with vault references, `ApiToken`, `SnowflakePublic`,
+  `GCPApplicationDefaultCredentials`) resolved through a vault the host configures (properties, environment, a
+  secrets service), the driver properties built from it, and an `Opening.Url` arm per server type from its
+  specification; the MongoDB connector's vault reference for its password is the one precedent. A product item of
+  the database owner, before a user's plan runs on a server.
 
 **What never goes through a plan, and should not**: compiling a model, the language server, diagrams, tests that
 assert a compile error, the corpus buckets that exercise the engine's own machinery (routing internals,

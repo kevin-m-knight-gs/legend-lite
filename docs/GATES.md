@@ -10679,13 +10679,24 @@ current schema for a temporary table (the runtime connection's `schema` property
 (`EnableSession=1` on the runtime connection); MySQL reads a temporary table once per query ("Can't reopen table"),
 so a self-joining metamodel query fails there by that message, as before.
 
+**The plan's session on a server lane, the harness's (the same landing).** The server lanes found the platform opens
+a declared server connection with no credential (`Sessions.openingFor`: `auth: Test` names no user, every other
+authentication refused by name, no opening for Trino, ClickHouse or the clouds), so the driver logged in as the OS user
+(MySQL 8.4: refused; Postgres: "role does not exist") or not at all; two siblings had worked around it in two ways.
+One rule now, `PctBackend.planSessions`: a server lane's plan runs on the harness's own session, a new one per plan from
+the lane's `openSystem` (ClickHouse's HTTP session, Snowflake's schema, BigQuery's session: what a session's own
+tables need), checked by the runner against the target and given its session statements; an in-process lane's and
+MongoDB's plans keep the plan's own; a plan with setup on a server lane is refused by name as before. The platform's
+item, a declared server connection opened with its credentials through a vault, is the program's §7 residue.
+
 **Verdicts (2026-10-19):** `PlanMakerTest.theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer`
 (DuckDB: the setup form, run, `value:Boolean[1]\nfalse`; Postgres: the session's temporary table and its INSERT, the
 query reading `metamodel_classes`, no setup, the plan round-tripping; Trino refused by name);
 `//core:core_tests_root`, `_architecture`, `_exec`, `_integration` pass; `//pct:pct_duckdb_grammar` passes (`testBasic`
 on DuckDB as it was). **A real server, here:** `//pct:pct_mariadb_grammar` 134 of 137 with `testBasic` passing on the
-embedded MariaDB through the session's temporary tables; the three failures are the namesake (S82) and the two the
-MariaDB sibling fixed in its lane the same day (the raise read back by the plan runner, a JSON null member). The
+embedded MariaDB through the session's temporary tables, on the plan's own session and again on the harness's; the
+three failures are the namesake (S82) and the two the MariaDB sibling fixed in its lane the same day (the raise read
+back by the plan runner, a JSON null member). The
 siblings' other server lanes judge the rest at the merge (each pinned `testBasic` by the refusal; the merge removes
 the pins).
 
