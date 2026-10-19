@@ -1204,7 +1204,11 @@ public final class SQLite extends AnsiSqlRenderer {
             return writer.expr(v, 0);
         }
         if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
-            return writer.piece(asText(v));
+            // a big integer's text raises past 64 bits, as its root column does (deliveredValue): the plan route's
+            // root is the TDS text, which spells the value through this cast (step 9, 2026-10-19: the overflow's
+            // REAL had crossed as '9.22337203685478e+18')
+            return writer.piece(asText(typeOf(v) == SqlType.Scalar.HUGEINT ? deliveredValue(v, SqlType.Scalar.HUGEINT)
+                    : v));
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
     }
@@ -1316,8 +1320,11 @@ public final class SQLite extends AnsiSqlRenderer {
         if (type instanceof SqlType.Decimal) {
             // a scale-0 decimal is an INTEGER or a REAL here: its text the value's own digits -- an integer's as one,
             // a REAL's shortest (the plan's scale-0 fact is not the value's: a Number column's is its integers')
-            return w -> w.append("(SELECT CASE typeof(__t.v) WHEN 'integer' THEN CAST(__t.v AS TEXT) ELSE " + SHORTEST
-                    + " END FROM (SELECT ").piece(value).append(" AS v) AS __t)");
+            // an integral REAL (a decimal cast here is round(CAST(x AS REAL), 0)) prints as DuckDB's DECIMAL(p, 0)
+            // does, its digits: 8->toDecimal() is '8', not '8.0' (step 9, 2026-10-19, the plan route's TDS text)
+            return w -> w.append("(SELECT CASE WHEN typeof(__t.v) = 'integer' THEN CAST(__t.v AS TEXT) WHEN typeof(__t.v)"
+                    + " = 'real' AND __t.v = round(__t.v) AND abs(__t.v) < 9.0e18 THEN CAST(CAST(__t.v AS INTEGER) AS"
+                    + " TEXT) ELSE " + SHORTEST + " END FROM (SELECT ").piece(value).append(" AS v) AS __t)");
         }
         return w -> w.append("CAST(").piece(value).append(" AS TEXT)");
     }
