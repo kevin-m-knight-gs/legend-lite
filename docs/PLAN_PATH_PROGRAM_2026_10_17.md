@@ -281,6 +281,20 @@ could: it drops the one and keeps the other) -- a null is kept, measured by the 
     `exec` guard reaches zero (the boundary program's §8: `exec` depends only on `//base`, `//json`, the plan records and
     `java.sql`).
 
+**Step 9's named residue, each with its exit (2026-10-19).** A residue pinned by name is loud both ways (the pin fails
+when the test passes or its message moves) but can sit; so each one names the step that resolves it, and step 11
+does not close while any of them has neither a fix nor a recorded ruling by the user:
+- **S82, a type value's namesake** (`testLetChainedWithAnotherFunction`): resolved by the path convention -- a type
+  value carries its path on the wire, every printer takes the name, equality compares paths (a namesake equality
+  bug today) -- landed with the corpus on plans (steps 8 and 10), where its fifteen comparing bodies judge it.
+- **S81, a heterogeneous class collection** (`testConcatenateTypeInference`): resolved by the instance carrier --
+  the class riding every JSON-carried instance (`__type`) and a layout-driven speller from JSON dispatching on it
+  over the ancestor's subclasses -- when a corpus body or a user needs it; else a recorded ruling that it stays.
+- **A Float literal beyond a double** (`testBigFloatAbs`): the value lane keeping a DECIMAL slot exact under a Float
+  root; the judges' numeric canon decides whether it lands or is ruled engine parity (the engine's adapters pin it).
+- **The inverse trigonometric NaN** (`testArcSineError`, `testArcCosineError`): engine parity (its relational
+  adapters ledger both; H2 answers NaN); stays unless ruled otherwise.
+
 **What never goes through a plan, and should not**: compiling a model, the language server, diagrams, tests that
 assert a compile error, the corpus buckets that exercise the engine's own machinery (routing internals,
 pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity tests.
