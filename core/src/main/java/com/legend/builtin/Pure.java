@@ -468,6 +468,12 @@ public final class Pure {
          *  the database's recursive common table expression ({@code WITH RECURSIVE}, UNION ALL). The step's relation
          *  has the base's columns. Emitted by the Cypher translator only. */
         public static final String RECURSE = PKG + "recurse";
+        /** Rows computed once and held (2026-10-19, the Cypher island's writes, docs/WRITES_DESIGN_2026_10_18.md
+         *  §8, leg 6): {@code let s = rows->stage()} computes {@code rows} at that statement's turn into a temporary
+         *  table of the session, and every statement after it reads the table, so the writes between read the rows
+         *  as they were (a statement that writes changes what a recomputed query finds). Types as its relation;
+         *  a let's value only. Emitted by the Cypher translator only. */
+        public static final String STAGE = PKG + "stage";
         /** ASOR store-object-reference readers (batch 72b): the pk value
          *  at position i of a reference (typed by the resolver as the pk
          *  column's type), and the engine's decode-to-pkMap JSON over a
@@ -581,7 +587,7 @@ public final class Pure {
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
-                    Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN,
+                    Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.STAGE, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN,
                     Lite.LOCAL_IN,
                     Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT)
                     .map(Pure::liteLocalName)
@@ -892,6 +898,8 @@ public final class Pure {
     /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous
      *  round's, until a round yields none (the Cypher island's unbounded variable-length patterns, 2026-10-17). */
     public static final NativeFunctionDefinition RECURSE__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::recurse<T>(base:meta::pure::metamodel::relation::Relation<T>[1], step:meta::pure::metamodel::function::Function<{meta::pure::metamodel::relation::Relation<T>[1]->meta::pure::metamodel::relation::Relation<T>[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+    /** Rows computed once into a temporary table of the session and read from it after ({@link Lite#STAGE}). */
+    public static final NativeFunctionDefinition STAGE__RELATION_1 = signature("native function meta::legend::lite::stage<T>(rows:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
 
     /** The store writes ({@link Lite#DELETE}, {@link Lite#UPDATE}, {@link Lite#MERGE}; 2026-10-18, the writes design's
      *  L1): each over a store table's accessor, its value the rows the database affected. */
@@ -2480,6 +2488,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_STAGE = com.legend.model.FunctionId.ofAll(STAGE__RELATION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(TIME_OF_TEXT__STRING_0_1);

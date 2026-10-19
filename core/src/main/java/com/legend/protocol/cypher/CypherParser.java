@@ -536,12 +536,13 @@ public final class CypherParser {
         if (peek().is(Type.PERCENT)) {
             throw CypherErrors.unsupported("a label expression (|, &, !, %) is not supported yet", pos);
         }
-        Map<String, Expr> properties = peek().is(Type.LBRACE) ? mapLiteral().entries() : Map.of();
+        boolean mapped = peek().is(Type.LBRACE);
+        Map<String, Expr> properties = mapped ? mapLiteral().entries() : Map.of();
         if (atWord("WHERE")) {
             throw CypherErrors.unsupported("a WHERE inside a node pattern is not supported yet", pos);
         }
         expect(Type.RPAREN, "')'");
-        return new NodePattern(variable, labels, properties, pos);
+        return new NodePattern(variable, labels, properties, pos, mapped);
     }
 
     private String labelName() {

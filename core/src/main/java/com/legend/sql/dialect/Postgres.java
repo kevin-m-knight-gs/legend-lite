@@ -2491,4 +2491,12 @@ public final class Postgres extends AnsiSqlRenderer {
     protected String merge(com.legend.sql.SqlDml.Merge m) {
         return standardMerge(m);
     }
+
+    /** {@inheritDoc} Postgres 16 runs the standard spelling (the Cypher island's staged rows, the writes design's
+     *  leg 6, measured 2026-10-19 on the embedded Postgres 16): a temporary table of the session, inside the
+     *  statement's transaction, so a rollback takes it back. */
+    @Override
+    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct);
+    }
 }

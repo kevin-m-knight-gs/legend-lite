@@ -94,6 +94,21 @@ public final class CypherGraph {
         return sorted.isEmpty() ? ":" : ":" + String.join(":", sorted) + ":";
     }
 
+    /** The test that a native store's label-set text ({@code column}) is the set {@code labels}: each label's
+     *  {@code :L:} in it and its length the set's text's, so a text the island wrote in another order (a label set
+     *  appends, the writes design's §8 leg 6) is the same set; no label is {@code :}. */
+    static String labelTest(String column, java.util.Collection<String> labels) {
+        java.util.TreeSet<String> sorted = new java.util.TreeSet<>(labels);
+        if (sorted.isEmpty()) {
+            return column + " = ':'";
+        }
+        StringBuilder test = new StringBuilder();
+        for (String l : sorted) {
+            test.append(column).append(" LIKE '%:").append(l.replace("'", "''")).append(":%' AND ");
+        }
+        return test.append("length(").append(column).append(") = ").append(labelText(sorted).length()).toString();
+    }
+
     /** The native store's tables, by their declared columns. */
     private static final List<SqlParity.Column> NODE_COLUMNS = List.of(new SqlParity.Column("id", "BIGINT"),
             new SqlParity.Column("labels", "VARCHAR(4000)"));
@@ -245,6 +260,9 @@ public final class CypherGraph {
         final Map<String, String> propertyTypes = new TreeMap<>();
         /** 0 for the one pair of its type; 1, 2, ... for a type joining several pairs (always edge classes). */
         int pair;
+        /** Held by the native store, where a relationship is a row of its own and so has an identity of its own:
+         *  always an edge class (the writes design's §8, leg 6: a write names the relationship it writes). */
+        boolean ownRow;
 
         RelType(String name, String sql, Cls src, Cls dst) {
             this.name = name;
@@ -254,7 +272,7 @@ public final class CypherGraph {
         }
 
         boolean edge() {
-            return !propertyTypes.isEmpty() || pair > 0;
+            return !propertyTypes.isEmpty() || pair > 0 || ownRow;
         }
 
         /** The type's name with the pair's number: what the edge class, its table, its ends and joins are named by,
@@ -284,8 +302,17 @@ public final class CypherGraph {
     private static final String RELATIONSHIP_TYPE = "g::RelationshipType";
 
     /** The property-graph profile, as projects/graph/model.pure declares it (inlined: the model is one text). */
-    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Anonymous, Edge, Open, from, to, type,"
-            + " nanoseconds, timeOfDay];\n}\n";
+    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Anonymous, Edge, Open, Native, from,"
+            + " to, type, nanoseconds, timeOfDay];\n}\n";
+
+    /** The native store's tables as the model's database declares them (the island writes them: the writes
+     *  design's §8, leg 6), in the model's column types. */
+    private static final String NATIVE_DDL = "    Table nodes (id BIGINT PRIMARY KEY, labels VARCHAR(4000))\n"
+            + "    Table node_props (node_id BIGINT, key VARCHAR(4000), slot VARCHAR(4000), v_int BIGINT, v_float DOUBLE,"
+            + " v_str VARCHAR(4000), v_bool BIT, v_date DATE, v_ts TIMESTAMP, v_time TIME, v_json SEMISTRUCTURED)\n"
+            + "    Table rels (id BIGINT PRIMARY KEY, type VARCHAR(4000), src_id BIGINT, dst_id BIGINT)\n"
+            + "    Table rel_props (rel_id BIGINT, key VARCHAR(4000), slot VARCHAR(4000), v_int BIGINT, v_float DOUBLE,"
+            + " v_str VARCHAR(4000), v_bool BIT, v_date DATE, v_ts TIMESTAMP, v_time TIME, v_json SEMISTRUCTURED)\n";
 
     public static Inferred infer(CypherAnswers.Graph g) throws Unsupported {
         return infer(g, Realization.DOMAIN);
@@ -411,6 +438,7 @@ public final class CypherGraph {
             // (one entry per class pair the type joins, in the order the pairs appear)
             RelType t = types.computeIfAbsent(r.type() + "|" + src.name + "|" + dst.name,
                     k -> new RelType(r.type(), sql, src, dst));
+            t.ownRow = nativeStore;
             t.rels.add(r);
             for (Map.Entry<String, String> p : r.props().entrySet()) {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {
@@ -776,8 +804,7 @@ public final class CypherGraph {
                 // alone is its set's anonymous class's, as the domain realization holds it)
                 views.add(view(c.table, "e.id AS id", "node_props", "node_id", classProvenance,
                         !c.anonymous && otherLabels.contains(c.name) ? "FROM nodes e WHERE 1 = 0"
-                        : "FROM nodes e WHERE e.labels = '" + labelText(c.anonymous ? c.supers : List.of(c.name))
-                        + "'"));
+                        : "FROM nodes e WHERE " + labelTest("e.labels", c.anonymous ? c.supers : List.of(c.name))));
             }
         }
         for (SqlParity.Table j : junctions) {
@@ -801,11 +828,18 @@ public final class CypherGraph {
         scope.add(LOCAL_DATETIME_PARTS);
         scope.add(LOCAL_TIME_PARTS);
         java.util.Collections.sort(scope);
+        if (nativeStore) {
+            // (the native store's own tables, which the island writes, and the graph marked native: its store among
+            // its elements, the writes design's §3 B)
+            tablesDdl.append(NATIVE_DDL);
+            scope.add(DATABASE);
+        }
         String model = pure + associations.toString() + "###Relational\nDatabase " + DATABASE + "\n(\n" + tablesDdl
                 + joins + ")\n###Mapping\nMapping " + MAPPING + "\n(\n" + mapping + edgeMappings
                 + associationMappings + ")\n"
                 // the graph (the study's §12.45): a DataSpace of every class, open as a Neo4j graph is
-                + "###DataSpace\nDataSpace <<graph::graph.Open>> " + DATASPACE + "\n{\n  executionContexts:\n  [\n"
+                + "###DataSpace\nDataSpace <<graph::graph.Open" + (nativeStore ? ", graph::graph.Native" : "") + ">> "
+                + DATASPACE + "\n{\n  executionContexts:\n  [\n"
                 + "    {\n      name: 'default';\n      mapping: " + MAPPING + ";\n    }\n  ];\n"
                 + "  defaultExecutionContext: 'default';\n  elements: [ " + String.join(", ", scope) + " ];\n}\n";
         if (!nativeStore) {
@@ -832,8 +866,8 @@ public final class CypherGraph {
         Cls src = java.util.Objects.requireNonNull(t.src);
         Cls dst = java.util.Objects.requireNonNull(t.dst);
         return "FROM rels e JOIN nodes s ON s.id = e.src_id JOIN nodes d ON d.id = e.dst_id WHERE e.type = '"
-                + t.name + "' AND s.labels = '" + labelText(src.anonymous ? src.supers : List.of(src.name))
-                + "' AND d.labels = '" + labelText(dst.anonymous ? dst.supers : List.of(dst.name)) + "'";
+                + t.name + "' AND " + labelTest("s.labels", src.anonymous ? src.supers : List.of(src.name))
+                + " AND " + labelTest("d.labels", dst.anonymous ? dst.supers : List.of(dst.name));
     }
 
     /** The class {@code name}, declared once: anonymous and extending {@code supers} as its first declaration says

@@ -299,6 +299,12 @@ public final class CypherParity {
         default void execute(String sql) throws Exception {
             throw new IllegalStateException("this lane runs no native realization: " + sql);
         }
+
+        /** The rows of one query of the harness's own on this lane's database: a native store's tables read after
+         *  a write ({@link #storeGraph}). */
+        default List<List<Object>> query(String sql) throws Exception {
+            throw new IllegalStateException("this lane runs no native realization: " + sql);
+        }
     }
 
     /** A decided case ({@code cypher-parity/decisions.tsv}) on one lane: the register row that decides it, and
@@ -444,7 +450,7 @@ public final class CypherParity {
             if (first != null) {
                 CypherAnswers.Answer a = java.util.Objects.requireNonNull(answers.get(first.key()));
                 try {
-                    before = readBack(model, lane);
+                    before = readBack(model, lane, realization == CypherGraph.Realization.NATIVE);
                     if (!sameGraph(before, Read.of(java.util.Objects.requireNonNull(a.graph())))) {
                         unread = "the graph read back through the island is not Neo4j's: " + before.describe()
                                 + ", Neo4j " + Read.of(a.graph()).describe();
@@ -459,7 +465,7 @@ public final class CypherParity {
             }
             for (Case c : e.getValue()) {
                 outcomes.put(c.key(), outcome(c, java.util.Objects.requireNonNull(answers.get(c.key())),
-                        decisions.get(c.key()), model, lane, before, unread));
+                        decisions.get(c.key()), model, lane, before, unread, realization, liveViews));
             }
         }
         return outcomes;
@@ -478,6 +484,15 @@ public final class CypherParity {
      *  it, null when it could not be read ({@code unread} says why). */
     public static SqlParity.Outcome outcome(Case c, CypherAnswers.Answer a, @com.legend.base.Nullable Decision decided,
             String model, Lane lane, @com.legend.base.Nullable Read before, @com.legend.base.Nullable String unread) {
+        return outcome(c, a, decided, model, lane, before, unread, CypherGraph.Realization.DOMAIN, List.of());
+    }
+
+    /** {@link #outcome} over a graph realized as {@code realization} says; over the native store, the graph a write
+     *  left is read back through a model of the store's own rows ({@link #storeGraph}: the writes design's §6, B's
+     *  model is its store's), the views {@code liveViews} names made again for it inside the case's transaction. */
+    public static SqlParity.Outcome outcome(Case c, CypherAnswers.Answer a, @com.legend.base.Nullable Decision decided,
+            String model, Lane lane, @com.legend.base.Nullable Read before, @com.legend.base.Nullable String unread,
+            CypherGraph.Realization realization, List<String> liveViews) {
         if (!c.procedures().isEmpty()) {
             return procedureOutcome(c, model + CypherGraph.procedures(c.procedures()), lane);
         }
@@ -497,7 +512,17 @@ public final class CypherParity {
             if (before == null) {
                 return new SqlParity.Outcome(SqlParity.Status.ERROR, "harness: " + unread);
             }
-            SqlParity.Outcome wrote = writeOutcome(c, a, model, lane, before);
+            String after = model;
+            if (realization == CypherGraph.Realization.NATIVE) {
+                try {
+                    after = storeModel(lane, liveViews);
+                } catch (Exception e) {
+                    return new SqlParity.Outcome(SqlParity.Status.ERROR, "harness: the model of the store after the"
+                            + " write: " + oneLine(e));
+                }
+            }
+            SqlParity.Outcome wrote = writeOutcome(c, a, after, lane, before,
+                    realization == CypherGraph.Realization.NATIVE);
             return wrote == null ? rows : wrote;
         } finally {
             try {
@@ -526,6 +551,14 @@ public final class CypherParity {
                     + " database raises, and lite answered rows");
         }
         SqlParity.Grid actual = SqlParity.grid(result);
+        if (a.columns() != null && a.columns().isEmpty() && !actual.columns().isEmpty()
+                && actual.columns().stream().allMatch(n -> n.startsWith(HIDDEN_COLUMN))) {
+            // a statement that ends in an update returns no column (Neo4j's); lite's relation holds one, hidden
+            // (docs/SEMANTICS_REGISTER.md: a relation has a column at least)
+            List<List<Object>> none = new ArrayList<>();
+            actual.rows().forEach(r -> none.add(List.of()));
+            actual = new SqlParity.Grid(List.of(), none);
+        }
         if (a.error() != null) {
             return new SqlParity.Outcome(SqlParity.Status.BUG, "Neo4j rejects it (" + a.error().code() + ": "
                     + a.error().message() + ") and legend-lite answered " + actual.rows().size() + " rows");
@@ -702,6 +735,11 @@ public final class CypherParity {
             return new Read(nodes, rels);
         }
 
+        /** The graph's size, for a verdict's message. */
+        public String size() {
+            return nodes.size() + " nodes, " + rels.size() + " relationships";
+        }
+
         /** The graph's elements, for a verdict's message: the first few nodes and relationships. */
         public String describe() {
             List<String> out = new ArrayList<>();
@@ -710,6 +748,84 @@ public final class CypherParity {
                     + "-" + CypherValues.text(r.rel()) + "->" + CypherValues.text(nodes.get(r.end()))));
             return nodes.size() + " nodes, " + rels.size() + " relationships " + out;
         }
+    }
+
+    /** The prefix of the island's own column names (CypherToPure's synthetic names): never a name Neo4j returns. */
+    private static final String HIDDEN_COLUMN = "_cypher_";
+
+    /** The graph a native store's tables hold (the writes design's §3 B): each node by its id, its labels (the label
+     *  set's text, {@code :A:B:}) and its properties (a row per slot, its value in the column of its type; a scalar
+     *  slot's value the property), each relationship alike; the values in the dump's grammar, so the model of the
+     *  store is inferred as a seeded graph's ({@link CypherGraph#infer}). A property of slots (a duration, a zoned or
+     *  a nanosecond value) is not read back yet. */
+    public static CypherAnswers.Graph storeGraph(Lane lane) throws Exception {
+        Map<Long, Map<String, String>> nodeProps = storeProps(lane, "node_props", "node_id");
+        Map<Long, Map<String, String>> relProps = storeProps(lane, "rel_props", "rel_id");
+        List<CypherAnswers.GraphNode> nodes = new ArrayList<>();
+        for (List<Object> row : lane.query("SELECT id, labels FROM nodes ORDER BY id")) {
+            long id = ((Number) row.get(0)).longValue();
+            List<String> labels = new ArrayList<>();
+            for (String l : String.valueOf(row.get(1)).split(":")) {
+                if (!l.isEmpty()) {
+                    labels.add(l);
+                }
+            }
+            nodes.add(new CypherAnswers.GraphNode(Math.toIntExact(id), labels, nodeProps.getOrDefault(id, Map.of())));
+        }
+        List<CypherAnswers.GraphRel> rels = new ArrayList<>();
+        for (List<Object> row : lane.query("SELECT id, type, src_id, dst_id FROM rels ORDER BY id")) {
+            long id = ((Number) row.get(0)).longValue();
+            rels.add(new CypherAnswers.GraphRel(Math.toIntExact(id), Math.toIntExact(((Number) row.get(2)).longValue()),
+                    Math.toIntExact(((Number) row.get(3)).longValue()), String.valueOf(row.get(1)),
+                    relProps.getOrDefault(id, Map.of())));
+        }
+        return new CypherAnswers.Graph(nodes, rels);
+    }
+
+    /** The scalar properties of a native store's property table, by owner, each value in the dump's grammar. */
+    private static Map<Long, Map<String, String>> storeProps(Lane lane, String table, String owner)
+            throws Exception {
+        Map<Long, Map<String, String>> out = new LinkedHashMap<>();
+        for (List<Object> row : lane.query("SELECT " + owner + ", key, slot, v_int, v_float, v_str, v_bool, v_date,"
+                + " v_ts, v_time, v_json FROM " + table + " ORDER BY " + owner + ", key")) {
+            if (!String.valueOf(row.get(2)).isEmpty()) {
+                throw new IllegalStateException("harness: a property of slots (" + row.get(1) + "." + row.get(2)
+                        + ") read back from the native store");
+            }
+            CypherValues.Value v = row.get(3) != null ? new CypherValues.Int(java.math.BigInteger.valueOf(
+                    ((Number) row.get(3)).longValue()))
+                    : row.get(4) != null ? new CypherValues.Flt(((Number) row.get(4)).doubleValue())
+                    : row.get(5) != null ? new CypherValues.Str(String.valueOf(row.get(5)))
+                    : row.get(6) != null ? new CypherValues.Bool((Boolean) row.get(6))
+                    : row.get(7) != null ? new CypherValues.Opaque("Date('" + row.get(7) + "')")
+                    : row.get(10) != null ? CypherValues.ofCell(row.get(10))
+                    : null;
+            if (v == null) {
+                throw new IllegalStateException("harness: a property of the native store holds no value it reads"
+                        + " back yet: " + row);
+            }
+            out.computeIfAbsent(((Number) row.get(0)).longValue(), k -> new java.util.TreeMap<>())
+                    .put(String.valueOf(row.get(1)), CypherValues.text(v));
+        }
+        return out;
+    }
+
+    /** The model of a native store's graph as its tables hold it now ({@link #storeGraph}), its views made again
+     *  for it (the ones {@code liveViews} names dropped first, the names added to it): the model a write's
+     *  graph is read back through. */
+    private static String storeModel(Lane lane, List<String> liveViews) throws Exception {
+        CypherGraph.Inferred inf = CypherGraph.infer(storeGraph(lane), CypherGraph.Realization.NATIVE);
+        CypherGraph.Native store = java.util.Objects.requireNonNull(inf.nativeStore());
+        for (String v : liveViews) {
+            lane.execute("DROP VIEW IF EXISTS " + v);
+        }
+        liveViews.clear();
+        for (int i = 0; i < store.views().size(); i++) {
+            lane.execute("DROP VIEW IF EXISTS " + store.viewNames().get(i));
+            lane.execute(store.views().get(i));
+            liveViews.add(store.viewNames().get(i));
+        }
+        return CypherGraph.model(inf, lane.connection());
     }
 
     /** The two queries the oracle dumps a graph by ({@code snap.py}, {@code dump}), run through the island. */
@@ -726,11 +842,18 @@ public final class CypherParity {
      *  class, keyed by its own row), so they are numbered by occurrence ({@code #2}, ...), and any pairing of them
      *  between two reads is the same. */
     public static Read readBack(String model, Lane lane) throws Exception {
+        return readBack(model, lane, false);
+    }
+
+    /** {@link #readBack}; {@code storeIds} reads each identity as the native store's id, what its elementId ends in
+     *  (an elementId is its class's path and its key, and a node's class is its label set's, which a write may
+     *  change: the store's id is the node's across them). */
+    public static Read readBack(String model, Lane lane, boolean storeIds) throws Exception {
         String use = "USE " + CypherGraph.DATASPACE + " ";
         Map<String, CypherValues.Node> nodes = new LinkedHashMap<>();
         for (var row : lane.run(model, "#Cypher{" + use + READ_NODES + "}#").rows()) {
             List<Object> v = row.values();
-            String id = String.valueOf(v.get(0));
+            String id = storeId(String.valueOf(v.get(0)), storeIds);
             java.util.TreeSet<String> labels = new java.util.TreeSet<>();
             for (CypherValues.Value l : ((CypherValues.Lst) CypherValues.ofCell(v.get(1))).items()) {
                 labels.add(((CypherValues.Str) l).value());
@@ -742,8 +865,8 @@ public final class CypherParity {
         Map<String, Edge> rels = new LinkedHashMap<>();
         for (var row : lane.run(model, "#Cypher{" + use + READ_RELS + "}#").rows()) {
             List<Object> v = row.values();
-            String id = String.valueOf(v.get(0));
-            Edge e = new Edge(String.valueOf(v.get(1)), String.valueOf(v.get(2)),
+            String id = storeId(String.valueOf(v.get(0)), storeIds);
+            Edge e = new Edge(storeId(String.valueOf(v.get(1)), storeIds), storeId(String.valueOf(v.get(2)), storeIds),
                     new CypherValues.Rel(String.valueOf(v.get(3)), props(v.get(4))));
             Edge first = rels.get(id);
             if (first != null && (!first.start().equals(e.start()) || !first.end().equals(e.end())
@@ -760,6 +883,11 @@ public final class CypherParity {
         return new Read(nodes, rels);
     }
 
+    /** An identity as read back: as the island spells it, or the native store's id it ends in. */
+    private static String storeId(String identity, boolean storeIds) {
+        return storeIds ? identity.substring(identity.lastIndexOf(':') + 1) : identity;
+    }
+
     /** A {@code properties(x)} cell as its entries, a null among them dropped (a stored null is no property). */
     private static Map<String, CypherValues.Value> props(@com.legend.base.Nullable Object cell) {
         Map<String, CypherValues.Value> out = new java.util.TreeMap<>();
@@ -769,6 +897,39 @@ public final class CypherParity {
             }
         });
         return out;
+    }
+
+    /** The first few of {@code x}'s nodes and relationships (by shape) that {@code y} has no match for. */
+    private static String alone(Read x, Read y) {
+        List<String> out = new ArrayList<>();
+        List<CypherValues.Value> left = new ArrayList<>(y.nodes().values());
+        for (CypherValues.Node n : x.nodes().values()) {
+            int i = indexOf(left, n);
+            if (i < 0) {
+                out.add(CypherValues.text(n));
+            } else {
+                left.remove(i);
+            }
+        }
+        left = new ArrayList<>(edges(y));
+        for (CypherValues.Value e : edges(x)) {
+            int i = indexOf(left, e);
+            if (i < 0) {
+                out.add(CypherValues.text(e));
+            } else {
+                left.remove(i);
+            }
+        }
+        return out.stream().limit(4).toList().toString();
+    }
+
+    private static int indexOf(List<CypherValues.Value> values, CypherValues.Value v) {
+        for (int i = 0; i < values.size(); i++) {
+            if (CypherValues.equal(v, values.get(i), false)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Whether two read graphs are the same graph by shape: the same bag of nodes (labels, properties), and the same
@@ -831,19 +992,20 @@ public final class CypherParity {
     /** A write's verdicts past its rows: the graph it left, read back through the island, against Neo4j's by shape;
      *  its side effects, lite's diff against Neo4j's; its control query's rows against Neo4j's. Null when all agree. */
     private static SqlParity.@com.legend.base.Nullable Outcome writeOutcome(Case c, CypherAnswers.Answer a,
-            String model, Lane lane, Read before) {
+            String model, Lane lane, Read before, boolean storeIds) {
         Read neoBefore = Read.of(java.util.Objects.requireNonNull(a.graph()));
         Read neoAfter = a.after() == null ? neoBefore : Read.of(a.after());
         Read after;
         try {
-            after = readBack(model, lane);
+            after = readBack(model, lane, storeIds);
         } catch (Exception | StackOverflowError e) {
             return new SqlParity.Outcome(SqlParity.Status.ERROR, "harness: the graph after the write could not be"
                     + " read back through the island: " + oneLine(e));
         }
         if (!sameGraph(after, neoAfter)) {
-            return new SqlParity.Outcome(SqlParity.Status.FAIL, "the graph after: Neo4j " + neoAfter.describe()
-                    + ", lite " + after.describe());
+            return new SqlParity.Outcome(SqlParity.Status.FAIL, "the graph after: Neo4j " + neoAfter.size()
+                    + ", lite " + after.size() + "; Neo4j's alone " + alone(neoAfter, after) + ", lite's alone "
+                    + alone(after, neoAfter));
         }
         Map<String, Integer> neo = sideEffects(neoBefore, neoAfter);
         Map<String, Integer> lite = sideEffects(before, after);

@@ -145,9 +145,15 @@ public final class CypherAst {
         Pos pos();
     }
 
-    /** {@code (v:Label1:Label2 {key: expr})}; labels as written, including a backticked one's text. */
+    /** {@code (v:Label1:Label2 {key: expr})}; labels as written, including a backticked one's text; {@code mapped}
+     *  when a property map is written, an empty one too ({@code (n {})}: a CREATE of a bound node with it is Neo4j's
+     *  error). */
     public record NodePattern(@com.legend.base.Nullable String variable, List<String> labels,
-            Map<String, Expr> properties, Pos pos) implements PatternElement {
+            Map<String, Expr> properties, Pos pos, boolean mapped) implements PatternElement {
+        public NodePattern(@com.legend.base.Nullable String variable, List<String> labels,
+                Map<String, Expr> properties, Pos pos) {
+            this(variable, labels, properties, pos, !properties.isEmpty());
+        }
     }
 
     public enum Direction { OUT, IN, BOTH }

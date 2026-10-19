@@ -43,6 +43,13 @@ class CypherParityNativeTest {
     void theCorpusReadsTheNativeStoreAsItReadsTheDomainTables() throws Exception {
         List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
                 Runfile.property("cypher.parity.lite").getParent());
+        // a development run over some of the cases (-Dcypher.parity.only=<a regex found in a case's key>): each
+        // case's outcome printed, the ledger not read
+        String only = System.getProperty("cypher.parity.only");
+        if (only != null) {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(only);
+            cases = cases.stream().filter(c -> p.matcher(c.key()).find()).toList();
+        }
         CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
         Map<String, CypherParity.Decision> decisions = CypherParity.decisions(
                 Runfile.property("cypher.parity.decisions"), "duckdb");
@@ -83,7 +90,27 @@ class CypherParityNativeTest {
                         s.execute(sql);
                     }
                 }
+
+                @Override
+                public List<List<Object>> query(String sql) throws Exception {
+                    List<List<Object>> rows = new ArrayList<>();
+                    try (Statement s = session.createStatement(); java.sql.ResultSet rs = s.executeQuery(sql)) {
+                        int n = rs.getMetaData().getColumnCount();
+                        while (rs.next()) {
+                            List<Object> row = new ArrayList<>();
+                            for (int i = 1; i <= n; i++) {
+                                row.add(rs.getObject(i));
+                            }
+                            rows.add(row);
+                        }
+                    }
+                    return rows;
+                }
             }, problems, CypherGraph.Realization.NATIVE);
+        }
+        if (only != null) {
+            outcomes.forEach((k, o) -> System.out.println(o.status() + "\t" + k + "\t" + o.detail()));
+            return;
         }
         CypherParity.census(outcomes, "native");
         Map<String, String> domain = new LinkedHashMap<>();

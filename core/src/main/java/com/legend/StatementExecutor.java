@@ -311,7 +311,25 @@ final class StatementExecutor {
             java.util.List<TypedSpec> lets,
             @com.legend.base.Nullable ExecutionResult verdict,
             com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
-            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame) {
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame,
+            /** the session's temporary table a staged let's rows are computed into (Pure.Lite.STAGE), null for
+             *  any other value */
+            @com.legend.base.Nullable String stagedInto) {
+        PreparedValue(java.util.List<TypedSpec> body, ExecEnv env, java.util.List<TypedSpec> lets,
+                @com.legend.base.Nullable ExecutionResult verdict,
+                com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
+                com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame) {
+            this(body, env, lets, verdict, contextOwner, forcedFrame, null);
+        }
+
+        /** This relation's rows, run into the session's temporary table {@code table}. */
+        PreparedValue stagedInto(String table) {
+            if (verdict != null || contextOwner != null || forcedFrame != null) {
+                throw new com.legend.error.NotImplementedException("rows staged (stage) from a statement that is not a"
+                        + " query of the database");
+            }
+            return new PreparedValue(body, env, lets, null, null, null, table);
+        }
     }
 
     static PreparedValue prepareValue(TypedSpec stmt, TypedSpec bare,
@@ -393,6 +411,9 @@ final class StatementExecutor {
     /** Run a prepared value statement: the run phase only. */
     static @com.legend.base.Nullable ExecutionResult runValue(PreparedValue pv, SpecCompiler specs,
             java.util.Deque<String> frames) {
+        if (pv.stagedInto() != null) {
+            return stageRows(pv.body(), java.util.Objects.requireNonNull(pv.stagedInto()), pv.env());
+        }
         ExecutionResult verdict = pv.verdict();
         if (verdict != null) {
             return verdict;
@@ -2118,6 +2139,61 @@ final class StatementExecutor {
         return new ExecutionResult.Scalar(count, write.info().type());
     }
 
+    /** The temporary table of the session a staged let's rows are held in (Pure.Lite.STAGE): the let's name under a
+     *  prefix of the platform's own, so no table of a store is named. */
+    static String stagedTable(String let) {
+        return "legend_stage_" + let;
+    }
+
+    /** A staged let's rows (Pure.Lite.STAGE, docs/WRITES_DESIGN_2026_10_18.md §8, leg 6): computed now, at the let's
+     *  turn among the program's statements, into the session's temporary table {@code table}, which every statement
+     *  after the let reads ({@link #stagedRows}). */
+    private static ExecutionResult stageRows(java.util.List<TypedSpec> body, String table, ExecEnv env) {
+        Prelude p = prelude(body, env, null, false);
+        if (p.answered() != null) {
+            throw new com.legend.error.NotImplementedException("rows staged (stage) from a statement the database does"
+                    + " not query");
+        }
+        ExecEnv planned = p.plannedEnv();
+        com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), planned, planned.ctx(), planned.dialect(),
+                planned.connection(), false);
+        String sql = planned.dialect().render(new com.legend.sql.SqlDml.CreateTempTableAs(table, plan));
+        record(planned, sql, false);
+        com.legend.exec.Executor.executeUpdate(planned.connection(), sql);
+        return new ExecutionResult.Scalar(null, p.plannedRoot().info().type());
+    }
+
+    /** What the statements after a staged let read for it: the session's temporary table {@code table}, a relation of
+     *  the staged rows' columns ({@code info}), each named as its projection named it (delimited, so its case holds
+     *  on a database that folds an undelimited name). {@code store} is the store the rows read, when one. */
+    static TypedSpec stagedRows(String table, com.legend.compiler.element.type.ExprType info, String store) {
+        java.util.Set<String> columns = new java.util.LinkedHashSet<>();
+        java.util.Objects.requireNonNull(com.legend.compiler.element.type.Type.schemaView(info.type()),
+                "staged rows are a relation").columns().forEach(c -> columns.add(c.name()));
+        return new com.legend.compiler.spec.typed.TypedTableReference(store, table, info, true, null, columns, false,
+                java.util.Map.of(), false, false);
+    }
+
+    /** The one store a prepared statement's rows read, or none ({@code ""}): what a staged let's table is read under. */
+    static String storeOf(java.util.List<TypedSpec> body) {
+        java.util.Set<String> stores = new java.util.TreeSet<>();
+        for (TypedSpec s : body) {
+            collectStores(s, stores);
+        }
+        return stores.size() == 1 ? stores.iterator().next() : "";
+    }
+
+    /** The staged lets' temporary tables dropped once the program has run (a failed program's transaction takes
+     *  them back with its writes). */
+    static void dropStaged(ExecEnv env, java.util.List<String> tables) {
+        for (String t : tables) {
+            String sql = env.dialect().render(new com.legend.sql.SqlDdl.DropTable(null, t,
+                    com.legend.sql.NameQuoting.BARE));
+            record(env, sql, false);
+            com.legend.exec.Executor.executeUpdate(env.connection(), sql);
+        }
+    }
+
     /** The Lowerer a statement's body lowers with (lowerAndPrepare's and the store write's): the model's layouts,
      *  keys, time zone and the body's features. */
     private static com.legend.lowering.Lowerer lowererFor(java.util.List<TypedSpec> body, ExecEnv env,
@@ -2380,6 +2456,11 @@ final class StatementExecutor {
         // (StatementExecutor.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
         if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
             return Prelude.answered(storeWrite(body, root, env, rider != null || identityLane));
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall st
+                && com.legend.builtin.Pure.Lite.STAGE.equals(st.callee().qualifiedName())) {
+            throw new com.legend.error.NotImplementedException("stage(rows) holds rows for the statements after it:"
+                    + " it is a let's value (let s = rows->stage()), not a statement's");
         }
         // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
         // the engine walks its Database metamodel, we render from the
