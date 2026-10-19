@@ -330,6 +330,14 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-19, step 9: the siblings' lanes merged; channel B on the server lanes measured, four causes fixed, the
+  rest named** (GATES "the siblings' lanes merged"): channel A green with pins on every lane (DuckDB exact, H2 but
+  the ten uncast pivots until the trino-h2 branch lands, Postgres, SQLite, MongoDB, MariaDB, MySQL, ClickHouse,
+  Databricks, Trino on its branch); channel B found below its floors on every server lane, this program's doing
+  (steps 6 and 7, judged by the local gate's DuckDB and H2 alone): the typed rows' map and jsonb arms, the judges'
+  server version, the leniency's doubles, Databricks' ordered ranking window, all fixed; the rest named per lane with
+  its cause, no floor moved, the judges on plans (step 10) its home. Next: the trino-h2 merge, the corpus lanes and
+  the core gate on the merged head.
 - **2026-10-19, step 9: the system metamodel store on a server engine as the session's own temporary tables**
   (GATES "the system metamodel store on a server engine"): `Class.all()` on every server lane was refused by the
   runner (the plan's setup on the user's database); the referenced tables are now the target's session statements on

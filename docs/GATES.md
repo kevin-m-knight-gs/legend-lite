@@ -10653,6 +10653,71 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-19 — The plan path program, step 9: the siblings' lanes merged; channel B on the server lanes measured, four causes fixed, the rest named
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9; the siblings' brief `docs/STEP9_LANE_BRIEF_2026_10_19.md`.
+
+**Channel A, the plan route, every lane green with pins (the siblings' final reports, each merged here):**
+postgres-sqlite-mongodb (`4f0a8a0`), mariadb-mysql-clickhouse (`13bcf29`), databricks (`d7a13f9`); DuckDB and H2 by this
+session; trino-h2's branch at its final report. Per lane, 5 of 5 suites: DuckDB (exact, no pin moved), Postgres, SQLite,
+MongoDB, MariaDB, MySQL, ClickHouse, Databricks; H2 455 -> 459 of 469 here with the ten uncast pivots unpinned until the
+trino-h2 branch lands its pins; Trino 5 of 5 on its branch. The siblings' root fixes, all checked against the lowering
+lane and the DuckDB lane before they kept them: the plan runner reading back a raise MariaDB and MySQL keep
+(`PlanSessions.dataError`); a JSON null member on MariaDB and MySQL; `LiteralSpelling.elementsText` typing a list lambda's
+parameter by its slot; `LiteralSpelling.floatPrint`'s casts guarded by their branch (ClickHouse evaluates every
+branch); Postgres's `error()` and empty collection typed by their slot, a jsonb null member; SQLite's HUGEINT text past
+64 bits and a scale-0 decimal REAL; the common-subexpression and float-canon passes binding an equal expression once
+(the 1.29 MB statement, now 69 KB); Databricks' year past 9999 and typed composite NULL members; a Trino opening
+(`ConnectionSpecification.Trino`, reviewed at the merge against the §7 residue on credentials). Their pins: the ten
+uncast dynamic pivots per lane, S81, S82, the moved messages, ClickHouse's dates past 2299 (open: a refusal by name is
+the right form), MariaDB's and MySQL's unordered TDS text of a dedup (open, shared lowering: `Render.hoistOrder` behind a
+`SELECT *` wrapper), MongoDB's `Class.all()` ("no temporary collection").
+
+**Channel B, the regression check, below its floors on every server lane -- this program's, not the siblings'.**
+The floors were measured 2026-10-12/13; steps 6 and 7 (typed rows, the typed-seam judge) landed after, judged by the
+local gate's DuckDB and H2 lanes alone, and the server lanes are the heavy gate's. Four causes found and fixed here:
+1. The plan runner's typed-row decode had no arm for a map delivered as JSON text (`e6dfcbb`: SQLite's, MariaDB's,
+   MySQL's); nor for Postgres's jsonb (`3106b0f`: `PostgresCells` behind the DriverCells seam, a map as jsonb[]
+   entries). MariaDB essential 325 -> 331, SQLite essential 327 -> 333.
+2. The judges planned for the dialect's declared servers, not the session's (`870f051`): H2 relation 5 -> 431.
+3. The verdict statement's Float leniency spelled its constants as Float literals, which ClickHouse's numeric charter
+   writes as exact Decimals, with no common type over Float64 cells (`272aef3`: the constants cast to DOUBLE):
+   ClickHouse essential 296 -> 318, standard 156 -> 197, grammar 124 -> 133, unclassified 91 -> 93.
+4. Spark refuses a ranking window with no order; the verdict statement numbers a canon-ordered side with one
+   (`6ed65e8`: Databricks writes `ORDER BY 1`, measured on the warehouse): judged by the sibling's channel B grammar
+   run on its container.
+
+**Measured at the merged head (this container, the embedded servers), floors in `ChannelBLane.PINS`:**
+
+| Lane | Essential | Grammar | Relation | Standard | Unclassified |
+|---|---|---|---|---|---|
+| MariaDB | 331 (330) | 135 (132) | **408 (440)** | 204 (204) | 91 (91) |
+| MySQL | **327 (331)** | 136 | 425 | 204 | 91 |
+| ClickHouse | **318 (333)** | **133 (137)** | 461 (461) | **197 (202)** | 93 (93) |
+| SQLite | 333 (333) | 133 | 458 | 203 | 87 |
+| H2 | -- | -- | 431 (429) | -- | -- |
+| Postgres (the sibling's container, before fix 1's Postgres half) | **311 (329)** | **128 (132)** | 466 | 204 | 91 |
+
+**Named residue, each a judge statement a dialect refuses or spells its own way; the judges on plans (step 10) is its
+home:**
+- MariaDB relation, 38: the TDS-equivalence judge's statement over a windowed result ("the host judge holds, the
+  database judge fails", the `testRows_*` and OLAP family); 9: the canonical text's `REGEXP_EXTRACT_ALL` with a pattern
+  that is not a literal, refused by name; 2: a nested lateral flatten's text.
+- MySQL essential, 4: the server re-prints a merged derived table with an escaped quote its own `NO_BACKSLASH_ESCAPES`
+  cannot read back ("near '...concat('',char(92),'\'')) as char charset'"; `derived_merge=off` did not change it, reverted).
+- ClickHouse essential and standard, 5: a DateTime's canonical text (six sub-second digits where the literal has
+  three; none where the literal has `.000`); 11 engine-frontier wire bugs the engine fails too; grammar 4 agree-fails.
+- Postgres essential and grammar, after fix 1: the lowering's own refusals on Postgres (a list literal of `Unknown[]`,
+  a fold into a struct, a list transform of unknown result type, `UNNEST` over `Unknown[]`), the `indexOf` off-by-one,
+  dates past the range; measured by the next Postgres channel B run.
+No floor moved: each is a shrink-only pin, and a fall with a named cause is a fall.
+
+**Verdicts at the merged head (`6ed65e8`):** the core lanes `root`, `lowering`, `sql`, `exec`, `architecture` pass;
+`//pct:pct_duckdb` 5 of 5 and `//pct:pct_channel_b` 5 of 5 (DuckDB exact, both channels); `//pct:pct_sqlite` 5 of 5;
+`//pct:pct_channel_b_sqlite` 5 of 5; `//pct:pct_channel_b_h2` passes; `//pct:pct_h2` 459 of 469 (the ten uncast
+pivots, pinned on the trino-h2 branch); the three embedded servers' channel B as the table above. The corpus lanes and
+the core gate run once the trino-h2 branch is in.
+
 ## 2026-10-19 — The plan path program, step 9: the system metamodel store on a server engine, as the session's own tables
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9. The second shared item the siblings pin (the brief
