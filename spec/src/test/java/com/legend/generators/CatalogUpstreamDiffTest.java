@@ -207,8 +207,11 @@ class CatalogUpstreamDiffTest {
      *  W11). The W3 leg's lite random left in the same repair: rand() is upstream's meta::pure::functions::math::random.
      *  56 on 2026-10-18 (the user's decision of that day, the plan's W13 leg 1, docs/CYPHER_STUDY_2026_10_15.md
      *  §12.85): dateTimeOfText and timeOfText, a temporal value in text carriage -- what a nanosecond value leaves
-     *  the database as; ours alone, legend-engine carries a date-time in the database's own type. */
-    private static final int NOT_UPSTREAM_MAX = 56;
+     *  the database as; ours alone, legend-engine carries a date-time in the database's own type. 59 on 2026-10-18 (the
+     *  writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): delete, update and merge, the store writes
+     *  beside upstream's write -- lite's user-facing DML over a store table (NativeCatalogGovernanceTest's
+     *  LITE_SURFACE); upstream declares no write but write itself. */
+    private static final int NOT_UPSTREAM_MAX = 59;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

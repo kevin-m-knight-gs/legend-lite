@@ -10,6 +10,7 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
 import com.legend.sql.SqlTyping;
 import org.junit.jupiter.api.Test;
 
@@ -42,11 +43,13 @@ class StoreWritesTest {
         return new SqlExpr.Column(alias, column, SqlTyping.UNKNOWN, OutputCol.Origin.PHYSICAL);
     }
 
-    /** {@code SELECT s.ID AS ID, s.NAME AS NAME, s.AGE AS AGE FROM SRC AS s}, the source's columns as the table's. */
+    /** {@code SELECT s.ID AS ID, s.NAME AS NAME, s.AGE AS AGE FROM SRC AS s}, the source's columns as the table's (each
+     *  output a derived name, as the lowering stamps a projection's). */
     private static SqlSelect source() {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (String c : List.of("ID", "NAME", "AGE")) {
-            ps.add(new SqlSelect.Projection(stored("s", c), c, null));
+            ps.add(new SqlSelect.Projection(stored("s", c), c, new OutputCol(c,
+                    c.equals("NAME") ? SqlType.Scalar.VARCHAR : SqlType.Scalar.INTEGER, true, OutputCol.Origin.DERIVED)));
         }
         return SqlSelect.starOf(new SqlSource.Table("SRC", "s", List.of(), false, Map.of(), BARE)).withProjections(ps);
     }

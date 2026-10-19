@@ -2100,8 +2100,8 @@ final class StatementExecutor {
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
      *  dialect and run by the executor; its value the database's update count. A frame's post-processors rewrite a
      *  query's text, and no write is designed under them: refused by name. */
-    private static ExecutionResult storeWrite(java.util.List<TypedSpec> body,
-            com.legend.compiler.spec.typed.TypedWrite write, ExecEnv env, boolean identity) {
+    private static ExecutionResult storeWrite(java.util.List<TypedSpec> body, TypedSpec write, ExecEnv env,
+            boolean identity) {
         if (!env.tableReplace().isEmpty() || env.postProcessors().extractCtes()
                 || env.postProcessors().nonExecutable()) {
             throw new com.legend.error.NotImplementedException("a write into a store table under the execution's"
@@ -2375,12 +2375,11 @@ final class StatementExecutor {
             }
             return Prelude.answered(arm.run(body, nc, env));
         }
-        // A WRITE INTO A STORE TABLE (docs/WRITES_DESIGN_2026_10_18.md §4, L1): the database inserts the relation's
-        // rows, and the statement's update count is the write's value. It runs in the query's transaction
+        // A WRITE INTO A STORE TABLE (docs/WRITES_DESIGN_2026_10_18.md §4, L1: write, delete, update, merge): the
+        // database runs the statement, and its update count is the write's value. It runs in the query's transaction
         // (StatementExecutor.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
-        if (root instanceof com.legend.compiler.spec.typed.TypedWrite w
-                && w.destination().orElse(null) instanceof com.legend.compiler.spec.typed.TypedTableReference) {
-            return Prelude.answered(storeWrite(body, w, env, rider != null || identityLane));
+        if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
+            return Prelude.answered(storeWrite(body, root, env, rider != null || identityLane));
         }
         // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
         // the engine walks its Database metamodel, we render from the

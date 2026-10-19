@@ -33,6 +33,7 @@ class StoreWritesExecutionTest {
             Database w::DB (
               Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER)
               Table SRC (ID INTEGER, NAME VARCHAR(20), AGE INTEGER)
+              Table REV (ID INTEGER, NAME VARCHAR(20), AGE INTEGER)
             )
             ###Pure
             Class w::Person { id: Integer[1]; name: String[0..1]; age: Integer[0..1]; }
@@ -57,6 +58,27 @@ class StoreWritesExecutionTest {
     @Test
     void h2Writes() throws Exception {
         writes(TestBackends.of(DatabaseType.H2));
+    }
+
+    /** The checker refuses, by name, a write that names a column the table lacks, a value of another type, a
+     *  destination that is not a store table, and a set value of many. */
+    @Test
+    void theCheckerRefusesAWriteTheTableCannotHold() {
+        var ctx = com.legend.Compiler.compileModel(
+                MODEL.formatted(TestBackends.of(DatabaseType.DuckDB).connectionBody()));
+        for (var refused : List.of(
+                List.of("#>{w::DB.SRC}#->extend(~X:r|1)->write(#>{w::DB.T}#)", "'X' is not a column of w::DB.T"),
+                List.of("#>{w::DB.SRC}#->select(~[NAME])->rename(~NAME, ~AGE)->write(#>{w::DB.T}#)",
+                        "cannot be written into w::DB.T's column 'AGE'"),
+                List.of("#>{w::DB.T}#->update(r|true, ~[NOPE: r|1])", "'NOPE' is not a column of w::DB.T"),
+                List.of("#>{w::DB.T}#->update(r|true, ~[AGE: r|'x'])", "cannot be written into w::DB.T's column 'AGE'"),
+                List.of("#>{w::DB.T}#->update(r|true, ~[AGE: r|[1, 2]])", "a column holds at most one value"),
+                List.of("#>{w::DB.SRC}#->select(~[ID, NAME])->merge(#>{w::DB.T}#, ~[AGE])",
+                        "the key 'AGE' is not a column of the rows merged"))) {
+            Exception e = assertThrows(Exception.class, () -> com.legend.Compiler.query(ctx, refused.get(0)).expression(),
+                    refused.get(0));
+            assertTrue(String.valueOf(e.getMessage()).contains(refused.get(1)), refused.get(0) + ": " + e.getMessage());
+        }
     }
 
     /** Every check, on {@code backend}'s own workspace. */
@@ -102,6 +124,27 @@ class StoreWritesExecutionTest {
             assertEquals(2L, count(backend, c, "|w::Person.all()->filter(p|$p.age > 25)"
                     + "->project(~[ID:p|$p.id, NAME:p|$p.name])->write(#>{w::DB.T}#)"), name);
             assertEquals(List.of("3|c|null", "4|d|null"), rows(c), name);
+            // update: the rows the predicate holds for, each column set from the row as it was
+            run(c, "DELETE FROM T");
+            assertEquals(4L, count(backend, c, "|#>{w::DB.SRC}#->write(#>{w::DB.T}#)"), name);
+            assertEquals(2L, count(backend, c, "|#>{w::DB.T}#->update(r|$r.ID > 2,"
+                    + " ~[AGE: r|$r.AGE->toOne() + 1, NAME: r|$r.NAME->toOne()->toUpper()])"), name);
+            assertEquals(List.of("1|a|10", "2|b|20", "3|C|31", "4|D|41"), rows(c), name);
+            // delete: the rows the predicate holds for
+            assertEquals(1L, count(backend, c, "|#>{w::DB.T}#->delete(r|$r.NAME == 'C')"), name);
+            assertEquals(List.of("1|a|10", "2|b|20", "4|D|41"), rows(c), name);
+            // merge: the rows of a key the table holds updated, the others inserted
+            assertEquals(4L, count(backend, c, "|#>{w::DB.SRC}#->merge(#>{w::DB.T}#, ~[ID])"), name);
+            assertEquals(List.of("1|a|10", "2|b|20", "3|c|30", "4|d|40"), rows(c), name);
+            // delete everything: the predicate true
+            assertEquals(4L, count(backend, c, "|#>{w::DB.T}#->delete(r|true)"), name);
+            assertEquals(List.of(), rows(c), name);
+            // a source whose columns the database holds in another order than the store declares: written by name
+            run(c, "CREATE TABLE REV (AGE INTEGER, NAME VARCHAR(20), ID INTEGER)");
+            run(c, "INSERT INTO REV VALUES (70, 'g', 7)");
+            assertEquals(1L, count(backend, c, "|#>{w::DB.REV}#->write(#>{w::DB.T}#)"), name);
+            assertEquals(1L, count(backend, c, "|#>{w::DB.REV}#->merge(#>{w::DB.T}#, ~[ID])"), name);
+            assertEquals(List.of("7|g|70"), rows(c), name);
         }
     }
 

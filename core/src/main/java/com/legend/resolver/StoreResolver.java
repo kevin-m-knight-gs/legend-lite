@@ -571,6 +571,7 @@ public final class StoreResolver {
             // a WRITE of a class query's rows into a store table (docs/WRITES_DESIGN_2026_10_18.md §4, L1): the rows
             // resolve, the table is physical already
             case com.legend.compiler.spec.typed.TypedWrite w -> structural(w, context);
+            case com.legend.compiler.spec.typed.TypedStoreWrite sw -> structural(sw, context);
             // navigate keeps its TARGET verbatim (the navigation pipeline
             // is resolver OUTPUT vocabulary) — only the source resolves
             case TypedNavigate nav

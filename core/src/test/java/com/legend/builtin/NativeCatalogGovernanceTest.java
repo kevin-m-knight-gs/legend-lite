@@ -170,7 +170,11 @@ class NativeCatalogGovernanceTest {
         // asOfJoinWithPrefix — the relation join with a right-column PREFIX, a
         // lite-dialect feature kept on purpose (upstream resolves collisions by
         // rename before the join); the user spelling join(…, 'p_') routes by arity.
-        assertTrue(Pure.LITE_SURFACE.size() <= 4,
+        // +3 2026-10-18 (the writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): delete / update /
+        // merge, the store writes beside upstream's write -- legend-pure has no DML over a relation accessor and
+        // legend-engine's only write through a mapping is mutation::save (an H2/MemSQL upsert of one object); each
+        // is the database's statement over a store table, user-facing by design (the design's D2)
+        assertTrue(Pure.LITE_SURFACE.size() <= 7,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

@@ -162,6 +162,15 @@ public enum CoreFn {
     FROM("from"),
     /** Relation {@code write([target])} &mdash; persist; {@code Integer[1]} row count. */
     WRITE("write"),
+    /** {@code #>{db.t}#->delete(r | pred)} &mdash; the table's rows the predicate holds for deleted; {@code Integer[1]}
+     *  the rows the database deleted (Pure.Lite.DELETE, the writes design's L1). */
+    DELETE("delete"),
+    /** {@code #>{db.t}#->update(r | pred, ~[c: r | expr])} &mdash; their columns set; {@code Integer[1]} the rows the
+     *  database updated (Pure.Lite.UPDATE). */
+    UPDATE("update"),
+    /** {@code rel->merge(#>{db.t}#, ~[keys])} &mdash; the relation's rows upserted by key; {@code Integer[1]} the rows
+     *  the database merged (Pure.Lite.MERGE). */
+    MERGE("merge"),
     /** {@code fold({e,acc|…}, init)} &mdash; reduction, classified into a lowering strategy. */
     FOLD("fold"),
     /** {@code navigate} &mdash; the clean-sheet graph-traversal primitive (pre-map/post-map/inline). */
@@ -373,6 +382,12 @@ public enum CoreFn {
                 "meta::pure::mapping::from"));
         m.put(WRITE, java.util.Set.of(
                 "meta::pure::functions::relation::write"));
+        m.put(DELETE, java.util.Set.of(
+                "meta::legend::lite::delete"));
+        m.put(UPDATE, java.util.Set.of(
+                "meta::legend::lite::update"));
+        m.put(MERGE, java.util.Set.of(
+                "meta::legend::lite::merge"));
         m.put(FOLD, java.util.Set.of(
                 "meta::pure::functions::collection::fold"));
         m.put(NAVIGATE, java.util.Set.of(

@@ -1732,18 +1732,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** The standard {@code MERGE INTO t AS alias USING (query) AS source ON ... WHEN MATCHED THEN UPDATE SET ... WHEN
-     *  NOT MATCHED THEN INSERT (...) VALUES (...)}: each column read from the source by the name the query's output
-     *  carries ({@link #aliasIdent}, as a projection spells it), written into the table's column as its store declared it. */
+     *  NOT MATCHED THEN INSERT (...) VALUES (...)}: each column read from the source as a query reads a derived
+     *  table's column ({@link #columnRef} under the query output's origin: a stored column's name folded where its
+     *  database folds it), written into the table's column as its store declared it. */
     protected final String standardMerge(com.legend.sql.SqlDml.Merge m) {
         String target = aliasIdent(m.alias());
-        String source = aliasIdent(m.sourceAlias());
+        java.util.function.Function<String, String> read = name -> columnRef(SqlExpr.Column.of(m.sourceAlias(),
+                m.query().outputs().stream().filter(o -> o.name().equals(name)).findFirst()
+                        .orElseThrow(() -> new IllegalStateException("a MERGE's source has no column '" + name + "' "
+                                + m.query().outputs()))));
         SqlWriter writer = newWriter().append("MERGE INTO ").append(ddlQualified(m.schema(), m.table(), m.quoting()))
                 .append(" AS ").append(target).append(" USING (");
-        query(writer, passed(m.query()), 0).append(") AS ").append(source).append(" ON ");
+        query(writer, passed(m.query()), 0).append(") AS ").append(aliasIdent(m.sourceAlias())).append(" ON ");
         for (int i = 0; i < m.keys().size(); i++) {
             String k = m.keys().get(i);
             writer.append(i == 0 ? "" : " AND ").append(target).append(".").append(storedName(k, m.quotedColumns()
-                    .contains(k))).append(" = ").append(source).append(".").append(aliasIdent(k));
+                    .contains(k))).append(" = ").append(read.apply(k));
         }
         java.util.List<String> others = m.columns().stream().filter(c -> !m.keys().contains(c)).toList();
         if (!others.isEmpty()) {
@@ -1751,13 +1755,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             for (int i = 0; i < others.size(); i++) {
                 String c = others.get(i);
                 writer.append(i == 0 ? "" : ", ").append(storedName(c, m.quotedColumns().contains(c))).append(" = ")
-                        .append(source).append(".").append(aliasIdent(c));
+                        .append(read.apply(c));
             }
         }
         writer.append(" WHEN NOT MATCHED THEN INSERT").append(dmlColumns(m.columns(), m.quotedColumns()))
                 .append(" VALUES (");
         for (int i = 0; i < m.columns().size(); i++) {
-            writer.append(i == 0 ? "" : ", ").append(source).append(".").append(aliasIdent(m.columns().get(i)));
+            writer.append(i == 0 ? "" : ", ").append(read.apply(m.columns().get(i)));
         }
         return dmlText(writer.append(");"), "a MERGE's query");
     }

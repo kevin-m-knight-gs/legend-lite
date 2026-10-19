@@ -552,6 +552,15 @@ public final class Pure {
         // mis-filed both as internal.
         public static final String NAVIGATE = PKG + "navigate";
         public static final String SOURCE_URL = PKG + "sourceUrl";
+        /** The store writes beside upstream's {@code write} (2026-10-18, docs/WRITES_DESIGN_2026_10_18.md §4, L1):
+         *  {@code #>{db.t}#->delete(r | pred)} deletes the table's rows the predicate holds for,
+         *  {@code #>{db.t}#->update(r | pred, ~[c: r | expr])} sets their columns, and
+         *  {@code rel->merge(#>{db.t}#, ~[keys])} upserts the relation's rows by key. Each is the database's
+         *  statement ({@code DELETE}, {@code UPDATE}, {@code MERGE}), its value the rows the database affected;
+         *  user-facing, so bare-name resolvable. */
+        public static final String DELETE = PKG + "delete";
+        public static final String UPDATE = PKG + "update";
+        public static final String MERGE = PKG + "merge";
 
         private Lite() {
         }
@@ -606,7 +615,10 @@ public final class Pure {
             java.util.Set.of(liteLocalName(Lite.NAVIGATE),
                     liteLocalName(Lite.SOURCE_URL),
                     liteLocalName(Lite.JOIN_WITH_PREFIX),
-                    liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX));
+                    liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX),
+                    liteLocalName(Lite.DELETE),
+                    liteLocalName(Lite.UPDATE),
+                    liteLocalName(Lite.MERGE));
 
     /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
      *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
@@ -616,7 +628,10 @@ public final class Pure {
                 liteLocalName(Lite.NAVIGATE), AT_LEGEND_LITE_NAVIGATE,
                 liteLocalName(Lite.SOURCE_URL), AT_LEGEND_LITE_SOURCE_URL,
                 liteLocalName(Lite.JOIN_WITH_PREFIX), AT_LEGEND_LITE_JOIN_WITH_PREFIX,
-                liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX);
+                liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX,
+                liteLocalName(Lite.DELETE), AT_LEGEND_LITE_DELETE,
+                liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE,
+                liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE);
     }
 
     /** Every registered native in the lite-internal package — the
@@ -877,6 +892,12 @@ public final class Pure {
     /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous
      *  round's, until a round yields none (the Cypher island's unbounded variable-length patterns, 2026-10-17). */
     public static final NativeFunctionDefinition RECURSE__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::recurse<T>(base:meta::pure::metamodel::relation::Relation<T>[1], step:meta::pure::metamodel::function::Function<{meta::pure::metamodel::relation::Relation<T>[1]->meta::pure::metamodel::relation::Relation<T>[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+
+    /** The store writes ({@link Lite#DELETE}, {@link Lite#UPDATE}, {@link Lite#MERGE}; 2026-10-18, the writes design's
+     *  L1): each over a store table's accessor, its value the rows the database affected. */
+    public static final NativeFunctionDefinition DELETE__ACCESSOR_1__FUNCTION_1 = signature("native function meta::legend::lite::delete<T>(table:meta::pure::metamodel::relation::RelationElementAccessor<T>[1], where:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Integer[1];");
+    public static final NativeFunctionDefinition UPDATE__ACCESSOR_1__FUNCTION_1__FUNC_COL_SPEC_ARRAY_1 = signature("native function meta::legend::lite::update<T,Z>(table:meta::pure::metamodel::relation::RelationElementAccessor<T>[1], where:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1], set:meta::pure::metamodel::relation::FuncColSpecArray<{T[1]->meta::pure::metamodel::type::Any[*]}, Z>[1]):meta::pure::metamodel::type::Integer[1];");
+    public static final NativeFunctionDefinition MERGE__RELATION_1__ACCESSOR_1__COL_SPEC_ARRAY_1 = signature("native function meta::legend::lite::merge<X,T,Z>(rel:meta::pure::metamodel::relation::Relation<X>[1], into:meta::pure::metamodel::relation::RelationElementAccessor<T>[1], keys:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1]):meta::pure::metamodel::type::Integer[1];");
 
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
@@ -2429,6 +2450,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DATE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(DATE_TIME_OF_TEXT__STRING_0_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DELETE = com.legend.model.FunctionId.ofAll(DELETE__ACCESSOR_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
@@ -2449,6 +2471,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN_EQUAL = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LOCAL_IN = com.legend.model.FunctionId.ofAll(LOCAL_IN__DATE_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MAX_BY = com.legend.model.FunctionId.ofAll(LITE_MAX_BY__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MERGE = com.legend.model.FunctionId.ofAll(MERGE__RELATION_1__ACCESSOR_1__COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MIN_BY = com.legend.model.FunctionId.ofAll(LITE_MIN_BY__ROW_MAPPER_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NAVIGATE = com.legend.model.FunctionId.ofAll(NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__C_MANY__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__T_MANY__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NOT_EQUAL_ANSI = com.legend.model.FunctionId.ofAll(NOT_EQUAL_ANSI__ANY_1__ANY_1);
@@ -2463,6 +2486,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UPDATE = com.legend.model.FunctionId.ofAll(UPDATE__ACCESSOR_1__FUNCTION_1__FUNC_COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_TEST_MAY_EXECUTE_LEGEND_TEST = com.legend.model.FunctionId.ofAll(MAY_EXECUTE_LEGEND_TEST);
     public static final List<com.legend.model.FunctionId> AT_ALLOY_CONNECTIONS_RELATIONAL_MAPPER_POST_PROCESSOR = com.legend.model.FunctionId.ofAll(RELATIONAL_MAPPER_PP);
     public static final List<com.legend.model.FunctionId> AT_EXECUTION_PLAN_EXECUTE = com.legend.model.FunctionId.ofAll(EXECUTION_PLAN_EXECUTE__EXECUTION_PLAN_1__ANY_MANY__EXTENSION_MANY);

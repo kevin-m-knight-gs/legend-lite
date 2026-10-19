@@ -296,32 +296,120 @@ public final class Lowerer {
      * Lower a STORE WRITE's body (docs/WRITES_DESIGN_2026_10_18.md §4, L1): leading {@code let}s bound as
      * {@link #lower(List)} binds them, the last statement a write into a store table, lowered to the DML statement that
      * writes it: {@code rel->write(#>{db.t}#)} the relation's rows inserted into the table's columns of their names
-     * ({@link SqlDml.InsertSelect}). The statement's count is the database's (the executor's update count).
+     * ({@link com.legend.sql.SqlDml.InsertSelect}); {@code delete(r | pred)} and {@code update(r | pred, ~[c: r | e])}
+     * the predicate and the values read over the table's own row ({@link com.legend.sql.SqlDml.DeleteWhere},
+     * {@link com.legend.sql.SqlDml.Update}); {@code rel->merge(#>{db.t}#, ~[keys])} the rows upserted by key
+     * ({@link com.legend.sql.SqlDml.Merge}). The statement's count is the database's (the executor's update count).
      */
     public com.legend.sql.SqlDml lowerStoreWrite(List<TypedSpec> body) {
         TypedSpec root = withQueryLets(body);
-        if (root instanceof TypedWrite w && w.destination().isPresent()
-                && w.destination().get() instanceof TypedTableReference t) {
-            SqlQuery rows = SubselectPrune.prune(lower(w.source()));
-            List<String> columns = rows.outputs().stream().map(OutputCol::name).toList();
-            java.util.Set<String> declared = new java.util.LinkedHashSet<>();
-            outputsOf(t.info(), OutputCol.Origin.PHYSICAL).forEach(c -> declared.add(c.name()));
-            for (String c : columns) {
-                if (!declared.contains(c)) {
-                    throw new IllegalStateException("write: the relation's column '" + c + "' is not a column of "
-                            + t.store() + "." + t.table() + " " + declared + " (the checker types a write's relation by"
-                            + " its destination's columns)");
-                }
+        return switch (root) {
+            case TypedWrite w when w.destination().isPresent()
+                    && w.destination().get() instanceof TypedTableReference t -> {
+                SqlQuery rows = writtenRows(w.source(), t, "write");
+                List<String> columns = rows.outputs().stream().map(OutputCol::name).toList();
+                yield new com.legend.sql.SqlDml.InsertSelect(schemaOf(t), tableOf(t), quotingOf(t), columns,
+                        quotedOf(t, columns), rows);
             }
-            int dot = t.table().indexOf('.');
-            java.util.Set<String> quoted = new java.util.LinkedHashSet<>(t.quotedColumns());
-            quoted.retainAll(columns);
-            return new com.legend.sql.SqlDml.InsertSelect(dot < 0 ? null : t.table().substring(0, dot),
-                    dot < 0 ? t.table() : t.table().substring(dot + 1),
-                    new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable()), columns, quoted, rows);
+            case com.legend.compiler.spec.typed.TypedMerge m -> {
+                SqlQuery rows = writtenRows(m.source(), m.table(), "merge");
+                List<String> columns = rows.outputs().stream().map(OutputCol::name).toList();
+                yield new com.legend.sql.SqlDml.Merge(schemaOf(m.table()), tableOf(m.table()), quotingOf(m.table()),
+                        columns, quotedOf(m.table(), columns), m.keys().names(), rows, nextAlias(), nextAlias());
+            }
+            case com.legend.compiler.spec.typed.TypedDelete d -> {
+                SqlSelect scan = relation(d.table());
+                yield new com.legend.sql.SqlDml.DeleteWhere(schemaOf(d.table()), tableOf(d.table()),
+                        quotingOf(d.table()), scanAlias(scan, "delete"), d.table().storedTypes(),
+                        overRow(scan, d.where(), "delete", "its predicate"));
+            }
+            case com.legend.compiler.spec.typed.TypedUpdate u -> {
+                SqlSelect scan = relation(u.table());
+                List<com.legend.sql.SqlDml.Update.Assignment> set = new ArrayList<>();
+                for (var c : u.set().cols()) {
+                    set.add(new com.legend.sql.SqlDml.Update.Assignment(c.name(),
+                            u.table().quotedColumns().contains(c.name()),
+                            overRow(scan, c.fn(), "update", "the value of '" + c.name() + "'")));
+                }
+                yield new com.legend.sql.SqlDml.Update(schemaOf(u.table()), tableOf(u.table()),
+                        quotingOf(u.table()), scanAlias(scan, "update"), u.table().storedTypes(), set,
+                        overRow(scan, u.where(), "update", "its predicate"));
+            }
+            default -> throw new IllegalStateException("not a store write: " + root.getClass().getSimpleName()
+                    + " (StatementExecutor dispatches only a write into a store table here)");
+        };
+    }
+
+    /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
+     *  types them so, by name: WriteChecker). */
+    private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
+        SqlQuery rows = SubselectPrune.prune(lower(source));
+        // the rows' columns NAMED in the select: an INSERT writes them by position into the columns it lists, and a
+        // star is the database's order of its source's columns, which the model's declaration need not be
+        if (rows instanceof SqlSelect s && s.projections().isEmpty()) {
+            SqlSelect over = s.from() instanceof SqlSource.Join ? isolate(s) : s;
+            List<SqlSelect.Projection> named = new ArrayList<>();
+            for (OutputCol o : over.outputs()) {
+                named.add(new SqlSelect.Projection(SqlExpr.Column.of(over.from().alias(), o), o.name(),
+                        new OutputCol(o.name(), o.type(), o.nullable(), OutputCol.Origin.DERIVED)));
+            }
+            rows = over.withProjections(named);
         }
-        throw new IllegalStateException("not a store write: " + root.getClass().getSimpleName()
-                + " (StatementExecutor dispatches only a write into a store table here)");
+        java.util.Set<String> declared = new java.util.LinkedHashSet<>();
+        java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
+                .columns().forEach(c -> declared.add(c.name()));
+        for (OutputCol c : rows.outputs()) {
+            if (!declared.contains(c.name())) {
+                throw new IllegalStateException(op + ": the relation's column '" + c.name() + "' is not a column of "
+                        + t.store() + "." + t.table() + " " + declared + " (the checker types a write's relation by"
+                        + " its destination's columns)");
+            }
+        }
+        return rows;
+    }
+
+    /** A lambda over the table's row ({@code scan}, the table read under one alias) as one expression over that alias:
+     *  a delete's or an update's predicate, an update's value. A read the row cannot resolve is the checker's miss. */
+    private SqlExpr overRow(SqlSelect scan, TypedLambda lambda, String op, String what) {
+        return switch (tryPredicate(scan, lambda)) {
+            case Resolution.Resolved r -> r.expr();
+            case Resolution.Unfoldable u -> throw new IllegalStateException(op + ": " + what + " reads '"
+                    + u.column() + "', which the table's row does not hold");
+        };
+    }
+
+    private static NotImplementedException storeWriteInAPlan(com.legend.compiler.spec.typed.TypedStoreWrite sw) {
+        return new NotImplementedException(sw.getClass().getSimpleName() + " into " + sw.table().table() + " is a store"
+                + " write, run at execution (lowerStoreWrite), not a value of a query's plan");
+    }
+
+    /** The alias of the one table {@code scan} reads (a store table's scan: {@link #relation} of the reference). */
+    private static String scanAlias(SqlSelect scan, String op) {
+        if (scan.from() instanceof SqlSource.Table table) {
+            return table.alias();
+        }
+        throw new IllegalStateException(op + ": the table's scan reads " + scan.from().getClass().getSimpleName()
+                + ", not the table");
+    }
+
+    private static @com.legend.base.Nullable String schemaOf(TypedTableReference t) {
+        int dot = t.table().indexOf('.');
+        return dot < 0 ? null : t.table().substring(0, dot);
+    }
+
+    private static String tableOf(TypedTableReference t) {
+        int dot = t.table().indexOf('.');
+        return dot < 0 ? t.table() : t.table().substring(dot + 1);
+    }
+
+    private static com.legend.sql.NameQuoting quotingOf(TypedTableReference t) {
+        return new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable());
+    }
+
+    private static java.util.Set<String> quotedOf(TypedTableReference t, List<String> columns) {
+        java.util.Set<String> quoted = new java.util.LinkedHashSet<>(t.quotedColumns());
+        quoted.retainAll(columns);
+        return quoted;
     }
 
     /** {@code body}'s leading lets bound into query scope, its last statement returned with every binder spelled
@@ -3334,6 +3422,8 @@ public final class Lowerer {
                 }
                 yield Render.writeCount(relation(w.source()), nextAlias());
             }
+            // lite's store writes run at execution (lowerStoreWrite), never as a value of a query's plan
+            case com.legend.compiler.spec.typed.TypedStoreWrite sw -> throw storeWriteInAPlan(sw);
             // A CLASS REFERENCE in scalar position carries its SIMPLE name
             // (PCT: STR_Person->toString() == 'STR_Person').
             case TypedPackageableRef ref -> {

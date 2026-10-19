@@ -160,14 +160,22 @@ public final class StatementEffects {
         return false;
     }
 
-    /** Does the program WRITE A STORE TABLE — a {@code write} into a table (docs/WRITES_DESIGN_2026_10_18.md §4, L1),
+    /** Is {@code n} itself a write into a store table: {@code rel->write(#>{db.t}#)}, or lite's {@code delete},
+     *  {@code update} or {@code merge} (each over a store table by its checker)? The statement the execution runs as
+     *  the database's DML (StatementExecutor's store-write arm). */
+    public static boolean isStoreWrite(TypedSpec n) {
+        return (n instanceof com.legend.compiler.spec.typed.TypedWrite w && w.destination().isPresent()
+                && w.destination().get() instanceof com.legend.compiler.spec.typed.TypedTableReference)
+                || n instanceof com.legend.compiler.spec.typed.TypedStoreWrite;
+    }
+
+    /** Does the program WRITE A STORE TABLE — a store write ({@link #isStoreWrite}; docs/WRITES_DESIGN_2026_10_18.md §4, L1),
      * directly or through the compiled body of a user function it calls (the descent of {@link #callsVerdict}:
      * memoized by signature, cycles and un-typeable callees score false)? The execution runs such a program in one
      * transaction. */
     public static boolean writesStore(TypedSpec n, SpecCompiler specs,
             java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedWrite w && w.destination().isPresent()
-                && w.destination().get() instanceof com.legend.compiler.spec.typed.TypedTableReference) {
+        if (isStoreWrite(n)) {
             return true;
         }
         if (n instanceof TypedUserCall uc
