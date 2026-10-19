@@ -319,6 +319,13 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-19, step 9: the system metamodel store on a server engine as the session's own temporary tables**
+  (GATES "the system metamodel store on a server engine"): `Class.all()` on every server lane was refused by the
+  runner (the plan's setup on the user's database); the referenced tables are now the target's session statements on
+  a server engine (the legacy system database's form, the user's design of 2026-10-11), read by the query under their
+  session names, the setup untouched; Trino refuses by name. Verdicts: the plan maker's test on DuckDB, Postgres and
+  Trino, four core lanes, the DuckDB grammar suite, and `testBasic` passing on the embedded MariaDB (its grammar
+  suite 134 of 137 here); the other server lanes judge it at the siblings' merge.
 - **2026-10-19, step 9: every lane flipped, a plan written for the session's server version, six sibling sessions
   started, the cast over a dynamic pivot landed on every dialect** (GATES "step 9: every PCT lane flipped"):
   `throughThePlan` true for every lane (`83f2810`); the H2 lane's 414 version refusals fixed by planning for the

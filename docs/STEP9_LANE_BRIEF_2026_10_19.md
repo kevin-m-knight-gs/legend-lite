@@ -114,7 +114,11 @@ do not loop.
      nothing wrong: the merge removes those four pins.
    - `Class.all()` on a server lane: the plan's metamodel setup is refused on a database reached by a URL ("the plan
      has setup for it: never run on it", `PlanSessions`); pin by name and report it -- the fix (the system tables as
-     the session's temporary tables, as the legacy `SystemDatabase` did) is a shared item, not yours.
+     the session's temporary tables, as the legacy `SystemDatabase` did) is a shared item, not yours. **Landed in
+     the parent session 2026-10-19** (GATES "the system metamodel store on a server engine"): on a server engine the
+     plan's session statements make the referenced tables as the session's own temporary tables; the merge removes
+     the pin. A cloud lane's runtime connection may need a property for it (Snowflake a `schema`, BigQuery
+     `EnableSession=1`, cloud doc §14): report what your lane needed.
    - A Decimal read as a Float, a type value's namesake, a Float literal beyond a double, the inverse trigonometric
      NaN, a heterogeneous class collection: see the DuckDB landing's five causes and registers S78 to S82; the same
      pin texts apply where the cause is the same.

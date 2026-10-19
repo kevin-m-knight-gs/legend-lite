@@ -66,12 +66,8 @@ public final class Sessions {
     /** Does {@code type} have a private in-process instance ({@link #openPrivate})? A server engine has none: its
      *  system database is on a system connection the host configures ({@link Opener}). */
     public static boolean inProcess(DatabaseType type) {
-        return switch (type) {
-            case H2, DuckDB, SQLite -> true;
-            case Postgres, DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino,
-                 BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL,
-                 MongoDB -> false;
-        };
+        // the plan side's fact (a plan writes the system metamodel store's tables by it; step 9, 2026-10-19)
+        return com.legend.database.Databases.inProcess(type);
     }
 
     /** A caller's own session: checked against the target's database, never closed here. */

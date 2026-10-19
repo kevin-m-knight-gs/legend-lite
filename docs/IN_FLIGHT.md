@@ -2124,4 +2124,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `SqlPostProcessors`, `SubselectPrune`, `DynamicPivot`, `MirJson`), `executionplan/PlanJson.java` (format 7),
   `lowering/Lowerer.java` (`castOverDynamicPivot` names the keys), `lowering/Pivots.java`, the emulations
   (`CarrierStrategies`, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Databricks`, `MongoDbPipeline`), `PlanMakerTest`,
-  register S83. The siblings pin pivots by name; the merge removes the four cast cases' pins.
+  register S83. The siblings pin pivots by name; the merge removes the four cast cases' pins. **The second shared
+  item, 2026-10-19: the system metamodel store on a server engine** (`Class.all()`, pinned on every server lane):
+  `database/Databases.java` (`inProcess`, from `exec/Sessions.java`), `PlanMaker.java` (`Metamodel`: the session's
+  temporary tables and the query's renames on a server), `PlanMakerTest`; the merge removes the `testBasic` pins.
