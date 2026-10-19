@@ -46,7 +46,15 @@ public class Test_LegendLite_ClickHouse_GrammarFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\"")
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
+            // step 9, 2026-10-19, the plan route: Class.all() reads the metamodel store, which the plan writes as setup
+            // steps of its target, and so the plan goes to its target's own session, which the platform cannot open on
+            // ClickHouse (no JDBC opening; PctBackend.planSessions). Both the opening and the system tables on a server
+            // are shared items
+            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"connections to database type 'ClickHouse' are not implemented (connection 'storeless::Connection')\""),
+            // step 9, 2026-10-19, the plan route: a model element referenced as a value crosses by its simple name, and
+            // five TestClasses defeat the text carrier's reader; register S82 (as on DuckDB)
+            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches:\n    meta::json::tests::TestClass\n    meta::pure::functions::collection::tests::removeAll::TestClass\n    meta::pure::functions::lang::tests::letFn::TestClass\n    meta::pure::metamodel::serialization::grammar::tests::testNew::TestClass\n    meta::pure::tds::toRelation::TestClass -- TestClass\"")
     );
 
     public static Test suite() {
