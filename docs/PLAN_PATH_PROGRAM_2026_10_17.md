@@ -330,6 +330,18 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-19, step 9's merge completed: the trino-h2 branch in, the guard lanes reconciled, the verdicts on the
+  final head** (GATES "step 9's merge completed"): the sixth branch merged (`1616963`: Trino 5 of 5 exact on its pins,
+  H2 469 of 469 with the ten uncast pivots pinned, the harness's Trino session without PREPARE, the platform's Trino
+  opening reviewed and kept within §7's credentials residue); channel B on the two sibling containers measured, floors
+  unmoved (Databricks relation 457 of a 459 floor: distinct's unresolved column, two datatype mismatches, `typeof` in
+  the judge statement; Trino essential 323, relation 386, standard 203: 84 "the judges disagree" with equal values on
+  the typed-rows judge seam, `typeof`, Trino's own date and ROW refusals -- the parent's tree measures the same); the
+  guard lanes reconciled with dated reasons (`4e35539`). Verdicts on `4e35539`: `//gates:core` 45 of 45 (the six
+  Postgres lanes under the unprivileged wrapper), the PCT lanes this container runs 23 of 23 (DuckDB exact, H2 469,
+  SQLite 469, channel B at its floors), both corpus lanes exact. Open: the Snowflake and BigQuery lanes (their
+  containers refused the credential read; the user's call), the pivot's one-query form (the user's decision), step 10
+  (the judges on plans, the channel B residue's home), step 8.
 - **2026-10-19, step 9: the siblings' lanes merged; channel B on the server lanes measured, four causes fixed, the
   rest named** (GATES "the siblings' lanes merged"): channel A green with pins on every lane (DuckDB exact, H2 but
   the ten uncast pivots until the trino-h2 branch lands, Postgres, SQLite, MongoDB, MariaDB, MySQL, ClickHouse,

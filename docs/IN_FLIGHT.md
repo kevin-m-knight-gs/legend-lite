@@ -2132,4 +2132,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   session with credentials): `pct/.../extension/PctBackend.java` (`planSessions`: a server lane's plan on the
   harness's own session, a new one per plan from `Lane.openSystem`; an in-process lane's and MongoDB's on the plan's
   own), `PctPlanRoute.java`; the siblings merge it and drop their lane-local forms. The platform's item is §7's
-  residue (a declared server connection opened with its credentials through a vault).
+  residue (a declared server connection opened with its credentials through a vault). **Step 9's merge completed 2026-10-19** (GATES "step 9's merge completed"): the trino-h2 branch in (`1616963`:
+  `model/ConnectionSpecification.java`'s `Trino`, `model/FromProtocol.java`, `exec/Sessions.java`'s Trino opening,
+  `executionplan/PlanJson.java`'s `Trino` tag, `sql/dialect/Trino.java`, the H2 and Trino lanes' pins), the guard
+  lanes reconciled with dated reasons (`4e35539`: the registers under `core/src/test`, the dialect-leaks ledger, the
+  regenerated claims, ladder and ratchets); on the final head `//gates:core` 45 of 45 (the six Postgres lanes under the
+  unprivileged wrapper), the PCT lanes this container runs 23 of 23, both corpus lanes exact. Open after step 9: the Snowflake and
+  BigQuery lanes (their containers refused the credential read), the pivot's one-query form (the user's decision),
+  steps 8, 10 and 11.

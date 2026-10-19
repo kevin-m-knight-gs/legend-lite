@@ -10653,6 +10653,65 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-19 — The plan path program, step 9's merge completed: the trino-h2 branch in, the guard lanes reconciled, the verdicts on the final head
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9. This entry completes the one below ("the siblings' lanes
+merged"), written while the trino-h2 branch was still out.
+
+**The trino-h2 branch merged (`1616963`; its head `37296e9`).** Trino 5 of 5 exact on its pins (1,249: essential 345,
+grammar 137, relation 469, standard 205, unclassified 93); H2 469 of 469 with the ten uncast dynamic pivots pinned by
+name (the four cast pivots' pins removed once `870f051` was in, S83). The harness's Trino session sends a prepared
+statement as one `EXECUTE IMMEDIATE` (`EmbeddedTrino.jdbcUrl`, `explicitPrepare=false`, the platform's own opening's
+form): through `PREPARE` the 689 KB statement of `format('%s %f', ['fox', 1.5])` filled the coordinator's heap (§7's
+residue on `%f`). Trino's `testBasic` is pinned with Trino's own refusal of the session's metamodel tables ("no
+temporary tables"). **The platform's Trino opening, reviewed at the merge and kept:** `ConnectionSpecification.Trino`
+(host, port, catalog, schema, clientTags, ssl; `FromProtocol` no longer folds it into a static datasource, which
+dropped the schema), `PlanJson`'s `Trino` tag, `Sessions.openingFor`'s `jdbc:trino://host:port/catalog/schema` as user
+`sa` with `explicitPrepare=false`. It admits `Test` and `DefaultH2` authentication as `sa` (the engine's
+`TestDatabaseAuthenticationStrategy` extends `DefaultH2AuthenticationStrategy`, whose user is `sa`); `NoAuth`, every
+credentialed authentication, TLS, client tags and a schema with no catalog are refused by name -- within the §7 residue
+(a declared server connection's credentials through a vault). Since `PctBackend.planSessions` the PCT runs on the
+harness's session, so `PlanJsonTest` alone exercises the opening.
+
+**Channel B on the two sibling containers, floors unmoved** (the brief's regression check; the program's residue, not
+the siblings': each measured the parent's tree too and found the same numbers):
+- Databricks at `6ed65e8` (after fix 4 below): grammar 137 (floor 135; 111 before the fix), essential 334 (334; 2 wire
+  bugs, 1 true: `testComplexPow`, numeric out of range), standard 205, unclassified 93, relation **457 (459)**: 8
+  `distinct` cases an unresolved column (42703; every distinct case), 2 a datatype mismatch (42K09), 2 the database
+  judge's statement refused by name (`typeof` reached Databricks). The Databricks channel A lane was last run at
+  `d7a13f9`, 1,249 green.
+- Trino at `37296e9`: grammar and unclassified pass their floors; essential **323 (331)**, relation **386 (463)**,
+  standard **203 (205)**; the parent's own tree 322, 386, 203. Groups: 77 relation + 2 standard + 5 essential "the
+  judges disagree -- the host judge holds, the database judge fails" with equal-looking values (`expected: 64 |
+  actual: 64` in `reduce::testRows_*`, `testRange_*`: a type or canon disagreement on the database judge's side, the
+  typed-rows judge seam on Trino); 2 `typeof` reached Trino (the judge statement, refused by name); 3 essential
+  statement failures; Trino's own date-literal range and ROW-typing refusals.
+
+**The guard lanes reconciled (`4e35539`).** The local gate's lanes outside the core suite (census, guardrails, the
+generated-file checks) first ran on the program's branch at the merge and carried drift from steps 6 and 7 and the
+merge; each pin moved with a dated reason: the JDBC surface register (`PostgresCells`, `MongoDbDecode`); the funnel
+class registers (`RowDecode`; `AgreementArm`, `JudgePlans`) and the evaluator pins (`StatementExecutor` 2297 -> 2323,
+step 7's `planHostSide`, deleted at step 11; `HostJudge` 806 -> 804); the JDBC value-accessor sites 15 -> 20
+(`JdbcDecode`'s six, carriage); the switch arms on a declared type (`Databases` 21 -> 23, `Sessions` 26 -> 25, `PlanJson`
+4 -> 5), `Sessions`' JDBC URLs 10 -> 11, exec's references into planning 2 -> 3; the scan-order sites (`JudgePlans`);
+the label-driven decode rule (`JdbcDecode`, `MongoDbDecode`); the dialect-leaks ledger's measured counts; three code
+shapes the guards named (a boolean pivot key refused by name, unwitnessed; the metamodel renames an unmodifiable map
+in declaration order; `Render.PivotKeys` package-private, read as a dead private method); the regenerated native
+claims, float-leniency ladder and parser-equivalence ratchets (own_corpus.matched 2862 -> 2873).
+
+**Verdicts on the final head (`4e35539`), this container:**
+`//gates:core` 39 of 45 as root, the six failures the Postgres lanes' own refusal ("initdb refuses root"),
+then those six under `tools/postgres/as_unprivileged.sh ubuntu` 6 of 6 (`postgres_arm`, `sql_island_postgres`,
+`host_operations_postgres`, `sql_parity_postgres`, `iq_parity_postgres`, `cypher_parity_postgres`): the core gate 45 of
+45. The PCT lanes this container runs, 23 of 23: `//pct:pct_duckdb` 5 of 5 and `pct_discipline` (DuckDB exact),
+`//pct:pct_channel_b` 5 of 5, `//pct:pct_h2` 469 of 469 (the ten uncast pivots pinned), `//pct:pct_channel_b_h2`
+(relation 431, floor 429), `//pct:pct_sqlite` 5 of 5 (relation 469 of 469), `//pct:pct_channel_b_sqlite` 5 of 5
+(essential 333, grammar 133, relation 458, standard 203, unclassified 87). The corpus lanes `//spec:corpus_duckdb` and
+`//spec:corpus_h2` exact (12 of 12). The guard lanes (`//core:census`, `//core:guardrails`, `//:generated`,
+`//parser-equivalence:update_ratchets_test`) passed at the reconciliation. The server lanes' channel A and B verdicts
+are the siblings' on their containers (above, and the entry below). The Snowflake and BigQuery lanes never ran: both
+containers' permission layer refused the credential read from Secrets Manager, reported to the user, not worked around.
+
 ## 2026-10-19 — The plan path program, step 9: the siblings' lanes merged; channel B on the server lanes measured, four causes fixed, the rest named
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9; the siblings' brief `docs/STEP9_LANE_BRIEF_2026_10_19.md`.
