@@ -997,6 +997,13 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   once (`pure-protocol/src/build.ts` `isIdentifier`; DataCube's `model-names.ts`, `calc.ts`, `cube-document.ts`,
   `upload.ts`, `ui/column-editor.ts`). Phase 9 (F1-F5) skipped: the other DataCube line's model plan. Nothing of core.
   Still not touched: the SQL plan's ground.
+  **Taken over 2026-10-19: the model plan** (`docs/DATACUBE_MODEL_DESIGN_2026_10_10.md` §13; the user: "we should take
+  everything over from the other datacube lane, it's dead"). The other DataCube line's entry above (4, "Now: the model
+  plan") stops at step 2; this session continues from step 3 -- dashboards on classes -- then 4 (combining in prep), 5
+  (the model view), 6 (promote and publish: its SDLC half was the Studio line's, asked of the user) and 7 (measures in
+  the model), each on its own branch stacked on the run's (`claude/datacube-model-dashboards` first), audited, pushed
+  with no PR. Files announced per step here before they are touched; core only with its own announcement. D5b stays
+  unclaimed: it is in the SQL plan's ground, asked of the user.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
