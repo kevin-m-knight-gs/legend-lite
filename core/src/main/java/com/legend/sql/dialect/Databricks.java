@@ -1679,6 +1679,13 @@ public final class Databricks extends AnsiSqlRenderer {
         }
         if (!w.orderBy().isEmpty()) {
             writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY ").join(w.orderBy(), ", ", this::sortKey);
+        } else if (w.fn() instanceof SqlAgg.RankingFn) {
+            // Spark refuses a ranking window with no order ("[WINDOW_FUNCTION_FRAME_NOT_ORDERED] Window function
+            // row_number requires the window to be ordered"); a constant order is accepted and numbers the rows as
+            // they come (measured on the warehouse 2026-10-19: OVER (ORDER BY 1) gives 1, 2). The judges' verdict
+            // statement numbers a canon-ordered side this way (VerdictSql); channel B on Databricks refused every
+            // such case before (step 9).
+            writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY 1");
         }
         SqlExpr.WindowCall.Frame f = w.frame();
         if (f != null) {
