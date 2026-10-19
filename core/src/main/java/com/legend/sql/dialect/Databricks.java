@@ -1203,7 +1203,41 @@ public final class Databricks extends AnsiSqlRenderer {
         if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
             throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
         }
-        return writer.append("date_format(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+        List<com.legend.sql.DateFmt> parts = ((SqlExpr.FormatLit) a.get(1)).parts();
+        if (!parts.contains(com.legend.sql.DateFmt.Part.YEAR4)) {
+            return writer.append("date_format(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+        }
+        // 'yyyy' pads to four digits and signs a year past 9999 ('+25489', measured 2026-10-19; step 9, the
+        // Databricks lane's testAdjustByMinutesBigNumber), where DuckDB's %Y and Pure write 25489: the year is
+        // formatted alone with that sign removed, each other run of the format as it is, in order (concat: NULL
+        // when the date-time is NULL, as date_format is). A BC year keeps its '-' (measured: -21457).
+        writer.append("concat(");
+        List<com.legend.sql.DateFmt> run = new java.util.ArrayList<>();
+        boolean first = true;
+        for (com.legend.sql.DateFmt p : parts) {
+            if (p != com.legend.sql.DateFmt.Part.YEAR4) {
+                run.add(p);
+                continue;
+            }
+            if (!run.isEmpty()) {
+                formatRun(writer.append(first ? "" : ", "), a.get(0), run);
+                run = new java.util.ArrayList<>();
+                first = false;
+            }
+            writer.append(first ? "" : ", ").append("regexp_replace(");
+            formatRun(writer, a.get(0), List.of(p)).append(", '^[+]', '')");
+            first = false;
+        }
+        if (!run.isEmpty()) {
+            formatRun(writer.append(", "), a.get(0), run);
+        }
+        return writer.append(")");
+    }
+
+    /** {@code date_format} of {@code value} by the format {@code parts}. */
+    private static SqlWriter formatRun(SqlWriter writer, SqlExpr value, List<com.legend.sql.DateFmt> parts) {
+        return writer.append("date_format(").expr(value, 0).append(", ").expr(new SqlExpr.FormatLit(parts), 0)
+                .append(")");
     }
 
     /** The {@code STRPTIME} arm of {@link #call}. */
