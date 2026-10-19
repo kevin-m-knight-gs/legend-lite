@@ -84,6 +84,8 @@ export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | un
         sdlc: o.client, writer: o.writer, ...model.into(c.projectName ?? o.pageName, c.package), class: action(c),
       });
       const made = done.answer;
+      // the page pinned to what it saved: its class grids are read at it (§16.1)
+      model.pin(done.revision);
       // the grid's table keeps its name from now: the project's store reads it by that name
       if (o.cube !== undefined) {
         model.keepTable(o.cube, table.table);

@@ -303,7 +303,7 @@ export function readPage(input: string | unknown): PageDocument {
 /** The page's model: its project, its workspace, its package, and each grid's table (`ids`: the page's cubes). */
 function readModel(raw: unknown, ids: ReadonlySet<string>): PageModelRef {
   if (!isObject(raw)) throw new PageDocumentError("'model' is not an object");
-  const { project, workspace, package: pkg, tables, classes } = raw;
+  const { project, workspace, package: pkg, tables, classes, revision } = raw;
   for (const [field, value] of [['project', project], ['workspace', workspace], ['package', pkg]] as const) {
     if (typeof value !== 'string' || value === '') throw new PageDocumentError(`'model' has no ${field}`);
   }
@@ -323,9 +323,14 @@ function readModel(raw: unknown, ids: ReadonlySet<string>): PageModelRef {
       made[cube] = cls;
     }
   }
+  // the pin: none while nothing of the project is saved (its first save failed)
+  if (revision !== undefined && (typeof revision !== 'string' || revision === '')) {
+    throw new PageDocumentError("'model' has a revision that is no revision's id");
+  }
   return {
     project: project as string, workspace: workspace as string, package: pkg as string, tables: kept,
     ...(Object.keys(made).length > 0 ? { classes: made } : {}),
+    ...(revision !== undefined ? { revision } : {}),
   };
 }
 

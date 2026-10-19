@@ -883,12 +883,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             : src._type === 'warehouseTable' ? `opening it reads ${src.name} on the warehouse again, signed in as whoever opens it`
               : src._type === 'remoteFile' ? `opening it reads ${src.name} again from its URL`
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}: it opens where Python serves it`
+                : src._type === 'class' ? `opening it reads the class ${src.name} from ${src.project} again, at the revision it was read at, its rows where its table is open`
                 : src.sample ? `the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens`
                   : `opening it reads ${src.name} again, from your computer`
           : src._type === 'savedQuery' ? `it reads the saved query “${src.name}” again, where its project (${src.query.groupId}:${src.query.artifactId}) is known`
             : src._type === 'warehouseTable' ? `whoever opens it signs in to the warehouse as themselves and needs to be granted ${src.name}; no sign-in is in the link`
               : src._type === 'remoteFile' ? `it reads ${src.url} again; no keys are in the link, a private bucket asks for them`
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}, which only the Python that serves it has`
+                : src._type === 'class' ? `it reads the class ${src.name} from ${src.project}, which only this browser's model home has`
                 : src.sample ? 'it rebuilds its sample on its own'
                   : `whoever opens it needs ${src.name}`);
       }

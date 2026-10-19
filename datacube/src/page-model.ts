@@ -19,6 +19,11 @@ export interface PageModelRef {
   readonly tables: Readonly<Record<string, string>>;
   /** Each grid's class, by the grid's cube id: the class its rows were made (a page saved before it had none). */
   readonly classes?: Readonly<Record<string, string>>;
+  /**
+   * The revision the page is pinned to (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §6, §16.1): the one its last model
+   * action saved, where its class grids are read; none while nothing of the project is saved (its first save failed).
+   */
+  readonly revision?: string;
 }
 
 /** The group a page's project is made in. */
@@ -59,6 +64,13 @@ export class PageModel {
         this.#ref = { project, workspace: PAGE_WORKSPACE, package: pkg, tables: {} };
       },
     };
+  }
+
+  /** The page is now pinned to `revision`: the one its last model action saved. */
+  pin(revision: string): void {
+    const ref = this.#need();
+    if (ref.revision === revision) return;
+    this.#ref = { ...ref, revision };
   }
 
   /** The page's model now keeps `cls` as the grid `cube`'s class. */

@@ -19,6 +19,7 @@ import {
   rebuilt,
   sha256,
   writeCube,
+  type ClassSource,
   type FileSource,
   type QuerySource,
   type FrameSource,
@@ -235,6 +236,36 @@ describe('a cube over a dataframe: by its name on the engine that serves it, nev
     const noColumns = JSON.parse(cubeToJson(over(FRAME)));
     delete noColumns.source.columns;
     assert.throws(() => readCube(noColumns), /the frame source has no columns/);
+  });
+});
+
+describe('a cube over a class: by what it is -- the class, its project and the revision it was read at', () => {
+  const CLASS: ClassSource = {
+    _type: 'class', name: 'Trade', class: 'trades::domain::Trade', project: 'datacube:trades', workspace: 'datacube',
+    revision: '3', mapping: 'trades::mapping::Model', runtime: 'trades::runtime::Browser',
+    columns: [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }],
+  };
+  const over = (source: ClassSource) => writeCube({
+    name: 'Trades', source, snapshot: EVERY, configuration: CONFIG, tree: TreeState.fromPaths([]),
+  });
+
+  it('writes it down and reads it back exactly', () => {
+    assert.deepEqual(readCube(cubeToJson(over(CLASS))).source, CLASS);
+  });
+
+  it('refuses one missing what reopens it, and a column that is no property\'s name', () => {
+    for (const f of ['class', 'project', 'workspace', 'revision', 'mapping', 'runtime']) {
+      const raw = JSON.parse(cubeToJson(over(CLASS)));
+      delete raw.source[f];
+      assert.throws(() => readCube(raw), new RegExp(`the class source has no ${f}`));
+    }
+    const noColumns = JSON.parse(cubeToJson(over(CLASS)));
+    delete noColumns.source.columns;
+    assert.throws(() => readCube(noColumns), /the class source has no columns/);
+    // a column is read as `$x.p`: a name the grammar reads bare, so a pivot's name or a literal's word is none
+    const quoted = JSON.parse(cubeToJson(over(CLASS)));
+    quoted.source.columns[0].name = 'true';
+    assert.throws(() => readCube(quoted), /the class source's column 'true' is no property's name/);
   });
 });
 

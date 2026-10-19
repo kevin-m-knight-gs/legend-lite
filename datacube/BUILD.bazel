@@ -224,6 +224,8 @@ _DUCKDB_USERS = [
     # the screen's grid over a real DuckDB, its document held to Python's (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11)
     "parity-screen",
     "model-join",
+    # a class as a grid's source, its rows planned over the project's files (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
+    "class-source",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -317,6 +319,8 @@ _WASM_TESTS = [
     "model-join",
     # the model's routes, asked of the tab's module (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a)
     "model-route",
+    # a class as a grid's source, read back from a class the writer made (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
+    "class-source",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
@@ -397,6 +401,7 @@ _HEADLESS_TESTS = [
     "cancel",
     "chart-rules-more",
     "child-groups",
+    "class-source",
     "column-kind",
     "columns-selector",
     "config",

@@ -216,6 +216,19 @@ describe("the page's model, in the model home (through the library: model-change
     assert.equal(model.into('Other', 'other').project, 'datacube:trades-3', 'made once');
     model.keepTable('g1', 'trades_2');
     assert.deepEqual(model.ref?.tables, { g1: 'trades_2' });
+    // pinned to the revision it saved: the one its class grids are read at (§16.1)
+    model.pin(done.revision);
+    assert.equal(model.ref?.revision, done.revision);
+    const again = await createClass({ sdlc: sdlc.client(), writer: WRITER, ...model.into('Trades', 'trades'),
+      class: { name: 'Customer' } as never });
+    assert.notEqual(again.revision, done.revision, 'a class made again is a new revision');
+    model.pin(again.revision);
+    assert.equal(model.ref?.revision, again.revision);
+    assert.deepEqual(model.ref?.tables, { g1: 'trades_2' }, 'its tables kept through the pin');
+  });
+
+  it('a page with no model yet has nothing to pin', () => {
+    assert.throws(() => new PageModel().pin('1'), /the page has no model yet/);
   });
 
   it('its project kept from the moment it is made: a workspace refused after leaves no second project (S2)', async () => {

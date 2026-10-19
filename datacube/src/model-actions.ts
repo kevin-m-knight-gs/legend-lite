@@ -141,8 +141,10 @@ export async function createAssociationOf(o: ModelActionsOf, first?: string): Pr
       },
       preview: (a) => o.writer.createAssociation(state.text, pkg, a),
       create: async (a): Promise<CreatedClass> => {
-        const made = (await createAssociation({ sdlc: o.client, writer: o.writer, ...model.into(o.pageName, pkg), association: a }))
-          .answer;
+        const done = await createAssociation({ sdlc: o.client, writer: o.writer, ...model.into(o.pageName, pkg), association: a });
+        const made = done.answer;
+        // the page pinned to what it saved (§16.1)
+        model.pin(done.revision);
         const kept = await o.persist();
         const at = model.ref!;
         return {
@@ -225,6 +227,8 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
           ...(choice.associations ? { associations: choice.associations } : {}),
         });
         const made = done.answer;
+        // the page pinned to what it saved (§16.1)
+        model.pin(done.revision);
         // each grid made a class keeps its table and its class
         for (const m of choice.made) {
           const g = o.grids.find((x) => x.id === m.id);

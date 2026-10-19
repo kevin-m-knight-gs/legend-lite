@@ -788,7 +788,8 @@ class Page:
     @property
     def model(self) -> dict[str, Any] | None:
         """Where the page's classes are, as the page document keeps it (DataCube's ``PageModelRef``): its project,
-        workspace and package, and each grid's table and class by its cube; None before its first class."""
+        workspace and package, each grid's table and class by its cube, and the revision it is pinned to (the one its
+        last model action saved); None before its first class."""
         ref = self._doc.get('model')
         return _copied(ref) if ref else None
 
@@ -816,8 +817,15 @@ class Page:
             # the page's model is no page command's: a page open on it opens it again
             self._unnoted()
             self._changed()
-        return call(sdlc if sdlc is not None else models.local_sdlc(),
-                    writer if writer is not None else models.local_writer(), at, made)
+        created = call(sdlc if sdlc is not None else models.local_sdlc(),
+                       writer if writer is not None else models.local_writer(), at, made)
+        # the page pinned to what it saved (page-model.ts ``pin``): its class grids are read at it
+        ref = self._doc['model']
+        if ref.get('revision') != created.revision:
+            ref['revision'] = created.revision
+            self._unnoted()
+            self._changed()
+        return created
 
     def _keep(self, cube: str, table: str, cls: str | None) -> None:
         """The page's model now keeps ``table`` and ``cls`` for the grid ``cube`` (page-model.ts ``keepTable``,

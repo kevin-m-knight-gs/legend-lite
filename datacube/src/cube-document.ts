@@ -136,8 +136,30 @@ export interface FrameSource {
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
 
-/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe. */
-export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource;
+/**
+ * A CLASS of a project in the model home the cube reads (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.1: a dashboard's
+ * tile), by what it is: the class, the project and the exact revision it is read at (the pin), and the mapping and
+ * runtime it runs through -- reopened from that project wherever the model home has it, never a copy of the model.
+ */
+export interface ClassSource {
+  readonly _type: 'class';
+  /** The class's name: what a person calls this source. */
+  readonly name: string;
+  /** The class's path. */
+  readonly class: string;
+  /** The project (`groupId:artifactId`), the workspace and the revision its files are read at. */
+  readonly project: string;
+  readonly workspace: string;
+  readonly revision: string;
+  /** The mapping and the runtime its rows are read through (Create a Class's: the model's, the place's). */
+  readonly mapping: string;
+  readonly runtime: string;
+  /** Its properties as the grid's columns, each under its own name. */
+  readonly columns: readonly { readonly name: string; readonly type: string }[];
+}
+
+/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class. */
+export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource;
 
 /**
  * The cube's definition: a snapshot without its runtime state (source relation, epoch, row window).
@@ -274,6 +296,7 @@ function readSource(raw: unknown): CubeSource {
   if (s['_type'] === 'warehouseTable') return readWarehouseSource(s);
   if (s['_type'] === 'remoteFile') return readRemoteSource(s);
   if (s['_type'] === 'frame') return readFrameSource(s);
+  if (s['_type'] === 'class') return readClassSource(s);
   if (s['_type'] !== 'file') {
     throw new CubeDocumentError(`a source of kind ${JSON.stringify(s['_type'] ?? null)} is not supported yet`);
   }
@@ -329,6 +352,17 @@ function readFrameSource(s: Record<string, unknown>): FrameSource {
   }
   if (!hasColumns(s)) throw new CubeDocumentError('the frame source has no columns');
   return s as unknown as FrameSource;
+}
+
+function readClassSource(s: Record<string, unknown>): ClassSource {
+  for (const f of ['name', 'class', 'project', 'workspace', 'revision', 'mapping', 'runtime']) {
+    if (typeof s[f] !== 'string' || s[f] === '') throw new CubeDocumentError(`the class source has no ${f}`);
+  }
+  if (!hasColumns(s)) throw new CubeDocumentError('the class source has no columns');
+  // a column of a class source is a property, read as `$x.p`: a name the grammar reads bare
+  const bad = (s['columns'] as { name: string }[]).find((c) => !isIdentifier(c.name));
+  if (bad !== undefined) throw new CubeDocumentError(`the class source's column '${bad.name}' is no property's name`);
+  return s as unknown as ClassSource;
 }
 
 function readQuerySource(s: Record<string, unknown>): QuerySource {

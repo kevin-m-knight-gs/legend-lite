@@ -178,6 +178,15 @@ describe('a saved page', () => {
     assert.throws(() => readPage(JSON.stringify({ ...raw, model: 'datacube:trades' })), /'model' is not an object/);
   });
 
+  it('keeps the revision the page is pinned to; one that is no revision\'s id refused', () => {
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2' }, revision: '7' };
+    const made = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
+    assert.deepEqual(readPage(pageToJson(made)).model, model);
+    const raw = JSON.parse(pageToJson(made));
+    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, revision: '' } })), /'model' has a revision that is no revision's id/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, revision: 7 } })), /'model' has a revision that is no revision's id/);
+  });
+
   it('writes a table kept only for a cube it holds: a grid removed since its class was made, the page still opens', () => {
     const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2', gone: 'customers' } };
     const written = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
