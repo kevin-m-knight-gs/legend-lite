@@ -59,10 +59,9 @@ final class PlanMaker {
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Servers servers = Databases.servers(decided.type());
+        ExecutionPlan.Servers servers = Databases.serversFor(decided.type(), serverVersion);
         if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
             dialect = dialect.forServer(serverVersion);
-            servers = new ExecutionPlan.Servers.Versions(List.of(majorMinor(serverVersion)));
         }
         Metamodel metamodel = metamodel(l, decided.type(), dialect);
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect, servers,
@@ -210,14 +209,6 @@ final class PlanMaker {
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
         return new ExecutionPlan.Target(database, servers, session, steps);
-    }
-
-    /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
-     *  its runner checks the session's version against. A version with no dot is itself. */
-    private static String majorMinor(String version) {
-        int first = version.indexOf('.');
-        int second = first < 0 ? -1 : version.indexOf('.', first + 1);
-        return second < 0 ? version : version.substring(0, second);
     }
 
     /**

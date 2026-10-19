@@ -98,6 +98,29 @@ public final class Databases {
         };
     }
 
+    /** The servers a plan written for a session of {@code serverVersion} names: where {@code type}'s spelling depends
+     *  on the version ({@link ExecutionPlan.Servers.Versions}, H2's 2.1 and 2.2 the engine-parity dialect, 2.3 and
+     *  later the modern one), that version's {@code major.minor} alone, so the plan's runner accepts the session the
+     *  plan was written for (the dialect is {@code SqlDialect.forServer}'s); else the declared servers. A null
+     *  version is the declared target (the plan path program's step 9, 2026-10-19: the H2 PCT lane and channel B's
+     *  H2 judge run the modern H2, and a plan for the declared target was refused on every case). */
+    public static com.legend.executionplan.ExecutionPlan.Servers serversFor(DatabaseType type,
+            @com.legend.base.Nullable String serverVersion) {
+        com.legend.executionplan.ExecutionPlan.Servers declared = servers(type);
+        if (serverVersion != null && declared instanceof com.legend.executionplan.ExecutionPlan.Servers.Versions) {
+            return new com.legend.executionplan.ExecutionPlan.Servers.Versions(java.util.List.of(majorMinor(serverVersion)));
+        }
+        return declared;
+    }
+
+    /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
+     *  its runner checks the session's version against. A version with no dot is itself. */
+    public static String majorMinor(String version) {
+        int first = version.indexOf('.');
+        int second = first < 0 ? -1 : version.indexOf('.', first + 1);
+        return second < 0 ? version : version.substring(0, second);
+    }
+
     /** Whether {@code type} runs IN THIS PROCESS (an embedded engine, a private instance of which the platform opens:
      *  H2, DuckDB, SQLite) or on a SERVER. The system metamodel store's tables are a private instance's own tables in
      *  their schema, and a server session's own TEMPORARY tables (exec.SystemDatabase's form, the user's ruling of

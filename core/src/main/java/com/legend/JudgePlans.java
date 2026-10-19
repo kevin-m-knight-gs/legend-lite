@@ -45,9 +45,11 @@ final class JudgePlans {
     /**
      * The target a judge's plan names: the body's runtime's database (its first declared connection: every
      * connection of a runtime is of one database type, the one fact a given session is checked against) with the
-     * dialect's server versions; no session statements and no setup -- the body's session was established by the
-     * runner that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it
-     * ({@link PlanSessions#given}).
+     * server versions narrowed to the body's session's ({@code Databases.serversFor}: the env's dialect is the one
+     * the legacy seam chose for that session, {@code SqlDialect.forServer}, so the plan is written for the session
+     * it runs on; found 2026-10-19 by channel B's H2 judge, every case refused "written for H2 [2.1, 2.2], and the
+     * session is H2 2.4"); no session statements and no setup -- the body's session was established by the runner
+     * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#given}).
      */
     static ExecutionPlan.Target target(StatementExecutor.ExecEnv env) {
         com.legend.database.Target decided = Compiler.executesOn(env.ctx(), env.runtimeFqn());
@@ -56,7 +58,9 @@ final class JudgePlans {
             case com.legend.database.Target.Declared d ->
                     new ExecutionPlan.Database.Declared(d.connections().get(0));
         };
-        return new ExecutionPlan.Target(database, Databases.servers(decided.type()), List.of(), List.of());
+        return new ExecutionPlan.Target(database,
+                Databases.serversFor(decided.type(), com.legend.exec.Sessions.version(env.connection())),
+                List.of(), List.of());
     }
 
     /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three
