@@ -3894,7 +3894,7 @@ lite/absent/a_relationship_over_a_model_declaring_none	PASS	PASS
 lite/absent/counts_over_a_pattern_no_relationship_reads	PASS	PASS
 lite/absent/a_long_pattern_no_relationship_reads_with_a_where	PASS	PASS
 lite/absent/a_hop_from_a_class_no_way_leaves_return_star	PASS	PASS
-lite/absent/a_cycle_from_an_absent_node_refused	REFUSED	REFUSED
+lite/absent/a_cycle_from_an_absent_node_refused	PASS	PASS
 lite/absent/optional_first_pattern_no_relationship_reads	PASS	PASS
 lite/absent/optional_first_hop_from_a_class_no_way_leaves	PASS	PASS
 lite/aggregates/count_star_in_an_expression	PASS	PASS
@@ -4016,7 +4016,7 @@ lite/continue/untyped_hop_after_a_labelless_match	PASS	PASS
 lite/continue/untyped_hop_that_fans_out	PASS	PASS
 lite/continue/two_untyped_hops_from_a_bound_node	PASS	PASS
 lite/continue/untyped_hop_after_a_projecting_with_refused	PASS	PASS
-lite/continue/untyped_hop_between_two_bound_nodes_refused	REFUSED	REFUSED
+lite/continue/untyped_hop_between_two_bound_nodes_refused	PASS	PASS
 lite/continue/untyped_hop_from_a_node_no_way_leaves	PASS	PASS
 lite/cycles/a_self_loop_matched	PASS	PASS
 lite/cycles/a_two_node_cycle_matched	PASS	PASS

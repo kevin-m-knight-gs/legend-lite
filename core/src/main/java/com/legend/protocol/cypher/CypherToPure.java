@@ -4060,6 +4060,13 @@ public final class CypherToPure {
                 continue;   // (named twice by the pattern, §12.70: one absent value)
             }
             own.add(var);
+            Col held = names.contains(var) ? column(rows, var) : null;
+            if (e instanceof NodePattern && held != null && held.detail() instanceof NodeShape) {
+                // (a node the rows hold, named again: a cycle back to it, `MATCH (a)-->(a)` from an absent a; its
+                // own column stands for it, absent with the rest -- a variable of another kind is the static
+                // check's VariableTypeConflict, raised before any clause is read)
+                continue;
+            }
             if (names.contains(var)) {
                 throw CypherErrors.unsupported("a pattern from an absent node binding " + var + " again (bound already:"
                         + " a cycle compared by identity, or a variable of another kind) is not supported yet",
@@ -5968,8 +5975,10 @@ public final class CypherToPure {
     /** Whether the one pattern of {@code m}, read from a node the graph {@code g} binds (its first), goes where the
      *  graph's navigation reads no further: on past the far end of a hop over an edge class (the resolver reads no
      *  association end past an edge's end: every relationship of the native store is one), or, in an OPTIONAL MATCH,
-     *  over a type joining several class pairs from the node's class (one hop is one way there). Such a pattern is
-     *  re-anchored over the graph's rows instead (§12.49), where it is a MATCH of its own. */
+     *  over a type joining several class pairs from the node's class (one hop is one way there), or over an untyped
+     *  relationship to a node the graph binds too (the arms' route reads from one bound end). Such a pattern is
+     *  re-anchored over the graph's rows instead (§12.49), where it is a MATCH of its own joined on every node it
+     *  shares with the rows. */
     private boolean pastTheGraphsNavigation(CypherAst.Match m, Graph g) {
         if (m.patterns().size() != 1) {
             return false;
@@ -5981,6 +5990,12 @@ public final class CypherToPure {
         Binding from = g.bindings().get(first.variable());
         if (from == null || !from.node() || from.classPath() == null || from.absent() || from.maybeAbsent()) {
             return false;
+        }
+        NodePattern last = (NodePattern) elements.get(elements.size() - 1);
+        Binding to = last.variable() == null ? null : g.bindings().get(last.variable());
+        boolean untyped = elements.stream().anyMatch(e -> e instanceof RelPattern r && r.types().size() != 1);
+        if (untyped && to != null && to.node() && !to.absent() && !to.maybeAbsent()) {
+            return true;
         }
         for (int i = 1; i + 1 < elements.size(); i += 2) {
             RelPattern r = (RelPattern) elements.get(i);

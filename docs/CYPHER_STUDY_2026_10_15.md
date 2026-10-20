@@ -5795,3 +5795,17 @@ lane PASS 4271 → 4276, REFUSED 17 → 12; the domain lanes PASS 4244 → 4245,
 nothing else moved. The native lane now passes every case the domain lane passes. What it still refuses is the TCK's
 two signed years and lite's own pinned refusals; the domain lane's are those, and the label changes (S94).
 
+### 12.96 Lite's pinned refusals that were gaps, not decisions (2026-10-20)
+
+Of lite's own pinned refusals, two were gaps of the routes rather than deliberate refusals:
+- `MATCH (a:A)-[:REL]->(b:B) MATCH (a)-->(b)`, an untyped hop between two nodes the graph binds. The untyped-arms
+  route reads the hop from one bound end, and the other end's binding was not joined. Such a pattern
+  (`pastTheGraphsNavigation`: an untyped hop whose far end the graph also binds, present) is now re-anchored over the
+  graph's rows, as §12.95's patterns are: a first MATCH of its own, joined back on both nodes' identities.
+- `OPTIONAL MATCH (a) WITH a MATCH (a)-->(a)`, a cycle back to a node an absent row may hold. The absent pattern
+  refused a node variable the rows already carry. A node the rows hold, named again, is that node: the cycle needs
+  no column of its own, since a row whose node is absent matches nothing. (A variable of another kind named as a
+  node is Neo4j's VariableTypeConflict, raised before any clause is read, §12.63.)
+
+The lanes in update mode: the domain lanes PASS 4245 → 4247, REFUSED 43 → 41 on DuckDB and Postgres; the native lane
+PASS 4276 → 4277, REFUSED 12 → 11 (the cycle; the untyped hop passed there already); nothing else moved.

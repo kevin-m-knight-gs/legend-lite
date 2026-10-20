@@ -11947,6 +11947,16 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the hundred-and-second landing — two pinned refusals that were gaps
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.96.
+- **What it closes:** an untyped hop between two nodes the graph binds (`MATCH (a:A)-[:REL]->(b:B) MATCH (a)-->(b)`),
+  now re-anchored over the graph's rows and joined back on both identities; and a cycle back to a node an absent row
+  may hold (`OPTIONAL MATCH (a) WITH a MATCH (a)-->(a)`), the node named again read as the one the rows hold.
+- **Measured** (each lane in update mode): the domain lanes PASS 4245 → 4247, REFUSED 43 → 41 on DuckDB and Postgres;
+  the native lane PASS 4276 → 4277, REFUSED 12 → 11; nothing else moved. `//core:guardrails` and
+  `//core:core_tests_integration` are green.
+
 ## 2026-10-20 — `#Cypher{...}#`: the hundred-and-first landing — a pattern past the graph's navigation
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.95.
