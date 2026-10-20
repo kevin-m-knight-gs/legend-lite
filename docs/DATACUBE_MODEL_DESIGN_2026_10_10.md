@@ -945,7 +945,7 @@ about a prep UI like it, "but maybe more Alteryx like".
 - **On the legend-engine planner** (`?planner=engine`), a file's BOOLEAN column in a join types as legend-engine's
   TinyInt: the join's model passes no `bitColumns` (S23's workaround), which would need mapping through the prefix.
 - **Create a Class of a joined grid**: not offered (its relation reads no one table, and the writer makes a class of a
-  table's rows).
+  table's rows); §18 makes a class of any base query).
 - **An append of a precise decimal column one side lacks** is refused by the compiler, in its words: lite types
   `[]->cast(@Decimal(10,2))` in an `extend` as `Decimal`, which `concatenate` will not unite with `Decimal(10,2)`. A core
   typing gap, for the compiler's line; never worked around here (test/join-open.test.ts pins the refusal).
@@ -995,3 +995,181 @@ about a prep UI like it, "but maybe more Alteryx like".
   lateral beyond Expand; text comparisons as rows; warehouse tables read live; a joined file's handle kept; choose,
   rename and remove duplicates as relation steps (choose is the shown columns already; rename is a column's display
   name and Create a Class's names; remove duplicates is left for the next step).
+
+## 18. A grid is a query, not a table (step 4c, agreed 2026-10-20)
+
+The user's words, 2026-10-20:
+
+- "Why does anything care if it's a table or a query? Everything on datacube should work on a query assumption not a
+  table assumption right? Even the sample data should be for the query expression ... It should not matter if one
+  table or 6 tables joined together".
+- "The fact that we don't have mapping tests is a big we should fix here I think".
+- "Snap should not snap a table - Snap should snap a query expression just like everything else ... the grid should
+  really either have a single table which is shorthand for select* from that table or a base query expression that
+  basically acts like that select* it just gets wrapped as 'base table' expression instead of single table".
+- "You can own all of python and datacube now": the SQL plan's ground is this line's.
+
+### 18.1 The rule
+
+- A grid is its **base query** and the cube's operations on top of it. The base is a relation expression. A single
+  table is the shorthand `#>{db::DB.t}#`, the select-everything of that table.
+- Every question about a grid is asked of its base query:
+  - what it is: the compiler's relation type;
+  - what it reads: its **leaves**, the tables the query reads and where each one's rows come from;
+  - where its rows are: Live or Snapped;
+  - what a class of it is, and what its samples are.
+- Tables stay in two places only:
+  - where rows physically are, the leaves: a file in the tab, a remote file, a frame, a warehouse object;
+  - the model's store and its test data: legend-engine's mapping tests take relational data per table.
+- A new kind of source (a join today, a union or another prep step later) is then taught in one place: how it
+  becomes a base query, and what its leaves are. Nothing else asks what kind of source a grid has.
+
+### 18.2 What assumes a table today (the sweep, 2026-10-20)
+
+Two read-only sweeps, DataCube with the engine client and Python, their findings checked against the code. Lines
+are at `b108cbd69`.
+
+1. **The base query is never saved. This is the root.**
+   - `cube-document.ts` `SavedQuery` (~192) omits `source`, and `writeCube` (~229) drops it.
+   - Reopen rebuilds the base from the leaf: `rebuilt(saved, m.source, ...)` in each opener of `app/sources.ts`; a join
+     from its leaves' relations (`join-open.ts`). A base other than a leaf's accessor (a filtered one, a join input's
+     own) would reopen as the bare leaf. Latent today: nothing edits a base yet.
+   - Python never holds a base:
+     - `page.py _cube_spec` (~535) sends `frames[cube.source.name].accessor` with every headless call.
+     - `_reopened`, `_current` and `_frame_cube` rebuild a saved cube over one frame.
+     - `_read_page` (~1353) refuses a cube whose source is not a frame, so a page with a join or class grid cannot be
+       read, saved or shown from Python.
+2. **What a grid reads is answered from its source kind, or from one field.**
+   - The tab:
+     - `GridPlace.file` is one file. It feeds `filesNow`, `filesHeld` and `keepHandles`, so a page of only join grids
+       keeps no file handles and gives no warning on leaving.
+     - `frameOf` (`app/sources.ts` ~1107) and `live-follow.ts` refresh only grids whose source is a frame.
+     - The Live/Snapped pill comes from `heldCopy` and `snapTarget`, set per kind: a join of two tab files says
+       "Live — this plane has no store in this tab to snap into".
+     - The header's source tag reads the accessor's path (`app.ts` ~3915).
+     - Page filters reach only grids whose source is a class (`page-filters.ts` ~151).
+   - Python:
+     - `Grid.frame` (`page.py` ~205), and `Grid.update(frame)`, assume one frame.
+     - `Page.load` and `Page.read` find a saved page's frames by each cube's source name.
+     - `_frames()`, `_update` and `engine.py page_versions` track one frame per cube, so a join over Live frames is
+       not re-queried when one of them changes.
+3. **Snap copies a table.**
+   - The tab:
+     - `SnapTable` is one table under the warehouse table's own name (`engine-client/src/snap.ts` ~97), read through
+       that table's model and runtime, with the catalog's conversions.
+     - A snap target is made only for a warehouse table's grid (`app/sources.ts` `snapOf`, `hostSnap`). The pull is
+       already the base query (`cube.ts` ~685).
+     - **A bug today:** every grid one maker makes (a Copy of Grid, a chart's Open in Grid) shares its snap target.
+       Snap both, and both copies land in one table (`replace: true`); take one Live, and `discard` drops the table
+       the other still reads.
+   - Python:
+     - `_WarehouseTable` (`engine.py` ~335) holds one copy per table (`holders`, `frozen`, `snap_runtime`).
+     - A second grid's snap gets the first grid's copy without a pull of its own (`_warehouse_snap` ~936).
+     - `refused_runtime` lets any grid read a copy another grid holds.
+     - The conversions are per column of the table, not of the query.
+4. **Create a Class, a Data Space, an Association.**
+   - `storeTableOf(base)` (`query.ts` ~390) is a fine leaf detector, but it gates all three:
+     `app/datacube-app.ts` ~1043, `model-actions.ts` ~60 and `headless/grid.ts` ~427.
+   - The sample is filed under that one table's name, and `where.from` is the accessor's Database.
+   - The page model keeps one table per cube: `page-model.ts` `tables` and `keepTable`, and `page-document.ts` reads
+     one string per cube.
+   - The menu hides them on a join's grid (`app/datacube-app.ts` ~225), and Python's data space leaves such grids
+     out without a word (`page.py create_data_space`, `_NotATable`).
+5. **Python routes a warehouse plan by one table's model.**
+   - `engine.py` routes plan-and-run (~472, `_warehouse_table_of` ~1009), the dry run (`_plan`) and
+     `_warehouse_plan_and_run` to a warehouse only when the model text is exactly one table's model, so a join of
+     warehouse tables has nowhere to run.
+   - pure/v1 `execute` (`_execute`, ~1150) admits only one frame's model text, not what `model_for` admits.
+
+Unsure, to settle while building: a warehouse grid's Create a Class sample is planned with the warehouse runtime and
+run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
+
+### 18.3 The design
+
+1. **The base query saved.**
+   - A cube document saves its base query beside its leaves: the leaves say where rows come from (a file's name and
+     hash, a frame, a warehouse object), and the base is the query over them.
+   - A table source's base is its accessor, the shorthand.
+   - Reopen reads the leaves again and puts the base back over them, its table names those the leaves are read as now.
+   - Python holds each grid's base and sends it with its model, never a frame's accessor in its place.
+2. **`leavesOf(source)`.**
+   - One function in DataCube over every kind of source, a join's recursively: each leaf's kind, identity, and the
+     table it is read as.
+   - Every check in §18.2's second item asks it instead of a kind or a field. Python asks it headless, with no
+     second copy.
+3. **Snap by query.**
+   - Snap copies the base query's result into a table of its own, never a source's name.
+   - The copy is declared from the compiler's relation type of the base, and its conversions come from the result's
+     column types.
+   - The snapped grid reads `#>{copy}#`, and its document keeps the live base.
+   - It is offered for any base whose leaves are not already rows of the host's database.
+   - A copy belongs to its grid. Two grids share one only when their base queries are the same: counted, and dropped
+     when the last lets go.
+   - Python's copies work the same way: held by the grid, and registered as tables Python serves, so a model reading
+     them is admitted.
+   - Python's per-frame Snapped mode folds into this. There is one Snap, per grid, of its base: a frame grid's Snap
+     copies `#>{frame}#`.
+4. **Python pages over any base.**
+   - `_read_page` reads every kind of source DataCube reads, and `Grid.frame` gives way to the grid's leaves.
+   - `load`, `read`, `update`, change tracking and page versions follow every leaf.
+   - A model of several frames and warehouse tables is served, so step 4b's `page.join` falls out of it.
+   - Warehouse plans are routed by the tables a model declares, not by one table's model text.
+5. **A class of any base.**
+   - Create a Class, a Data Space and an Association take the base query, and are shown on every grid.
+   - The class's store declares the tables `leavesOf(base)` names, and its samples are per leaf table (§18.4).
+   - The page model keeps `{grid → [tables]}`.
+6. **Mapping tests.** Core runs a mapping's `testSuites` as legend-engine does (§18.5). Create a Class writes one,
+   and runs it.
+
+### 18.4 Samples chosen through the query
+
+- Test data is per store table: legend-engine provisions relational CSV per table
+  (`Relational #{ schema.table: '...' }#`). So a sample is per leaf table, and its rows are chosen through the
+  query, not a table's first rows.
+- The test is right by construction. Its expected rows are the class's query run over the samples, so any subset of
+  each leaf's rows makes a valid test.
+- The choice only makes it a useful test: rows that pass the base's filters and find their partners through its join
+  conditions, so the expected result is not empty.
+- How: each leaf's rows that reach the base's first output rows, by provenance. Each leaf is read with a row id the
+  base carries through; where the base aggregates, the rows of its first groups, capped. Planned by the compiler, and
+  run where the rows are. The details are written in their own section when built.
+
+### 18.5 The mapping-test runner, in core
+
+Read from legend-engine's `MappingTestRunner` and `TestAssertionEvaluator` (read only, never run):
+
+- A suite's query runs against a **test runtime** made of the test's own store data:
+  - each store's data becomes a test connection (relational CSV, a database seeded with it);
+  - the runtime is those connections, with the mapping under test.
+  - A test with no data, or with store and non-store data mixed, is an error.
+- Only the **first assertion** is judged, and the result is serialized `RAW`.
+- When the query returns a relation, its column types are known (`RelationAssertionColumnTypes`).
+  - An `EqualToRelation` assertion's expected rows (CSV) are typed by them: text, integer, float, decimal, boolean.
+    An empty cell or `null` is null.
+  - They are compared with the actual rows as JSON: a null equals a missing field, and arrays are unordered.
+- `EqualToJson` compares the actual `RAW` serialization with the expected JSON, with the same comparator. `EqualTo`
+  compares a value with the result.
+- Core's `ServiceTestRunner` already has what to reuse: the test runtime as an execution overlay, CSV provisioning
+  from `###Data`, and `EqualToJson`. The mapping runner adds `EqualToRelation`, on typed suites on the model's
+  mapping, executed through `Execution.executeResolved` (docs/DEFERRED_TEST_EXECUTION.md).
+
+### 18.6 Order, each audited
+
+1. The base query saved, and `leavesOf`.
+2. Snap by query, in the tab and in Python.
+3. Python pages over any base.
+4. A class, a data space, an association of any base.
+5. Core's mapping-test runner.
+6. Samples through the query; Create a Class writes the mapping test and runs it.
+7. An audit by a reviewer that wrote none of it, and the full suite.
+
+On `claude/datacube-query-base`, stacked on `claude/datacube-model-prep`.
+
+### 18.7 What judges it
+
+- A filtered base, a join, a class grid and a saved query each reopen as they were.
+- Snap of each. Two grids snapped, then one taken Live: the other still reads its copy.
+- A page of only joins keeps its files' handles, and warns on leaving.
+- Python reads, saves and shows a page with a join and a class grid, and `page.join` makes one.
+- A class of one table, a filtered one, a grouped one and a join of three files: each with its mapping test, run and
+  passing. A sample changed by hand makes the test fail.
