@@ -8,13 +8,13 @@ frame a row more), `py-page` (a page built with ll.Page and shown; answered `don
 `py-page-sheet` (a sheet added to it in Python), `py-page-group` and `py-page-regroup` (its first grid grouped by desk,
 then by region, in Python), `py-page-rename` and `py-page-name-back` (it renamed in Python, and named back),
 `py-page-snap`, `py-page-more` and `py-page-live` (its first grid snapped in Python, its frame a LATAM row more, the grid
-live again), `py-page-copies` (answered `done py-page-copies <each grid's snapped, as page.read() says it, as JSON>`),
+live again), `py-page-copies` (answered `done py-page-copies <each grid's snapped, as the page says it, as JSON>`),
 `show-snapped` (a frame shown with snap=True; answered `done show-snapped <its link as JSON>`), `copies-held`
 (answered `done copies-held <the copies Python's engine holds, as JSON>`),
 `widget-page-sheet` (a sheet added to the notebook's page),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
-page.read() says them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
+the page has them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
 text, as JSON>`: for DataCube's reader to read) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
 a notebook's channel brings it. What a widget sends its page is printed as it goes: `sent <json>` (its buffers in
 base64) and `trait <json>` (a property set). A second frame, `desks`, is served Live from the start, for the page.
@@ -220,7 +220,8 @@ def main() -> None:
             elif command == 'py-documents':
                 command = f'py-documents {json.dumps(python_documents(frame, served_page, desks))}'
             elif command == 'py-page-read':
-                command = f'py-page-read {json.dumps([s.name for s in pypage.read().sheets])}'
+                # the page as it is open now: one copy, a write from the open page Python's at once
+                command = f'py-page-read {json.dumps([s.name for s in pypage.sheets])}'
             elif command == 'py-page-join':
                 # a join of two of its grids' frames (page.join, §18.3), on its first sheet: the open page opens it
                 # through Python, which has its compiler and its frames (the page has neither of its own here)
@@ -240,8 +241,7 @@ def main() -> None:
             elif command == 'py-page-live':
                 pygrid.live()
             elif command == 'py-page-copies':
-                # the copies its grids read, as page.read() takes the open page's (a snap made there among them)
-                pypage.read()
+                # the copies its grids read, the open page's writes among them (a snap made there)
                 command = f'py-page-copies {json.dumps({g.id: g.snapped for g in pypage.grids})}'
             elif command == 'show-snapped':
                 # ll.show(df, snap=True): the tab's grid snaps as it opens the frame

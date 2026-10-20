@@ -325,8 +325,9 @@ class InAKernel(Widget):
         first._ipython_display_()
         self.assertEqual(len(self.displayed), 3)
         # a change in Python moves its versions, which its page follows
+        before = first.versions['version']
         page.sheet('More')
-        self.assertEqual(first.versions['version'], 2)
+        self.assertEqual(first.versions['version'], before + 1)
 
 
 class WithoutTheExtra(unittest.TestCase):

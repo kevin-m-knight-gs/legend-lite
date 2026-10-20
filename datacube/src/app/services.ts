@@ -257,8 +257,11 @@ export interface LivePage {
   changes(since: number): Promise<
     | { readonly version: number; readonly commands: readonly LiveCommand[] }
     | { readonly version: number; readonly page: PageDocument }>;
-  /** The page as it is now, said back with the version it opened (what it says of a version replaced is refused). */
-  report(version: number, page: PageDocument): Promise<void>;
+  /**
+   * The page as it is now, written against the version on screen (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the page's
+   * version from then on -- the same, when it changed nothing -- or refused, the page having moved on meanwhile.
+   */
+  report(version: number, page: PageDocument): Promise<number>;
 }
 
 // ------------------------------------------------------------------------------------------------------- the queries

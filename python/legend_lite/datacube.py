@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from .engine import Engine, WebServer
 from .frames import Frames
+from .keeper import PageKeeper
 
 if TYPE_CHECKING:
     from .notebook import DataCube, PageCube
@@ -174,15 +175,18 @@ class _Session:
         self._hooked = False
         # a cube was opened in a browser: a person is looking, so a plain script's end keeps the engine for them
         self.opened = False
-        # the snaps' copies of pages collected (page.py _orphaned), let go at the next safe moment (release_orphans)
-        self.orphans: list[str] = []
+        # the one copy of each Python page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): each new version told
+        # where its page is shown
+        self.keeper = PageKeeper(on_write=self._page_written)
+        # the keys of pages collected, forgotten by the keeper at the next safe moment (sweep): never in the collector
+        self.gone: list[str] = []
 
     def engine(self) -> Engine:
         with self._lock:
             if self._engine is None:
                 # a page's file is read into the frames' database by DataCube's own code, headless (file.json); every
                 # query planned in this process, by Python's own compiler (a host plans in process: the program's §1.1)
-                self._engine = Engine(self.frames, site=_site(), headless=self.headless)
+                self._engine = Engine(self.frames, site=_site(), headless=self.headless, keeper=self.keeper)
             return self._engine
 
     def headless(self) -> Any:
@@ -206,20 +210,21 @@ class _Session:
         engine = self._engine
         return None if engine is None else engine.copy_of(table)
 
-    def release_orphans(self) -> None:
-        """The copies of pages collected since (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), let go by the engine
-        holding them -- one let go already passed by. Called where nothing is held but, at most, the session's lock: a
-        page's change, a cell's end."""
+    def sweep(self) -> None:
+        """The pages collected since forgotten, and each snap's copy no page kept reads any more let go of by the engine
+        holding it (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md; engine.py ``sweep``). Called where nothing is held but, at
+        most, the session's lock: a page's change, a cell's end."""
+        while self.gone:
+            self.keeper.forget(self.gone.pop())
         engine = self._engine
-        while self.orphans:
-            table = self.orphans.pop()
-            if engine is None or engine.copy_of(table) is None:
-                continue
-            try:
-                engine.release_copy(table)
-            except ValueError:
-                # its drop failed: it stays served, as any copy whose drop failed
-                pass
+        if engine is not None:
+            engine.sweep()
+
+    def _page_written(self, key: str, version: int) -> None:
+        """A page's new version, written by any of its editors: told where it is shown (a notebook's widget follows it)."""
+        for view in list(self.pages):
+            if view._page._key == key:
+                view._page_moved(version)
 
     def web(self) -> WebServer:
         """The engine over HTTP, for the tabs: started by the first."""
@@ -280,8 +285,8 @@ class _Session:
         """A notebook cell (or an IPython command) has run: each cube, and each frame of a page shown, read at each query
         (a stream's, read once, never changes), queries again, so a change shows."""
         with self._lock:
-            # the copies of pages collected meanwhile (a cell made its page again): let go
-            self.release_orphans()
+            # the pages collected meanwhile (a cell made its page again), and the copies no page reads any more: let go
+            self.sweep()
             for key, cube in list(self.cubes.items()):
                 cube._after_cell()
                 if self._engine is not None and key in self.frames and self.frames[key].live:
@@ -307,9 +312,9 @@ class _Session:
             # served when it is first shown; shown again, the engine has it as it is (served each time it changed), and
             # a page open on it stays as it is
             if not page._shown:
-                self.engine().serve_page(page._key, page._doc, sorted(page._frames()))
-                # served whole: what changed it before is in it
-                page._unserved = []
+                # its engine made, to serve it; the page kept already, as every page is from its start
+                self.engine()
+                self.keeper.serve(page._key, True)
             page._shown.append(view)
             self.pages.append(view)
             self._hook()
@@ -322,8 +327,8 @@ class _Session:
             page = view._page
             if view in page._shown:
                 page._shown.remove(view)
-            if not page._shown and self._engine is not None:
-                self._engine.close_page(page._key)
+            if not page._shown:
+                self.keeper.serve(page._key, False)
             self._stop_web_if_unused()
 
     def close(self, name: str, cube: Any) -> None:

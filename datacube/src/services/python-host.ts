@@ -614,6 +614,9 @@ export function livePage(link: PythonLink, key: string): LivePage {
         body: pageToJson(page),
       });
       if (!answer.ok) throw new Error(`the engine refused the page: ${answer.status} ${await answer.text()}`);
+      const said = JSON.parse(await answer.text()) as { version?: unknown };
+      if (typeof said.version !== 'number' || !Number.isSafeInteger(said.version)) throw new Error('the engine said no version of the page');
+      return said.version;
     },
   };
 }

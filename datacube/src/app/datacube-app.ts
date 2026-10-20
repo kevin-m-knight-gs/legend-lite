@@ -607,24 +607,34 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     window.addEventListener('pagehide', onGone);
     undo.push(() => window.removeEventListener('pagehide', onGone));
 
-    // THE PAGE ANOTHER EDITOR SERVES (services.live: Python's `ll.Page`, §5): what it is now, reported once a change
-    // settles, with the version it opened -- what it says of a version Python has since replaced is refused, never read
-    // back as now -- and followed as Python changes it (below).
+    // THE PAGE ANOTHER EDITOR SERVES (services.live: Python's `ll.Page`, §5), kept by its keeper
+    // (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): written once a change settles, against the version on screen -- the
+    // page's next version, which this page is at from then on; refused when the page moved on meanwhile, and followed
+    // to where it is -- and followed as its other editor changes it (below).
     const live = services.live;
-    /** The version of the editor's page on screen, which its reports name; undefined while none is. */
+    /** The version of the editor's page on screen, which its writes name; undefined while none is. */
     let liveShown: number | undefined;
-    /** Its next report, while a change waits to settle. */
+    /** Its next write, while a change waits to settle. */
     let reporting: ReturnType<typeof setTimeout> | undefined;
     undo.push(() => clearTimeout(reporting));
+    /**
+     * Writing and following, one at a time and in order: a move told while this page's own write is on its way is
+     * followed once the write has said its version -- never taken for the other editor's.
+     */
+    let liveQueue: Promise<void> = Promise.resolve();
     function liveChanged(): void {
       if (!live?.page || liveShown === undefined || notFollowed !== undefined) return;
       clearTimeout(reporting);
-      const at = liveShown;
       reporting = setTimeout(() => {
-        if (disposed || notFollowed !== undefined || liveShown !== at) return;
-        const doc = pageNow(current.name ?? (page.suggestedName || 'page'));
-        // a report the editor refuses (a page it replaced, an editor gone) is followed by what it says next
-        if (doc) void live.page?.report(at, doc).catch(() => undefined);
+        liveQueue = liveQueue.then(async () => {
+          const at = liveShown;
+          if (disposed || notFollowed !== undefined || at === undefined) return;
+          const doc = pageNow(current.name ?? (page.suggestedName || 'page'));
+          if (!doc || !live.page) return;
+          // a write the keeper refuses (the page moved on, an editor gone) is followed by what it says next
+          const version = await live.page.report(at, doc).catch(() => undefined);
+          if (version !== undefined && liveShown === at) liveShown = version;
+        });
       }, REPORT_AFTER);
     }
 
@@ -1430,9 +1440,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         }
         return undefined;
       };
-      let following: Promise<void> = Promise.resolve();
       undo.push(live.watch((now) => {
-        following = following.then(async () => {
+        liveQueue = liveQueue.then(async () => {
           if (disposed || notFollowed !== undefined) return;
           if (typeof now === 'string') return stop(now);
           failed(await followed(now));

@@ -32,6 +32,7 @@ py_library(
             "legend_lite/datacube.py",
             "legend_lite/engine.py",
             "legend_lite/frames.py",
+            "legend_lite/keeper.py",
             "legend_lite/notebook.py",
             "legend_lite/page.py",
         ],
@@ -63,6 +64,8 @@ py_library(
         "legend_lite/datacube.py",
         "legend_lite/engine.py",
         "legend_lite/frames.py",
+        # the one copy of each page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
+        "legend_lite/keeper.py",
         # a DataCube page built in Python (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md)
         "legend_lite/page.py",
     ],
@@ -330,12 +333,14 @@ py_test(
     srcs = [
         "tests/main.py",
         "tests/test_engine.py",
+        "tests/test_keeper.py",
         "tests/test_page.py",
         "tests/test_show.py",
         "tests/test_warehouse.py",
     ],
     args = [
         "test_engine",
+        "test_keeper",
         "test_page",
         "test_show",
         "test_warehouse",

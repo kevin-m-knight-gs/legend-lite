@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 import legend_lite as ll
-from legend_lite import datacube
+from legend_lite import _json, datacube
 from legend_lite import page as page_module
 from legend_lite._types import plain_type
 
@@ -1042,21 +1042,30 @@ class Live(Paged):
             return e.code, e.read().decode('utf-8')
 
     def said(self, page, document, version=None):
-        """The open page saying what it is now, as DataCube's app posts it (src/app/datacube-app.ts): the version it
-        opened, its document."""
+        """The open page writing what it is now, as DataCube's app writes it (src/app/datacube-app.ts): against the
+        version it is at (the page's now, unless given), its document. Its answer's status."""
+        return self.wrote(page, document, version)[0]
+
+    def wrote(self, page, document, version=None):
+        """As ``said``: the answer's status, and the version it made (None when refused)."""
         version = datacube._session.engine().page_versions(page._key)['version'] if version is None else version
-        return datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
-                                                 json.dumps(document)).status
+        answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
+                                                   _json.dumps(document))
+        return answer.status, (json.loads(answer.body)['version'] if answer.status == 200 else None)
+
+    def version(self, page):
+        return self.get(f'/version.json?page={page._key}')[1]['version']
 
     def test_shown_in_a_tab_served_and_each_change_served_again(self):
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
         self.assertIn(f'/engine.html?page={page._key}#token=', tab.url)
         status, said = self.get(f'/page.json?page={page._key}')
-        self.assertEqual((status, said['version'], said['page']), (200, 1, page.to_dict()))
-        # a change in Python: served again, its version moved
+        self.assertEqual((status, said['page']), (200, page.to_dict()))
+        at = said['version']
+        # a change in Python: its version moved
         page.sheet('More')
-        self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['version'], 2)
+        self.assertEqual(self.version(page), at + 1)
         page.name = 'Q3, again'
         self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['name'], 'Q3, again')
         # a frame updated: the frame's version moves once, the page's not
@@ -1077,22 +1086,23 @@ class Live(Paged):
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
         since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
-        self.assertEqual(since(1), {'version': 1, 'commands': []})
+        at = self.version(page)
+        self.assertEqual(since(at), {'version': at, 'commands': []})
         page.sheet('More')
         grid.group('desk')
-        moved = since(1)
-        self.assertEqual(moved['version'], 3)
+        moved = since(at)
+        self.assertEqual(moved['version'], at + 2)
         self.assertEqual(moved['commands'][0], {'page': {'kind': 'addSheet', 'id': page.sheets[1].id, 'name': 'More'}})
         self.assertEqual(moved['commands'][1], {'grid': grid.id, 'command': {'kind': 'group', 'rows': ['desk']}})
-        # a grid added: its cube document in its addGrid, and the commands that set it after, as one serve
-        before = since(3)['version']
+        # a grid added: its cube document in its addGrid, and the commands that set it after, as one write
+        before = self.version(page)
         other = page.grid(trades(), name='orders', rows=['desk'])
         moved = since(before)
-        self.assertEqual(moved['version'], before + 1, 'one serve')
+        self.assertEqual(moved['version'], before + 1, 'one write')
         added = moved['commands'][0]['page']
         self.assertEqual((added['kind'], added['id'], added['document']['source']['name']), ('addGrid', other.id, 'orders'))
         self.assertEqual(moved['commands'][1:], [{'grid': other.id, 'command': {'kind': 'group', 'rows': ['desk']}}])
-        # a refused change serves nothing
+        # a refused change writes nothing
         with self.assertRaises(ValueError):
             page.name = '   '
         self.assertEqual(since(before + 1), {'version': before + 1, 'commands': []})
@@ -1101,31 +1111,33 @@ class Live(Paged):
         self.assertIn('page', since(before + 1))
         tab.close()
 
-    def test_what_python_serves_whole_rather_than_as_commands(self):
-        # (the phase 3 audit's 5, 8 and test gaps) a refused grid serves nothing, and none of it later; what one open view
-        # said, read back, is served whole next; a grid's edit over a Live frame that changed in place, whole
+    def test_what_is_written_whole_rather_than_as_commands(self):
+        # (the phase 3 audit's 5, 8 and test gaps) a refused grid writes nothing, and none of it later; the open page's
+        # own write is no command (it is opened again by another view), and Python's next change, on top of it, is its
+        # commands; a grid's edit over a Live frame that changed in place, whole
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
         since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
-        version = lambda: self.get(f'/version.json?page={page._key}')[1]['version']
+        at = self.version(page)
         with self.assertRaises(ValueError):
             page.grid(trades(), name='refused', rows=['nope'])
-        self.assertEqual(since(1), {'version': 1, 'commands': []}, 'the refused grid served nothing')
+        self.assertEqual(since(at), {'version': at, 'commands': []}, 'the refused grid wrote nothing')
         page.sheet('Next')
-        self.assertEqual([c['page']['kind'] for c in since(1)['commands']], ['addSheet'], 'and none of it later')
-        # one open view says the page is as it renamed it; Python reads it, and its next change is served whole
+        self.assertEqual([c['page']['kind'] for c in since(at)['commands']], ['addSheet'], 'and none of it later')
         doc = page.to_dict()
         doc['sheets'][0]['name'] = 'Renamed in a view'
-        self.assertEqual(self.said(page, doc), 204)
-        page.read()
-        at = version()
-        page.sheet('After the read')
-        self.assertIn('page', since(at))
+        before = self.version(page)
+        self.assertEqual(self.wrote(page, doc), (200, before + 1))
+        self.assertIn('page', since(before), "the open page's write is the page whole")
+        page.sheet('After the write')
+        self.assertEqual([c['page']['kind'] for c in since(before + 1)['commands']], ['addSheet'],
+                         "Python's change on top of it, its commands")
+        self.assertEqual(page.sheets[0].name, 'Renamed in a view')
         # a grid over a Live frame (a function) whose rows gained a column in place: its edit opens the cube again over
         # the frame as it is, which is no command
         holder = {'df': trades()}
         live = page.grid(lambda: holder['df'], name='livef')
-        at = version()
+        at = self.version(page)
         holder['df'] = trades().assign(extra=1)
         live.group('desk')
         self.assertIn('page', since(at))
@@ -1141,20 +1153,18 @@ class Live(Paged):
             ll.show(ll.Page('Empty'), browser=False)
         self.assertEqual(datacube._session.pages, [])
 
-    def test_read_back_into_the_same_page_as_the_open_page_says_it_is(self):
+    def test_what_the_open_page_writes_is_the_page_python_holds(self):
+        # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) one copy of the page: a write from the open page is Python's page at
+        # once -- no read, its handles still good
         page, grid, chart = self.built()
-        self.assertIs(page.read(), page, 'not open: itself')
         ll.show(page, browser=False)
-        self.assertIs(page.read(), page, 'open, but it said nothing yet')
-        # the open page says what it is now: a sheet renamed, the grid regrouped, the chart closed, in DataCube
         open_now = page.to_dict()
         open_now['sheets'][0]['name'] = 'Renamed in DataCube'
         open_now['cubes'][0]['cube']['query']['rows'] = ['desk']
         open_now['views'] = [v for v in open_now['views'] if v['id'] != chart.id]
         open_now['sheets'][0]['layout']['bands'][0]['node'] = {'tile': grid.id}
-        self.assertEqual(self.said(page, open_now), 204)
-        version = datacube._session.engine().page_versions(page._key)['version']
-        self.assertIs(page.read(), page)
+        at = self.version(page)
+        self.assertEqual(self.wrote(page, open_now), (200, at + 1))
         self.assertEqual(page.sheets[0].name, 'Renamed in DataCube')
         # the same page, its handles still good: the grid is the grid, regrouped; the chart closed there is gone here
         self.assertIs(page.grids[0], grid)
@@ -1162,12 +1172,15 @@ class Live(Paged):
         self.assertEqual(page.charts, [])
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             chart.options({'labels': True})
-        # read quietly (the open page has it already); a change after serves it with DataCube's changes kept
-        self.assertEqual(datacube._session.engine().page_versions(page._key)['version'], version)
+        # a change after: on top of DataCube's, as its commands
         grid.measure('pnl', 'sum')
         served = self.get(f'/page.json?page={page._key}')[1]
         self.assertEqual(served['page']['sheets'][0]['name'], 'Renamed in DataCube')
         self.assertEqual(served['page']['cubes'][0]['cube']['query']['rows'], ['desk'])
+        moved = self.get(f'/page.json?page={page._key}&since={at + 1}')[1]
+        self.assertEqual([c['grid'] for c in moved['commands']], [grid.id])
+        # what it writes again, unchanged, is no new version
+        self.assertEqual(self.wrote(page, page.to_dict()), (200, at + 2))
 
     def test_a_tile_closed_in_datacube_and_its_id_given_again_there_is_not_its_old_handles(self):
         page, grid, chart = self.built()
@@ -1177,43 +1190,47 @@ class Live(Paged):
         open_now = page.to_dict()
         open_now['views'] = [v for v in open_now['views'] if v['id'] != chart.id]
         open_now['sheets'][0]['layout']['bands'][0]['node'] = {'tile': grid.id}
-        self.assertEqual(self.said(page, open_now), 204)
-        page.read()
+        self.assertEqual(self.said(page, open_now), 200)
+        self.assertEqual(page.charts, [])
         again = copy.deepcopy(open_now)
         again['views'].append({**page.to_dict()['views'][0], 'id': chart.id, 'kind': 'chart', 'title': 'new there',
                                'spec': {'version': 2, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}}})
         again['sheets'][0]['layout']['bands'].append({'height': 0.5, 'node': {'tile': chart.id}})
-        self.assertEqual(self.said(page, again), 204)
-        page.read()
+        self.assertEqual(self.said(page, again), 200)
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             chart.title = 'the old chart'
         self.assertEqual(page.charts[0].title, 'new there')
 
-    def test_a_page_opening_on_it_opens_it_as_it_is_open_now(self):
+    def test_a_page_opening_on_it_opens_it_as_it_is_now(self):
         page, _, _ = self.built()
         ll.show(page, browser=False)
         open_now = page.to_dict()
         open_now['sheets'][0]['name'] = 'Renamed in DataCube'
-        self.assertEqual(self.said(page, open_now), 204)
-        # another tab, or the first reloaded: the page as the open one said it is, read into Python or not
+        self.assertEqual(self.said(page, open_now), 200)
+        # another tab, or the first reloaded: the page as the open one wrote it, which is Python's too
         self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['sheets'][0]['name'], 'Renamed in DataCube')
-        page.read()
         ll.show(page, browser=False)
-        self.assertEqual(self.get(f'/page.json?page={page._key}')[1], {'version': 1, 'page': page.to_dict()})
+        self.assertEqual(self.get(f'/page.json?page={page._key}')[1], {'version': self.version(page), 'page': page.to_dict()})
 
     def test_shown_again_and_closed_and_shown_again(self):
         page, grid, _ = self.built()
         first = ll.show(page, browser=False)
-        # shown again in another tab: the page as it is, the tab open on it not opened again
+        at = self.version(page)
+        # shown again in another tab: the page as it is, its version the same
         ll.show(page, browser=False)
-        self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['version'], 1)
-        # closed everywhere and shown again: its version goes on, so the first showing's tab says nothing taken
+        self.assertEqual(self.version(page), at)
+        # closed everywhere and shown again: the keeper kept it as it was -- a tab still at its version writes it, one
+        # behind is refused
         for view in list(datacube._session.pages):
             view.close()
         del first
         ll.show(page, browser=False)
-        self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['version'], 2)
-        self.assertEqual(self.said(page, page.to_dict(), version=1), 409)
+        self.assertEqual(self.version(page), at)
+        doc = page.to_dict()
+        doc['name'] = 'Renamed there'
+        self.assertEqual(self.said(page, doc, version=at - 1), 409)
+        self.assertEqual(self.said(page, doc, version=at), 200)
+        self.assertEqual(page.name, 'Renamed there')
 
     def test_a_frozen_chart_left_without_its_grid_follows_its_frame(self):
         page, grid, chart = self.built()
@@ -1225,14 +1242,72 @@ class Live(Paged):
         datacube._session.register(trades().iloc[:1], 'trades')
         self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['frames']['trades'], before + 1)
 
-    def test_what_the_open_page_says_of_a_page_since_replaced_is_not_read(self):
+    def test_a_write_against_a_version_the_page_moved_on_from_is_refused(self):
         page, _, _ = self.built()
         ll.show(page, browser=False)
+        at = self.version(page)
         stale = page.to_dict()
         stale['sheets'][0]['name'] = 'Of the page before'
         page.sheet('More')
-        self.assertEqual(self.said(page, stale, version=1), 409)
-        self.assertEqual([s.name for s in page.read().sheets], [None, 'More'])
+        self.assertEqual(self.said(page, stale, version=at), 409)
+        self.assertEqual([s.name for s in page.sheets], [None, 'More'])
+
+    def test_a_write_is_a_page_datacube_reads_over_frames_this_session_serves(self):
+        page, _, _ = self.built()
+        ll.show(page, browser=False)
+        self.assertEqual(self.said(page, {'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}), 422)
+        doc = page.to_dict()
+        doc['cubes'][0]['cube']['source']['name'] = 'nope'
+        self.assertEqual(self.said(page, doc), 422)
+        engine = datacube._session.engine()
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', page.to_json()).status, 404)
+        self.assertEqual(engine.answer('POST', '/page.json', f'page={page._key}', page.to_json()).status, 400)
+        # its numbers exact both ways: a calculated column's 12.30 written by the open page is 12.30 in Python
+        page.grids[0].calculate('scaled', '$x.notional->toOne() * 12.30D')
+        written = _json.loads(page.to_json())
+        written['name'] = 'Written there'
+        self.assertIn('12.30', _json.dumps(written))
+        self.assertEqual(self.said(page, written), 200)
+        self.assertEqual(page.name, 'Written there')
+        self.assertIn(Decimal('12.30'), numbers(page.to_dict()))
+
+    def test_a_python_change_made_while_the_open_page_wrote_is_made_again_on_top_of_it(self):
+        # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) a call on the page works on the page as it was when the call began;
+        # the open page wrote it meanwhile: its commands are made again on the page as it is now, by DataCube's function
+        page, grid, _ = self.built()
+        other = page.grid(desks(), name='desks')
+        ll.show(page, browser=False)
+        since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+        theirs = page.to_dict()
+        theirs['sheets'][0]['name'] = 'Renamed in DataCube'
+        page._enter()
+        try:
+            # the call began at this version; DataCube wrote the page meanwhile
+            self.assertEqual(self.said(page, theirs), 200)
+            at = self.version(page)
+            page.sheet('From Python')
+            grid.group('desk')
+        finally:
+            page._leave(failed=False)
+        self.assertEqual([s.name for s in page.sheets], ['Renamed in DataCube', 'From Python'])
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['rows'], ['desk'])
+        self.assertEqual([('page' if 'page' in c else 'grid') for c in since(at)['commands']], ['page', 'grid'])
+        # one that no longer applies there -- the grid closed in DataCube meanwhile -- is refused, the page DataCube's
+        gone = page.to_dict()
+        cube = grid._view['cube']
+        closed = {v['id'] for v in gone['views'] if v['cube'] == cube}
+        gone['views'] = [v for v in gone['views'] if v['cube'] != cube]
+        gone['cubes'] = [c for c in gone['cubes'] if c['id'] != cube]
+        for sheet in gone['sheets']:
+            sheet['layout']['bands'] = [b for b in sheet['layout']['bands'] if not any(f'"{t}"' in json.dumps(b) for t in closed)]
+        page._enter()
+        try:
+            self.assertEqual(self.said(page, gone), 200)
+            with self.assertRaisesRegex(ValueError, 'the page changed where it is open while this change was made'):
+                grid.group('region')
+        finally:
+            page._leave(failed=True)
+        self.assertEqual(page.grids, [other])
 
 
 class Joined(Paged):
@@ -1293,9 +1368,8 @@ class Joined(Paged):
         try:
             status, versions = self.get(f'/version.json?page={page._key}')
             self.assertEqual((status, sorted(versions['frames'])), (200, ['desks', 'trades']))
-            # the page in DataCube's hands, read back: a join of frames is a page Python holds
-            self.assertEqual(self.said(page, page.to_dict()), 204)
-            self.assertIs(page.read(), page)
+            # the page in DataCube's hands, written back: a join of frames is a page Python holds
+            self.assertEqual(self.said(page, page.to_dict()), 200)
         finally:
             tab.close()
 
@@ -1469,13 +1543,13 @@ class Snapped(Paged):
         ll.Page('Another').grid(desks(), name='desks')
         self.assertFalse(self.held('snap'), 'let go at the next page change')
 
-    def test_a_tabs_snap_that_page_read_takes_in_is_pythons_from_then_on(self):
+    def test_a_tabs_snap_written_to_the_page_is_the_pages_from_then_on(self):
         page = ll.Page('Snaps')
         grid = page.grid(trades(), name='trades')
         tab = ll.show(page, browser=False)
         try:
             engine = datacube._session.engine()
-            # the tab's Snap: a copy it asked Python for, and the page it reports with it (as its grid's copy)
+            # the tab's Snap: a copy it asked Python for, and the page it writes with it (as its grid's copy)
             engine_h, frames = datacube._session.headless(), datacube._session.frames
             with frames.serving():
                 spec = grid._spec(engine_h, frames, live=True)
@@ -1485,11 +1559,10 @@ class Snapped(Paged):
             doc = page.to_dict()
             doc['copies'] = {grid._view['cube']: {'table': made['table'], 'label': 'Snap 14:02',
                                                   'takenAt': '2026-10-20T14:02:00.000Z', 'rowCount': made['rowCount']}}
-            self.assertEqual(self.said(page, doc), 204)
-            page.read()
+            self.assertEqual(self.said(page, doc), 200)
             self.assertEqual(grid.snapped['table'], made['table'])
             self.assertEqual(len(grid.to_pandas()), 3, 'its copy, read in Python')
-            # Python's now: the tab's release keeps it; Python's live lets it go
+            # the page's now: the tab's release keeps it; going live lets it go
             released = engine.answer('POST', '/snap.json', '', json.dumps({'op': 'release', 'table': made['table']}))
             self.assertIn(b'kept', released.body)
             grid.live()
@@ -1503,8 +1576,9 @@ class Snapped(Paged):
         tab = ll.show(page, browser=False)
         try:
             since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+            at = self.get(f'/version.json?page={page._key}')[1]['version']
             grid.snap()
-            moved = since(1)
+            moved = since(at)
             self.assertEqual(moved['commands'], [{'page': {'kind': 'snap', 'grid': grid.id, 'copy': grid.snapped}}])
             self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['copies'],
                              {grid._view['cube']: grid.snapped})

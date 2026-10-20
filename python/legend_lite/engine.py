@@ -60,6 +60,7 @@ from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, UntypedColumn, typed_by_plan
+from .keeper import PageKeeper, Stale
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
@@ -68,8 +69,6 @@ _EXECUTE = _API + 'execution/execute'
 # a request body larger than this is refused: a query and its model are kilobytes, and a page's file comes a part at a
 # time (file-part.json: 4 MiB each, as base64 in JSON, datacube/src/upload.ts PART_BYTES), so no file is too big
 _MAX_BODY = 16 * 1024 * 1024
-# how many of a page's last versions keep the commands that moved it there: a page open at an older one opens it again
-_PAGE_STEPS_KEPT = 64
 # the calls that bring a page's data in and let it go (each changes the engine's data), and what Python's host offers
 # the page (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §3.4, §4.3): each the engine's own page's, so each carries the token
 _FILE_IN, _FILE_OUT, _REMOTE, _SERVICES = '/file.json', '/forget.json', '/remote.json', '/services.json'
@@ -377,12 +376,15 @@ class Engine:
     messages."""
 
     def __init__(self, frames: Frames, site: str | Path | None = None,
-                 headless: Callable[[], Any] | None = None, pages: str | Path | None = None) -> None:
+                 headless: Callable[[], Any] | None = None, pages: str | Path | None = None,
+                 keeper: PageKeeper | None = None) -> None:
         """``headless``: DataCube's own non-screen code over the frames' database (legend_lite._headless), made when
         first asked for -- what reads a page's file into it (file.json). Absent, the engine takes no file, and says so
         (services.json). ``pages``: the folder the page's Save and Open… keep pages in (step 2d, B6): this user's
-        (``home()/pages``) when not given."""
+        (``home()/pages``) when not given. ``keeper``: the one copy of each page it serves (keeper.py), its session's,
+        which Python's pages write too; one of its own when not given."""
         self.frames = frames
+        self.keeper = keeper if keeper is not None else PageKeeper()
         self._headless = headless
         # where the frames' DuckDB was pointed for its extensions (a remote file's httpfs), once it was
         self._extensions: Path | None = None
@@ -403,8 +405,9 @@ class Engine:
         # the copy go (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) -- finds it gone, never another grid's copy
         self._released: set[str] = set()
         self._copies_made = 0
-        # the copies a page in Python reads (its own grid.snap(), or a tab's snap its page.read() took): Python lets them
-        # go (release_copy); a tab's release of one -- its grid closed, gone live, the tab gone -- keeps it (§18.8)
+        # the copies some page the keeper keeps has read (sweep): a tab's release of one a page reads keeps it, and one
+        # no page reads any more is let go -- a copy no page has read yet (one being made, a tab's own before it says
+        # so) is its maker's to let go (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
         self._claimed: set[str] = set()
         self._warehouse_lock = threading.Lock()
         # the binding's calls on the compiler's threads, never a connection's (warehouse.set_library_thread)
@@ -423,21 +426,6 @@ class Engine:
         self._models: dict[str, str] = {}
         self._watchers: list[Callable[[str, int], None]] = []
         self._changes = threading.Lock()
-        # the pages it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): each its document --
-        # DataCube's page document, its cubes over these frames -- and its version, moved each time it is served again
-        self._pages: dict[str, tuple[int, dict[str, Any]]] = {}
-        # each page's frames, as the page says it reads them (serve_page): what its versions follow
-        self._page_frames: dict[str, list[str]] = {}
-        # each page's last version, kept when it closes: a page shown again goes on from it, so what a tab still open
-        # on its earlier showing says is of a version replaced
-        self._page_versions: dict[str, int] = {}
-        # each page's document as the open page says it is now (its changes made in DataCube included: page.read()).
-        # Documents are kept as the compiler's exact JSON reads them (_json): a calculated column's numbers exact
-        self._read: dict[str, dict[str, Any]] = {}
-        # what moved each page to each of its versions (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): the commands Python
-        # made, in order -- or None, a change by no command -- for its last few versions: what a page open at an earlier
-        # one applies, rather than opening the whole page again
-        self._page_steps: dict[str, dict[int, list[Any] | None]] = {}
 
     def answer(self, method: str, path: str, query: str, body: str | None) -> Answer:
         """One call: ``POST`` to the API, or ``GET`` of a frame's cube (``cube.json``), its version (``version.json``) or
@@ -1004,9 +992,8 @@ class Engine:
             raise PermissionError(answer.body.decode('utf-8'))
         if answer.status != 200:
             raise ValueError(answer.body.decode('utf-8'))
-        made = _json.loads(answer.body.decode('utf-8'))
-        self.claim_copies([made['table']])
-        return made
+        # its maker's until a page the keeper keeps reads it (sweep)
+        return _json.loads(answer.body.decode('utf-8'))
 
     def release_copy(self, table: str) -> None:
         """A snap's copy let go of (Go Live, a snap taken again, its grid or page gone), as ``snap.json``'s release lets
@@ -1015,11 +1002,20 @@ class Engine:
         if answer.status != 200:
             raise ValueError(answer.body.decode('utf-8'))
 
-    def claim_copies(self, tables: Iterable[str]) -> None:
-        """The copies a page in Python reads from now on (each one this engine holds): Python's to let go, a tab's release
-        of one keeping it."""
+    def sweep(self) -> None:
+        """EACH COPY GOES WITH THE LAST PAGE THAT READS IT (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the copies the pages
+        the keeper keeps read are theirs from now on (a tab's release of one keeps it); one a page read and none reads any
+        more -- gone live, snapped again, its grid removed, its page collected -- is let go. One no page has read yet is
+        its maker's. Called after a page's every write, by whoever wrote it, holding nothing."""
+        reads = self.keeper.referenced()
         with self._warehouse_lock:
-            self._claimed.update(t for t in tables if t in self._copies)
+            self._claimed |= reads & set(self._copies)
+            gone = sorted(t for t in self._claimed if t not in reads)
+        for table in gone:
+            answer = self._release_copy(table, keep_claimed=False)
+            if answer.status != 200:
+                # its drop failed: it stays served, as any copy whose drop failed, and is tried again at the next sweep
+                continue
 
     def copy_of(self, table: str) -> dict[str, Any] | None:
         """A snap's copy this engine holds, by its table: its model, runtime and relation (a grid snapped onto it reads
@@ -1382,102 +1378,88 @@ class Engine:
         return Answer(200, 'application/json', json.dumps({'version': self.version(name)}).encode('utf-8'))
 
     def _page(self, query: str) -> Answer:
-        """A page it serves (``serve_page``) as it is open now (the open page's last word on it, at its version):
-        ``{"version": n, "page": <its document>}``, or 404. Asked ``since=v`` by a page open at version ``v``: the
-        commands that moved it from there, ``{"version": n, "commands": [...]}``, when every version since was moved by
-        commands it keeps -- else the page, as asked without."""
+        """A page it serves (keeper.py: shown somewhere) as it is now: ``{"version": n, "page": <its document>}``, or 404.
+        Asked ``since=v`` by a page open at version ``v``: what moved it from there, ``{"version": n, "commands":
+        [...]}``, when every version since was moved by commands (Python's or an open page's) -- else the page, as asked
+        without."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         since = asked.get('since', [''])[0]
         if since and not since.isdigit():
             return _said(400, 'a page asks what moved it since the version it opened (since=n)')
-        with self._changes:
-            served = self._pages.get(name)
-            steps = dict(self._page_steps.get(name, {}))
-        if served is None:
+        kept = self.keeper.current(name) if self.keeper.served(name) else None
+        if kept is None:
             return _said(404, f'this engine serves no page named {name!r}')
         if since:
-            moved = [steps.get(v) for v in range(int(since) + 1, served[0] + 1)]
-            if int(since) <= served[0] and all(m is not None for m in moved):
-                commands = [c for m in moved for c in m or []]
+            version, commands = self.keeper.changes(name, int(since))
+            if commands is not None:
                 return Answer(200, 'application/json',
-                              _json.dumps({'version': served[0], 'commands': commands}).encode('utf-8'))
-        return Answer(200, 'application/json', _json.dumps({'version': served[0], 'page': served[1]}).encode('utf-8'))
+                              _json.dumps({'version': version, 'commands': commands}).encode('utf-8'))
+            kept = self.keeper.current(name) or kept
+        return Answer(200, 'application/json', _json.dumps({'version': kept[0], 'page': kept[1]}).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
-        """The open page's document as it is now (posted by the page as it changes, with the version it opened):
-        kept for ``read_page`` -- unless the page has been served again since, when what it says is of a document
-        Python has replaced (409), and the page opens the new one."""
+        """AN OPEN PAGE'S WRITE (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its document as it is now, against the version
+        it is at -- read by DataCube's own reader (headless pageRead), every frame it reads one this engine serves -- the
+        page's new version, ``{"version": n}`` (the same, when it changed nothing); written against a version the page has
+        moved on from, refused (409), and the page follows what moved it. Copies no page reads any more are let go."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         version = asked.get('version', [''])[0]
         if not version.isdigit():
             return _said(400, 'a page says what it is with the version it opened (version=n)')
+        if not self.keeper.served(name):
+            return _said(404, f'this engine serves no page named {name!r}')
+        if self._headless is None:
+            return _said(404, 'this engine keeps no page: legend-lite reads one with DataCube\'s own code, headless, '
+                              'which this engine was not given')
         try:
-            document = _json.loads(body)
-        except ValueError:
-            return _said(400, 'a page is its document, as JSON')
-        if not isinstance(document, dict) or document.get('kind') != 'datacube.page':
-            return _said(400, 'a page is its document (kind datacube.page)')
-        with self._changes:
-            served = self._pages.get(name)
-            if served is None:
-                return _said(404, f'this engine serves no page named {name!r}')
-            if served[0] != int(version):
-                return _said(409, f'the page {name!r} is at version {served[0]}: what version {version} says is replaced')
-            self._read[name] = document
-            # and it is the page as it is open now: what a page opening on it (another tab, a reload) opens
-            self._pages[name] = (served[0], document)
-        return Answer(204, 'text/plain; charset=utf-8', b'')
-
-    def read_page(self, name: str) -> dict[str, Any] | None:
-        """A page's document as the open page last said it is (its changes made in DataCube included), a copy -- or
-        None when it has said nothing since it was served."""
-        with self._changes:
-            said = self._read.get(name)
-        return None if said is None else _json.loads(_json.dumps(said))
+            # asked for holding nothing (the session's lock first, then the frames')
+            headless = self._headless()
+            said = _json.loads(headless.call('pageRead', body))
+            if 'problems' in said:
+                return _said(422, '; '.join(said['problems']))
+            document = _json.loads(said['page'])
+            frames = sorted({leaf['name'] for c in document['cubes']
+                             for leaf in json.loads(headless.call('cubeLeaves', _json.dumps(c['cube'])))
+                             if leaf['_type'] == 'frame'})
+        except Exception as refused:
+            return _said(422, f'{type(refused).__name__}: {refused}')
+        unserved = [f for f in frames if f not in self.frames]
+        if unserved:
+            return _said(422, f'the page reads the frames {", ".join(unserved)}, which this engine does not serve')
+        try:
+            moved = self.keeper.write(name, int(version), document, frames, None)
+        except Stale as stale:
+            return _said(409, f'the page {name!r} is at version {stale.version}: what version {version} says is replaced')
+        except KeyError:
+            return _said(404, f'this engine serves no page named {name!r}')
+        self.sweep()
+        return Answer(200, 'application/json', json.dumps({'version': moved}).encode('utf-8'))
 
     def serve_page(self, name: str, document: dict[str, Any], frames: Iterable[str],
                    commands: list[Any] | None = None) -> int:
-        """Serves a copy of ``document`` -- DataCube's page document, its cubes over this engine's ``frames`` (each
-        cube's leaves', as the page says: a frame's grid its one, a join's of frames each) -- as the page ``name``; served
-        again, its version moves, and a page open on it follows it: by ``commands``, when they say what moved it from
-        the version before (each ``{"page": <a page command>}`` or ``{"grid": <its id>, "command": <a grid command>}``,
-        in order), else by opening it again. Returns its version."""
-        kept = _json.loads(_json.dumps(document))
-        moved = None if commands is None else _json.loads(_json.dumps(commands))
-        with self._changes:
-            version = self._page_versions[name] = self._page_versions.get(name, 0) + 1
-            self._pages[name] = (version, kept)
-            self._page_frames[name] = sorted(set(frames))
-            steps = self._page_steps.get(name)
-            if steps is None:
-                # served for the first time, or again after it was closed: no version before it it was moved from
-                steps = self._page_steps[name] = {}
-                moved = None
-            steps[version] = moved
-            for old in [v for v in steps if v <= version - _PAGE_STEPS_KEPT]:
-                del steps[old]
-            # what the open page said is of the document before: it opens this one
-            self._read.pop(name, None)
+        """A host's page served as ``document`` -- one no Python page keeps (a page the host replaces whole, as a test
+        serves one) -- its cubes over this engine's ``frames``: kept and served, or, kept already, its document replaced
+        (moved by ``commands``, when they say what moved it). Returns its version."""
+        kept = self.keeper.current(name)
+        if kept is None:
+            version = self.keeper.keep(name, document, frames)
+        else:
+            version = self.keeper.write(name, kept[0], document, frames, commands)
+        self.keeper.serve(name, True)
         return version
 
     def close_page(self, name: str) -> None:
-        """Stops serving a page: one open on it stops following it."""
-        with self._changes:
-            self._pages.pop(name, None)
-            self._page_frames.pop(name, None)
-            self._read.pop(name, None)
-            self._page_steps.pop(name, None)
+        """Stops serving a page: one open on it stops following it (the keeper keeps it while its page lives)."""
+        self.keeper.serve(name, False)
 
     def page_versions(self, name: str) -> dict[str, Any] | None:
         """A page's version, and each of its frames' (the frames its cubes read), or None when it serves no such page."""
-        with self._changes:
-            served = self._pages.get(name)
-            frames = self._page_frames.get(name, [])
-        if served is None:
+        kept = self.keeper.current(name) if self.keeper.served(name) else None
+        if kept is None:
             return None
-        return {'version': served[0], 'frames': {frame: self.version(frame) for frame in frames}}
+        return {'version': kept[0], 'frames': {frame: self.version(frame) for frame in self.keeper.frames(name) or []}}
 
     def app_config(self, app: str, origin: str) -> Answer:
         """An app's ``config.json`` as this engine serves the app (E): every service it reads at this engine's own
@@ -1701,7 +1683,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 -- the stdlib's name
         url = urlsplit(self.path)
-        # the API, an open page saying what it is now (page.json: Python's page.read()), a page's file in or out, the
+        # the API, an open page's write (page.json: the page keeper's), a page's file in or out, the
         # saved pages, the page's settings, PlanAndRun's calls, a warehouse's and a grid's Snap
         if not (url.path.startswith(_API) or url.path.startswith(_LITE_API) or _model_home(url.path) or url.path in (
                 '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLAN, _WAREHOUSE,

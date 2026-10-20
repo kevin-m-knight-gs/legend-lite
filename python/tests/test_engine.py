@@ -1018,13 +1018,16 @@ class Page(Cube):
         self.assertEqual(asked(2)['page']['name'], 'Q6')
         self.assertEqual(asked(4), {'version': 4, 'commands': []})
         self.assertEqual(self.get('/page.json?page=q3&since=x', auth)[0], 400)
-        # closed and shown again: a tab still open on its earlier showing opens it again
+        # closed and shown again: kept as it was (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md), so a tab still open on its
+        # earlier showing follows by the commands since; served again unchanged, no new version
         engine.close_page('q3')
+        self.assertEqual(self.get('/page.json?page=q3&since=4', auth)[0], 404, 'closed: served no more')
         engine.serve_page('q3', self.DOC, ['trades'], [sheet])
-        self.assertEqual(asked(4), {'version': 5, 'page': self.DOC})
+        self.assertEqual(asked(4), {'version': 5, 'commands': [sheet]})
+        self.assertEqual(engine.serve_page('q3', self.DOC, ['trades'], [sheet]), 5)
         # the commands of its last 64 versions are kept: a page open at an older one opens it again
-        for _ in range(70):
-            engine.serve_page('q3', self.DOC, ['trades'], [sheet])
+        for n in range(70):
+            engine.serve_page('q3', {**self.DOC, 'name': f'Q{n}'}, ['trades'], [sheet])
         self.assertIn('page', asked(5))
         self.assertEqual(len(asked(75 - 63)['commands']), 63)
 
@@ -1033,18 +1036,14 @@ class Page(Cube):
         self.assertEqual(self.get('/page.json?page=q3')[0], 401)
         self.assertEqual(self.get('/version.json?page=q3')[0], 401)
 
-    def test_what_the_open_page_says_is_kept_only_for_the_version_it_opened(self):
+    def test_an_open_pages_write_is_read_by_datacubes_own_reader(self):
+        # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) an engine with no DataCube code to read a page with keeps no page an
+        # open page writes; one with it: test_page.py Live
         engine = self.server.engine
         engine.serve_page('q3', self.DOC, ['trades'])
         said = json.dumps({**self.DOC, 'name': 'Renamed there'})
         self.assertEqual(engine.answer('POST', '/page.json', 'page=q3', said).status, 400, 'no version named')
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 204)
-        self.assertEqual(engine.read_page('q3')['name'], 'Renamed there')
-        # Python served it again: what the page says of version 1 is of a document replaced, and refused
-        engine.serve_page('q3', {**self.DOC, 'name': 'Q4'}, ['trades'])
-        self.assertIsNone(engine.read_page('q3'))
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 409)
-        self.assertIsNone(engine.read_page('q3'))
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 404)
         self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', said).status, 404)
 
     def test_a_pages_numbers_exact_both_ways(self):
@@ -1056,10 +1055,6 @@ class Page(Cube):
         body = self.get('/page.json?page=q3', {'Authorization': self.server.authorization})[2].decode('utf-8')
         self.assertIn('12.30', body)
         self.assertIn(str(2 ** 70), body)
-        said = ('{"kind": "datacube.page", "version": 4, "name": "Q3", "cubes": [], "views": [], "sheets": [],'
-                ' "lambda": {"_type": "lambda", "body": [{"_type": "decimal", "value": 12.30}]}}')
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 204)
-        self.assertEqual(str(engine.read_page('q3')['lambda']['body'][0]['value']), '12.30')
 
 
 class WarehouseOnPython(unittest.TestCase):

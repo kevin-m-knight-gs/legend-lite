@@ -10,7 +10,7 @@ in DataCube, said in code (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md).
     summary = page.sheet('Summary')
     summary.add(by_desk)
     ll.show(page)                       # under the cell in a notebook, else a browser tab; live from then on
-    page.read()                         # the page as it is open now, its changes made in DataCube taken in
+    trades.group('desk')                # the page as it is open now: a change made in DataCube is on it already
     page.save()                         # into this user's saved pages, as DataCube's Save keeps it (Open… lists it)
     page.save('q3.page.json')           # DataCube's own page document (Export > Page File writes the same)
     again = ll.Page.load('q3.page.json', frames={'trades': trades_df})
@@ -28,7 +28,10 @@ grid (as many to a band as DataCube's layout takes), a tile taken off leaving it
 
 from __future__ import annotations
 
+import copy
 import datetime
+import functools
+import itertools
 import json
 import math
 import numbers
@@ -47,8 +50,49 @@ require_datacube()
 
 from . import _json
 from ._types import is_boolean, is_decimal, is_float, is_integer, is_number
+from .keeper import Stale
 
 _KEEP: Any = object()
+
+# each page's key on its session's keeper and engine (page.json?page=): never given twice in a process, so a page
+# collected never shares one with a page made after it
+_KEYS = itertools.count(1)
+
+
+def _operation(run: Any) -> Any:
+    """A call on a page, or on one of its tiles or sheets: the page as its keeper has it when the call starts (its
+    version pinned for the call, a change made in DataCube meanwhile read only by the next call), and -- the call over --
+    what it changed written (Page._changed), or, refused, nothing changed (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)."""
+    @functools.wraps(run)
+    def call(self: Any, *args: Any, **kwargs: Any) -> Any:
+        page = self if isinstance(self, Page) else self._page
+        page._enter()
+        try:
+            result = run(self, *args, **kwargs)
+        except BaseException:
+            page._leave(failed=True)
+            raise
+        page._leave(failed=False)
+        return result
+    return call
+
+
+def _operations(cls: Any) -> Any:
+    """Each public method and property of ``cls`` a page's call (``_operation``)."""
+    for name, value in list(vars(cls).items()):
+        if name.startswith('_') or isinstance(value, (classmethod, staticmethod)):
+            continue
+        if isinstance(value, property):
+            setattr(cls, name, property(value.fget and _operation(value.fget), value.fset and _operation(value.fset),
+                                        value.fdel, value.__doc__))
+        elif callable(value):
+            setattr(cls, name, _operation(value))
+    return cls
+
+
+def _with_cube(doc: dict[str, Any], cube: str, document: dict[str, Any]) -> dict[str, Any]:
+    """``doc`` with its cube ``cube`` (its id) replaced by ``document``: a new page document, ``doc`` as it was."""
+    return {**doc, 'cubes': [{**c, 'cube': document} if c['id'] == cube else c for c in doc['cubes']]}
 
 
 def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
@@ -140,6 +184,7 @@ def _given_filter(node: Any) -> dict[str, Any]:
 
 # -- the handles ------------------------------------------------------------------------------------------------------
 
+@_operations
 class Tile:
     """A tile of a page (a grid or a chart): its view in the page's document, by its id."""
 
@@ -192,6 +237,7 @@ class Tile:
         sheet.add(self)
 
 
+@_operations
 class Grid(Tile):
     """A grid over a frame: its groupings (``group``), pivot (``pivot``), each column's Column Properties (``column``,
     ``measure``), filter, sorts and calculated columns, as the grid's panels set them; its configuration
@@ -237,10 +283,9 @@ class Grid(Tile):
     def _kept(self, said: dict[str, Any], stacklevel: int) -> Grid:
         """The cube document DataCube wrote for an edit, kept whole -- never a part of it Python sets itself -- and what
         opening it over its frame changed, said in DataCube's words, as a load says it."""
-        cube = self._cube
-        source = _copied(cube.get('source', {}))
-        cube.clear()
-        cube.update(_plain(_json.loads(said['cube'])))
+        source = _copied(self._cube.get('source', {}))
+        cube = _plain(_json.loads(said['cube']))
+        self._page._doc = _with_cube(self._page._doc, self._view['cube'], cube)
         # the commands DataCube applied, as the screen would have built them: the page's record of its edits, and what a
         # page open on it applies to this grid -- unless the cube was opened again over a frame that changed (its source
         # is another, or opening it left something out): a change by no command, which it follows by opening the page
@@ -534,12 +579,12 @@ class Grid(Tile):
         try:
             with page._batch(tell=False):
                 page._apply_page([json.loads(engine.call('gridSnapped', self._id, _json.dumps(made)))], 'a snap')
+            # written: the page reads the copy from now on (a copy it read before let go then: the engine's sweep)
+            page._changed()
         except BaseException:
-            # the copy belongs to no grid: let go
+            # the copy belongs to no page: let go
             session.engine().release_copy(made['table'])
             raise
-        # told once it is the grid's: a copy it read before let go then (_changed)
-        page._changed()
         return self
 
     def live(self) -> Grid:
@@ -693,6 +738,7 @@ class GridView:
         return f'<GridView: {len(self.rows)} rows, {len(self.columns)} columns{", truncated" if self.truncated else ""}>'
 
 
+@_operations
 class Chart(Tile):
     """A chart of a grid: its mark, what it plots, its options; following its grid unless frozen."""
 
@@ -734,6 +780,7 @@ class Chart(Tile):
         return f'<Chart {self._id}>'
 
 
+@_operations
 class Sheet:
     """A sheet of a page: a whole screen of tiles, in places -- each a tile, or a stack of tiles shown one at a time --
     laid out in bands, each band's places side by side (``layout``, ``arrange``, ``layout_from``)."""
@@ -841,6 +888,7 @@ class Sheet:
 
 # -- the page ---------------------------------------------------------------------------------------------------------
 
+@_operations
 class Page:
     """A DataCube page: its grids over frames (``grid``), their charts, its sheets (``sheet``), stacks (``stack``) and
     layouts -- shown with ``ll.show(page)``, live from then on; saved as DataCube's page document (``save``,
@@ -853,18 +901,21 @@ class Page:
         self._session = _current()
         if not isinstance(name, str):
             raise ValueError(f"a page's name is a name, not {name!r}")
-        # the copies its document says its grids read (kept by the `_doc` setter), and those it let go of and the engine
-        # has yet to drop: let go by the session when the page is collected (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
-        # §18.8: a copy belongs to its grid on its page)
-        self._reads: set[str] = set()
-        self._let_go: list[str] = []
-        weakref.finalize(self, _orphaned, self._session, self._reads, self._let_go)
-        # the page: its one copy, started as DataCube starts a page (headless pageNew: its name by DataCube's rule, no
-        # grid yet, its one sheet an empty board)
+        # the page, started as DataCube starts a page (headless pageNew: its name by DataCube's rule, no grid yet, its
+        # one sheet an empty board), and kept by its session's keeper from now on: the one copy of it every editor --
+        # this page, a tab or a notebook widget open on it -- writes, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
         said = json.loads(self._session.headless().call('pageNew', name))
         if 'problems' in said:
             raise ValueError("a page's name: " + '; '.join(said['problems']))
-        self._doc = _plain(_json.loads(said['page']))
+        self._key_name = f'page-{next(_KEYS)}'
+        # the document a call works on: the keeper's as the call started (`_version`), changed by the call -- `_dirty`
+        # -- until it is written (`_changed`); `_depth`: how deep in calls on the page this thread is
+        self._document: dict[str, Any] = _plain(_json.loads(said['page']))
+        self._version = self._session.keeper.keep(self._key_name, self._document, [])
+        self._dirty = False
+        self._depth = 0
+        # collected, forgotten by the keeper at the session's next safe moment (never in the collector), its copies with it
+        weakref.finalize(self, self._session.gone.append, self._key_name)
         # every grid command DataCube applied for this page's grids, in order, as the screen would have built them
         self._commands: list[dict[str, Any]] = []
         # every page command DataCube applied to this page, in order, as applied (page-commands.ts)
@@ -882,19 +933,82 @@ class Page:
         self._quiet = 0
         # the saved page it was last saved as (``save()``): its id, or None
         self._saved: str | None = None
-        # (`_let_go`, above: the copies its grids no longer read -- a grid gone live, snapped again or removed -- each its
-        # table, let go once the page is served without them (_changed), so a page open on it never reads one gone)
+
+    # -- the page's one copy, its keeper's (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) ------------------------------------
 
     @property
     def _doc(self) -> dict[str, Any]:
-        """The page's document: its one copy."""
+        """The page's document as this call has it: the keeper's as it started, with what the call changed. Asked outside
+        any call (a view, the engine), the keeper's as it is now."""
+        if self._depth == 0 and not self._dirty:
+            self._pull()
         return self._document
 
     @_doc.setter
     def _doc(self, doc: dict[str, Any]) -> None:
         self._document = doc
-        self._reads.clear()
-        self._reads.update(c['table'] for c in doc.get('copies', {}).values())
+        self._dirty = True
+
+    def _pull(self) -> None:
+        """The keeper's document taken, when it moved on (an open page wrote it): a handle of a tile it no longer has,
+        gone; every id it holds, held."""
+        kept = self._session.keeper.current(self._key_name)
+        if kept is None or kept[0] == self._version:
+            return
+        version, doc = kept
+        doc = copy.deepcopy(doc)
+        self._forget(_ids(self._document) - _ids(doc))
+        self._document, self._version = doc, version
+        self._ids |= _ids(doc)
+        self._unserved = []
+
+    def _enter(self) -> None:
+        if self._depth == 0 and not self._dirty:
+            self._pull()
+        self._depth += 1
+
+    def _leave(self, failed: bool) -> None:
+        self._depth -= 1
+        if self._depth == 0 and self._dirty and not self._quiet:
+            if failed:
+                self._discard()
+            else:
+                self._changed()
+
+    def _discard(self) -> None:
+        """What this call changed and did not write, let go: the page the keeper's."""
+        self._dirty = False
+        self._unserved = []
+        self._version = 0
+        self._pull()
+
+    def _commit(self) -> None:
+        """WHAT CHANGED, WRITTEN: the page's document, against the version its call started at, with the commands that
+        changed it (for a page open on it to apply). The page moved on meanwhile -- an open page wrote it -- the commands
+        are applied again on the page as it is now (``_rebased``), as DataCube's own function applies them; a change by no
+        command, or one that no longer applies (a tile closed there), is refused, nothing changed."""
+        keeper = self._session.keeper
+        commands = self._unserved
+        for _ in range(8):
+            try:
+                self._version = keeper.write(self._key_name, self._version, self._document, sorted(self._frames()),
+                                             commands)
+                break
+            except Stale:
+                if commands is None:
+                    self._discard()
+                    raise ValueError('the page changed where it is open while this change was made, which is no command '
+                                     'to make again on it: make the change again') from None
+                try:
+                    self._version, self._document, self._ids = _rebased(self, commands)
+                except ValueError as refused:
+                    self._discard()
+                    raise ValueError(f'the page changed where it is open while this change was made: {refused}') from None
+        else:
+            self._discard()
+            raise ValueError('the page kept changing where it is open while this change was made: make it again')
+        self._dirty = False
+        self._unserved = []
 
     # -- the page's model (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): its classes, into a project ----------------------
 
@@ -926,7 +1040,7 @@ class Page:
                   names['workspace'], package)
 
         def made(project_id: str) -> None:
-            self._doc['model'] = {'project': project_id, 'workspace': at[1], 'package': at[2], 'tables': {}}
+            self._doc = {**self._doc, 'model': {'project': project_id, 'workspace': at[1], 'package': at[2], 'tables': {}}}
             # the page's model is no page command's: a page open on it opens it again
             self._unnoted()
             self._changed()
@@ -935,7 +1049,7 @@ class Page:
         # the page pinned to what it saved (page-model.ts ``pin``): its class grids are read at it
         ref = self._doc['model']
         if ref.get('revision') != created.revision:
-            ref['revision'] = created.revision
+            self._doc = {**self._doc, 'model': {**ref, 'revision': created.revision}}
             self._unnoted()
             self._changed()
         return created
@@ -943,10 +1057,11 @@ class Page:
     def _keep(self, cube: str, tables: Sequence[str], cls: str | None) -> None:
         """The page's model now keeps ``tables`` (every table the grid ``cube`` reads, a join's each) and ``cls`` for it
         (page-model.ts ``keepTables``, ``keepClass``)."""
-        ref = self._doc['model']
-        ref.setdefault('tables', {})[cube] = list(tables)
+        ref = dict(self._doc['model'])
+        ref['tables'] = {**ref.get('tables', {}), cube: list(tables)}
         if cls is not None:
-            ref.setdefault('classes', {})[cube] = cls
+            ref['classes'] = {**ref.get('classes', {}), cube: cls}
+        self._doc = {**self._doc, 'model': ref}
         self._unnoted()
         self._changed()
 
@@ -1095,7 +1210,7 @@ class Page:
             served, new = session.register(frame, name), True
         # the page as it was, to go back to when the grid is refused
         was = (self._doc, set(self._ids), len(self._page_commands), len(self._commands),
-               None if self._unserved is None else list(self._unserved))
+               None if self._unserved is None else list(self._unserved), self._dirty)
         id = None
         try:
             # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
@@ -1133,6 +1248,7 @@ class Page:
             # the page as it was (the grid, its id and the commands it was given gone), and a frame served for it served
             # no more
             self._doc, self._ids = was[0], was[1]
+            self._dirty = was[5]
             del self._page_commands[was[2]:]
             del self._commands[was[3]:]
             self._unserved = was[4]
@@ -1178,7 +1294,7 @@ class Page:
         for note in made['notes']:
             warnings.warn(note, stacklevel=2)
         was = (self._doc, set(self._ids), len(self._page_commands),
-               None if self._unserved is None else list(self._unserved))
+               None if self._unserved is None else list(self._unserved), self._dirty)
         with self._batch(tell=False):
             applied = self._apply_page([{'kind': 'addGrid', 'document': _plain(_json.loads(made['cube'])),
                                          'sheet': target.id, 'near': None, 'title': title, 'columns': None}], 'a title')
@@ -1190,6 +1306,7 @@ class Page:
             except BaseException:
                 # the page as it was: the join, its id and its command gone
                 self._doc, self._ids = was[0], was[1]
+                self._dirty = was[4]
                 del self._page_commands[was[2]:]
                 self._unserved = was[3]
                 self._forget({grid.id})
@@ -1314,45 +1431,18 @@ class Page:
         # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out here
         # too and said once, so no later call on the grid sends it
         for c in doc['cubes']:
-            page._reopened(c, 3)
+            page._reopened(c['id'], 3)
+        # written as one: a page loaded is a page made whole, by no command
+        page._unnoted()
+        page._changed()
         return page
 
     # -- shown ---------------------------------------------------------------------------------------------------------
 
-    def read(self) -> Page:
-        """The page as it is open now: the changes made in DataCube since Python last changed it (a sheet arranged, a
-        chart added, a grid regrouped, snapped or gone live) taken in -- the open page's document is this page's from
-        now on, its handles still good (a tile closed there is gone here too; a copy it no longer reads let go) -- and
-        it returns itself. Not open, or the open page has said
-        nothing since: as it is. (A change made in Python replaces what was changed in DataCube meanwhile: read first, to
-        keep it.)"""
-        said = self._session.engine().read_page(self._key) if self._shown else None
-        if said is not None:
-            doc = _read_page(said, self._session)
-            unserved = sorted({f for c in doc['cubes'] for f in _cube_frames(self._session, c['cube'])}
-                              - set(self._served()))
-            if unserved:
-                raise ValueError(f'the open page reads the frames {", ".join(unserved)}, which this session does not serve')
-            # taken quietly: the open page is this already; a handle of a tile it no longer has, gone
-            self._forget(_ids(self._doc) - _ids(doc))
-            # a copy this page read that the open page no longer reads (gone live there, snapped again, its grid
-            # closed): let go here, by the engine holding it -- the page's copies are its document's (§18.8)
-            reads = {c['table'] for c in doc.get('copies', {}).values()}
-            self._let_go.extend(c['table'] for c in self._doc.get('copies', {}).values() if c['table'] not in reads)
-            self._doc = doc
-            self._ids |= _ids(doc)
-            # its copies Python's to let go from now on: a tab's release of one keeps it
-            self._session.engine().claim_copies(self._reads)
-            # the page as one open view said it is: another view may not have that view's changes, so Python's next change
-            # is served whole, every view opening it again (the phase 3 audit's 5)
-            self._unnoted()
-            self._release()
-        return self
-
     @property
     def _key(self) -> str:
         """Its name on the engine (page.json?page=): this page object's own."""
-        return f'page-{id(self):x}'
+        return self._key_name
 
     def _showable(self) -> None:
         """Refused when it cannot be shown: a page DataCube would not open (one with no grid), in DataCube's words."""
@@ -1367,36 +1457,14 @@ class Page:
             raise ValueError(f'{refused} -- in Python, page.grid(frame) adds one') from None
 
     def _changed(self) -> None:
-        """Something on the page changed: where it is shown, it is served again, with the commands that changed it --
-        which a page open on it applies -- or, changed by no command, opened again there."""
+        """What changed, written by the page's keeper (``_commit``), its commands with it -- what a page open on it
+        applies, or, changed by no command, opens again by -- and the copies no page reads any more let go (the session's
+        sweep). Inside a batch, written when the batch ends."""
         if self._quiet:
             return
-        if not self._shown:
-            # nothing open on it to move: the page it is first shown as is served whole
-            self._unserved = []
-        else:
-            commands, self._unserved = self._unserved, []
-            version = self._session.engine().serve_page(self._key, self._doc, sorted(self._frames()), commands)
-            for view in list(self._shown):
-                view._page_moved(version)
-        self._release()
-
-    def _release(self) -> None:
-        """The copies its grids no longer read let go of by the engine that made them (§18.8: a copy belongs to its
-        grid on its page); one the engine could not drop said, and kept to let go again."""
-        # the session's orphans first: copies of pages collected since
-        self._session.release_orphans()
-        gone = list(self._let_go)
-        self._let_go.clear()
-        for table in gone:
-            if self._session.copy_of(table) is None:
-                # let go already: by the open page that made it (its own Go Live), or never held by this session
-                continue
-            try:
-                self._session.engine().release_copy(table)
-            except ValueError as refused:
-                warnings.warn(f'a snap\'s copy, {table}, was not let go of: {refused}', stacklevel=4)
-                self._let_go.append(table)
+        if self._dirty:
+            self._commit()
+        self._session.sweep()
 
     class _Batch:
         def __init__(self, page: Page, tell: bool) -> None:
@@ -1408,12 +1476,9 @@ class Page:
 
         def __exit__(self, kind: Any, *_: Any) -> None:
             self.page._quiet -= 1
-            # told once, when it went through; a change that raised tells nothing, but lets go of the copies a part of it
-            # that went through left no grid reading
+            # written once, when it went through; a change that raised writes nothing (the call lets it go)
             if kind is None and self.tell:
                 self.page._changed()
-            elif kind is not None and not self.page._quiet:
-                self.page._release()
 
     def _batch(self, tell: bool = True) -> Page._Batch:
         """Several changes, told as one (``tell=False``: not told, what changed not being on the page yet)."""
@@ -1436,10 +1501,6 @@ class Page:
         page = _plain(_json.loads(said['page']))
         if check is not None:
             check(page)
-        # a copy no grid reads any more (gone live, snapped again, its grid removed): let go once the page is served
-        # without it
-        reads = {c['table'] for c in page.get('copies', {}).values()}
-        self._let_go.extend(c['table'] for c in self._doc.get('copies', {}).values() if c['table'] not in reads)
         self._doc = page
         self._ids = set(said['held'])
         applied = [_plain(c) for c in said['commands']]
@@ -1479,16 +1540,7 @@ class Page:
         """The copy cube ``cube`` (its id) reads when its grid is snapped (§18.8) -- its model, runtime and relation, as
         the engine holding it modelled it -- or None: it reads its rows live. A copy the page names that this session
         no longer holds is refused, never read live in its place. Asked with the frames held: it takes no session lock."""
-        copy = self._doc.get('copies', {}).get(cube)
-        if copy is None:
-            return None
-        held = self._session.copy_of(copy['table'])
-        if held is None:
-            name = self._cube(cube)['source']['name']
-            raise ValueError(f'{name}: its snap ({copy["label"]}) is no longer held by this session (gone live where the '
-                             'page is open? page.read() takes the open page in): grid.live() reads its rows live again, '
-                             'grid.snap() snaps it anew')
-        return held
+        return _copy_base_of(self._session, self._doc, cube)
 
     def _served(self) -> list[str]:
         return [n for n in self._frames() if n in self._session.frames]
@@ -1512,12 +1564,13 @@ class Page:
         session = self._session
         session.register(frame, name)
         # every cube reading the frame reopened (a join of it among them), whichever changed
-        reopened = [self._reopened(c, 4) for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'])]
+        reading = [c['id'] for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'])]
+        reopened = [self._reopened(id, 4) for id in reading]
         if any(reopened):
             self._changed()
 
-    def _reopened(self, c: dict[str, Any], stacklevel: int) -> bool:
-        """The page's cube ``c`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
+    def _reopened(self, id: str, stacklevel: int) -> bool:
+        """The page's cube ``id`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
         cube-document.ts rebuilt -- a new column hidden; a gone one left out; the open groups dropped when the grouping
         changed), taken when it is
         not the cube held -- the frame's columns moved, or DataCube left a part out -- each note warned once, in
@@ -1525,17 +1578,18 @@ class Page:
         leaves out. Whether it was taken. Asked when a page is loaded (``load``: its frames served), when a frame is
         served again (``_update``), and before a filter, a calculated column or a chart is checked against it
         (``_current``: a frame changed in place)."""
-        if c['id'] in self._doc.get('copies', {}):
+        if id in self._doc.get('copies', {}):
             # snapped: it reads its copy, which its frames do not move (it is opened over them again when it goes live)
             return False
-        label = c['cube']['source']['name']
-        cube, notes, changed = self._opened_cube(c['cube'])
+        held = next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
+        label = held['source']['name']
+        cube, notes, changed = self._opened_cube(held)
         # its frames' columns as they were, nothing left out: the cube stands as it is (opened again, the same)
-        if not changed and cube['source'] == c['cube']['source']:
+        if not changed and cube['source'] == held['source']:
             return False
         for note in notes:
             warnings.warn(f'{label}: {note}', stacklevel=stacklevel)
-        c['cube'] = cube
+        self._doc = _with_cube(self._doc, id, cube)
         # a change by no command: a page open on it opens it again
         self._unnoted()
         return True
@@ -1544,7 +1598,7 @@ class Page:
         """The cube ``cube`` (its id) as DataCube opens it over its frame now, taken and said (``_reopened``) before a
         call checks a change against it and writes the change into it: a frame changed in place (a column gone, a
         calculated column that read it left out) is the cube DataCube checks, never the one held before."""
-        self._reopened(next(c for c in self._doc['cubes'] if c['id'] == cube), stacklevel + 1)
+        self._reopened(cube, stacklevel + 1)
 
     def _opened_cube(self, saved: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
         """A saved cube as DataCube opens it over the frames as they are now -- a frame's, a join's of frames (headless
@@ -1574,10 +1628,53 @@ class Page:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'
 
 
-def _orphaned(session: Any, reads: set[str], let_go: list[str]) -> None:
-    """A page collected: the copies it read, and those it let go of that its engine has yet to drop, the session's to let
-    go at its next safe moment (``release_orphans``: never here, where the collector may have stopped any thread)."""
-    session.orphans.extend([*reads, *let_go])
+def _copy_base_of(session: Any, doc: dict[str, Any], cube: str) -> dict[str, Any] | None:
+    """The copy cube ``cube`` of ``doc`` reads, as the engine holding it modelled it, or None: it reads its rows live. A
+    copy the page names that the session no longer holds is refused, never read live in its place."""
+    snapped = doc.get('copies', {}).get(cube)
+    if snapped is None:
+        return None
+    held = session.copy_of(snapped['table'])
+    if held is None:
+        name = next(c['cube'] for c in doc['cubes'] if c['id'] == cube)['source']['name']
+        raise ValueError(f'{name}: its snap ({snapped["label"]}) is no longer held by this session: grid.live() reads its '
+                         'rows live again, grid.snap() snaps it anew')
+    return held
+
+
+def _rebased(page: Page, noted: list[dict[str, Any]]) -> tuple[int, dict[str, Any], set[str]]:
+    """A PAGE'S CHANGE MADE AGAIN ON THE PAGE AS IT IS NOW (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): ``noted``, the
+    commands that made it -- a page's, or a grid's by its tile's id -- applied in order, by DataCube's own functions
+    (headless pageApply, gridApply over each grid's base as it is now), to the keeper's document: its version, the page
+    they make and the ids it holds -- or, one no longer applying (a tile closed, an id given since), refused in
+    DataCube's words (``ValueError``)."""
+    session = page._session
+    kept = session.keeper.current(page._key)
+    if kept is None:
+        raise ValueError('the page is no longer kept')
+    version, doc = kept[0], copy.deepcopy(kept[1])
+    held = page._ids | _ids(doc)
+    engine, frames = session.headless(), session.frames
+    for entry in noted:
+        if 'page' in entry:
+            said = json.loads(engine.call('pageApply', _json.dumps(doc), json.dumps(sorted(held)),
+                                          _json.dumps([entry['page']])))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            doc, held = _plain(_json.loads(said['page'])), set(said['held'])
+            continue
+        view = next((v for v in doc['views'] if v['id'] == entry['grid'] and v['kind'] == 'grid'), None)
+        if view is None:
+            raise ValueError(f"{entry['grid']} is no longer on the page")
+        cube = next(c['cube'] for c in doc['cubes'] if c['id'] == view['cube'])
+        base = _copy_base_of(session, doc, view['cube'])
+        with frames.serving():
+            said = json.loads(engine.call('gridApply', _cube_spec(cube, frames, engine, base),
+                                          _json.dumps([entry['command']])))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        doc = _with_cube(doc, view['cube'], _plain(_json.loads(said['cube'])))
+    return version, doc, held
 
 
 def _ids(doc: dict[str, Any]) -> set[str]:
