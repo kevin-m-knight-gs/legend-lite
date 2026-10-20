@@ -718,7 +718,7 @@ class Joins(unittest.TestCase):
         self.page = ll.Page('Headless joins')
         self.trades = trades = self.page.grid(self.TRADES, name='join_trades')
         customers = self.page.grid(self.CUSTOMERS, name='join_customers')
-        self.spec = {'left': {'name': 'trades', 'cube': trades._cube()}, 'right': {'name': 'customers', 'cube': customers._cube()},
+        self.spec = {'left': {'name': 'trades', 'cube': trades._cube}, 'right': {'name': 'customers', 'cube': customers._cube},
                      'tables': ['join_trades', 'join_customers']}
         self.headless = datacube._session.headless()
 
@@ -743,8 +743,9 @@ class Joins(unittest.TestCase):
         add = {'kind': 'addGrid', 'document': cube, 'sheet': doc['sheets'][0]['id'], 'near': self.trades.id, 'title': None, 'columns': None}
         applied = json.loads(self.headless.call('pageApply', self.page.to_json(), json.dumps(held), json.dumps([add])))
         self.assertNotIn('problems', applied)
-        added = json.loads(applied['page'])['cubes'][-1]
-        self.assertEqual((added['id'], added['cube']['source']['_type']), (applied['commands'][0]['id'], 'join'))
+        # under the id the command gave it (the page's cubes in reading order: beside the trades' grid)
+        added = next(c for c in json.loads(applied['page'])['cubes'] if c['id'] == applied['commands'][0]['id'])
+        self.assertEqual(added['cube']['source']['_type'], 'join')
 
     def test_what_a_join_will_do_before_it_is_made_in_the_windows_words(self):
         said = self.ask('joinQuestions', self.HOW)
