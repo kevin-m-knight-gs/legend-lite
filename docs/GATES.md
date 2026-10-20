@@ -10653,6 +10653,75 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-20 — Object identity: the audit's fixes (no silent identity, typed reads, a map flattens by multiplicity)
+
+The user, 2026-10-20, on the branch's audit ("Yes fix all those"), and the merge gate: channel B green on every lane.
+
+**Landed:**
+- **No identity answers from an id the product does not track** (docs/OBJECT_IDENTITY_2026_10_20.md §4, register
+  S85). Where the evaluations are not tracked, the plan path mints no id (`Lowerer.objectId`) and reading the object's
+  identity raises by name in the database (`CanonicalRenderSql.trackedId`: every identity comparison, `toString`'s
+  `@_` name, a key canon's JSON-carried object): an object the resolver builds from a store's rows (one construction
+  for every row), one built in a lambda of a fold the database runs (`UserCallInliner.finish`), and a lambda body's let
+  read inside a nested lambda or, where its value holds a lambda, read more than once (`SourceSubst.untrackedLetNodes`,
+  marked where the typer folds the body). Before, each answered silently from a shared id.
+- **A lambda body's let read at one level is one evaluation**: the let is spliced into its uses before typing, so
+  each use was its own call (`[1, 2]->map(i | let a = mk(); $a == $a)` answered false; Pure true). A user call keeps
+  the source node it was read from (`TypedUserCall.origin`, stamped by `Typer`), and the inliner instantiates a call
+  once per source node at a point of its frame (`UserCallInliner.instantiated(call, ...)`).
+- **The legacy verdict lane reads map positions** for its ids, as the plan path does (`Lowerer.iterating`).
+- **`StructGet` and `ArrayLit` keep a type they are given** where their parts prove none (`SqlExpr`; `withChildren`
+  carries it, as `Lambda`'s did), so MariaDB's one-field-struct workaround for a fold accumulator's list field
+  (94a55a24) is deleted: the field read is typed as the column it replaces.
+- **A map flattens by its mapper body's multiplicity** (`ListEncodings.lowerMap`), not by the SQL type of the body
+  (which missed an untyped body and would flatten a `List<T>[1]`, one object that is an array in SQL).
+- Register rows **S81** and **S82** removed (both differences are gone: testConcatenateTypeInference and
+  testLetChainedWithAnotherFunction pass on every lane measured since 2026-10-20).
+- Reviewed and kept, with reasons: Postgres writes an empty list arm of a coalesce as `'{}'` (Postgres types it from
+  the other arms; `json[]` and `jsonb[]` are one SQL type here, and a jsonb canon would reorder the keys of every JSON
+  object Postgres builds); a class with no properties carries `__type` (the layout's, from before the branch: an empty
+  struct is no SQL value); the ledgers' short fragment pins (the expected side holds the reference interpreter's
+  per-run ids).
+- Found, not changed (a lowering defect of its own, loud): a fold the database runs whose accumulator is a list of
+  objects built from other elements does not lower on DuckDB.
+
+**Measured** (this container, 2be571ec less its ClickHouse decode arm, which the run below did not compile):
+`ObjectIdentityTest` (the let cases and `anUntrackedObjectsIdentityIsRefusedByName`); `//core:core_tests` (25
+targets); `//pct:pct_duckdb` 5 of 5 and `//pct:pct_channel_b` 5 of 5; `//spec:corpus_duckdb` and `//spec:corpus_h2`
+exact; `//pct:pct_mariadb_{essential,grammar}` and `//pct:pct_mysql_essential` exact with the typed reads. Channel B
+on MariaDB, MySQL, ClickHouse and Trino is red against the merge-base (the lane sessions' test-by-test diffs of
+31196a87 against 59b547a5e4, main identical to the merge-base on every lane): the next entry fixes what the branch
+broke there.
+
+## 2026-10-20 — Object identity: every lane at the identity head (968c8b99, 94a55a24, 31196a87)
+
+Each lane's ledgers on both channels, measured by the step-9 lane sessions at b0d5e435 and here at each commit.
+
+**Landed:**
+- **Postgres** reads an equality's key fields typed (it carries a struct as JSON: the canon's key-collection element
+  and `contains`' element are typed as their collection's element, `CanonicalRenderSql.element`; the empty key
+  collection typed as the list it defaults, `emptyLike`; a cast of the empty list literal written as the typed empty
+  array), and a coalesce's empty list arm is typed by its siblings (`'{}'`: an equality canon is json, a list of JSON
+  values jsonb). Cured: testContainsNonPrimitive, testInNonPrimitive, testEqualNonPrimitive, testEqualVarIdentity.
+- **MariaDB**: a JSON value cast to text is `CAST(... AS CHAR)`, so a JSON container holds it as a string
+  (testContainsNonPrimitive and testInNonPrimitive answered false); a lambda parameter's field read typed as the
+  column it replaces (the folds' accumulator kept its last name).
+- **ClickHouse**: an object's declared-fields-only form inside a collection takes no null guard (Pure's collections
+  hold no nulls; ClickHouse has no NULL tuple: channel B's testExistsInSelect).
+- **Ledgers**: on SQLite, MongoDB, MariaDB, MySQL, ClickHouse and Trino the folds and the four equality tests pass,
+  their pins removed; testComplexClassToString prints `'@_o1'` and testMapRelationshipFromOneToOne pins the class (the
+  interpreter's ids vary per run), as on the DuckDB lane; SQLite's testBigFloatAbs reads the database's double;
+  Postgres's folds re-pinned by name (a list accumulator of objects has no jsonb form there).
+- **Channel B on Postgres**: grammar's wire bugs 3 -> 5 (channel A now passes eq's and equal's testEqVarIdentity and
+  testEqNonPrimitive, which channel B's legacy route still refuses there; they failed on both before); floors raised
+  as measured: Essential 330, Relation 467, Standard 205, Unclassified 92.
+
+**Measured** (this container, each commit): the lane suites named in each commit message exact; `//pct:pct_duckdb`,
+`//pct:pct_channel_b`, `//spec:corpus_duckdb`, `//spec:corpus_h2` and `//core:core_tests` green. Channel B on MariaDB,
+MySQL, ClickHouse and Trino has floors red at the head (MariaDB Relation 418 < 440, MySQL Essential 327 < 331,
+ClickHouse Essential 318 < 333, Grammar 133 < 137, Standard 197 < 202, Trino Essential 328 < 331, Relation 385 < 463,
+Standard 203 < 205): the lane sessions measure them test by test against the merge-base (the next entry's merge gate).
+
 ## 2026-10-20 — Object identity, step 3: every equality-built operation through one owner; the struct fallback deleted
 
 The program: `docs/OBJECT_IDENTITY_2026_10_20.md` §5 step 3 (the user, 2026-10-20: "remove the fallback for sure").
