@@ -540,7 +540,7 @@ Postgres	Postgres	call	TRANSLATE	spelled	translate		0
 Postgres	Postgres	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Postgres	Postgres	call	REVERSE_STRING	spelled	reverse		2
 Postgres	Postgres	call	ASCII_CODE	spelled	ascii		10
-Postgres	Postgres	call	CHR	spelled	chr		9
+Postgres	Postgres	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
 Postgres	Postgres	call	UC_FIRST	emulated	firstCharCased: upper		5
 Postgres	Postgres	call	LC_FIRST	emulated	firstCharCased: lower		5
 Postgres	Postgres	call	ENCODE_BASE64	emulated	replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')		3
@@ -1640,7 +1640,7 @@ DuckDb	DuckDB	call	TRANSLATE	spelled	translate		0
 DuckDb	DuckDB	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 DuckDb	DuckDB	call	REVERSE_STRING	spelled	reverse		2
 DuckDb	DuckDB	call	ASCII_CODE	spelled	ascii		10
-DuckDb	DuckDB	call	CHR	spelled	chr		9
+DuckDb	DuckDB	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
 DuckDb	DuckDB	call	UC_FIRST	emulated	firstCharCased: upper		5
 DuckDb	DuckDB	call	LC_FIRST	emulated	firstCharCased: lower		5
 DuckDb	DuckDB	call	ENCODE_BASE64	emulated	encodeBase64		3

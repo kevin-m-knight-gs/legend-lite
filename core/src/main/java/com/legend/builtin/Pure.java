@@ -436,6 +436,13 @@ public final class Pure {
          *  the wall time of an instant in it. Emitted by the Cypher translator only. */
         public static final String INSTANT_IN = PKG + "instantIn";
         public static final String LOCAL_IN = PKG + "localIn";
+        /** An integer quotient, cut toward zero (2026-10-17, the IQ island's scale): {@code quotient(a, b)} is
+         *  {@code a / b} without its remainder, the database's own integer division ({@code //}, {@code div}).
+         *  Pure has none -- its {@code divide} of integers is a Float -- so the SQL islands wrote the quotient as a
+         *  Float estimate corrected by remainders, each operand read about fourteen times; nested quotients
+         *  multiplied that into statements of megabytes. Emitted by the SQL islands only, where both operands are
+         *  integers and the divisor's zero is tested before. */
+        public static final String QUOTIENT = PKG + "quotient";
         /** A temporal value in text carriage (2026-10-18, the Cypher island's nanosecond values as a date and a time
          *  of day, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): {@code dateTimeOfText(text)} is the date-time,
          *  {@code timeOfText(text)} the time of day, the database's ISO text spells, carried to the caller as that
@@ -574,7 +581,8 @@ public final class Pure {
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN,
                     Lite.LOCAL_IN,
-                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT)
+                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT,
+                    Lite.QUOTIENT)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -1022,6 +1030,7 @@ public final class Pure {
      *  {@code localIn} the wall time of an instant in a zone — each two of the database's zone conversions (the
      *  convertTimeZone lowering's pair), a Pure DateTime in and out. Upstream knows zones only at formatting and on
      *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). */
+    public static final NativeFunctionDefinition QUOTIENT__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::quotient(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::convertTimeZoneFormat(d:meta::pure::metamodel::type::DateTime[0..1], tz:meta::pure::metamodel::type::String[1], fmt:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[0..1];");
@@ -2454,6 +2463,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NOT_EQUAL_ANSI = com.legend.model.FunctionId.ofAll(NOT_EQUAL_ANSI__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PARSE_DATE_FORMAT = com.legend.model.FunctionId.ofAll(PARSE_DATE_FORMAT__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_QUOTIENT = com.legend.model.FunctionId.ofAll(QUOTIENT__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);

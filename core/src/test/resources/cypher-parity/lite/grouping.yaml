@@ -16,10 +16,12 @@ tests:
     graph: |
       CREATE ({name: 'x'}), (:A {name: 'x'}), (:A {name: 'x'})
     cypher: "MATCH (n) RETURN DISTINCT n"
+  # sorted before its collect (2026-10-18): a collect's list has no order of its own, and DuckDB's came back either
+  # way over the DISTINCT (the IQ landing's gate runs); the sorted rows are collected in order, in Neo4j and in lite
   - id: with_distinct_node_then_counted
     graph: |
       CREATE (a:A {name: 'a'})-[:T]->(:B), (a)-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
-    cypher: "MATCH (a:A)-[:T]->(:B) WITH DISTINCT a RETURN count(*) AS c, collect(a.name) AS names"
+    cypher: "MATCH (a:A)-[:T]->(:B) WITH DISTINCT a ORDER BY a.name RETURN count(*) AS c, collect(a.name) AS names"
   - id: nodes_alike_group_apart
     graph: |
       CREATE (:A {num: 9}), (:A {num: 9}), (:A {num: 5})
