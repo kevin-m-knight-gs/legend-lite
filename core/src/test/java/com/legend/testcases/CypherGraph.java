@@ -199,6 +199,16 @@ public final class CypherGraph {
         return slotNames;
     }
 
+    /** A zoned time's slots in the native store, spelled apart from a zoned date-time's (the writes design's leg
+     *  3 layout, 2026-10-20): the store says which a property's value is, as the oracle's graph does. */
+    static final String TIME_SLOT_PREFIX = "time:";
+
+    /** The native store's name of a value class's slot: a zoned time's prefixed ({@link #TIME_SLOT_PREFIX}), any
+     *  other's its own. */
+    private static String storeSlot(String type, String slot) {
+        return type.equals(ZONED_TIME) ? TIME_SLOT_PREFIX + slot : slot;
+    }
+
     private static String slotSqlType(String slot) {
         return slot.equals(ZONE_SLOT) ? "VARCHAR(4000)" : slot.equals("date") ? "DATE"
                 : slot.equals("instant") ? "TIMESTAMP" : "BIGINT";
@@ -209,8 +219,8 @@ public final class CypherGraph {
             boolean zonedRegion, List<Provenance> out) {
         if (embeddedValue(type)) {
             for (String slot : embeddedSlots(type, zonedNanos, zonedRegion)) {
-                out.add(new Provenance(column + "_" + slot.toLowerCase(Locale.ROOT), property, slot,
-                        slotSqlType(slot)));
+                out.add(new Provenance(column + "_" + slot.toLowerCase(Locale.ROOT), property,
+                        storeSlot(type, slot), slotSqlType(slot)));
             }
             return;
         }

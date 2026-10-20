@@ -19316,6 +19316,15 @@ public final class CypherToPure {
                 return null;
             }
             Tx t = propertyValue(key, value, at);
+            if (t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION) {
+                // (a zoned value or a duration: a row per slot, as the store holds one, §8 leg 3)
+                ValueSpecification whole = SqlToPure.valueOf(t);
+                for (Map.Entry<String, ValueSpecification> slot : slots(t, at).entrySet()) {
+                    writeSlot(staged, el, key, slot.getKey(), slot.getKey().endsWith(ZONED_SLOTS.get(0)) ? "v_ts"
+                            : "v_int", slot.getValue(), whole, t.kind(), t.nullable(), at);
+                }
+                return t.kind();
+            }
             writeProperty(staged, el, key, SqlToPure.valueOf(t), t.kind(), t.nullable());
             if (t.detail() instanceof ListOf l) {
                 listsWritten.put(written, l);
@@ -19331,9 +19340,13 @@ public final class CypherToPure {
                 throw CypherErrors.invalid("Property values can only be of primitive types or arrays thereof", at);
             }
             Tx t = scalarOf(value, at);
-            if (split(t) || t.detail() instanceof Zone) {
-                throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property written (" + key + ") is not"
-                        + " supported yet", at);
+            if (split(t)) {
+                throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property of nanosecond precision"
+                        + " written (" + key + ") is not supported yet", at);
+            }
+            if (t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION) {
+                // (written as its slots, insertProperty)
+                return t;
             }
             if (t.detail() instanceof ListOf l && switch (l.element()) {
                 case DATE, DATETIME, TIME, ZONED, ZONED_TIME, DURATION -> true;
@@ -19349,24 +19362,63 @@ public final class CypherToPure {
             return t;
         }
 
+        /** The slots a zoned value or a duration is written as (the native store's layout, §8 leg 3; the harness's
+         *  value classes' slots): a zoned date-time's or time's instant (a time's on the epoch day, its slots spelled
+         *  {@code time:instant} and {@code time:offsetSeconds}) and its offset's seconds; a duration's months, days,
+         *  seconds and nanoseconds. A zone named by its region, or one the
+         *  translation does not carry, is refused by name. */
+        private Map<String, ValueSpecification> slots(Tx t, Pos at) {
+            Map<String, ValueSpecification> out = new LinkedHashMap<>();
+            ValueSpecification v = SqlToPure.valueOf(t);
+            if (t.kind() == Kind.DURATION) {
+                for (String part : DURATION_SLOTS) {
+                    out.put(part, slot(v, part));
+                }
+                return out;
+            }
+            Zone zone = zoneKnown(t, at);
+            if (zone.named()) {
+                throw CypherErrors.unsupported("a zoned value of a named zone written as a property is not supported"
+                        + " yet (the store holds its offset)", at);
+            }
+            // (a zoned time's slots spelled apart from a zoned date-time's: the store says which the value is)
+            String prefix = t.kind() == Kind.ZONED_TIME ? "time:" : "";
+            out.put(prefix + ZONED_SLOTS.get(0), v);
+            out.put(prefix + ZONED_SLOTS.get(1), zone.read() != null ? zone.read() : lit((long) zone.sign()
+                    * (zone.hours() * 3600L + zone.minutes() * 60L + zone.seconds())));
+            return out;
+        }
+
         /** The property {@code key} of {@code el} written, the value {@code v} (of a row of the staged rows' {@code r})
          *  in the column of its kind and, for a scalar, its JSON beside it, once per row where the element and the
          *  value are present. */
         private void writeProperty(Rows staged, Element el, String key, ValueSpecification v, Kind kind,
                 boolean nullable) {
-            String column = java.util.Objects.requireNonNull(valueColumn(kind));
+            writeSlot(staged, el, key, "", java.util.Objects.requireNonNull(valueColumn(kind)), v, v, kind, nullable,
+                    null);
+        }
+
+        /** The slot {@code slot} of the property {@code key} of {@code el} written (a scalar's slot {@code ""}), the
+         *  value {@code v} in the store's column {@code column} and, for a scalar, its JSON beside it, once per row
+         *  where the element and the property's value {@code whole} are present. */
+        private void writeSlot(Rows staged, Element el, String key, String slot, String column, ValueSpecification v,
+                ValueSpecification whole, Kind kind, boolean nullable, @com.legend.base.Nullable Pos at) {
+            if (domain && !slot.isEmpty()) {
+                throw CypherErrors.unsupported("a zoned value or a duration written as a property of a domain model's"
+                        + " class (" + key + ") is not supported yet", java.util.Objects.requireNonNull(at));
+            }
             List<ColSpec> row = new ArrayList<>();
             row.add(new ColSpec(el.owner(), lambda("r", key(el)), null, null));
             row.add(new ColSpec("key", lambda("r", new CString(key)), null, null));
-            row.add(new ColSpec("slot", lambda("r", new CString("")), null, null));
+            row.add(new ColSpec("slot", lambda("r", new CString(slot)), null, null));
             row.add(new ColSpec(column, lambda("r", nullable ? call("toOne", v) : v), null, null));
-            if (!column.equals("v_json")) {
+            if (slot.isEmpty() && !column.equals("v_json")) {
                 row.add(new ColSpec("v_json", lambda("r", call("toVariant", nullable ? call("toOne", v) : v)), null,
                         null));
             }
             ValueSpecification present = el.minted() != null ? null : call("isNotEmpty", read(el.key()));
             if (nullable) {
-                ValueSpecification has = call("isNotEmpty", v);
+                ValueSpecification has = call("isNotEmpty", whole);
                 present = present == null ? has : call("and", present, has);
             }
             ValueSpecification rows = present == null ? staged.vs() : call("filter", staged.vs(), lambda("r", present));

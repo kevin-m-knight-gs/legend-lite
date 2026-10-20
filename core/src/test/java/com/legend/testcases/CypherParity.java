@@ -831,11 +831,17 @@ public final class CypherParity {
     private static Map<Long, Map<String, String>> storeProps(Lane lane, String table, String owner)
             throws Exception {
         Map<Long, Map<String, String>> out = new LinkedHashMap<>();
+        Map<Long, Map<String, Map<String, Object>>> slotted = new LinkedHashMap<>();
         for (List<Object> row : lane.query("SELECT " + owner + ", key, slot, v_int, v_float, v_str, v_bool, v_date,"
                 + " v_ts, v_time, v_json FROM " + table + " ORDER BY " + owner + ", key")) {
-            if (!String.valueOf(row.get(2)).isEmpty()) {
-                throw new IllegalStateException("harness: a property of slots (" + row.get(1) + "." + row.get(2)
-                        + ") read back from the native store");
+            String slot = String.valueOf(row.get(2));
+            if (!slot.isEmpty()) {
+                // (a property of slots: a zoned value's, a duration's; its value spelled once all its slots are read)
+                Object cell = row.get(3) != null ? row.get(3) : row.get(8) != null ? localDateTime(row.get(8))
+                        : row.get(7) != null ? row.get(7) : row.get(5);
+                slotted.computeIfAbsent(((Number) row.get(0)).longValue(), k -> new LinkedHashMap<>())
+                        .computeIfAbsent(String.valueOf(row.get(1)), k -> new LinkedHashMap<>()).put(slot, cell);
+                continue;
             }
             CypherValues.Value v = row.get(3) != null ? new CypherValues.Int(java.math.BigInteger.valueOf(
                     ((Number) row.get(3)).longValue()))
@@ -857,7 +863,91 @@ public final class CypherParity {
             out.computeIfAbsent(((Number) row.get(0)).longValue(), k -> new java.util.TreeMap<>())
                     .put(String.valueOf(row.get(1)), CypherValues.text(v));
         }
+        for (Map.Entry<Long, Map<String, Map<String, Object>>> o : slotted.entrySet()) {
+            for (Map.Entry<String, Map<String, Object>> p : o.getValue().entrySet()) {
+                out.computeIfAbsent(o.getKey(), k -> new java.util.TreeMap<>()).put(p.getKey(),
+                        slottedText(p.getKey(), p.getValue()));
+            }
+        }
         return out;
+    }
+
+    /** A property of slots as Neo4j's dump spells its value: a zoned date-time or time (its instant and offset; a
+     *  time's slots {@link CypherGraph#TIME_SLOT_PREFIX}ed) at its offset, nine digits of the second; a duration
+     *  (its four slots) as Neo4j prints one. Any other set of slots is the harness's error. */
+    private static String slottedText(String key, Map<String, Object> slots) {
+        String time = CypherGraph.TIME_SLOT_PREFIX;
+        if (slots.keySet().equals(java.util.Set.of("instant", "offsetSeconds"))
+                || slots.keySet().equals(java.util.Set.of(time + "instant", time + "offsetSeconds"))) {
+            boolean ofDay = slots.containsKey(time + "instant");
+            java.time.LocalDateTime instant = (java.time.LocalDateTime) slots.get(ofDay ? time + "instant" : "instant");
+            int offset = Math.toIntExact(((Number) slots.get(ofDay ? time + "offsetSeconds" : "offsetSeconds"))
+                    .longValue());
+            java.time.LocalDateTime wall = instant.plusSeconds(offset);
+            String nine = String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.%09d", wall.getHour(), wall.getMinute(),
+                    wall.getSecond(), wall.getNano());
+            return ofDay ? "Time('" + nine + offsetText(offset) + "')"
+                    : "DateTime('" + wall.toLocalDate() + "T" + nine + offsetText(offset) + "')";
+        }
+        if (slots.keySet().equals(java.util.Set.of("months", "days", "seconds", "nanoseconds"))) {
+            return "Duration('" + durationText(((Number) slots.get("months")).longValue(),
+                    ((Number) slots.get("days")).longValue(), ((Number) slots.get("seconds")).longValue(),
+                    ((Number) slots.get("nanoseconds")).longValue()) + "')";
+        }
+        throw new IllegalStateException("harness: a property of slots " + slots.keySet() + " (" + key + ") read back"
+                + " from the native store, no value the harness spells");
+    }
+
+    /** An offset as Neo4j's dump spells it: {@code +00:00}, {@code -05:30}, {@code +02:05:59}. */
+    private static String offsetText(int seconds) {
+        int abs = Math.abs(seconds);
+        String text = (seconds < 0 ? "-" : "+") + String.format(java.util.Locale.ROOT, "%02d:%02d", abs / 3600, abs / 60 % 60);
+        return abs % 60 == 0 ? text : text + String.format(java.util.Locale.ROOT, ":%02d", abs % 60);
+    }
+
+    /** A duration's four slots as Neo4j prints the duration: {@code P} and its years, months and days, then
+     *  {@code T} and its hours, minutes and seconds (a fraction of the second after the point, its trailing zeros
+     *  dropped), each part that is zero left out; {@code PT0S} for none. Seconds and nanoseconds of opposite signs
+     *  print as their sum. */
+    static String durationText(long months, long days, long seconds, long nanos) {
+        if (months == 0 && days == 0 && seconds == 0 && nanos == 0) {
+            return "PT0S";
+        }
+        StringBuilder out = new StringBuilder("P");
+        part(out, months / 12, 'Y');
+        part(out, months % 12, 'M');
+        part(out, days, 'D');
+        if (seconds != 0 || nanos != 0) {
+            if (seconds < 0 && nanos > 0) {
+                seconds++;
+                nanos -= 1_000_000_000L;
+            } else if (seconds > 0 && nanos < 0) {
+                seconds--;
+                nanos += 1_000_000_000L;
+            }
+            out.append('T');
+            part(out, seconds / 3600, 'H');
+            part(out, seconds % 3600 / 60, 'M');
+            long s = seconds % 60;
+            if (s != 0 || nanos != 0) {
+                if (s == 0 && nanos < 0) {
+                    out.append('-');
+                }
+                out.append(s);
+                if (nanos != 0) {
+                    String fraction = String.format(java.util.Locale.ROOT, "%09d", Math.abs(nanos)).replaceAll("0+$", "");
+                    out.append('.').append(fraction);
+                }
+                out.append('S');
+            }
+        }
+        return out.toString();
+    }
+
+    private static void part(StringBuilder out, long n, char unit) {
+        if (n != 0) {
+            out.append(n).append(unit);
+        }
     }
 
     /** A TIMESTAMP cell as the driver reads it, a local date-time. */
