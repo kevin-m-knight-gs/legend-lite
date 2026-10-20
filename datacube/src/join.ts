@@ -33,7 +33,8 @@ function rowTerm(row: JoinRow, right: string, [ma, tb]: readonly [string, string
   switch (row.op) {
     // Pure's == matches an empty with an empty: a key matches only when it has a value (§17.2)
     case '==': return and(fn('isNotEmpty', a), eq(a, b));
-    case '!=': return ne(a, b);
+    // and != pairs an empty with any value: a row pairs only when both have one
+    case '!=': return and(fn('isNotEmpty', a), fn('isNotEmpty', b), ne(a, b));
     case '<': return lt(a, b);
     case '<=': return le(a, b);
     case '>': return gt(a, b);
@@ -159,7 +160,8 @@ export function joinSummary(left: JoinSide, right: JoinSide, how: JoinHow): Join
       } else {
         const on = asOfCondition(how, named);
         const match = matchLambda(how, named, on ? rowsOf(on) : ['a', 'b']);
-        pairs = on ? lambda([...rowsOf(on)], and(...match.body, ...on.body)) : match;
+        // the condition's statements kept (a `let` before its value), its value and the match both asked
+        pairs = on ? lambda([...rowsOf(on)], ...on.body.slice(0, -1), and(...match.body, on.body[on.body.length - 1]!)) : match;
       }
       const matched = rowCountLambda(semi(left, theirs, pairs, 'isNotEmpty'));
       if (how.form === 'asOf') return { mine, matched };
@@ -203,27 +205,40 @@ export interface JoinSummaryCounts {
 
 const plural = (n: number, one: string, many = `${one}s`): string => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
+/** A count a form's questions always answer: its absence is a summary asked of another form. */
+function asked(n: number | undefined, what: string): number {
+  if (n === undefined) throw new Error(`a join's summary was not asked how many rows ${what}`);
+  return n;
+}
+
 /** What a join will do, in words, a line each (§17.5): what the dialog shows before it is applied. */
 export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
   const out: string[] = [];
-  const unmatched = c.matched === undefined ? undefined : c.mine - c.matched;
+  if (how.form === 'append') {
+    const theirs = asked(c.theirs, 'they have');
+    return [`${plural(c.mine, 'row')} of mine and ${plural(theirs, 'row')} of theirs: ${plural(c.mine + theirs, 'row')}.`];
+  }
+  const matched = asked(c.matched, 'find a match');
+  const unmatched = c.mine - matched;
   switch (how.form) {
-    case 'append':
-      return [`${plural(c.mine, 'row')} of mine and ${plural(c.theirs ?? 0, 'row')} of theirs: ${plural(c.mine + (c.theirs ?? 0), 'row')}.`];
     case 'semi':
     case 'anti':
-      out.push(`${plural(c.matched ?? 0, 'row')} of my ${plural(c.mine, 'row')} ${c.matched === 1 ? 'has' : 'have'} a match, ${plural(unmatched ?? 0, 'row')} none.`);
-      out.push(`It keeps ${plural(how.form === 'semi' ? c.matched ?? 0 : unmatched ?? 0, 'row')}, each once.`);
+      out.push(`${plural(matched, 'row')} of my ${plural(c.mine, 'row')} ${matched === 1 ? 'has' : 'have'} a match, ${plural(unmatched, 'row')} none.`);
+      out.push(`It keeps ${plural(how.form === 'semi' ? matched : unmatched, 'row')}, each once.`);
       return out;
     case 'asOf':
-      out.push(`${plural(c.matched ?? 0, 'row')} of my ${plural(c.mine, 'row')} ${c.matched === 1 ? 'finds' : 'find'} a nearest row, ${plural(unmatched ?? 0, 'row')} none (theirs left empty).`);
+      out.push(`${plural(matched, 'row')} of my ${plural(c.mine, 'row')} ${matched === 1 ? 'finds' : 'find'} a nearest row, ${plural(unmatched, 'row')} none (theirs left empty).`);
       out.push('Each of my rows stays once.');
       return out;
     case 'join': {
-      out.push(`${plural(c.matched ?? 0, 'row')} of my ${plural(c.mine, 'row')} ${c.matched === 1 ? 'finds' : 'find'} a match, ${plural(unmatched ?? 0, 'row')} ${unmatched === 1 ? 'does' : 'do'} not.`);
-      const joined = c.joined ?? 0;
-      out.push(joined > c.mine ? `${plural(joined, 'row')} after it: more than mine -- a row of mine repeats once for each of theirs it matches.`
-        : `${plural(joined, 'row')} after it.`);
+      out.push(`${plural(matched, 'row')} of my ${plural(c.mine, 'row')} ${matched === 1 ? 'finds' : 'find'} a match, ${plural(unmatched, 'row')} ${unmatched === 1 ? 'does' : 'do'} not.`);
+      const joined = asked(c.joined, 'come out of it');
+      // more rows than mine are a row of mine repeated -- where only mine are kept (a right or full join keeps theirs too)
+      out.push(joined > c.mine && (how.kind === 'inner' || how.kind === 'left')
+        ? `${plural(joined, 'row')} after it: more than mine -- a row of mine repeats once for each of theirs it matches.`
+        : how.kind === 'right' || how.kind === 'full'
+          ? `${plural(joined, 'row')} after it, theirs with no match of mine among them.`
+          : `${plural(joined, 'row')} after it.`);
       if (c.repeated && c.repeated.keys > 0) {
         out.push(`${plural(c.repeated.keys, 'key')} of theirs ${c.repeated.keys === 1 ? 'appears' : 'appear'} more than once (at most ${c.repeated.most} times): `
           + 'the rows of mine with it repeat, and totals count them again.');

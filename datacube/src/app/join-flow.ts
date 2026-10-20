@@ -4,7 +4,7 @@
 // page with no join loads none of it (test/bundle-budget.test.ts).
 
 import { gridCapped, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { TAB_TABLES, openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
+import { JoinInputs, TAB_TABLES, openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
 import { joinSummary, joinTitle } from '../join.ts';
 import type { PageApp } from '../page/page-app.ts';
 import { joinDialog } from '../ui/join-dialog.ts';
@@ -47,43 +47,39 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
   if (others.size === 0) {
     throw new Error('a join needs another grid on the page over a file or a remote file: add one first (New ▸ Data Source…)');
   }
-  // the two inputs over one model, read again only when their grid changes; its planner let go with the window
-  let read: { their: string; inputs: OpenedInputs; rows: GridRows } | undefined;
-  const release = (): void => {
-    read?.rows.planner?.dispose?.();
-    read = undefined;
-  };
-  const inputs = async (their: string): Promise<OpenedInputs> => {
-    if (read?.their === their) return read.inputs;
-    release();
+  // each grid's inputs with mine over one model, opened once while the window is open, their planners let go when it
+  // closes -- after any question still being answered over them (join-open.ts JoinInputs)
+  const opened = new JoinInputs<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): void }>(async (their) => {
     const other = others.get(their)!;
     let rows: GridRows | undefined;
-    const opened = await openInputs(mine.input, other.input, {
-      here: TAB_TABLES,
-      tables: [...mine.tables, ...other.tables],
-      models: local.tables,
-      catalog: (table) => catalogColumns(local.engine, local.tables, table),
-      databaseType: local.engine.databaseType,
-      typer: (model, runtime) => {
-        rows = services.engine.rows(model, runtime);
-        return rows.planner!;
-      },
-    });
-    read = { their, inputs: opened, rows: rows! };
-    return opened;
-  };
+    try {
+      const inputs = await openInputs(mine.input, other.input, {
+        here: TAB_TABLES,
+        tables: [...mine.tables, ...other.tables],
+        models: local.tables,
+        catalog: (table) => catalogColumns(local.engine, local.tables, table),
+        databaseType: local.engine.databaseType,
+        typer: (model, runtime) => {
+          rows = services.engine.rows(model, runtime);
+          return rows.planner!;
+        },
+      });
+      const held = rows!;
+      return { inputs, rows: held, dispose: () => held.planner?.dispose?.() };
+    } catch (e) {
+      rows?.planner?.dispose?.();
+      throw e;
+    }
+  });
   try {
     await joinDialog(document, {
       mine: mine.input.name,
       others: [...others].map(([id, i]) => ({ id, name: i.input.name })),
-      inputs,
+      inputs: async (their) => (await opened.get(their)).inputs,
       parse: (text) => local.planner.parse(text),
-      summary: async (their, how) => {
-        const opened = await inputs(their);
-        const rows = read!.rows;
-        return summaryCounts(joinSummary(opened.left, opened.right, how),
-          async (query) => rows.engine!.run((await rows.planner!.plan(query)).sql, 0));
-      },
+      // over their grid's own planner, held until it is answered
+      summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
+        async (query) => rows.engine!.run((await rows.planner!.plan(query)).sql, 0))),
       apply: async (their, how) => {
         const other = others.get(their)!;
         const source: JoinSource = {
@@ -102,6 +98,6 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
       },
     });
   } finally {
-    release();
+    await opened.close();
   }
 }

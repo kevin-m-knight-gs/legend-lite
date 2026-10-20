@@ -222,7 +222,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           const cls = spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id];
           return [
             ...planeMenu(),
-            ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
+            // not of a joined grid: its relation reads no one table, and the writer makes a class of a table's rows (§17.7)
+            ...(createClass && rowsOf(place)?.host.planner.source && place.cubeSource?._type !== 'join' ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
             ...(cls !== undefined && classGrid
               ? [{ id: CLASS_GRID_ID, label: `Add a Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'data' as const }] : []),
             // a grid that reads tables of the tab's database: a join of it reads them in one place (§17.3)
@@ -696,9 +697,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           try {
             o = await sources.reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
           } catch (e) {
-            // a class whose rows are not here (its table read by no grid of the tab) is left out and said, as a file
-            // not given is: the page's other grids open
-            if (cube.source._type !== 'class') throw e;
+            // a class whose rows are not here (its table read by no grid of the tab), or a join that no longer joins (an
+            // input's file changed under it, a remote file that asks for keys) is left out and said, as a file not
+            // given is: the page's other grids open
+            if (cube.source._type !== 'class' && cube.source._type !== 'join') throw e;
             why = e instanceof Error ? e.message : String(e);
           }
           if (o) read.push(o);

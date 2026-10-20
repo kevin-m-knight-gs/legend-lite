@@ -159,6 +159,71 @@ describe('the Join window', () => {
     assert.equal(await made, false);
   });
 
+  it('fills the form with the grid chosen last, an earlier one\'s columns arriving later notwithstanding', async () => {
+    const PRICES = side('prices', [['sym', 'String'], ['px', 'Float']]);
+    let slow!: () => void;
+    const { asked } = open({
+      others: [{ id: 'grid-2', name: 'customers' }, { id: 'grid-3', name: 'prices' }],
+      // the first grid read is slow: its columns land after the second's
+      inputs: async (their) => {
+        if (their === 'grid-2') await new Promise<void>((r) => { slow = r; });
+        return { left: TRADES, right: their === 'grid-2' ? CUSTOMERS : PRICES };
+      },
+    });
+    await settle();
+    choose('.dc-join-their', 'grid-3');
+    await settle();
+    slow();
+    await settle();
+    const theirColumns = [...doc.querySelectorAll<HTMLOptionElement>('.dc-join-rows .dc-join-right option')].map((o) => o.value).filter(Boolean);
+    assert.deepEqual(theirColumns, ['sym', 'px'], 'prices\' columns, not customers\'');
+    assert.deepEqual([...doc.querySelectorAll<HTMLInputElement>('.dc-join-column-list input')].map((b) => b.value), ['sym', 'px']);
+    // nothing asked of customers' columns against prices
+    assert.ok(asked.every((h) => h.form !== 'join' || 'lambda' in h.on || h.on.rows.every((r) => r.right !== 'region')));
+  });
+
+  it('cannot be closed while Join reads what it says: a condition in Pure, parsed, then joined', async () => {
+    let parsed!: () => void;
+    const lambda: Lambda = { _type: 'lambda', parameters: [{ _type: 'var', name: 'a' }, { _type: 'var', name: 'b' }], body: [{ _type: 'boolean', value: true }] };
+    let parses = 0;
+    const { applied, made } = open({
+      // the window's own asking parses at once; Join's parse waits
+      parse: async () => {
+        parses += 1;
+        if (parses > 1) await new Promise<void>((r) => { parsed = r; });
+        return lambda;
+      },
+    });
+    await settle();
+    const on = $<HTMLInputElement>('.dc-join-pure-on');
+    on.checked = true;
+    on.dispatchEvent(new doc.defaultView!.Event('change'));
+    const pure = $<HTMLTextAreaElement>('.dc-join-pure');
+    pure.value = '{a, b | true}';
+    pure.dispatchEvent(new doc.defaultView!.Event('input'));
+    await debounce();
+    $<HTMLButtonElement>('.dc-join .dc-primary').click();
+    await settle();
+    doc.dispatchEvent(new doc.defaultView!.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.ok(doc.querySelector('.dc-join'), 'not closed while Join is under way');
+    parsed();
+    assert.equal(await made, true);
+    assert.equal(applied.length, 1);
+  });
+
+  it('asks for a prefix when it is emptied, never putting one of its own in its place', async () => {
+    const { asked } = open();
+    await settle();
+    await debounce();
+    const before = asked.length;
+    const prefix = $<HTMLInputElement>('.dc-join-prefix');
+    prefix.value = '';
+    prefix.dispatchEvent(new doc.defaultView!.Event('input'));
+    await debounce();
+    assert.equal(asked.length, before);
+    assert.match(status(), /Give their names that mine has a prefix/);
+  });
+
   it('keeps the window open, saying why, when joining is refused', async () => {
     const { made } = open({ apply: async () => { throw new Error('the page has no database of its own'); } });
     await settle();

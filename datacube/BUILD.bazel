@@ -442,6 +442,7 @@ _HEADLESS_TESTS = [
     "host",
     "infer",
     "join",
+    "join-inputs",
     "join-open",
     "json-shape",
     "lite-planner",

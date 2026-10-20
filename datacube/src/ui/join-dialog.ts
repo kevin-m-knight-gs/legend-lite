@@ -196,7 +196,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       pureHint.textContent = `Two rows, mine and theirs, their columns named ${renamed}: {a, b | $a.cust == $b.id}`;
       // the prefix said on their names that mine has
       if (inputs) {
-        const names = theirNames(inputs.left.columns.map((x) => x.name), inputs.right.columns.map((x) => x.name), prefix.value || DEFAULT_PREFIX);
+        const names = theirNames(inputs.left.columns.map((x) => x.name), inputs.right.columns.map((x) => x.name), prefix.value);
         for (const box of columnList.querySelectorAll<HTMLInputElement>('input')) {
           const out = names.get(box.value) ?? box.value;
           (box.nextSibling as Text).textContent = out === box.value ? ` ${box.value}` : ` ${box.value} → ${out}`;
@@ -204,19 +204,26 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       }
     };
 
-    /** Their grid read with mine: the column choices filled, a plain key suggested. */
+    /** Their grid read with mine: the column choices filled, a plain key suggested. The last grid chosen wins. */
+    let loads = 0;
     const load = async (): Promise<void> => {
+      const mine = (loads += 1);
+      // nothing is asked of the grid chosen before while this one is read
+      inputs = undefined;
+      asked += 1;
+      willList.replaceChildren();
       primary.disabled = true;
       say('Reading the two grids…', 'working');
+      let got: { left: JoinSide; right: JoinSide };
       try {
-        const got = await o.inputs(their.value);
-        if (done) return;
-        inputs = got;
+        got = await o.inputs(their.value);
       } catch (e) {
-        inputs = undefined;
+        if (done || mine !== loads) return;
         say(e instanceof Error ? e.message : String(e), 'failed');
         return;
       }
+      if (done || mine !== loads) return;
+      inputs = got;
       suggested.replaceChildren();
       const keys = suggestedKeys(inputs.left, inputs.right);
       if (keys.length > 0) el(doc, 'span', 'dc-picker-field-label', suggested, 'Suggested');
@@ -264,7 +271,8 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       if (c === 'semi' || c === 'anti') return { form: c, on };
       const boxes = [...columnList.querySelectorAll<HTMLInputElement>('input')];
       const keep = boxes.every((b) => b.checked) ? null : boxes.filter((b) => b.checked).map((b) => b.value);
-      const pre = prefix.value === '' ? DEFAULT_PREFIX : prefix.value;
+      if (prefix.value === '') return 'Give their names that mine has a prefix.';
+      const pre = prefix.value;
       if (c === 'asOf') {
         const m = readRow(matchLine);
         if (!m.left || !m.right) return 'Choose the two columns the nearest row is found by.';
@@ -312,12 +320,18 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     addRow.addEventListener('click', () => { rowLine(rowsBox, JOIN_OPS, { op: '==' }, true); changed(); });
 
     primary.addEventListener('click', () => void (async () => {
-      if (busy) return;
+      if (busy || done) return;
       clearTimeout(timer);
-      const h = await how().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
-      if (typeof h === 'string') { say(h, 'failed'); return; }
+      // busy from the first: the window is not closed while what it says is read (a condition in Pure, parsed)
       busy = true;
       win.classList.add('dc-busy');
+      const h = await how().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
+      if (typeof h === 'string') {
+        busy = false;
+        win.classList.remove('dc-busy');
+        say(h, 'failed');
+        return;
+      }
       say('Joining…', 'working');
       try {
         await o.apply(their.value, h);

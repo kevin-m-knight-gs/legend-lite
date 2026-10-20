@@ -9,7 +9,7 @@ import { describe, it } from 'node:test';
 
 import { accessor, readLambda, toJson, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
-  joinRelation, joinSummary, joinTitle, joinWords, readJoinHow, suggestedKeys, theirNames, type JoinHow, type JoinSide,
+  joinRelation, joinSummary, joinTitle, joinWords, readJoinHow, suggestedKeys, summaryWords, theirNames, type JoinHow, type JoinSide,
 } from '../src/join.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 
@@ -113,7 +113,7 @@ describe('what a join becomes', () => {
   it('takes each kind, any comparison, rows ANDed; no rows is every pair', () => {
     const how = join({ kind: 'inner', on: { rows: [{ left: 'cust', op: '>=', right: 'id' }, { left: 'sym', op: '!=', right: 'region' }] } });
     assert.equal(pure(joinRelation(TRADES, CUSTOMERS, how)),
-      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.INNER, {a, b | (($a.cust >= $b.c_id) && !($a.sym == $b.region))})`);
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.INNER, {a, b | (($a.cust >= $b.c_id) && (($a.sym->isNotEmpty() && $b.region->isNotEmpty()) && !($a.sym == $b.region)))})`);
     for (const [kind, word] of [['right', 'RIGHT'], ['full', 'FULL']] as const) {
       assert.match(pure(joinRelation(TRADES, CUSTOMERS, join({ kind }))), new RegExp(`JoinKind\\.${word}`));
     }
@@ -158,6 +158,12 @@ describe('what a join becomes', () => {
     assert.equal(pure(joinRelation(TRADES, PRICES, { ...how, on: { lambda } })),
       `${T}->asOfJoin(#>{local::DB.prices}#->rename(~sym, ~p_sym)->rename(~at, ~p_at), {t, p | ($t.at >= $p.p_at)}, {t, p | true})`);
     assert.match(pure(joinSummary(TRADES, PRICES, { ...how, on: { lambda } }).matched!.body[0]), /\{p \| \(\(\$t\.at >= \$p\.p_at\) && true\)\}/);
+    // a condition of several statements (a let before its value): each kept, the match asked with its value
+    const two = readLambda({ _type: 'lambda', parameters: [{ _type: 'var', name: 't' }, { _type: 'var', name: 'p' }], body: [
+      { _type: 'func', function: 'letFunction', parameters: [{ _type: 'string', value: 'k' }, { _type: 'boolean', value: true }] },
+      { _type: 'var', name: 'k' }] });
+    const matched = pure(joinSummary(TRADES, PRICES, { ...how, on: { lambda: two } }).matched!.body[0]);
+    assert.match(matched, /\{p \| 'k'->letFunction\(true\); \(\(\$t\.at >= \$p\.p_at\) && \$k\)\}/);
   });
 
   it('semi and anti: my rows filtered by theirs, by their own names', () => {
@@ -214,6 +220,19 @@ describe('a join in words', () => {
     assert.equal(joinWords(join()), 'all of mine, on cust = id');
     assert.equal(joinWords(join({ kind: 'inner', on: { rows: [] } })), 'matching rows only, on every pair');
     assert.equal(joinWords({ form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), 'nearest at >= at');
+  });
+
+  it('says a right or full join\'s rows after it as theirs kept too, never a key of mine repeating', () => {
+    const counts = { mine: 5, matched: 3, joined: 7 };
+    assert.equal(summaryWords(join({ kind: 'left' }), counts)[1], '7 rows after it: more than mine -- a row of mine repeats once for each of theirs it matches.');
+    for (const kind of ['right', 'full'] as const) {
+      assert.equal(summaryWords(join({ kind }), counts)[1], '7 rows after it, theirs with no match of mine among them.');
+    }
+  });
+
+  it('refuses words for a count its form always answers that it was not given', () => {
+    assert.throws(() => summaryWords(join(), { mine: 5 }), /was not asked how many rows find a match/);
+    assert.throws(() => summaryWords({ form: 'append' }, { mine: 5 }), /was not asked how many rows they have/);
   });
 
   it('suggests keys: their id under their name first, then a name both have (but id, each table\'s own key)', () => {

@@ -161,9 +161,13 @@ export async function openJoin(source: JoinSource, o: JoinOpening): Promise<Open
 /** The dialog's questions (join.ts joinSummary) answered by `run`: each query planned over the join's model and run. */
 export async function summaryCounts(q: JoinSummaryQueries, run: (query: Lambda) => Promise<RawTable>): Promise<JoinSummaryCounts> {
   const value = (t: RawTable, column: string): number => {
-    const v = t.columns.find((c) => c.name === column)?.values[0];
+    const answered = t.columns.find((c) => c.name === column);
+    if (!answered) throw new Error(`a join's question answered no ${column} (it answered ${t.columns.map((c) => c.name).join(', ')})`);
     // a count over no rows has no group, so no row: none
-    return v === undefined || v === null ? 0 : Number(v);
+    if (t.rowCount === 0) return 0;
+    const v = answered.values[0];
+    if (v === undefined || v === null) throw new Error(`a join's question answered no value of ${column}`);
+    return Number(v);
   };
   const count = async (query: Lambda | undefined): Promise<number | undefined> =>
     (query === undefined ? undefined : value(await run(query), TOTAL_ROWS_COLUMN));
@@ -176,4 +180,52 @@ export async function summaryCounts(q: JoinSummaryQueries, run: (query: Lambda) 
     ...(theirs !== undefined ? { theirs } : {}),
     ...(repeated !== undefined ? { repeated: { keys: value(repeated, REPEATED_KEYS), most: value(repeated, MOST_REPEATS) } } : {}),
   };
+}
+
+/**
+ * THE JOIN WINDOW'S INPUTS, while it is open: each grid it is asked of opened once (its promise kept, so two asks in
+ * flight open one), its planner held while a question is answered over it, and all of them let go when the window
+ * closes -- after the questions still being answered (a planner disposed under a question would hold its model again).
+ */
+export class JoinInputs<T extends { dispose(): void }> {
+  readonly #open: (their: string) => Promise<T>;
+  readonly #held = new Map<string, Promise<T>>();
+  readonly #busy = new Set<Promise<unknown>>();
+  #closed = false;
+
+  constructor(open: (their: string) => Promise<T>) {
+    this.#open = open;
+  }
+
+  /** Their grid's inputs: opened the first time it is asked, then the same. One that failed is opened again when asked. */
+  get(their: string): Promise<T> {
+    if (this.#closed) return Promise.reject(new Error('the Join window was closed'));
+    let held = this.#held.get(their);
+    if (!held) {
+      held = this.#open(their);
+      this.#held.set(their, held);
+      held.catch(() => { if (this.#held.get(their) === held) this.#held.delete(their); });
+    }
+    return held;
+  }
+
+  /** `use` over their grid's inputs, which stay held until it is done. */
+  async use<R>(their: string, use: (inputs: T) => Promise<R>): Promise<R> {
+    const run = this.get(their).then(use);
+    this.#busy.add(run);
+    try {
+      return await run;
+    } finally {
+      this.#busy.delete(run);
+    }
+  }
+
+  /** Every input let go, once what is being answered over them is done; nothing is opened after. */
+  async close(): Promise<void> {
+    this.#closed = true;
+    await Promise.allSettled([...this.#busy]);
+    const held = await Promise.allSettled([...this.#held.values()]);
+    this.#held.clear();
+    for (const h of held) if (h.status === 'fulfilled') h.value.dispose();
+  }
 }

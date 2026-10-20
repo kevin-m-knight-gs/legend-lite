@@ -801,8 +801,9 @@ What it becomes is one rule, join.ts `joinRelation`:
 
 Within that rule:
 
-- **An empty key matches no row.** An equality row is written `$a.k->isNotEmpty() && $a.k == $b.k`. Pure's `==`
-  would match an empty key with an empty key; SQL's join does not, and neither does any prep tool's.
+- **An empty key matches no row.** An equality row is written `$a.k->isNotEmpty() && $a.k == $b.k`, and a `!=` row
+  `$a.k->isNotEmpty() && $b.k->isNotEmpty() && $a.k != $b.k`. Pure's `==` would match an empty key with an empty key,
+  and its `!=` an empty key with every value; SQL's join does neither, and no prep tool's does.
   `docs/SEMANTICS_REGISTER.md` needs no row for this: it is the query as written, not a difference from the engine.
 - **Semi and anti** are `mine->filter(a | theirs->filter(b | ...)->isNotEmpty())` and `isEmpty()`. lite lowers both to
   a semi-join or an anti-join.
@@ -818,8 +819,8 @@ Both inputs must be read where one model and one connection reach them (§4.3).
 
 - **In the tab** that means files and remote files: tables of the tab's DuckDB.
 - **The join's model** is one Database holding all their tables (core's `CatalogModel.database` of several tables;
-  Boundary `tableModel` given `tables`). Each table is declared as its own model declares it, so each input's
-  relation reads the same accessor, unchanged.
+  Boundary `tableModel` given `tables`). Each table is declared as its own model declares it -- its columns, types and
+  conversions -- and each input's relation is read over this model's accessor for its table.
 - **Any other input is refused in words**: a warehouse table read live, a saved query, a class, or a frame on a page
   Python serves (§17.7).
 
@@ -832,7 +833,8 @@ Both inputs must be read where one model and one connection reach them (§4.3).
   planned by the compiler over the join's model.
 - **The opener** (join-open.ts) is free of the DOM: given the tables, the model writer and a planner, it gives back the
   model, the relation and its columns. The tab's sources and a test on Node's DuckDB both call it.
-- **Headless**: the bundle exports `joinCube` and `joinSummary`, for any host that drives pages.
+- **Headless**: the bundle exports `joinCube` (the join's grid's cube document, for `addGrid`) and `joinQuestions`
+  (what it will do), for any host that drives pages.
 - **Python**: `page.join(other, on=[('customer_id', 'id')], how='left')` is step 4b (§17.7).
 
 ### 17.5 The dialog
@@ -937,3 +939,56 @@ about a prep UI like it, "but maybe more Alteryx like".
 - **A warehouse table read live** as an input; a snapped copy is a table of the tab, but its source reopens live.
 - **A joined file's handle, kept** so a reopened join reads its files without asking. A sample is rebuilt; a file
   already open on the page is reused; any other file is asked for.
+- **A remote file in a private bucket as a join's input, reopened**: no keys are asked for it (a remote grid's reopen
+  asks); the join is left out and said. And a remote file's view a join mounted is not unmounted (a remote grid's is
+  not either).
+- **On the legend-engine planner** (`?planner=engine`), a file's BOOLEAN column in a join types as legend-engine's
+  TinyInt: the join's model passes no `bitColumns` (S23's workaround), which would need mapping through the prefix.
+- **Create a Class of a joined grid**: not offered (its relation reads no one table, and the writer makes a class of a
+  table's rows).
+
+### 17.8 As built (2026-10-20, `claude/datacube-model-prep`)
+
+- **Core**: `CatalogModel.database` of several tables (one Database declaring each table as its own model would, the
+  default schema's first; a table given twice refused), and `Boundary.tableModel` given `tables` (each package's
+  Database, one connection, one runtime binding them all). Callers: `TableModels.tablesModel` (lite-planner.ts) and
+  Python's `compiler.table_model` with `tables`.
+- **The join, as data**: join-how.ts (its saved form and reader, all a cube document needs: every page reads a join),
+  cube-document.ts `JoinSource` (inputs by value, a join able to be an input). What it becomes is join.ts
+  (`joinRelation`, `joinSummary`, `summaryWords`, `suggestedKeys`), fetched with the first join.
+- **The compiler judges names and types**: join.ts writes every name as given -- a column an input lacks, a prefixed
+  name that is taken, a column kept twice, an append's column of two types are the compiler's refusals, in its words
+  (the user, 2026-10-20: no second copy of a compiler rule in TypeScript). join-how.ts checks the document's shape only.
+- **The opener** (join-open.ts, no DOM): a join's leaves each a table of the host's database (the host says which
+  kinds: the tab's files and remote files, Python's frames too), one model of them, each input its cube's rows at
+  their finest level (openCube, so an input that drifted is said), the join typed; and the dialog's questions answered
+  (`summaryCounts`).
+- **In the tab**: Join… on a grid's menu where it reads tables of the tab's database; the window (ui/join-dialog.ts)
+  says what the join will do before it is applied; Apply adds the grid with `addGrid` (page.addGrid, near the grid
+  joined). A grid's place says the tables it reads (`GridPlace.tables`); a table a join reads is held while it reads it.
+  A saved join reopens alone (a sample rebuilt, a file open on the page or read beside it taken, else asked for); a
+  saved page opens its joins after its plain grids, so each file is asked for once. Join…'s flow and a join's opening
+  are one chunk fetched with the first join (app/join-app.ts).
+- **Headless**: `joinCube` (the join's grid's cube document for `addGrid`, with its model, runtime and relation) and
+  `joinQuestions` (what it will do, counts and words), over the host's tables with its own writer and planner.
+- **Audited** by a reviewer that wrote none of it: a saved page whose join no longer opens (now: the join left out
+  and said, the page's other grids opened); a `!=` row pairing an empty key with every row (now: both sides need a
+  value); a reopened join reading any file given (now: its hash checked and a different file said; no handle kept
+  under the page's name tried); the window's grid switched while an earlier one's columns were still coming (now: the
+  last chosen wins, each grid's planner held until its questions are answered and let go when the window closes);
+  one file asked for twice when only joins read it (now: a file read for a join is shared by the joins reading it,
+  dropped when the last lets go unmade); Cancel during Join (now: the window is busy from the first); a right or full
+  join's words; counts and a prefix defaulted (now refused or asked for); an as-of condition of several statements.
+- **What judges it**: unit (join, the Join window in jsdom, the window's inputs); planned on DuckDB through the tab's module (join-open:
+  each form's rows, a grouped input, a join inside an input, drift, the compiler's refusals); the browser (verify-join:
+  two files joined, the words before Apply, a second join keeping my rows with no match, a refusal in the window,
+  saved, reloaded and reopened with each file asked for once); Python (the several-table writer; headless joinCube and
+  joinQuestions over two frames, the rows planned and run by Python, the cube added by pageApply); core
+  (CatalogModelTest). The startup budgets raised with their note (bundle-budget.test.ts, +4.7 KB gzipped).
+- **Not built here** (§17.7, unchanged): Python's `page.join` (step 4b: a page Python serves needs one model of several
+  frames from its engine, engine.py, the SQL plan's ground -- headless `joinCube` is ready for it); live links and the
+  flow view; Create a Class of a joined grid (not offered: its writer takes a source read from one table); a remote
+  input's keys asked on reopen; the engine planner's booleans in a join;
+  lateral beyond Expand; text comparisons as rows; warehouse tables read live; a joined file's handle kept; choose,
+  rename and remove duplicates as relation steps (choose is the shown columns already; rename is a column's display
+  name and Create a Class's names; remove duplicates is left for the next step).

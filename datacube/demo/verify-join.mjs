@@ -26,6 +26,11 @@ await writeFile(trades, ['trade_id,customer_id,region,notional',
   ...Array.from({ length: 40 }, (_, i) => `${i + 1},${i % 7 === 0 ? '' : (i % 5) + 1},${['EMEA', 'AMER', 'APAC'][i % 3]},${(i + 1) * 100}.25`)].join('\n') + '\n');
 await writeFile(customers, ['customer_id,name',
   ...Array.from({ length: 5 }, (_, i) => `${i + 1},Customer ${i + 1}`), '5,Customer 5 again'].join('\n') + '\n');
+// the trades file changed since: its customer_id gone (a join on it no longer joins)
+const changedDir = await tmpDir('dc-join-changed-');
+const changedTrades = join(changedDir, 'trades.csv');
+await writeFile(changedTrades, ['trade_id,region,notional',
+  ...Array.from({ length: 40 }, (_, i) => `${i + 1},${['EMEA', 'AMER', 'APAC'][i % 3]},${(i + 1) * 100}.25`)].join('\n') + '\n');
 
 const { port, close } = await serve(siteRoot());
 const browser = await chromium.launch();
@@ -71,8 +76,8 @@ async function joinWindow() {
     || document.querySelector('.dc-join .dc-picker-status.dc-failed'), undefined, { timeout: 60_000 });
 }
 const will = () => page.$$eval('.dc-join-will-line', (ls) => ls.map((l) => l.textContent));
-/** A saved page opened again after a reload: each file asked for answered, until it says it opened. */
-async function openSaved(name) {
+/** A saved page opened again after a reload: each file asked for answered (`given`), until it says it opened. */
+async function openSaved(name, given = { 'trades.csv': trades, 'customers.csv': customers }) {
   await page.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await page.click('.dc-titlebar-menu');
@@ -89,7 +94,7 @@ async function openSaved(name) {
     const ask = await page.locator('#cubelib .dc-lib-ask').textContent() ?? '';
     const which = /customers\.csv/.test(ask) ? 'customers.csv' : 'trades.csv';
     asked.push(which);
-    await page.setInputFiles('#cubelib .dc-lib-choose', which === 'customers.csv' ? customers : trades);
+    await page.setInputFiles('#cubelib .dc-lib-choose', given[which]);
     await page.waitForFunction((n) => !document.querySelector('#cubelib .dc-lib-ask:not([hidden])')
       || !document.querySelector('#cubelib .dc-lib-ask')?.textContent?.includes(n), which, { timeout: 30_000 });
   }
@@ -173,6 +178,40 @@ try {
   check(await rowsOf(again) === 47, `reopened: the joined grid's rows (${await rowsOf(again)})`);
   await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
   check(await six().count() === 1, `reopened: the trades with no customer, 6 rows (${await six().count()})`);
+
+  // A FILE THAT CHANGED UNDER ITS JOINS (the audit's 1 and 3): the page opens, its plain grids with them; each join that
+  // no longer joins is left out and said, the file given said not to be the one joined
+  const drifted = await openSaved('Joins', { 'trades.csv': changedTrades, 'customers.csv': customers });
+  check(/opened/.test(drifted.said ?? '') && !/not opened/.test(drifted.said ?? ''), `the page opened over a changed file: ${drifted.said}`);
+  check((drifted.said?.match(/left out: trades\.csv/g) ?? []).length === 2, `each join left out, said: ${drifted.said}`);
+  check(/is not the file/.test(drifted.said ?? ''), `the file given said not to be the one saved over: ${drifted.said}`);
+  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length === 2, undefined, { timeout: 60_000 })
+    .then(() => check(true, 'its two plain grids open, its joins not'), async () => bad(`grids open: ${await page.locator('.dc-tile-menu').count()}`));
+
+  // JOINS ALONE READING THE FILES (the audit's 5): the plain grids taken off, saved, opened again -- each file asked for
+  // once, both joins reading the one table each file is read into
+  await openSaved('Joins');
+  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 4, undefined, { timeout: 60_000 });
+  const removeGrid = async (tile) => {
+    await tile.locator('.dc-tile-menu').click();
+    await item('Remove from Page').click();
+  };
+  await removeGrid(tileWith('name').filter({ hasNot: page.locator('.dc-th[data-column="trade_id"]') }).first());
+  await removeGrid(tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first());
+  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length === 2, undefined, { timeout: 30_000 });
+  await page.click('.dc-titlebar-menu');
+  await item('Save As\u2026').click();
+  await page.locator('.dc-save').waitFor({ timeout: 10_000 });
+  await page.fill('.dc-save-input', 'Joins only');
+  await page.locator('.dc-save-foot .dc-primary').click();
+  await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
+  const only = await openSaved('Joins only');
+  check(JSON.stringify([...only.asked].sort()) === JSON.stringify(['customers.csv', 'trades.csv']), `joins alone: each file asked for once: ${only.asked}`);
+  const joinedOnly = tileWith('their_customer_id').first();
+  await untilRows(joinedOnly, 47);
+  check(await rowsOf(joinedOnly) === 47, `joins alone: the joined grid's rows (${await rowsOf(joinedOnly)})`);
+  await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
+  check(await six().count() === 1, `joins alone: the trades with no customer, 6 rows (${await six().count()})`);
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
 } catch (e) {
