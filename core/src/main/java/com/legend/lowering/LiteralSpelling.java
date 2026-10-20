@@ -413,16 +413,6 @@ public final class LiteralSpelling {
      * VARCHAR convention) through one text pipeline.
      */
     static SqlExpr temporalCanon(SqlExpr v) {
-        // a timestamp carries no written precision: its text is the one owner's (dateTimeText: the fraction's trailing
-        // zeros trimmed), never the database's own cast, whose digits are the column's (ClickHouse prints a
-        // DateTime64(6) with six, a DateTime with none; DuckDB prints the minimal ones). NULL stays NULL (a
-        // concatenation skips a NULL operand: an empty max spelled '.+0000'). The judges' canon since the plan path
-        // program's step 7 (channel B's date tests on ClickHouse, 2026-10-20)
-        if (v.type() instanceof com.legend.sql.TypeFact.Typed tt
-                && (tt.type() == SqlType.Scalar.TIMESTAMP || tt.type() == SqlType.Scalar.TIMESTAMPTZ)) {
-            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
-                    new SqlExpr.NullLit())), dateTimeText(v));
-        }
         // an ALREADY-SUFFIXED wire text (the variant-identity channel
         // prints pure's +0000 form) normalizes before the pipeline —
         // the suffix re-appends canonically at the end.
@@ -440,6 +430,18 @@ public final class LiteralSpelling {
         SqlExpr t = SqlExpr.Call.of(SqlFn.REPLACE, bare,
                 new SqlExpr.StringLit(" "), new SqlExpr.StringLit("T"));
         SqlExpr timeBearing = has(t, "T");
+        if (v.type() instanceof com.legend.sql.TypeFact.Typed tt
+                && (tt.type() == SqlType.Scalar.TIMESTAMP || tt.type() == SqlType.Scalar.TIMESTAMPTZ)) {
+            // a time-bearing timestamp carries no written precision: its text is the one owner's (dateTimeText: the
+            // fraction's trailing zeros trimmed), never the database's own cast, whose digits are the column's
+            // (ClickHouse prints a DateTime64(6) with six, a DateTime with none; DuckDB the minimal ones: channel B's
+            // date tests on ClickHouse, 2026-10-20). A DATE cell under a timestamp's label (the store declares one
+            // where the DDL made the other) is its day, as the cast spells it (the corpus's columnValueDifferenceTest
+            // and rowValueDifferenceTest, measured the same day). NULL stays NULL.
+            return new SqlExpr.Case(List.of(
+                    new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit()),
+                    new SqlExpr.Case.When(timeBearing, dateTimeText(v))), t);
+        }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timeBearing,
                 SqlExpr.Call.of(SqlFn.CONCAT, t,
                         new SqlExpr.StringLit("+0000")))),
