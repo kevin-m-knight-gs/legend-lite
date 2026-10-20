@@ -376,6 +376,13 @@ public final class StoreResolver {
                 && Type.isRelation(mk.source().info().type())) {
             return resolveNode(mk.source(), context);
         }
+        // a CLASS WRITE over a direct mapping (docs/WRITES_DESIGN_2026_10_18.md §4, L2; 2026-10-20), in any space
+        // (its rows are often a literal's or a staged let's, no class chain): L1's statement over the class's mapped
+        // table, its properties renamed to their columns (ClassWrites), then resolved as an L1 write is
+        if (n instanceof TypedNativeCall cw && com.legend.builtin.NativeFn.ResolverForm.of(cw.callee().id())
+                .map(com.legend.builtin.NativeFn.ResolverForm::classWrite).orElse(false)) {
+            return resolveNode(classWrite(cw, context), context);
+        }
         return switch (anchors.spaceOf(n)) {
             case OBJECT -> objectNode(n, context);
             case ANCHORED -> anchoredNode(n, context);
@@ -1286,6 +1293,16 @@ public final class StoreResolver {
             return elementIdRead(nc, context);
         }
         return rw;
+    }
+
+    /** A class write ({@code writeInstances}, {@code mergeInstances}, {@code deleteInstances}, {@code link},
+     *  {@code unlink}) as L1's statement over the table its class's mapping reads (ClassWrites). */
+    private TypedSpec classWrite(TypedNativeCall nc, Context context) {
+        var form = com.legend.builtin.NativeFn.ResolverForm.of(nc.callee().id()).orElseThrow();
+        String classFqn = ClassWrites.classOf(nc);
+        ClassSource cs = sources.get(dispatch(context, classFqn), classFqn, null);
+        return ClassWrites.lower(nc, form, cs, c -> sources.get(dispatch(context, c), c, null), ctx, callees,
+                assocMaterial);
     }
 
     /** {@code elementId($instance)} as the read of the instance's identity: its class's one primary-key

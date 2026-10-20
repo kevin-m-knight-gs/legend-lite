@@ -408,7 +408,11 @@ public final class CypherParity {
             }
             CypherGraph.Inferred inf;
             try {
-                inf = CypherGraph.infer(java.util.Objects.requireNonNull(a.graph()), realization);
+                // (a write over a domain model: the schema of the graphs before and after, the writes design's leg
+                // 5; over the native store the schema is the store's own)
+                inf = realization == CypherGraph.Realization.DOMAIN && a.after() != null
+                        ? CypherGraph.inferWrite(java.util.Objects.requireNonNull(a.graph()), a.after())
+                        : CypherGraph.infer(java.util.Objects.requireNonNull(a.graph()), realization);
             } catch (CypherGraph.Unsupported u) {
                 outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.SKIP, u.getMessage()));
                 continue;

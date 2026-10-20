@@ -353,11 +353,36 @@ class CypherIslandIntegrationTest {
                 () -> run("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN r.since"));
         assertEquals("#Cypher{...}# at line 1, column 53: a property of a relationship over a property or association"
                 + " (no edge class, the study's §5.6) is not supported yet", e.getMessage());
-        com.legend.error.NotImplementedException create = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> run("CREATE (p:Person {name: 'x'})"));
-        // a domain model's graph is written by the writes design's leg 5; the native store's (leg 6) is
-        assertTrue(create.getMessage().contains("CREATE over a graph of a domain model is not supported yet"),
-                create.getMessage());
+        // a label changed on a domain model: its node's labels are its class (the writes design's §3 A)
+        com.legend.error.NotImplementedException relabel = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> run("MATCH (p:Person) SET p:Admin"));
+        assertTrue(relabel.getMessage().contains("SET of a label over a graph of a domain model is not supported"),
+                relabel.getMessage());
+    }
+
+    /** A write over a domain model goes through its classes' direct mappings (the writes design's leg 5, L2): the
+     *  node created is the class's row, read back by the statement and by the next; the caller's rollback takes it
+     *  back. */
+    @Test
+    void aWriteOverADomainModelGoesThroughItsMappings() throws SQLException {
+        session.setAutoCommit(false);
+        try {
+            assertEquals(List.of("Eve|22"), rows(run("CREATE (p:Person {name: 'Eve', age: 22})"
+                    + " RETURN p.name AS n, p.age AS a")));
+            assertEquals(List.of("Eve"), rows(run("MATCH (p:Person) WHERE p.age = 22 RETURN p.name AS n")));
+            run("MATCH (p:Person {name: 'Eve'}) SET p.age = 23");
+            assertEquals(List.of("23"), rows(run("MATCH (p:Person {name: 'Eve'}) RETURN p.age AS a")));
+            // (a node of a class with associations: its links are no edge class's, refused by name)
+            com.legend.error.NotImplementedException delete = assertThrows(
+                    com.legend.error.NotImplementedException.class, () -> run("MATCH (p:Person {name: 'Eve'})"
+                    + " DELETE p"));
+            assertTrue(delete.getMessage().contains("whose relationships include associations"),
+                    delete.getMessage());
+        } finally {
+            session.rollback();
+            session.setAutoCommit(true);
+        }
+        assertEquals(4, rows(run("MATCH (p:Person) RETURN p.name AS n")).size());
     }
 
     @Test

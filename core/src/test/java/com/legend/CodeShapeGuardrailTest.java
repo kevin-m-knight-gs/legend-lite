@@ -129,6 +129,9 @@ class CodeShapeGuardrailTest {
             // the program's clauses are read, scoped to one program (the fresh-name counter's lifecycle)
             "CypherToPure.store", "CypherToPure.stages", "CypherToPure.at", "CypherToPure.keys",
             "CypherToPure.ordinal", "CypherToPure.heldIdentities", "CypherToPure.highWater",
+            // Writes leg 5, 2026-10-20 (docs/WRITES_DESIGN_2026_10_18.md §8, leg 5): whether the program's graph is a
+            // domain model's (its writes the class writes, L2), set with the store as the program starts
+            "CypherToPure.domain",
             // the Cypher translator's let (2026-10-19, the parity lanes' exponential temporal SQL): Shares' count of
             // the hidden columns it has named, scoped to one translation (the CypherToPure.fresh shape)
             "Shares.next",

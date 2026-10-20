@@ -318,7 +318,53 @@ public final class CypherGraph {
         return infer(g, Realization.DOMAIN);
     }
 
+    /**
+     * The domain model a write over {@code before} needs (the writes design's §8, leg 5): the schema that holds both
+     * the graph before and the graph {@code after} it (their labels, label sets, properties and their types,
+     * relationship types and how many each node holds), as a person's model would declare the classes the write
+     * creates instances of; its tables seeded with the graph before's rows alone. The two graphs are read as one,
+     * the graph after's ids past the graph before's, so its rows are told apart and left out. Every relationship type
+     * is an edge class (a relationship's own row, as the native store's views hold it): a write creates and deletes
+     * relationships one by one, parallel ones apart.
+     */
+    public static Inferred inferWrite(CypherAnswers.Graph before, CypherAnswers.Graph after) throws Unsupported {
+        int offset = 1 + Math.max(before.nodes().stream().mapToInt(CypherAnswers.GraphNode::id).max().orElse(0),
+                after.nodes().stream().mapToInt(CypherAnswers.GraphNode::id).max().orElse(0));
+        int relOffset = 1 + Math.max(before.rels().stream().mapToInt(CypherAnswers.GraphRel::id).max().orElse(0),
+                after.rels().stream().mapToInt(CypherAnswers.GraphRel::id).max().orElse(0));
+        List<CypherAnswers.GraphNode> nodes = new ArrayList<>(before.nodes());
+        after.nodes().forEach(n -> nodes.add(new CypherAnswers.GraphNode(n.id() + offset, n.labels(), n.props())));
+        List<CypherAnswers.GraphRel> rels = new ArrayList<>(before.rels());
+        after.rels().forEach(r -> rels.add(new CypherAnswers.GraphRel(r.id() + relOffset, r.start() + offset,
+                r.end() + offset, r.type(), r.props())));
+        // (each relationship type an edge class: a relationship a write creates or deletes is its own row)
+        Inferred both = infer(new CypherAnswers.Graph(nodes, rels), Realization.DOMAIN, true);
+        List<SqlParity.Table> tables = new ArrayList<>();
+        for (SqlParity.Table t : both.tables()) {
+            // a class's table and an edge class's bridge: their id first; a junction: its two ends
+            boolean junction = t.columns().size() == 2 && t.columns().get(0).name().equals("src_id");
+            boolean bridge = !junction && t.columns().size() >= 3 && t.columns().get(1).name().equals("src_id");
+            int limit = bridge ? relOffset : offset;
+            List<List<Object>> rows = new ArrayList<>();
+            for (List<Object> row : t.rows()) {
+                if (((Long) java.util.Objects.requireNonNull(row.get(0))).intValue() < limit) {
+                    rows.add(row);
+                }
+            }
+            tables.add(new SqlParity.Table(t.name(), t.columns(), rows));
+        }
+        return new Inferred(both.model(), tables, graphKey(before) + "+" + graphKey(after));
+    }
+
     public static Inferred infer(CypherAnswers.Graph g, Realization realization) throws Unsupported {
+        return infer(g, realization, realization == Realization.NATIVE);
+    }
+
+    /** {@link #infer(CypherAnswers.Graph, Realization)}, every relationship type an edge class when
+     *  {@code everyTypeAnEdge} (the native store's views; a domain model a write's relationships are created in and
+     *  deleted from one by one, each its own identity, parallel ones apart). */
+    private static Inferred infer(CypherAnswers.Graph g, Realization realization, boolean everyTypeAnEdge)
+            throws Unsupported {
         boolean nativeStore = realization == Realization.NATIVE;
         // the native store's rows and views (the native realization's)
         List<List<Object>> nodePropRows = new ArrayList<>();
@@ -438,7 +484,7 @@ public final class CypherGraph {
             // (one entry per class pair the type joins, in the order the pairs appear)
             RelType t = types.computeIfAbsent(r.type() + "|" + src.name + "|" + dst.name,
                     k -> new RelType(r.type(), sql, src, dst));
-            t.ownRow = nativeStore;
+            t.ownRow = everyTypeAnEdge;
             t.rels.add(r);
             for (Map.Entry<String, String> p : r.props().entrySet()) {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {

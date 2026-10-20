@@ -149,7 +149,13 @@ class NativeCatalogGovernanceTest {
         // relation expression is recomputed at each read, and a write changes what it finds). legend-pure's lets bind
         // values, not a relation's rows at a point of a program's writes; legend-engine has no counterpart. Emitted by
         // the Cypher translator only, by FQN, a let's value only. 28 -> 29.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 29,
+        // +5 2026-10-20 (the writes design's leg 5, §4 L2: Cypher's writes on a graph of a domain model):
+        // writeInstances / mergeInstances / deleteInstances / link / unlink -- the class writes over a direct mapping,
+        // each a relation of rows and a class (the rows' key column each instance's key, the others its properties),
+        // which the store resolver writes as L1's statement over the class's mapped table (resolver/ClassWrites).
+        // legend-pure has no write through a mapping; legend-engine's is mutation::save, an upsert of one object.
+        // Emitted by the Cypher translator only, by FQN (GraphQL's mutations will be their second emitter). 29 -> 34.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 34,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

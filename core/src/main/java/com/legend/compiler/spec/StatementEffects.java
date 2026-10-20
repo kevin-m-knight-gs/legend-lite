@@ -166,7 +166,11 @@ public final class StatementEffects {
     public static boolean isStoreWrite(TypedSpec n) {
         return (n instanceof com.legend.compiler.spec.typed.TypedWrite w && w.destination().isPresent()
                 && w.destination().get() instanceof com.legend.compiler.spec.typed.TypedTableReference)
-                || n instanceof com.legend.compiler.spec.typed.TypedStoreWrite;
+                || n instanceof com.legend.compiler.spec.typed.TypedStoreWrite
+                // a class write (L2), which the store resolver writes as L1's statement
+                || n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                        && com.legend.builtin.NativeFn.ResolverForm.of(nc.callee().id())
+                                .map(com.legend.builtin.NativeFn.ResolverForm::classWrite).orElse(false);
     }
 
     /** Does the program WRITE A STORE TABLE — a store write ({@link #isStoreWrite}; docs/WRITES_DESIGN_2026_10_18.md §4, L1),

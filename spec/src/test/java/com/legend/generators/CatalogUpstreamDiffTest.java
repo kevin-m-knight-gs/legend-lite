@@ -212,8 +212,10 @@ class CatalogUpstreamDiffTest {
      *  beside upstream's write -- lite's user-facing DML over a store table (NativeCatalogGovernanceTest's
      *  LITE_SURFACE); upstream declares no write but write itself. 60 on 2026-10-20 (the writes design's leg 6, §8):
      *  meta::legend::lite::stage, rows computed once into a temporary table of the session for the statements after
-     *  (the Cypher island's writes); a lite-internal native, ours alone. */
-    private static final int NOT_UPSTREAM_MAX = 60;
+     *  (the Cypher island's writes); a lite-internal native, ours alone. 65 on 2026-10-20 (the writes design's leg 5,
+     *  §4 L2): writeInstances, mergeInstances, deleteInstances, link and unlink, the class writes over a direct
+     *  mapping, which the store resolver writes as L1's statements; ours alone. */
+    private static final int NOT_UPSTREAM_MAX = 65;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 
