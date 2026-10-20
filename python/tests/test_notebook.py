@@ -42,6 +42,10 @@ class Widget(unittest.TestCase):
             cube.close()
         for view in list(datacube._session.pages):
             view.close()
+        # its DataCube engine (headless) closed with it: a session dropped open leaves that engine's folder to the garbage
+        # collector, which warns about it under whichever later test it reaches (CorpusPage counts every warning)
+        if datacube._session._headless is not None:
+            datacube._session._headless.close()
 
     def cube(self, frame=None, **given):
         cube = DataCube(trades() if frame is None else frame, **given)

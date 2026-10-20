@@ -38,6 +38,10 @@ class Shown(unittest.TestCase):
     def tearDown(self):
         for cube in list(datacube._session.cubes.values()):
             cube.close()
+        # its DataCube engine (headless) closed with it: a session dropped open leaves that engine's folder to the garbage
+        # collector, which warns about it under whichever later test it reaches (CorpusPage counts every warning)
+        if datacube._session._headless is not None:
+            datacube._session._headless.close()
         if self._site is None:
             os.environ.pop('LEGEND_LITE_SITE', None)
         else:

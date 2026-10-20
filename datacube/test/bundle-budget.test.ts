@@ -207,8 +207,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  it reads, the Join… entry and its two stubs, the planner's tablesModel. Join…'s flow, the window, a join's relation
  *  and its opening are one chunk fetched with the first join (app/join-app.ts); with them at startup it measured about
  *  1,300 more. Most of the rest is esbuild's: a lazy module sharing startup code splits it into more chunks (18 -> 22
- *  files), each gzipped alone. Measured 301,329. */
-const BUDGET = 301_500;
+ *  files), each gzipped alone. Measured 301,329.
+ *  301,500 -> 302,000 (2026-10-20, design §18 step 2, Snap by query: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3):
+ *  each snap a copy of its own -- the page's snap target making one (app/sources.ts snapInto), modelled as a file read
+ *  in is (upload.ts modelLanded), the cube's copy runner made and let go with each snap -- and remote files offered a
+ *  snap. Measured 301,561. */
+const BUDGET = 302_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -251,8 +255,10 @@ const BUDGET = 301_500;
  *  of the same date). Measured 284,804.
  *  285,000 -> 285,500 (2026-10-19, step 3's audit -- the grid's note of the same date). Measured 285,174.
  *  285,500 -> 290,000 (2026-10-20, the model plan's step 4, combining in prep -- the grid's note of the same date).
- *  Measured 289,795. */
-const ENGINE_BUDGET = 290_000;
+ *  Measured 289,795.
+ *  290,000 -> 290,500 (2026-10-20, design §18 step 2, Snap by query -- the grid's note of the same date). Measured
+ *  290,349. */
+const ENGINE_BUDGET = 290_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -359,8 +365,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  note of the same date). Measured 302,450.
  *  302,600 -> 303,000 (2026-10-19, step 3's audit -- the grid's note of the same date). Measured 302,803.
  *  303,000 -> 307,800 (2026-10-20, the model plan's step 4, combining in prep -- the grid's note of the same date).
- *  Measured 307,630. */
-const WIDGET_BUDGET = 307_800;
+ *  Measured 307,630.
+ *  307,800 -> 308,300 (2026-10-20, design §18 step 2, Snap by query -- the grid's note of the same date). Measured
+ *  308,163. */
+const WIDGET_BUDGET = 308_300;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
