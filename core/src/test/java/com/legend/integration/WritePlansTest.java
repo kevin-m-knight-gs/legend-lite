@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class WritePlansTest {
 
-    private static final String MODEL = """
+    static final String MODEL = """
             ###Relational
             Database w::DB (
               Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER)

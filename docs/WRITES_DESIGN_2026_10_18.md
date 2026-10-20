@@ -616,6 +616,9 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
        after and the same error.
      - `PureV1ApiTest.e8_execute_aProgramThatWrites_runsFromItsPlan` runs a staged write program through `execute`.
    - **Not yet:** a write whose answer is a count, over `execute` (a scalar's TDS answer is unprobed for reads too).
+     Since 2026-10-20 it is refused by name before its plan runs, as a read's scalar is
+     (`Execution.executeUpstream`; `WritePlansH2Test.executeRefusesACountAnswerBeforeItsWriteRuns`): before, its write
+     landed and the answer then failed to serialize.
 8. **Later:**
    - GraphQL mutations, once `#GQL{...}#` compiles;
    - Persistence-style ingest modes over `merge`.

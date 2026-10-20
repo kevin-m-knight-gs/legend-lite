@@ -153,7 +153,9 @@ public final class Execution {
      * the model-free runner on {@code planSessions}; any other query as {@link #executeWire} runs it, on
      * {@code sessions}.
      * The database's JSON rows are written to {@code out}. Returns the plan that ran: for a program, its answer's SQL
-     * and its root type.
+     * and its root type. A program whose answer execute cannot write (a count, any value but a relation's rows or a
+     * graph fetch's objects: unprobed, as a read's) is refused by name before its plan runs, so its writes never land
+     * behind a refused answer.
      */
     public static com.legend.plan.QueryPlan executeUpstream(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
@@ -167,14 +169,18 @@ public final class Execution {
                 return wireOn(l, runtimeFqn, session.connection(), out);
             }
         }
+        com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(typed.body().get(typed.body().size() - 1));
+        if (shape != com.legend.plan.ResultShape.TABULAR && shape != com.legend.plan.ResultShape.GRAPH) {
+            throw new com.legend.error.NotImplementedException(
+                    "execute: a " + shape + " result's serialization is unprobed");
+        }
         com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, TypedQuery.Output.JSON);
         com.legend.exec.PlanRunner.run(plan, java.util.Map.of(), planSessions, out);
         String sql = ((com.legend.executionplan.ExecutionPlan.Sequence) plan.root()).steps().stream()
                 .filter(com.legend.executionplan.ExecutionPlan.TextResult.class::isInstance)
                 .map(t -> ((com.legend.executionplan.ExecutionPlan.TextResult) t).sql().statement())
                 .findFirst().orElseThrow();
-        return new com.legend.plan.QueryPlan(sql, typed.resultType(),
-                com.legend.plan.ResultShape.of(typed.body().get(typed.body().size() - 1)));
+        return new com.legend.plan.QueryPlan(sql, typed.resultType(), shape);
     }
 
     private static com.legend.plan.QueryPlan wireOn(Compiler.LoweredQuery l, String runtimeFqn, java.sql.Connection connection,

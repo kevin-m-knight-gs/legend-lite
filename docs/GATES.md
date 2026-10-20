@@ -11947,6 +11947,17 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — writes: the hundred-and-fourth landing — a count answer over execute refused before it runs
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 7.
+- **What it fixes:** over `pure/v1/execution/execute`, a program that writes and answers with a count (an L1 write
+  as its last statement, a Cypher write with no RETURN) ran its plan, so the write landed, and only then failed to
+  serialize the answer. A value's answer there is unprobed, as a read's is. `Execution.executeUpstream` now refuses
+  any answer but a relation's rows or a graph fetch's objects by name before the plan runs.
+- **Measured:** `WritePlansH2Test.executeRefusesACountAnswerBeforeItsWriteRuns` failed with the fix reverted (nothing
+  thrown: the plan ran) and passes with it. `//core:core_tests_integration`, `//core:core_tests_server`
+  and `//core:guardrails` are green.
+
 ## 2026-10-20 — `#Cypher{...}#`: the hundred-and-third landing — three refusals read as Neo4j answers
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.96.
