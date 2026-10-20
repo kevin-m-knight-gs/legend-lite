@@ -34,15 +34,17 @@ import {
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, REQUIRED_SETTINGS, type CubeConfiguration } from './config.ts';
-import type {
-  AggregateFn,
-  ColumnSpec,
-  CubeSnapshot,
-  DerivedColumn,
-  FilterNode,
-  SourceRef,
+import {
+  CubeRefusal,
+  type AggregateFn,
+  type ColumnSpec,
+  type CubeSnapshot,
+  type DerivedColumn,
+  type FilterNode,
+  type SourceRef,
 } from './snapshot.ts';
 import { TreeState, parsePathKey, type RowPath } from './tree.ts';
+import { readJoinHow, type JoinHow } from './join.ts';
 import type { UploadFormat } from './upload.ts';
 import type { SharedQuery } from '../../query-store/src/share.ts';
 
@@ -158,8 +160,31 @@ export interface ClassSource {
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
 
-/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class. */
-export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource;
+/**
+ * A JOIN of two inputs (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): each a cube -- a source and its saved query --
+ * read as its rows at its finest level (query.ts classLambda, what Create a Class reads), and how they combine
+ * (join.ts JoinHow). Kept by value, so a saved join reopens alone: an input is what its grid was when it was joined.
+ */
+export interface JoinSource {
+  readonly _type: 'join';
+  /** What a person calls it: `trades ⋈ customers` (join.ts joinTitle). */
+  readonly name: string;
+  readonly left: JoinInput;
+  readonly right: JoinInput;
+  readonly how: JoinHow;
+  /** What it answered when the cube was saved. */
+  readonly columns: readonly { readonly name: string; readonly type: string }[];
+}
+
+/** An input of a join: a grid as it was joined -- what it was called, its source, its saved query. */
+export interface JoinInput {
+  readonly name: string;
+  readonly source: CubeSource;
+  readonly query: SavedQuery;
+}
+
+/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class, a join. */
+export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource | JoinSource;
 
 /**
  * The cube's definition: a snapshot without its runtime state (source relation, epoch, row window).
@@ -290,6 +315,8 @@ export function readCube(input: string | unknown): CubeDocument {
 }
 
 function readSource(raw: unknown): CubeSource {
+  // a join's condition may be a lambda, read exactly (its numbers as the protocol's): read before made plain
+  if (isObject(raw) && raw['_type'] === 'join') return readJoinSource(raw);
   const s = plain(raw);
   if (!isObject(s)) throw new CubeDocumentError("missing 'source'");
   if (s['_type'] === 'savedQuery') return readQuerySource(s);
@@ -363,6 +390,26 @@ function readClassSource(s: Record<string, unknown>): ClassSource {
   const bad = (s['columns'] as { name: string }[]).find((c) => !isIdentifier(c.name));
   if (bad !== undefined) throw new CubeDocumentError(`the class source's column '${bad.name}' is no property's name`);
   return s as unknown as ClassSource;
+}
+
+function readJoinSource(s: Record<string, unknown>): JoinSource {
+  if (typeof s['name'] !== 'string' || s['name'] === '') throw new CubeDocumentError('the join source has no name');
+  const columns = plain(s['columns']);
+  if (!hasColumns({ columns })) throw new CubeDocumentError('the join source has no columns');
+  const input = (which: 'left' | 'right'): JoinInput => {
+    const i = s[which];
+    if (!isObject(i)) throw new CubeDocumentError(`the join source has no ${which} input`);
+    if (typeof i['name'] !== 'string' || i['name'] === '') throw new CubeDocumentError(`the join source's ${which} input has no name`);
+    return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']) };
+  };
+  let how: JoinHow;
+  try {
+    how = readJoinHow(s['how']);
+  } catch (e) {
+    if (e instanceof CubeRefusal) throw new CubeDocumentError(`the join source: ${e.message}`);
+    throw e;
+  }
+  return { _type: 'join', name: s['name'], left: input('left'), right: input('right'), how, columns: columns as JoinSource['columns'] };
 }
 
 function readQuerySource(s: Record<string, unknown>): QuerySource {

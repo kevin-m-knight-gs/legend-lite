@@ -331,6 +331,11 @@ export const TOTAL_ROWS_COLUMN = '__rows__';
 export function countLambda(s: QuerySnapshot): Lambda {
   let rel = sourceWithDerived(s);
   if (s.filter) rel = rel.filter(lambda(['x'], filterNode(s.filter, 'x', (c) => columnType(s, c))));
+  return rowCountLambda(rel);
+}
+
+/** How many rows a relation has, in one row's `TOTAL_ROWS_COLUMN`: all of them grouped under one key, counted. */
+export function rowCountLambda(rel: Relation): Lambda {
   return rel.extend([derive(ROOT_COLUMN, lambda(['x'], lit.string(ROOT_VALUE)))])
     .groupBy([ROOT_COLUMN], [agg(TOTAL_ROWS_COLUMN, lambda(['x'], lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
     .lambda();

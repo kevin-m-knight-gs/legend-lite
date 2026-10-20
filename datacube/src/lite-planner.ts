@@ -26,7 +26,7 @@
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { Planner } from './cube.ts';
-import type { CatalogColumn, InferOptions, InferredModel, TableModels } from './infer.ts';
+import type { CatalogColumn, InferOptions, InferredModel, ModelTable, TableModels, TablesModel } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
@@ -593,6 +593,21 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
       Omit<InferredModel, 'source'> & { readonly source: unknown; readonly accessor: string };
     const { accessor: _accessor, ...model } = written;
     return { ...model, source: readValueSpecification(source) };
+  }
+
+  /**
+   * THE MODEL OF SEVERAL TABLES of one database (a join's inputs, read in one place): the same writer, given `tables`
+   * (planner.Boundary.tableModel) -- each package's Database, one connection, one runtime over them all.
+   */
+  async tablesModel(tables: readonly ModelTable[], databaseType: string): Promise<TablesModel> {
+    const answer = await this.#call({ kind: 'tableModel', table: JSON.stringify({ databaseType, tables }) });
+    const written = fromJson(decode(answer, `the model of ${tables.map((t) => t.table).join(', ')}`)) as
+      Omit<TablesModel, 'tables'> & { readonly tables: readonly (Omit<TablesModel['tables'][number], 'source'> & { readonly source: unknown; readonly accessor: string })[] };
+    return {
+      model: written.model,
+      runtime: written.runtime,
+      tables: written.tables.map(({ source, accessor: _accessor, ...t }) => ({ ...t, source: readValueSpecification(source) })),
+    };
   }
 
   /** THE catalog question for one table of a DuckDB, its schema and table as SQL string literals. */

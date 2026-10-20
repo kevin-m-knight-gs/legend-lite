@@ -110,6 +110,29 @@ class Compiling(unittest.TestCase):
                          [('id', 'Integer'), ('big', 'Decimal')])
         self.assertNotIn('snapRuntime', m)
 
+    def test_writes_one_model_of_several_tables_each_read_as_its_own_model_reads_it(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.3: a join's inputs, read in one place
+        orders = {'table': 'orders', 'pkg': 'shop', 'convertible': True,
+                  'columns': [{'name': 'id', 'dataType': 'BIGINT', 'logicalType': 'BIGINT', 'notNull': True},
+                              {'name': 'cust', 'dataType': 'INTEGER', 'logicalType': 'INTEGER'}]}
+        customers = {'table': 'customers', 'pkg': 'shop', 'convertible': True,
+                     'columns': [{'name': 'id', 'dataType': 'INTEGER', 'logicalType': 'INTEGER', 'notNull': True},
+                                 {'name': 'region', 'dataType': 'VARCHAR', 'logicalType': 'VARCHAR'}]}
+        m = ll.table_model({'databaseType': 'DuckDB', 'tables': [orders, customers]})
+        self.assertEqual(m['runtime'], 'host::RT')
+        self.assertEqual(m['model'].count('Database shop::DB'), 1)
+        self.assertEqual([t['accessor'] for t in m['tables']], ['#>{shop::DB.orders}#', '#>{shop::DB.customers}#'])
+        # each table's relation is the one its own model reads
+        alone = ll.table_model({**customers, 'databaseType': 'DuckDB'})
+        self.assertEqual(m['tables'][1]['source'], alone['source'])
+        joined = ll.parse("|#>{shop::DB.orders}#->join(#>{shop::DB.customers}#->rename(~id, ~c_id), "
+                          "meta::pure::functions::relation::JoinKind.LEFT, {a, b | $a.cust == $b.c_id})")
+        self.assertEqual([c.name for c in ll.relation_type(m['model'], joined)], ['id', 'cust', 'c_id', 'region'])
+        self.assertIn('LEFT OUTER JOIN', ll.plan(m['model'], joined, m['runtime']).sql)
+        with self.assertRaises(ll.LegendError) as e:
+            ll.table_model({'databaseType': 'DuckDB', 'tables': [customers, customers]})
+        self.assertIn("'customers' is given twice", e.exception.message)
+
     def test_the_whole_model_is_exactly_what_datacube_writes(self):
         # DataCube's infer.ts wrote this text by hand; the compiler's boundary writes it now, for both
         m = ll.table_model({'table': 'orders', 'pkg': 'shop', 'convertible': True, 'databaseType': 'DuckDB',

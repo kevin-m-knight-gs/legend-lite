@@ -226,6 +226,8 @@ _DUCKDB_USERS = [
     "model-join",
     # a class as a grid's source, its rows planned over the project's files (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
     "class-source",
+    # a join opened over one model of its tables, its rows from DuckDB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
+    "join-open",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -322,6 +324,8 @@ _WASM_TESTS = [
     "model-route",
     # a class as a grid's source, read back from a class the writer made (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
     "class-source",
+    # a join's model of several tables, written by the compiler (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
+    "join-open",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
@@ -437,6 +441,8 @@ _HEADLESS_TESTS = [
     "group-derived",
     "host",
     "infer",
+    "join",
+    "join-open",
     "json-shape",
     "lite-planner",
     "menu",

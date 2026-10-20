@@ -204,7 +204,13 @@ def table_model(table: dict[str, Any]) -> dict[str, Any]:
     "source", "accessor", "conversions", "copySelectList"?, "excluded", "bitColumns"}``: ``model`` is Pure
     text, ``source`` the relation that reads the table (a tree; ``accessor`` its text), ``copySelectList``
     the select list a copy applies so it holds the declared types, written by the copy's own database (the snap's
-    store, or the table itself when ``convertible``; absent when the table is never copied)."""
+    store, or the table itself when ``convertible``; absent when the table is never copied).
+
+    Given ``{"databaseType", "connection"? (default "host"), "tables": [{"table", "schema"?, "pkg"? (default
+    "local"), "convertible", "columns"}]}`` instead, the model of SEVERAL tables of one database (a join's inputs, read
+    in one place): each package's Database declaring its tables as each one's own model does, one connection, and a
+    runtime binding every Database to it. Returns ``{"model", "runtime", "tables": [{"source", "accessor",
+    "conversions", "excluded"}]}``, the tables in the order given; a table given twice is refused."""
     return _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
 
 

@@ -1,0 +1,226 @@
+// Joining two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17; src/join.ts): a join source's `how` read
+// strictly, what each form becomes as one relation (their names mine has renamed first; an equal key with no value
+// matching nothing; their columns not kept selected away; semi/anti a filter by theirs; an append's sides extended and
+// ordered), the names it brings out, the dialog's questions, and its words. Planned on DuckDB: test/join-open.test.ts.
+
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import { accessor, readLambda, toJson, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import {
+  appendColumns, joinRelation, joinSummary, joinTitle, joinWords, joinedNames, readJoinHow, suggestedKeys, theirNames,
+  type JoinHow, type JoinSide,
+} from '../src/join.ts';
+import { CubeRefusal } from '../src/snapshot.ts';
+
+/** A tree as the Pure it is: enough of the grammar to read a join's relation in an assertion. */
+function pure(n: ValueSpecification | undefined): string {
+  if (n === undefined) return '?';
+  const node = n as unknown as Record<string, unknown>;
+  switch (node['_type']) {
+    case 'func': {
+      const name = node['function'] as string;
+      const [first, ...rest] = node['parameters'] as ValueSpecification[];
+      const op = { equal: '==', lessThan: '<', lessThanEqual: '<=', greaterThan: '>', greaterThanEqual: '>=', and: '&&' }[name];
+      if (op && rest.length === 1) return `(${pure(first)} ${op} ${pure(rest[0])})`;
+      if (name === 'not') return `!${pure(first)}`;
+      return `${pure(first)}->${name}(${rest.map(pure).join(', ')})`;
+    }
+    case 'property': {
+      const [owner] = node['parameters'] as ValueSpecification[];
+      const o = owner as unknown as Record<string, unknown>;
+      if (o['_type'] === 'packageableElementPtr') return `${String(o['fullPath']).split('::').pop()}.${String(node['property'])}`;
+      return `${pure(owner)}.${String(node['property'])}`;
+    }
+    case 'var': return `$${String(node['name'])}`;
+    case 'lambda': return `{${(node['parameters'] as { name: string }[]).map((p) => p.name).join(', ')} | ${(node['body'] as ValueSpecification[]).map(pure).join('; ')}}`;
+    case 'string': return `'${String(node['value'])}'`;
+    case 'integer': case 'boolean': return String(node['value']);
+    case 'collection': return `[${(node['values'] as ValueSpecification[]).map(pure).join(', ')}]`;
+    case 'genericTypeInstance': return `@${String(((node['genericType'] as Record<string, Record<string, unknown>>)['rawType']!)['fullPath'])}`;
+    case 'classInstance': {
+      const value = node['value'] as Record<string, unknown>;
+      if (node['type'] === '>') return `#>{${(value['path'] as string[]).join('.')}}#`;
+      if (node['type'] === 'colSpec') return `~${String(value['name'])}`;
+      const specs = value['colSpecs'] as { name: string; function1?: ValueSpecification; function2?: ValueSpecification }[];
+      return `~[${specs.map((s) => [s.name, s.function1 && pure(s.function1), s.function2 && pure(s.function2)].filter(Boolean).join(':')).join(', ')}]`;
+    }
+    default: return `<${String(node['_type'])}>`;
+  }
+}
+
+const side = (name: string, columns: [string, string][]): JoinSide => ({
+  name, relation: accessor('local::DB', name), columns: columns.map(([n, type]) => ({ name: n, type })),
+});
+const TRADES = side('trades', [['id', 'Integer'], ['cust', 'Integer'], ['sym', 'String'], ['at', 'DateTime']]);
+const CUSTOMERS = side('customers', [['id', 'Integer'], ['region', 'String']]);
+const PRICES = side('prices', [['sym', 'String'], ['at', 'DateTime'], ['px', 'Float']]);
+const T = '#>{local::DB.trades}#';
+const C = '#>{local::DB.customers}#';
+
+const join = (over: Partial<Extract<JoinHow, { form: 'join' }>> = {}): JoinHow => ({
+  form: 'join', kind: 'left', on: { rows: [{ left: 'cust', op: '==', right: 'id' }] }, prefix: 'c_', keep: null, ...over,
+});
+const refused = (f: () => unknown, words: RegExp): void => {
+  assert.throws(f, (e: unknown) => e instanceof CubeRefusal && words.test(e.message), String(words));
+};
+
+describe('a join source\'s how, read strictly', () => {
+  it('reads each form, and what it writes reads back the same', () => {
+    const forms: JoinHow[] = [
+      join(),
+      join({ kind: 'full', on: { rows: [] }, keep: ['region'] }),
+      { form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [{ left: 'sym', op: '==', right: 'sym' }] }, prefix: 'p_', keep: null },
+      { form: 'semi', on: { rows: [{ left: 'cust', op: '==', right: 'id' }] } },
+      { form: 'anti', on: { rows: [{ left: 'cust', op: '<', right: 'id' }] } },
+      { form: 'append' },
+    ];
+    for (const how of forms) assert.deepEqual(readJoinHow(JSON.parse(JSON.stringify(how))), how);
+  });
+
+  it('reads a condition in Pure, its two rows named apart', () => {
+    const lambda = readLambda({ _type: 'lambda', parameters: [{ _type: 'var', name: 't' }, { _type: 'var', name: 'c' }], body: [{ _type: 'boolean', value: true }] });
+    const how = readJoinHow(JSON.parse(toJson(join({ on: { lambda } }))));
+    assert.ok(how.form === 'join' && 'lambda' in how.on && how.on.lambda.parameters.length === 2);
+    const one = { _type: 'lambda', parameters: [{ _type: 'var', name: 't' }], body: [{ _type: 'boolean', value: true }] };
+    refused(() => readJoinHow({ ...join(), on: { lambda: one } }), /two rows, mine and theirs/);
+    const same = { ...one, parameters: [{ _type: 'var', name: 't' }, { _type: 'var', name: 't' }] };
+    refused(() => readJoinHow({ ...join(), on: { lambda: same } }), /by two names/);
+    refused(() => readJoinHow({ ...join(), on: { lambda: { _type: 'nope' } } }), /lambda:/);
+  });
+
+  it('refuses, in words, what it cannot read', () => {
+    refused(() => readJoinHow({ form: 'cross' }), /one of join, asOf, semi, anti, append/);
+    refused(() => readJoinHow({ ...join(), kind: 'outer' }), /kind is one of inner, left, right, full/);
+    refused(() => readJoinHow({ ...join(), extra: 1 }), /not extra/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '=', right: 'b' }] } }), /comparison is one of == != < <= > >=/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [], lambda: {} } }), /rows or a lambda, one of them/);
+    refused(() => readJoinHow({ ...join(), on: {} }), /rows or a lambda, one of them/);
+    refused(() => readJoinHow({ ...join(), prefix: '1x' }), /prefix starts a column's name/);
+    refused(() => readJoinHow({ ...join(), keep: ['a', 'a'] }), /keeps a twice/);
+    refused(() => readJoinHow({ ...join(), keep: 'a' }), /a list, or null for all/);
+    refused(() => readJoinHow({ form: 'asOf', match: { left: 'at', op: '==', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), /one of >= <= > </);
+    refused(() => readJoinHow({ form: 'append', on: { rows: [] } }), /an append takes form, not on/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: '', op: '==', right: 'b' }] } }), /names a column/);
+  });
+});
+
+describe('what a join becomes', () => {
+  it('renames their names mine has, then joins: an equal key with no value matches no row', () => {
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, join())),
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {a, b | ($a.cust->isNotEmpty() && ($a.cust == $b.c_id))})`);
+  });
+
+  it('takes each kind, any comparison, rows ANDed; no rows is every pair', () => {
+    const how = join({ kind: 'inner', on: { rows: [{ left: 'cust', op: '>=', right: 'id' }, { left: 'sym', op: '!=', right: 'region' }] } });
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, how)),
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.INNER, {a, b | (($a.cust >= $b.c_id) && !($a.sym == $b.region))})`);
+    for (const [kind, word] of [['right', 'RIGHT'], ['full', 'FULL']] as const) {
+      assert.match(pure(joinRelation(TRADES, CUSTOMERS, join({ kind }))), new RegExp(`JoinKind\\.${word}`));
+    }
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [] } }))),
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {a, b | true})`);
+  });
+
+  it('selects away their columns not kept, after the join (a key it joined on included)', () => {
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, join({ keep: ['region'] }))),
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {a, b | ($a.cust->isNotEmpty() && ($a.cust == $b.c_id))})->select(~[id, cust, sym, at, region])`);
+    assert.deepEqual(joinedNames(TRADES, CUSTOMERS, join({ keep: ['region'] })), ['id', 'cust', 'sym', 'at', 'region']);
+    assert.deepEqual(joinedNames(TRADES, CUSTOMERS, join()), ['id', 'cust', 'sym', 'at', 'c_id', 'region']);
+  });
+
+  it('takes a condition in Pure as written, their names as they come out', () => {
+    const lambda = readLambda({
+      _type: 'lambda', parameters: [{ _type: 'var', name: 't' }, { _type: 'var', name: 'c' }],
+      body: [{ _type: 'func', function: 'equal', parameters: [
+        { _type: 'property', property: 'cust', parameters: [{ _type: 'var', name: 't' }] },
+        { _type: 'property', property: 'c_id', parameters: [{ _type: 'var', name: 'c' }] },
+      ] }],
+    });
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, join({ on: { lambda } }))),
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {t, c | ($t.cust == $c.c_id)})`);
+  });
+
+  it('refuses a column either input lacks, and a prefix that makes a name the join has', () => {
+    refused(() => joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'nope', op: '==', right: 'id' }] } })), /trades has no column 'nope'/);
+    refused(() => joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'cust', op: '==', right: 'nope' }] } })), /customers has no column 'nope'/);
+    refused(() => joinRelation(TRADES, CUSTOMERS, join({ keep: ['nope'] })), /customers has no column 'nope'/);
+    const clash = side('customers', [['id', 'Integer'], ['c_id', 'Integer']]);
+    refused(() => joinRelation(TRADES, clash, join()), /their id would be c_id, a name the join has already: choose another prefix/);
+    refused(() => theirNames(['id', 'c_id'], ['id'], 'c_'), /their id would be c_id/);
+    assert.deepEqual([...theirNames(['id'], ['id', 'region'], 'c_')], [['id', 'c_id'], ['region', 'region']]);
+  });
+
+  it('as of: the nearest of theirs by the match, among those the condition keeps', () => {
+    const how: JoinHow = { form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [{ left: 'sym', op: '==', right: 'sym' }] }, prefix: 'p_', keep: null };
+    assert.equal(pure(joinRelation(TRADES, PRICES, how)),
+      `${T}->asOfJoin(#>{local::DB.prices}#->rename(~sym, ~p_sym)->rename(~at, ~p_at), {a, b | ($a.at >= $b.p_at)}, {a, b | ($a.sym->isNotEmpty() && ($a.sym == $b.p_sym))})`);
+    assert.equal(pure(joinRelation(TRADES, PRICES, { ...how, on: { rows: [] }, keep: ['px'] })),
+      `${T}->asOfJoin(#>{local::DB.prices}#->rename(~sym, ~p_sym)->rename(~at, ~p_at), {a, b | ($a.at >= $b.p_at)})->select(~[id, cust, sym, at, px])`);
+    refused(() => joinRelation(TRADES, PRICES, { ...how, match: { left: 'when', op: '>=', right: 'at' } }), /trades has no column 'when'/);
+  });
+
+  it('semi and anti: my rows filtered by theirs, by their own names', () => {
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, { form: 'semi', on: { rows: [{ left: 'cust', op: '==', right: 'id' }] } })),
+      `${T}->filter({a | ${C}->filter({b | ($a.cust->isNotEmpty() && ($a.cust == $b.id))})->isNotEmpty()})`);
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, { form: 'anti', on: { rows: [{ left: 'cust', op: '==', right: 'id' }] } })),
+      `${T}->filter({a | ${C}->filter({b | ($a.cust->isNotEmpty() && ($a.cust == $b.id))})->isEmpty()})`);
+    assert.deepEqual(joinedNames(TRADES, CUSTOMERS, { form: 'anti', on: { rows: [] } }), ['id', 'cust', 'sym', 'at']);
+  });
+
+  it('append: each side extended by the columns it lacks, in one order; a name of two types refused', () => {
+    const more = side('more', [['sym', 'String'], ['id', 'Integer'], ['qty', 'Float']]);
+    assert.equal(pure(joinRelation(TRADES, more, { form: 'append' })),
+      `${T}->extend(~[qty:{x | []->cast(@Float)}])->concatenate(#>{local::DB.more}#->extend(~[cust:{x | []->cast(@Integer)}, at:{x | []->cast(@DateTime)}])->select(~[id, cust, sym, at, qty]))`);
+    assert.deepEqual(appendColumns(TRADES, more).map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty']);
+    // the same columns in the same order: neither side touched
+    assert.equal(pure(joinRelation(TRADES, TRADES, { form: 'append' })), `${T}->concatenate(${T})`);
+    refused(() => joinRelation(TRADES, side('bad', [['id', 'String']]), { form: 'append' }), /id is Integer in trades and String in bad/);
+  });
+});
+
+describe('what it will do, before it is applied', () => {
+  it('asks my rows, those with a match, the rows after it, and their keys that repeat', () => {
+    const q = joinSummary(TRADES, CUSTOMERS, join());
+    assert.match(pure(q.mine.body[0]), /^#>\{local::DB\.trades\}#->extend\(~\[__ROOT__|^#>\{local::DB\.trades\}#->extend/);
+    assert.match(pure(q.matched!.body[0]), /->filter\(\{a \| #>\{local::DB\.customers\}#->rename\(~id, ~c_id\)->filter\(\{b \| \(\$a\.cust->isNotEmpty\(\) && \(\$a\.cust == \$b\.c_id\)\)\}\)->isNotEmpty\(\)\}\)/);
+    assert.match(pure(q.joined!.body[0]), /->join\(/);
+    assert.match(pure(q.repeated!.body[0]), /^#>\{local::DB\.customers\}#->filter\(\{x \| \$x\.id->isNotEmpty\(\)\}\)->groupBy\(~\[id\]/);
+    assert.match(pure(q.repeated!.body[0]), /keys:\{x \| 1\}:\{y \| \$y->count\(\)\}, most:\{x \| \$x\.__n__\}:\{y \| \$y->max\(\)\}/);
+  });
+
+  it('asks no repeated keys of a condition that is not equal keys alone', () => {
+    assert.equal(joinSummary(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'cust', op: '<', right: 'id' }] } })).repeated, undefined);
+    assert.equal(joinSummary(TRADES, CUSTOMERS, join({ on: { rows: [] } })).repeated, undefined);
+  });
+
+  it('as of: my rows, and those with a nearest row (the match and the condition both)', () => {
+    const how: JoinHow = { form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [{ left: 'sym', op: '==', right: 'sym' }] }, prefix: 'p_', keep: null };
+    const q = joinSummary(TRADES, PRICES, how);
+    assert.deepEqual(Object.keys(q), ['mine', 'matched']);
+    assert.match(pure(q.matched!.body[0]), /\{b \| \(\(\$a\.at >= \$b\.p_at\) && \(\$a\.sym->isNotEmpty\(\) && \(\$a\.sym == \$b\.p_sym\)\)\)\}/);
+  });
+
+  it('semi, anti: those with a match; append: their rows', () => {
+    assert.deepEqual(Object.keys(joinSummary(TRADES, CUSTOMERS, { form: 'anti', on: { rows: [{ left: 'cust', op: '==', right: 'id' }] } })), ['mine', 'matched']);
+    assert.deepEqual(Object.keys(joinSummary(TRADES, TRADES, { form: 'append' })), ['mine', 'theirs']);
+  });
+});
+
+describe('a join in words', () => {
+  it('titles and says each form', () => {
+    assert.equal(joinTitle(join(), 'trades', 'customers'), 'trades ⋈ customers');
+    assert.equal(joinTitle({ form: 'append' }, 'trades', 'more'), 'trades + more');
+    assert.equal(joinTitle({ form: 'anti', on: { rows: [] } }, 'trades', 'customers'), 'trades without customers');
+    assert.equal(joinWords(join()), 'all of mine, on cust = id');
+    assert.equal(joinWords(join({ kind: 'inner', on: { rows: [] } })), 'matching rows only, on every pair');
+    assert.equal(joinWords({ form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), 'nearest at >= at');
+  });
+
+  it('suggests keys: a name both have, their id under their name', () => {
+    assert.deepEqual(suggestedKeys(side('orders', [['customer_id', 'Integer'], ['sym', 'String']]), side('customers', [['id', 'Integer'], ['sym', 'String']])),
+      [{ row: { left: 'sym', op: '==', right: 'sym' }, why: 'the same name' }, { row: { left: 'customer_id', op: '==', right: 'id' }, why: "customers's id" }]);
+    // the same name of another type is no key
+    assert.deepEqual(suggestedKeys(side('a', [['k', 'Integer']]), side('b', [['k', 'String']])), []);
+  });
+});

@@ -173,6 +173,15 @@ export class Relation {
   }
 
   /**
+   * `->asOfJoin(other, {a, b|<match>})`, or with `join`, `->asOfJoin(other, {a, b|<match>}, {a, b|<join>})`: each row
+   * with the other's nearest row by the match (`$a.time >= $b.time`: the last at or before), among those the join
+   * keeps.
+   */
+  asOfJoin(other: Relation, match: Lambda, join?: Lambda): Relation {
+    return join === undefined ? this.#then('asOfJoin', other.node, match) : this.#then('asOfJoin', other.node, match, join);
+  }
+
+  /**
    * `->lateral(x|<relation>)`: each row joined to the relation its function makes -- with
    * `flatten`, each row once per element of a collection (an explode, an unnest).
    */
