@@ -1139,7 +1139,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 }
                 yield writer.append("CAST(arrayElement(").piece(list(xs)).append(", 1) AS " + castTypeName(element) + "))");
             }
-            case TYPEOF -> throw new DialectCapability("typeof reached ClickHouse: its type names are ClickHouse's");
+            // the value's type name, its Nullable wrapper dropped (every scalar is Nullable(T) here), compared only
+            // with typeofName's (the judges' grid sides read a declared timestamp's DATE cells by it since the plan
+            // path program's step 6: channel B's testExtendLeadAdjustDerivedOffset, 2026-10-20)
+            case TYPEOF -> writer.append("replaceRegexpOne(toTypeName(").expr(args.get(0), 0)
+                    .append("), '^Nullable\\((.*)\\)$', '\\1')");
             case RANGE_FN, REPEAT_VALUE -> throw new IllegalStateException(fnName + " is rendered by call");
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
@@ -2916,10 +2920,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are ClickHouse's). */
+    /** {@inheritDoc} A DATE is {@code Date32} (its castTypeName's); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached ClickHouse: its type names are ClickHouse's");
+        if (type == SqlType.Scalar.DATE) {
+            return "Date32";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached ClickHouse");
     }
 
     /** {@inheritDoc} Every scalar is Nullable(T); its own names for the same types, a date-time's precision and zone in
