@@ -49,6 +49,7 @@ import type { Receipt } from '../../engine-client/src/receipt.ts';
 import {
   PlanThenRun,
   lensed,
+  rebased,
   type QueryLens,
   type QueryRunner,
   type RunOutcome,
@@ -307,6 +308,13 @@ export class CubeController {
    * host made, the host's runner over its model of the copy. Made with each snap, let go with it (`#letCopyGo`).
    */
   #copy: { readonly runner: QueryRunner; readonly dispose: () => void } | null = null;
+  /**
+   * The snap being made, and the live base it copies: its copy's runner reads the copy wherever a query reads that base
+   * (runner.ts rebased). One at a time: a second is refused while it is made.
+   */
+  #snapping: { readonly live: ValueSpecification } | undefined;
+  /** Closed: a snap landing after lets its copy go. */
+  #closed = false;
   readonly #guard = new EpochGuard();
   readonly #snaps: SnapManager | HostSnaps;
   readonly #options: CubeControllerOptions;
@@ -361,7 +369,9 @@ export class CubeController {
       // each copy the host makes is read through the host's runner over its model of it
       snap: async (pull) => {
         const frozen = await host.snap(pull);
-        this.#copy = { runner: frozen.runner, dispose: () => {} };
+        const live = this.#snapping?.live;
+        if (live === undefined) throw new Error('a copy was made with no snap of this grid being made');
+        this.#copy = { runner: rebased(frozen.runner, live, frozen.source), dispose: () => {} };
         return frozen;
       },
     })
@@ -689,6 +699,25 @@ export class CubeController {
    * the plane changed, the state did not.
    */
   async snap(snapshot: CubeSnapshot, label?: string): Promise<void> {
+    if (this.#closed) throw new CubeRefusal('this grid is closed: it snaps nothing');
+    if (this.#snapping) throw new CubeRefusal('this grid\u2019s snap is being made: wait for its copy');
+    this.#snapping = { live: snapshot.source.query };
+    try {
+      await this.#snapOnce(snapshot, label);
+      if (this.#closed) {
+        // closed while its copy was made: the copy goes as it lands (a host's lets its own go: HostSnaps.close)
+        await this.#snaps.release();
+        throw new CubeRefusal('the grid was closed while its snap was made');
+      }
+    } catch (e) {
+      if (this.#closed) this.#letCopyGo();
+      throw e;
+    } finally {
+      this.#snapping = undefined;
+    }
+  }
+
+  async #snapOnce(snapshot: CubeSnapshot, label: string | undefined): Promise<void> {
     // Through the PLANNER, like every other query. This used to
     // build `SELECT "a", "b" FROM <source>` by hand, which worked
     // only because the demo's source happened to be a bare SQL
@@ -745,7 +774,11 @@ export class CubeController {
       copy.dispose();
       throw e;
     }
-    this.#copy = { runner: new PlanThenRun(planner!, this.#local.engine), dispose: () => copy.dispose() };
+    const live = snapshot.source.query;
+    this.#copy = {
+      runner: rebased(new PlanThenRun(planner!, this.#local.engine), live, this.#snaps.sourceFor(live)),
+      dispose: () => copy.dispose(),
+    };
   }
 
   /** The copy's runner let go, once its table is dropped: its planner's model, and its name free again. */
@@ -759,6 +792,7 @@ export class CubeController {
    * (each grid's copy is its own: §18.3).
    */
   async close(): Promise<void> {
+    this.#closed = true;
     if (this.#snaps instanceof HostSnaps) await this.#snaps.close();
     else if (this.#snaps.isSnapped) await this.#snaps.release();
     this.#letCopyGo();

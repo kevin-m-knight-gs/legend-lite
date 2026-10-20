@@ -1050,7 +1050,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const [{ createClassOf }, home] = await Promise.all([import('../create-class.ts'), modelHome.connect()]);
       const model = await createClassOf({
         basis,
-        // the names its leaves' tables have in this tab (a join's each), or the store's own (a warehouse's)
+        // the names its leaves' tables have in this tab, one per leaf (a file's, a join's each), which reopening reads
+        // them under; a grid whose tables are read under the store's own names (a frame's, a warehouse table's, a saved
+        // query's) keeps those
         kept: place.tables ?? basis.tables.map((t) => t.table),
         rows,
         source,

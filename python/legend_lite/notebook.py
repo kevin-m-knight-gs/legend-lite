@@ -200,6 +200,9 @@ class PageCube(_EngineWidget):
         assert engine.site is not None  # the session's engine always has DataCube's site
         loader, module = _loader(engine.site)
         self._session = session
+        # the engine the page is served on, kept: its watchers are told from a thread that may hold the frames still,
+        # so they ask nothing that takes the session's lock (session.engine() does, as DataCube's own code does)
+        self._engine = engine
         self._page = page
         self._shown_here = False
         super().__init__(_esm=loader, _module=module, page_key=page._key, height=height)
@@ -224,12 +227,17 @@ class PageCube(_EngineWidget):
     def _page_moved(self, _version: int) -> None:
         """The page changed in Python: its versions moved, which its page follows (opening the page again)."""
         if not self._closed:
-            self.versions = self._session.engine().page_versions(self._page._key) or {}
+            self.versions = self._engine.page_versions(self._page._key) or {}
 
     def _frame_moved(self, name: str, _version: int) -> None:
-        """A frame changed (from the thread that changed it): one of the page's moves its versions."""
-        if not self._closed and any(f.lower() == name.lower() for f in self._page._frames()):
-            self.versions = self._session.engine().page_versions(self._page._key) or {}
+        """A frame changed, told from the thread that changed it -- one serving a query holds the frames still: one of
+        the frames the page is served over (the engine's own record of them: never asked of DataCube's code here, which
+        takes the session's lock, as registering a frame takes it before the frames') moves its versions."""
+        if self._closed:
+            return
+        versions = self._engine.page_versions(self._page._key) or {}
+        if any(f.lower() == name.lower() for f in versions.get('frames', {})):
+            self.versions = versions
 
     def __repr__(self) -> str:
         return f'<DataCube page {self._page.name!r}>' if not self._closed else f'<DataCube page {self._page.name!r}: closed>'

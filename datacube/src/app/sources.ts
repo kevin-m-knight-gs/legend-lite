@@ -14,15 +14,17 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { Query, QueryReader } from '../../../query-store/src/index.ts';
-import { from, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ClassAt, ClassElement } from '../class-source.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
 import {
+  cubeToJson,
   fileSource,
   frameSource,
   leavesOf,
+  readCube,
   rebuilt,
   type ClassSource,
   type CubeDocument,
@@ -863,6 +865,40 @@ export function pageSources(d: SourcesOf): PageSources {
   }
 
   /**
+   * A SAVED JOIN OF THE HOST'S FRAMES (Python's page.join: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), opened by the
+   * host over its frames as they are now (DatabaseService.opened: DataCube's own code, headless there) -- this page has
+   * no database or compiler of its own on the host -- its rows read through the host's runner over the join's model and
+   * typed by it, as a frame's grid's are, and each frame it reads followed as that frame's own grid follows it.
+   */
+  async function openedHostJoin(src: JoinSource, doc: CubeDocument, capped: boolean): Promise<Opened> {
+    const opened = await database.opened!(cubeToJson(doc), doc.name, capped ? 2 : 1);
+    const was = readCube(fromJson(opened.cube));
+    if (was.source._type !== 'join') throw new Error(`the host opened ${src.name} as no join`);
+    const rows = services.engine.rows(opened.model, opened.runtime);
+    try {
+      const columns = await sourceColumns(typer(rows), opened.relation);
+      for (const [name, version] of Object.entries(opened.frames)) {
+        const m = await database.frame!(name);
+        framesRead.set(name, { version, model: m.model, source: JSON.stringify(m.source) });
+      }
+      const r = rebuilt(was, opened.relation, columns, src.name, capped);
+      return {
+        label: src.name,
+        notes: [...new Set([...opened.notes, ...r.notes])],
+        make: gridMaker(r.snapshot, r.configuration, [], {
+          ...rowsPlace(rows), cubeSource: was.source, label: src.name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+          // its rows read afresh from the host's frames by every query: it snaps into a copy of its own, the host's
+          ...(rows.runner ? hostSnapPlace(opened) : {}),
+        }),
+        discard: async () => letGo(rows),
+      };
+    } catch (e) {
+      letGo(rows);
+      throw e;
+    }
+  }
+
+  /**
    * A saved (or shared) cube over a REMOTE FILE, reopened: read straight away when the file is public; refused (a
    * private bucket), the Remote section asks for its keys, the URL filled in.
    */
@@ -1056,6 +1092,9 @@ export function pageSources(d: SourcesOf): PageSources {
     // a join's files are its leaves': each read from where the page kept it, as a file's grid's is, under the name its
     // page's model keeps for it
     if (src._type === 'join') {
+      // on a host's page (Python's: page.join), the host opens it over its frames -- this page has no database or
+      // compiler of its own there
+      if (!local && database.opened) return openedHostJoin(src, doc, several);
       return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}) });
     }
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);

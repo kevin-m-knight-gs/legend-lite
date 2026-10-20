@@ -217,6 +217,14 @@ def main() -> None:
                 command = f'py-documents {json.dumps(python_documents(frame, served_page, desks))}'
             elif command == 'py-page-read':
                 command = f'py-page-read {json.dumps([s.name for s in pypage.read().sheets])}'
+            elif command == 'py-page-join':
+                # a join of two of its grids' frames (page.join, §18.3), on its first sheet: the open page opens it
+                # through Python, which has its compiler and its frames (the page has neither of its own here)
+                mine = pypage.grid(frame, name='pytrades')
+                theirs = next(g for g in pypage.grids if g.frames == ['pydesks'])
+                pypage.join(mine, theirs, {'form': 'join', 'kind': 'left', 'prefix': 'd_', 'keep': None,
+                                           'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]}},
+                            title='Trades with their desks', sheet=pypage.sheets[0])
             elif command == 'py-page-save':
                 # saved into this user's saved pages, as DataCube's Save keeps a page (B6): Open… lists it
                 command = f'py-page-save {json.dumps(pypage.save())}'

@@ -40,7 +40,7 @@ import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { type ModelOptions } from '../planner.ts';
 import type { PlannerWorker, Request, RequestKind, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
-import { ExactNumber, fromJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { ExactNumber, fromJson, readValueSpecification, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
 import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
@@ -51,7 +51,7 @@ import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
   BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
-  QueryService, Services, Versions, WarehouseService, HostCopy,
+  QueryService, Services, Versions, WarehouseService, HostCopy, HostOpened,
 } from '../app/services.ts';
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
@@ -453,6 +453,22 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
   return {
     frame: (name) => frameOf(link, name),
     place: 'Python',
+    // a saved join of frames, opened by Python over its frames (§18.3): this page has no compiler or database of its own
+    ...(offers.files ? {
+      opened: async (cube: string, page: string, gridsOnPage: number): Promise<HostOpened> => {
+        // read exactly: the relation's numbers as their digits (a join condition's decimal)
+        const said = fromJson(await posted(link, 'opened.json', { cube, page, gridsOnPage })) as {
+          cube: string; notes: string[]; model: string; runtime: string; relation?: unknown; frames: Record<string, ExactNumber>;
+        };
+        if (said.relation === undefined) throw new Error('Python opened no join of its frames: it said no relation');
+        const relation = readValueSpecification(said.relation);
+        if (relation._type !== 'lambda' || relation.body.length !== 1) throw new Error('Python said a relation that is no query');
+        return {
+          cube: said.cube, notes: said.notes, model: said.model, runtime: said.runtime, relation: relation.body[0]!,
+          frames: Object.fromEntries(Object.entries(said.frames).map(([name, v]) => [name, Number(v.text)])),
+        };
+      },
+    } : {}),
     // a grid's Snap (§18.3): the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are
     // and keeps the copy, a table of its own it models as it holds the rows (DataCube's code, headless: where it takes
     // a page's file)

@@ -84,6 +84,9 @@ _WAREHOUSE = '/warehouse.json'
 # a grid's Snap on a page Python serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its base query copied into a
 # table of the frames' database of its own -- a frame's, a page's file's, or a warehouse table's -- and let go of
 _SNAP = '/snap.json'
+# a saved grid of a page Python serves, opened by Python over its frames as they are now (§18.3): a join of frames, which
+# the page cannot open itself -- it has no compiler and no database of its own on Python's page
+_OPENED = '/opened.json'
 # the most rows a Snap copies into Python's DuckDB: Python's own limit, a fact of the database the copy lands in (this
 # machine's), as the tab's (snap.ts MAX_SNAP_ROWS) is of its own (the browser's memory) -- the two need not agree (the
 # user and the DataCube + Python line, 2026-10-15)
@@ -235,7 +238,7 @@ def private(path: str) -> bool:
     token. The site's files are the page's own and carry no secret."""
     return path.startswith('/api/') or _model_home(path) or path in (
         '/cube.json', '/version.json', '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _SERVICES,
-        _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP)
+        _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP, _OPENED)
 
 
 def _saved_query(path: str) -> bool:
@@ -474,6 +477,8 @@ class Engine:
                 return _answered(self._warehouse, body or '')
             if path == _SNAP:
                 return self._snap_said(body or '')
+            if path == _OPENED:
+                return _workers().submit(self._opened_said, body or '').result()
             if not path.startswith(_API):
                 return _said(404, f'no such path: {path}')
             return _workers().submit(self._api, path, query, body or '').result()
@@ -933,6 +938,41 @@ class Engine:
                 return _said(401, str(expired))
         return _workers().submit(self._served_snap, asked).result()
 
+    def _opened_said(self, body: str) -> Answer:
+        """A SAVED GRID OPENED BY PYTHON for a page it serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3):
+        ``{"cube", "page", "gridsOnPage"}`` -- the cube document's text, its page's name, how many grids the page holds --
+        opened over the frames as they are now by DataCube's own code, headless (gridOpened: a join of frames opened as
+        the tab opens a saved join), the frames held still. The answer is gridOpened's -- the cube rebuilt, what it
+        said, and its base: its model, its runtime, and a frame's accessor or a join's relation, which the page reads its
+        rows over through Python -- and the version of each frame it reads, which the page follows. A cube over anything
+        but this engine's frames is refused in DataCube's words."""
+        try:
+            asked = _json.loads(body)
+        except ValueError:
+            return _said(400, 'an opened grid is JSON')
+        if not isinstance(asked, dict) or not isinstance(asked.get('cube'), str) or not isinstance(asked.get('page'), str) \
+                or not isinstance(asked.get('gridsOnPage'), int):
+            return _said(400, 'an opened grid is {"cube": its document\'s text, "page", "gridsOnPage"}')
+        if self._headless is None:
+            return _said(404, 'this engine opens no saved grid: legend-lite opens one with DataCube\'s own code, headless, '
+                              'which this engine was not given')
+        try:
+            # asked for before the frames are held (the session's lock first, then the frames')
+            headless = self._headless()
+        except Exception as failure:
+            return _said(422, f'{type(failure).__name__}: {failure}')
+        with self.frames.serving():
+            try:
+                made = _json.loads(headless.call('gridOpened', asked['cube'], self.frames.hosted(), asked['page'],
+                                                 asked['gridsOnPage']))
+                leaves = json.loads(headless.call('cubeLeaves', asked['cube']))
+            except Exception as refused:
+                # DataCube's refusal (a frame not served, a join that no longer joins), in its words, from V8
+                return _said(422, f'{type(refused).__name__}: {refused}')
+        read = sorted({leaf['name'] for leaf in leaves if leaf['_type'] == 'frame'})
+        answer = {**made, 'frames': {name: self.version(name) for name in read}}
+        return Answer(200, 'application/json', _json.dumps(answer).encode('utf-8'))
+
     def _release_copy(self, name: Any) -> Answer:
         """A snap's copy let go of: dropped by DataCube's code, and only then served no more."""
         with self._warehouse_lock:
@@ -963,11 +1003,12 @@ class Engine:
                 land(self.frames.connection, _host.name(name, schema='main'))
                 made = json.loads(headless.call('landed', json.dumps({'table': name})))
                 self.frames.keep_file(name, made['model'])
+                # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
+                with self._warehouse_lock:
+                    self._copies.add(name)
         except Exception as failure:
             return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
                               f'{failure}')
-        with self._warehouse_lock:
-            self._copies.add(name)
         said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': name, 'rowCount': rows,
                 **({'pulledBy': receipt} if receipt is not None else {})}
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
@@ -1597,7 +1638,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         # saved pages, the page's settings, PlanAndRun's calls, a warehouse's and a grid's Snap
         if not (url.path.startswith(_API) or url.path.startswith(_LITE_API) or _model_home(url.path) or url.path in (
                 '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLAN, _WAREHOUSE,
-                _SNAP)):
+                _SNAP, _OPENED)):
             self._refuse_unread(404, f'no such path: {url.path}')
             return
         if not self._admitted(url.path):

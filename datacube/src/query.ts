@@ -465,6 +465,12 @@ export function classBasis(snapshot: CubeSnapshot): ClassBasis {
   if (other !== undefined) {
     throw new CubeRefusal(`its rows are read from two databases (${database}, ${other.database}): a class's store is one`);
   }
+  // a class's samples are kept by table name (the writer's Data elements): two schemas' tables of one name would share one
+  const named = tables.find((t, i) => tables.findIndex((u) => u.table === t.table) !== i);
+  if (named !== undefined) {
+    const schemas = tables.filter((t) => t.table === named.table).map((t) => t.schema).join(', ');
+    throw new CubeRefusal(`its rows are read from two tables named ${named.table} (schemas ${schemas}): a class's samples are by table name`);
+  }
   return { query, database, tables: tables.map((t) => ({ table: t.table, sample: sampleLambda(t.relation) })) };
 }
 

@@ -24,7 +24,7 @@ import { TreeState } from '../src/tree.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type ColSpecArrayInstance, type Lambda } from '../../pure-protocol/src/index.ts';
-import { accessor } from '../../pure-protocol/src/index.ts';
+import { accessor, from } from '../../pure-protocol/src/index.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('trades::DB', 'TRADES') },
@@ -372,6 +372,91 @@ describe('the snapped plane actually redirects', () => {
     await c.run(at(ran));
     await assert.rejects(() => c.snap(ran, 'test'), /has no store to freeze a snapshot into/);
     assert.equal(c.snaps.isSnapped, false);
+  });
+});
+
+describe('a snapped grid\'s every query reads its copy (§18.3)', () => {
+  // the copy has a model of its own, declaring the copy alone: a query a host builds from the grid's live base -- a
+  // chart's, Ad Hoc mode's level, a drill-through -- read the live table on the copy's planner, which refused it
+  const overLive = from(SNAPSHOT.source.query).select(['region']).lambda();
+  const readsCopy = (planner: RecordingPlanner): void => {
+    const last = planner.pure.at(-1) ?? '';
+    assert.ok(last.includes('snap_1') && !last.includes('TRADES'), `the copy's planner was asked: ${last}`);
+  };
+
+  it('in the tab: a query over the live base, and a level, read the copy', async () => {
+    const copy = new RecordingPlanner();
+    const c = new CubeController(new RecordingEngine(), new RecordingPlanner(), { snapTarget: snapInto(copy) });
+    await c.run(at(SNAPSHOT));
+    await c.snap(SNAPSHOT, 'test');
+    await c.runQuery(overLive, SNAPSHOT);
+    readsCopy(copy);
+    await c.level(SNAPSHOT);
+    readsCopy(copy);
+  });
+
+  it('on its host: the same, through the host\'s runner over its model of the copy', async () => {
+    const copy = new RecordingPlanner();
+    const c = new CubeController(new PlanThenRun(new RecordingPlanner(), new RecordingEngine()) as unknown as QueryRunner, {
+      hostSnap: {
+        store: 'Python',
+        snap: async () => ({ rowCount: 2, table: 'snap_1', source: accessor('python::DB', 'snap_1'),
+          runner: new PlanThenRun(copy, new RecordingEngine()) }),
+        release: async () => {},
+      },
+    });
+    await c.run(at(SNAPSHOT));
+    await c.snap(SNAPSHOT, 'test');
+    await c.runQuery(overLive, SNAPSHOT);
+    readsCopy(copy);
+  });
+});
+
+describe('a snap being made (§18.3)', () => {
+  /** A target whose copy lands only when `land` is called. */
+  const gated = () => {
+    let land: () => void = () => undefined;
+    const gate = new Promise<void>((done) => { land = done; });
+    const made: Copies = { tables: [], disposed: [] };
+    const target: SnapTarget = {
+      host,
+      copy: () => {
+        const table = `snap_${made.tables.length + 1}`;
+        made.tables.push(table);
+        return {
+          table,
+          landed: async () => { await gate; return { source: accessor('local::DB', table), planner: new RecordingPlanner() }; },
+          dispose: () => { made.disposed.push(table); },
+        };
+      },
+    };
+    return { target, made, land: () => land() };
+  };
+
+  it('a grid closed while its copy is made lets the copy go as it lands', async () => {
+    const g = gated();
+    const engine = new RecordingEngine();
+    const c = new CubeController(engine, new RecordingPlanner(), { snapTarget: g.target });
+    await c.run(at(SNAPSHOT));
+    const snapping = c.snap(SNAPSHOT, 'test');
+    await c.close();
+    g.land();
+    await assert.rejects(snapping, /closed while its snap was made/);
+    assert.deepEqual(g.made.disposed, ['snap_1'], 'its model and its name let go');
+    assert.ok(engine.sql.some((q) => /DROP TABLE.*snap_1/i.test(q)), `its table dropped: ${engine.sql.join(' ;; ')}`);
+    assert.equal(c.snaps.isSnapped, false);
+  });
+
+  it('a second snap while one is made is refused, never a second copy', async () => {
+    const g = gated();
+    const c = new CubeController(new RecordingEngine(), new RecordingPlanner(), { snapTarget: g.target });
+    await c.run(at(SNAPSHOT));
+    const snapping = c.snap(SNAPSHOT, 'one');
+    await assert.rejects(c.snap(SNAPSHOT, 'two'), /snap is being made/);
+    g.land();
+    await snapping;
+    assert.deepEqual(g.made.tables, ['snap_1']);
+    assert.equal(c.snaps.isSnapped, true);
   });
 });
 

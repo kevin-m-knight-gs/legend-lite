@@ -80,14 +80,17 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
     return { table: view };
   }
   if (leaf._type !== 'file') throw new Error(`a join reads files and remote files here; ${leaf.name} is neither`);
-  // the same file read already, under the name the page's model keeps for this leaf or with none kept: its table, read
-  // once (one read for a join counts this one among its users)
+  // the same file read already: its table, read once (one read for a join counts this one among its users) -- under the
+  // name the page's model keeps for this leaf, with none kept, or when a grid on screen holds that name (it cannot be
+  // taken: said, as below)
   const already = h.readFile(leaf.sha256);
-  if (already !== undefined && (kept === undefined || already.table === kept)) {
+  if (already !== undefined && (kept === undefined || already.table === kept || h.isTaken(kept))) {
+    const renamed = kept !== undefined && already.table !== kept
+      ? { note: `${already.file.name} is read as ${already.table} in this tab, not ${kept} as the page's classes read it` } : {};
     const read = h.joinRead.get(already.table);
-    if (!read) return { table: already.table };
+    if (!read) return { table: already.table, ...renamed };
     read.users += 1;
-    return { table: already.table, held: true };
+    return { table: already.table, held: true, ...renamed };
   }
   // read under the name kept for it -- the file given already (read under another name: a grid's own beside it), never
   // asked for twice -- else rebuilt, read from where the page kept it, or asked for by its name

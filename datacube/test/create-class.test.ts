@@ -112,6 +112,10 @@ describe("the grid's rows, as a class's", () => {
     const two = { _type: 'func', function: 'join', parameters: [SOURCE, accessor('other::DB', 'desks')] } as never;
     assert.throws(() => classBasis(snapshot({ source: { query: two } } as never)),
       /two databases \(local::DB, other::DB\): a class's store is one/);
+    // two schemas' tables of one name: their samples, kept by table name, would be one (the audit of §18)
+    const schemas = { _type: 'func', function: 'join', parameters: [accessor('local::DB', 'a', 'trades'), accessor('local::DB', 'b', 'trades')] } as never;
+    assert.throws(() => classBasis(snapshot({ source: { query: schemas } } as never)),
+      /two tables named trades \(schemas a, b\): a class's samples are by table name/);
   });
 
   it('a grid is read where its rows are planned and run, on whichever host: a Python grid too (B1)', async () => {

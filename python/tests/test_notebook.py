@@ -267,6 +267,37 @@ class InAKernel(Widget):
         with mock.patch.object(IPython, 'get_ipython', lambda: None):
             self.assertIsInstance(ll.show(trades(), browser=False), datacube.Cube)
 
+    def test_a_frame_moving_under_a_query_never_waits_on_the_session(self):
+        # a query held the frames still and found a frame's columns changed (Engine._noted): the page's widget is told on
+        # that thread, so it takes no session lock -- another thread registering a frame holds that and waits on the
+        # frames (the audit of §18, 2026-10-20: it asked DataCube's code which frames the page reads)
+        import threading
+        page = ll.Page('Moving')
+        page.grid(trades(), name='moving')
+        cube = ll.show(page)
+        self.assertIsInstance(cube, notebook.PageCube)
+        session, engine = datacube._session, datacube._session.engine()
+        held, serving, got = threading.Event(), threading.Event(), []
+
+        def registering() -> None:
+            with session._lock:
+                held.set()
+                # what registering a frame does next, once the query holds the frames: the frames' lock
+                serving.wait(10)
+                taken = session.frames._lock.acquire(timeout=10)
+                got.append(taken)
+                if taken:
+                    session.frames._lock.release()
+        other = threading.Thread(target=registering)
+        other.start()
+        held.wait(10)
+        with session.frames.serving():
+            serving.set()
+            engine.changed('moving')
+        other.join(20)
+        self.assertEqual(got, [True], 'the query let the frames go: its widget waited on nothing')
+        self.assertEqual(cube.versions['frames'], {'moving': engine.version('moving')})
+
     def test_a_page_shows_under_the_cell_once_and_its_widget_is_shown_again(self):
         page = ll.Page('P')
         with self.assertRaisesRegex(ValueError, 'it has no cube'):

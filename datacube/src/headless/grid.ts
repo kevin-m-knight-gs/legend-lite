@@ -192,7 +192,9 @@ export async function gridBase(cube: string, frames: Readonly<Record<string, Hos
  * A SAVED CUBE OPENED OVER THE HOST'S FRAMES as it is now (§18.3): a frame's (gridCube), or a join's of the host's
  * frames -- opened as the tab opens a saved join (join-open.ts openJoin: a kept column gone is left out, said), then
  * rebuilt over it (cube-document.ts rebuilt) and written as the screen holds it. `name` is its page's. JSON: `{cube,
- * notes, changed}`, as gridCube's.
+ * notes, changed}`, as gridCube's, and its base -- `model`, `runtime`, and `source` (a frame's accessor) or `relation`
+ * (a join's, a lambda), as gridBase says it -- which a tab on the host's page reads its rows over (the host's runner:
+ * it has no compiler of its own there).
  */
 export async function gridOpened(cube: string, frames: Readonly<Record<string, HostFrame>>, name: string,
   gridsOnPage: number): Promise<string> {
@@ -201,8 +203,9 @@ export async function gridOpened(cube: string, frames: Readonly<Record<string, H
   if (source._type === 'frame') {
     const frame = frames[source.name];
     if (frame === undefined) throw new CubeRefusal(`the frame ${source.name} is not served`);
-    return gridCube({ model: frame.model, runtime: frame.runtime, source: frame.accessor, frame: source.name }, cube, name,
-      source.name, gridsOnPage);
+    const made = JSON.parse(await gridCube({ model: frame.model, runtime: frame.runtime, source: frame.accessor, frame: source.name },
+      cube, name, source.name, gridsOnPage)) as Record<string, unknown>;
+    return JSON.stringify({ ...made, model: frame.model, runtime: frame.runtime, source: frame.accessor });
   }
   if (source._type !== 'join') throw new CubeRefusal(`${source.name} is no frame and no join of frames: a page on Python reads frames`);
   const opened = await joinOpenedOn(source, frameTables(source, frames));
@@ -212,8 +215,10 @@ export async function gridOpened(cube: string, frames: Readonly<Record<string, H
     name, source: { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
     snapshot: state.snapshot, configuration: state.configuration, tree: state.tree, ...(was.unknown ? { unknown: was.unknown } : {}),
   });
-  return JSON.stringify({ cube: cubeToJson(written), notes: [...opened.notes, ...made.notes],
-    changed: made.changed || opened.notes.length > 0 });
+  return `{"cube":${JSON.stringify(cubeToJson(written))},"notes":${JSON.stringify([...opened.notes, ...made.notes])},`
+    + `"changed":${JSON.stringify(made.changed || opened.notes.length > 0)},"model":${JSON.stringify(opened.model)},`
+    + `"runtime":${JSON.stringify(opened.runtime)},`
+    + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
 }
 
 async function using<T>(spec: GridSpec, use: (o: Opened) => Promise<T>): Promise<T> {

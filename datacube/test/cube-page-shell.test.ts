@@ -923,7 +923,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     let sources: ReturnType<typeof pageSources> | undefined;
     const planner = Object.assign(new StubPlanner(), { dispose: () => { disposed.push('orders'); } });
     const place = { planner, label: 'orders.csv', cubeSource: file('orders.csv'),
-      file: { file: new dom.window.File(['x'], 'orders.csv') as unknown as File, table: 'orders' } };
+      file: { file: new dom.window.File(['x'], 'orders.csv') as unknown as File, table: 'orders' }, tables: ['orders'] };
     // as DataCube's app makes a grid over a file: its planner, its file's table, told to its sources
     const orders: GridMaker = (gridHost, spawned, start) => {
       const grid = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {

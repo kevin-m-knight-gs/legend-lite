@@ -651,6 +651,15 @@ try {
     failed = true;
   }
 
+  // A JOIN OF ITS FRAMES (page.join: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), made in Python: the open page opens
+  // it through Python (opened.json), whose compiler and frames it reads -- it has neither of its own here -- and reads its
+  // rows there, as a frame's grid's (the audit of §18, 2026-10-20: it was left out, and page.read() then dropped it)
+  await tabbed.locator('.dc-sheet-tab', { hasText: 'pytrades' }).click();
+  await python('py-page-join');
+  await seen('a join made in Python (page.join) opens on the open page, its rows from both of its frames',
+    () => [...document.querySelectorAll('[data-tile^="grid"]')].some((t) => t.querySelector('.dc-th[data-column="head"]') !== null
+      && t.querySelector('.dc-th[data-column="d_desk"]') !== null && t.innerText.includes('Ana')));
+
   // EVERY PAGE PYTHON WRITES IS ONE DATACUBE READS: pages built with each kind of edit Python makes, one with a frozen
   // chart kept without its grid, and DataCube's own page loaded and changed in Python, read by DataCube's reader
   engine.stdin.write('py-documents\n');

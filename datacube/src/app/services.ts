@@ -169,6 +169,26 @@ export interface DatabaseService {
   readonly release?: (table: string) => Promise<void>;
   /** Whose database it is, as a person reads it (`Python`): where a snap's copy is said to be kept. */
   readonly place?: string;
+  /**
+   * A saved cube over the host's frames opened by the host as they are now (Python's `opened.json`: a join of frames,
+   * which a page with no database or compiler of its own on the host cannot open; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   * §18.3). `cube`: its document's text; `page`: its page's name; `gridsOnPage`: how many grids the page holds.
+   */
+  readonly opened?: (cube: string, page: string, gridsOnPage: number) => Promise<HostOpened>;
+}
+
+/** A saved cube the host opened (`DatabaseService.opened`): rebuilt as it opens now, and the base its rows are read over. */
+export interface HostOpened {
+  /** The cube document's text, rebuilt over its source as it is now. */
+  readonly cube: string;
+  /** What opening it said: what drifted, what was left out. */
+  readonly notes: readonly string[];
+  readonly model: string;
+  readonly runtime: string;
+  /** The relation its rows are read over (a join's, of the host's frames). */
+  readonly relation: ValueSpecification;
+  /** Each frame it reads, by name, at the version it was read at: what following the host's frames compares. */
+  readonly frames: Readonly<Record<string, number>>;
 }
 
 /** A frame's model, as its host wrote it (Python's `Frames`): its model, runtime and source, and how often it changed. */
