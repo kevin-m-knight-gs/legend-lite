@@ -330,6 +330,16 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-20, announced: the dynamic pivot's outputs by the cross join, on every engine** (the user's decision after
+  the pivot discussion of 2026-10-19/20; §7 step 9's residue "the uncast dynamic pivot's text road"): a dynamic pivot's
+  only consumers are the serialized outputs (no Pure code names its generated columns without a cast, and a cast
+  makes it static; DataCube pivots by its own two ordinary plans), so the TDS text, the CSV and the JSON wires are
+  built from the pivot's SOURCE as cells (grouped by the static columns and the key, each aggregate once), keys and
+  groups, the groups cross-joined with the keys and left-joined to the cells, one ordered string aggregate per line
+  -- one statement, existing MIR, no JSON navigation, no probe, no row-as-JSON; DuckDB and Snowflake included (native
+  PIVOT stays the spelling of a STATIC pivot where the engine has it). The row-as-JSON builder and `SqlExpr.RowJson`
+  go; the ten uncast-pivot pins per lane go where the lane runs here. Judged by the DuckDB lane (exact), H2's and
+  SQLite's relation suites, `PlanMakerTest`, the core lanes.
 - **2026-10-19, step 9's merge completed: the trino-h2 branch in, the guard lanes reconciled, the verdicts on the
   final head** (GATES "step 9's merge completed"): the sixth branch merged (`1616963`: Trino 5 of 5 exact on its pins,
   H2 469 of 469 with the ten uncast pivots pinned, the harness's Trino session without PREPARE, the platform's Trino
