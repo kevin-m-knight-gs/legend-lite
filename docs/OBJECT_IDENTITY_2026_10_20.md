@@ -1,6 +1,6 @@
 # Object identity in the product (2026-10-20)
 
-**Status: steps 1 and 2 landed 2026-10-20, step 3's claims too (§5); the struct fallback's deletion open.** The user's ruling of 2026-10-20: "lets fix identity
+**Status: steps 1 to 3 landed 2026-10-20 (§5): the struct fallback is deleted.** The user's ruling of 2026-10-20: "lets fix identity
 properly that's a huge product fix/win". This document says what identity is in Pure, what the product did before
 (measured), and how the product gives every object its identity on every lane.
 
@@ -106,12 +106,15 @@ CSV and TDS writers and the typed rows must too (a gate: every output of an obje
 2. **Landed 2026-10-20.** The id per evaluation (§3.2), and `removeDuplicates` on objects through `InstanceEquality`.
    Found on the way: a map whose mapper's value is a list (a many-valued property, an inner map or filter) did not
    flatten (`[1, 2]->map(i | [3, 4]->map(j | $i + $j))` had two elements); it does (`ListEncodings.map`).
-3. **Claims landed 2026-10-20**: `InstanceEquality` owns `distinct` (so `union`, which the typer desugars to it),
+3. **Landed 2026-10-20.** `InstanceEquality` owns `distinct` (so `union`, which the typer desugars to it),
    `isDistinct`, the list `indexOf` and `==` over collections of objects, beside `eq`, `equal`, `contains`, `in` and
-   `removeDuplicates`. **Open:** deleting its struct fallback. Measured 2026-10-20 with the fallback made to throw: the
-   PCT on DuckDB and channel B never reach it, but both corpus lanes and the legacy judge's suites
-   (`core_tests_exec`, `core_tests_integration`) do, on objects whose struct carries no identity field. Each such shape
-   is to be found and either given an identity or refused by name before the fallback goes.
+   `removeDuplicates`; a type value (a model element) is no object here: it travels as its path and compares by it
+   (S82). **The struct fallback is deleted**: a claimed shape it cannot lower is refused by name. Measured first, with
+   the fallback made to throw: the PCT on DuckDB and channel B never reached it; the statement executor's value lane
+   did (it lowered with the plain layout, so a keyless object had no id), and so did three of its suites' cases that
+   asserted the struct answers (`StructValueTest`, `TypeInferenceIntegrationTest`: now Pure's, and the test model's
+   `CO_Firm` keyed as Pure's own). That lane now lowers with the object layout and its env's ids, and its scalar root
+   shows the declared properties alone (`Lowerer.withDeclaredEgress`).
 4. Tests: **landed 2026-10-20**, `ObjectIdentityTest` (§2's table and more, on DuckDB and SQLite, through the plan);
    channel B's identity tests on the plan route with step 10 of the plan path program.
 5. Register rows: **S85** (§4's four, 2026-10-20).

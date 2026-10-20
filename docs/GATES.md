@@ -10653,6 +10653,29 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-20 — Object identity, step 3: every equality-built operation through one owner; the struct fallback deleted
+
+The program: `docs/OBJECT_IDENTITY_2026_10_20.md` §5 step 3 (the user, 2026-10-20: "remove the fallback for sure").
+
+**Landed:**
+- `InstanceEquality` owns `distinct` (so `union`, which the typer desugars to it), `isDistinct`, the list `indexOf` and
+  `==` over collections of objects, beside `eq`, `equal`, `contains`, `in` and `removeDuplicates` (the engine's
+  `distinct`, `isDistinct` and `union` are `removeDuplicates`', `collectionExtension.pure`, `distinct.pure`). A relation,
+  a TDS and a type value are no objects here (a type value travels as its path and compares by it, S82).
+- **The struct fallback is deleted** (`Lowerer`, the F13c arm): a claimed shape it cannot lower is refused by name.
+  Measured first, the fallback made to throw: the PCT on DuckDB and channel B never reached it; the statement
+  executor's value lane did, lowering with the plain layout (a keyless object had no id). That lane lowers with the
+  object layout and its env's ids now, and its scalar root shows declared properties alone
+  (`Lowerer.withDeclaredEgress`, `MixedEncoding.declaredType`; a class with no properties keeps its class, its only
+  data). Three core tests asserted the struct answers and now assert Pure's: `StructValueTest.instanceEquality` and
+  `.containsInstanceInMixedList` (a keyless class: identity), `TypeInferenceIntegrationTest.testInstanceEquality`
+  (`eq` is identity, legend-pure `eq.pure` `testEqNonPrimitive`); the integration model's `CO_Firm` declares its key as
+  legend-pure's `testModel.pure` does.
+
+**Measured** (this container, the branch head): `ObjectIdentityTest` (38 cases, DuckDB and SQLite); `//core:core_tests`;
+`//spec:corpus_duckdb` and `//spec:corpus_h2` exact; `//pct:pct_duckdb` 5 of 5; `//pct:pct_channel_b` 5 of 5. The other
+PCT lanes' ledgers are not re-measured since `11d4c4e8`.
+
 ## 2026-10-20 — Object identity, steps 1 and 2: every object carries its evaluation; a map flattens its mapper's lists
 
 The program: `docs/OBJECT_IDENTITY_2026_10_20.md` (the user's ruling of 2026-10-20, "lets fix identity properly"),

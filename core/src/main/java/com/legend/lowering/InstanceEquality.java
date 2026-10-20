@@ -366,8 +366,14 @@ final class InstanceEquality {
     }
 
     /** The MODEL-class fqn of an instance TYPE (any multiplicity), or
-     * null (platform carriers, relations and TDSs, Any/variant/Nil). */
+     * null (platform carriers, relations and TDSs, Any/variant/Nil, and a
+     * type value: a model element, which travels as its path and compares
+     * by it, register S82). */
     private static @com.legend.base.Nullable String classInstanceFqn(Type t) {
+        String fqn = EqualityKeys.fqnOf(t);
+        if (fqn != null && PlatformTypes.isTypeClassifier(fqn)) {
+            return null;
+        }
         if (PlatformTypes.isPairCarrier(t) || PlatformTypes.isListCarrier(t)
                 || PlatformTypes.isMapCarrier(t) || PlatformTypes.isTdsShaped(t)
                 || (t instanceof Type.ClassType ct

@@ -817,7 +817,7 @@ public final class Compiler {
                 t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(new com.legend.lowering.ObjectSites());
+                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
         }

@@ -267,6 +267,15 @@ public final class Lowerer {
      *  docs/OBJECT_IDENTITY_2026_10_20.md §3.1): its ids minted at {@code sites}. */
     private boolean objectIdentity;
 
+    /** Whether a scalar root shows its objects' declared properties alone: the statement executor's value lane reads
+     *  the struct whole into its result, where no synthetic field may show (§3.4); the plan path's writers strip them. */
+    private boolean declaredEgress;
+
+    public Lowerer withDeclaredEgress() {
+        this.declaredEgress = true;
+        return this;
+    }
+
     /** The maps around the lowering's current point that lower to a list lambda, outermost first: each one's element
      *  parameter and the variable its position is read from (§3.2). */
     private final java.util.ArrayList<String[]> iterationPositions = new java.util.ArrayList<>();
@@ -331,8 +340,10 @@ public final class Lowerer {
         return new SqlExpr.Lambda(positionsRead.remove(position) ? List.of(element, position) : List.of(element), b);
     }
 
-    public Lowerer withObjectIdentity(ObjectSites sites) {
-        this.instanceIdOf = sites::idOf;
+    /** Every object carries its identity: its id, minted by {@code ids} from its site (docs/OBJECT_IDENTITY_2026_10_20.md
+     *  §3.2): one query's {@link ObjectSites}, or the statement executor's ids shared by every statement of a body. */
+    public Lowerer withObjectIdentity(Function<Object, String> ids) {
+        this.instanceIdOf = ids;
         this.objectIdentity = true;
         return this;
     }
@@ -488,6 +499,11 @@ public final class Lowerer {
         // below both read it (it unfolded a class root's whole nested
         // struct twice, once only to compare it with JSON)
         SqlType rootType = sqlTypeOf(spec.info().type());
+        if (declaredEgress && e.type() instanceof com.legend.sql.TypeFact.Typed full
+                && !full.type().equals(MixedEncoding.declaredType(full.type()))) {
+            e = MixedEncoding.declaredOnly(e);
+            rootType = MixedEncoding.declaredType(rootType);
+        }
         boolean anyStamp = rootType == SqlType.Scalar.JSON;
         // read unconditionally: a LITERAL-carried product under ANY
         // stamp (generic/TypeVar dedup results included) must label
@@ -3227,16 +3243,20 @@ public final class Lowerer {
                         deferredTds);
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
-            // compare); equal = key-tree canon (keyed) or identity canon (keyless). An unclaimed shape falls to the
-            // generic rule (the candidate check is type-only, side-effect-free): measured 2026-10-20, the corpus and
-            // the legacy judge's suites still reach it (its deletion is §5 step 3's follow-up).
+            // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
+            // refused by name, never compared as a struct (AGENTS.md invariant 4); the claim is type-only.
             case TypedNativeCall n when instanceKeysOf != null
                     && InstanceEquality.claims(n) -> {
                 SqlExpr ie = InstanceEquality.lower(n, instanceKeysOf,
                         this::sqlTypeOf, s -> scalar(s, columns),
                         () -> "_iq" + aliasCounter++);
-                yield ie != null ? ie : NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
-                        n.args().stream().map(a -> scalar(a, columns)).toList(), features, implementations));
+                if (ie == null) {
+                    throw new com.legend.error.NotImplementedException(n.callee().qualifiedName() + " over objects of "
+                            + n.args().stream().map(a -> a.info().type().typeName()).toList()
+                            + " that carry no identity here: they are compared by their keys or their identity,"
+                            + " never as structs (docs/OBJECT_IDENTITY_2026_10_20.md §3.3)");
+                }
+                yield ie;
             }
             case TypedNativeCall n when formatOverSlots(n) -> formatted(n, columns);
             // arg lowering rides the unary-lambda binding convention

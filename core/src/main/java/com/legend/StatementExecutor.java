@@ -2053,13 +2053,13 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection, boolean identity) {
-        // F13: identity-bearing layouts (keyless classes gain the __id
-        // field, minted per construction site) ride ONLY the verdict-
-        // side lane (canon rider) — golden-SQL text lanes and corpus
-        // value lanes keep the plain layout, unperturbed.
+        // F13: the verdict-side lane's layouts carry the canon rider too;
+        // the value lane's are the object layout (docs/OBJECT_IDENTITY_2026_10_20.md
+        // §3.1): every object its __id and __type, so equal() compares a
+        // keyless class's objects by identity, never as structs.
         com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
-                        identity),
+                t -> identity ? com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t, true)
+                        : com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
                 .withDbTimeZone(env.timeZone());
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
@@ -2068,9 +2068,8 @@ final class StatementExecutor {
         // non-key fields). Identity minting stays verdict-lane-only.
         lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
                 .element.EqualityKeys.resolve(ctx, t2));
-        if (identity) {
-            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
-        }
+        lowerer = identity ? lowerer.withInstanceIds(env.instanceIds()::idOf)
+                : lowerer.withObjectIdentity(env.instanceIds()::idOf).withDeclaredEgress();
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
         lowerer = lowerer.withFeatures(featuresOf(env, body));
         com.legend.sql.SqlQuery plan =

@@ -502,8 +502,9 @@ final class MixedEncoding {
 
     /** An object as a reader sees it (a variant, a JSON document): its declared properties alone, each nested object
      *  the same, recursively -- its identity and its class ({@code __id}, {@code __type}) are the lowering's own,
-     *  never data (docs/OBJECT_IDENTITY_2026_10_20.md §3.4). A value that is no struct with synthetic fields is
-     *  unchanged. */
+     *  never data (docs/OBJECT_IDENTITY_2026_10_20.md §3.4). An object of a class with no properties keeps its class
+     *  alone, its only data ({@code ClassLayouts.syntheticOnlyLayout}: an empty struct is no SQL value). A value that is
+     *  no struct with synthetic fields is unchanged. */
     static SqlExpr declaredOnly(SqlExpr v) {
         if (!(v.type() instanceof com.legend.sql.TypeFact.Typed t)) {
             return v;
@@ -521,16 +522,33 @@ final class MixedEncoding {
             return v;
         }
         List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
-        for (SqlType.Struct.Field f : s.fields()) {
-            if (synthetic(f.name())) {
-                continue;
-            }
+        for (SqlType.Struct.Field f : kept(s)) {
             SqlExpr get = SqlExpr.StructGet.of(v, f.name());
             fields.add(new SqlExpr.StructLit.Field(f.name(), declaredOnly(get, f.type()), f.type()));
         }
         // an absent object stays absent, not a struct of NULLs
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit())),
                 new SqlExpr.StructLit(fields));
+    }
+
+    /** {@code t} without its objects' synthetic fields, at any depth (the type {@link #declaredOnly} answers). */
+    static SqlType declaredType(SqlType t) {
+        if (t instanceof SqlType.Array a) {
+            return new SqlType.Array(declaredType(a.element()));
+        }
+        if (t instanceof SqlType.Struct s && carriesSynthetic(s)) {
+            return new SqlType.Struct(kept(s).stream()
+                    .map(f -> new SqlType.Struct.Field(f.name(), declaredType(f.type()))).toList());
+        }
+        return t;
+    }
+
+    /** The fields of {@code s} a reader sees: the declared ones, or the class alone where there are none. */
+    private static List<SqlType.Struct.Field> kept(SqlType.Struct s) {
+        List<SqlType.Struct.Field> declared = s.fields().stream().filter(f -> !synthetic(f.name())).toList();
+        return declared.isEmpty() ? s.fields().stream()
+                .filter(f -> com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(f.name())).toList()
+                : declared;
     }
 
     private static boolean carriesSynthetic(SqlType t) {

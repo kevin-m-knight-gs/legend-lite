@@ -2176,5 +2176,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `ObjectSites.java` (new), `InstanceEquality.java`, `ListEncodings.java`, `LambdaBinding.java`, `MixedEncoding.java`,
   `Render.java`, `Scalars.java`, `compiler/element/ClassLayouts.java`, `sql/SqlTyping.java`, `exec/InstanceIds.java`,
   `resolver/SyntheticHeads.java`, `TypedQuery.java`, `Compiler.java`, `pct_adapter.pure`, the DuckDB ledgers.
-  **Next:** every lane's ledgers on both channels (not re-measured since `11d4c4e8`); step 3 (every equality-built
-  operation through `InstanceEquality`, its struct fallback deleted).
+  **Step 3 landed 2026-10-20** (GATES "object identity, step 3"): `lowering/InstanceEquality.java`, `Lowerer.java`,
+  `MixedEncoding.java`, `StatementExecutor.java`, `compiler/element/type/PlatformTypes.java`, `TypedQuery.java`,
+  `Compiler.java`, the identity and integration tests. **Next:** every lane's ledgers on both channels (not
+  re-measured since `11d4c4e8`).
