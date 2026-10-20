@@ -47,10 +47,8 @@ public class Test_LegendLite_Trino_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
             // NOTE 2026-10-20 (the parity phase): the instance tests whose unset property was a NULL of no type
             // unpinned -- the field takes the slot its builder declared (Trino.structLit)
-            // TRINO'S OWN LIMIT (re-measured on the plan route, step 9, 2026-10-19, the harness's session): no
-            // temporary table, so no table only one session sees: the system metamodel store, the session's own
-            // tables on a server engine, has nowhere to live
-            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a session's own table reached Trino, which has no temporary tables: metamodel_classes\""),
+            // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
+            // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
             // step 9, 2026-10-19, the plan route (as on the DuckDB lane, register S82): a model element referenced as a
             // value crosses by its simple name, and the text carrier's reader resolves the name by compiling it, which
             // five TestClasses defeat

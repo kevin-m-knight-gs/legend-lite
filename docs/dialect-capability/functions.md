@@ -1807,10 +1807,10 @@ Database types planned with it: SQLite.
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `lower(hex(randomblob(4)) \|\| '-' \|\| hex(randomblob(2)) \|\| '-4' \|\| substr(hex(r...` |  | 2 |
 | `FORMAT` | emulated | `format` |  | 42 |
-| `HASH` | refused | `hashCode reached SQLite, which has no hash function` | `via SQLite.hashSigned` | 5 |
-| `MD5` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
-| `SHA1` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
-| `SHA256` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
+| `HASH` | emulated | `hashSigned` |  | 5 |
+| `MD5` | emulated | `md5` |  | 1 |
+| `SHA1` | emulated | `sha1` |  | 1 |
+| `SHA256` | emulated | `sha256` |  | 1 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | emulated | `date('now')` |  | 0 |
 | `NOW` | emulated | `strftime('%Y-%m-%d %H:%M:%f', 'now')` |  | 0 |
@@ -1837,7 +1837,7 @@ Database types planned with it: SQLite.
 | `DEGREES` | spelled | `degrees` |  | 1 |
 | `INT_DIVIDE` | emulated | `intDivide` |  | 40 |
 | `REPEAT_STR` | emulated | `replace(hex(zeroblob(max(…, 0))), '00', …)` |  | 4 |
-| `JARO_WINKLER` | refused | `SQLite has no string-distance function reached SQLite:` |  | 2 |
+| `JARO_WINKLER` | emulated | `jaroWinkler` |  | 2 |
 | `DECODE_BASE64` | emulated | `base64Decoded` |  | 4 |
 | `CURRENT_USER_FN` | refused | `SQLite has no users reached SQLite:` |  | 2 |
 | `LIST_LENGTH` | spelled | `json_array_length` |  | 27 |
@@ -2023,7 +2023,7 @@ Database types planned with it: MariaDB.
 | `DEGREES` | spelled | `degrees` |  | 1 |
 | `INT_DIVIDE` | emulated | `intDivide` |  | 40 |
 | `REPEAT_STR` | emulated | `…REPEAT(CAST(… AS CHAR), REPEAT(…, …)` |  | 4 |
-| `JARO_WINKLER` | refused | `has no string-distance function reached :` |  | 2 |
+| `JARO_WINKLER` | emulated | `jaroWinkler` |  | 2 |
 | `DECODE_BASE64` | emulated | `CONVERT(FROM_BASE64(CONCAT(…, REPEAT('=', MOD(4 - MOD(CHAR_LENGTH(…), 4), 4))...` |  | 4 |
 | `CURRENT_USER_FN` | emulated | `SUBSTRING_INDEX(CURRENT_USER(), '@', 1)` |  | 2 |
 | `LIST_LENGTH` | spelled | `JSON_LENGTH` |  | 27 |
@@ -2209,7 +2209,7 @@ Database types planned with it: MySQL.
 | `DEGREES` | spelled | `degrees` | `as MariaDb` | 1 |
 | `INT_DIVIDE` | emulated | `intDivide` | `as MariaDb` | 40 |
 | `REPEAT_STR` | emulated | `…REPEAT(CAST(… AS CHAR), REPEAT(…, …)` | `as MariaDb` | 4 |
-| `JARO_WINKLER` | refused | `has no string-distance function reached :` | `as MariaDb` | 2 |
+| `JARO_WINKLER` | emulated | `jaroWinkler` | `as MariaDb` | 2 |
 | `DECODE_BASE64` | emulated | `CONVERT(FROM_BASE64(CONCAT(…, REPEAT('=', MOD(4 - MOD(CHAR_LENGTH(…), 4), 4))...` | `as MariaDb` | 4 |
 | `CURRENT_USER_FN` | emulated | `SUBSTRING_INDEX(CURRENT_USER(), '@', 1)` | `as MariaDb` | 2 |
 | `LIST_LENGTH` | spelled | `JSON_LENGTH` | `as MariaDb` | 27 |
@@ -2272,7 +2272,7 @@ Database types planned with it: MongoDB.
 | `PLUS` | emulated | `$add` |  | 0 |
 | `MINUS` | emulated | `$subtract` |  | 0 |
 | `TIMES` | emulated | `$multiply` |  | 0 |
-| `DIVIDE` | emulated | `$divide` |  | 0 |
+| `DIVIDE` | emulated | `{"$divide": [{"$toDouble": …}, {"$toDouble": …}]}` |  | 0 |
 | `MOD` | emulated | `flooredMod` |  | 0 |
 | `REM` | emulated | `unfolded: {"$mod": […, …]}` |  | 0 |
 | `NEGATE` | emulated | `negated` |  | 0 |

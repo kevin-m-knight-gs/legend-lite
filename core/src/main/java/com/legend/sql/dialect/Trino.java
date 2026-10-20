@@ -1860,6 +1860,12 @@ public final class Trino extends AnsiSqlRenderer {
     // Session tables and DDL
     // ==================================================================
 
+    /** Trino has no temporary table: a plan's metamodel tables are its query's own rows. */
+    @Override
+    public boolean temporaryTables() {
+        return false;
+    }
+
     /** Trino has no temporary table, so no table only one session sees: the server engine's system database is
      *  refused by name here. */
     @Override

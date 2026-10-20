@@ -1564,9 +1564,12 @@ public final class SQLite extends AnsiSqlRenderer {
             case REGEXP_REPLACE -> writer.piece(regexpReplace(a));
             case ENCODE_BASE64 -> writer.piece(base64Encoded(a.get(0)));
             case DECODE_BASE64 -> writer.piece(base64Decoded(a.get(0)));
-            case MD5, SHA1, SHA256 -> throw wall(c.fn(), "SQLite has no digest function");
+            // SQLite has no digest function: each is written in its SQL (SqliteDigests)
+            case MD5 -> writer.piece(SqliteDigests.md5(w -> w.expr(a.get(0), 0)));
+            case SHA1 -> writer.piece(SqliteDigests.sha1(w -> w.expr(a.get(0), 0)));
+            case SHA256 -> writer.piece(SqliteDigests.sha256(w -> w.expr(a.get(0), 0)));
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
-            case JARO_WINKLER -> throw wall(c.fn(), "SQLite has no string-distance function");
+            case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             case GUID -> writer.append("lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||"
                     + " substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) ||"
                     + " substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))");
@@ -2313,6 +2316,43 @@ public final class SQLite extends AnsiSqlRenderer {
                 + " length(__lv.a))) SELECT c ->> j FROM __lv WHERE i = length(a) AND j = length(b))");
     }
 
+    /** The Jaro-Winkler similarity of two texts, by characters (DuckDB's {@code jaro_winkler_similarity}, measured
+     *  bit-equal): one recursive walk over the second text, each of its characters matched to the first unmatched
+     *  equal character of the first text inside the match window (the first text's flags a string of 0s and 1s, the
+     *  matched characters kept in the second text's order); a second walk over the first text counting the matched
+     *  characters out of that order; the similarity, and past 0.7 the common prefix's boost (up to four characters),
+     *  in REAL arithmetic. */
+    private static SqlWriter.Piece jaroWinkler(SqlExpr x, SqlExpr y) {
+        String hit = "substr(__jw.f, __jw.i, 1) = '0' AND substr(__jw.p, __jw.i, 1) = substr(__jw.t, __jw.j, 1)";
+        String next = "__jw.i > __jw.j + __jw.b OR __jw.i > length(__jw.p) OR (" + hit + ")";
+        String taken = "__jw.i <= __jw.j + __jw.b AND " + hit;
+        String m = "CAST(length(__jx.m) AS REAL)";
+        String jaro = "(" + m + " / CAST(length(__jx.p) AS REAL) + " + m + " / CAST(length(__jx.t) AS REAL) + (" + m
+                + " - CAST(__jx.n / 2 AS REAL)) / " + m + ") / CAST(3 AS REAL)";
+        StringBuilder prefix = new StringBuilder();
+        for (int k = 1; k <= 4; k++) {
+            prefix.append(k == 1 ? "" : " + ").append("CASE WHEN ").append(k).append(" <= min(length(__jx.p),"
+                    + " length(__jx.t)) AND substr(__jx.p, 1, ").append(k).append(") = substr(__jx.t, 1, ").append(k)
+                    .append(") THEN 1 ELSE 0 END");
+        }
+        String window = "max(0, max(length(__s.p), length(__s.t)) / 2 - 1)";
+        return w -> w.append("(WITH RECURSIVE __jw(p, t, b, j, i, f, m) AS (SELECT __s.p, __s.t, " + window + ", 1,"
+                + " max(1, 1 - " + window + "), replace(hex(zeroblob(length(__s.p))), '00', '0'), '' FROM (SELECT ")
+                .expr(x, 0).append(" AS p, ").expr(y, 0).append(" AS t) AS __s UNION ALL SELECT __jw.p, __jw.t,"
+                        + " __jw.b, CASE WHEN " + next + " THEN __jw.j + 1 ELSE __jw.j END, CASE WHEN " + next + " THEN"
+                        + " max(1, __jw.j + 1 - __jw.b) ELSE __jw.i + 1 END, CASE WHEN " + taken + " THEN substr(__jw.f,"
+                        + " 1, __jw.i - 1) || '1' || substr(__jw.f, __jw.i + 1) ELSE __jw.f END, CASE WHEN " + taken
+                        + " THEN __jw.m || substr(__jw.t, __jw.j, 1) ELSE __jw.m END FROM __jw WHERE __jw.j <="
+                        + " length(__jw.t)), __jx(p, t, f, m, k, q, n) AS (SELECT __jw.p, __jw.t, __jw.f, __jw.m, 1, 0, 0"
+                        + " FROM __jw WHERE __jw.j > length(__jw.t) UNION ALL SELECT __jx.p, __jx.t, __jx.f, __jx.m,"
+                        + " __jx.k + 1, CASE WHEN substr(__jx.f, __jx.k, 1) = '1' THEN __jx.q + 1 ELSE __jx.q END, CASE"
+                        + " WHEN substr(__jx.f, __jx.k, 1) = '1' AND substr(__jx.p, __jx.k, 1) <> substr(__jx.m, __jx.q"
+                        + " + 1, 1) THEN __jx.n + 1 ELSE __jx.n END FROM __jx WHERE __jx.k <= length(__jx.p)) SELECT"
+                        + " CASE WHEN length(__jx.m) = 0 THEN CAST(0 AS REAL) WHEN " + jaro + " > CAST(0.7 AS REAL) THEN "
+                        + jaro + " + (" + prefix + ") * CAST(0.1 AS REAL) * (CAST(1 AS REAL) - " + jaro + ") ELSE " + jaro
+                        + " END FROM __jx WHERE __jx.k > length(__jx.p))");
+    }
+
     /** A date-time's microseconds since the epoch: its whole seconds ({@code unixepoch} of its first 19 characters,
      *  exact) and its fraction's digits, as written (SQLite's own functions keep milliseconds). */
     private static SqlWriter.Piece micros(SqlExpr t) {
@@ -2597,9 +2637,19 @@ public final class SQLite extends AnsiSqlRenderer {
     // Hooks of the base
     // ==================================================================
 
+    /** Pure's hashCode, a signed 64-bit integer: the first 64 bits of the MD5 of the values' text as a JSON array (a
+     *  NULL is JSON's null, so the empty collection hashes too), read signed -- MariaDB's and Postgres's construction,
+     *  the MD5 written in SQLite's SQL ({@link SqliteDigests}). */
     @Override
     protected SqlWriter hashSigned(SqlWriter writer, List<SqlExpr> a) {
-        throw new DialectCapability("hashCode reached SQLite, which has no hash function");
+        SqlWriter.Piece digest = SqliteDigests.md5(w -> w.append("json_array(")
+                .join(a, ", ", (v, x) -> v.append("CAST(").expr(x, 0).append(" AS TEXT)")).append(")"));
+        StringBuilder bits = new StringBuilder();
+        for (int i = 0; i < 16; i++) {
+            bits.append(i == 0 ? "" : " | ").append("((instr('0123456789abcdef', substr(__h.d, ").append(i + 1)
+                    .append(", 1)) - 1) << ").append(60 - 4 * i).append(")");
+        }
+        return writer.append("(SELECT " + bits + " FROM (SELECT ").piece(digest).append(" AS d) AS __h)");
     }
 
     /** Pure round is half-EVEN: the value scaled, rounded half away from zero by {@code round}, and a tie that rounded

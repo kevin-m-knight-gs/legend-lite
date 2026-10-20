@@ -46,16 +46,15 @@ public class Test_LegendLite_ClickHouse_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
-            // step 9, 2026-10-19, the plan route: ClickHouse's dates are 1900 to 2299 -- the database now writes the
-            // date's text itself, and its formatDateTime saturates at 2299-12-31 (the legacy route's Java read the raw
-            // value: a DateTime64's ticks past 2299 exact, a Date32's days wrapped). A silent wrong answer, the
-            // database's own; open: a refusal by name past 2299, as MariaDB's "a date past the year 9999"
-            one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"\nexpected: %33803336-12-17\nactual:   %2299-12-31\""),
-            one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "\"\nexpected: %1410404-07-12T00:00:00+0000\nactual:   %2299-12-31T23:56:20.896768+0000\""),
-            one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "\"\nexpected: %800002016-02-29\nactual:   %2299-12-31\""),
-            one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "\"\nexpected: %236611261-10-03\nactual:   %2299-12-31\""),
-            one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"\nexpected: %25489-04-20T03:12:00+0000\nactual:   %2299-12-31T23:12:00+0000\""),
-            one("meta::pure::functions::date::tests::testAdjustBySecondsBigNumber_Function_1__Boolean_1_", "\"\nexpected: %2407-05-19T19:15:12+0000\nactual:   %2299-12-31T23:15:12+0000\""),
+            // CLICKHOUSE'S OWN LIMIT: its dates are 1900 to 2299. Step 9 (2026-10-19) recorded the silent wrong answer
+            // (the arithmetic clamped to 2299-12-31); 2026-10-20 (the parity phase): the date the arithmetic reaches
+            // is checked first, in Int128, and raised by name outside them, as MariaDB's "a date past the year 9999"
+            one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)\""),
+            one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "\"a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)\""),
+            one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "\"a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)\""),
+            one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "\"a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)\""),
+            one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)\""),
+            one("meta::pure::functions::date::tests::testAdjustBySecondsBigNumber_Function_1__Boolean_1_", "\"a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to the end it passed)\""),
             one("meta::pure::functions::date::tests::testDayOfMonthError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::date::tests::testHourError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::date::tests::testMinuteError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),

@@ -2078,10 +2078,10 @@ SQLite	SQLite	call	ENCODE_BASE64	emulated	base64Encoded		3
 SQLite	SQLite	call	LEVENSHTEIN	emulated	levenshtein		2
 SQLite	SQLite	call	GUID	emulated	lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(r...		2
 SQLite	SQLite	call	FORMAT	emulated	format		42
-SQLite	SQLite	call	HASH	refused	hashCode reached SQLite, which has no hash function	via SQLite.hashSigned	5
-SQLite	SQLite	call	MD5	refused	SQLite has no digest function reached SQLite:		1
-SQLite	SQLite	call	SHA1	refused	SQLite has no digest function reached SQLite:		1
-SQLite	SQLite	call	SHA256	refused	SQLite has no digest function reached SQLite:		1
+SQLite	SQLite	call	HASH	emulated	hashSigned		5
+SQLite	SQLite	call	MD5	emulated	md5		1
+SQLite	SQLite	call	SHA1	emulated	sha1		1
+SQLite	SQLite	call	SHA256	emulated	sha256		1
 SQLite	SQLite	call	EXTRACT	emulated	extract		24
 SQLite	SQLite	call	TODAY	emulated	date('now')		0
 SQLite	SQLite	call	NOW	emulated	strftime('%Y-%m-%d %H:%M:%f', 'now')		0
@@ -2108,7 +2108,7 @@ SQLite	SQLite	call	RADIANS	spelled	radians		1
 SQLite	SQLite	call	DEGREES	spelled	degrees		1
 SQLite	SQLite	call	INT_DIVIDE	emulated	intDivide		40
 SQLite	SQLite	call	REPEAT_STR	emulated	replace(hex(zeroblob(max(…, 0))), '00', …)		4
-SQLite	SQLite	call	JARO_WINKLER	refused	SQLite has no string-distance function reached SQLite:		2
+SQLite	SQLite	call	JARO_WINKLER	emulated	jaroWinkler		2
 SQLite	SQLite	call	DECODE_BASE64	emulated	base64Decoded		4
 SQLite	SQLite	call	CURRENT_USER_FN	refused	SQLite has no users reached SQLite:		2
 SQLite	SQLite	call	LIST_LENGTH	spelled	json_array_length		27
@@ -2327,7 +2327,7 @@ MariaDb	MariaDB	call	RADIANS	spelled	radians		1
 MariaDb	MariaDB	call	DEGREES	spelled	degrees		1
 MariaDb	MariaDB	call	INT_DIVIDE	emulated	intDivide		40
 MariaDb	MariaDB	call	REPEAT_STR	emulated	…REPEAT(CAST(… AS CHAR), REPEAT(…, …)		4
-MariaDb	MariaDB	call	JARO_WINKLER	refused	has no string-distance function reached :		2
+MariaDb	MariaDB	call	JARO_WINKLER	emulated	jaroWinkler		2
 MariaDb	MariaDB	call	DECODE_BASE64	emulated	CONVERT(FROM_BASE64(CONCAT(…, REPEAT('=', MOD(4 - MOD(CHAR_LENGTH(…), 4), 4))...		4
 MariaDb	MariaDB	call	CURRENT_USER_FN	emulated	SUBSTRING_INDEX(CURRENT_USER(), '@', 1)		2
 MariaDb	MariaDB	call	LIST_LENGTH	spelled	JSON_LENGTH		27
@@ -2546,7 +2546,7 @@ MySql	MySQL	call	RADIANS	spelled	radians	as MariaDb	1
 MySql	MySQL	call	DEGREES	spelled	degrees	as MariaDb	1
 MySql	MySQL	call	INT_DIVIDE	emulated	intDivide	as MariaDb	40
 MySql	MySQL	call	REPEAT_STR	emulated	…REPEAT(CAST(… AS CHAR), REPEAT(…, …)	as MariaDb	4
-MySql	MySQL	call	JARO_WINKLER	refused	has no string-distance function reached :	as MariaDb	2
+MySql	MySQL	call	JARO_WINKLER	emulated	jaroWinkler	as MariaDb	2
 MySql	MySQL	call	DECODE_BASE64	emulated	CONVERT(FROM_BASE64(CONCAT(…, REPEAT('=', MOD(4 - MOD(CHAR_LENGTH(…), 4), 4))...	as MariaDb	4
 MySql	MySQL	call	CURRENT_USER_FN	emulated	SUBSTRING_INDEX(CURRENT_USER(), '@', 1)	as MariaDb	2
 MySql	MySQL	call	LIST_LENGTH	spelled	JSON_LENGTH	as MariaDb	27
@@ -2642,7 +2642,7 @@ MongoDb	MongoDB	call	GREATER_EQUAL	emulated	guardedOp: $gte		0
 MongoDb	MongoDB	call	PLUS	emulated	$add		0
 MongoDb	MongoDB	call	MINUS	emulated	$subtract		0
 MongoDb	MongoDB	call	TIMES	emulated	$multiply		0
-MongoDb	MongoDB	call	DIVIDE	emulated	$divide		0
+MongoDb	MongoDB	call	DIVIDE	emulated	{"$divide": [{"$toDouble": …}, {"$toDouble": …}]}		0
 MongoDb	MongoDB	call	MOD	emulated	flooredMod		0
 MongoDb	MongoDB	call	REM	emulated	unfolded: {"$mod": […, …]}		0
 MongoDb	MongoDB	call	NEGATE	emulated	negated		0

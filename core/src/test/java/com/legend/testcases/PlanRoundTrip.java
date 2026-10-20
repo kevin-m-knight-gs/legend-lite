@@ -59,7 +59,8 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Sequence s -> new ExecutionPlan.Sequence(s.steps().stream().map(PlanRoundTrip::withoutTrees).toList());
             case ExecutionPlan.TdsResult t -> new ExecutionPlan.TdsResult(t.columns(), withoutTree(t.sql()));
             case ExecutionPlan.TextResult t -> new ExecutionPlan.TextResult(t.format(), t.type(), withoutTree(t.sql()));
-            case ExecutionPlan.Keyed k -> new ExecutionPlan.Keyed(withoutTree(k.keys()), k.format(), k.outputs(),
+            case ExecutionPlan.Keyed k -> new ExecutionPlan.Keyed(withoutTree(k.keys()), k.keyFields(), k.format(),
+                    k.outputs(),
                     withoutTree(k.body()), k.snapshot(), k.maxColumns());
         };
     }

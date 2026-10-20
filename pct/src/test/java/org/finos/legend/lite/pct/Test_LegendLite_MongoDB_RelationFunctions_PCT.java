@@ -43,19 +43,12 @@ public class Test_LegendLite_MongoDB_RelationFunctions_PCT extends PCTReportConf
             // pivot's named values since the parent's bccf473)
             one("meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId_Function_1__Boolean_1_", "\"currentUserId reached MongoDb, whose pipeline names no user\""),
             // VALUE DIFFERENCES, measured
-            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
+            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\"")
             // NOTE 2026-10-20 (the parity phase): the variant isEmpty and isNotEmpty tests unpinned -- a null test
             // reads the value's type, missing or null (MongoDb.nullTest)
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "a dynamic pivot reached MongoDb: its columns are known only once the database is asked")
+            // NOTE 2026-10-20 (the parity phase, second batch): the ten uncast dynamic pivots unpinned -- they run
+            // through the probe plan, the keys first and then the body, its per-key regions written once per key
+            // (MongoDb's markers bound by their place, as SQL's ?)
     );
 
     public static Test suite() {

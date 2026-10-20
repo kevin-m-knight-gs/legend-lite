@@ -33,8 +33,9 @@ import java.util.Map;
 /**
  * A MongoDB session's {@link Statements} (docs/MONGODB_PLAN_2026_10_16.md §5.1 and §5.2): the plan's statement is a
  * command in Extended JSON, as the MongoDb dialect writes it; a plan parameter is the marker document
- * {@code {"$legendParam": n}} at its place, replaced in place by the n-th slot's bound value (decision D5, the driver's
- * own encoding of each value); an {@code aggregate} command runs through the driver's cursor, and each row's one
+ * {@code {"$legendParam": "?"}} at its place, replaced in place by the bound value of the slot at its place among the
+ * markers, in document order, as SQL's {@code ?} is (decision D5, the driver's own encoding of each value; a dynamic
+ * pivot's per-key region is copied as text, 2026-10-20); an {@code aggregate} command runs through the driver's cursor, and each row's one
  * field is the text the pipeline wrote (D10): carried, never read as a value. A raise the pipeline wrote (a
  * conversion of a message between the platform's sentinels) comes back as the platform's own text, as a SQL raise
  * does through the executor's funnel. Since the plan path program's step 7 (2026-10-18) the session answers typed
@@ -77,13 +78,13 @@ final class MongoDbStatements implements Statements {
         run(command(statement));
     }
 
-    /** {@inheritDoc} MongoDB: no keyed plan is made for it (a pipeline names a dynamic pivot's fields itself), so a
-     *  snapshot is asked of it only as {@code NONE}. */
+    /** {@inheritDoc} MongoDB: a keyed plan's two commands share no transaction (the dialect says {@code NONE}: a
+     *  server that is no replica set has none across commands), so a snapshot is asked of it only as {@code NONE}. */
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
         if (snapshot != ExecutionPlan.Keyed.Snapshot.NONE) {
-            throw new IllegalStateException("a " + snapshot + " snapshot asked of a MongoDB session: no keyed plan is"
-                    + " made for MongoDB");
+            throw new IllegalStateException("a " + snapshot + " snapshot asked of a MongoDB session: its keyed plans"
+                    + " take none");
         }
         work.run();
     }
@@ -117,7 +118,12 @@ final class MongoDbStatements implements Statements {
     /** The aggregate command's cursor: the plan's command with its markers bound, run through the driver. */
     private MongoCursor<BsonDocument> cursor(String statement, List<ExecutionPlan.Slot> slots,
             List<PlanParameters.Checked> values) {
-        BsonDocument command = bound(command(statement), slots, values).asDocument();
+        int[] next = {0};
+        BsonDocument command = bound(command(statement), slots, values, next).asDocument();
+        if (next[0] != slots.size()) {
+            throw new IllegalStateException("the plan's statement holds " + next[0] + " parameter markers, and the plan"
+                    + " has " + slots.size() + " slots");
+        }
         BsonValue aggregate = command.get("aggregate");
         BsonValue pipeline = command.get("pipeline");
         if (aggregate == null || pipeline == null || !pipeline.isArray()) {
@@ -170,29 +176,31 @@ final class MongoDbStatements implements Statements {
         return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
     }
 
-    /** {@code v} with each parameter marker replaced by its slot's bound value, in place. */
-    private static BsonValue bound(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+    /** {@code v} with each parameter marker replaced, in place and in document order, by the bound value of the slot
+     *  at its place among the markers; {@code next} the place of the next marker. */
+    private static BsonValue bound(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            int[] next) {
         if (v.isDocument()) {
             BsonDocument d = v.asDocument();
             BsonValue marker = d.get(PARAMETER_MARKER);
             if (marker != null && d.size() == 1) {
-                int n = marker.asNumber().intValue();
-                if (n < 0 || n >= slots.size()) {
-                    throw new IllegalStateException("the plan's statement names parameter marker " + n + ", and the"
-                            + " plan has " + slots.size() + " slots");
+                int n = next[0]++;
+                if (n >= slots.size()) {
+                    throw new IllegalStateException("the plan's statement holds more parameter markers than the plan's "
+                            + slots.size() + " slots");
                 }
                 return value(slots.get(n), values.get(n), n + 1);
             }
             BsonDocument out = new BsonDocument();
             for (Map.Entry<String, BsonValue> e : d.entrySet()) {
-                out.append(e.getKey(), bound(e.getValue(), slots, values));
+                out.append(e.getKey(), bound(e.getValue(), slots, values, next));
             }
             return out;
         }
         if (v.isArray()) {
             BsonArray out = new BsonArray();
             for (BsonValue e : v.asArray()) {
-                out.add(bound(e, slots, values));
+                out.add(bound(e, slots, values, next));
             }
             return out;
         }
@@ -222,7 +230,7 @@ final class MongoDbStatements implements Statements {
                         + " of '" + slot.parameter() + "', given a list");
             };
             case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
-                    + " cell: no keyed plan is made for MongoDB");
+                    + " cell: the runner binds each copy's key before the statement reaches the session");
         };
     }
 

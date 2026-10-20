@@ -117,8 +117,9 @@ final class SqlWriter {
     }
 
     /** Writes {@code placeholder} as this parameter's place and records the bind, as {@link #bind} does with {@code ?}:
-     *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's marker document, which
-     *  names the bind's index; 2026-10-16, docs/MONGODB_PLAN_2026_10_16.md D5). */
+     *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's marker document;
+     *  2026-10-16, docs/MONGODB_PLAN_2026_10_16.md D5), bound by its place among the placeholders, as {@code ?} is: a
+     *  per-key region's copies are copies of its text (2026-10-20). */
     SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
         sql.append(placeholder);
         binds.add(bind);
@@ -162,10 +163,16 @@ final class SqlWriter {
 
     /** A placeholder binding the probe row's {@code cell} of each copy's key; refused outside a per-key region. */
     SqlWriter bindKey(int cell) {
+        return bindKey("?", cell);
+    }
+
+    /** {@link #bindKey(int)} with the placeholder spelled in the target's own language, as {@link #bind(String,
+     *  RenderedStatement.Bind)} (MongoDb's marker document). */
+    SqlWriter bindKey(String placeholder, int cell) {
         if (open.isEmpty()) {
             throw new IllegalStateException("a key's cell outside a per-key region: no key to bind");
         }
-        sql.append('?');
+        sql.append(placeholder);
         binds.add(new RenderedStatement.Bind("", new RenderedStatement.Binding.Key(cell)));
         return this;
     }

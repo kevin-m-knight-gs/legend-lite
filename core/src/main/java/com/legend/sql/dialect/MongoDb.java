@@ -30,8 +30,9 @@ import java.util.Set;
  *       MongoDB's operators, or a refusal by name -- never a fallback;</li>
  *   <li>SQL's three-valued comparisons over BSON's total ones (D7): an operator whose answer MongoDB defines over
  *       null is written through a null guard ({@link MongoJson#guarded}) where an operand may be null;</li>
- *   <li>a plan parameter as a marker document the connector replaces in place ({@code {"$legendParam": n}}), bound
- *       in the statement's order as every dialect's parameters are;</li>
+ *   <li>a plan parameter as a marker document the connector replaces in place ({@code {"$legendParam": "?"}}),
+ *       bound by its place among the markers as every dialect's parameters are (a per-key region's copies are
+ *       copies of its text, so a marker names no index: 2026-10-20);</li>
  *   <li>an aggregate as a {@code $group} accumulator and the read of its field ({@link #accumulator}): the native
  *       accumulators where MongoDB has one, else the group's values pushed and reduced at the read (a distinct or
  *       ordered aggregate, a median, a quantile, a string aggregate);</li>
@@ -60,6 +61,10 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     /** A group key's read after the group stage ({@code _id.k0}). */
     private static final String GROUP_KEY = "_id.k";
+
+    /** A plan parameter's place in a command: the marker document the connector replaces by the value of the slot at
+     *  its place among the markers (the connector's {@code MongoDbStatements}), as SQL's {@code ?}. */
+    private static final String MARKER = "{\"$legendParam\": \"?\"}";
 
     private static final String RAISE_SENTINEL = "\u001f";
     private static final String POSITION_DIVIDER = "\u001e";
@@ -207,8 +212,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.TempTableInSplice t -> throw new IllegalStateException("temp-table IN splice '"
                     + t.tempTableName() + "' reached an executable dialect — plan-text vocabulary only");
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
-            case SqlExpr.KeyCell k -> throw new DialectCapability("a key's cell reached MongoDb: a dynamic pivot's"
-                    + " probe plan repeats SQL text per key, and a pipeline names its fields itself");
+            // a dynamic pivot's probe plan: each copy of the per-key region binds its key's text
+            case SqlExpr.KeyCell k -> writer.bindKey(MARKER, k.cell());
             case SqlExpr.RowOrder r -> throw new DialectCapability("a physical row order reached MongoDb: a"
                     + " collection's documents have no row order to read");
             case SqlExpr.Column c -> column(writer, c);
@@ -280,6 +285,9 @@ public final class MongoDb extends AnsiSqlRenderer {
         String name = c.name();
         String table = c.table();
         Scope scope = scopes.getFirst();
+        if (c.origin() == com.legend.sql.OutputCol.Origin.PER_KEY) {
+            return perKeyColumn(writer, scope, table, name);
+        }
         if (table == null) {
             if (name.startsWith(AGGREGATE_MARKER) || name.startsWith(SUBQUERY_MARKER)
                     || name.startsWith(WINDOW_MARKER)) {
@@ -321,11 +329,28 @@ public final class MongoDb extends AnsiSqlRenderer {
         return writer.append(MongoJson.path(table, name));
     }
 
-    /** A plan parameter: a marker the connector replaces in place by the bound value, numbered in the statement's
-     *  binding order. */
+    /** A per-key column of a dynamic pivot's probe plan ({@code _u0}) read in a copy of its per-key region:
+     *  {@code "$_pct0._pk3__u0"} for the fourth key, the runner writing the key's position after {@code _pk}; the row's
+     *  path as {@link #column}'s for a source's column (a flat row's own field, else under its alias). */
+    private SqlWriter perKeyColumn(SqlWriter writer, Scope scope, @com.legend.base.Nullable String table,
+            String name) {
+        MongoJson.key(name);
+        String under = table != null ? (table.equals(scope.flatAlias) ? null : table) : scope.soleAlias;
+        if (under != null) {
+            MongoJson.key(under);
+            if (scope.variableAliases.contains(under)) {
+                throw new DialectCapability("a dynamic pivot's per-key column read inside a lookup reached MongoDb:"
+                        + " no shape yet");
+            }
+        }
+        return writer.append("\"$" + (under == null ? "" : under + ".") + "_pk").counter().append("_" + name + "\"");
+    }
+
+    /** A plan parameter: a marker the connector replaces in place by the bound value, by its place among the
+     *  statement's markers. */
     @Override
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
-        return writer.bind("{\"$legendParam\": " + writer.bound() + "}", scalarBind(p));
+        return writer.bind(MARKER, scalarBind(p));
     }
 
     /** A parameter written where ONE value goes: a list parameter is bound only as a whole list. */
@@ -892,7 +917,7 @@ public final class MongoDb extends AnsiSqlRenderer {
     protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         if (m.collection() instanceof SqlExpr.PlanParam p) {
             return MongoJson.guarded(writer, List.of(m.needle()), x -> x.append("{\"$in\": [" + G0 + ", ")
-                    .bind("{\"$legendParam\": " + x.bound() + "}", listBind(p)).append("]}"));
+                    .bind(MARKER, listBind(p)).append("]}"));
         }
         return MongoJson.guardedOp(writer, "$in", List.of(m.needle(), m.collection()));
     }
@@ -934,7 +959,10 @@ public final class MongoDb extends AnsiSqlRenderer {
             case PLUS -> MongoJson.op(writer, "$add", a);
             case MINUS -> MongoJson.op(writer, "$subtract", a);
             case TIMES -> MongoJson.op(writer, "$multiply", a);
-            case DIVIDE -> MongoJson.op(writer, "$divide", a);
+            // Pure's divide answers a Float, every dialect dividing as doubles: $divide keeps two Decimal128s'
+            // 34 digits (2026-10-20, testDecimalDivide)
+            case DIVIDE -> writer.append("{\"$divide\": [{\"$toDouble\": ").expr(a.get(0), 0)
+                    .append("}, {\"$toDouble\": ").expr(a.get(1), 0).append("}]}");
             case MOD -> flooredMod(writer, a);
             case REM -> writer.append("{\"$mod\": [").expr(a.get(0), 0).append(", ").piece(unfolded(a.get(1)))
                     .append("]}");
@@ -2096,6 +2124,10 @@ public final class MongoDb extends AnsiSqlRenderer {
      *  dropped whole), made distinct where the aggregate asks, and reduced; a quantile over the value's own
      *  descending order where the reducer orders it so (the Lowerer's DESCENDING percentile). */
     private static SqlWriter.Piece pushedRead(SqlAgg.Reducer r, String path) {
+        return pushedRead(r, MongoJson.text(path));
+    }
+
+    private static SqlWriter.Piece pushedRead(SqlAgg.Reducer r, SqlWriter.Piece path) {
         List<SqlExpr> extras = BIVARIATE.contains(r.fn()) ? List.of() : r.args().subList(1, r.args().size());
         SqlWriter.Piece values = pushedValues(path, r.orderBy());
         SqlWriter.Piece present = BIVARIATE.contains(r.fn()) ? x -> nonNullPairs(x, values)
@@ -2126,13 +2158,42 @@ public final class MongoDb extends AnsiSqlRenderer {
         return r.distinct() || !r.orderBy().isEmpty() || PUSHED.contains(r.fn());
     }
 
+    /** A group stage's field for an aggregate ({@code __agg0}); a dynamic pivot's per-key aggregate's field carries
+     *  the key's position ({@code __agg0_pk3}), written by the runner in each copy of the per-key region, so its name
+     *  and every read of it are written into the statement (a read inside the projection's own copy of that region). */
+    record GroupField(String stem, boolean perKey) {
+        GroupField {
+            MongoJson.key(stem);
+        }
+
+        /** The field's name, quoted, with {@code suffix} ({@code _n}: a sum's count beside it). */
+        SqlWriter name(SqlWriter w, String suffix) {
+            w.append("\"" + stem);
+            if (perKey) {
+                w.append("_pk").counter();
+            }
+            return w.append(suffix + "\"");
+        }
+
+        /** The read of the field (with {@code suffix}) as a path. */
+        SqlWriter.Piece path(String suffix) {
+            return x -> {
+                x.append("\"$" + stem);
+                if (perKey) {
+                    x.append("_pk").counter();
+                }
+                x.append(suffix + "\"");
+            };
+        }
+    }
+
     /**
      * An aggregate's accumulator, written as the group field's value, and the read of that field the projection
      * writes in the marker's place: the field itself for a native accumulator; for a pushed aggregate, the pushed
      * values sorted by their keys, their nulls dropped, made distinct, and reduced.
      */
-    SqlWriter.Piece accumulator(SqlWriter w, SqlExpr node, String field) {
-        String path = MongoJson.string("$" + field);
+    SqlWriter.Piece accumulator(SqlWriter w, SqlExpr node, GroupField field) {
+        SqlWriter.Piece path = field.path("");
         switch (node) {
             case SqlAgg.Reducer r -> {
                 if (!pushRoute(r)) {
@@ -2140,13 +2201,13 @@ public final class MongoDb extends AnsiSqlRenderer {
                     if (r.fn() == SqlAgg.Fn.SUM) {
                         // SQL's SUM over no non-null value is null, and $sum answers 0: a count of the non-null
                         // values beside the sum decides at the read (S72's fix, 2026-10-17)
-                        String count = field + "_n";
-                        w.append(", ").append(MongoJson.string(count)).append(": {\"$sum\": {\"$cond\": [{\"$eq\": [")
+                        field.name(w.append(", "), "_n").append(": {\"$sum\": {\"$cond\": [{\"$eq\": [")
                                 .expr(r.args().get(0), 0).append(", null]}, 0, 1]}}");
-                        return MongoJson.text("{\"$cond\": [{\"$gt\": [" + MongoJson.string("$" + count) + ", 0]}, "
-                                + path + ", null]}");
+                        SqlWriter.Piece count = field.path("_n");
+                        return x -> x.append("{\"$cond\": [{\"$gt\": [").piece(count).append(", 0]}, ").piece(path)
+                                .append(", null]}");
                     }
-                    return MongoJson.text(path);
+                    return path;
                 }
                 pushed(w, r);
                 return pushedRead(r, path);
@@ -2189,9 +2250,9 @@ public final class MongoDb extends AnsiSqlRenderer {
     }
 
     /** The pushed values in their keys' order: the array sorted by the keys, each element's value read. */
-    private static SqlWriter.Piece pushedValues(String path, List<com.legend.sql.SqlSelect.SortKey> keys) {
+    private static SqlWriter.Piece pushedValues(SqlWriter.Piece path, List<com.legend.sql.SqlSelect.SortKey> keys) {
         if (keys.isEmpty()) {
-            return MongoJson.text(path);
+            return path;
         }
         // each key's null flag before the key: SQL's placement (ascending puts nulls last, descending first,
         // unless the key says otherwise), which $sortArray's own order (null first) is not
@@ -2204,8 +2265,9 @@ public final class MongoDb extends AnsiSqlRenderer {
                     .append(", \"k").append(i).append("\": ").append(k.ascending() ? 1 : -1);
         }
         sortBy.append("}");
-        return MongoJson.text("{\"$map\": {\"input\": {\"$sortArray\": {\"input\": " + path + ", \"sortBy\": "
-                + sortBy + "}}, \"in\": \"$$this.v\"}}");
+        String by = sortBy.toString();
+        return x -> x.append("{\"$map\": {\"input\": {\"$sortArray\": {\"input\": ").piece(path)
+                .append(", \"sortBy\": " + by + "}}, \"in\": \"$$this.v\"}}");
     }
 
     /** The array without its nulls. */
@@ -2612,11 +2674,23 @@ public final class MongoDb extends AnsiSqlRenderer {
         };
     }
 
-    /** MongoDB: no probe plan (a pipeline could name a dynamic pivot's fields itself, not built): refused by name, as
-     *  the pivot's pipeline is. */
+    /** MongoDB has no temporary collection: a plan's metamodel tables are its pipeline's own documents. */
+    @Override
+    public boolean temporaryTables() {
+        return false;
+    }
+
+    /** MongoDB: a dynamic pivot's probe plan reads the keys and then the body, two commands with no transaction
+     *  across them on a server that is no replica set (a key written between the two is not the body's: register
+     *  S84). */
     @Override
     public KeysSnapshot keysSnapshot() {
-        throw new DialectCapability("a dynamic pivot reached MongoDb: its columns are known only once the database is"
-                + " asked");
+        return KeysSnapshot.NONE;
+    }
+
+    /** No column count bounds a document; its 16 MB bounds the answer, refused by the server when exceeded. */
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
     }
 }

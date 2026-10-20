@@ -603,7 +603,8 @@ class PlanMakerTest {
      * session's own TEMPORARY tables (the legacy system database's form, the user's design of 2026-10-11), made by
      * the session's statements and read by the query under their session names, with no setup for the user's
      * database (2026-10-19: every server lane had pinned {@code testBasic} by "the plan has setup for it: never run
-     * on it"); a server without temporary tables (Trino) refuses by name.
+     * on it"); on a server without temporary tables (Trino, MongoDB; 2026-10-20) the tables are the query's own
+     * rows, inline.
      */
     @Test
     void theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer() throws Exception {
@@ -639,8 +640,13 @@ class PlanMakerTest {
         String sql = ((ExecutionPlan.TextResult) pg.root()).sql().statement();
         assertTrue(sql.contains("metamodel_classes") && !sql.contains("metamodel.classes"), sql);
 
-        var refused = assertThrows(RuntimeException.class, () -> plan(DatabaseType.Trino, CLASSES, TypedQuery.Output.TDS_TEXT));
-        assertTrue(refused.getMessage().contains("no temporary tables"), refused.getMessage());
+        ExecutionPlan noTemporary = plan(DatabaseType.Trino, CLASSES, TypedQuery.Output.TDS_TEXT);
+        com.legend.testcases.PlanRoundTrip.assertRoundTrips(noTemporary, CLASSES);
+        assertTrue(target(noTemporary).session().stream().noneMatch(s -> s.contains("metamodel_classes")),
+                target(noTemporary).session().toString());
+        String inline = ((ExecutionPlan.TextResult) noTemporary.root()).sql().statement();
+        assertTrue(inline.contains("VALUES") && !inline.contains("metamodel_classes")
+                && !inline.contains("metamodel.classes"), inline);
     }
 
     private static ExecutionPlan plan(DatabaseType type, String query, TypedQuery.Output output) {

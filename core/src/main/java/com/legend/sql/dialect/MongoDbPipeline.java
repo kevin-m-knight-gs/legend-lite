@@ -436,7 +436,8 @@ final class MongoDbPipeline {
         for (int i = 0; i < p.usings().size(); i++) {
             String field = MongoDb.AGGREGATE_MARKER + i;
             w.append(", ").append(MongoJson.string(field)).append(": ");
-            SqlWriter.Piece read = dialect.accumulator(w, p.usings().get(i).agg(), field);
+            SqlWriter.Piece read = dialect.accumulator(w, p.usings().get(i).agg(),
+                    new MongoDb.GroupField(field, false));
             reads.add(read);
             byField.put(field, read);
         }
@@ -779,6 +780,12 @@ final class MongoDbPipeline {
         }
     }
 
+    /** Whether {@code e} reads a dynamic pivot's key ({@link SqlExpr.KeyCell}): its value differs per copy of a per-key
+     *  region. */
+    private static boolean readsKey(SqlExpr e) {
+        return e instanceof SqlExpr.KeyCell || e.children().stream().anyMatch(MongoDbPipeline::readsKey);
+    }
+
     /** The {@code $group} stage when the select groups or aggregates; the clauses rewritten over its outputs. */
     private Grouping group(SqlWriter w, List<SqlExpr> groupBy, List<SqlSelect.Projection> projections,
             @com.legend.base.Nullable SqlExpr having0, List<SqlSelect.SortKey> orderBy, Stages st) {
@@ -814,10 +821,28 @@ final class MongoDbPipeline {
             w.append("}");
         }
         Map<String, SqlWriter.Piece> reads = new LinkedHashMap<>();
+        // a dynamic pivot's per-key aggregates (each over its key's rows, a key's cell in its argument: KeyedPivot)
+        // are written last, a per-key region the runner writes once per key, each copy's fields named by the key's
+        // position
+        List<Integer> perKey = new ArrayList<>();
         for (int i = 0; i < rewrite.aggregates.size(); i++) {
+            if (readsKey(rewrite.aggregates.get(i))) {
+                perKey.add(i);
+                continue;
+            }
             String field = MongoDb.AGGREGATE_MARKER + i;
             w.append(", ").append(MongoJson.string(field)).append(": ");
-            reads.put(field, dialect.accumulator(w, rewrite.aggregates.get(i), field));
+            reads.put(field, dialect.accumulator(w, rewrite.aggregates.get(i), new MongoDb.GroupField(field, false)));
+        }
+        if (!perKey.isEmpty()) {
+            w.region(", ", ", ", "", x -> {
+                for (int n = 0; n < perKey.size(); n++) {
+                    int i = perKey.get(n);
+                    MongoDb.GroupField field = new MongoDb.GroupField(MongoDb.AGGREGATE_MARKER + i, true);
+                    field.name(n > 0 ? x.append(", ") : x, "").append(": ");
+                    reads.put(MongoDb.AGGREGATE_MARKER + i, dialect.accumulator(x, rewrite.aggregates.get(i), field));
+                }
+            });
         }
         w.append("}}");
         if (groupBy.isEmpty()) {
@@ -825,8 +850,19 @@ final class MongoDbPipeline {
             // the two (the real one when there is one) kept
             st.begin(w).append("{\"$unionWith\": {\"pipeline\": [{\"$documents\": [{\"_id\": null");
             for (int i = 0; i < rewrite.aggregates.size(); i++) {
-                w.append(", ").append(MongoJson.string(MongoDb.AGGREGATE_MARKER + i)).append(": ")
-                        .append(MongoDb.emptyInput(rewrite.aggregates.get(i)));
+                if (!perKey.contains(i)) {
+                    w.append(", ").append(MongoJson.string(MongoDb.AGGREGATE_MARKER + i)).append(": ")
+                            .append(MongoDb.emptyInput(rewrite.aggregates.get(i)));
+                }
+            }
+            if (!perKey.isEmpty()) {
+                w.region(", ", ", ", "", x -> {
+                    for (int n = 0; n < perKey.size(); n++) {
+                        int i = perKey.get(n);
+                        new MongoDb.GroupField(MongoDb.AGGREGATE_MARKER + i, true).name(n > 0 ? x.append(", ") : x, "")
+                                .append(": ").append(MongoDb.emptyInput(rewrite.aggregates.get(i)));
+                    }
+                });
             }
             w.append(", \"__none\": 1}]}]}}");
             st.begin(w).append("{\"$sort\": {\"__none\": 1}}");
@@ -1254,6 +1290,8 @@ final class MongoDbPipeline {
         List<String> names = new ArrayList<>();
         List<SqlExpr> exprs = new ArrayList<>();
         List<String> unnested = new ArrayList<>();
+        List<String> keyStems = new ArrayList<>();
+        List<SqlExpr> keyExprs = new ArrayList<>();
         if (g.projections.isEmpty()) {
             for (String alias : aliases(s.from())) {
                 merged.add(x -> x.append(MongoJson.path(alias)));
@@ -1261,6 +1299,7 @@ final class MongoDbPipeline {
         }
         for (int i = 0; i < g.projections.size(); i++) {
             SqlSelect.Projection p = g.projections.get(i);
+            OutputCol out = p.out();
             if (p.expr() instanceof SqlExpr.Star star) {
                 if (star.table() != null) {
                     String starred = java.util.Objects.requireNonNull(star.table());
@@ -1270,8 +1309,25 @@ final class MongoDbPipeline {
                         merged.add(x -> x.append(MongoJson.path(alias)));
                     }
                 }
-            } else if (p.expr() instanceof SqlExpr.StarExcept) {
-                throw new DialectCapability("a star with excluded columns reached MongoDb: no shape yet");
+            } else if (p.expr() instanceof SqlExpr.StarExcept se) {
+                // the starred row without the excluded fields (an absent one unset is no change)
+                for (String alias : se.table() != null ? List.of(java.util.Objects.requireNonNull(se.table()))
+                        : aliases(s.from())) {
+                    merged.add(x -> {
+                        String input = MongoJson.path(alias);
+                        for (String name : se.except()) {
+                            MongoJson.key(name);
+                            input = "{\"$unsetField\": {\"field\": {\"$literal\": " + MongoJson.string(name)
+                                    + "}, \"input\": " + input + "}}";
+                        }
+                        x.append(input);
+                    });
+                }
+            } else if (out != null && out.origin() == OutputCol.Origin.PER_KEY) {
+                // a dynamic pivot's per-key column: written in the per-key run below
+                MongoJson.key(out.name());
+                keyStems.add(out.name());
+                keyExprs.add(p.expr());
             } else {
                 String name = fieldName(p, i);
                 names.add(name);
@@ -1299,6 +1355,17 @@ final class MongoDbPipeline {
                 x.append(MongoJson.string(c.field)).append(": ").append(MongoJson.path(c.field)).append(", ")
                         .append(MongoJson.string(c.nullField)).append(": ").append(MongoJson.path(c.nullField));
             }
+            if (!keyStems.isEmpty()) {
+                // the per-key run: written once per key by the runner, each field named by the key's position
+                // ("_pk3__u0" for _u0), as the SQL dialects name a per-key column (AnsiSqlRenderer.perKeyName)
+                boolean before = !names.isEmpty() || !sorts.isEmpty();
+                x.region(before ? ", " : "", ", ", before || !merged.isEmpty() ? "" : null, r -> {
+                    for (int i = 0; i < keyStems.size(); i++) {
+                        r.append(i > 0 ? ", " : "").append("\"_pk").counter().append("_" + keyStems.get(i) + "\": ")
+                                .expr(keyExprs.get(i), 0);
+                    }
+                });
+            }
             x.append("}");
         };
         if (merged.isEmpty()) {
@@ -1309,7 +1376,7 @@ final class MongoDbPipeline {
         }
         w.append("}");
         unwind(w, st, unnested);
-        return merged.isEmpty() ? names : null;
+        return merged.isEmpty() && keyStems.isEmpty() ? names : null;
     }
 
     /** The exploded lists of a projection: one list unwound (a null or empty list gives no row, as UNNEST does);

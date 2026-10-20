@@ -70,8 +70,12 @@ final class ChannelBLane {
                     "Essential", new Pins(333, 1, 1),
                     "Grammar", new Pins(133, 0, 0),
                     "Relation", new Pins(456, 12, 12),
-                    "Standard", new Pins(203, 0, 0),
-                    "Unclassified", new Pins(87, 0, 0)),
+                    // 203 -> 205 (2026-10-20, the parity phase): hashCode is the MD5 of the values' text written in
+                    // SQLite's SQL (SqliteDigests), testHashCode and testHashCodeAggregate
+                    "Standard", new Pins(205, 0, 0),
+                    // 87 -> 92 (2026-10-20, the parity phase): the digests written in SQLite's SQL (SqliteDigests)
+                    // and Jaro-Winkler's walk
+                    "Unclassified", new Pins(92, 0, 0)),
             // no engine manifest for MariaDB. 325 -> 330 and 201 -> 204 (2026-10-11): a Float's text written once (the
             // mixed sort no longer takes the server past 12 GB), and a windowed mode counted per value
             "mariadb", Map.of(
@@ -79,7 +83,8 @@ final class ChannelBLane {
                     "Grammar", new Pins(135, 0, 0),
                     "Relation", new Pins(440, 17, 17),
                     "Standard", new Pins(204, 1, 1),
-                    "Unclassified", new Pins(91, 0, 0)),
+                    // 91 -> 93 (2026-10-20, the parity phase): Jaro-Winkler's walk (MariaDb.jaroWinkler)
+                    "Unclassified", new Pins(93, 0, 0)),
             // no engine manifest for MySQL. Relation's 32: 21 window tests whose rows come back in another order (no
             // ORDER BY: SQL promises none; channel A's comparison is unordered), 9 regular expressions with a
             // non-literal pattern, 2 pivots' column order
@@ -88,7 +93,8 @@ final class ChannelBLane {
                     "Grammar", new Pins(136, 0, 0),
                     "Relation", new Pins(422, 32, 32),
                     "Standard", new Pins(204, 1, 1),
-                    "Unclassified", new Pins(91, 0, 0)),
+                    // 91 -> 93 (2026-10-20, the parity phase): Jaro-Winkler's walk (MariaDb.jaroWinkler)
+                    "Unclassified", new Pins(93, 0, 0)),
             // the clouds, on the accounts (§4): Databricks' 10 Relation wire bugs fail with no detail from the
             // server; BigQuery's 13 are 10 regular expressions with a non-literal pattern, 2 pivots' column order and
             // an ORDER BY past a DISTINCT; Snowflake's 2 the pivots
@@ -116,7 +122,10 @@ final class ChannelBLane {
             // planner refusing an arithmetic chain ("SignatureBinder.iterativeSolve does not converge")
             "trino", Map.of(
                     "Essential", new Pins(331, 1, 0),
-                    "Grammar", new Pins(131, 0, 0),
+                    // 131 -> 136 as measured, wire bugs 0 -> 1 (2026-10-20, the parity phase): channel A reads the
+                    // metamodel's tables inline where Trino has no temporary table (testBasic), and channel B's legacy
+                    // route still makes them the session's own (the judges on plans, the program's step 10, its home)
+                    "Grammar", new Pins(136, 1, 0),
                     "Relation", new Pins(463, 6, 5),
                     "Standard", new Pins(205, 0, 0),
                     "Unclassified", new Pins(93, 0, 0)),
@@ -128,11 +137,13 @@ final class ChannelBLane {
             // docs/PCT_PIN_WORKAROUNDS_2026_10_12.md): as-of and one-sided joins, correlated IN and LATERAL
             // decorrelated, Float RANGE offsets, a column's quantile level, the connection's query size, a session for
             // the system database, typed empty lists and struct fields. 136 -> 137 and 459 -> 461 (2026-10-12, the
-            // user's ask): an absent instance as a struct field's Variant, a JSON null kept null through a list
+            // user's ask): an absent instance as a struct field's Variant, a JSON null kept null through a list.
+            // 461 -> 462 (2026-10-20, the parity phase): a LEFT join's condition both sides read is its matches first
+            // (OuterJoinResidualsAsMatches), testNestedJoinArithmeticComparisonExpression
             "clickhouse", Map.of(
                     "Essential", new Pins(333, 3, 1),
                     "Grammar", new Pins(137, 0, 0),
-                    "Relation", new Pins(461, 7, 0),
+                    "Relation", new Pins(462, 7, 0),
                     "Standard", new Pins(202, 0, 0),
                     "Unclassified", new Pins(93, 0, 0)));
 

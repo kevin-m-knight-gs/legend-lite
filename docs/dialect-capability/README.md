@@ -45,9 +45,9 @@ input).
 | Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 95 | 102 | 7 | 15 | 30 |
 | DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 59 | 0 | 15 | 38 |
 | ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 133 | 7 | 15 | 30 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 136 | 12 | 15 | 32 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 145 | 8 | 15 | 31 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 145 | 8 | 15 | 31 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 141 | 7 | 15 | 32 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 146 | 7 | 15 | 31 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 146 | 7 | 15 | 31 |
 | MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 194 | 10 | 15 | 194 |
 | EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 104 | 82 | 18 | 15 | — |
 | EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 106 | 80 | 18 | 15 | — |
@@ -162,10 +162,10 @@ input).
 | `LEVENSHTEIN` | S | S | E | S | S | S | S | S | E | E | E | E | E· | S | S | S |
 | `GUID` | E | E | E | S | E | S | S | E | E | E | E | E | E· | E | E | E |
 | `FORMAT` | E | E | E | E | S | E | S | S | E | E | E | E | E· | S | S | S |
-| `HASH` | R | R | E | E | E | E | E | E | E | R | E | E | E· | R | R | R |
-| `MD5` | E | E | S | S | E | E | S | S | E | R | S | S | R | E | E | E |
-| `SHA1` | E | E | E | S | E | E | S | S | E | R | S | S | R | E | E | E |
-| `SHA256` | E | E | E | E | E | E | E | S | E | R | E | E | R | E | E | E |
+| `HASH` | R | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
+| `MD5` | E | E | S | S | E | E | S | S | E | E | S | S | R | E | E | E |
+| `SHA1` | E | E | E | S | E | E | S | S | E | E | S | S | R | E | E | E |
+| `SHA256` | E | E | E | E | E | E | E | S | E | E | E | E | R | E | E | E |
 | `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `TODAY` | S· | S | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E· | E | E | E |
 | `NOW` | S· | S | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | E· | S | S | S |
@@ -192,7 +192,7 @@ input).
 | `DEGREES` | S | S | S | S | S | E | S | S | S | S | S | S | E· | S | S | S |
 | `INT_DIVIDE` | E | E | E | E | E | E | S | E | E | E | E | E | E· | E | E | E |
 | `REPEAT_STR` | S | S | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `JARO_WINKLER` | S | S | E | E | E | R | E | S | S | R | R | R | E· | S | S | S |
+| `JARO_WINKLER` | S | S | E | E | E | R | E | S | S | E | E | E | E· | S | S | S |
 | `DECODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | E· | E | E | E |
 | `CURRENT_USER_FN` | S | S | S | S | S | S | S | S | S | R | E | E | R | S | S | S |
 | `LIST_LENGTH` | S | E | E | S | E | S | E | S | E | S | S | S | E· | S | S | S |

@@ -69,8 +69,7 @@ final class PlanMaker {
         ExprType root = l.root().info();
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
-        SqlQuery lowered = com.legend.lowering.SqlPostProcessors.apply(
-                com.legend.sql.EnumValueTables.apply(l.plan()), metamodel.renames());
+        SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
         com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(lowered);
         Type.RelationType rowSchema = Type.schemaView(root.type());
         if (dynamic != null && rowSchema != null && !rowSchema.dynamicColumns().isEmpty()
@@ -157,19 +156,27 @@ final class PlanMaker {
         for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered)) {
             facts.put(c.name(), c);
         }
+        // each statement's cells by the names it writes them under (the body's outputs in the outputs' order)
+        List<com.legend.sql.OutputCol> bodyFields = parts.body().outputs();
+        if (bodyFields.size() != parts.outputs().size()) {
+            throw new IllegalStateException("a keyed body answers " + bodyFields.size() + " columns for "
+                    + parts.outputs().size() + " outputs");
+        }
         List<ExecutionPlan.Keyed.Output> outputs = new ArrayList<>();
-        for (com.legend.lowering.KeyedPivot.Output o : parts.outputs()) {
-            outputs.add(switch (o) {
+        for (int i = 0; i < parts.outputs().size(); i++) {
+            String field = bodyFields.get(i).name();
+            outputs.add(switch (parts.outputs().get(i)) {
                 case com.legend.lowering.KeyedPivot.Fixed f -> new ExecutionPlan.Keyed.Fixed(java.util.Objects
                         .requireNonNull(facts.get(f.column().name()), () -> "the fixed column '" + f.column().name()
-                                + "' has no facts in the typed schema " + facts.keySet()), f.name());
+                                + "' has no facts in the typed schema " + facts.keySet()), f.name(), field);
                 case com.legend.lowering.KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
                         new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
                                 com.legend.plan.PlanColumns.multiplicity(k.template().multiplicity()),
                                 com.legend.executionplan.ColumnFacts.slot(k.slot()), null),
-                        k.nameCell());
+                        k.nameCell(), field);
             });
         }
+        List<String> keyFields = parts.keys().outputs().stream().map(com.legend.sql.OutputCol::name).toList();
         ExecutionPlan.Format format = switch (out) {
             case ROWS -> null;
             case TDS_TEXT -> ExecutionPlan.Format.TDS_TEXT;
@@ -182,7 +189,7 @@ final class PlanMaker {
             case SERIALIZABLE -> ExecutionPlan.Keyed.Snapshot.SERIALIZABLE;
             case NONE -> ExecutionPlan.Keyed.Snapshot.NONE;
         };
-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), format, outputs,
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, format, outputs,
                 sql(parts.body(), dialect, target), snapshot, dialect.resultColumnLimit());
     }
 
@@ -206,8 +213,7 @@ final class PlanMaker {
         Metamodel metamodel = metamodel(l, decided.type(), dialect);
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect,
                 Databases.serversFor(decided.type(), serverVersion), metamodel);
-        SqlQuery lowered = com.legend.lowering.SqlPostProcessors.apply(
-                com.legend.sql.EnumValueTables.apply(l.plan()), metamodel.renames());
+        SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
         return new ExecutionPlan(List.of(), keyed(lowered, java.util.Objects.requireNonNull(
                 com.legend.lowering.KeyedPivot.dynamic(lowered)), rowSchema, out, dialect, target, l.ctx(), spelling));
     }
@@ -305,10 +311,30 @@ final class PlanMaker {
     /**
      * The system metamodel store's tables a plan carries, in the form its database takes: {@code setup}, the target's
      * setup steps (an engine in this process); {@code session}, statements of the session's own, run on every session
-     * the plan opens (a server engine); {@code renames}, the query's references to read a session table by its name.
+     * the plan opens (a server engine); {@code renames}, the query's references to read a session table by its name;
+     * {@code inline}, on a database with no temporary table, each table referenced as the query's own rows (the
+     * relation for an alias).
      */
-    record Metamodel(List<ExecutionPlan.SetupStep> setup, List<String> session, Map<String, String> renames) {
-        static final Metamodel NONE = new Metamodel(List.of(), List.of(), Map.of());
+    record Metamodel(List<ExecutionPlan.SetupStep> setup, List<String> session, Map<String, String> renames,
+            Map<String, java.util.function.Function<String, com.legend.sql.SqlSource>> inline) {
+        static final Metamodel NONE = new Metamodel(List.of(), List.of(), Map.of(), Map.of());
+
+        /** {@code q} reading the tables as they are held: a session table by its name, an inline table as its rows. */
+        SqlQuery read(SqlQuery q) {
+            SqlQuery renamed = com.legend.lowering.SqlPostProcessors.apply(q, renames);
+            if (inline.isEmpty()) {
+                return renamed;
+            }
+            return new com.legend.sql.SqlRewriter() {
+                @Override
+                protected com.legend.sql.SqlSource source(com.legend.sql.SqlSource s) {
+                    if (s instanceof com.legend.sql.SqlSource.Table t && inline.containsKey(t.name())) {
+                        return inline.get(t.name()).apply(t.alias());
+                    }
+                    return s;
+                }
+            }.rewrite(renamed);
+        }
     }
 
     /**
@@ -321,9 +347,10 @@ final class PlanMaker {
      * 2026-10-11 for the legacy route) they are the session's own TEMPORARY tables, made by the session's statements
      * on every session the plan opens and gone with it (no other session sees them, nothing permanent is made in the
      * user's database, so a plan with them runs on a database reached by a URL), each named
-     * {@link com.legend.setup.Ddl#systemTable} and read by that name through the query's renames; a dialect without
-     * temporary tables (Trino) refuses by name. A query reading no such table adds nothing; a table of no rows is
-     * created empty.
+     * {@link com.legend.setup.Ddl#systemTable} and read by that name through the query's renames; on a server with no
+     * temporary table (Trino, MongoDB; 2026-10-20) each is the query's own rows, inline, each cell its column's typed
+     * literal. A query reading no such table adds nothing; a table of no rows is created empty (inline: a relation of
+     * its columns with no row).
      */
     private static Metamodel metamodel(Compiler.LoweredQuery l, ConnectionDefinition.DatabaseType type,
             SqlDialect dialect) {
@@ -340,6 +367,8 @@ final class PlanMaker {
         List<ExecutionPlan.SetupStep> setup = new ArrayList<>();
         List<String> session = new ArrayList<>();
         Map<String, String> renames = new java.util.LinkedHashMap<>();
+        Map<String, java.util.function.Function<String, com.legend.sql.SqlSource>> inline =
+                new java.util.LinkedHashMap<>();
         for (com.legend.model.DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
             for (com.legend.model.DatabaseDefinition.TableDefinition def : schema.tables()) {
                 // a reference names its table schema-qualified (metamodel.classes)
@@ -356,6 +385,8 @@ final class PlanMaker {
                         setup.add(bulk ? load.staged(dialect)
                                 : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
                     }
+                } else if (!dialect.temporaryTables()) {
+                    inline.put(schema.name() + "." + def.name(), inlineRows(def, rows));
                 } else {
                     session.addAll(com.legend.setup.Ddl.metamodelTemporary(def, schema.name(), rows, dialect));
                     renames.put(schema.name() + "." + def.name(),
@@ -364,7 +395,69 @@ final class PlanMaker {
             }
         }
         return new Metamodel(List.copyOf(setup), List.copyOf(session),
-                java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(renames)));
+                java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(renames)),
+                java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(inline)));
+    }
+
+    /**
+     * A system table's rows as a query's own relation, for an alias: each cell its column's typed literal (the graph's
+     * facts, plan-time constants: the store declares VARCHAR, INTEGER and BIT), a NULL cast to the column's type; a
+     * table of no rows a select of typed NULLs that holds no row.
+     */
+    private static java.util.function.Function<String, com.legend.sql.SqlSource> inlineRows(
+            com.legend.model.DatabaseDefinition.TableDefinition def, List<List<String>> rows) {
+        List<String> columns = new ArrayList<>();
+        List<com.legend.sql.SqlType> types = new ArrayList<>();
+        List<com.legend.sql.OutputCol> outputs = new ArrayList<>();
+        for (com.legend.model.DatabaseDefinition.ColumnDefinition col : def.columns()) {
+            com.legend.sql.SqlType type = switch (col.dataType()) {
+                case com.legend.model.RelationalDataType.Varchar ignored -> com.legend.sql.SqlType.Scalar.VARCHAR;
+                case com.legend.model.RelationalDataType.Integer_ ignored -> com.legend.sql.SqlType.Scalar.INTEGER;
+                case com.legend.model.RelationalDataType.Bit ignored -> com.legend.sql.SqlType.Scalar.BOOLEAN;
+                default -> throw new IllegalStateException("system table " + def.name() + "." + col.name()
+                        + ": no literal for its type " + col.dataType() + " (the store declares VARCHAR, INTEGER and"
+                        + " BIT)");
+            };
+            columns.add(col.name());
+            types.add(type);
+            outputs.add(new com.legend.sql.OutputCol(col.name(), type, !col.notNull() && !col.primaryKey()));
+        }
+        List<List<com.legend.sql.SqlExpr>> cells = new ArrayList<>();
+        for (List<String> row : rows.isEmpty() ? List.of(java.util.Collections.<String>nCopies(columns.size(), null))
+                : rows) {
+            List<com.legend.sql.SqlExpr> out = new ArrayList<>();
+            for (int c = 0; c < row.size(); c++) {
+                out.add(literal(def.name() + "." + columns.get(c), row.get(c), types.get(c)));
+            }
+            cells.add(out);
+        }
+        List<List<com.legend.sql.SqlExpr>> values = List.copyOf(cells);
+        if (!rows.isEmpty()) {
+            return alias -> new com.legend.sql.SqlSource.Values(values, columns, alias, outputs);
+        }
+        return alias -> new com.legend.sql.SqlSource.Subselect(com.legend.sql.SqlSelect.starOf(
+                new com.legend.sql.SqlSource.Values(values, columns, alias + "_none", outputs))
+                .withWhere(new com.legend.sql.SqlExpr.BoolLit(false)), alias, null);
+    }
+
+    /** A system table's cell as its column's typed literal; a NULL cast to the type. */
+    private static com.legend.sql.SqlExpr literal(String column, @com.legend.base.Nullable String text,
+            com.legend.sql.SqlType type) {
+        if (text == null) {
+            return new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.NullLit(), type);
+        }
+        if (type == com.legend.sql.SqlType.Scalar.VARCHAR) {
+            return new com.legend.sql.SqlExpr.StringLit(text);
+        }
+        if (type == com.legend.sql.SqlType.Scalar.INTEGER) {
+            return new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.IntLit(Long.parseLong(text)), type);
+        }
+        return switch (text) {
+            case "true" -> new com.legend.sql.SqlExpr.BoolLit(true);
+            case "false" -> new com.legend.sql.SqlExpr.BoolLit(false);
+            default -> throw new IllegalStateException("system table column " + column + ": '" + text + "' is no BIT"
+                    + " fact (true or false)");
+        };
     }
 
     private static void collectSystemTables(com.legend.compiler.spec.typed.TypedSpec n, java.util.Set<String> out) {

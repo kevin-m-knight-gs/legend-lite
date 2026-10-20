@@ -1498,6 +1498,54 @@ public class MariaDb extends AnsiSqlRenderer {
                         + " FROM __lv WHERE \"i\" = CHAR_LENGTH(\"a\") AND \"j\" = CHAR_LENGTH(\"b\"))");
     }
 
+    /** The Jaro-Winkler similarity of two texts, by characters (DuckDB's {@code jaro_winkler_similarity}, measured
+     *  bit-equal): one recursive walk over the second text, each of its characters matched to the first unmatched
+     *  equal character of the first text inside the match window (the first text's flags a string of 0s and 1s, the
+     *  matched characters kept in the second text's order); a second walk over the first text counting the matched
+     *  characters out of that order; the similarity, and past 0.7 the common prefix's boost (up to four characters),
+     *  in DOUBLE arithmetic. A recursive CTE takes no outer reference on MariaDB, so two texts that read a row are a
+     *  wall there; the anchor's texts are typed through a {@code JSON_TABLE}, as the edit distance's. */
+    private SqlWriter.Piece jaroWinkler(SqlExpr x, SqlExpr y) {
+        if (!correlatesDerived() && (!closed(x, Set.of()) || !closed(y, Set.of()))) {
+            throw wall(SqlFn.JARO_WINKLER, "a Jaro-Winkler similarity of texts that read a row needs a recursive CTE"
+                    + " over an outer column (measured: Unknown column)");
+        }
+        String text = columnType(SqlType.Scalar.VARCHAR);
+        String hit = "SUBSTRING(__jw.\"f\", __jw.\"i\", 1) = '0' AND SUBSTRING(__jw.\"p\", __jw.\"i\", 1) ="
+                + " SUBSTRING(__jw.\"t\", __jw.\"j\", 1)";
+        String next = "__jw.\"i\" > __jw.\"j\" + __jw.\"b\" OR __jw.\"i\" > CHAR_LENGTH(__jw.\"p\") OR (" + hit + ")";
+        String taken = "__jw.\"i\" <= __jw.\"j\" + __jw.\"b\" AND " + hit;
+        String m = "CAST(CHAR_LENGTH(__jx.\"m\") AS DOUBLE)";
+        String jaro = "(" + m + " / CAST(CHAR_LENGTH(__jx.\"p\") AS DOUBLE) + " + m + " / CAST(CHAR_LENGTH(__jx.\"t\") AS"
+                + " DOUBLE) + (" + m + " - CAST(FLOOR(__jx.\"n\" / 2) AS DOUBLE)) / " + m + ") / CAST(3 AS DOUBLE)";
+        StringBuilder prefix = new StringBuilder();
+        for (int k = 1; k <= 4; k++) {
+            prefix.append(k == 1 ? "" : " + ").append("CASE WHEN ").append(k).append(" <= LEAST(CHAR_LENGTH(__jx.\"p\"),"
+                    + " CHAR_LENGTH(__jx.\"t\")) AND LEFT(__jx.\"p\", ").append(k).append(") = LEFT(__jx.\"t\", ")
+                    .append(k).append(") THEN 1 ELSE 0 END");
+        }
+        String window = "GREATEST(0, FLOOR(GREATEST(CHAR_LENGTH(__s.\"p\"), CHAR_LENGTH(__s.\"t\")) / 2) - 1)";
+        return w -> w.append("(WITH RECURSIVE __jw(\"p\", \"t\", \"b\", \"j\", \"i\", \"f\", \"m\") AS (SELECT __s.\"p\","
+                + " __s.\"t\", " + window + ", 1, GREATEST(1, 1 - " + window + "), CONCAT(__s.\"m\", REPEAT('0',"
+                + " CHAR_LENGTH(__s.\"p\"))), __s.\"m\" FROM JSON_TABLE(JSON_ARRAY(").expr(x, 0).append(", ").expr(y, 0)
+                .append(", ''), '$' COLUMNS (\"p\" " + text + " PATH '$[0]', \"t\" " + text + " PATH '$[1]', \"m\" "
+                        + text + " PATH '$[2]')) AS __s UNION ALL SELECT __jw.\"p\", __jw.\"t\", __jw.\"b\", CASE WHEN "
+                        + next + " THEN __jw.\"j\" + 1 ELSE __jw.\"j\" END, CASE WHEN " + next + " THEN GREATEST(1,"
+                        + " __jw.\"j\" + 1 - __jw.\"b\") ELSE __jw.\"i\" + 1 END, CASE WHEN " + taken + " THEN"
+                        + " INSERT(__jw.\"f\", __jw.\"i\", 1, '1') ELSE __jw.\"f\" END, CASE WHEN " + taken + " THEN"
+                        + " CONCAT(__jw.\"m\", SUBSTRING(__jw.\"t\", __jw.\"j\", 1)) ELSE __jw.\"m\" END FROM __jw WHERE"
+                        + " __jw.\"j\" <= CHAR_LENGTH(__jw.\"t\")), __jx(\"p\", \"t\", \"f\", \"m\", \"k\", \"q\", \"n\")"
+                        + " AS (SELECT __jw.\"p\", __jw.\"t\", __jw.\"f\", __jw.\"m\", 1, 0, 0 FROM __jw WHERE __jw.\"j\" >"
+                        + " CHAR_LENGTH(__jw.\"t\") UNION ALL SELECT __jx.\"p\", __jx.\"t\", __jx.\"f\", __jx.\"m\","
+                        + " __jx.\"k\" + 1, CASE WHEN SUBSTRING(__jx.\"f\", __jx.\"k\", 1) = '1' THEN __jx.\"q\" + 1 ELSE"
+                        + " __jx.\"q\" END, CASE WHEN SUBSTRING(__jx.\"f\", __jx.\"k\", 1) = '1' AND SUBSTRING(__jx.\"p\","
+                        + " __jx.\"k\", 1) <> SUBSTRING(__jx.\"m\", __jx.\"q\" + 1, 1) THEN __jx.\"n\" + 1 ELSE __jx.\"n\""
+                        + " END FROM __jx WHERE __jx.\"k\" <= CHAR_LENGTH(__jx.\"p\")) SELECT CASE WHEN"
+                        + " CHAR_LENGTH(__jx.\"m\") = 0 THEN CAST(0 AS DOUBLE) WHEN " + jaro + " > CAST(0.7 AS DOUBLE)"
+                        + " THEN " + jaro + " + (" + prefix + ") * CAST(0.1 AS DOUBLE) * (CAST(1 AS DOUBLE) - " + jaro
+                        + ") ELSE " + jaro + " END FROM __jx WHERE __jx.\"k\" > CHAR_LENGTH(__jx.\"p\"))");
+    }
+
     /** {@code JSON_TABLE} over {@code n} rows ({@code n} at least one), its ordinal {@code alias."__n"}: a correlated
      *  row generator (a recursive CTE could not correlate). */
     private SqlWriter.Piece rows(SqlWriter.Piece n, String alias) {
@@ -1917,7 +1965,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case SHA1 -> writer.append("SHA1(").expr(a.get(0), 0).append(")");
             case SHA256 -> writer.append("SHA2(").expr(a.get(0), 0).append(", 256)");
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
-            case JARO_WINKLER -> throw wall(c.fn(), product() + " has no string-distance function");
+            case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             // UUID() is of the UUID type (11.x): its text
             case GUID -> writer.append("CAST(UUID() AS CHAR)");
             case FORMAT -> format(writer, a);

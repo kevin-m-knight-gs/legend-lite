@@ -91,7 +91,7 @@ class MongoDbDialectTest {
         ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan.root()).sql();
         assertEquals(1, sql.slots().size(), sql.statement());
         assertEquals("n", sql.slots().get(0).parameter());
-        assertTrue(sql.statement().contains("{\"$legendParam\": 0}"), sql.statement());
+        assertTrue(sql.statement().contains("{\"$legendParam\": \"?\"}"), sql.statement());
     }
 
     @Test

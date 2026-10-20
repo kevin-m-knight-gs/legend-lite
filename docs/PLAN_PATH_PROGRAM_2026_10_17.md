@@ -330,6 +330,14 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-20, the parity phase, second batch: twenty-five more lane pins removed** (GATES "the parity phase, second
+  batch"): Jaro-Winkler on MySQL, MariaDB and SQLite; MongoDB's dynamic pivot through the probe plan (its markers bound
+  by place, the keyed plan's cells named in the plan, JSON v9) and its divide as doubles; the metamodel's tables inline
+  where a database has no temporary table (Trino, MongoDB); MD5, SHA-1, SHA-256 and `hashCode` written in SQLite's SQL;
+  ClickHouse's LEFT join with a residual as its matches. ClickHouse's date arithmetic past its years now raises by name
+  (six pins re-recorded from a silent clamped value). Per lane: MongoDB 12, SQLite 7, MySQL 2, MariaDB 2, Trino 1,
+  ClickHouse 1. Next: a Variant's key order on MySQL and Postgres (a carrier change), a named zone where the database
+  has no zone rules (a design question put to the user), then the SQL optimization passes.
 - **2026-10-20, the parity phase, first batch: fifty-two lane pins removed at their causes** (GATES "the parity phase,
   first batch"; the user's order of the day, "before we move on we need to have 100% parity on PCT across all
   backends"): `format`'s argument list lowered element by element (658,608 characters of SQL to 1,596 on DuckDB); a

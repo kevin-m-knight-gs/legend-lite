@@ -2165,3 +2165,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `core/src/main/mongodb/com/legend/exec/MongoDbStatements.java` (the dynamic pivot's probe plan on MongoDB, its
   markers positional), `PlanMaker.java` and `sql/dialect/SqlDialect.java` (the metamodel's tables inline where a
   database has no temporary table), the PCT ledgers.
+  **The second batch landed 2026-10-20** (GATES "the parity phase, second batch"): as announced, and
+  `sql/dialect/SqliteDigests.java` and `OuterJoinResidualsAsMatches.java` (new), `ClickHouse.java` (the join's keys,
+  the date range raised), `executionplan/ExecutionPlan.java` and `PlanJson.java` (the keyed result's field names, plan
+  JSON v9), `Trino.java`, `PlanMakerTest`, `PlanJsonTest`, `MongoDbDialectTest`, `channelb/ChannelBLane.java` (floors
+  raised as measured, Trino Grammar's one wire bug, each dated).

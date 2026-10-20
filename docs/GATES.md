@@ -10653,6 +10653,85 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-20 — The parity phase, second batch: twenty-five lane pins removed, ClickHouse's clamped dates refused by name
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9, the user's order of 2026-10-20 (PCT parity on every backend);
+the first batch's next items.
+
+**Fixed, each at its cause:**
+- **Jaro-Winkler on MySQL, MariaDB and SQLite** (`MariaDb.jaroWinkler`, `SQLite.jaroWinkler`): a recursive walk over
+  the second text matching each character to the first unmatched equal one of the first text inside the window, a
+  second walk counting the matched characters out of order, the similarity and its prefix boost in DOUBLE (REAL)
+  arithmetic, measured bit-equal to DuckDB's `jaro_winkler_similarity` (Postgres's walk, spelled without LATERAL and
+  `generate_series`, which these have none of). MariaDB's recursive CTE reads no outer column, so texts that read a
+  row stay a wall there, by name, as its edit distance's. Six pins.
+- **MongoDB's dynamic pivot through the probe plan** (the keyed plan of 2026-10-20 on its tenth database): a
+  parameter marker is bound by its place among the markers, as SQL's `?` (`{"$legendParam": "?"}`; a per-key region's
+  copies are copies of its text, so an index written in it would be stale in every copy after the first); a key's
+  cell binds through that marker (`SqlWriter.bindKey`); the group stage's per-key aggregates and the projection's
+  per-key columns are per-key regions, each field named by the key's position (`MongoDb.GroupField`,
+  `MongoDbPipeline.group`/`projection`); a star with excluded columns is the row with those fields unset
+  (`$unsetField`, the composite key's source); the keys and the body are two commands with no transaction across
+  them (`KeysSnapshot.NONE`, register S84) and no column limit (a document's 16 MB is). The plan carries the names
+  each statement writes its cells under (`ExecutionPlan.Keyed.keyFields`, each output's `field`, a per-key cell's
+  `_pk<position>_<field>`; plan JSON v9), which a session reading by name needs and JDBC, reading by place, ignores.
+  Ten pins.
+- **MongoDB's divide answers a double** (`{"$divide": [{"$toDouble": a}, {"$toDouble": b}]}`), as every dialect's:
+  `$divide` kept two Decimal128s' 34 digits. `testDecimalDivide`.
+- **The metamodel's tables inline where a database has no temporary table** (`SqlDialect.temporaryTables`,
+  `PlanMaker.inlineRows`; Trino and MongoDB): each table the query reads is its own rows, each cell its column's
+  typed literal (the graph's facts, plan-time constants), a table of no rows a select of typed NULLs holding none.
+  `testBasic` on both (`PlanMakerTest` pins the form: no session table, the statement's VALUES).
+- **MD5, SHA-1 and SHA-256 written in SQLite's SQL** (`SqliteDigests`, new): the text's UTF-8 bytes padded as each
+  digest pads them, one walk building each chunk's words (and the SHAs' schedule), one walk running the rounds, the
+  32-bit arithmetic in SQLite's integers (no XOR there: `(x | y) & ~(x & y)`); measured bit-equal to the JDK's on 13
+  texts of 0 to 200 characters, multi-byte UTF-8 among them; about 6 to 9 KB of SQL each. `hashCode` is MariaDB's and
+  Postgres's construction over it (the first 64 bits of the MD5 of the values' text as a JSON array, read signed).
+  Five pins.
+- **ClickHouse: a LEFT join's condition both sides read, no equality** (`OuterJoinResidualsAsMatches`, new):
+  ClickHouse keeps none under `join_use_nulls` ("contains column from left and right table", measured 25.8), and its
+  INNER join keeps one, so the condition's matches come first (each distinct tuple of the left columns it reads,
+  INNER-joined to the right side), then the left side LEFT-joined to them on that tuple, null-safe, the right
+  alias naming the matches; a null-safe key between a join's sides is `isNotDistinctFrom` in its ON (its coalesce
+  spelling is a residual, and an outer join needs a key). `testNestedJoinArithmeticComparisonExpression` (the engine
+  passes it on ClickHouse); channel B Relation 461 -> 462, its floor raised with the reason.
+- **ClickHouse's date arithmetic past its years raises by name** (`ClickHouse.outsideDates`): ClickHouse clamps a date
+  past 1900 to 2299 to the end it passed (step 9 recorded `adjust` by a large count answering 2299-12-31, a silent
+  wrong answer); the date the arithmetic reaches is checked first, in Int128 (a calendar unit by its year, any other
+  by its microseconds since the epoch), and raised outside them, as MariaDB's "a date past the year 9999". The six
+  `*BigNumber` adjust pins re-recorded with the refusal.
+
+**Per lane, pins removed:** MongoDB 12, SQLite 7, MySQL 2, MariaDB 2, Trino 1, ClickHouse 1; re-recorded: ClickHouse's
+six big-number adjusts.
+
+**Named for later** (each measured, none moved): a Variant's key order on MySQL (its JSON type sorts an object's keys,
+and its compaction is a cast to JSON) and on Postgres (jsonb's), three and two pins, a carrier change across every
+variant test there; a named time zone where the database has no zone rules (MySQL and MariaDB without their zone
+tables, SQLite), three pins, a design question put to the user (the zone's transitions as plan-time constants from
+the JDK's tzdb, the database looking each row's offset up); SQLite's integers past 64 bits (three); H2 2.1's lists and
+JSON (nineteen, the engine's own failures); `currentUserId` where the database names no user (SQLite, MongoDB).
+
+**Channel B pins moved, each with its reason** (`ChannelBLane.PINS`): ClickHouse Relation 461 -> 462 (the join);
+SQLite Standard 203 -> 205 and Unclassified 87 -> 92, MariaDB and MySQL Unclassified 91 -> 93 (as measured: the
+digests, `hashCode`, Jaro-Winkler); Trino Grammar 131 -> 136 as measured, its wire bugs 0 -> 1 (channel A reads the
+metamodel's tables inline; channel B's legacy route still makes them the session's own: the judges on plans, step 10,
+its home). Three ledgers are now declared empty (SQLite Standard, MariaDB and MySQL Unclassified), written as an empty
+`with()` so channel B's scan reads them as declared, not moved.
+
+**Verdicts** (this container, the embedded servers):
+- PCT on every lane the batch touches, both channels, with both corpus lanes: MongoDB 5 of 5, SQLite 5 of 5,
+  ClickHouse 5 of 5, DuckDB 5 of 5, H2, MariaDB, MySQL and Trino Relation (each lane's dynamic pivots on the runner's
+  new reading) and Unclassified or Grammar, Postgres Relation (under the unprivileged wrapper), all green on their
+  pins; channel B green on SQLite's five, MariaDB's and MySQL's Unclassified, Trino's Grammar, ClickHouse's Relation,
+  DuckDB's and H2's Relation and Postgres's Relation; `//spec:corpus_duckdb` and `//spec:corpus_h2` exact. ClickHouse's
+  channel B Essential (318), Grammar (133) and Standard (197) are at step 9's head measures, as in the first batch.
+  Trino's and ClickHouse's Relation lanes were killed run side by side (the container's memory) and pass alone.
+- `//gates:core` 45 of 45 (the Postgres lanes under the wrapper); `//gates:checks` 138 of 139 (the classpath guard
+  skipped on an x86-64 host). Its first run found four things, fixed: the plan runner read the SQL tree for the cells'
+  names, which the layering refuses (the names are plan facts now: `ExecutionPlan.Keyed.keyFields`, each output's
+  `field`; plan JSON v9), two string compares of a literal in `PlanMaker.literal` (a switch now), a product's name in
+  `PlanMakerTest`'s code four more times (a variable renamed), and the regenerated capability matrix.
+
 ## 2026-10-20 — The parity phase, first batch: fifty-two lane pins removed at their causes, four re-recorded as the database's own
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9, the user's order of 2026-10-20 ("before we move on we need to

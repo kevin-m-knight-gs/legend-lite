@@ -228,9 +228,12 @@ public final class PlanRunner {
             }
         }
         int perKey = (int) keyed.outputs().stream().filter(o -> o instanceof ExecutionPlan.Keyed.PerKey).count();
+        // each statement's cells read by the names it writes them under (a session reading by name, MongoDB's, needs
+        // them; JDBC reads by place): the probe's keyFields, a fixed output's field, a per-key output's
+        // "_pk<position>_<field>" (ExecutionPlan.Keyed.PerKey)
         List<ExecutionPlan.Column> keyColumns = new java.util.ArrayList<>();
         for (int i = 0; i <= perKey; i++) {
-            keyColumns.add(new ExecutionPlan.Column(i == 0 ? "key" : "name" + i, "String",
+            keyColumns.add(new ExecutionPlan.Column(keyed.keyFields().get(i), "String",
                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null));
         }
         try (Sessions.Session session = sessions.open(keyed.keys().target())) {
@@ -257,21 +260,26 @@ public final class PlanRunner {
                             + columns + " columns, more than the database's " + keyed.maxColumns());
                 }
                 List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
+                List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);
                 List<String> names = new java.util.ArrayList<>(columns);
-                for (ExecutionPlan.Keyed.Output o : keyed.outputs()) {
-                    if (o instanceof ExecutionPlan.Keyed.Fixed f) {
-                        answered.add(keyed.format() == null ? f.column() : text(f.column()));
+                for (int i = 0; i < keyed.outputs().size(); i++) {
+                    if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
+                        ExecutionPlan.Column c = keyed.format() == null ? f.column() : text(f.column());
+                        answered.add(c);
+                        read.add(named(c, f.field()));
                         names.add(f.name());
                     }
                 }
-                for (List<Object> key : keys) {
-                    for (ExecutionPlan.Keyed.Output o : keyed.outputs()) {
-                        if (o instanceof ExecutionPlan.Keyed.PerKey p) {
-                            String name = cellText(key, p.name());
+                for (int k = 0; k < keys.size(); k++) {
+                    for (int i = 0; i < keyed.outputs().size(); i++) {
+                        if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
+                            String name = cellText(keys.get(k), p.name());
                             ExecutionPlan.Column c = p.column();
-                            answered.add(keyed.format() == null
+                            ExecutionPlan.Column a = keyed.format() == null
                                     ? new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store())
-                                    : text(c));
+                                    : text(c);
+                            answered.add(a);
+                            read.add(named(a, "_pk" + k + "_" + p.field()));
                             names.add(name);
                         }
                     }
@@ -279,10 +287,15 @@ public final class PlanRunner {
                 Expanded body = expand(keyed.body(), keys, checked);
                 sink.columns(answered, names);
                 StatementOrigin.sent(body.statement());
-                st.rows(body.statement(), body.slots(), body.values(), answered, sink::row);
+                st.rows(body.statement(), body.slots(), body.values(), read, sink::row);
                 sink.end();
             });
         }
+    }
+
+    /** {@code c} read under the name its statement writes it: the column's facts, that name. */
+    private static ExecutionPlan.Column named(ExecutionPlan.Column c, String name) {
+        return new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store());
     }
 
     /** A cell of a text format's body, read as the text the database wrote. */

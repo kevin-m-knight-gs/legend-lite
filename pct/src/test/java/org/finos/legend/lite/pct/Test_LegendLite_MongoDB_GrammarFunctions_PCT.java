@@ -43,7 +43,8 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
             // unpinned, a Decimal read by the wire header's type since the DuckDB lane's landing)
             one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::math::tests::divide::testDecimalDivide_Function_1__Boolean_1_", "\"\nexpected: 0.5238095238095238\nactual:   0.5238095238095238095238095238095238\""),
+            // NOTE 2026-10-20 (the parity phase, second batch): testDecimalDivide unpinned -- a divide's operands are
+            // doubles, as on every other dialect (MongoDb's DIVIDE)
             // THE PLATFORM'S OWN (pinned on the DuckDB lane too, by the same cause)
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
@@ -59,9 +60,8 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
             // (MixedEncoding.dayNumberOrNull), so the test reaches its sub-millisecond date-times, which a BSON date
             // has no form for: MongoDB's own limit
             one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2014-02-13T13:15:19.14231) has no BSON date: refused, never cut\""),
-            // MONGODB'S OWN, refused by name (step 9, 2026-10-19: the metamodel store is the session's temporary
-            // tables since the parent's 33abc9a, which MongoDB has none of; the message moved from the schema's)
-            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a temporary table reached MongoDb, which has no temporary collection\""),
+            // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
+            // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
             // THE TDS TEXT ROUTE: a value the text does not carry (an empty string, a class instance, a List, a Map, an Any)
             one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined!")
     );

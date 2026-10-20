@@ -33,6 +33,13 @@ public interface SqlDialect {
         return java.util.List.of();
     }
 
+    /** Whether this database has a table only one session sees (a TEMPORARY table, {@link #sessionTable}): where it
+     *  has none, the system metamodel store's tables a plan reads are the query's own rows, inline
+     *  ({@code PlanMaker.metamodel}). Default: it has. */
+    default boolean temporaryTables() {
+        return true;
+    }
+
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
      *  none) and only read after (a server engine's system database, exec.SystemDatabase). Default: the table, then
      *  one INSERT of its rows -- this interface's own DDL and DML renders. */

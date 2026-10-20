@@ -48,8 +48,10 @@ public final class PlanJson {
      *  pivot carries the values a cast over it names ({@code named}, the plan path program's step 9) beside its IN; 8
      *  since 2026-10-20: the keyed result (a dynamic pivot's probe plan: a keys probe, a body with per-key regions, its
      *  fixed and per-key outputs, its snapshot), a statement's per-key regions, a key's cell as a slot's binding and a
-     *  MIR leaf, a per-key name as an output origin; the row-as-JSON leaf gone. */
-    public static final int VERSION = 8;
+     *  MIR leaf, a per-key name as an output origin; the row-as-JSON leaf gone; 9 since 2026-10-20: the keyed result's
+     *  cells named as its statements write them (the probe's {@code keyFields}, each output's {@code field}: a session
+     *  reading a cell by name, MongoDB's, reads it so). */
+    public static final int VERSION = 9;
 
     private PlanJson() {
     }
@@ -140,6 +142,7 @@ public final class PlanJson {
             case ExecutionPlan.Keyed k -> {
                 o.put("_type", NodeTag.keyed.name());
                 o.put("keys", sql(k.keys()));
+                o.put("keyFields", new ArrayList<Object>(k.keyFields()));
                 o.put("format", k.format() == null ? null : k.format().name());
                 List<Object> outputs = new ArrayList<>();
                 for (ExecutionPlan.Keyed.Output out : k.outputs()) {
@@ -154,6 +157,7 @@ public final class PlanJson {
                             oo.put("name", p.name());
                         }
                     }
+                    oo.put("field", out.field());
                     oo.put("column", columns(List.of(out.column())).get(0));
                     outputs.add(oo);
                 }
@@ -527,12 +531,17 @@ public final class PlanJson {
                     Json.Obj oo = (Json.Obj) n;
                     ExecutionPlan.Column column = readRelationColumns(new Json.Arr(List.of(oo.getObj("column")))).get(0);
                     outputs.add(switch (tag(OutputTag.class, oo, "keyed output")) {
-                        case fixed -> new ExecutionPlan.Keyed.Fixed(column, oo.getString("name"));
-                        case perKey -> new ExecutionPlan.Keyed.PerKey(column, oo.getInt("name"));
+                        case fixed -> new ExecutionPlan.Keyed.Fixed(column, oo.getString("name"),
+                                oo.getString("field"));
+                        case perKey -> new ExecutionPlan.Keyed.PerKey(column, oo.getInt("name"), oo.getString("field"));
                     });
                 }
+                List<String> keyFields = new ArrayList<>();
+                for (Json.Node n : o.getArr("keyFields").items()) {
+                    keyFields.add(((Json.Str) n).value());
+                }
                 String format = o.getStringOr("format", null);
-                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")),
+                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields,
                         format == null ? null : named(Format.class, format, "keyed result format"), outputs,
                         readSql(o.getObj("body")),
                         named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),

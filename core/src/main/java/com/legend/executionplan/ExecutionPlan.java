@@ -98,7 +98,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * A result whose columns are partly NAMED BY THE DATA: a dynamic pivot's (the plan path program's probe plan,
      * 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). {@code keys} runs first and answers one row per key, in the
      * order the key's columns take, every cell a text the database writes: cell 0 the key, which the body's per-key
-     * placeholders bind ({@link Binding.Key}), and then each per-key output's name for a key ({@link PerKey#name}).
+     * placeholders bind ({@link Binding.Key}), and then each per-key output's name for a key ({@link PerKey#name}),
+     * written under {@code keyFields} (2026-10-20: a session reading a cell by name reads it so).
      * {@code body} is written once, with per-key regions ({@link Sql#regions}) the runner repeats once per key; its
      * rows' cells are {@code outputs} in order, a per-key output once per key, key by key. Both statements run on one
      * session, inside one {@code snapshot}, so the keys are the body's. {@code format} null: the cells are typed by their
@@ -107,10 +108,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * the brackets: docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1). {@code maxColumns}: the most columns the database
      * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
      */
-    public record Keyed(Sql keys, @com.legend.base.Nullable Format format, List<Output> outputs, Sql body,
-            Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+    public record Keyed(Sql keys, List<String> keyFields, @com.legend.base.Nullable Format format, List<Output> outputs,
+            Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
         public Keyed {
             Objects.requireNonNull(keys, "keys");
+            keyFields = List.copyOf(keyFields);
             outputs = List.copyOf(outputs);
             Objects.requireNonNull(body, "body");
             Objects.requireNonNull(snapshot, "snapshot");
@@ -135,31 +137,42 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             if (!perKey) {
                 throw new IllegalArgumentException("a keyed result with no per-key output");
             }
+            long perKeyOutputs = outputs.stream().filter(o -> o instanceof PerKey).count();
+            if (keyFields.size() != perKeyOutputs + 1) {
+                throw new IllegalArgumentException("a keys probe answers the key's text and each per-key output's name:"
+                        + " " + keyFields.size() + " fields for " + perKeyOutputs + " per-key outputs");
+            }
             if (format == Format.JSON_PER_ROW) {
                 throw new IllegalArgumentException("a keyed text is written row by row in every format: its JSON is"
                         + " JSON, the runner writing the brackets either way");
             }
         }
 
-        /** One output column of the body. */
+        /** One output column of the body; {@code field}, the name the body's statement writes its cells under (a
+         *  session reading a cell by name reads it so; JDBC reads by place). */
         public sealed interface Output permits Fixed, PerKey {
             Column column();
+
+            String field();
         }
 
         /** A column answered once: its facts, and {@code name}, the format's spelling of its name (a TDS header
          *  entry, a CSV header field, a JSON member's name token; the column's own name for typed rows). */
-        public record Fixed(Column column, String name) implements Output {
+        public record Fixed(Column column, String name, String field) implements Output {
             public Fixed {
                 Objects.requireNonNull(column, "column");
                 Objects.requireNonNull(name, "name");
+                Objects.requireNonNull(field, "field");
             }
         }
 
         /** A column answered once per key, its facts {@code column}'s for every key (its name the template's stem),
-         *  each key's name the keys row's cell {@code name}. */
-        public record PerKey(Column column, int name) implements Output {
+         *  each key's name the keys row's cell {@code name}; the body writes the key at position {@code k}'s cells
+         *  under {@code "_pk" + k + "_" + field} (the per-key name every dialect writes). */
+        public record PerKey(Column column, int name, String field) implements Output {
             public PerKey {
                 Objects.requireNonNull(column, "column");
+                Objects.requireNonNull(field, "field");
                 if (name < 1) {
                     throw new IllegalArgumentException("a per-key name is a keys row's cell after the key: " + name);
                 }
