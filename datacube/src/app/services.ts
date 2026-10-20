@@ -158,6 +158,17 @@ export interface DatabaseService {
   readonly mountRemote?: (url: string, s3: S3Credentials | undefined, name: string) => Promise<InferredModel>;
   /** A frame (Python's dataframe) as the host says it is now: the model it wrote when the frame was registered. */
   readonly frame?: (name: string) => Promise<FrameModel>;
+  /**
+   * A grid's base query copied into a table of the host's database of its own (Snap: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   * §18.3; Python's `snap.json`) -- a frame's grid, a file's, a warehouse table's the host opened: `pull` (Pure, its
+   * every column) planned over `model` against `runtime` and run where the rows are, the copy modelled by the host as
+   * it holds them. Its count, the pull's receipt, its table, and that model. Given with `release`.
+   */
+  readonly snap?: (model: string, runtime: string, pull: Lambda) => Promise<HostCopy>;
+  /** A snap's copy dropped, by its table. */
+  readonly release?: (table: string) => Promise<void>;
+  /** Whose database it is, as a person reads it (`Python`): where a snap's copy is said to be kept. */
+  readonly place?: string;
 }
 
 /** A frame's model, as its host wrote it (Python's `Frames`): its model, runtime and source, and how often it changed. */
@@ -279,20 +290,9 @@ export interface WarehouseService {
    * the tab's own writer's answer, read-only.
    */
   table?(session: WarehouseSession, object: CatalogObject): Promise<InferredModel>;
-  /** Whose database a host's table's copy is in, as a person reads it (`Python`): the host that reads its tables. */
-  readonly place?: string;
-  /**
-   * A grid over a table the host read (`table`, its model `model`) snapped there (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
-   * §18.3): `pull` (Pure: the grid's base query, its every column) planned and run where the rows are, the copy a table
-   * of the host's database of its own, modelled by the host as it holds the rows. Its count, the pull's receipt, its
-   * table, and that model.
-   */
-  snap?(model: string, pull: Lambda): Promise<HostCopy>;
-  /** That copy dropped, by its table. */
-  release?(table: string): Promise<void>;
 }
 
-/** A copy its host made of a grid's base query (WarehouseService.snap): its own table, and the host's model of it. */
+/** A copy its host made of a grid's base query (DatabaseService.snap): its own table, and the host's model of it. */
 export interface HostCopy extends InferredModel {
   readonly rowCount: number;
   readonly pulledBy?: Receipt;

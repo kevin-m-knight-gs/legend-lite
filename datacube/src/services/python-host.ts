@@ -452,6 +452,15 @@ async function posted(link: PythonLink, path: string, body: unknown): Promise<st
 export function pythonDatabase(link: PythonLink, offers: PythonOffers): DatabaseService {
   return {
     frame: (name) => frameOf(link, name),
+    place: 'Python',
+    // a grid's Snap (§18.3): the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are
+    // and keeps the copy, a table of its own it models as it holds the rows (DataCube's code, headless: where it takes
+    // a page's file)
+    ...(offers.files ? {
+      snap: async (model: string, runtime: string, pull: Lambda) =>
+        JSON.parse(await posted(link, 'snap.json', { op: 'snap', model, runtime, pull: toJson(pull) })) as HostCopy,
+      release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }); },
+    } : {}),
     ...(offers.files ? {
       ingestFile: async (file: File, options: { readonly table: string }) => {
         // the bytes the tab's DuckDB is given (upload.ts fileParts: a text file decoded by its encoding, G4), sent a
@@ -495,14 +504,9 @@ function pythonWarehouse(link: PythonLink): WarehouseService {
     connect: async (url, user, password) => JSON.parse(await posted(link, 'warehouse.json', { op: 'connect', url, user, password })) as
       { session: WarehouseSession; objects: CatalogObject[] },
     signInWithKey: () => Promise.reject(new Error('a page on Python signs in to a warehouse by its user and password')),
-    place: 'Python',
     table: async (session, object) => JSON.parse(await posted(link, 'warehouse.json', {
       op: 'table', url: session.baseUrl, catalog: object.catalog, schema: object.schema, name: object.name,
     })) as InferredModel,
-    // the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are and keeps the copy, a
-    // table of its own it models as it holds the rows (§18.3)
-    snap: async (model, pull) => JSON.parse(await posted(link, 'warehouse.json', { op: 'snap', model, pull: toJson(pull) })) as HostCopy,
-    release: async (table) => { await posted(link, 'warehouse.json', { op: 'release', table }); },
   };
 }
 

@@ -424,6 +424,36 @@ export function pageSources(d: SourcesOf): PageSources {
   /** The picker's warehouse sign-in, kept between openings of the window. */
   let signedIn: SignedIn | undefined;
 
+  /**
+   * A GRID'S SNAP WHERE ITS HOST RUNS ITS ROWS (Python's page: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3) -- a
+   * frame's grid, a warehouse table's the host opened: each snap a copy of the base query in a table of the host's own,
+   * modelled by the host as it holds the rows, and read through a runner over that model. None where the host keeps no
+   * copy.
+   */
+  const hostSnapOf = (m: { readonly model: string; readonly runtime: string }): HostSnap | undefined => {
+    const { snap, release } = database;
+    if (!snap || !release) return undefined;
+    const store = database.place ?? 'the host';
+    return {
+      store,
+      snap: async (pull) => {
+        const made = await snap(m.model, m.runtime, pull);
+        const runner = services.engine.rows(made.model, made.runtime, { bitColumns: made.bitColumns }).runner;
+        if (!runner) {
+          await release(made.table);
+          throw new Error(`${store} made a copy whose rows it does not run`);
+        }
+        return { ...made, runner };
+      },
+      release: (table) => release(table),
+    };
+  };
+
+  const hostSnapPlace = (m: { readonly model: string; readonly runtime: string }): Pick<GridPlace, 'hostSnap'> => {
+    const hostSnap = hostSnapOf(m);
+    return hostSnap ? { hostSnap } : {};
+  };
+
   /** A warehouse table's model: its own runtime, of the catalog's database type. */
   const warehouseModel = (l: LocalEngine, o: CatalogObject): Promise<InferredModel> => l.tables.tableModel(
     o.columns.map((c) => ({ ...c, dataType: c.type })),
@@ -493,23 +523,7 @@ export function pageSources(d: SourcesOf): PageSources {
     saved?: CubeDocument, capped = false): Promise<Opened> {
     const m = await on.table!(session, chosen);
     const rows = services.engine.rows(m.model, m.runtime, { bitColumns: m.bitColumns });
-    // Snap there (§18.3): each snap a copy of the grid's base query in a table of the host's own, modelled by the host as
-    // it holds the rows -- planned and run by the host as the live rows are, through a runner over that model
-    const snap = on.snap;
-    const release = on.release;
-    const hostSnap: HostSnap | undefined = snap && release ? {
-      store: on.place ?? 'the host',
-      snap: async (pull) => {
-        const made = await snap(m.model, pull);
-        const runner = services.engine.rows(made.model, made.runtime, { bitColumns: made.bitColumns }).runner;
-        if (!runner) {
-          await release(made.table);
-          throw new Error(`${on.place ?? 'the host'} made a copy whose rows it does not run`);
-        }
-        return { ...made, runner };
-      },
-      release: (table) => release(table),
-    } : undefined;
+    const hostSnap = hostSnapOf(m);
     const columns = await sourceColumns(typer(rows), m.source);
     const name = `${chosen.schema}.${chosen.name}`;
     // where it is, never the sign-in: whoever reopens it signs in as themselves
@@ -546,7 +560,7 @@ export function pageSources(d: SourcesOf): PageSources {
     return {
       ...(url ? { url } : {}),
       ...(keep ? { session: asSession(keep) } : {}),
-      ...(on.table && on.place !== undefined ? { copiesInto: on.place } : {}),
+      ...(on.table && database.place !== undefined ? { copiesInto: database.place } : {}),
       ...(want ? { want: { schema: want.schema, name: want.name } } : {}),
       signIn: async (url, user, password) => {
         // nothing of a previous sign-in stays on offer until this one has listed its tables (P2-334)
@@ -828,7 +842,11 @@ export function pageSources(d: SourcesOf): PageSources {
     return {
       label: name,
       notes: r.notes,
-      make: gridMaker(r.snapshot, r.configuration, [], { ...rowsPlace(rows), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped }),
+      make: gridMaker(r.snapshot, r.configuration, [], {
+        ...rowsPlace(rows), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+        // a frame is read afresh by every query: its grid snaps into a copy of its own, the host's (§18.3)
+        ...(rows.runner ? hostSnapPlace(m) : {}),
+      }),
       discard: async () => letGo(rows),
     };
   }

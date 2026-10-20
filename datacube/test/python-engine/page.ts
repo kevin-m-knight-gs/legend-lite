@@ -323,14 +323,24 @@ async function run(): Promise<void> {
     // SNAP, on Python (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): the pull sent as Pure, counted and landed there
     // in a table of its own, modelled by DataCube's code as the tab models its copy; read through that model, by
     // Python's DuckDB; released, the copy is gone, and reading it is refused
-    const frozen = await warehouse.snap!(m.model, from(m.source).select(['desk', 'qty', 'px']).lambda());
+    const frozen = await services.engine.database.snap!(m.model, m.runtime, from(m.source).select(['desk', 'qty', 'px']).lambda());
     deepEqual([frozen.rowCount, frozen.pulledBy?.as, frozen.pulledBy?.serverRows], [3, 'rita', 3], 'what Python froze:');
     const copy = services.engine.rows(frozen.model, frozen.runtime, { bitColumns: frozen.bitColumns }).runner!;
     const two = from(frozen.source).select(['desk', 'qty']).lambda();
     equal(shape((await copy.run(two, { epoch: 0 } as CubeSnapshot)).rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]',
       'the copy\'s rows, read in Python\'s DuckDB:');
-    await warehouse.release!(frozen.table);
+    await services.engine.database.release!(frozen.table);
     await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /plans only over the tables it serves/);
+    // and a frame's grid snaps the same way (one Snap), its copy read through Python's own model of it
+    const fm = await services.engine.database.frame!('trades');
+    const frameRows = services.engine.rows(fm.model, fm.runtime).runner!;
+    const all = (await sourceColumns(frameRows, fm.source)).map((c) => c.name);
+    const frameCopy = await services.engine.database.snap!(fm.model, fm.runtime, from(fm.source).select(all).lambda());
+    const fromCopy = await services.engine.rows(frameCopy.model, frameCopy.runtime).runner!.run(
+      from(frameCopy.source).select(all).lambda(), { epoch: 0 } as CubeSnapshot);
+    const fromFrame = await frameRows.run(from(fm.source).select(all).lambda(), { epoch: 0 } as CubeSnapshot);
+    equal(shape(fromCopy.rows, false), shape(fromFrame.rows, false), 'a frame\'s copy holds its rows, read in Python\'s DuckDB:');
+    await services.engine.database.release!(frameCopy.table);
   });
 
   await check('a query\'s types, parse and print: the same compiler\'s answers', async () => {

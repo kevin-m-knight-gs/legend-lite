@@ -81,6 +81,9 @@ _SETTINGS = '/settings.json'
 # a warehouse table on a page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): Python signs in as the person running it,
 # lists what they may read, and writes and holds each opened table's model; the token never reaches the page
 _WAREHOUSE = '/warehouse.json'
+# a grid's Snap on a page Python serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its base query copied into a
+# table of the frames' database of its own -- a frame's, a page's file's, or a warehouse table's -- and let go of
+_SNAP = '/snap.json'
 # the most rows a Snap copies into Python's DuckDB: Python's own limit, a fact of the database the copy lands in (this
 # machine's), as the tab's (snap.ts MAX_SNAP_ROWS) is of its own (the browser's memory) -- the two need not agree (the
 # user and the DataCube + Python line, 2026-10-15)
@@ -232,7 +235,7 @@ def private(path: str) -> bool:
     token. The site's files are the page's own and carry no secret."""
     return path.startswith('/api/') or _model_home(path) or path in (
         '/cube.json', '/version.json', '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _SERVICES,
-        _PLAN_AND_RUN, _PLAN, _WAREHOUSE)
+        _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP)
 
 
 def _saved_query(path: str) -> bool:
@@ -467,6 +470,8 @@ class Engine:
                 # on the caller's thread: the warehouse's HTTP holds no compiler thread, and only the library's calls go
                 # to one; never a dropped call
                 return _answered(self._warehouse, body or '')
+            if path == _SNAP:
+                return self._snap_said(body or '')
             if not path.startswith(_API):
                 return _said(404, f'no such path: {path}')
             return _workers().submit(self._api, path, query, body or '').result()
@@ -810,8 +815,8 @@ class Engine:
         """A warehouse on a page (C3). ``{"op": "connect", "url", "user", "password"}``: signed in as the person running
         Python, the session answered -- its address, who the warehouse says it is, when it ends; never its token -- with
         what they may read. ``{"op": "table", "url", "catalog", "schema", "name"}``: a table listed there, its model
-        written by the tab's own writer (``table_model``: read-only) and held, answered as that writer answers it.
-        ``snap`` and ``release``: a grid's copy (``_warehouse_snap``). A refusal is its words; an
+        written by the tab's own writer (``table_model``: read-only) and held, answered as that writer answers it. A
+        grid over it snaps through ``snap.json``, as any grid on the page does. A refusal is its words; an
         expired session 401, a warehouse's refusal 422."""
         try:
             asked = json.loads(body)
@@ -820,8 +825,6 @@ class Engine:
         if not isinstance(asked, dict) or not isinstance(asked.get('op'), str):
             return _said(400, 'a warehouse call is {"op", ...}')
         try:
-            if asked['op'] in ('snap', 'release'):
-                return self._warehouse_snap(asked)
             if not isinstance(asked.get('url'), str):
                 return _said(400, 'a warehouse call names its warehouse ("url")')
             url = asked['url'].rstrip('/')
@@ -893,45 +896,85 @@ class Engine:
         said = {k: v for k, v in written.items() if k != 'accessor'}
         return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
 
-    def _warehouse_snap(self, asked: dict[str, Any]) -> Answer:
-        """SNAP, ON PYTHON (C3, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3; engine-client/src/snap.ts, the tab's, is
-        its twin): ``{"op": "snap", "model", "pull"}`` -- the pull, Pure (a grid's base query over a warehouse table this
-        engine opened, its every column), planned with the table's live runtime and counted where the rows are against
-        the same limit, its Arrow chunks landed in a table of the frames' DuckDB of its own (``snap``, ``snap_2``, ...:
-        each grid's copy its own, never the warehouse table's name), made to hold what its model declares and modelled by
+    def _snap_said(self, body: str) -> Answer:
+        """SNAP, ON PYTHON (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3; engine-client/src/snap.ts, the tab's, is its
+        twin): a grid's base query copied into a table of the frames' database of its own (``snap``, ``snap_2``, ...;
+        never a source's name, so no two grids share one), made to hold what its model declares and modelled by
         DataCube's own code as the tab models its copy (upload.ts modelLanded, headless), and served from then on as a
-        page's file is. The answer: its count, the pull's receipt, its table, and that model -- the one its queries are
-        planned over. ``{"op": "release", "table"}``: that copy dropped by DataCube's code, and served no more; a table
-        that is no copy a snap made is refused."""
+        page's file is. ``{"op": "snap", "model", "runtime", "pull"}``: the pull, Pure (the base query, its every
+        column), planned over ``model`` and counted where the rows are against the same limit -- on the warehouse, for a
+        warehouse table this engine opened (C3; its HTTP on the caller's thread), else in the frames' database, over a
+        model this engine serves (a frame's, a page's file's: on the compiler's threads, the frames held still). The
+        answer: its count, the pull's receipt (a warehouse's), its table, and its model -- the one its queries are
+        planned over. ``{"op": "release", "table"}``: that copy dropped by DataCube's code and served no more; a table
+        that is no copy a snap made is refused. A refusal is its words; an expired session 401."""
+        try:
+            asked = json.loads(body)
+        except ValueError:
+            return _said(400, 'a snap is JSON')
+        if not isinstance(asked, dict) or asked.get('op') not in ('snap', 'release'):
+            return _said(400, 'a snap is {"op": "snap" | "release", ...}')
         if not self.takes_files():
             return _said(404, 'this engine keeps no copy: legend-lite models one with DataCube\'s own code, headless, '
                               'which this engine was not given')
         assert self._headless is not None
         if asked['op'] == 'release':
-            name = asked.get('table')
-            with self._warehouse_lock:
-                ours = isinstance(name, str) and name in self._copies
-            if not ours:
-                return _said(404, f'{name!r} is no copy a snap of this engine made')
-            try:
-                # asked for before the frames are held (the session's lock first, then the frames')
-                headless = self._headless()
-                with self.frames.holding():
-                    # dropped first, and only then served no more: a drop that fails leaves it served, to let go again
-                    headless.call('forget', json.dumps({'table': name}))
-                    self.frames.forget_file(name)
-            except Exception as failure:
-                return _said(422, f'{type(failure).__name__}: {failure}')
-            with self._warehouse_lock:
-                self._copies.discard(name)
-            return Answer(200, 'application/json', b'{}')
-        model = asked.get('model')
+            return self._release_copy(asked.get('table'))
+        if not all(isinstance(asked.get(k), str) for k in ('model', 'runtime', 'pull')):
+            return _said(400, 'a snap is {"model", "runtime", "pull"}, the pull its lambda as JSON')
         with self._warehouse_lock:
-            table = self._warehouse_tables.get(model) if isinstance(model, str) else None
-        if table is None:
-            return _said(404, 'this engine has no warehouse table of that model open')
-        if not isinstance(asked.get('pull'), str):
-            return _said(400, 'a snap is {"model", "pull"}, the pull its lambda as JSON')
+            table = self._warehouse_tables.get(asked['model'])
+        if table is not None:
+            try:
+                return self._warehouse_snap(table, asked)
+            except warehouse.SessionExpired as expired:
+                return _said(401, str(expired))
+        return _workers().submit(self._served_snap, asked).result()
+
+    def _release_copy(self, name: Any) -> Answer:
+        """A snap's copy let go of: dropped by DataCube's code, and only then served no more."""
+        with self._warehouse_lock:
+            ours = isinstance(name, str) and name in self._copies
+        if not ours:
+            return _said(404, f'{name!r} is no copy a snap of this engine made')
+        assert self._headless is not None
+        try:
+            # asked for before the frames are held (the session's lock first, then the frames')
+            headless = self._headless()
+            with self.frames.holding():
+                # dropped first, and only then served no more: a drop that fails leaves it served, to let go again
+                headless.call('forget', json.dumps({'table': name}))
+                self.frames.forget_file(name)
+        except Exception as failure:
+            return _said(422, f'{type(failure).__name__}: {failure}')
+        with self._warehouse_lock:
+            self._copies.discard(name)
+        return Answer(200, 'application/json', b'{}')
+
+    def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int,
+                receipt: dict[str, Any] | None) -> Answer:
+        """A copy made: ``land`` puts the rows into the table named (on the frames' connection, held), DataCube's code
+        (``headless``, asked for before the frames were held: the session's lock first, then the frames') models it,
+        and it is served from then on; a copy that fails leaves nothing under its name."""
+        try:
+            with self.frames.reading_file('snap') as name:
+                land(self.frames.connection, _host.name(name, schema='main'))
+                made = json.loads(headless.call('landed', json.dumps({'table': name})))
+                self.frames.keep_file(name, made['model'])
+        except Exception as failure:
+            return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
+                              f'{failure}')
+        with self._warehouse_lock:
+            self._copies.add(name)
+        said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': name, 'rowCount': rows,
+                **({'pulledBy': receipt} if receipt is not None else {})}
+        return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+
+    def _warehouse_snap(self, table: _WarehouseTable, asked: dict[str, Any]) -> Answer:
+        """A warehouse grid's copy (C3): the pull planned with the table's live runtime, counted and pulled on the
+        warehouse as the signed-in person, its Arrow chunks landed in the copy."""
+        if asked['runtime'] != table.runtime:
+            return _said(422, table.refused_runtime(asked['runtime']) or '')
         on = _on_planner_threads()
         planned = on(self.planner.plan, asked['pull'], table.held, table.runtime)
         try:
@@ -950,36 +993,64 @@ class Engine:
                                   'or stay live.')
             receipt: dict[str, Any] = {}
             pulled = _arrow_of(table.warehouse.arrow_chunks(plan.sql, receipt.update))
-        except warehouse.SessionExpired as expired:
-            return _said(401, str(expired))
+        except warehouse.SessionExpired:
+            # said as one (401: the page offers to sign in again), by the route
+            raise
         except (warehouse.WarehouseError, pa.ArrowInvalid) as refused:
             return _said(422, f'the snap could not be pulled: {refused}')
         landing = '__legend_lite_snap'
+
+        def land(connection: Any, target: dict[str, Any]) -> None:
+            connection.register(landing, pulled)
+            try:
+                _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
+                                       'from': {'relation': _host.name(landing)}})
+            finally:
+                connection.unregister(landing)
+
+        try:
+            headless = self._headless()
+        except Exception as failure:
+            return _said(422, f'{type(failure).__name__}: {failure}')
+        return self._landed(headless, land, rows, {
+            'plane': 'warehouse', 'where': receipt.get('where', ''), 'as': receipt.get('as', ''),
+            **({'statementId': receipt['statementId']} if 'statementId' in receipt else {}),
+            **({'serverRows': receipt['serverRows']} if 'serverRows' in receipt else {})})
+
+    def _served_snap(self, asked: dict[str, Any]) -> Answer:
+        """A grid's copy over a model this engine serves (a frame's, a page's file's): planned on the compiler's thread,
+        counted and copied by the frames' database, the frames held still -- a Live frame copied as it is now."""
+        assert self._headless is not None
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
-            # a name of its own, free in the frames' database: a copy that fails leaves nothing under it
-            with self.frames.reading_file('snap') as name:
-                connection = self.frames.connection
-                connection.register(landing, pulled)
-                try:
-                    _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True,
-                                           'target': _host.name(name, schema='main'),
-                                           'from': {'relation': _host.name(landing)}})
-                finally:
-                    connection.unregister(landing)
-                made = json.loads(headless.call('landed', json.dumps({'table': name})))
-                self.frames.keep_file(name, made['model'])
         except Exception as failure:
-            return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
-                              f'{failure}')
-        with self._warehouse_lock:
-            self._copies.add(name)
-        said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': name, 'rowCount': rows, 'pulledBy': {
-            'plane': 'warehouse', 'where': receipt.get('where', ''), 'as': receipt.get('as', ''),
-            **({'statementId': receipt['statementId']} if 'statementId' in receipt else {}),
-            **({'serverRows': receipt['serverRows']} if 'serverRows' in receipt else {})}}
-        return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+            return _said(422, f'{type(failure).__name__}: {failure}')
+        with self.frames.serving() as models:
+            self._noted(models)
+            held = self.frames.model_for(asked['model'])
+            if held is None:
+                return _said(404, 'this engine serves no model of that text: it snaps a page\'s frames and files, and '
+                                  'warehouse tables it opened')
+            planned = self.planner.plan(asked['pull'], held, asked['runtime'])
+            try:
+                plan = self.planner.read(planned)
+            except LegendError as refused:
+                return _said(422, f'the snap could not be planned: {refused}')
+            (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}}, database_type='DuckDB')
+            try:
+                rows = int(self.frames.connection.execute(counting).fetchone()[0])
+            except duckdb.Error as refused:
+                return _said(422, f'the snap could not be counted: {refused}')
+            if rows > _MAX_SNAP_ROWS:
+                return _said(422, f'{rows:,} rows exceeds the {_MAX_SNAP_ROWS:,} row snap limit. Narrow the filter, '
+                                  'or stay live.')
+
+            def land(connection: Any, target: dict[str, Any]) -> None:
+                _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,
+                                       'from': {'query': plan.sql}})
+
+            return self._landed(headless, land, rows, None)
 
     def _warehouse_table_of(self, body: str) -> _WarehouseTable | None:
         """The warehouse table a plan-and-run's model is the model of, or None."""
@@ -1519,9 +1590,10 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 -- the stdlib's name
         url = urlsplit(self.path)
         # the API, an open page saying what it is now (page.json: Python's page.read()), a page's file in or out, the
-        # saved pages, the page's settings, and PlanAndRun's calls
+        # saved pages, the page's settings, PlanAndRun's calls, a warehouse's and a grid's Snap
         if not (url.path.startswith(_API) or url.path.startswith(_LITE_API) or _model_home(url.path) or url.path in (
-                '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLAN, _WAREHOUSE)):
+                '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLAN, _WAREHOUSE,
+                _SNAP)):
             self._refuse_unread(404, f'no such path: {url.path}')
             return
         if not self._admitted(url.path):

@@ -1189,7 +1189,7 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertIn('open already as rita', body.decode())
 
     def snapped(self, m):
-        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual(status, 200, body)
         return json.loads(body)
 
@@ -1215,14 +1215,14 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertEqual(status, 200, body)
         rows = pyarrow.ipc.open_stream(body).read_all()
         self.assertEqual(sorted(zip(rows['desk'].to_pylist(), rows['qty'].to_pylist())), [('EQ', 5), ('FX', 3), ('FX', 10)])
-        self.assertEqual(self.call({'op': 'release', 'table': 'snap'})[0], 200)
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
         self.assertEqual(self.copy_rows(second)[0], 200, 'the other grid still reads its own')
         self.assertEqual(self.frames.connection.execute(
             "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'the copy is dropped')
         self.assertIsNone(self.frames.file_table('snap'), 'and served no more')
         # only a copy a snap made is let go of this way, and once
-        self.assertEqual(self.call({'op': 'release', 'table': 'snap'})[0], 404)
-        self.assertEqual(self.call({'op': 'release', 'table': 'POSITIONS'})[0], 404)
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 404)
+        self.assertEqual(self.call({'op': 'release', 'table': 'POSITIONS'}, '/snap.json')[0], 404)
         # nor is it a page's file to drop
         self.assertEqual(self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'x', 'table': 'snap_2'})).status,
                          404)
@@ -1262,24 +1262,47 @@ class WarehouseOnPython(unittest.TestCase):
                 return self.inner.call(function, *args, **kw)
 
         self.engine._headless = lambda: Refusing(made())
-        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual(status, 422, body)
         self.assertIn('could not be copied', body.decode())
         self.assertEqual(self.frames.connection.execute(
             "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'no copy left')
         self.assertIsNone(self.frames.file_table('snap'))
 
+    def test_a_frames_grid_snaps_too_a_copy_of_its_base_as_the_frame_was(self):
+        # one Snap for every grid (§18.3): a Live frame read afresh by every query, its grid's copy keeping its rows
+        data = {'df': pd.DataFrame({'desk': ['FX', 'EQ'], 'qty': [1, 2]})}
+        desks = self.frames.register('desks', lambda: data['df'])
+        lam = json.dumps(ll.parse(f'|{desks.accessor}->select(~[desk, qty])'))
+        status, body = self.call({'op': 'snap', 'model': desks.model, 'runtime': desks.runtime, 'pull': lam}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        copy = json.loads(body)
+        self.assertEqual((copy['table'], copy['rowCount'], 'pulledBy' in copy), ('snap', 2, False))
+        data['df'] = pd.DataFrame({'desk': ['FX', 'EQ', 'IR'], 'qty': [1, 2, 3]})
+        self.assertEqual(desks.execute('->select(~[desk])').num_rows, 3, 'the frame, read afresh')
+        status, rows = self.copy_rows(copy)
+        self.assertEqual(status, 200, rows)
+        self.assertEqual(pyarrow.ipc.open_stream(rows).read_all().num_rows, 2, 'its copy, as it was snapped')
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
+        # a model reading a table this engine does not serve is not snapped
+        secret = ll.table_model({'table': 'secret', 'convertible': True, 'databaseType': 'DuckDB', 'columns': [
+            {'name': 'desk', 'dataType': 'VARCHAR', 'logicalType': 'VARCHAR', 'precision': None, 'scale': None,
+             'notNull': False}]})
+        status, body = self.call({'op': 'snap', 'model': secret['model'], 'runtime': secret['runtime'], 'pull': lam},
+                                 '/snap.json')
+        self.assertEqual(status, 404, body)
+
     def test_an_engine_without_datacubes_code_keeps_no_copy(self):
         self.engine = Engine(self.frames)
         m = self.opened()
-        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual(status, 404, body)
         self.assertIn('keeps no copy', body.decode())
 
     def test_the_snap_limit_in_the_tabs_words(self):
         m = self.opened()
         self.count = 10_000_001
-        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual((status, body.decode()), (422, '10,000,001 rows exceeds the 10,000,000 row snap limit. Narrow the '
                                                           'filter, or stay live.'))
 
@@ -1289,6 +1312,6 @@ class WarehouseOnPython(unittest.TestCase):
         a = self.plan_and_run(m, m['runtime'])
         said = json.loads(a.body)
         self.assertEqual((a.status, said['expired']), (401, {'baseUrl': self.URL, 'principal': 'rita'}))
-        self.assertEqual(self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})[0], 401)
+        self.assertEqual(self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')[0], 401)
         self.assertEqual(self.call({'op': 'table', 'url': self.URL, 'catalog': 'main', 'schema': 'trading',
                                     'name': 'POSITIONS'})[0], 401)

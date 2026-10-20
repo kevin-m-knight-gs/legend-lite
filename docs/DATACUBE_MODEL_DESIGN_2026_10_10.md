@@ -1113,8 +1113,12 @@ run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
      grids of the same base query is not built: each grid copies its own.)
    - Python's copies work the same way: landed in a table of the frames' database of its own, modelled by DataCube's
      code headless (`landed`), and served as a page's file is, so a query of it is planned over its own model.
-   - Python's per-frame Snapped mode folds into this. There is one Snap, per grid, of its base: a frame grid's Snap
-     copies `#>{frame}#` (step 2b).
+   - A frame's grid on Python's page snaps the same way (step 2b, built): one route, `snap.json`, for a frame's, a
+     page file's or a warehouse table's grid -- a warehouse's pull runs there, any other in the frames' database, the
+     frames held still, so a Live frame is copied as it is then.
+   - Python's per-frame `mode='snapped'` (`ll.show`, `Page.grid`, `Page.load`, `update`) is still there: removing it
+     breaks Python's API and drops a frozen copy made without a page open, so it is the user's call (asked
+     2026-10-20).
 4. **Python pages over any base.**
    - `_read_page` reads every kind of source DataCube reads, and `Grid.frame` gives way to the grid's leaves.
    - `load`, `read`, `update`, change tracking and page versions follow every leaf.
