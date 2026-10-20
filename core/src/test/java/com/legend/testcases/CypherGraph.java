@@ -399,7 +399,20 @@ public final class CypherGraph {
         Map<String, Set<String>> labelsOf = new HashMap<>();
         Map<String, String[]> relOf = new HashMap<>();
         List<String[]> sets = new ArrayList<>();
+        // (the label sets of the nodes a MERGE would create, its free nodes': a MERGE that matched where Neo4j ran
+        // still needs its creating branch's class)
+        Set<List<String>> merged = new java.util.LinkedHashSet<>();
+        Set<String> bound = new HashSet<>();
         for (com.legend.protocol.cypher.CypherAst.Clause c : st.clauses()) {
+            if (c instanceof com.legend.protocol.cypher.CypherAst.Merge mg) {
+                Set<String> inPattern = new HashSet<>();
+                for (var e : mg.pattern().elements()) {
+                    if (e instanceof com.legend.protocol.cypher.CypherAst.NodePattern n && (n.variable() == null
+                            || !bound.contains(n.variable()) && inPattern.add(n.variable()))) {
+                        merged.add(List.copyOf(new java.util.TreeSet<>(n.labels())));
+                    }
+                }
+            }
             List<com.legend.protocol.cypher.CypherAst.PathPattern> patterns = switch (c) {
                 case com.legend.protocol.cypher.CypherAst.Match m -> m.patterns();
                 case com.legend.protocol.cypher.CypherAst.Create cr -> cr.patterns();
@@ -408,6 +421,11 @@ public final class CypherGraph {
             };
             for (com.legend.protocol.cypher.CypherAst.PathPattern p : patterns) {
                 var els = p.elements();
+                for (var e : els) {
+                    if (e instanceof com.legend.protocol.cypher.CypherAst.NodePattern n && n.variable() != null) {
+                        bound.add(n.variable());
+                    }
+                }
                 for (int i = 0; i < els.size(); i++) {
                     if (els.get(i) instanceof com.legend.protocol.cypher.CypherAst.NodePattern n && n.variable() != null) {
                         labelsOf.computeIfAbsent(n.variable(), k -> new java.util.TreeSet<>()).addAll(n.labels());
@@ -452,6 +470,15 @@ public final class CypherGraph {
         List<CypherAnswers.GraphNode> nodes = new ArrayList<>();
         List<CypherAnswers.GraphRel> rels = new ArrayList<>();
         int[] ids = {nodeId, relId};
+        for (List<String> labels : merged) {
+            boolean held = false;
+            for (CypherAnswers.GraphNode n : graph.nodes()) {
+                held |= new HashSet<>(n.labels()).equals(new HashSet<>(labels));
+            }
+            if (!held) {
+                nodes.add(new CypherAnswers.GraphNode(ids[0]++, labels, Map.of()));
+            }
+        }
         for (String[] set : sets) {
             Map<String, String> props = Map.of(set[1], set[2]);
             String[] rel = relOf.get(set[0]);

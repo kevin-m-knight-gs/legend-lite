@@ -535,7 +535,8 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      merged, created or relabelled element re-anchors; a list written as a property read as its shape.
    - **The judge:** a case whose query updates the graph runs in a rolled-back transaction even where Neo4j raised;
      the store's TIMESTAMP and TIME columns read back; a statement ending in an update compared with no columns (S93).
-   - **Refused by name:** a nanosecond value written, `startNode`/`endNode`, a write to an element carried without
+   - **Refused by name:** a nanosecond value written, `startNode`/`endNode` of a relationship no write created or
+     merged (one a pattern reads, or one carried through a projection), a write to an element carried without
      identity; on the read side over edge classes (every native relationship is one): a hop from a node an edge
      class reached past depth two, a type joining several class pairs in an OPTIONAL MATCH.
    - **Temporal properties** (2026-10-20, GATES' ninety-seventh landing; §5's Cypher): zoned values and durations
@@ -544,6 +545,18 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      class, which the class writes do not write yet). Refused by name still: a list of zoned values the database
      computes (one zone for its elements), of a named zone or a zone the database reads, a list that may hold a null
      or holds values of several kinds, a list of nanosecond values.
+   - **`startNode` and `endNode`** (2026-10-20, GATES' ninety-eighth landing): of a relationship a write created or
+     merged, the nodes the clause wrote it between, where the rows carry both (a relationship's shape names their
+     identity columns, `RelEnds`). A CREATE's start is the pattern's; a MERGE's is the stored relationship's source,
+     which the database reads row by row (an undirected MERGE matches either direction), so `startNode(r).name`
+     is the column of whichever node that is. Over a domain model, a relationship over an association has no row
+     of the store's relationships to read its source from: refused by name there. Merge5 [11] passes on both
+     graphs (`CypherNativeEndsTest` pins the other directions).
+   - **Found with it:** a MATCH of several patterns whose second hops from a node the first reached through an edge
+     class (a cycle closed by the second, Match3 [18] on B) reads each pattern as rows, joined on the nodes they
+     share, its relationships distinct across them, as patterns sharing no node already were. On A, the harness's
+     model holds the class of a MERGE's free node's label set where Neo4j's run matched and created nothing (its
+     creating branch still compiles; Match8 [2]), as it holds a property of a branch never taken.
 7. **Later:**
    - write plans in `ExecutionPlan`;
    - GraphQL mutations, once `#GQL{...}#` compiles;

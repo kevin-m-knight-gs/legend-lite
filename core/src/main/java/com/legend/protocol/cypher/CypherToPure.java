@@ -1818,6 +1818,13 @@ public final class CypherToPure {
                 return cartesian(g != null ? g : java.util.Objects.requireNonNull(arms), named,
                         withUniqueness(m.where(), m.pos()), m.pos(), matchFrame.relationships());
             }
+            if (first != null && i > 0 && !m.optional() && state == null && arms == null
+                    && hopsPastEdge(named)) {
+                // a pattern hopping from a node an earlier one reached through an edge class (a cycle closed by a
+                // second pattern, Match3 [18]): each pattern read as rows, joined on the nodes they share, the
+                // relationships distinct across them (§12.70)
+                return joinedPatterns(m, null);
+            }
             if (arms != null && patterns.size() == 1 && named.elements().size() == 1 && named.variable() == null
                     && !m.optional()) {
                 // a bound node named again over arms (MATCH (n:A) WITH n MATCH (n:B)): its labels and property map
@@ -5936,6 +5943,20 @@ public final class CypherToPure {
         reachedThroughEdge.addAll(before);
     }
 
+    /** Whether a pattern hops from a node reached through an edge class ({@link #reachedThroughEdge}): a node of it
+     *  named so, beside one of its relationships. */
+    private boolean hopsPastEdge(PathPattern p) {
+        if (p.elements().size() < 3) {
+            return false;
+        }
+        for (PatternElement e : p.elements()) {
+            if (e instanceof NodePattern n && n.variable() != null && reachedThroughEdge.contains(n.variable())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** A hop from a node reached through an edge class, refused by name ({@link #reachedThroughEdge}). */
     private void refuseHopPastEdge(@com.legend.base.Nullable String variable, Pos pos) {
         if (variable != null && reachedThroughEdge.contains(variable)) {
@@ -8045,6 +8066,13 @@ public final class CypherToPure {
             return null;
         }
 
+        /** The node at the start ({@code start}) or the end of the relationship {@code v} names, or its property
+         *  {@code property} where one is named: where the scope carries the nodes at its ends, else null. */
+        default @com.legend.base.Nullable Val relEnd(CypherAst.Var v, boolean start,
+                @com.legend.base.Nullable String property, Pos pos) {
+            return null;
+        }
+
         /** The path {@code v} names over a pattern (the study's §12.27); null when it names none. */
         default @com.legend.base.Nullable PathSpec path(CypherAst.Var v) {
             return null;
@@ -9215,6 +9243,60 @@ public final class CypherToPure {
         }
 
         @Override
+        public @com.legend.base.Nullable Val relEnd(CypherAst.Var v, boolean start,
+                @com.legend.base.Nullable String property, Pos pos) {
+            Col c = column(v.name());
+            if (c == null || !(c.detail() instanceof RelShape rel) || rel.ends() == null) {
+                return null;
+            }
+            RelEnds ends = java.util.Objects.requireNonNull(rel.ends());
+            Col first = nodeOfIdentity(ends.first());
+            Col second = nodeOfIdentity(ends.second());
+            if (first == null || second == null) {
+                return null;
+            }
+            java.util.function.Function<Col, Val> read = n -> property == null
+                    ? variable(new CypherAst.Var(n.name(), pos))
+                    : property(new CypherAst.Prop(new CypherAst.Var(n.name(), pos), property, pos));
+            if (ends.firstStarts() == null) {
+                return read.apply(start ? first : second);
+            }
+            if (column(ends.firstStarts()) == null) {
+                return null;
+            }
+            // (the stored relationship's source, the database's reading: the first node where it is that node)
+            Val whenFirst = read.apply(start ? first : second);
+            Val otherwise = read.apply(start ? second : first);
+            if (!(whenFirst instanceof Scalar xs) || !(otherwise instanceof Scalar ys)) {
+                return null;
+            }
+            Tx x = xs.tx();
+            Tx y = ys.tx();
+            Kind kind = x.kind() == Kind.NULL ? y.kind() : x.kind();
+            if (y.kind() != Kind.NULL && y.kind() != kind || !java.util.Objects.equals(x.detail(), y.detail())
+                    && !(x.detail() instanceof NodeValue && y.detail() instanceof NodeValue)) {
+                return null;
+            }
+            ValueSpecification a = x.kind() == Kind.NULL ? SqlToPure.nullOf(kind).vs() : SqlToPure.valueOf(x);
+            ValueSpecification b = y.kind() == Kind.NULL ? SqlToPure.nullOf(kind).vs() : SqlToPure.valueOf(y);
+            ValueSpecification flag = new AppliedProperty(new Variable(row()), ends.firstStarts());
+            com.legend.protocol.sql.InputDialect.TypeDetail detail = x.detail() instanceof NodeValue
+                    && !java.util.Objects.equals(x.detail(), y.detail()) ? new NodeValue() : x.detail();
+            return scalar(new Tx(call("if", flag, thunk(a), thunk(b)), kind, x.nullable() || y.nullable()
+                    || x.kind() == Kind.NULL || y.kind() == Kind.NULL, null, detail, null, null));
+        }
+
+        /** The column of the node whose identity column is {@code identity}, present in the rows; null for none. */
+        private @com.legend.base.Nullable Col nodeOfIdentity(String identity) {
+            for (Col c : rows.columns()) {
+                if (c.detail() instanceof NodeShape ns && !ns.absent() && identity.equals(ns.identity())) {
+                    return c;
+                }
+            }
+            return null;
+        }
+
+        @Override
         public boolean isAbsentNode(CypherAst.Var v) {
             Col c = column(v.name());
             return c != null && c.detail() instanceof NodeShape shape && shape.absent();
@@ -9329,6 +9411,15 @@ public final class CypherToPure {
 
         @Override
         public Val property(CypherAst.Prop p) {
+            if (p.target() instanceof CypherAst.Call end && end.args().size() == 1
+                    && end.args().get(0) instanceof CypherAst.Var rv && (end.name().equalsIgnoreCase("startNode")
+                    || end.name().equalsIgnoreCase("endNode"))) {
+                // (a property of the node at a relationship's end: the carried node's own column, by its kind)
+                Val read = relEnd(rv, end.name().equalsIgnoreCase("startNode"), p.name(), p.pos());
+                if (read != null) {
+                    return read;
+                }
+            }
             if (!(p.target() instanceof CypherAst.Var v)) {
                 return member(val(p.target(), this), p.name(), p.pos());
             }
@@ -10696,6 +10787,19 @@ public final class CypherToPure {
             Tx id = scope.identity(v);
             if (id != null) {
                 return scalar(id);
+            }
+        }
+        if ((fn.equals("startnode") || fn.equals("endnode")) && c.args().size() == 1) {
+            // the node at a relationship's start or end: where the rows carry the nodes a write created or merged it
+            // between; of null, null
+            if (isNull(val(c.args().get(0), scope))) {
+                return nullValue();
+            }
+            if (c.args().get(0) instanceof CypherAst.Var v) {
+                Val end = scope.relEnd(v, fn.equals("startnode"), null, c.pos());
+                if (end != null) {
+                    return end;
+                }
             }
         }
         if (fn.equals("type") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var v) {
@@ -13844,10 +13948,19 @@ public final class CypherToPure {
             @com.legend.base.Nullable String forward,
             /** a relationship a hop that found nothing binds (null everywhere, its identity too, as an absent
              *  node's) */
-            boolean absent)
+            boolean absent,
+            /** the nodes at its ends, where the rows carry them ({@code startNode}, {@code endNode}); null where they
+             *  do not */
+            @com.legend.base.Nullable RelEnds ends)
             implements com.legend.protocol.sql.InputDialect.TypeDetail {
         RelShape(String type, Map<String, NodeProp> props) {
-            this(type, props, null, null, null, null, false);
+            this(type, props, null, null, null, null, false, null);
+        }
+
+        RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
+                @com.legend.base.Nullable String source, @com.legend.base.Nullable String target,
+                @com.legend.base.Nullable String forward, boolean absent) {
+            this(type, props, identity, source, target, forward, absent, null);
         }
 
         RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity) {
@@ -13869,6 +13982,13 @@ public final class CypherToPure {
         boolean identified() {
             return identity != null || source != null;
         }
+    }
+
+    /** The nodes at a relationship's ends as the rows carry them (a relationship a write created or merged): the
+     *  identity columns of the two nodes its pattern wrote it between ({@link NodeShape#identity}), and the column
+     *  telling where {@code first} is its start node (true), the database's reading of the stored relationship's
+     *  source; null where {@code first} is, as the pattern writes it. */
+    private record RelEnds(String first, String second, @com.legend.base.Nullable String firstStarts) {
     }
 
     /** Whether a value is a node's or a relationship's JSON, or a column holding one. */
@@ -18392,15 +18512,35 @@ public final class CypherToPure {
     private record Reread(String variable, String identity, String key, Map<String, Kind> props,
             @com.legend.base.Nullable String type, @com.legend.base.Nullable String typeColumn,
             /** over a domain model, a node's class where the clause knows it */
-            @com.legend.base.Nullable String classPath) {
+            @com.legend.base.Nullable String classPath,
+            /** a relationship's: the nodes the clause wrote it between, where the rows name both */
+            @com.legend.base.Nullable WrittenEnds ends) {
         Reread(String variable, String identity, String key, Map<String, Kind> props,
                 @com.legend.base.Nullable String type) {
-            this(variable, identity, key, props, type, null, null);
+            this(variable, identity, key, props, type, null, null, null);
+        }
+
+        Reread(String variable, String identity, String key, Map<String, Kind> props,
+                @com.legend.base.Nullable String type, @com.legend.base.Nullable String typeColumn,
+                @com.legend.base.Nullable String classPath) {
+            this(variable, identity, key, props, type, typeColumn, classPath, null);
         }
 
         Reread(String variable, String identity, String key, Map<String, Kind> props,
                 @com.legend.base.Nullable String type, @com.legend.base.Nullable String typeColumn) {
             this(variable, identity, key, props, type, typeColumn, null);
+        }
+    }
+
+    /** The nodes a clause wrote a relationship between, by their variables: {@code first} its start where
+     *  {@code firstKey} is null (a CREATE writes the pattern's direction), else the one whose id, the rows' column
+     *  {@code firstKey}, the stored relationship's source is (a MERGE matches either direction). */
+    private record WrittenEnds(String first, String second, @com.legend.base.Nullable String firstKey) {
+        /** The ends, where the pattern names both nodes; else null. */
+        static @com.legend.base.Nullable WrittenEnds of(@com.legend.base.Nullable String first,
+                @com.legend.base.Nullable String second, @com.legend.base.Nullable String firstKey) {
+            return first == null || second == null || hidden(first) || hidden(second) ? null
+                    : new WrittenEnds(first, second, firstKey);
         }
     }
 
@@ -19243,7 +19383,8 @@ public final class CypherToPure {
                     }
                 }
                 if (r.variable() != null && !hidden(r.variable())) {
-                    reread.add(new Reread(r.variable(), identityText(el), el.key(), kinds, r.types().get(0)));
+                    reread.add(new Reread(r.variable(), identityText(el), el.key(), kinds, r.types().get(0), null,
+                            null, WrittenEnds.of(ends[0].variable(), ends[1].variable(), null)));
                 }
             }
             return refreshed(staged, reread, cr.pos());
@@ -20012,8 +20153,11 @@ public final class CypherToPure {
                             null, domain ? classOfLabels(n.labels(), n.pos()) : null));
                 } else {
                     RelPattern r = (RelPattern) el.pattern();
+                    int at = elements.indexOf(el);
+                    Merged before = elements.get(at - 1);
                     rereads.add(new Reread(v, text, el.key(), storedProps(false, r.types(), el.kinds(), r.pos()),
-                            r.types().get(0)));
+                            r.types().get(0), null, null, WrittenEnds.of(variableOf(before.pattern()),
+                            variableOf(elements.get(at + 1).pattern()), before.key())));
                 }
             }
             Rows merged = new Rows(texts.isEmpty() ? union : call("extend", union, new ColSpecArray(texts)), both);
@@ -20676,6 +20820,7 @@ public final class CypherToPure {
                 replaced.add(rr.variable());
             }
             List<Col> columns = new ArrayList<>();
+            Map<String, String[]> pendingEnds = new HashMap<>();
             Set<String> dropped = new HashSet<>();
             for (Col c : staged.columns()) {
                 if (replaced.contains(c.name())) {
@@ -20775,9 +20920,50 @@ public final class CypherToPure {
                     props.put(p.getKey(), new NodeProp(value, p.getValue(), true));
                     dropped.add(owner);
                 }
+                String firstStarts = null;
+                // (over a domain model, the store's rels are its edge classes': a relationship over an association has
+                // no row there to read its source from, so its ends are not carried)
+                WrittenEnds written = node ? null : rr.ends();
+                boolean sourced = written != null && (written.firstKey() == null || !domain || edges().stream()
+                        .anyMatch(e -> e.type().equals(rr.type())));
+                if (sourced && java.util.Objects.requireNonNull(written).firstKey() != null) {
+                    // (where the first node is the stored relationship's source: the database's reading of it)
+                    String relId = freshName(names);
+                    String source = freshName(names);
+                    firstStarts = freshName(names);
+                    vs = call("join", vs, call("rename", call("rename", call("select", table("rels"),
+                            new ColSpecArray(List.of(new ColSpec("id", null, null, null), new ColSpec("src_id", null,
+                            null, null)))), new ColSpec("id", null, null, null), new ColSpec(relId, null, null, null)),
+                            new ColSpec("src_id", null, null, null), new ColSpec(source, null, null, null)),
+                            new EnumValue(JOIN_KIND, "LEFT"), joinedOn(rr.key(), relId));
+                    ValueSpecification src = read(source);
+                    vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(firstStarts, lambda("r", call("if",
+                            call("isEmpty", src), thunk(new CBoolean(false)), thunk(call("equal", call("toOne", src),
+                            read(java.util.Objects.requireNonNull(written.firstKey())))))), null, null))));
+                    columns.add(new Col(firstStarts, Kind.BOOLEAN, false));
+                }
+                if (sourced) {
+                    WrittenEnds ends = java.util.Objects.requireNonNull(written);
+                    pendingEnds.put(rr.variable(), new String[] {ends.first(), ends.second(), firstStarts});
+                }
                 columns.add(new Col(rr.variable(), Kind.JSON, true, null, node
                         ? new NodeShape(typeOrLabels, props, false, identity, rr.classPath())
                         : new RelShape(typeOrLabels, props, identity)));
+            }
+            // (each written relationship's ends: the identity columns of the nodes the rows carry under their names)
+            for (int i = 0; i < columns.size(); i++) {
+                Col c = columns.get(i);
+                String[] pending = pendingEnds.get(c.name());
+                if (pending == null || !(c.detail() instanceof RelShape rs)) {
+                    continue;
+                }
+                String first = identityColumn(columns, pending[0]);
+                String second = identityColumn(columns, pending[1]);
+                if (first != null && second != null) {
+                    columns.set(i, new Col(c.name(), c.kind(), c.nullable(), null, new RelShape(rs.type(), rs.props(),
+                            rs.identity(), rs.source(), rs.target(), rs.forward(), rs.absent(), new RelEnds(first,
+                            second, pending[2]))));
+                }
             }
             List<ColSpec> kept = new ArrayList<>();
             for (Col c : columns) {
@@ -20817,6 +21003,16 @@ public final class CypherToPure {
         }
 
         /** A left join's condition: the left row's key column {@code key} equal to the right's {@code id}. */
+        /** The identity column of the node the columns carry under {@code variable}, null where none. */
+        private static @com.legend.base.Nullable String identityColumn(List<Col> columns, String variable) {
+            for (Col c : columns) {
+                if (c.name().equals(variable) && c.detail() instanceof NodeShape ns && !ns.absent()) {
+                    return ns.identity();
+                }
+            }
+            return null;
+        }
+
         private static LambdaFunction joinedOn(String key, String id) {
             return new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(call("equal",
                     new AppliedProperty(new Variable("l"), key), new AppliedProperty(new Variable("r"), id))));
