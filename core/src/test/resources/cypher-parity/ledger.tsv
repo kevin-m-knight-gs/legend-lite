@@ -4444,7 +4444,10 @@ lite/ordering/a_longer_list_is_greater_after_an_equal_prefix	PASS	PASS
 lite/ordering/a_null_or_unordered_pair_is_null	PASS	PASS
 lite/ordering/a_list_and_another_type_do_not_order	PASS	PASS
 lite/ordering/lists_of_values_of_the_row	PASS	PASS
-lite/ordering/ordering_nested_lists_refused	REFUSED	REFUSED
+lite/ordering/ordering_nested_lists_refused	PASS	PASS
+lite/ordering/lists_inside_lists_ordered	PASS	PASS
+lite/ordering/maps_ordered_by_size_keys_and_values	PASS	PASS
+lite/ordering/maps_of_row_values_ordered	PASS	PASS
 lite/overrows/a_predicate_over_a_product	PASS	PASS
 lite/overrows/an_untyped_predicate_over_label_less_nodes	PASS	PASS
 lite/overrows/an_undirected_predicate_over_a_product	PASS	PASS

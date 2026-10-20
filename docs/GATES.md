@@ -11947,6 +11947,20 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the hundred-and-sixth landing — lists inside lists, and maps, ordered
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.97.
+- **What it closes:** comparing lists that hold lists or maps, and comparing two maps. Both were pinned "not
+  supported yet". Neo4j 2026.09.0 answers both (measured on the local server):
+  - a list inside a list orders as its own value, recursively;
+  - maps order by size, then by their sorted keys, then by their values in the keys' order.
+  The sizes and keys are the spelling's and compare at translation; the database compares the values.
+- **The cases:** three lite cases snapped from that server (nested lists, maps by size, keys and values, maps of a
+  row's values); `ordering_nested_lists_refused` now passes.
+- **Measured** (each lane in update mode): 5067 → 5070 cases; DuckDB and Postgres PASS 4255 → 4259, REFUSED 38 → 37;
+  native PASS 4285 → 4289, REFUSED 8 → 7; nothing else moved. `//core:guardrails`, `//core:census` and
+  `//core:core_tests_protocol` are green.
+
 ## 2026-10-20 — `#Cypher{...}#`: the hundred-and-fifth landing — durations ordered as Neo4j measures
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.96.

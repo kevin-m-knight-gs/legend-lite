@@ -5833,3 +5833,29 @@ REFUSED 11 → 8; nothing else moved. Five lite cases, their answers snapped fro
   (`signed_four_digit_years_in_date_time_texts`). The native lane now refuses the TCK's two signed years and lite's six deliberate
 pins: ORDER BY a node, ordering nested lists, a CASE choosing by `rand()`, `percentileCont` over integers, a time's
 named-zone component, and a printed text parsed after a WITH.
+
+### 12.97 Lists inside lists, and maps, ordered as Neo4j measures (2026-10-20)
+
+Lite pinned two refusals, comparing lists holding lists or maps (`[[1]] < [[2]]`) and comparing two maps
+(`{a: 1} < {a: 2}`), with the note "not supported yet". Neither is a decision: Neo4j 2026.09.0 answers both. Its
+rules, measured on the local server:
+- **A list inside a list** orders as its own value, element by element, as §12.34's lists do: `[[1, 2]] < [[1, 3]]`
+  and `[[1]] < [[1, 0]]` are true. A list beside a number is null, and so is a null inside (`[[null]] < [[1]]`).
+- **Two maps:** the map of fewer keys orders first (`{b: 1} < {a: 1, c: 0}` is true). Maps of one size compare their
+  sorted keys, the first that differs deciding (`{a: 2, b: 0} < {a: 1, c: 5}` is true, b before c). Maps of the same
+  keys compare their values in the keys' order, as a list's elements are. A value of another type, or a null, makes
+  the comparison null (`{a: 'x'} < {a: 1}`), and `{a: 1} <= {a: 1.0}` is true.
+
+`orderedVal` now reads a list or map element as its own value, recursively, and two maps of known shape go through
+`orderedMaps`. The sizes and the keys are the spelling's, so they compare at translation, as a list's lengths do
+(comparing spelled tokens, the world map's rule). The values are the database's to compare, through the same
+conditions as a list's elements. A map the database holds as a Variant still orders by its text (S81).
+
+Three lite cases, snapped from that server, pin the rules: `lists_inside_lists_ordered`,
+`maps_ordered_by_size_keys_and_values`, and `maps_of_row_values_ordered` (maps of a row's values). The pinned
+`ordering_nested_lists_refused` now passes. Lite's deliberate pins are five:
+- ORDER BY a node (Neo4j orders by its internal id);
+- a CASE choosing by `rand()`;
+- `percentileCont` over integers;
+- a time's named-zone component (the clock decides the offset);
+- a printed text parsed after a WITH.

@@ -12244,8 +12244,9 @@ public final class CypherToPure {
 
     /** {@code l < r} and the others over lists of known shape (the study's §12.34): Cypher orders lists element by
      *  element, the first pair that is not equal deciding (null when either of the pair is null or the two do not
-     *  order), the lengths deciding when every pair is equal; a list and a value of another type do not order
-     *  (null), as a list and a map do not. */
+     *  order; a list or map inside ordered as its own value), the lengths deciding when every pair is equal; a list
+     *  and a value of another type do not order (null), as a list and a map do not. Two maps order as
+     *  {@link #orderedMaps}. */
     private Tx orderedVal(BinaryOp op, Val l, Val r, Pos pos) {
         if (isNull(l) || isNull(r)) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
@@ -12259,10 +12260,10 @@ public final class CypherToPure {
             // (a list or map the database holds beside a spelled one: the Variants' orderability keys, §12.58)
             return ordered(op, scalarOf(l, pos), scalarOf(r, pos), pos);
         }
+        if (l instanceof MapVal lm && r instanceof MapVal rm) {
+            return orderedMaps(op, lm, rm, pos);
+        }
         if (!(l instanceof ListVal a) || !(r instanceof ListVal b)) {
-            if (l instanceof MapVal && r instanceof MapVal) {
-                throw CypherErrors.unsupported("ordering maps is not supported yet", pos);
-            }
             // a list and a value of another type (a number, a text, a map) do not order
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
@@ -12278,18 +12279,38 @@ public final class CypherToPure {
         for (int i = n - 1; i >= 0; i--) {
             Val x = a.elements().get(i);
             Val y = b.elements().get(i);
-            if (x instanceof ListVal || y instanceof ListVal || x instanceof MapVal || y instanceof MapVal) {
-                throw CypherErrors.unsupported("ordering lists holding lists or maps is not supported yet", pos);
-            }
             Tx eq = equalVal(x, y, pos);
+            // (a list or map inside ordered as its own value; beside a value of another type, null)
+            boolean nested = x instanceof ListVal || y instanceof ListVal || x instanceof MapVal || y instanceof MapVal;
             Tx decided = isNull(x) || isNull(y) ? SqlToPure.nullOf(Kind.BOOLEAN)
-                    : ordered(op, scalarOf(x, pos), scalarOf(y, pos), pos);
+                    : nested ? orderedVal(op, x, y, pos) : ordered(op, scalarOf(x, pos), scalarOf(y, pos), pos);
             // the pair equal: the pairs after decide; not equal: this pair does; null: null
             result = Tx.condition(call("or", call("and", eq.vs(), result.vs()), call("and", eq.falseWhen(),
                     decided.vs())), call("or", call("and", eq.vs(), result.falseWhen()), call("and", eq.falseWhen(),
                     decided.falseWhen())), eq.nullable() || result.nullable() || decided.nullable());
         }
         return result;
+    }
+
+    /** {@code l < r} and the others over maps of known shape (measured, Neo4j 2026.09.0): the map of fewer keys orders
+     *  first; maps of one size by their keys in order, the first key that differs deciding; maps of the same keys by
+     *  their values in the keys' order, as a list's elements are ({@link #orderedVal}). The keys are the spelling's,
+     *  so size and keys compare here, as a list's lengths do; the values are the database's to compare. */
+    private Tx orderedMaps(BinaryOp op, MapVal l, MapVal r, Pos pos) {
+        List<String> lk = new ArrayList<>(l.entries().keySet());
+        List<String> rk = new ArrayList<>(r.entries().keySet());
+        lk.sort(null);
+        rk.sort(null);
+        int order = Integer.compare(lk.size(), rk.size());
+        for (int i = 0; order == 0 && i < lk.size(); i++) {
+            order = lk.get(i).compareTo(rk.get(i));
+        }
+        if (order != 0) {
+            return constant(op == BinaryOp.LT || op == BinaryOp.LE ? order < 0 : order > 0);
+        }
+        return orderedVal(op, new ListVal(lk.stream().map(k -> java.util.Objects.requireNonNull(l.entries().get(k)))
+                .toList()), new ListVal(rk.stream().map(k -> java.util.Objects.requireNonNull(r.entries().get(k)))
+                .toList()), pos);
     }
 
     /** Whether {@code s} is a list the database holds as a Variant of a known element kind: one {@link #asCollection}

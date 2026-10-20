@@ -1082,8 +1082,15 @@ class CypherToPureTest {
                 pure("RETURN [1, 2] < [3, 4] AS a, [1, 2] < true AS b, ([1, 2] < [3, 4]) IN [[3, 4], false] AS c"));
         assertEquals("demo::Person.all()->project(~[a:p|if((($p.age->isNotEmpty() && ($p.age->toOne() == 2)) && (((1 == 1) && false) || ((1 != 1) && (1 < 1)))) || (($p.age->isNotEmpty() && ($p.age->toOne() != 2)) && ($p.age->isNotEmpty() && ($p.age->toOne() < 2))), |true, |if((($p.age->isNotEmpty() && ($p.age->toOne() == 2)) && (((1 == 1) && true) || ((1 != 1) && !(1 < 1)))) || (($p.age->isNotEmpty() && ($p.age->toOne() != 2)) && ($p.age->isNotEmpty() && !($p.age->toOne() < 2))), |false, |[]))])",
                 pure("MATCH (p:Person) RETURN [p.age, 1] < [2, 1] AS a"));
-        unsupported("RETURN [[1]] < [[2]] AS a", "ordering lists holding lists or maps");
-        unsupported("RETURN {a: 1} < {a: 2} AS a", "ordering maps");
+        // a list or map inside a list ordered as its own value, recursively (measured, Neo4j 2026.09.0)
+        String nested = pure("RETURN [[1]] < [[2]] AS a");
+        assertTrue(nested.contains("(1 < 2)"), nested);
+        // two maps (measured, Neo4j 2026.09.0): the fewer keys first, then the keys in order, then the values in the
+        // keys' order -- the spelled keys compared here, the values by the database
+        String bySize = pure("RETURN {b: 1} < {a: 1, c: 0} AS a");
+        assertTrue(bySize.contains("a:r|true"), bySize);
+        String byValues = pure("RETURN {a: 1, b: 2} < {b: 3, a: 1} AS a");
+        assertTrue(byValues.contains("(2 < 3)"), byValues);
     }
 
     @Test
