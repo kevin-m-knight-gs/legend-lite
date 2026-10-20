@@ -191,3 +191,35 @@ Asked whether the tests earn confidence for a change this size, the answer was m
   write refused for the other's): no deadlock, one page, every edit on it in version order. Run twenty times clean
   after the reopen fallback (limit 6).
 - **Soak.** `LEGEND_LITE_KEEPER_SEEDS=80`: 2,400 interleaved steps clean (eight seeds in the suite).
+
+## 8. As built: step 2 (2026-10-20)
+
+The design changed with the user's question "are the exact same APIs used in the browser and in Python?": step 1 had
+put the rule for making one writer's edits again on top of the other's in Python (page.py `_rebased`), and step (b) as
+planned would have written it a second time for the tab. Instead the host settles every write, by one TypeScript rule.
+
+- **One rule, in TypeScript** (datacube/src/page-rebase.ts `rebaseEdits`, headless `pageRebase`): one writer's edits,
+  made against a version the page moved on from, applied in order to the page as it is now -- page commands by the page
+  commands' own function, a grid's by the host's applier (only the host has a grid's base: its frame, or its copy). An
+  id a command made that the page has held since is given out afresh and every later edit naming it follows; a sheet's
+  arrangement keeps the tiles the other writer put on it; one edit that no longer applies refuses them all.
+- **The host settles** (python/legend_lite/keeper.py `settle`): storage that never reads a page -- what a page reads
+  (frames, copies, ids) comes with each write from DataCube (headless `pageReads`, `pageWritten`). A write at the version
+  the page is at is kept as written, with no extra call into DataCube; behind it, one call makes its edits again on top
+  (`pageRebase`), or the write is refused (a change by no command; edits that no longer apply). Python's page and the
+  open page both write through it; Python's own re-apply loop is gone, and a handle whose id was given out afresh
+  follows the rename.
+- **The tab** (datacube/src/app/live-channel.ts): the version on screen, the edits made there since its last write (each
+  grid's command and the page's, as applied), one queue of writes and follows. A change no command explains makes the
+  next write the page whole; nothing done while following counts as the tab's own; a write the host made again on top
+  reopens the page as the host made it; nothing is written when nothing was made (the browser harness caught such a
+  write, behind a page Python had moved, reopening the page in place of following Python's command).
+- **A page with no grid** is written and read live on both sides (known limit 5, settled).
+- **A write asks DataCube a fixed number of times**, whatever the page holds (step 1 asked once per grid; pinned).
+- Tests: page-rebase.test.ts (300 seeds of two writers' edits), live-channel.test.ts (the channel alone, and a real
+  PageApp whose edits reach a keeper as commands it makes again on top of the other editor's), keeper storage and settle
+  unit tests, the Python convergence and two-thread tests on the new protocol. Full suite 210/210.
+
+Still open: known limit 6 (a replaced copy dropped before every open page followed past it; step (d)); the seven tab
+edits that are no commands yet stay whole-page writes, refused when they collide (step (c) dropped: the user,
+2026-10-20, on cost against a rare case); on a combined write the tab reopens the page (its view state lost then).
