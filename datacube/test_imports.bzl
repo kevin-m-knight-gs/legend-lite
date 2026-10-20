@@ -1337,6 +1337,7 @@ TEST_IMPORTS = {
         "src/adhoc/session.ts",
         "src/adhoc/state.ts",
         "src/app.ts",
+        "src/app/join-sources.ts",
         "src/app/services.ts",
         "src/app/sources.ts",
         "src/calc-fix.ts",
