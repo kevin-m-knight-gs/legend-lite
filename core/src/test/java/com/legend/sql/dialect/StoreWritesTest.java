@@ -119,6 +119,63 @@ class StoreWritesTest {
         }
     }
 
+    /** A plan's parameter, typed as the planner types an {@code Integer[1]} (QueryParameters.Declared.slot). */
+    private static SqlExpr.PlanParam integer(String name) {
+        return new SqlExpr.PlanParam(name, SqlExpr.PlanParam.Kind.OTHER, false, null,
+                SqlTyping.typed(SqlType.Scalar.BIGINT), null);
+    }
+
+    /** A write's values bind a plan's parameters where they are written (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7):
+     *  the statement's text has a {@code ?} at each, its parameters in placeholder order; its text alone is refused. */
+    @Test
+    void aWriteBindsAPlansParametersWhereTheyAreWritten() throws Exception {
+        // UPDATE T AS t0 SET AGE = ? WHERE t0.ID > ?
+        SqlDml.Update bound = new SqlDml.Update(null, "T", BARE, "t0", Map.of(), List.of(new SqlDml.Update.Assignment(
+                "AGE", false, integer("age"))), new SqlExpr.Call(SqlFn.GREATER, List.of(stored("t0", "ID"),
+                integer("above"))));
+        // CREATE TEMPORARY TABLE S AS SELECT ... FROM SRC AS s WHERE s.AGE > ?
+        SqlDml.CreateTempTableAs staged = new SqlDml.CreateTempTableAs("S", source().withWhere(new SqlExpr.Call(
+                SqlFn.GREATER, List.of(stored("s", "AGE"), integer("older")))), List.of());
+        for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new DuckDb(), "jdbc:duckdb:"),
+                Map.entry(new H2(), "jdbc:h2:mem:store_writes_bound"),
+                Map.entry(new H2Modern(), "jdbc:h2:mem:store_writes_bound_m"))) {
+            SqlDialect d = db.getKey();
+            String name = d.getClass().getSimpleName();
+            RenderedStatement update = d.renderStatement(bound);
+            assertEquals(List.of("age", "above"), update.binds().stream().map(RenderedStatement.Bind::parameter)
+                    .toList(), name + ": " + update.sql());
+            RenderedStatement create = d.renderStatement(staged);
+            assertEquals(List.of("older"), create.binds().stream().map(RenderedStatement.Bind::parameter).toList(),
+                    name + ": " + create.sql());
+            var refused = assertThrows(IllegalStateException.class, () -> d.render(bound), name);
+            assertTrue(refused.getMessage().contains("render it as a statement"), refused.getMessage());
+            try (Connection c = DriverManager.getConnection(db.getValue())) {
+                run(c, "CREATE TABLE T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER)");
+                run(c, "CREATE TABLE SRC (ID INTEGER, NAME VARCHAR(20), AGE INTEGER)");
+                run(c, "INSERT INTO SRC VALUES (1, 'a', 10), (2, 'b', 20), (3, 'c', 30)");
+                run(c, d.render(insert()));
+                try (var st = c.prepareStatement(update.sql())) {
+                    st.setLong(1, 99L);
+                    st.setLong(2, 1L);
+                    assertEquals(2, st.executeUpdate(), name);
+                }
+                assertEquals(List.of("1|a|10", "2|b|99", "3|c|99"), rows(c), name);
+                try (var st = c.prepareStatement(create.sql())) {
+                    st.setLong(1, 15L);
+                    st.executeUpdate();
+                }
+                try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT count(*) FROM S")) {
+                    assertTrue(rs.next());
+                    assertEquals(2, rs.getInt(1), name);
+                }
+            }
+        }
+        // Postgres's: the same placeholders, in the same order
+        RenderedStatement pg = new Postgres().renderStatement(bound);
+        assertEquals(List.of("age", "above"), pg.binds().stream().map(RenderedStatement.Bind::parameter).toList(),
+                pg.sql());
+    }
+
     /** Postgres's text, each statement run on Postgres 16 by a probe (2026-10-18: 3, 2, 1 and 3 rows, the rows as
      *  DuckDB's and H2's above); a stored column's name folded, a name the statement writes (an alias, a label)
      *  delimited, as its queries spell them. */

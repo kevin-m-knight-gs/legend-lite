@@ -123,6 +123,19 @@ with the compiler's plan/execution split**, in this order:
    `exec/PlanRunner.java`; `server/PureV1Api.java`; `Execution.java`; a new output-matrix test in `core/src/test/`, and
    `ParkedWorkLedgerTest.java`. DataCube's engine client (`parseExact`, `timestampFromText`) only if the new text needs
    it, asked of the DataCube line first.
+   **Announced 2026-10-20 by the writes line (docs/WRITES_DESIGN_2026_10_18.md §7, D10: it builds in this line's
+   files and says so here) -- write plans, the writes design's leg 7, branch `claude/keen-noether-v5mis0`.** The
+   output-layer branch has not moved since 2026-10-13, and none of its files overlap but `PlanRunner`'s run method.
+   Files: `executionplan/ExecutionPlan.java` (`Update`, `Check`, `COUNT`; a `Sequence`'s transaction and answer),
+   `PlanJson.java` (version 5), `exec/PlanRunner.java` (a `Sequence` run on one session, in one transaction where
+   it changes the database, its answer held to the commit; no broad catch), `exec/PlanSessions.java`
+   (`Source.openToChange`: a write never changes a shared database), `PlanMaker.java` (`program`: a program that
+   writes, statement by statement), `TypedQuery.java` (`resolve` and `lowerer` split out of `lower`, `writes`),
+   `Execution.java` (`executeUpstream`), `server/QueryService.java`, the dialects' DML render methods
+   (`SqlDialect.renderStatement(SqlDml)`), `lowering/Lowerer.java` (`lowerPlanParam`), `resolver/StagedRows.java`
+   (the staged table's name and store, shared with `StatementExecutor`), `core/BUILD.bazel` (the driver's
+   `:execution_plan` dep, the Postgres target's tests). Tests: `WritePlansTest` and its DuckDB, H2 and Postgres
+   runners, `CypherWritePlansTest`, `PlanJsonTest`, `StoreWritesTest`, `PureV1ApiTest`.
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-m1`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo

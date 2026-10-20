@@ -33,6 +33,52 @@ public final class StagedRows {
                 false, false), letInfo);
     }
 
+    /** The temporary table of the session a staged let's rows are held in: the let's name under a prefix of the
+     *  platform's own, so no table of a store is named. */
+    public static String table(String let) {
+        return "legend_stage_" + let;
+    }
+
+    /** The rows {@code let s = rows->stage()} stages, or null for any other statement. */
+    public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec rowsOf(
+            com.legend.compiler.spec.typed.TypedSpec statement) {
+        if (!(statement instanceof TypedLet let)) {
+            return null;
+        }
+        com.legend.compiler.spec.typed.TypedSpec rhs = let.value();
+        while (rhs instanceof com.legend.compiler.spec.typed.TypedFrom rf) {
+            rhs = rf.source();
+        }
+        return rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
+                && com.legend.builtin.Pure.Lite.STAGE.equals(sc.callee().qualifiedName()) ? sc.args().get(0) : null;
+    }
+
+    /** The store a staged let's table is read under: the one store its rows read ({@code resolved}, the rows' body),
+     *  else (rows of no table) the one {@code runtime} binds; the session's temporary table is that store's
+     *  connection's. */
+    public static String storeOf(java.util.List<com.legend.compiler.spec.typed.TypedSpec> resolved,
+            com.legend.compiler.element.ModelContext ctx, @com.legend.base.Nullable String runtime) {
+        Set<String> stores = new java.util.TreeSet<>();
+        java.util.ArrayDeque<com.legend.compiler.spec.typed.TypedSpec> work = new java.util.ArrayDeque<>(resolved);
+        while (!work.isEmpty()) {
+            com.legend.compiler.spec.typed.TypedSpec n = work.poll();
+            if (n instanceof TypedTableReference tr) {
+                stores.add(tr.store());
+            }
+            work.addAll(n.children());
+        }
+        if (stores.size() == 1) {
+            return stores.iterator().next();
+        }
+        Set<String> bound = runtime == null ? Set.of()
+                : ctx.findRuntime(runtime).map(rt -> rt.connectionBindings().keySet()).orElse(Set.of());
+        if (stores.isEmpty() && bound.size() == 1) {
+            return bound.iterator().next();
+        }
+        throw new com.legend.error.NotImplementedException("rows staged (stage) that read " + stores + " under a"
+                + " runtime binding " + bound + ": a staged let's table is one store's");
+    }
+
     /** The staged rows' columns ({@code rows}, a relation), in order, as their projection names them: the session's
      *  temporary table's, which the statements after read by these names (writes leg 4, 2026-10-20: a dialect whose
      *  database folds a stored column's name names the table's columns so). */

@@ -147,6 +147,36 @@ public final class Execution {
         }
     }
 
+    /**
+     * Upstream {@code pure/v1/execution/execute} (E8), the query compiled once: a program that WRITES a store
+     * (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) from its execution plan ({@link TypedQuery#executionPlan}), run by
+     * the model-free runner on {@code planSessions}; any other query as {@link #executeWire} runs it, on
+     * {@code sessions}.
+     * The database's JSON rows are written to {@code out}. Returns the plan that ran: for a program, its answer's SQL
+     * and its root type.
+     */
+    public static com.legend.plan.QueryPlan executeUpstream(String model,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, com.legend.exec.PlanSessions.Source planSessions,
+            java.io.Writer out) throws java.io.IOException {
+        TypedQuery typed = Compiler.query(Compiler.compileModel(model), query);
+        if (!typed.writes()) {
+            Compiler.LoweredQuery l = typed.lower(runtimeFqn, false);
+            try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn),
+                    l.ctx())) {
+                return wireOn(l, runtimeFqn, session.connection(), out);
+            }
+        }
+        com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, TypedQuery.Output.JSON);
+        com.legend.exec.PlanRunner.run(plan, java.util.Map.of(), planSessions, out);
+        String sql = ((com.legend.executionplan.ExecutionPlan.Sequence) plan.root()).steps().stream()
+                .filter(com.legend.executionplan.ExecutionPlan.TextResult.class::isInstance)
+                .map(t -> ((com.legend.executionplan.ExecutionPlan.TextResult) t).sql().statement())
+                .findFirst().orElseThrow();
+        return new com.legend.plan.QueryPlan(sql, typed.resultType(),
+                com.legend.plan.ResultShape.of(typed.body().get(typed.body().size() - 1)));
+    }
+
     private static com.legend.plan.QueryPlan wireOn(Compiler.LoweredQuery l, String runtimeFqn, java.sql.Connection connection,
             java.io.Writer out) throws java.io.IOException {
         com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());

@@ -11947,6 +11947,44 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — writes: the hundredth landing — write plans
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 7 (announced in
+`docs/IN_FLIGHT.md`, the database owner's line: D10).
+- **What it closes:** a program that writes now has an execution plan, which the model-free runner executes with
+  every value bound. Before, `TypedQuery.executionPlan` refused a write by name, and so did the server's
+  `pure/v1/execution/execute` (the wire path): a Cypher write or `#SQL` DML ran in process only.
+- **The pieces:**
+  - **The dialect:** `SqlDialect.renderStatement(SqlDml)` writes a write's or a staged table's `?` placeholders.
+  - **The plan records:** two new nodes, `Update` (a change, its count bindable by a later step) and `Check` (a
+    query run for what it raises). A `Sequence` is one transaction, its answer held to the commit. `PlanJson` is
+    version 5.
+  - **The runner:** a sequence runs on one session, and a write never changes a database the runner shares
+    (`PlanSessions.Source.openToChange`, decision A's second rule).
+  - **The planner:** `PlanMaker.program` plans statement by statement, each with the lets before it:
+    - a staged let creates, and later drops, the session's table;
+    - a store write is an `Update`;
+    - any other statement before the last is a `Check` (Cypher's guards);
+    - the answer is a query's text, or a write's count bound into a query of its own.
+  - **The server:** `execute` answers a program that writes from its plan.
+- **Measured:**
+  - `WritePlansTest` on DuckDB, H2 and Postgres 16: every L1 write with bound parameters, the failure cases, a
+    joined transaction, a staged program, and a plan read back from its JSON.
+  - `WritePlansH2Test`: the shared database stays unchanged.
+  - `CypherWritePlansTest`: nine Cypher writes on the native store, plus DeleteConnectedNode. Each answers by its
+    plan exactly as by its execution: the same rows, the same graph after, the same error.
+  - `PureV1ApiTest`: a staged write program through `execute`.
+  - `//core:core_tests`, `//core:guardrails` and `//core:store_writes_postgres_test` all green. Guardrails found a
+    broad catch and a typed node minted outside the compiler layers; both were fixed before landing.
+  - The local gate moved three pins, each dated:
+    - the driver reaches `execution_plan` (`tools/deps/core-layers.txt`);
+    - `StatementExecutor`'s Java-evaluation pin fell from 2394 to 2380 lines (the staged table's name and store moved
+      to `StagedRows`);
+    - parser-equivalence's `own_corpus.matched` rose from 2882 to 2885 (the new tests' models, matched).
+  - The local gate is green but for three TypeScript and browser tests that fail only under the Postgres
+    `run_under` wrapper; all three pass without it.
+- **Not yet:** a write whose answer is a count, over `execute` (a scalar's TDS answer is unprobed for reads too).
+
 ## 2026-10-20 — `#Cypher{...}#`: the ninety-ninth landing — zoned values and durations written on a domain model
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, legs 5 and 6.

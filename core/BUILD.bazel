@@ -232,7 +232,8 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
-        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
+        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
+        ":platform",
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
@@ -408,6 +409,8 @@ legend_java_library(
             # #SQL{...}# island's writes on Postgres (leg 4)
             "src/test/java/com/legend/integration/StoreWritesPostgresTest.java",
             "src/test/java/com/legend/integration/SqlWritesPostgresTest.java",
+            # and the write plans on Postgres (leg 7)
+            "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
@@ -1047,7 +1050,8 @@ junit_test(
 # THE STORE WRITES ON POSTGRES (docs/WRITES_DESIGN_2026_10_18.md §4, L1): StoreWritesExecutionTest's writes (a
 # relation's rows into a table, the update count, one transaction per program, a caller's transaction joined) on the
 # embedded Postgres 16, and SqlWritesExecutionTest's (the #SQL{...}# island's INSERT, UPDATE, DELETE, ON CONFLICT and
-# RETURNING over a keyed table: leg 4); the same checks run on DuckDB and H2 in core_tests_integration
+# RETURNING over a keyed table: leg 4), and WritePlansTest's (the writes planned and run by the plan runner: leg 7);
+# the same checks run on DuckDB and H2 in core_tests_integration
 junit_test(
     name = "store_writes_postgres_test",
     memory_mb = 768,
@@ -1057,6 +1061,8 @@ junit_test(
         "src/test/java/com/legend/integration/SqlWritesPostgresTest.java",
         "src/test/java/com/legend/integration/StoreWritesExecutionTest.java",
         "src/test/java/com/legend/integration/StoreWritesPostgresTest.java",
+        "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
+        "src/test/java/com/legend/integration/WritePlansTest.java",
     ],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
@@ -1066,6 +1072,7 @@ junit_test(
     select = [
         "--select-class=com.legend.integration.StoreWritesPostgresTest",
         "--select-class=com.legend.integration.SqlWritesPostgresTest",
+        "--select-class=com.legend.integration.WritePlansPostgresTest",
     ],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,

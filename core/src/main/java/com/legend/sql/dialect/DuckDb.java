@@ -711,7 +711,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's
      *  generator tests, ReservedNamesGenerationTest). */
     @Override
-    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+    protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
         return createTemporaryTableAs(ct);
     }
 
@@ -1067,22 +1067,22 @@ public final class DuckDb extends AnsiSqlRenderer {
     /** {@inheritDoc} Measured on DuckDB 1.4 (2026-10-18, the writes' leg 2): the standard spellings, an alias written with
      *  {@code AS}; each statement atomic on an error (a key or NOT NULL violation leaves the table as it was). */
     @Override
-    protected String insertSelect(com.legend.sql.SqlDml.InsertSelect is) {
+    protected SqlWriter insertSelect(com.legend.sql.SqlDml.InsertSelect is) {
         return standardInsertSelect(is);
     }
 
     @Override
-    protected String update(com.legend.sql.SqlDml.Update u) {
+    protected SqlWriter update(com.legend.sql.SqlDml.Update u) {
         return standardUpdate(u);
     }
 
     @Override
-    protected String deleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
+    protected SqlWriter deleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
         return standardDeleteWhere(dw);
     }
 
     @Override
-    protected String merge(com.legend.sql.SqlDml.Merge m) {
+    protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
         return standardMerge(m);
     }
 }

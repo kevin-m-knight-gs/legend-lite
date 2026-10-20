@@ -419,9 +419,10 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      second write rolling the first back, a caller's transaction joined, a class query's rows, a source whose physical
      column order differs from its declaration, the checker's refusals. `StoreWritesExecutionTest`,
      `StoreWritesPostgresTest`.
-   - **Deferred:** `renderStatement(SqlDml)` (text plus `?` binds). A write runs as text, as a query does at
-     execution; a bound parameter in a DML statement is refused by name, and the bound form comes with write plans
-     (leg 7). In a query's plan (`TypedQuery.plan`), each write is refused by name.
+   - **Deferred, then landed with leg 7 (2026-10-20):** `renderStatement(SqlDml)` (text plus `?` binds). A write
+     runs as text at execution, as a query does; a bound parameter in a DML statement's text is refused, and its
+     statement form binds it. The lite plan (`TypedQuery.executionPlan`) plans a program that writes (leg 7); the legacy
+     plan (`TypedQuery.plan`) still refuses each write by name.
 3. **The spike: the native store as a platform class model** (§4, L2'). It decides B's cost and its legs.
    **Answered 2026-10-19: yes, contained work.**
    - **How:** graph B is the domain realization's own class model, mapping and island, realized over the native
@@ -561,14 +562,67 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      share, its relationships distinct across them, as patterns sharing no node already were. On A, the harness's
      model holds the class of a MERGE's free node's label set where Neo4j's run matched and created nothing (its
      creating branch still compiles; Match8 [2]), as it holds a property of a branch never taken.
-7. **Later:**
-   - write plans in `ExecutionPlan`;
+7. **Write plans. Landed on the branch 2026-10-20** (GATES' hundredth landing), in the database owner's files under D10
+   (`docs/IN_FLIGHT.md`). A program that writes plans as an `ExecutionPlan` the model-free runner executes, so a write
+   runs where a query runs through a plan, every value bound. Before it, `TypedQuery.executionPlan` lowered a body as
+   one query and refused a write in it by name, and the server's `pure/v1/execution/execute` ran the wire path, which
+   refused one too: a Cypher write or `#SQL` DML ran in process (`Execution.execute`), not over HTTP.
+   - **The dialect: DML as a statement.** `SqlDialect.renderStatement(SqlDml)`: the text and its `?` parameters in
+     placeholder order, as `renderStatement(SqlQuery)` is. The store writes' and the staged table's render methods
+     return the writer they wrote into (invariant 3); `render(SqlDml)` stays text, and a parameter in it is refused as
+     a query's text refuses one. A dropped table's DDL is text (it holds no value). `StoreWritesTest` binds an UPDATE's
+     value and predicate and a staged table's predicate on DuckDB and both H2 dialects (Postgres's placeholders
+     listed).
+   - **The plan records** (`ExecutionPlan`, `PlanJson` version 5):
+     - `Update(sql, count)` is a statement run for the change it makes (a write into a store table, a staged table
+       created or dropped). Its answer is the count the database reports. `count` is, where a later step reads that
+       count, the name its slot binds it by (`#count`, which no declared parameter can be named).
+     - `Check(sql)` is a query run for the error its database may raise (a Cypher write's guard: DeleteConnectedNode,
+       DeletedEntityAccess). Its rows are read and dropped.
+     - A `Sequence` holding an `Update` runs in one transaction of its session (D7): its changes all land or none do,
+       and a caller's open transaction is joined. Its answer is its one result step's, passed on once the transaction
+       has committed.
+   - **The runner** (`PlanRunner`, `PlanSessions`):
+     - A sequence's steps run on one session. Each statement's target must be the same, or the plan is refused by
+       name. The session statements run once. Each change's count is kept for the slots after it, and the result's
+       text is held until the commit. A raise the session holds surfaces as the execution's does (`RaisedErrors`).
+     - Decision A's second rule: a plan that changes a database the runner shares runs on a database of its own,
+       opened and set up from the target for that run (`Source.openToChange`), so the shared one is never changed. A
+       caller's connection, a database the user names, or one a URL reaches keeps the change.
+   - **The planner** (`PlanMaker.program`; `TypedQuery.resolve` and `lowerer`, the wire path's steps split out).
+     A program that writes or stages is planned statement by statement, each with the lets before it, as the
+     execution's body compiler takes them, every declared parameter a value its statement binds:
+     - a staged let is an `Update` creating `legend_stage_s`; the let is bound to that table for the statements after
+       (`StagedRows`, which now owns the table's name and its store for both paths), and an `Update` drops the table
+       after the result;
+     - any other let rides the lets of the statements after;
+     - a store write (L1's, or L2's after the store resolver) is an `Update` of `Lowerer.lowerStoreWrite`;
+     - any other statement before the last is a `Check`;
+     - the last statement is the answer: a query's text in the form the caller asks for, or a write's count, bound
+       after its `Update` into the one placeholder of a query of its own (`Lowerer.lowerPlanParam`). Either way the
+       database writes the text.
+   - **The server:** `pure/v1/execution/execute` answers a program that writes from its plan
+     (`Execution.executeUpstream`, the query compiled once), on the runner's sessions. Step 4 of the plan program
+     switches every query; writes go first, because the wire path cannot run them at all.
+   - **The judge:**
+     - `WritePlansTest` on DuckDB, H2 and Postgres 16 runs each of L1's writes with its parameters bound, planned and
+       run, against the rows the table holds after. It also covers a failing write leaving the table as it was, a
+       failing second write taking the first back, a caller's transaction joined, a staged program, and the plan read
+       back from its JSON running alike.
+     - `WritePlansH2Test` checks that a write plan never changes the database the runner shares.
+     - `CypherWritePlansTest` runs nine Cypher writes on the native store (CREATE, SET of a property and a label,
+       REMOVE, DETACH DELETE, MERGE that creates and that matches, UNWIND then CREATE, an undirected MERGE) and
+       DeleteConnectedNode. Each is run by its plan and by its execution, and must give the same rows, the same graph
+       after and the same error.
+     - `PureV1ApiTest.e8_execute_aProgramThatWrites_runsFromItsPlan` runs a staged write program through `execute`.
+   - **Not yet:** a write whose answer is a count, over `execute` (a scalar's TDS answer is unprobed for reads too).
+8. **Later:**
    - GraphQL mutations, once `#GQL{...}#` compiles;
    - Persistence-style ingest modes over `merge`.
 
 **The order since 2026-10-19 (the user: "keep going ... until we have all Cypher and TCK completely working end to
 end"):** 3, then 6 (the TCK's write cases judged on B, which writes through L1 alone), then 5 (A, which needs L2's
-inverse), then 4 (`#SQL` DML), then 7.
+inverse), then 4 (`#SQL` DML), then 7 (write plans). All seven landed on the branch by 2026-10-20.
 
 **Expected end state:**
 - the TCK at 3878 of 3880 (all but the 2 signed years) on B;

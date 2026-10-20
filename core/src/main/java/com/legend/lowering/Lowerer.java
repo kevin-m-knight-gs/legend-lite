@@ -446,6 +446,13 @@ public final class Lowerer {
         return com.legend.compiler.spec.typed.TypedSubst.renameBinders(body.get(body.size() - 1), reserved, queryScope);
     }
 
+    /** The value of the plan parameter {@code name} (bound by {@link #bindPlanParam}), of {@code type}, as the query
+     *  whose value it is: a query that reads the parameter alone (a write plan's count, which the plan binds after
+     *  its write runs, docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). */
+    public SqlQuery lowerPlanParam(String name, ExprType type) {
+        return lower(List.of(new TypedVariable(name, type)));
+    }
+
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
         // from() is execution-context metadata, fully consumed by Phase H —

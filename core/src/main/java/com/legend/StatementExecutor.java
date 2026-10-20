@@ -2139,10 +2139,10 @@ final class StatementExecutor {
         return new ExecutionResult.Scalar(count, write.info().type());
     }
 
-    /** The temporary table of the session a staged let's rows are held in (Pure.Lite.STAGE): the let's name under a
-     *  prefix of the platform's own, so no table of a store is named. */
+    /** The temporary table of the session a staged let's rows are held in (Pure.Lite.STAGE; StagedRows.table, which
+     *  a write plan's staging names too). */
     static String stagedTable(String let) {
-        return "legend_stage_" + let;
+        return com.legend.resolver.StagedRows.table(let);
     }
 
     /** A staged let's rows (Pure.Lite.STAGE, docs/WRITES_DESIGN_2026_10_18.md §8, leg 6): computed now, at the let's
@@ -2165,24 +2165,9 @@ final class StatementExecutor {
         return new ExecutionResult.Scalar(null, p.plannedRoot().info().type());
     }
 
-    /** The store a staged let's table is read under: the one store its rows read, else (rows of no table) the one the
-     *  runtime binds; the session's temporary table is that store's connection's. */
+    /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */
     static String storeOf(java.util.List<TypedSpec> body, ExecEnv env) {
-        java.util.Set<String> stores = new java.util.TreeSet<>();
-        for (TypedSpec s : body) {
-            collectStores(s, stores);
-        }
-        if (stores.size() == 1) {
-            return stores.iterator().next();
-        }
-        java.util.Set<String> bound = env.runtimeFqn() == null ? java.util.Set.of()
-                : env.ctx().findRuntime(env.runtimeFqn()).map(rt -> rt.connectionBindings().keySet())
-                        .orElse(java.util.Set.of());
-        if (stores.isEmpty() && bound.size() == 1) {
-            return bound.iterator().next();
-        }
-        throw new com.legend.error.NotImplementedException("rows staged (stage) that read " + stores + " under a"
-                + " runtime binding " + bound + ": a staged let's table is one store's");
+        return com.legend.resolver.StagedRows.storeOf(body, env.ctx(), env.runtimeFqn());
     }
 
     /** The staged lets' temporary tables dropped once the program has run (a failed program's transaction takes

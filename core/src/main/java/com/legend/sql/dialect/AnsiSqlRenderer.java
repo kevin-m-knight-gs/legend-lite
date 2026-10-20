@@ -1637,11 +1637,27 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
-            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
-            case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is);
-            case com.legend.sql.SqlDml.Update u -> update(u);
-            case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw);
-            case com.legend.sql.SqlDml.Merge m -> merge(m);
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).text();
+            case com.legend.sql.SqlDml.Update u -> update(u).text();
+            case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
+            case com.legend.sql.SqlDml.Merge m -> merge(m).text();
+        };
+    }
+
+    @Override
+    public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
+        return switch (dml) {
+            // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
+            // dialect renders it)
+            case com.legend.sql.SqlDml.InsertValues iv -> new RenderedStatement(render(iv), List.of());
+            case com.legend.sql.SqlDml.InsertFromTable it -> new RenderedStatement(render(it), List.of());
+            case com.legend.sql.SqlDml.DeleteAll da -> new RenderedStatement(render(da), List.of());
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).statement();
+            case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).statement();
+            case com.legend.sql.SqlDml.Update u -> update(u).statement();
+            case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).statement();
+            case com.legend.sql.SqlDml.Merge m -> merge(m).statement();
         };
     }
 
@@ -1650,22 +1666,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A query's rows into a table: refused unless the dialect's database is measured to run
      *  {@link #standardInsertSelect}, as every spelling is its dialect's (D1). Measured on DuckDB, H2 and Postgres 16,
      *  2026-10-18 (the writes' leg 2); the others refuse by name until each is. */
-    protected String insertSelect(com.legend.sql.SqlDml.InsertSelect is) {
+    protected SqlWriter insertSelect(com.legend.sql.SqlDml.InsertSelect is) {
         throw unmeasuredWrite("an INSERT of a query's rows");
     }
 
     /** An UPDATE of a table's rows: refused unless measured ({@link #standardUpdate}). */
-    protected String update(com.legend.sql.SqlDml.Update u) {
+    protected SqlWriter update(com.legend.sql.SqlDml.Update u) {
         throw unmeasuredWrite("an UPDATE");
     }
 
     /** A DELETE of the rows a condition holds for: refused unless measured ({@link #standardDeleteWhere}). */
-    protected String deleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
+    protected SqlWriter deleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
         throw unmeasuredWrite("a DELETE ... WHERE");
     }
 
     /** An upsert by key: refused unless measured ({@link #standardMerge}). */
-    protected String merge(com.legend.sql.SqlDml.Merge m) {
+    protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
         throw unmeasuredWrite("a MERGE");
     }
 
@@ -1676,15 +1692,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** The standard {@code INSERT INTO t (columns) query}, the query written as this dialect writes one, its passes
      *  applied. */
-    protected final String standardInsertSelect(com.legend.sql.SqlDml.InsertSelect is) {
+    protected final SqlWriter standardInsertSelect(com.legend.sql.SqlDml.InsertSelect is) {
         SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(is.schema(), is.table(), is.quoting()))
                 .append(dmlColumns(is.columns(), is.quotedColumns())).append(" ");
-        return dmlText(query(writer, passed(is.query()), 0).append(";"), "an INSERT's query");
+        return query(writer, passed(is.query()), 0).append(";");
     }
 
     /** The standard {@code UPDATE t AS alias SET c = value, ... [WHERE condition]} (an assigned column unqualified,
      *  as every measured database requires; the values and the condition read the row through the alias). */
-    protected final String standardUpdate(com.legend.sql.SqlDml.Update u) {
+    protected final SqlWriter standardUpdate(com.legend.sql.SqlDml.Update u) {
         SqlSelect read = storedReadsOver(u.table(), u.alias(), u.storedTypes(),
                 u.assignments().stream().map(com.legend.sql.SqlDml.Update.Assignment::value).toList(), u.where());
         SqlWriter writer = newWriter().append("UPDATE ").append(ddlQualified(u.schema(), u.table(), u.quoting()))
@@ -1697,18 +1713,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (read.where() != null) {
             writer.append(" WHERE ").expr(read.where(), 0);
         }
-        return dmlText(writer.append(";"), "an UPDATE");
+        return writer.append(";");
     }
 
     /** The standard {@code DELETE FROM t AS alias [WHERE condition]}. */
-    protected final String standardDeleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
+    protected final SqlWriter standardDeleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
         SqlSelect read = storedReadsOver(dw.table(), dw.alias(), dw.storedTypes(), List.of(), dw.where());
         SqlWriter writer = newWriter().append("DELETE FROM ").append(ddlQualified(dw.schema(), dw.table(), dw.quoting()))
                 .append(" AS ").append(aliasIdent(dw.alias()));
         if (read.where() != null) {
             writer.append(" WHERE ").expr(read.where(), 0);
         }
-        return dmlText(writer.append(";"), "a DELETE");
+        return writer.append(";");
     }
 
     /** An UPDATE's or a DELETE's expressions in the scope of their one table, read as a query reads it: the
@@ -1735,7 +1751,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  NOT MATCHED THEN INSERT (...) VALUES (...)}: each column read from the source as a query reads a derived
      *  table's column ({@link #columnRef} under the query output's origin: a stored column's name folded where its
      *  database folds it), written into the table's column as its store declared it. */
-    protected final String standardMerge(com.legend.sql.SqlDml.Merge m) {
+    protected final SqlWriter standardMerge(com.legend.sql.SqlDml.Merge m) {
         String target = aliasIdent(m.alias());
         java.util.function.Function<String, String> read = name -> columnRef(SqlExpr.Column.of(m.sourceAlias(),
                 m.query().outputs().stream().filter(o -> o.name().equals(name)).findFirst()
@@ -1763,50 +1779,33 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         for (int i = 0; i < m.columns().size(); i++) {
             writer.append(i == 0 ? "" : ", ").append(read.apply(m.columns().get(i)));
         }
-        return dmlText(writer.append(");"), "a MERGE's query");
-    }
-
-    /** A written store write as text: a plan parameter in it is refused (the statement runs as text, as a query does
-     *  at execution; a plan's writes are a later leg, the writes design's §4). */
-    private static String dmlText(SqlWriter writer, String what) {
-        RenderedStatement written = writer.statement();
-        if (!written.binds().isEmpty()) {
-            throw new DialectCapability("plan parameters " + written.binds() + " in " + what + ": a DML statement is"
-                    + " text");
-        }
-        return written.sql();
+        return writer.append(");");
     }
 
     /** A temporary table holding a query's rows (the test-data generator's): refused unless the dialect's database is
      *  measured to run {@link #createTemporaryTableAs}, as every spelling is its dialect's (D1). Until the PR audit of
      *  2026-10-16 every dialect inherited the standard spelling. */
-    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+    protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
         throw new DialectCapability("a temporary table from a query (CREATE TEMPORARY TABLE ... AS) on "
                 + getClass().getSimpleName() + ": no spelling measured on its database (the test-data generator's"
                 + " sessions are H2, DuckDB and SQLite)");
     }
 
     /** The standard {@code CREATE TEMPORARY TABLE t AS <query>}, for a dialect whose database runs it: the query
-     *  written as this dialect writes a query, its passes applied. A query with plan parameters is refused: the
-     *  statement is text. */
-    protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+     *  written as this dialect writes a query, its passes applied, each plan parameter bound where it is written. */
+    protected final SqlWriter createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
         return createTemporaryTableAs(ct, false);
     }
 
     /** {@link #createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs)}; {@code named}: its columns named
      *  ({@code CREATE TEMPORARY TABLE t ("a", ...) AS <query>}), each delimited, when the statement names them. */
-    protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct, boolean named) {
+    protected final SqlWriter createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct, boolean named) {
         SqlWriter head = newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()));
         if (named && !ct.columns().isEmpty()) {
             head.append(" (").append(String.join(", ", ct.columns().stream().map(this::delimited).toList()))
                     .append(")");
         }
-        RenderedStatement create = query(head.append(" AS "), passed(ct.query()), 0).append(";").statement();
-        if (!create.binds().isEmpty()) {
-            throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
-                    + " a DML statement is text");
-        }
-        return create.sql();
+        return query(head.append(" AS "), passed(ct.query()), 0).append(";");
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every
