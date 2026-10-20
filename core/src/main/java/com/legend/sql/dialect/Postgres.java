@@ -851,8 +851,10 @@ public final class Postgres extends AnsiSqlRenderer {
             case STRPTIME -> throw wall(c.fn(), "to_timestamp(text, fmt) is lenient and"
                     + " zone-bound; not yet probed against the reference");
             case FORMAT -> writer.piece(format(a));
-            // SHA-1 is pgcrypto's digest(): no release has a core sha1 (through 18 and devel, 2026-10-12)
-            case SHA1 -> throw wall(c.fn(), "an extension function (pgcrypto)");
+            // SHA-1 is pgcrypto's digest(): no release has a core sha1 (through 18 and devel, 2026-10-12). The
+            // engine's Postgres spells it so (its PCT passes testSHA1Hash there); a database without pgcrypto
+            // answers its own "function digest(bytea, unknown) does not exist" (2026-10-20, the parity phase)
+            case SHA1 -> writer.append("encode(digest(convert_to(").expr(a.get(0), 0).append(", 'UTF8'), 'sha1'), 'hex')");
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             // ---- variant (jsonb)

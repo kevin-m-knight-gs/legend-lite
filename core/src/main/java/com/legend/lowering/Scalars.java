@@ -807,8 +807,13 @@ final class Scalars {
                 // TIMESTAMP comparables — the partial-date STRING carrier
                 // orders '2001' > '10999' lexically. Value work is SQL
                 // (strptime pads; the compiler only names the format).
-                SqlExpr lhs = MixedEncoding.dateComparableOrSelf(n.args().get(0), args.get(0));
-                SqlExpr rhs = MixedEncoding.dateComparableOrSelf(n.args().get(1), args.get(1));
+                // two dates without a time compare on their day numbers, in any year (a timestamp has a range)
+                SqlExpr ld = MixedEncoding.dayNumberOrNull(n.args().get(0), args.get(0));
+                SqlExpr rd = MixedEncoding.dayNumberOrNull(n.args().get(1), args.get(1));
+                SqlExpr lhs = ld != null && rd != null ? ld
+                        : MixedEncoding.dateComparableOrSelf(n.args().get(0), args.get(0));
+                SqlExpr rhs = ld != null && rd != null ? rd
+                        : MixedEncoding.dateComparableOrSelf(n.args().get(1), args.get(1));
                 return new SqlExpr.Case(List.of(
                         new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.LESS,
                                 lhs, rhs), new SqlExpr.IntLit(-1)),
@@ -2143,9 +2148,11 @@ final class Scalars {
                 List<TypedSpec> typedElems =
                         n.args().get(1) instanceof TypedCollection tc
                                 ? tc.elements() : List.of(n.args().get(1));
-                // A LITERAL-carried argument list (M4 re-land): each
-                // slot re-emits as its spelling->PRINT projection by
-                // its STATIC kind (MixedEncoding.printedFormatSlots)
+                // A LITERAL-carried argument list (M4 re-land) -- a list
+                // value, not a literal collection, whose elements the
+                // Lowerer lowers each by its own kind: each slot re-emits
+                // as its spelling->PRINT projection by its STATIC kind
+                // (MixedEncoding.printedFormatSlots)
                 SqlExpr argColl = MixedEncoding.printedFormatSlots(
                         args.get(1), typedElems);
                 if (argColl instanceof SqlExpr.ArrayLit arr) {

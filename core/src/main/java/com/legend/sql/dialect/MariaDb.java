@@ -267,7 +267,8 @@ public class MariaDb extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new QualifyToSubselect(true), new ConstantKeysAsExpressions());
+                new QualifyToSubselect(true), new WindowAggregatesAsCorrelated(Set.of(SqlAgg.Fn.STRING_AGG)),
+                new ConstantKeysAsExpressions());
     }
 
     @Override
@@ -384,6 +385,18 @@ public class MariaDb extends AnsiSqlRenderer {
             roots.pop();
             rootSelects.pop();
         }
+    }
+
+    /** An ordered derived table takes a LIMIT: MariaDB and MySQL drop a derived table's ORDER BY without one, and its
+     *  reader then scans the rows in any order (measured 2026-10-20 on 11.4 and 8.4: a list's rows, ordered by their
+     *  position below a joined text, came out '1' '3' 1 2 3 where the list is 1 2 '1' '3' 3; with the LIMIT, in order). */
+    @Override
+    protected SqlWriter subselectSource(SqlWriter writer, SqlSource.Subselect sub, int depth) {
+        if (sub.inner() instanceof SqlSelect s && !s.orderBy().isEmpty() && s.limit() == null) {
+            return super.subselectSource(writer, new SqlSource.Subselect(s.withLimit(Long.MAX_VALUE), sub.alias(),
+                    sub.frameName()), depth);
+        }
+        return super.subselectSource(writer, sub, depth);
     }
 
     /**

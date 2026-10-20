@@ -42,8 +42,11 @@ final class ChannelBLane {
      *  relation's rows. */
     private static final Map<String, Map<String, Pins>> PINS = Map.of(
             // the relation suite only, as channel A's H2 lane: 14 tests sort or join a group's values as a list in
-            // their own check (12 not the engine's frontier)
-            "h2", Map.of("Relation", new Pins(429, 14, 12)),
+            // their own check (12 not the engine's frontier). 429 -> 431, 14 -> 17 and 12 -> 17 (2026-10-20, the parity
+            // phase): channel A now passes the five literal-instance projects and filters (ConstantLateralsAsRows,
+            // CarrierStrategies.filteredLiteralLength), which channel B's body holds as a let's frame with a struct
+            // column H2 has no value for (the judges on plans, the program's step 10, the home of that form)
+            "h2", Map.of("Relation", new Pins(431, 17, 17)),
             // Postgres 16: 35 -> 1 (Standard) and 7 -> 3 (Relation) when a Float's text kept its '.0' (Postgres.java,
             // the same day); every Essential and Grammar wire bug is the engine's own frontier on Postgres
             // 285 -> 315, 128 -> 132, 186 -> 203 and 83 -> 87 (2026-10-12, Postgres's own pins burned down,

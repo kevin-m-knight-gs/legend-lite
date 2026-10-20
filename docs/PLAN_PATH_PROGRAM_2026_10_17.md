@@ -330,6 +330,20 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-20, the parity phase, first batch: fifty-two lane pins removed at their causes** (GATES "the parity phase,
+  first batch"; the user's order of the day, "before we move on we need to have 100% parity on PCT across all
+  backends"): `format`'s argument list lowered element by element (658,608 characters of SQL to 1,596 on DuckDB); a
+  Float root of exact-digit literals kept DECIMAL; SHA-1 as pgcrypto's `digest()` on Postgres; a windowed string
+  aggregation on MariaDB and MySQL as a correlated subquery over the FROM numbered; a window call inside an expression
+  computed below it on MySQL; an ordered derived table given a LIMIT on MariaDB and MySQL; two dates without a time
+  compared on their day numbers; Trino's unset struct fields typed and its ROWs compared null-safe; MongoDB's raising
+  operators' literal operands read through the row and its null tests by type; on H2 a lateral over a constant list as
+  the list's rows and a literal list's filtered length as a sum of counts. Per lane: MySQL 15, MariaDB 14, MongoDB 8,
+  H2 5, Trino 5, Postgres 2, ClickHouse 1, DuckDB 1, SQLite 1. Channel B's server lanes stay below their floors as
+  measured at the merged head (step 10, the judges on plans, their home). Next, batch 2: Jaro-Winkler on MySQL,
+  MariaDB and SQLite; MongoDB's dynamic pivot through the probe plan (positional markers); the metamodel's tables inline
+  where a database has no temporary table (Trino, MongoDB); MongoDB's decimal divide as doubles; then the variant key
+  order (MySQL, Postgres), ClickHouse's outer join with a residual condition, SQLite's digests.
 - **2026-10-20, a dynamic pivot's probe plan, on every database** (GATES "a dynamic pivot's probe plan"; register S84;
   the user's rulings of the day: the probe plan, a plan step whose rows fill the next statement's per-key fragment,
   and "before we move on we need to have 100% parity on PCT across all backends", then passes of deep SQL

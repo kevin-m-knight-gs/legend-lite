@@ -65,6 +65,8 @@ public class H2 extends AnsiSqlRenderer {
         if (!supportsQualify()) {
             ps.add(new QualifyToSubselect());
         }
+        // a lateral over a constant list first: its rows need no correlation (ConstantLateralsAsRows)
+        ps.add(new ConstantLateralsAsRows());
         ps.add(new LateralExplodeToUnion());
         ps.add(new AggregatesDeliverDouble(java.util.Set.of(com.legend.sql.SqlAgg.Fn.AVG)));
         // LAST: every source the passes above introduced is in scope when

@@ -72,9 +72,11 @@ class MongoDbDialectTest {
         String s = statement("#>{test::Store.people}#->filter(x | $x.age > 30)->select(~[name, age])"
                 + "->sort(~name->ascending())->limit(5)", TypedQuery.Output.STREAMED_JSON);
         assertTrue(s.startsWith("{\"aggregate\": \"people\", \"pipeline\": [{\"$project\": {\"_id\": 0, "), s);
-        // the filter: the lowering's null rejection, then the three-valued comparison through its guard (D7)
-        assertTrue(s.contains("{\"$match\": {\"$expr\": {\"$and\": [{\"$ne\": [\"$t0.age\", null]}, {\"$let\":"
-                + " {\"vars\": {\"g0\": \"$t0.age\", \"g1\": {\"$numberLong\": \"30\"}}"), s);
+        // the filter: the lowering's null rejection, then the three-valued comparison through its guard (D7); the
+        // null test reads the value's type, missing or null (2026-10-20: $ne compares a missing value unequal to null)
+        assertTrue(s.contains("{\"$match\": {\"$expr\": {\"$and\": [{\"$not\": [{\"$in\": [{\"$type\": \"$t0.age\"},"
+                + " [\"missing\", \"null\"]]}]}, {\"$let\": {\"vars\": {\"g0\": \"$t0.age\", \"g1\": {\"$numberLong\":"
+                + " \"30\"}}"), s);
         assertTrue(s.contains("{\"$gt\": [\"$$g0\", \"$$g1\"]}"), s);
         assertTrue(s.contains("{\"$limit\": 5}"), s);
         assertTrue(s.contains("{\"$sort\": {\"__null0\": 1, \"__sort0\": 1}}"), s);

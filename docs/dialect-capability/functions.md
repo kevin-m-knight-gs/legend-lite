@@ -507,7 +507,7 @@ Database types planned with it: Postgres.
 | `FORMAT` | emulated | `format` |  | 42 |
 | `HASH` | emulated | `hashSigned` |  | 5 |
 | `MD5` | spelled | `md5` |  | 1 |
-| `SHA1` | refused | `an extension function (pgcrypto) reached Postgres:` |  | 1 |
+| `SHA1` | emulated | `encode(digest(convert_to(…, 'UTF8'), 'sha1'), 'hex')` |  | 1 |
 | `SHA256` | emulated | `encode(sha256(convert_to(…, 'UTF8')), 'hex')` |  | 1 |
 | `EXTRACT` | emulated | `extractArm` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
@@ -775,8 +775,8 @@ Database types planned with it: Trino.
 | `AND` | spelled | `an operator (infix)` |  | 204 |
 | `OR` | spelled | `an operator (infix)` |  | 270 |
 | `NOT` | spelled | `an operator (notPrefix)` |  | 61 |
-| `EQUAL` | spelled | `an operator (infix)` |  | 250 |
-| `NOT_EQUAL` | spelled | `an operator (infix)` |  | 16 |
+| `EQUAL` | emulated | `by its operands: composed / composed` |  | 250 |
+| `NOT_EQUAL` | emulated | `by its operands: composed / composed` |  | 16 |
 | `LESS` | spelled | `an operator (infix)` |  | 125 |
 | `LESS_EQUAL` | spelled | `an operator (infix)` |  | 125 |
 | `GREATER` | spelled | `an operator (infix)` |  | 378 |
@@ -2274,11 +2274,11 @@ Database types planned with it: MongoDB.
 | `TIMES` | emulated | `$multiply` |  | 0 |
 | `DIVIDE` | emulated | `$divide` |  | 0 |
 | `MOD` | emulated | `flooredMod` |  | 0 |
-| `REM` | emulated | `$mod` |  | 0 |
+| `REM` | emulated | `unfolded: {"$mod": […, …]}` |  | 0 |
 | `NEGATE` | emulated | `negated` |  | 0 |
 | `ABS` | emulated | `op1: $abs` |  | 0 |
-| `IS_NULL` | emulated | `nullTest: $eq` |  | 0 |
-| `IS_NOT_NULL` | emulated | `nullTest: $ne` |  | 0 |
+| `IS_NULL` | emulated | `nullTest` |  | 0 |
+| `IS_NOT_NULL` | emulated | `nullTest` |  | 0 |
 | `IN` | emulated | `inList` |  | 0 |
 | `COALESCE` | emulated | `coalesce` |  | 0 |
 | `PARSE_INT` | emulated | `op1: $toLong` |  | 0 |
@@ -2300,7 +2300,7 @@ Database types planned with it: MongoDB.
 | `UNNEST` | refused | `an unnest reached MongoDb in expression position: an $unwind stage is not placed yet` | `via MongoDb.unnestProjection` | 0 |
 | `LIST_FLATTEN` | emulated | `{"$reduce": {"input": …, "initialValue": [], "in": {"$concatArrays": [, ]}}}` |  | 0 |
 | `JSON_MERGE_PATCH` | emulated | `mergePatch` |  | 0 |
-| `SQRT` | emulated | `op1: $sqrt` |  | 0 |
+| `SQRT` | emulated | `unfolded: {"$sqrt": …}` |  | 0 |
 | `CBRT` | emulated | `cubeRoot` |  | 0 |
 | `EXP` | emulated | `op1: $exp` |  | 0 |
 | `LN` | emulated | `op1: $ln` |  | 0 |
@@ -2412,7 +2412,7 @@ Database types planned with it: MongoDB.
 | `LIST_SORT_DESC` | emulated | `{"$sortArray": {"input": …, "sortBy": -1}}` | `via MongoDb.listCall` | 0 |
 | `LIST_TAIL` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
 | `LIST_INIT` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 0, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
-| `RANGE_FN` | emulated | `by its operands: {"$range": [0, …]} / $range` | `via MongoDb.listCall` | 0 |
+| `RANGE_FN` | emulated | `by its operands: {"$range": [0, …]} / {"$range": […, …, …]} / $range` | `via MongoDb.listCall` | 0 |
 | `LIST_PRODUCT` | emulated | `{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}` | `via MongoDb.listCall` | 0 |
 | `LIST_REDUCE` | emulated | `listReduce` | `via MongoDb.listCall` | 0 |
 | `LIST_SLICE` | emulated | `listSlice` | `via MongoDb.listCall` | 0 |

@@ -3160,6 +3160,7 @@ public final class Lowerer {
                 yield ie != null ? ie : NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
                         n.args().stream().map(a -> scalar(a, columns)).toList(), features, implementations));
             }
+            case TypedNativeCall n when formatOverSlots(n) -> formatted(n, columns);
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
@@ -3334,6 +3335,24 @@ public final class Lowerer {
             default -> throw new NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
+    }
+
+    /** {@code format} over a literal argument list: printf's slots, each of its OWN static kind, never a collection
+     *  value. */
+    private static boolean formatOverSlots(TypedNativeCall n) {
+        return Pure.AT_STRING_FORMAT.contains(n.callee().id()) && n.args().get(1) instanceof TypedCollection slots
+                && !slots.elements().isEmpty();
+    }
+
+    /** {@code format}'s slots lowered each by its own type, the rule spreading them. The hetero literal claim spelled
+     *  each slot into the LITERAL carrier and the rule decoded it back -- decode(spell(x)) is x written out, and a
+     *  Float slot read through its spelling, its print and %f's repr was 658 KB of SQL on DuckDB, past Trino's 1 MB
+     *  statement limit and MongoDB's 16 MB document (testFormatFloat, 2026-10-20). */
+    private SqlExpr formatted(TypedNativeCall n, ColumnResolver columns) {
+        TypedCollection slots = (TypedCollection) n.args().get(1);
+        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
+                List.of(scalar(n.args().get(0), columns), listLiteral(slots, e -> scalar(e, columns))),
+                features, implementations));
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */

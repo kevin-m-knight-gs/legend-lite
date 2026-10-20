@@ -10653,6 +10653,98 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-20 — The parity phase, first batch: fifty-two lane pins removed at their causes, four re-recorded as the database's own
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9, the user's order of 2026-10-20 ("before we move on we need to
+have 100% parity on PCT across all backends"). The triage (every pin of the 42 channel-A ledgers against legend-engine
+4.145.0's relational manifests on its 11 databases) found 147 pins on one lane that the DuckDB lane does not carry;
+this batch fixes the causes it could reach in this container (DuckDB, H2, SQLite, Postgres, MariaDB, MySQL,
+ClickHouse, Trino, MongoDB; the three cloud lanes run in their own containers).
+
+**Fixed, each at its cause:**
+- **`format`'s argument list** (`Lowerer`): each element lowers by its own kind and the rule spreads them; the
+  heterogeneous literal claim had spelled each slot into the LITERAL carrier and the rule decoded it back
+  (decode(spell(x)) is x, written out). `format('... %s ... %f', ['fox', 1.5])` was 658,608 characters of SQL on
+  DuckDB, 1,228,415 on Trino (past its 1,000,000 limit) and a 16,893,532-byte document on MongoDB; it is 1,596, 2,309
+  and a few kilobytes. `testFormatFloat` passes on Trino and MongoDB (it failed unpinned at the probe plan's head).
+- **A Float root computed from exact-digit literals alone** (`LiteralSpelling.exactFloatConstant`, in the one owner
+  of the Float-declared conversion): it keeps its DECIMAL value, where the DOUBLE cast rounded the digits the literal
+  holds (B8: legend-pure's Float is BigDecimal-backed). `testBigFloatAbs` passes on DuckDB, Postgres, MariaDB, MySQL,
+  ClickHouse, Trino and MongoDB (the engine passes it on six of its databases); SQLite reads the literal as a REAL, its
+  own limit, re-pinned with the new message. An ordinary Float literal (DuckDB types `1.0` DECIMAL too) is a
+  `FloatLit`, never exempt: the first cut exempted it and channel B caught twenty wire disagreements at once.
+- **SHA-1 on Postgres** is pgcrypto's `digest()`, as the engine spells it (its PCT passes `testSHA1Hash` there; upstream's
+  own Postgres parity setup creates the extension); the embedded server installs pgcrypto into `template1` and
+  `postgres` at init, in single-user mode before it starts. A database without pgcrypto answers its own error.
+- **A windowed string aggregation on MariaDB and MySQL** (`WindowAggregatesAsCorrelated`, new): GROUP_CONCAT is no
+  window function there (measured), so the window call is the same aggregate over the frame's rows, a correlated
+  subquery over the FROM numbered under its own alias (ROW_NUMBER ordered by the window's keys and then every column,
+  so both readings number alike; RANK for a RANGE frame's peers; `<=>` for the partition). Eleven Relation tests on
+  each lane. A windowed list is left to the dialect's own handling: rewritten too, its values came back as the JSON
+  carrier's and channel B's database judge refused what the host judge held (measured).
+- **MySQL evaluates a subquery of an expression over a window call on every row** (measured on 8.4: the interval
+  guard's raise fired on 2026 dates), so each window call inside an expression is computed in a select below
+  (`WindowsComputedBelow`, new, MySQL only). `testExtendLeadAdjustDerivedOffset`.
+- **An ordered derived table takes a LIMIT on MariaDB and MySQL** (`MariaDb.subselectSource`): both drop a derived
+  table's ORDER BY without one (measured: a list's rows below a joined text came out `'1' '3' 1 2 3` for `1 2 '1' '3'
+  3`). `testRemoveDuplicatesPrimitiveStandardFunctionExplicit` on both.
+- **Two dates without a time compare on their day numbers** (`MixedEncoding.dayNumberOrNull`, the `compare` rule):
+  `year * 10000 + month * 100 + day` in SQL, in any year; `compare(%2001, %10999)` composed year 10999 as a timestamp,
+  which MySQL, MariaDB and SQLite have none of, and a NULL compared (a wrong answer, not a refusal). `testDateCompare`
+  on those three; on MongoDB the test now reaches its sub-millisecond date-times, re-pinned as BSON's limit.
+- **Trino**: an unset property's NULL field takes the slot its builder declared (`Trino.structLit`, as ClickHouse and
+  DuckDB read it), and two ROWs compare null-safe (`IS NOT DISTINCT FROM`: Trino's `=` is NULL over a NULL field,
+  measured). `testMapInstance`, `testAssignNewInstance`, `testEqVarIdentity`, `testEqualVarIdentity`;
+  `testContainsNonPrimitive` re-pinned with Trino's own refusal ("contains does not support arrays with elements that
+  are null or contain null"), `testEqualNonPrimitive` with the DuckDB lane's cause (it now reaches its assert).
+- **MongoDB**: a raising operator's literal operand is read through the row (`MongoDb.unfolded`, the raise's own
+  `UNFOLDED` trick): the server folded `$mod` by zero, `$sqrt` of a negative and `$range` of step zero while it planned,
+  before the guarding CASE ran. `testRemError`, `testSquareRootError`, `testRangeStepError`. A null test reads the
+  value's type, missing or null (`$eq` compares a missing value unequal to null, measured): the four variant
+  `isEmpty`/`isNotEmpty` Relation tests.
+- **H2: a lateral over a constant list** (`ConstantLateralsAsRows`, new): the list's rows joined ON TRUE, a struct
+  element's fields each a column, each field read rewritten to it (H2 2.1 has no LATERAL and no struct value its rows
+  could carry). `testSimpleProject`, `testSimpleProjectList`, `testSimpleProjectWithEmpty`, `testFilterPostProject`
+  (the engine passes them on H2); and a literal list's filtered length the sum of each element's predicate as a count
+  (`CarrierStrategies.filteredLiteralLength`: H2 has no list to filter), `testCoalesceInPreFilter` (the engine passes it
+  on H2).
+
+**Per lane, pins removed:** MySQL 15, MariaDB 14, MongoDB 8, H2 5, Trino 5, Postgres 2, ClickHouse 1, DuckDB 1,
+SQLite 1; re-recorded with the database's own message: SQLite `testBigFloatAbs`, MongoDB `testDateCompare`, Trino
+`testContainsNonPrimitive` and `testEqualNonPrimitive`. Channel B: H2 Relation's floor 429 -> 431 and its wire-bug
+ceilings 14 -> 17 and 12 -> 17 (`ChannelBLane.PINS`, dated: channel A now passes the five literal-instance projects and
+filters, which channel B's body holds as a let's frame with a struct column H2 has no value for; the judges on plans,
+the program's step 10, is the home of that form).
+
+**Not moved:** the 1-based `indexOf` pins (the engine's relational runtime is 1-based; the corpus is the acceptance
+surface, as the DuckDB ledger records); the cloud lanes' pins (BigQuery, Databricks, Snowflake: their lanes run in
+their own containers, and a pin that starts passing there fails loudly).
+
+**Verdicts** (this container, the embedded servers):
+- PCT, both channels, every lane here but Postgres, and the two corpus lanes, in one run: 72 of 80 green. Every
+  channel A lane is green on its pins: DuckDB 5 of 5, H2, SQLite, MariaDB, MySQL, ClickHouse, Trino and MongoDB 5 of 5
+  each; the discipline guard; DuckDB's and H2's channel B; SQLite's channel B 5 of 5, and MariaDB's other four,
+  MySQL's other four, ClickHouse's Relation and Unclassified, Trino's Grammar and Unclassified; `//spec:corpus_duckdb`
+  and `//spec:corpus_h2` exact. The eight red are channel B server lanes below floors measured 2026-10-12, before steps 6
+  and 7, each at or above the merged head's own measure (step 9's named residue; the judges on plans, step 10, its
+  home): MySQL Essential 327 (head 327), MariaDB Relation 418 (head 408), ClickHouse Essential 318, Grammar 133 and
+  Standard 197 (step 9's head measures), Trino Essential 328 (head 322), Relation 383 (head 383, the windowed
+  `testRows_*` family the database judge fails) and Standard 203 (head 203, a window's median and zScore). Trino's
+  two were measured on the merged head here (the batch stashed).
+- Postgres under the unprivileged wrapper: channel A 5 of 5; channel B Grammar, Relation, Standard and Unclassified
+  green, Essential 326 below its 329 (all 19 failures step 9's named Postgres residue: lists of `Unknown[]`, folds
+  into a struct, `UNNEST` over `Unknown[]`, the 1-based `indexOf`, dates past the range, the inverse sines' NaN).
+- `//gates:core`: 45 of 45 on the final tree (the Postgres lanes under the wrapper), with `//pct:pct_duckdb_essential`
+  rerun beside it after the `format` arm's move.
+- `//gates:checks`: 138 of 139 on the final tree (`//tools/guards:classpath_test` skipped on an x86-64 host). Its
+  first run found three things, fixed: `Lowerer.scalarValueTailArms` past its 250 lines (the `format` arm moved into
+  `formatOverSlots`/`formatted`), a `Set.copyOf` in the new window pass (an `EnumSet` now), and the two generated
+  files the dialects feed (`native-claims.tsv`: `format` claimed by the Lowerer too; `docs/dialect-capability/`:
+  SHA-1 on Postgres emulated, Trino's equality composed by its operands, MongoDB's unfolded operands and null tests),
+  regenerated by their own targets. `MongoDbDialectTest`'s pinned filter reads the new null test.
+- The disk allowance ran out once mid-run (the Postgres lanes' runfiles): the action disk cache and the sandbox
+  emptied (docs/CLOUD_SESSIONS.md), the run repeated without the disk cache.
+
 ## 2026-10-20 — The plan path program: a dynamic pivot's probe plan, on every database
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9 (the user's decision of 2026-10-20 after the pivot discussion:

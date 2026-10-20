@@ -547,7 +547,7 @@ Postgres	Postgres	call	GUID	emulated	CAST(gen_random_uuid() AS VARCHAR)		2
 Postgres	Postgres	call	FORMAT	emulated	format		42
 Postgres	Postgres	call	HASH	emulated	hashSigned		5
 Postgres	Postgres	call	MD5	spelled	md5		1
-Postgres	Postgres	call	SHA1	refused	an extension function (pgcrypto) reached Postgres:		1
+Postgres	Postgres	call	SHA1	emulated	encode(digest(convert_to(…, 'UTF8'), 'sha1'), 'hex')		1
 Postgres	Postgres	call	SHA256	emulated	encode(sha256(convert_to(…, 'UTF8')), 'hex')		1
 Postgres	Postgres	call	EXTRACT	emulated	extractArm		24
 Postgres	Postgres	call	TODAY	spelled	current_date		0
@@ -881,8 +881,8 @@ Snowflake	Snowflake	reducer	NTH_VALUE	not_here	is a window function: windowCall 
 Trino	Trino	call	AND	spelled	an operator (infix)		204
 Trino	Trino	call	OR	spelled	an operator (infix)		270
 Trino	Trino	call	NOT	spelled	an operator (notPrefix)		61
-Trino	Trino	call	EQUAL	spelled	an operator (infix)		250
-Trino	Trino	call	NOT_EQUAL	spelled	an operator (infix)		16
+Trino	Trino	call	EQUAL	emulated	by its operands: composed / composed		250
+Trino	Trino	call	NOT_EQUAL	emulated	by its operands: composed / composed		16
 Trino	Trino	call	LESS	spelled	an operator (infix)		125
 Trino	Trino	call	LESS_EQUAL	spelled	an operator (infix)		125
 Trino	Trino	call	GREATER	spelled	an operator (infix)		378
@@ -2644,11 +2644,11 @@ MongoDb	MongoDB	call	MINUS	emulated	$subtract		0
 MongoDb	MongoDB	call	TIMES	emulated	$multiply		0
 MongoDb	MongoDB	call	DIVIDE	emulated	$divide		0
 MongoDb	MongoDB	call	MOD	emulated	flooredMod		0
-MongoDb	MongoDB	call	REM	emulated	$mod		0
+MongoDb	MongoDB	call	REM	emulated	unfolded: {"$mod": […, …]}		0
 MongoDb	MongoDB	call	NEGATE	emulated	negated		0
 MongoDb	MongoDB	call	ABS	emulated	op1: $abs		0
-MongoDb	MongoDB	call	IS_NULL	emulated	nullTest: $eq		0
-MongoDb	MongoDB	call	IS_NOT_NULL	emulated	nullTest: $ne		0
+MongoDb	MongoDB	call	IS_NULL	emulated	nullTest		0
+MongoDb	MongoDB	call	IS_NOT_NULL	emulated	nullTest		0
 MongoDb	MongoDB	call	IN	emulated	inList		0
 MongoDb	MongoDB	call	COALESCE	emulated	coalesce		0
 MongoDb	MongoDB	call	PARSE_INT	emulated	op1: $toLong		0
@@ -2670,7 +2670,7 @@ MongoDb	MongoDB	call	STRUCT_INSERT	emulated	structInsert		0
 MongoDb	MongoDB	call	UNNEST	refused	an unnest reached MongoDb in expression position: an $unwind stage is not placed yet	via MongoDb.unnestProjection	0
 MongoDb	MongoDB	call	LIST_FLATTEN	emulated	{"$reduce": {"input": …, "initialValue": [], "in": {"$concatArrays": [, ]}}}		0
 MongoDb	MongoDB	call	JSON_MERGE_PATCH	emulated	mergePatch		0
-MongoDb	MongoDB	call	SQRT	emulated	op1: $sqrt		0
+MongoDb	MongoDB	call	SQRT	emulated	unfolded: {"$sqrt": …}		0
 MongoDb	MongoDB	call	CBRT	emulated	cubeRoot		0
 MongoDb	MongoDB	call	EXP	emulated	op1: $exp		0
 MongoDb	MongoDB	call	LN	emulated	op1: $ln		0
@@ -2782,7 +2782,7 @@ MongoDb	MongoDB	call	LIST_SORT	emulated	{"$sortArray": {"input": …, "sortBy": 
 MongoDb	MongoDB	call	LIST_SORT_DESC	emulated	{"$sortArray": {"input": …, "sortBy": -1}}	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_TAIL	emulated	guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_INIT	emulated	guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 0, {"$subtract": [{"$size": , }, 1]}]}, []]}	via MongoDb.listCall	0
-MongoDb	MongoDB	call	RANGE_FN	emulated	by its operands: {"$range": [0, …]} / $range	via MongoDb.listCall	0
+MongoDb	MongoDB	call	RANGE_FN	emulated	by its operands: {"$range": [0, …]} / {"$range": […, …, …]} / $range	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_PRODUCT	emulated	{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_REDUCE	emulated	listReduce	via MongoDb.listCall	0
 MongoDb	MongoDB	call	LIST_SLICE	emulated	listSlice	via MongoDb.listCall	0

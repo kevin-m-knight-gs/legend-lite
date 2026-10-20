@@ -458,6 +458,11 @@ public final class Trino extends AnsiSqlRenderer {
         return writer.join(st.fields(), ", ", (w, f) -> {
             SqlType t = typeOf(f.value());
             if (t == null) {
+                // an absent optional property: the slot its builder declared (as ClickHouse and DuckDB read it;
+                // 2026-10-20, the parity phase: five Grammar and Essential tests constructing an instance)
+                t = f.declared();
+            }
+            if (t == null) {
                 t = siblings.get(f.name());
             }
             if (t == null) {
@@ -465,6 +470,11 @@ public final class Trino extends AnsiSqlRenderer {
             }
             w.append(ident(f.name())).append(" ").append(castTypeName(t));
         }).append("))");
+    }
+
+    /** Whether both operands are ROWs (structs). */
+    private static boolean rows(List<SqlExpr> a) {
+        return a.size() == 2 && typeOf(a.get(0)) instanceof SqlType.Struct && typeOf(a.get(1)) instanceof SqlType.Struct;
     }
 
     /** A field by name; a field NUMBER (a zip's pair, read by position) a row subscript ({@code r[1]}). */
@@ -822,7 +832,12 @@ public final class Trino extends AnsiSqlRenderer {
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
-            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+            // two ROWs compare field by field, and a NULL field makes Trino's `=` NULL (measured): an instance's
+            // absent property is a NULL field, and Pure's equality of two instances holds it equal (2026-10-20, the
+            // parity phase: testEqualNonPrimitive and the identity tests), so ROWs compare null-safe
+            case EQUAL -> rows(a) ? notDistinctFrom(writer, a) : infix(writer, c, parentPrec);
+            case NOT_EQUAL -> rows(a) ? distinctFrom(writer, a) : infix(writer, c, parentPrec);
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
                     infix(writer, c, parentPrec);
             // the shared spellings (the base's named helpers)
             case NOT -> notPrefix(writer, c.args(), parentPrec);

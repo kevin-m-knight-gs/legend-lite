@@ -936,18 +936,19 @@ public final class MongoDb extends AnsiSqlRenderer {
             case TIMES -> MongoJson.op(writer, "$multiply", a);
             case DIVIDE -> MongoJson.op(writer, "$divide", a);
             case MOD -> flooredMod(writer, a);
-            case REM -> MongoJson.op(writer, "$mod", a);
+            case REM -> writer.append("{\"$mod\": [").expr(a.get(0), 0).append(", ").piece(unfolded(a.get(1)))
+                    .append("]}");
             case NEGATE -> negated(writer, a);
             case ABS -> MongoJson.op1(writer, "$abs", a.get(0));
             case INT_DIVIDE -> intDivide(writer, a);
             // ---- null and membership
-            case IS_NULL -> nullTest(writer, a, "$eq");
-            case IS_NOT_NULL -> nullTest(writer, a, "$ne");
+            case IS_NULL -> nullTest(writer, a, true);
+            case IS_NOT_NULL -> nullTest(writer, a, false);
             case IN -> inList(writer, a);
             case COALESCE -> coalesce(writer, a);
             // ---- numbers
             case PARSE_INT -> MongoJson.op1(writer, "$toLong", a.get(0));
-            case SQRT -> MongoJson.op1(writer, "$sqrt", a.get(0));
+            case SQRT -> writer.append("{\"$sqrt\": ").piece(unfolded(a.get(0))).append("}");
             case CBRT -> cubeRoot(writer, a);
             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));
             case LN -> MongoJson.op1(writer, "$ln", a.get(0));
@@ -1132,8 +1133,21 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     /** {@code ((a mod b) + b) mod b}: the always-positive modulus. */
     private static SqlWriter flooredMod(SqlWriter writer, List<SqlExpr> a) {
+        SqlWriter.Piece b = unfolded(a.get(1));
         return writer.append("{\"$mod\": [{\"$add\": [{\"$mod\": [").expr(a.get(0), 0).append(", ")
-                .expr(a.get(1), 0).append("]}, ").expr(a.get(1), 0).append("]}, ").expr(a.get(1), 0).append("]}");
+                .piece(b).append("]}, ").piece(b).append("]}, ").piece(b).append("]}");
+    }
+
+    /** A literal operand of an operator that raises on its value (a modulus by zero, the root of a negative, a range
+     *  of step zero) read through the row ({@link #UNFOLDED}, its length 0 added): the server's optimizer folds a
+     *  constant operator and raises while it plans, before the CASE that guards it runs (measured 8.0: "Failed to
+     *  optimize pipeline :: caused by :: can't $mod by zero", where the guard's own message was due; 2026-10-20, the
+     *  parity phase). Any other operand as it is. */
+    private static SqlWriter.Piece unfolded(SqlExpr x) {
+        if (x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit || x instanceof SqlExpr.DecimalLit) {
+            return w -> w.append("{\"$add\": [").expr(x, 0).append(", {\"$strLenCP\": " + UNFOLDED + "}]}");
+        }
+        return w -> w.expr(x, 0);
     }
 
     private static SqlWriter negated(SqlWriter writer, List<SqlExpr> a) {
@@ -1145,9 +1159,13 @@ public final class MongoDb extends AnsiSqlRenderer {
                 .expr(a.get(1), 0).append("]}, 0]}}");
     }
 
-    /** {@code {"$eq": [x, null]}}: a missing field is null too. */
-    private static SqlWriter nullTest(SqlWriter writer, List<SqlExpr> a, String op) {
-        return writer.append("{\"").append(op).append("\": [").expr(a.get(0), 0).append(", null]}");
+    /** Whether {@code x} is null or missing, by its type: {@code $eq} compares a missing value unequal to null
+     *  (measured 8.0: a variant's absent key, {@code {"businessData": {}}}'s {@code signalId}, was not empty; 2026-10-20,
+     *  the parity phase), and {@code x} is read once. */
+    private static SqlWriter nullTest(SqlWriter writer, List<SqlExpr> a, boolean isNull) {
+        writer.append(isNull ? "" : "{\"$not\": [").append("{\"$in\": [{\"$type\": ").expr(a.get(0), 0)
+                .append("}, [\"missing\", \"null\"]]}");
+        return writer.append(isNull ? "" : "]}");
     }
 
     /** {@code x IN (a, b, ...)}: null for a null needle. */
@@ -1845,6 +1863,8 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + G0 + "}, 1]}]}, []]}"));
             // range(n) counts from 0 ($range takes a start)
             case RANGE_FN -> a.size() == 1 ? writer.append("{\"$range\": [0, ").expr(a.get(0), 0).append("]}")
+                    : a.size() == 3 ? writer.append("{\"$range\": [").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                            .append(", ").piece(unfolded(a.get(2))).append("]}")
                     : MongoJson.op(writer, "$range", a);
             case LIST_PRODUCT -> writer.append("{\"$reduce\": {\"input\": ").expr(a.get(0), 0)
                     .append(", \"initialValue\": 1, \"in\": {\"$multiply\": [" + VALUE + ", " + THIS + "]}}}");

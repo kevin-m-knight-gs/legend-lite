@@ -52,7 +52,7 @@ public class Test_LegendLite_MySQL_EssentialFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+            // NOTE 2026-10-20 (the parity phase): testBigFloatAbs unpinned -- a Float root computed from exact-digit literals alone keeps its DECIMAL value (LiteralSpelling.exactFloatConstant).
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ACOS is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ASIN is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
@@ -64,11 +64,8 @@ public class Test_LegendLite_MySQL_EssentialFunctions_PCT extends PCTReportConfi
             // MYSQL'S OWN LIMIT: no named time zone without the server's zone tables (loaded from the host's
             // zoneinfo, which a hermetic server does not read)
             one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached MySQL: MySQL knows no named time zone but UTC without its zone tables\""),
-            // step 9, 2026-10-19, the plan route: the TDS text's GROUP_CONCAT carries no order, and this server drops a
-            // derived table's ORDER BY (no LIMIT); the dedup's order key (__dd_index) is no output of the select that
-            // orders by it, behind a SELECT * wrapper, so Render.hoistOrder finds none to carry, and the rows arrive in
-            // the window's partition order. Open: the text's aggregate ordered by the relation's own order, carried out
-            one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "\"\nexpected: [1, 2, '1', '3', 3]\nactual:   ['1', '3', 1, 2, 3]\""),
+            // NOTE 2026-10-20 (the parity phase): testRemoveDuplicatesPrimitiveStandardFunctionExplicit unpinned -- an
+            // ordered derived table takes a LIMIT here, so the server keeps its ORDER BY (MariaDb.subselectSource)
             // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor crosses
             // as JSON without its class, which the text carrier has no form for; register S81 (as on DuckDB)
             one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "\"the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form\"")

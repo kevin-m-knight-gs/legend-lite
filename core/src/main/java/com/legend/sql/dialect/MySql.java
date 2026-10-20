@@ -31,6 +31,16 @@ public final class MySql extends MariaDb {
         super(MariaDb.LEXICON);
     }
 
+    /** MariaDB's passes, then each window call inside an expression computed in a select below
+     *  ({@link WindowsComputedBelow}: MySQL evaluates a subquery of an expression over a window call on every row,
+     *  measured, so a guard's raise fired where its CASE did not reach it). */
+    @Override
+    protected List<com.legend.sql.SqlRewriter> passes() {
+        List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>(super.passes());
+        ps.add(new WindowsComputedBelow());
+        return List.copyOf(ps);
+    }
+
     /** Every scalar type's name: MariaDB's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override

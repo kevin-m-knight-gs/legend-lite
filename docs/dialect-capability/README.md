@@ -38,9 +38,9 @@ input).
 |---|---|---:|---:|---:|---:|---:|
 | H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 84 | 70 | 50 | 15 | 23 |
 | H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 83 | 72 | 49 | 15 | — |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 120 | 9 | 15 | 29 |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 121 | 8 | 15 | 29 |
 | Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 103 | 6 | 15 | 32 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 83 | 116 | 5 | 15 | 32 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 81 | 118 | 5 | 15 | 32 |
 | BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 123 | 11 | 15 | 30 |
 | Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 95 | 102 | 7 | 15 | 30 |
 | DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 59 | 0 | 15 | 38 |
@@ -60,8 +60,8 @@ input).
 | `AND` | S | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
 | `OR` | S | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
 | `NOT` | S | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `EQUAL` | E | E | S | S | S | E | S | S | E | E | E | E | E· | S | S | S |
-| `NOT_EQUAL` | S | S | S | S | S | E | S | S | E | E | E | E | E· | S | S | S |
+| `EQUAL` | E | E | S | S | E | E | S | S | E | E | E | E | E· | S | S | S |
+| `NOT_EQUAL` | S | S | S | S | E | E | S | S | E | E | E | E | E· | S | S | S |
 | `LESS` | S | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
 | `LESS_EQUAL` | S | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
 | `GREATER` | S | S | S | S | S | S | S | S | S | S | S | S | E· | E | E | E |
@@ -164,7 +164,7 @@ input).
 | `FORMAT` | E | E | E | E | S | E | S | S | E | E | E | E | E· | S | S | S |
 | `HASH` | R | R | E | E | E | E | E | E | E | R | E | E | E· | R | R | R |
 | `MD5` | E | E | S | S | E | E | S | S | E | R | S | S | R | E | E | E |
-| `SHA1` | E | E | R | S | E | E | S | S | E | R | S | S | R | E | E | E |
+| `SHA1` | E | E | E | S | E | E | S | S | E | R | S | S | R | E | E | E |
 | `SHA256` | E | E | E | E | E | E | E | S | E | R | E | E | R | E | E | E |
 | `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `TODAY` | S· | S | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E· | E | E | E |

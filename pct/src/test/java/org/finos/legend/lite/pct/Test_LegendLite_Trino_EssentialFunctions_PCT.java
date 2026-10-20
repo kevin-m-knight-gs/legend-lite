@@ -52,7 +52,7 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+            // NOTE 2026-10-20 (the parity phase): testBigFloatAbs unpinned -- a Float root computed from exact-digit literals alone keeps its DECIMAL value (LiteralSpelling.exactFloatConstant).
             // step 9, 2026-10-19, the Trino lane on the plan route: the NaN cell crosses as the text carrier spells it
             // (Trino's JSON text of a NaN double, quoted) and Pure's parseFloat refuses its first character, where the
             // legacy route's Java BigDecimal said "Infinite or NaN" (the DuckDB lane's pin, the same cause)
@@ -67,10 +67,9 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             // collection meeting at an abstract ancestor crosses as JSON without its class, which the text carrier has
             // no form for; the legacy route rebuilt the instances in Java
             one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form"),
-            // TRINO'S OWN LIMIT: a ROW's fields are typed, and an unset property is a NULL of no type (no sibling
-            // types it); were it typed, a ROW holding a NULL compares NULL and contains refuses one (measured), where
-            // Pure's equality of two such instances is true
-            one("meta::pure::functions::collection::tests::contains::testContainsNonPrimitive_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\"")
+            // TRINO'S OWN LIMIT (2026-10-20, the parity phase: an unset property's NULL field takes the slot its builder
+            // declared, Trino.structLit, so the instance is written): contains refuses a list whose elements hold a NULL
+            one("meta::pure::functions::collection::tests::contains::testContainsNonPrimitive_Function_1__Boolean_1_", "contains does not support arrays with elements that are null or contain null")
     );
 
     public static Test suite() {

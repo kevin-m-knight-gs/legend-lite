@@ -45,16 +45,9 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // compile. The ^$var(...) copy-with-update feature itself works
             // (TypedCopyInstance; probed); these tests are unrunnable from the
             // serialized form.
-            // NUMERIC CHARTER Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): the
-            // Float kind is a DOUBLE at the boundary — the COMPILED reference's
-            // own answer (a Pure Float IS java.lang.Double there; the engine's
-            // DuckDB/H2 PCT suites run compiled). This lane is the INTERPRETED
-            // builder, whose Float is BigDecimal-backed and keeps the digits.
-            // 2026-10-18, the DuckDB lane on the plan route (step 9): the value lane converts a Float root to
-            // DOUBLE (Fold.declaredKindEnvelope), and the HUGEINT digits of that double are ...784 where the legacy
-            // route's Java text was ...780; both lose the literal's two decimals. The fix is the value lane keeping
-            // a DECIMAL slot exact under a Float root (an item of step 9), not a pin.
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
+            // NOTE 2026-10-20 (the parity phase): testBigFloatAbs's pin removed on every lane that runs here -- a
+            // Float root computed from exact-digit literals alone keeps its DECIMAL value
+            // (LiteralSpelling.exactFloatConstant), the fix this pin's note named.
             // 2026-10-18, the plan route (step 9): a heterogeneous class collection meeting at an abstract ancestor
             // (CO_Address and CO_Location as CO_GeographicEntity) crosses as JSON without its class, which the text
             // carrier has no form for; the legacy route rebuilt the instances in Java. Register S81.

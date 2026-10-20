@@ -48,13 +48,17 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
-            one("meta::pure::functions::collection::tests::range::testRangeStepError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Command execution failed on MongoDB server with error 34449 (Location34449): 'Failed to optimize pipeline :: caused by :: $range requires a non-zero step value'"),
+            // NOTE 2026-10-20 (the parity phase): testRangeStepError unpinned -- a raising operator's literal operand
+            // is read through the row (MongoDb.unfolded)
             // THE IDENTITY TESTS: instances compared by reference, which no wire carries (the program's §4)
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
-            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Command execution failed on MongoDB server with error 40523 (Location40523): 'PlanExecutor error during aggregation :: caused by :: 'year' must evaluate to an integer in the range 1 to 9999, found 10999'"),
+            // 2026-10-20 (the parity phase): two dates without a time compare on their day numbers in any year now
+            // (MixedEncoding.dayNumberOrNull), so the test reaches its sub-millisecond date-times, which a BSON date
+            // has no form for: MongoDB's own limit
+            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2014-02-13T13:15:19.14231) has no BSON date: refused, never cut\""),
             // MONGODB'S OWN, refused by name (step 9, 2026-10-19: the metamodel store is the session's temporary
             // tables since the parent's 33abc9a, which MongoDB has none of; the message moved from the schema's)
             one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a temporary table reached MongoDb, which has no temporary collection\""),

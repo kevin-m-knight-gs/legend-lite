@@ -2154,3 +2154,14 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (regions), `AnsiSqlRenderer.java` and each dialect (`keysSnapshot`, `resultColumnLimit`), `Execution.java` (the
   legacy wire's bridge), `lowering/Render.java`, `TdsTextWrap.java`, `WireRender.java`, the PCT lanes' pivot pins.
   **Next, the user's order (2026-10-20): PCT parity on every backend, then the SQL optimization passes, then step 7.**
+ **The parity phase's first batch landed 2026-10-20** (GATES "the parity phase, first batch"): `lowering/Lowerer.java`
+  (`format`'s list), `LiteralSpelling.java` (`exactFloatConstant`), `MixedEncoding.java` (`dayNumberOrNull`),
+  `Scalars.java` (the compare rule), `sql/dialect/CarrierStrategies.java` (`filteredLiteralLength`),
+  `ConstantLateralsAsRows.java`, `WindowAggregatesAsCorrelated.java` and `WindowsComputedBelow.java` (new), `H2.java`,
+  `MariaDb.java`, `MySql.java`, `Postgres.java`, `Trino.java`, `MongoDb.java`, `testing/.../EmbeddedPostgres.java`
+  (pgcrypto at init), the PCT ledgers, `channelb/ChannelBLane.java` (H2 Relation's pins, dated).
+  **Announced 2026-10-20, the second batch:** `sql/dialect/MariaDb.java` and `SQLite.java` (Jaro-Winkler),
+  `MongoDb.java`, `MongoDbPipeline.java`, `SqlWriter.java`, `exec/PlanRunner.java`,
+  `core/src/main/mongodb/com/legend/exec/MongoDbStatements.java` (the dynamic pivot's probe plan on MongoDB, its
+  markers positional), `PlanMaker.java` and `sql/dialect/SqlDialect.java` (the metamodel's tables inline where a
+  database has no temporary table), the PCT ledgers.

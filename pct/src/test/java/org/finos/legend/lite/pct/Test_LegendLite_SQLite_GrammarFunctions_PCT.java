@@ -44,9 +44,8 @@ public class Test_LegendLite_SQLite_GrammarFunctions_PCT extends PCTReportConfig
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
-            // SQLITE'S OWN LIMIT: its dates are texts of the years 0000-9999 (a date function answers NULL past them,
-            // raised here; a five-digit year compares as text)
-            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Assert failed\""),
+            // NOTE 2026-10-20 (the parity phase): testDateCompare unpinned -- two dates without a time compare on their
+            // day numbers, year*10000 + month*100 + day, in any year (MixedEncoding.dayNumberOrNull)
             // SQLITE'S OWN LIMIT: an integer past 64 bits has no value (its arithmetic overflows to a REAL silently;
             // raised here)
             one("meta::pure::functions::math::tests::minus::testLargeMinus_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),

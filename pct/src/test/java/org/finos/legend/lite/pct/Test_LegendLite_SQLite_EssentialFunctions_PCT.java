@@ -54,10 +54,10 @@ public class Test_LegendLite_SQLite_EssentialFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
-            // step 9, 2026-10-19, the plan route: the value lane converts a Float root to DOUBLE, whose digits are
-            // ...784 where the legacy route's Java text was ...780; both lose the literal's decimals (the DuckDB
-            // lane's pin, the same cause: the value lane keeping a DECIMAL slot exact is an item of step 9)
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
+            // 2026-10-20 (the parity phase): a Float root computed from exact-digit literals alone keeps its DECIMAL
+            // value on every other lane (LiteralSpelling.exactFloatConstant); SQLite has no exact decimal -- it reads
+            // the literal 123456789123456789.99 as a REAL, 15 to 17 digits -- so the digits are the database's limit
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456800.0\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ACOS is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ASIN is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
