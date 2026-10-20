@@ -1756,6 +1756,11 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
         }
+        if (state instanceof Graph g0 && !m.optional() && pastTheGraphsNavigation(m, g0)) {
+            // a pattern from a node the graph binds that its navigation cannot read on (§12.49): the graph
+            // materialized, the pattern read as a MATCH of its own and joined back on the node's identity
+            return matchPattern(m, rowsOf(state, m.pos()));
+        }
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
                 && r.lengthRange() != null))) {
             // a variable-length relationship: one chain per length within its bounds, read as arms (the study's
@@ -3547,6 +3552,9 @@ public final class CypherToPure {
             viaRows |= ((RelPattern) elements.get(i)).direction() != CypherAst.Direction.OUT
                     && ((NodePattern) elements.get(i + 1)).labels().isEmpty();
         }
+        // (a pattern the graph's navigation cannot read on: a hop past an edge class's far end, a type joining
+        // several class pairs from the node's class)
+        viaRows |= state instanceof Graph g0 && pastTheGraphsNavigation(m, g0);
         if (viaRows) {
             // (the study's §12.49: the graph materialized, the pattern read as its own graph and joined back by
             // identity, a left join)
@@ -5951,6 +5959,40 @@ public final class CypherToPure {
         }
         for (PatternElement e : p.elements()) {
             if (e instanceof NodePattern n && n.variable() != null && reachedThroughEdge.contains(n.variable())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the one pattern of {@code m}, read from a node the graph {@code g} binds (its first), goes where the
+     *  graph's navigation reads no further: on past the far end of a hop over an edge class (the resolver reads no
+     *  association end past an edge's end: every relationship of the native store is one), or, in an OPTIONAL MATCH,
+     *  over a type joining several class pairs from the node's class (one hop is one way there). Such a pattern is
+     *  re-anchored over the graph's rows instead (§12.49), where it is a MATCH of its own. */
+    private boolean pastTheGraphsNavigation(CypherAst.Match m, Graph g) {
+        if (m.patterns().size() != 1) {
+            return false;
+        }
+        List<PatternElement> elements = m.patterns().get(0).elements();
+        if (elements.size() < 3 || !(elements.get(0) instanceof NodePattern first) || first.variable() == null) {
+            return false;
+        }
+        Binding from = g.bindings().get(first.variable());
+        if (from == null || !from.node() || from.classPath() == null || from.absent() || from.maybeAbsent()) {
+            return false;
+        }
+        for (int i = 1; i + 1 < elements.size(); i += 2) {
+            RelPattern r = (RelPattern) elements.get(i);
+            if (r.lengthRange() != null) {
+                return false;
+            }
+            boolean overEdge = r.types().size() == 1 ? !edgesOf(r.types().get(0)).isEmpty() : !edges().isEmpty();
+            if (overEdge && i + 2 < elements.size()) {
+                return true;
+            }
+            if (i == 1 && m.optional() && r.types().size() == 1
+                    && edgeWayCount(java.util.Objects.requireNonNull(from.classPath()), r) > 1) {
                 return true;
             }
         }

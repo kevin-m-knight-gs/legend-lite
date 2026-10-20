@@ -11947,6 +11947,24 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the hundred-and-first landing — a pattern past the graph's navigation
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.95.
+- **What it closes:** a continuation MATCH or OPTIONAL MATCH from a node the graph binds that the graph cannot
+  navigate: one that hops on past an edge class's far end, or that uses, optionally, a type joining several class
+  pairs from the node's class. On the native store every relationship is an edge class, so these were the native
+  lane's last refusals of cases the domain lane passes.
+- **How:** such a pattern is re-anchored over the graph's rows (§12.49): read as a first MATCH of its own, then
+  joined back on the bound node's identity (a left join for an OPTIONAL MATCH).
+- **Measured** (each lane in update mode):
+  - the native lane PASS 4271 → 4276, REFUSED 17 → 12 (two untyped hops, two deep patterns, optional two hops, a type
+    of several class pairs in an OPTIONAL MATCH);
+  - the domain lanes PASS 4244 → 4245, REFUSED 44 → 43 on DuckDB and Postgres (the last of those);
+  - nothing else moved.
+
+  The native lane now refuses only the TCK's two signed years (Temporal10 [9], [10]) and lite's ten pinned
+  refusals. `//core:guardrails` and `//core:core_tests_integration` are green.
+
 ## 2026-10-20 — writes: the hundredth landing — write plans
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 7 (announced in

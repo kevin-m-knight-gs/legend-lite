@@ -5776,3 +5776,22 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
   REFUSED, 2 BOTH_ERROR, the same on both). The TCK: 3602 of 3880 agree on both, the 2 new BOTH_ERROR being write
   scenarios Neo4j raises on and lite refuses the clause of (§1 of the design: agreement by refusal, until leg 5). The
   oracle check 0 problems over 5062 cases; the local gate below (GATES, the ninety-second landing).
+
+### 12.95 A pattern past the graph's navigation, re-anchored over its rows (2026-10-20)
+
+On the native store every relationship is an edge class, and the resolver reads no association end past an edge's
+far end. So a continuation MATCH from a node the graph binds could read one edge hop and no more. Five cases were
+refused on the native lane, the last ones the domain lane passed:
+- `MATCH (a:A) MATCH (a)-->(b)-->(c)`;
+- a deep typed pattern after `WITH a` and in a second MATCH;
+- `OPTIONAL MATCH (a)-[:T]->(b)-[:V]->(c)`;
+- an OPTIONAL MATCH over a type joining several class pairs from the node's class (refused on both lanes).
+
+Such a pattern (`pastTheGraphsNavigation`: a hop on past an edge hop, or, optionally, a type of several ways from
+the node's class) is now read as §12.49 reads a pattern after rows. The graph is materialized, and the pattern is a
+MATCH of its own: a first MATCH, where the cut (§12.54), the arms (§12.35) and the edge hops already read it. It is
+joined back on the bound node's identity; an OPTIONAL MATCH uses a left join. The lanes in update mode: the native
+lane PASS 4271 → 4276, REFUSED 17 → 12; the domain lanes PASS 4244 → 4245, REFUSED 44 → 43 on DuckDB and Postgres;
+nothing else moved. The native lane now passes every case the domain lane passes. What it still refuses is the TCK's
+two signed years and lite's own pinned refusals; the domain lane's are those, and the label changes (S94).
+

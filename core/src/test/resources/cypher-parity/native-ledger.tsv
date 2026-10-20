@@ -4014,7 +4014,7 @@ lite/continue/untyped_hop_with_a_where_and_return_star	PASS
 lite/continue/untyped_hop_after_an_optional_match	PASS
 lite/continue/untyped_hop_after_a_labelless_match	PASS
 lite/continue/untyped_hop_that_fans_out	PASS
-lite/continue/two_untyped_hops_from_a_bound_node	REFUSED
+lite/continue/two_untyped_hops_from_a_bound_node	PASS
 lite/continue/untyped_hop_after_a_projecting_with_refused	PASS
 lite/continue/untyped_hop_between_two_bound_nodes_refused	PASS
 lite/continue/untyped_hop_from_a_node_no_way_leaves	PASS
@@ -4034,8 +4034,8 @@ lite/depth/a_cycle_closing_across_the_cut	PASS
 lite/depth/a_hop_after_an_edge_hop	PASS
 lite/depth/four_hops_two_cuts	PASS
 lite/depth/a_where_over_the_far_end_and_a_property_map_on_it	PASS
-lite/depth/a_deep_pattern_from_a_carried_node_after_a_with	REFUSED
-lite/depth/a_deep_pattern_in_a_second_match_over_the_graph	REFUSED
+lite/depth/a_deep_pattern_from_a_carried_node_after_a_with	PASS
+lite/depth/a_deep_pattern_in_a_second_match_over_the_graph	PASS
 lite/depth/a_deep_pattern_counted	PASS
 lite/depth/distinct_relationships_alike_counted_over_rows	PASS
 lite/depth/two_untyped_hops_with_an_edge_among_the_ways	PASS
@@ -4080,7 +4080,7 @@ lite/edges/a_type_joining_several_class_pairs_with_the_far_label	PASS
 lite/edges/a_type_joining_several_class_pairs_from_a_labelless_start	PASS
 lite/edges/a_type_joining_several_class_pairs_incoming	PASS
 lite/edges/a_type_joining_several_class_pairs_with_properties_on_one	PASS
-lite/edges/a_type_joining_several_class_pairs_in_an_optional_match	REFUSED
+lite/edges/a_type_joining_several_class_pairs_in_an_optional_match	PASS
 lite/edges/an_undirected_typed_pattern_from_a_labelless_start_is_refused	PASS
 lite/edges/an_edge_in_one_arm_and_an_association_in_another	PASS
 lite/edges/an_optional_edge_from_labelless_arms	PASS
@@ -4418,7 +4418,7 @@ lite/optional/optional_to_many_hop	PASS
 lite/optional/optional_to_many_count	PASS
 lite/optional/optional_to_many_node_as_value	PASS
 lite/optional/optional_through_with	PASS
-lite/optional/optional_two_hops	REFUSED
+lite/optional/optional_two_hops	PASS
 lite/optional/optional_with_where	PASS
 lite/optional/optional_first_finding_nothing	PASS
 lite/optional/optional_first_finding_one	PASS
