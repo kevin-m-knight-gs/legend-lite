@@ -127,14 +127,17 @@ class Show(Shown):
 
 
 class Notebook(Shown):
-    def test_after_each_cell_the_live_cubes_are_told(self):
+    def test_after_each_cell_the_cubes_read_at_each_query_are_told(self):
         registered = []
         shell = types.SimpleNamespace(events=types.SimpleNamespace(register=lambda event, f: registered.append((event, f))))
         was = sys.modules.get('IPython')
         sys.modules['IPython'] = types.SimpleNamespace(get_ipython=lambda: shell)
         try:
             ll.show(trades(), browser=False)
-            ll.show(trades(), mode='snapped', browser=False)
+            # a stream, read once into a table of its own: nothing of it changes after a cell
+            import pyarrow as pa
+            table = pa.Table.from_pandas(trades(), preserve_index=False)
+            ll.show(pa.RecordBatchReader.from_batches(table.schema, table.to_batches()), browser=False)
             self.assertEqual([event for event, _ in registered], ['post_run_cell'])
             registered[0][1](None)  # a cell ran
             self.assertEqual(self.version('frame'), (200, {'version': 1}))

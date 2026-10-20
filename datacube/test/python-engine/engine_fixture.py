@@ -36,7 +36,6 @@ import pyarrow as pa
 
 import legend_lite as ll
 from legend_lite import datacube
-from legend_lite.frames import LIVE
 from legend_lite.notebook import DataCube, PageCube
 
 _said = threading.Lock()
@@ -114,7 +113,7 @@ def main() -> None:
     web = datacube._session.web()
     # a second frame for a page of two (read Live: an update is the next query's)
     desks = {'now': pa.table({'desk': ['Rates', 'FX', 'Credit'], 'head': ['Ana', 'Ben', 'Cy']})}
-    datacube._session.register(lambda: desks['now'], 'desks', LIVE)
+    datacube._session.register(lambda: desks['now'], 'desks')
     served_page: dict = {}
 
     def served_frames(doc: dict) -> list[str]:

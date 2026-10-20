@@ -239,10 +239,13 @@ class InAKernel(Widget):
         self.assertIs(again, first)
         self.assertEqual((first.version, len(self.displayed)), (1, 2))
 
-    def test_after_each_cell_its_live_cubes_query_again(self):
-        live, snapped = ll.show(trades()), ll.show(trades(), mode='snapped')
+    def test_after_each_cell_its_cubes_read_at_each_query_query_again(self):
+        # a stream, read once into a table of its own: nothing of it changes after a cell
+        import pyarrow as pa
+        table = pa.Table.from_pandas(trades(), preserve_index=False)
+        live, once = ll.show(trades()), ll.show(pa.RecordBatchReader.from_batches(table.schema, table.to_batches()))
         self.cell_ends()
-        self.assertEqual((live.version, snapped.version), (1, 0))
+        self.assertEqual((live.version, once.version), (1, 0))
 
     def test_a_name_moved_to_a_tab_keeps_its_frame_when_its_notebook_cube_closes(self):
         notebook = ll.show(trades(), name='t')

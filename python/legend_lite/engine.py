@@ -406,7 +406,7 @@ class Engine:
         if self.site is not None and not self.site.is_dir():
             raise ValueError(f'the site {site} is not a directory')
         # each frame's version: bumped when it changes (changed), so a page asking sees it and reads it again; and the
-        # model each was last served with, so a Live frame whose columns changed is noticed (_noted)
+        # model each was last served with, so a frame whose columns changed is noticed (_noted)
         self._versions: dict[str, int] = {}
         self._models: dict[str, str] = {}
         self._watchers: list[Callable[[str, int], None]] = []
@@ -1021,7 +1021,7 @@ class Engine:
 
     def _served_snap(self, asked: dict[str, Any]) -> Answer:
         """A grid's copy over a model this engine serves (a frame's, a page's file's): planned on the compiler's thread,
-        counted and copied by the frames' database, the frames held still -- a Live frame copied as it is now."""
+        counted and copied by the frames' database, the frames held still -- a frame copied as it is now."""
         assert self._headless is not None
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
@@ -1239,7 +1239,7 @@ class Engine:
 
     def _cube(self, query: str) -> Answer:
         """The cube a page shows (DataCube's demo/engine.html, or a notebook's widget): ``table`` (a frame's name), its
-        model, runtime and source as they are now (a Live frame read again), and its title. Computed on the compiler's
+        model, runtime and source as they are now (a frame read again), and its title. Computed on the compiler's
         pool."""
         name = parse_qs(query).get('table', [''])[0]
         try:
@@ -1436,7 +1436,7 @@ class Engine:
 
     def _noted(self, models: dict[str, str]) -> None:
         """The frames' models as they are now (each Live one read again): one that differs from what it was last
-        served with -- a Live frame's columns changed -- is a change its page is told of."""
+        served with -- a frame's columns changed -- is a change its page is told of."""
         moved = []
         with self._changes:
             for name, model in models.items():

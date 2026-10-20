@@ -880,9 +880,8 @@ class Document(Paged):
         self.assertEqual([g.frame for g in page.grids], ['trades', 'trades'])
         served = datacube._session.frames['trades']
         # another frame under the name: refused (grid.update replaces a frame), the name serving what it served
-        for other, mode in ((trades(), 'live'), (df, 'snapped')):
-            with self.assertRaisesRegex(ValueError, r'grid\.update\(frame\) replaces a frame'):
-                page.grid(other, name='trades', mode=mode)
+        with self.assertRaisesRegex(ValueError, r"'trades' serves another frame already: grid\.update\(frame\) replaces"):
+            page.grid(trades(), name='trades')
         self.assertIs(datacube._session.frames['trades'], served)
         self.assertEqual(page.grids, [first, second])
         # and a refused grid over its own frame takes nothing away from the frame the others show
@@ -1222,7 +1221,7 @@ class Live(Paged):
         page.remove(grid)
         ll.show(page, browser=False)
         before = self.get(f'/version.json?page={page._key}')[1]['frames']['trades']
-        datacube._session.register(trades().iloc[:1], 'trades', 'live')
+        datacube._session.register(trades().iloc[:1], 'trades')
         self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['frames']['trades'], before + 1)
 
     def test_what_the_open_page_says_of_a_page_since_replaced_is_not_read(self):

@@ -1116,9 +1116,10 @@ run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
    - A frame's grid on Python's page snaps the same way (step 2b, built): one route, `snap.json`, for a frame's, a
      page file's or a warehouse table's grid -- a warehouse's pull runs there, any other in the frames' database, the
      frames held still, so a Live frame is copied as it is then.
-   - Python's per-frame `mode='snapped'` (`ll.show`, `Page.grid`, `Page.load`, `update`) is still there: removing it
-     breaks Python's API and drops a frozen copy made without a page open, so it is the user's call (asked
-     2026-10-20).
+   - Python's per-frame `mode='snapped'` (`ll.show`, `Page.grid`, `Page.load`, `update`, `Frames.register`) is
+     removed (the user, 2026-10-20: "nothing is in prod ... you can break compatibility even public APIs if helps get
+     better/cleaner code"): a frame is read as it is at each query, and the one Snap is a grid's. A stream, which can
+     be read only once, is read into a table of its own when it is registered.
 4. **Python pages over any base.** Built (step 3, 2026-10-20) for cubes whose leaves are frames:
    - Python asks DataCube what a cube reads (headless `cubeLeaves`), its base over the frames Python serves
      (`gridBase`: a frame's own model; a join's, one model of its leaves' tables) and a saved cube opened over them as
@@ -1131,10 +1132,19 @@ run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
      command `addGrid`).
    - Not built: a Python page over a file's, a class's or a warehouse table's leaf (each still refused by name), and
      warehouse plans routed by the tables a model declares rather than by one table's model text.
-5. **A class of any base.**
-   - Create a Class, a Data Space and an Association take the base query, and are shown on every grid.
-   - The class's store declares the tables `leavesOf(base)` names, and its samples are per leaf table (§18.4).
-   - The page model keeps `{grid → [tables]}`.
+5. **A class of any base.** Built (step 4, 2026-10-20):
+   - What a class is made over is `classBasis(snapshot)` (`query.ts`): the grid's rows at their finest level, and every
+     store table they read (`tablesOf`: a file's grid its one, a join each of its leaves', once), each with its
+     sample's query. Refused in words: rows that read no table of a store (a class's grid), tables of two Databases.
+   - Create a Class, a Data Space and an Association are on every grid, a join's included. Headless `gridClass`
+     answers `{database, tables, samples}`, and Python's `create_class` and `create_data_space` send them as the window
+     does. The writer already wrote one Data element per table sample.
+   - The page model keeps `{grid → [tables]}`, the names its leaves' tables have in the tab, in their order
+     (`PAGE_VERSION` 6; a page saved before is no longer read). Reopened, a join's leaves are read under those names,
+     reserved while the page opens: a table read already is reused only when it has the kept name, else the same
+     file, given already, is read again under it, never asked for twice.
+   - Samples are still each table's first rows: a join's may share no keys, so its class's sample can be empty until
+     step 6 chooses them through the query (§18.4).
 6. **Mapping tests.** Core runs a mapping's `testSuites` as legend-engine does (§18.5). Create a Class writes one,
    and runs it.
 

@@ -2,19 +2,20 @@
 queries the compiler plans run by DuckDB, answered as Arrow.
 
     frames = Frames()
-    trades = frames.register('trades', df)              # Live: every query reads df as it is then
+    trades = frames.register('trades', df)              # every query reads df as it is then
     trades.execute("->filter(x|$x.desk == 'FX')")       # a pyarrow.Table, typed by the plan
 
 A frame is anything Arrow reads: a pandas or polars DataFrame, a pyarrow Table, any object that exports
-Arrow -- or a function returning one, so a Live table follows a frame you rebuild. It is handed to DuckDB
+Arrow -- or a function returning one, so its table follows a frame you rebuild. It is handed to DuckDB
 AS ARROW: duckdb-python's own pandas reader is about ten times slower on text columns, and reading a
 pandas frame through it once does not see later changes (pandas copies on write).
 
-LIVE (the default) re-reads the frame at every query, so the answer is the frame's as it is then; if its
-columns changed, the model is written again. SNAPPED copies it into DuckDB once: faster to query, and it
-never changes. Either way the frame is an ordinary DuckDB table or view named as registered, so the
-compiler reads its catalog and writes its model exactly as it does for a DataCube table
-(``table_model``): one writer.
+Every query reads the frame as it is then (a view over it); if its columns changed, the model is written
+again. A stream (a ``pyarrow.RecordBatchReader``) can be read only once, so it is read into a table of its
+own when it is registered, and never changes. Rows kept as they are at a moment are a grid's Snap, of its
+base query (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3) -- no frame's. Either way the frame is an
+ordinary DuckDB view or table named as registered, so the compiler reads its catalog and writes its model
+exactly as it does for a DataCube table (``table_model``): one writer.
 
 AN ANSWER IS TYPED BY ITS PLAN (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15.3a), as the tab's executor types its
 own (engine-client's ``typedByPlan``): each column carries the compiler's type (its field's ``legend.type``), a column
@@ -44,16 +45,14 @@ import pyarrow as pa
 from . import _host, compiler
 from ._types import UnknownType, is_integer
 
-LIVE = 'live'
-SNAPPED = 'snapped'
-
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
 # of the compiler's rule, ModelChanges.isIdentifier (its regex and LITERAL_WORDS), kept here so a name is refused before
 # anything is made under it (the user's ruling, 2026-10-16: a copy, named, over moving the check into the model writer)
 _NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\Z')
 # the plain identifiers Pure reads as literals, so no package can be named by them (ModelChanges.LITERAL_WORDS)
 _LITERALS = ('true', 'false')
-# the names Frames gives what it registers for a Live frame (its Arrow source): never a page's file's table's
+# the names Frames gives what it registers for a frame read at each query (its Arrow source): never a page's file's
+# table's
 _OWN = '__legend_lite_'
 
 # the catalog question's columns, in its order, as the model writer names them (compiler.catalog_columns_sql)
@@ -134,10 +133,11 @@ class Table:
     """A registered frame: its Legend model and the queries over it. Unusable once its name is registered
     again or unregistered."""
 
-    def __init__(self, frames: Frames, name: str, read: Callable[[], Any], mode: str, given: Any = None) -> None:
+    def __init__(self, frames: Frames, name: str, read: Callable[[], Any], live: bool, given: Any = None) -> None:
         self._frames = frames
         self.name = name
-        self.mode = mode
+        # read at each query (a view over the frame), or -- a stream, read once -- a table of its own
+        self.live = live
         self._read = read
         # the frame (or function) it was registered with, as given: what a page's grid asks for by name is it
         self.given = given
@@ -159,12 +159,12 @@ class Table:
         """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model."""
         con = self._frames.connection
         con.register(self._registered, arrow)
-        kind = 'view' if self.mode == LIVE else 'table'
+        kind = 'view' if self.live else 'table'
         # a view whose columns changed is dropped, not replaced: the copy below may change its kind of select
         _host.run(con, {'op': 'drop', 'kind': kind, 'target': self._target},
                   {'op': 'relation', 'kind': kind, 'target': self._target,
                    'from': {'relation': _host.name(self._registered)}})
-        if self.mode == SNAPPED:
+        if not self.live:
             con.unregister(self._registered)
         rows = con.execute(compiler.catalog_columns_sql('main', self.name)).fetchall()
         written = compiler.table_model({
@@ -176,7 +176,7 @@ class Table:
             'columns': [dict(zip(_CATALOG_FIELDS, row)) for row in rows],
         })
         if written['conversions']:
-            source = _host.name(self._registered) if self.mode == LIVE else self._target
+            source = _host.name(self._registered) if self.live else self._target
             _host.run(con, {'op': 'relation', 'kind': kind, 'target': self._target, 'replace': True,
                             'selectList': written['copySelectList'], 'from': {'relation': source}})
         self.model = written['model']
@@ -195,15 +195,15 @@ class Table:
     def _drop(self) -> None:
         """Takes the frame out of DuckDB, and makes this handle unusable."""
         con = self._frames.connection
-        _host.run(con, {'op': 'drop', 'kind': 'view' if self.mode == LIVE else 'table', 'target': self._target})
-        if self.mode == LIVE:
+        _host.run(con, {'op': 'drop', 'kind': 'view' if self.live else 'table', 'target': self._target})
+        if self.live:
             con.unregister(self._registered)
         if self.held is not None:
             self.held.close()
         self._closed = True
 
     def _refresh(self) -> None:
-        """Live: the frame as it is now. Its rows are read again; if its columns changed, so is its model."""
+        """The frame as it is now. Its rows are read again; if its columns changed, so is its model."""
         arrow = _arrow(self._read())
         if arrow.schema == self._schema:
             self._frames.connection.register(self._registered, arrow)
@@ -229,7 +229,7 @@ class Table:
         if self._closed:
             raise ValueError(f'the frame {self.name!r} was registered again or unregistered: use the new table')
         # held still (Frames.serving), it was read as the query began: read once per query, a function frame called once
-        if self.mode == LIVE and not self._frames._still:
+        if self.live and not self._frames._still:
             self._refresh()
 
     def plan(self, query: str | dict[str, Any]) -> compiler.Plan:
@@ -250,7 +250,7 @@ class Frames:
     """Frames in one duckdb-python database, each a Legend table the compiler plans queries over.
 
     The connection's session is set as the planner's SQL expects (the dialect's own setup: UTC), whether
-    Frames opened it or was given it. Frames creates and drops only its own tables and views (a Live one
+    Frames opened it or was given it. Frames creates and drops only its own tables and views (a frame's view
     reads an object registered on the connection, so in a database file it lasts no longer than the
     session: ``close()`` drops them). Use the connection through Frames' methods while other threads do;
     they hold one lock."""
@@ -263,7 +263,7 @@ class Frames:
         for statement in compiler.session_setup('DuckDB'):
             self.connection.execute(statement)
         self._lock = threading.RLock()
-        # how deep in ``serving`` the thread holding the lock is: inside, the frames are held still, each Live one read
+        # how deep in ``serving`` the thread holding the lock is: inside, the frames are held still, each read as it is now
         self._still = 0
         # DuckDB matches names without regard to case, quoted or not: so does this
         self._tables: dict[str, Table] = {}
@@ -277,19 +277,18 @@ class Frames:
         # recent last
         self._admitted: dict[str, tuple[compiler.HeldModel, frozenset[str]]] = {}
 
-    def register(self, name: str, frame: Any, mode: str = LIVE) -> Table:
-        """Registers a frame (or a function returning one) as the table ``name``, Live or Snapped, and
-        writes its model. Registering a name again replaces its table, and the old handle stops working."""
+    def register(self, name: str, frame: Any) -> Table:
+        """Registers a frame (or a function returning one) as the table ``name``, read as it is at each query (a
+        stream, read once, a table of its own), and writes its model. Registering a name again replaces its table,
+        and the old handle stops working."""
         if not _NAME.match(name):
             raise ValueError(f"a frame's name is a plain identifier (letters, digits, '_'), not {name!r}")
         if name in _LITERALS:
             raise ValueError(f"a frame cannot be named {name!r}: Pure reads it as a literal, so no package can be")
-        if mode not in (LIVE, SNAPPED):
-            raise ValueError(f"mode is {LIVE!r} or {SNAPPED!r}, not {mode!r}")
         read: Callable[[], Any] = frame if callable(frame) else (lambda: frame)
         first = read()
-        if mode == LIVE and isinstance(first, pa.RecordBatchReader):
-            raise ValueError('a stream can be read only once, so it cannot be Live: register it snapped')
+        # a stream given (no function making one each time) is read once: its rows copied, never read again
+        live = callable(frame) or not isinstance(first, pa.RecordBatchReader)
         arrow = _arrow(first)
         with self._lock:
             key = name.lower()
@@ -303,7 +302,7 @@ class Frames:
                 old._drop()
             elif self._exists(name):
                 raise ValueError(f'the database already has a table or view named {name!r}, and Frames did not make it')
-            table = Table(self, name, read, mode, frame)
+            table = Table(self, name, read, live, frame)
             try:
                 table._load(arrow)
             except BaseException:
@@ -325,11 +324,11 @@ class Frames:
     @contextlib.contextmanager
     def serving(self) -> Iterator[dict[str, str]]:
         """The frames held still for one query that another host plans and runs (the engine): the lock taken,
-        each Live table read as its frame is now (its model written again if its columns changed), and their
+        each table read as its frame is now (its model written again if its columns changed), and their
         models given by name -- the only models such a query may be over. Run its SQL on ``connection`` inside."""
         with self._lock:
             for table in self._tables.values():
-                if table.mode == LIVE:
+                if table.live:
                     table._ready()
             self._still += 1
             try:

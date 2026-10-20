@@ -2,7 +2,7 @@
 and returns at once.
 
     import legend_lite as ll
-    cube = ll.show(df)          # DataCube on df, Live: each query reads df as it is then
+    cube = ll.show(df)          # DataCube on df: each query reads df as it is then
     df.loc[0, 'qty'] = 5         # an in-place change: the cube shows it on its next query
     cube.update(new_df)          # a NEW frame (rebinding `df` does not reach the cube)
 
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .engine import Engine, WebServer
-from .frames import LIVE, Frames
+from .frames import Frames
 
 if TYPE_CHECKING:
     from .notebook import DataCube, PageCube
@@ -81,11 +81,11 @@ class Cube:
         web = self._session.web()
         return f'{web.url}/engine.html?table={self.name}#token={web.token}'
 
-    def update(self, frame: Any, mode: str | None = None) -> None:
-        """Shows another frame in this cube (Live or Snapped as before, unless ``mode`` says): the page opens it, over
-        its new columns if they changed. It returns nothing, as a notebook's cube's does."""
+    def update(self, frame: Any) -> None:
+        """Shows another frame in this cube: the page opens it, over its new columns if they changed. It returns
+        nothing, as a notebook's cube's does."""
         self._open()
-        self._session.register(frame, self.name, self._session.frames[self.name].mode if mode is None else mode)
+        self._session.register(frame, self.name)
 
     def refresh(self) -> None:
         """Tells the page to query again: a change the next click would show, shown now."""
@@ -200,7 +200,7 @@ class _Session:
                 self._web = WebServer(self.engine())
             return self._web
 
-    def register(self, frame: Any, name: str | None, mode: str) -> str:
+    def register(self, frame: Any, name: str | None) -> str:
         """The frame registered under ``name`` (the next free one unless given), and a page showing that name told."""
         with self._lock:
             if name is None:
@@ -208,7 +208,7 @@ class _Session:
             # shown by a cube of its name, or read by a page shown
             shown = name.lower() in self.cubes or any(f.lower() == name.lower()
                                                       for view in self.pages for f in view._page._frames())
-            self.frames.register(name, frame, mode)
+            self.frames.register(name, frame)
             # an engine is made by what shows a frame (a tab, a notebook's cube, a page shown): none yet, nothing has
             # been served and nobody is told; a page's grid read headless (Grid.view) needs none
             engine = self._engine
@@ -223,10 +223,10 @@ class _Session:
             if name in self.frames and name.lower() not in self.cubes:
                 self.frames.unregister(name)
 
-    def show(self, frame: Any, name: str | None, mode: str) -> Cube:
+    def show(self, frame: Any, name: str | None) -> Cube:
         """The frame registered, and its name's cube in a tab: the one it has, else a new one."""
         with self._lock:
-            name = self.register(frame, name, mode)
+            name = self.register(frame, name)
             cube = self.cubes.get(name.lower())
             if not isinstance(cube, Cube):
                 cube = self.adopt(Cube(self, name))
@@ -247,18 +247,18 @@ class _Session:
         return name
 
     def after_cell(self, *_: Any) -> None:
-        """A notebook cell (or an IPython command) has run: each Live cube, and each Live frame of a page shown, queries
-        again, so a change shows."""
+        """A notebook cell (or an IPython command) has run: each cube, and each frame of a page shown, read at each query
+        (a stream's, read once, never changes), queries again, so a change shows."""
         with self._lock:
             for key, cube in list(self.cubes.items()):
                 cube._after_cell()
-                if self._engine is not None and key in self.frames and self.frames[key].mode == LIVE:
+                if self._engine is not None and key in self.frames and self.frames[key].live:
                     self._engine.changed(cube.name)
             for view in self.pages:
                 view._after_cell()
             frames = {f for shown in self.pages for f in shown._page._frames()}
             for name in frames:
-                if self._engine is not None and name in self.frames and self.frames[name].mode == LIVE:
+                if self._engine is not None and name in self.frames and self.frames[name].live:
                     self._engine.changed(name)
 
     def show_page(self, page: Page) -> PageTab:
@@ -404,15 +404,15 @@ def _release(key: int) -> None:
     session.frames.close()
 
 
-def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool = True,
+def show(frame: Any, name: str | None = None, *, browser: bool = True,
          inline: bool | None = None) -> Cube | DataCube | PageTab | PageCube:
     """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
     at once: under the cell in a Jupyter notebook; in a marimo notebook, as the cell's output when it is the cell's last
     expression (marimo's way); in a browser tab anywhere else (a plain script that opened one waits at its end until
     Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name again
     replaces its frame and shows its cube again, in a tab or under this cell, as it first showed -- in marimo, a new
-    cube each call, the latest taking the name's frame). ``mode``: Live (the default: each query reads the frame as it
-    is then) or ``'snapped'`` (copied once). ``browser=False`` opens no tab: the link is ``cube.url``.
+    cube each call, the latest taking the name's frame). Each query reads the frame as it is then; the grid's Snap
+    keeps its rows as they are. ``browser=False`` opens no tab: the link is ``cube.url``.
     ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
     under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""
     from .page import Page
@@ -422,7 +422,7 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
         # a marimo notebook: the cube for the cell to show, as its last expression (marimo's way: nothing is added to
         # the cell's output, which would show it twice); the cell's next run closes it
         from .notebook import for_marimo
-        return for_marimo(frame, name, mode)
+        return for_marimo(frame, name)
     if inline is None:
         # a name shown again shows where it showed; a new one under the cell in a notebook's kernel, else in a tab
         shown_before = _current().cubes.get(name.lower()) if name is not None else None
@@ -430,9 +430,9 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
     if inline:
         # the notebook extra: without anywidget, the import says how to install it
         from .notebook import shown
-        return shown(frame, name, mode)
+        return shown(frame, name)
     session = _current()
-    cube = session.show(frame, name, mode)
+    cube = session.show(frame, name)
     print(f'DataCube: {cube.url}', flush=True)
     if browser and webbrowser.open(cube.url):
         session.opened = True

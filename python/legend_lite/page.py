@@ -39,9 +39,13 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from ._extra import require_datacube
+
+# DataCube's: the datacube extra's packages, or one sentence saying to install it (_extra.py)
+require_datacube()
+
 from . import _json
 from ._types import is_boolean, is_decimal, is_float, is_integer, is_number
-from .frames import LIVE, SNAPPED
 
 _KEEP: Any = object()
 
@@ -497,11 +501,11 @@ class Grid(Tile):
         cube = self._view['cube']
         return [c for c in self._page.charts if c._view['cube'] == cube]
 
-    def update(self, frame: Any, mode: str | None = None) -> None:
-        """Another frame for this grid (Live or Snapped as before, unless ``mode`` says): a page showing it queries it
-        again, and -- its columns changed -- opens again over them."""
+    def update(self, frame: Any) -> None:
+        """Another frame for this grid (one reading a single frame: ``frame``): a page showing it queries it again, and
+        -- its columns changed -- opens again over them, every grid reading the frame with it."""
         _ = self._view
-        self._page._update(self.frame, frame, mode)
+        self._page._update(self.frame, frame)
 
     def __repr__(self) -> str:
         return f'<Grid {self._id}>'
@@ -984,19 +988,17 @@ class Page:
     def grid(self, frame: Any, *, name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
              measures: Mapping[str, str] | Sequence[tuple[str, str]] | None = None, filter: Any = None,
              sort: Sequence[tuple[str, str]] = (), dimensions: Sequence[str] = (), title: str | None = None,
-             sheet: Sheet | None = None, mode: str = LIVE) -> Grid:
+             sheet: Sheet | None = None) -> Grid:
         """A grid over ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one), served
         under ``name`` (``frame``, ``frame_2``, ... unless given), in a band of its own at the bottom of ``sheet`` (the
-        first unless given). A name served already is this grid's when it serves this same frame, the same way (two
-        grids over one frame), and refused when it serves another: ``grid.update(frame)`` replaces a frame, every grid
+        first unless given). Each query reads the frame as it is then; the grid's Snap keeps its rows as they are. A
+        name served already is this grid's when it serves this same frame (two grids over one frame), and refused
+        when it serves another: ``grid.update(frame)`` replaces a frame, every grid
         over it showing the new one. ``rows``, ``columns``, ``measures`` (``{column: aggregate}`` or ``[(column,
         aggregate)]``), ``filter`` and ``sort``: as ``group``, ``pivot``, ``measure``, ``filter`` and ``sort`` say;
         ``dimensions``: columns made dimensions first (``column(name, kind='dimension')``: a number is a measure until
         then, and only a dimension is grouped or pivoted on) -- all checked before the grid is on the page, so a
-        mistake leaves the page and the frames as they were. ``mode``:
-        Live (each query reads the frame as it is then) or ``'snapped'``."""
-        if mode not in (LIVE, SNAPPED):
-            raise ValueError(f'mode is {LIVE!r} or {SNAPPED!r}, not {mode!r}')
+        mistake leaves the page and the frames as they were."""
         if sheet is not None and sheet._page is not self:
             raise ValueError(f'{sheet!r} is another page\'s')
         target = self.sheets[0] if sheet is None else sheet
@@ -1006,13 +1008,12 @@ class Page:
         session = self._session
         if name is not None and name in session.frames:
             table = session.frames[name]
-            if table.given is not frame or table.mode != mode:
-                serves = 'another frame' if table.given is not frame else f'this frame {table.mode}'
-                raise ValueError(f'{name!r} serves {serves} already: grid.update(frame) replaces a frame, every grid over '
-                                 f'it showing the new one; or give this grid a name of its own')
+            if table.given is not frame:
+                raise ValueError(f'{name!r} serves another frame already: grid.update(frame) replaces a frame, every grid '
+                                 f'over it showing the new one; or give this grid a name of its own')
             served, new = table.name, False
         else:
-            served, new = session.register(frame, name, mode), True
+            served, new = session.register(frame, name), True
         # the page as it was, to go back to when the grid is refused
         was = (self._doc, set(self._ids), len(self._page_commands), len(self._commands),
                None if self._unserved is None else list(self._unserved))
@@ -1187,9 +1188,9 @@ class Page:
         return id
 
     @classmethod
-    def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any], *, mode: str = LIVE) -> Page:
+    def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any]) -> Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
-        cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (its own version
+        cube's ``{"_type": "frame", "name": ...}``), each served: the document as DataCube reads it (its own version
         only; refused in its words when DataCube would not open it), each cube as DataCube opens it
         over its frame as it is now -- what DataCube leaves out of it warned, in its words."""
         from .datacube import _current
@@ -1203,7 +1204,7 @@ class Page:
             raise ValueError(f'the page reads the frames {", ".join(missing)}: give them, frames={{name: frame}}')
         page = cls(doc['name'])
         for name in wanted:
-            page._session.register(frames[name], name, mode)
+            page._session.register(frames[name], name)
         page._doc = doc
         page._ids |= _ids(doc)
         # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out here
@@ -1353,11 +1354,11 @@ class Page:
     def _sheet(self, id: str) -> Sheet:
         return self._tile(id, Sheet)
 
-    def _update(self, name: str, frame: Any, mode: str | None) -> None:
+    def _update(self, name: str, frame: Any) -> None:
         """Frame ``name`` served again over ``frame``: each grid's cube over it reopened over the frame as the compiler
         types it now (``_reopened``); the page served again when one changed."""
         session = self._session
-        session.register(frame, name, session.frames[name].mode if mode is None else mode)
+        session.register(frame, name)
         # every cube reading the frame reopened (a join of it among them), whichever changed
         reopened = [self._reopened(c, 4) for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'])]
         if any(reopened):
@@ -1371,7 +1372,7 @@ class Page:
         DataCube's words. So the page holds the cube every headless call opens, and no later call sends a part DataCube
         leaves out. Whether it was taken. Asked when a page is loaded (``load``: its frames served), when a frame is
         served again (``_update``), and before a filter, a calculated column or a chart is checked against it
-        (``_current``: a Live frame changed in place)."""
+        (``_current``: a frame changed in place)."""
         label = c['cube']['source']['name']
         cube, notes, changed = self._opened_cube(c['cube'])
         # its frames' columns as they were, nothing left out: the cube stands as it is (opened again, the same)
@@ -1386,7 +1387,7 @@ class Page:
 
     def _current(self, cube: str, stacklevel: int) -> None:
         """The cube ``cube`` (its id) as DataCube opens it over its frame now, taken and said (``_reopened``) before a
-        call checks a change against it and writes the change into it: a Live frame changed in place (a column gone, a
+        call checks a change against it and writes the change into it: a frame changed in place (a column gone, a
         calculated column that read it left out) is the cube DataCube checks, never the one held before."""
         self._reopened(next(c for c in self._doc['cubes'] if c['id'] == cube), stacklevel + 1)
 
