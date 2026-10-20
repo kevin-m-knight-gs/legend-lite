@@ -1201,3 +1201,41 @@ On `claude/datacube-query-base`, stacked on `claude/datacube-model-prep`.
 - Python reads, saves and shows a page with a join and a class grid, and `page.join` makes one.
 - A class of one table, a filtered one, a grouped one and a join of three files: each with its mapping test, run and
   passing. A sample changed by hand makes the test fail.
+
+### 18.8 Snap is a command, not a click (the user, 2026-10-20)
+
+The user: "Seems like we didn't fix snap correctly if it's UI only - that means we didn't build the correct headless API
+for the UI? And if dataframes [are live] now should [there] be [an] option to Snap them to read only once?" Both right:
+Snap lived in the screen's controller alone -- no page or grid command, no headless function, no Python call -- and
+removing Python's `mode='snapped'` left Python no way to read a frame once.
+
+1. **Snapped or live is page state, edited by two page commands** (page-commands.ts), applied by the one function the
+   screen, headless DataCube and Python's live channel apply every page command with:
+   - `{kind: 'snap', grid, copy}`: grid `grid` reads `copy`, a copy its host has made already;
+   - `{kind: 'live', grid}`: it reads its live base again.
+
+   The page document keeps `copies` by cube: each a copy's table, label, when it was taken, its rows and who pulled
+   it. The copy's model is its host's, looked up by its table (the host modelled it as it landed: upload.ts
+   modelLanded, headless `landed`). Neither command is an undo step: the plane is where the rows are, not what the
+   grid shows.
+2. **The host makes the copy, through one function each**: the tab's (the copy in its DuckDB: cube.ts SnapTarget) and
+   Python's (engine.py's, which `/snap.json` calls too). The pull is DataCube's (the base query, its every column),
+   asked of DataCube by Python (headless). The screen's Snap is: the host makes the copy, then the `snap` command;
+   Go Live: the `live` command, then the host lets the copy go.
+3. **Headless grid calls read the copy** when the page says the grid is snapped: Python's grid spec's base is the
+   copy's model and accessor, so `view`, `to_pandas`, export, charts and Create a Class read it.
+4. **Python**: `grid.snap()`, `grid.live()`, `grid.snapped` (its label, when, its rows; None when live), and
+   `page.grid(df, snap=True)` / `ll.show(df, snap=True)`: a frame read once, by its grid's Snap. A frame stays
+   registered as it is, so another grid over it can stay live.
+5. **Both ways over the live channel**: a snap made in Python is a command the open page follows (its grid reads
+   Python's copy through Python's runner); one made on the page is in the document `page.read()` takes.
+6. **A copy belongs to its grid on its page**: let go when the grid goes live, snaps again, is removed, or its page is
+   closed (Python's `close_page`; the tab's own with the tab).
+7. **Not saved as a snap**: a saved or loaded page opens live -- a copy lasts as long as the session that made it --
+   and says so. Only the live channel's document (Python serving its page, the page reporting it) carries copies a
+   host still holds.
+
+Steps: A, the commands, the document's copies and Python's headless Snap (`grid.snap()` reading the copy in every
+grid call); B, the page following a snap made in Python, and the screen's Snap and Go Live as the commands; C, copies
+let go with their grid and page, and a page opened from a save opening live.
+
