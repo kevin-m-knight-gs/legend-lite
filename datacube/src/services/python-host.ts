@@ -578,7 +578,8 @@ export function livePage(link: PythonLink, key: string): LivePage {
     const said = fromJson(text) as { version: unknown; page: unknown };
     const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
     if (!Number.isSafeInteger(version)) throw new Error('the engine said no version of the page');
-    return { version, page: readPage(said.page) };
+    // a page of no grid too: one written live is a page (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5)
+    return { version, page: readPage(said.page, { empty: true }) };
   };
   return {
     read: async () => read(await asked(link, at)),

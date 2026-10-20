@@ -605,15 +605,17 @@ export class PageApp {
    * THE PAGE AS IT IS SAVED (page-document.ts, version 5): one cube per grid -- on the board, then kept off it for a
    * detached chart -- each the grid's own cube document, under the grid's id; the views and the sheets; the page's
    * model (where its classes are), when it has one. `unknown`: fields a newer writer put in the page and in each cube,
-   * written back as they were. Undefined when a grid cannot say its source, or there is nothing on the page.
+   * written back as they were. Undefined when a grid cannot say its source, or there is nothing on the page -- unless
+   * `empty`: the page written live to its keeper, a page of no grid one too.
    */
   document(name: string, unknown?: {
     readonly page?: Readonly<Record<string, unknown>>;
     readonly cubes?: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
     readonly model?: PageModelRef;
-  }): PageDocument | undefined {
+  }, empty = false): PageDocument | undefined {
     const ids = this.cubes;
-    if (ids.length === 0) return undefined;
+    // a page of no grid is no page saved; written live, it is one (`empty`: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
+    if (ids.length === 0 && !empty) return undefined;
     const cubes: { id: string; cube: CubeDocument }[] = [];
     for (const id of ids) {
       const cube = this.grid(id)?.cubeDocument(name, unknown?.cubes?.get(id));

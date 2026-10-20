@@ -44,6 +44,7 @@ import type { SectionId } from '../ui/source-picker.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
 import type { Sample, Services, Versions } from './services.ts';
 import { applyLive, followBy } from './live-follow.ts';
+import { LiveChannel } from './live-channel.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
@@ -79,9 +80,6 @@ export type AppStart =
   /** The page another editor serves (`services.live.page`: Python's `ll.Page`), followed and reported back to it. */
   | { readonly kind: 'live' };
 
-/** How long a change waits to settle before the page reports its document to another editor (a drag, a typed name:
- *  one report, ms). */
-const REPORT_AFTER = 500;
 
 /** The app open on its host: what takes it down (a notebook's cell re-run, its view closed). */
 export interface DataCubeApp {
@@ -179,6 +177,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   const harnessSignal = { changes: 0, printing: 0 };
   /** Each grid the app made, by its tile's id: what following a frame re-runs (`page.cubes` says which are on it). */
   const madeCubes = new Map<string, CubeApp>();
+  /** The page's channel to the page's keeper, on a page another editor serves (live-channel.ts): its writes carry the
+   *  edits made here, each grid's and the page's. */
+  let channel: LiveChannel | undefined;
   (window as unknown as { __dataCubeSignal?: typeof harnessSignal }).__dataCubeSignal = harnessSignal;
 
   /**
@@ -222,6 +223,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         compact: true,
         // a copy is a grid added beside others; the same grid made again folds as it did
         foldPanel: (start !== undefined && start.tree === undefined) || place.foldPanel === true,
+        // each edit it keeps, written with the page to its keeper, on a page another editor serves
+        onCommand: (command) => {
+          if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command });
+        },
         // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes; and, where the
         // page has a model home and the host writes models, Create a Class… of the grid's rows
         hostMenu: () => {
@@ -426,6 +431,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     hostStatus: (slot) => slot.append(status),
     // THE NAME BOX renamed: the page's name from now, saved by Save (a change of the page until then)
     onRename: (name) => renamePage(name),
+    // each edit of the page's structure, written with the page to its keeper, on a page another editor serves
+    onPageCommand: (command) => channel?.edit({ page: command }),
     // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
@@ -556,11 +563,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * What saving now would write -- always ONE kind of thing, the page (page-document.ts): one cube per grid, its
      * charts and layout -- and its definition, for "changed since saved".
      */
-    const pageNow = (name: string): PageDocument | undefined => page.document(name, {
+    const pageNow = (name: string, empty = false): PageDocument | undefined => page.document(name, {
       ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
       ...(current.model ? { model: current.model } : {}),
-    });
+    }, empty);
     const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
       const doc = pageNow(name);
       return doc && { content: pageContent(doc), definition: pageDefinitionText(doc) };
@@ -608,35 +615,32 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     undo.push(() => window.removeEventListener('pagehide', onGone));
 
     // THE PAGE ANOTHER EDITOR SERVES (services.live: Python's `ll.Page`, §5), kept by its keeper
-    // (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): written once a change settles, against the version on screen -- the
-    // page's next version, which this page is at from then on; refused when the page moved on meanwhile, and followed
-    // to where it is -- and followed as its other editor changes it (below).
+    // (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) and written and followed through its one channel (live-channel.ts): written
+    // once a change settles, against the version on screen, with the edits made here -- kept as written, or made again on
+    // top of what moved the page meanwhile and the page then opened as the keeper made it -- and followed as its other
+    // editor changes it (below). A page of no grid is a page written too.
     const live = services.live;
-    /** The version of the editor's page on screen, which its writes name; undefined while none is. */
-    let liveShown: number | undefined;
-    /** Its next write, while a change waits to settle. */
-    let reporting: ReturnType<typeof setTimeout> | undefined;
-    undo.push(() => clearTimeout(reporting));
-    /**
-     * Writing and following, one at a time and in order: a move told while this page's own write is on its way is
-     * followed once the write has said its version -- never taken for the other editor's.
-     */
-    let liveQueue: Promise<void> = Promise.resolve();
-    function liveChanged(): void {
-      if (!live?.page || liveShown === undefined || notFollowed !== undefined) return;
-      clearTimeout(reporting);
-      reporting = setTimeout(() => {
-        liveQueue = liveQueue.then(async () => {
-          const at = liveShown;
-          if (disposed || notFollowed !== undefined || at === undefined) return;
-          const doc = pageNow(current.name ?? (page.suggestedName || 'page'));
-          if (!doc || !live.page) return;
-          // a write the keeper refuses (the page moved on, an editor gone) is followed by what it says next
-          const said = await live.page.report(at, doc, null).catch(() => undefined);
-          if (said !== undefined && liveShown === at) liveShown = said.version;
-        });
-      }, REPORT_AFTER);
+    if (live?.page) {
+      channel = new LiveChannel(live.page, {
+        page: () => pageNow(current.name ?? (page.suggestedName || 'page'), true),
+        reopen: async () => {
+          const why = await openLive();
+          if (why !== undefined) sayResting({ text: `not following the page: ${why}`, warn: true });
+        },
+      });
+      undo.push(() => channel?.stop());
     }
+    function liveChanged(): void {
+      if (notFollowed === undefined) channel?.changed();
+    }
+    /** Work in the live queue: the channel's (writes and follows in order), or, following a frame alone, one of its own. */
+    let frameQueue: Promise<void> = Promise.resolve();
+    const enqueue = (work: () => Promise<void>): Promise<void> => {
+      if (channel) return channel.enqueue(work);
+      const run = frameQueue.then(work);
+      frameQueue = run.catch(() => undefined);
+      return run;
+    };
 
     /** LATEST WINS: each open in place takes a number, and one overtaken by a newer open lands nothing (P2-330). */
     const opens = new Latest();
@@ -1299,12 +1303,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
       }
-      clearTimeout(reporting);
-      liveShown = undefined;
+      if (channel) channel.shown = undefined;
       const shown = page.shownSheet;
-      await openSaved({ kind: 'page', page: said.page }, undefined, true);
-      if (page.sheets.includes(shown)) page.showSheet(shown);
-      liveShown = said.version;
+      // opened as the keeper has it: nothing the screen does meanwhile is an edit of its own
+      const open = async (): Promise<void> => {
+        await openSaved({ kind: 'page', page: said.page }, undefined, true);
+        if (page.sheets.includes(shown)) page.showSheet(shown);
+      };
+      await (channel ? channel.following(open) : open());
+      channel?.opened(said.version);
       // the page as it opened, written once it settles (restoring is a change): Python's page is what is on screen
       liveChanged();
       return undefined;
@@ -1319,41 +1326,47 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      */
     async function followLive(): Promise<string | undefined> {
       const editor = live?.page;
-      if (!editor || liveShown === undefined) return openLive();
+      if (!editor || !channel || channel.shown === undefined) return openLive();
+      const at = channel.shown;
       let moved: Awaited<ReturnType<typeof editor.changes>>;
       try {
-        moved = await editor.changes(liveShown);
+        moved = await editor.changes(at);
       } catch {
         return openLive();
       }
       if (!('commands' in moved)) return openLive();
-      // nothing reported while they apply: what the page says is of the version they move it to
-      liveShown = undefined;
+      // nothing written while they apply: what the page says is of the version they move it to
+      channel.shown = undefined;
       const wasChanged = dirty();
-      try {
-        await applyLive(moved.commands, {
-          grids: page.grids,
-          cubes: page.cubes.length,
-          follow: (commands, makers) => page.follow(commands, makers),
-          applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
-          open: (document, grid, several) => sources.reopened(document, undefined, several, current.model?.tables[grid]),
-          frameVersion: (frame) => sources.frameVersion(frame),
-        });
-        await page.ready();
-      } catch {
-        return openLive();
-      }
-      // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless the
-      // person had changed it here -- "changed since saved" from here
-      const name = page.title;
-      if (!wasChanged) {
-        const landed = savedForm(name);
-        current = { ...current, name, savedName: name, ...(landed ? { baseline: landed.definition } : {}) };
-      } else {
-        current = { ...current, name };
-      }
-      liveShown = moved.version;
-      onCubeView?.();
+      // the other editor's commands: nothing the screen does meanwhile is an edit of its own
+      const applied = await channel.following(async () => {
+        try {
+          await applyLive(moved.commands, {
+            grids: page.grids,
+            cubes: page.cubes.length,
+            follow: (commands, makers) => page.follow(commands, makers),
+            applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
+            open: (document, grid, several) => sources.reopened(document, undefined, several, current.model?.tables[grid]),
+            frameVersion: (frame) => sources.frameVersion(frame),
+          });
+          await page.ready();
+        } catch {
+          return false;
+        }
+        // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless
+        // the person had changed it here -- "changed since saved" from here
+        const name = page.title;
+        if (!wasChanged) {
+          const landed = savedForm(name);
+          current = { ...current, name, savedName: name, ...(landed ? { baseline: landed.definition } : {}) };
+        } else {
+          current = { ...current, name };
+        }
+        onCubeView?.();
+        return true;
+      });
+      if (!applied) return openLive();
+      channel.shown = moved.version;
       // the page as it is now, written once it settles: Python's page is what is on screen
       liveChanged();
       return undefined;
@@ -1395,7 +1408,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const stop = (why: string): void => {
         if (notFollowed !== undefined) return;
         notFollowed = why;
-        clearTimeout(reporting);
+        channel?.stop();
         harnessSignal.changes += 1;
         sayResting({ text: `not following ${what}: ${why}`, warn: true });
         onCubeView?.();
@@ -1410,15 +1423,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       /** What Python says now, followed: undefined, or why it was not. */
       const followed = async (now: Versions): Promise<string | undefined> => {
         // a start that did not open (a page not read, a frame not there yet) is tried again
-        if (live.page && liveShown === undefined) return openLive();
+        if (live.page && channel?.shown === undefined) return openLive();
         // each step below waits: the app taken down meanwhile (a notebook's cell run again) goes no further
         if (start.kind === 'frame' && sources.frameVersion(start.name) === undefined) {
           await openFrame(start.name, true);
           return undefined;
         }
         // a page moved: by its commands, or -- a frame moved with it -- opened again, every grid reading its frame now
-        if (liveShown !== undefined && now.version !== undefined && now.version !== liveShown) {
-          const how = followBy(now, liveShown, (frame) => sources.frameVersion(frame));
+        const shown = channel?.shown;
+        if (shown !== undefined && now.version !== undefined && now.version !== shown) {
+          const how = followBy(now, shown, (frame) => sources.frameVersion(frame));
           if (how === 'commands') return followLive();
           if (how === 'open') return openLive();
         }
@@ -1441,7 +1455,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return undefined;
       };
       undo.push(live.watch((now) => {
-        liveQueue = liveQueue.then(async () => {
+        enqueue(async () => {
           if (disposed || notFollowed !== undefined) return;
           if (typeof now === 'string') return stop(now);
           failed(await followed(now));
