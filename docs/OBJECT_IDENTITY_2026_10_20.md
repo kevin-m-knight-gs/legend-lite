@@ -1,6 +1,6 @@
 # Object identity in the product (2026-10-20)
 
-**Status: steps 1 to 3 landed 2026-10-20 (§5): the struct fallback is deleted.** The user's ruling of 2026-10-20: "lets fix identity
+**Status: steps 1 to 3 and 6 landed 2026-10-20 (§5): the struct fallback is deleted; where identity is not tracked, reading it raises by name (§4).** The user's ruling of 2026-10-20: "lets fix identity
 properly that's a huge product fix/win". This document says what identity is in Pure, what the product did before
 (measured), and how the product gives every object its identity on every lane.
 
@@ -87,18 +87,40 @@ CSV and TDS writers and the typed rows must too (a gate: every output of an obje
 
 ## 4. Where the product's identity is not Pure's (named; register row S85)
 
+Where the product does not track an object's evaluations it mints **no id** for it (`Lowerer.objectId`, the plan path),
+and **reading the identity of such an object raises by name** in the database (`CanonicalRenderSql.trackedId`: every
+identity comparison, `toString`'s `@_` name, a key canon's JSON-carried object): "an object's identity is read where
+the product does not track it". Its values read as ever. Never an answer from an id shared by every row, iteration or
+copy (2026-10-20, the user's "fix all those": before, cases 2 to 4 answered silently).
+
 1. **An object built per row of a relation** (`$rel->map(r | ^P(name = $r.name))`): a row has no position that survives
    the relation being read twice. Refused by name where the id is minted ("an object built for each element of a map
    over $r that does not lower to a list ... has no identity of its own yet"). Proposal for later: the row's position in
    the relation's own order, an identity comparison across two readings of an unordered relation refused by name.
-2. **Objects read from a store** (`Person.all()`, the resolver's constructions from rows): one id per construction node,
-   the same for every row (legend-engine gives each row's object the mapping's primary key, `getHiddenPayload().pk`). A
-   later phase, measured against the engine first.
-3. **An object built in a lambda other than a map's mapper and kept past its iteration** (a fold's accumulator): one
-   evaluation for every iteration, since only a map's lambda reads the element's position. A fold over a spelled list
-   unrolls (each element its own evaluation); a fold the database runs needs the element's position in its reducer.
-4. **A let in a lambda's body read inside a nested map**: the copies are typed apart, the one inside the inner map takes
-   the inner map's position too.
+2. **Objects the resolver builds from a store's rows** (an embedded class's object, the pairs of a zip over rows, a
+   construction re-expressed over a row): built after the inliner, one construction for every row, so untracked
+   (`Evaluation.complete()` false). legend-engine gives each row's object the mapping's primary key
+   (`getHiddenPayload().pk`): a later phase, measured against the engine first. A class's objects read whole from a
+   store (`Person.all()`) travel as JSON without an id on the plan route; `removeDuplicates` over them is the store's
+   own `DISTINCT` (the resolver's, not this program's).
+3. **An object built in a lambda of a fold the database runs** (`UserCallInliner.finish`: the reducer and the
+   map-reduce transform): one evaluation for every iteration, since no position is read for a fold, so untracked. A
+   fold over a spelled list unrolls (each element its own evaluation). Found on the way, not identity's: a fold the
+   database runs whose accumulator is a list of objects built from other elements does not lower on DuckDB (its reduce
+   takes an accumulator of the elements' own type: "The initial value type must be the same as the list child type",
+   and the map-reduce form's `list_concat(list, element)`); it fails loudly, a lowering defect of its own.
+4. **A lambda body's let** is spliced into its uses before typing (`SourceSubst.inlineLets`), so each use is typed as
+   its own copy. The copies are one evaluation where they can be (2026-10-20): a construction's copies share its origin
+   and path; a call's copies share its instantiation (`TypedUserCall.origin`, the source node the typer read it from;
+   `UserCallInliner.instantiated(call, ...)` numbers a call once per source node at a point of its frame), so
+   `[1, 2]->map(i | let a = mk(); [$a, $a])` has two objects and `$a == $a` is true, as in Pure. Where they cannot be,
+   untracked (`SourceSubst.untrackedLetNodes`, marked where the typer folds the body: `Overloads.typeLambda`,
+   `LambdaBodies.synthBody`): a let read inside a nested lambda (a use there is evaluated per the inner lambda's
+   elements), and a let read more than once whose value holds a lambda (each copy applies it anew). The proper form is
+   the let kept to the inliner, reduced once where it is bound (as a query's lets are) with its objects completed in
+   the frame they were reached in; it needs the typer to keep a parameterized lambda's lets as statements, which some
+   forty checkers that read a lambda's single body do not take yet. (A `NormalizeRequired` function's body is folded the
+   same way at typing; only the platform's prelude declares one, and none of its ten has a let.)
 
 ## 5. Order of work
 
@@ -118,6 +140,9 @@ CSV and TDS writers and the typed rows must too (a gate: every output of an obje
 4. Tests: **landed 2026-10-20**, `ObjectIdentityTest` (§2's table and more, on DuckDB and SQLite, through the plan);
    channel B's identity tests on the plan route with step 10 of the plan path program.
 5. Register rows: **S85** (§4's four, 2026-10-20).
+6. **Landed 2026-10-20** (the user: "fix all those"): §4's cases 2 to 4 refuse by name where they answered silently,
+   and a lambda body's let read at one level is one evaluation (§4.4); `ObjectIdentityTest`'s
+   `anUntrackedObjectsIdentityIsRefusedByName` and its let cases.
 
 Channel A: the reference interpreter's objects never cross the wire as objects, so the adapter binds each captured
 object once by a let at the front of the text (`pct_adapter.pure`, `objectLets`), and the product's identity judges

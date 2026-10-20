@@ -283,6 +283,10 @@ class TypedSpecChildrenTest {
         if (type == com.legend.compiler.spec.typed.Evaluation.class) {
             return com.legend.compiler.spec.typed.Evaluation.synthesized();
         }
+        if (type == Object.class) {
+            // a node's source node (TypedUserCall.origin), compared by identity
+            return new Object();
+        }
         if (type == Type.class) {
             return Type.Primitive.INTEGER;
         }

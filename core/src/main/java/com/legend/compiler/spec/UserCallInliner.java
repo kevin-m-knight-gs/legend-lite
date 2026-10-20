@@ -124,6 +124,25 @@ public final class UserCallInliner {
     private int instantiations;
     /** How many lambdas are around the walk's point: a construction inside one is completed where it is used. */
     private int lambdaDepth;
+    /** The frame of the walk's point: the root, or one lambda where it stands. */
+    private Object frame = new Object();
+    /** Each call's instantiation, once per source node at a point of a frame: a lambda body's let is spliced into its
+     *  uses before typing, and the copies of a call read at one level are its one evaluation (§3.2). */
+    private final Map<CallInstantiation, Integer> callInstantiations = new java.util.HashMap<>();
+
+    /** A call's source node at a point of a frame (both by identity). */
+    private record CallInstantiation(Object frame, List<Integer> around, Object origin) {
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof CallInstantiation c && frame == c.frame && origin == c.origin
+                    && around.equals(c.around);
+        }
+
+        @Override
+        public int hashCode() {
+            return (System.identityHashCode(frame) * 31 + System.identityHashCode(origin)) * 31 + around.hashCode();
+        }
+    }
 
     public UserCallInliner(SpecCompiler specs) {
         this(specs, null);
@@ -200,14 +219,26 @@ public final class UserCallInliner {
             TypedSpec last = body.get(body.size() - 1);
             return List.of(finish(last instanceof TypedLet let
                     ? reduce(let.value(), scope)
-                    : reduce(last, scope), List.of(), List.of()));
+                    : reduce(last, scope), List.of(), List.of(), false));
         }
     }
 
     /** {@code reduction} as one more instantiation around the walk's point: a call's body inlined, a lambda applied,
      *  a spelled element unrolled. */
     private <T> T instantiated(java.util.function.Supplier<T> reduction) {
-        instantiation.add(++instantiations);
+        return instantiatedAs(++instantiations, reduction);
+    }
+
+    /** A call's body inlined: one instantiation per source node at this point of the frame (its copies one). */
+    private <T> T instantiated(TypedUserCall call, java.util.function.Supplier<T> reduction) {
+        return instantiatedAs(call.origin() == null ? ++instantiations
+                : callInstantiations.computeIfAbsent(
+                        new CallInstantiation(frame, List.copyOf(instantiation), call.origin()),
+                        k -> ++instantiations), reduction);
+    }
+
+    private <T> T instantiatedAs(int number, java.util.function.Supplier<T> reduction) {
+        instantiation.add(number);
         try {
             return reduction.get();
         } finally {
@@ -236,14 +267,25 @@ public final class UserCallInliner {
     }
 
     /** The reduced tree with every construction inside a lambda completed (§3.2): each lambda where it stands is one
-     *  use of it, and a map's mapper is evaluated once per element, its parameter one of the {@code iterations}. */
-    private TypedSpec finish(TypedSpec n, List<Integer> at, List<String> iterations) {
+     *  use of it, and a map's mapper is evaluated once per element, its parameter one of the {@code iterations}. A
+     *  fold the database runs evaluates its lambdas once per element too, and reads no position: a construction in
+     *  them is {@code untracked} (§4.3). */
+    private TypedSpec finish(TypedSpec n, List<Integer> at, List<String> iterations, boolean untracked) {
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1) {
             List<String> inner = new ArrayList<>(iterations);
             inner.add(m.mapper().parameters().get(0));
-            TypedSpec src = finish(m.source(), at, iterations);
-            TypedSpec mapper = finish(m.mapper(), at, inner);
+            TypedSpec src = finish(m.source(), at, iterations, untracked);
+            TypedSpec mapper = finish(m.mapper(), at, inner, untracked);
             return src == m.source() && mapper == m.mapper() ? m : m.withChildren(List.of(src, mapper));
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedFold f) {
+            List<TypedSpec> kids = f.children();
+            List<TypedSpec> walked = new ArrayList<>(kids.size());
+            for (TypedSpec k : kids) {
+                // its source and its initial value are evaluated once; its lambdas once per element
+                walked.add(finish(k, at, iterations, untracked || k instanceof TypedLambda));
+            }
+            return sameRefs(walked, kids) ? f : f.withChildren(walked);
         }
         List<Integer> here = at;
         if (n instanceof TypedLambda) {
@@ -251,23 +293,23 @@ public final class UserCallInliner {
             here.add(++instantiations);
         }
         List<Integer> h = here;
-        TypedSpec walked = n.mapChildren(c -> finish(c, h, iterations));
+        TypedSpec walked = n.mapChildren(c -> finish(c, h, iterations, untracked));
         if (walked instanceof com.legend.compiler.spec.typed.TypedNewInstance ni && !ni.evaluation().complete()) {
-            return ni.withEvaluation(finished(ni.evaluation(), at, iterations));
+            return ni.withEvaluation(finished(ni.evaluation(), at, iterations, untracked));
         }
         if (walked instanceof com.legend.compiler.spec.typed.TypedCopyInstance cp && !cp.evaluation().complete()) {
-            return cp.withEvaluation(finished(cp.evaluation(), at, iterations));
+            return cp.withEvaluation(finished(cp.evaluation(), at, iterations, untracked));
         }
         return walked;
     }
 
     private com.legend.compiler.spec.typed.Evaluation finished(com.legend.compiler.spec.typed.Evaluation e,
-            List<Integer> at, List<String> iterations) {
+            List<Integer> at, List<String> iterations, boolean untracked) {
         List<Integer> p = new ArrayList<>(at);
         if (e.path() != null) {
             p.addAll(e.path());
         }
-        return e.complete(p, iterations);
+        return untracked ? e.untracked(p) : e.complete(p, iterations);
     }
 
     /** The environment of one &beta; site: each name's REDUCED term and
@@ -424,14 +466,14 @@ public final class UserCallInliner {
             args.add(rewrite(a));
         }
         if (configMode || isStoreElementIdentity(call.callee().qualifiedName(), args)) {
-            return new TypedUserCall(call.callee(), args, call.info(), call.pos());
+            return (TypedUserCall) call.withChildren(args);
         }
         // a SUBSUMED ENGINE PROGRAM (Refused(MOOT) in the table): the body is
         // never spliced — the call stays a typed opaque value, typed by
         // upstream's own declaration; its value is dead by governance test
         if (row instanceof com.legend.platform.Implementation.Refused) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SUBSUMED");
-            return new TypedUserCall(call.callee(), args, call.info(), call.pos());
+            return (TypedUserCall) call.withChildren(args);
         }
         // a Body row (upstream's), or a PlatformPure row (the platform's own, Phase 3b item 1b): the callee's
         // body — the merge gave an adopted declaration the platform's — is inlined below
@@ -512,7 +554,10 @@ public final class UserCallInliner {
                 }
                 List<TypedSpec> calleeBody = body;
                 reduced = instantiate(deepFoldInlined(
-                        instantiated(() -> reduceStatements(calleeBody, callEnv))), call, args);
+                        instantiated(call, () -> reduceStatements(calleeBody, callEnv))), call, args);
+                if (call.untracked()) {
+                    reduced = com.legend.compiler.spec.typed.Evaluation.untrackAll(reduced);
+                }
             }
             if (widened && com.legend.compiler.element.type.Type
                     .relationSchema(call.info().type())
@@ -539,7 +584,7 @@ public final class UserCallInliner {
             // (host call frames; the plan seam reads postprocessor config
             // structurally); SQL lowering keeps its loud TypedUserCall
             // frontier wall.
-            return new TypedUserCall(call.callee(), args, call.info(), call.pos());
+            return (TypedUserCall) call.withChildren(args);
         } finally {
             stack.pop();
             literalSizes.pop();
@@ -665,7 +710,7 @@ public final class UserCallInliner {
         return switch (reduced) {
             case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos());
             case com.legend.compiler.spec.typed.TypedCollection tc -> tc.withInfo(ni);
-            case TypedUserCall uc -> new TypedUserCall(uc.callee(), uc.args(), ni, uc.pos());
+            case TypedUserCall uc -> uc.withInfo(ni);
             default -> reduced;
         };
     }
@@ -1515,7 +1560,9 @@ public final class UserCallInliner {
         l.parameters().forEach(p -> bound.merge(p, 1, Integer::sum));
         // its body is evaluated where the lambda is used: the instantiations inside it count from it
         List<Integer> outer = instantiation;
+        Object outerFrame = frame;
         instantiation = new ArrayList<>();
+        frame = new Object();
         lambdaDepth++;
         try {
             List<TypedSpec> body = new ArrayList<>(l.body().size());
@@ -1530,6 +1577,7 @@ public final class UserCallInliner {
                     : new TypedLambda(l.parameters(), body, l.info(), l.quoted());
         } finally {
             instantiation = outer;
+            frame = outerFrame;
             lambdaDepth--;
             guard.forEach(g -> bound.compute(g,
                     (k, c) -> c == null || c <= 1 ? null : c - 1));

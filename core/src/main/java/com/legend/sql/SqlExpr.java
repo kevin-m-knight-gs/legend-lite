@@ -183,7 +183,7 @@ public sealed interface SqlExpr
             case CompactList ignored -> new CompactList(cs.get(0));
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
-            case ArrayLit ignored -> new ArrayLit(cs);
+            case ArrayLit a -> new ArrayLit(cs, a.type());
             case OrderedListAgg ignored ->
                     new OrderedListAgg(cs.get(0), cs.get(1));
             case StructLit s -> {
@@ -194,7 +194,7 @@ public sealed interface SqlExpr
                 }
                 yield new StructLit(fs);
             }
-            case StructGet g -> new StructGet(cs.get(0), g.field());
+            case StructGet g -> new StructGet(cs.get(0), g.field(), g.type());
             case Call c -> new Call(c.fn(), cs);
             case Case old -> {
                 java.util.List<Case.When> ws = new java.util.ArrayList<>();
@@ -748,7 +748,9 @@ public sealed interface SqlExpr
     record ArrayLit(List<SqlExpr> elements, TypeFact type)
             implements SqlExpr {
         public ArrayLit {
-            type = SqlTyping.arrayLitType(elements);
+            // the type its elements prove; where they prove none (an empty list, untyped elements), the builder's
+            TypeFact proven = SqlTyping.arrayLitType(elements);
+            type = proven instanceof TypeFact.Unknown && type != null ? type : proven;
         }
 
         public ArrayLit(List<SqlExpr> elements) {
@@ -808,7 +810,10 @@ public sealed interface SqlExpr
             return new StructGet(source, field);
         }
         public StructGet {
-            type = SqlTyping.structGetType(source, field);
+            // the type its source's struct proves; where it proves none (a lambda parameter of an unknown struct), the
+            // builder's: the type of the column the field read replaces
+            TypeFact proven = SqlTyping.structGetType(source, field);
+            type = proven instanceof TypeFact.Unknown && type != null ? type : proven;
         }
 
         public StructGet(SqlExpr source, String field) {

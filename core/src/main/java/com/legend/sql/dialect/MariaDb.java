@@ -1214,13 +1214,10 @@ public class MariaDb extends AnsiSqlRenderer {
 
     private static SqlExpr structFields(SqlExpr body, String param, @com.legend.base.Nullable SqlType struct) {
         if (body instanceof SqlExpr.Column c && param.equals(c.table())) {
-            // the parameter typed as its struct, or, where that is not known here (a fold's accumulator), as a struct
-            // of the one field the column reads, typed as the column is: a field read takes its type from its source,
-            // and a list field read as a scalar is NULL (JSON_VALUE; 2026-10-20, testFoldToMany kept its last name)
-            SqlType known = struct instanceof SqlType.Struct ? struct
-                    : c.type() instanceof com.legend.sql.TypeFact.Typed t
-                            ? new SqlType.Struct(List.of(new SqlType.Struct.Field(c.name(), t.type()))) : null;
-            SqlExpr source = known != null ? SqlExpr.Column.of(null, param, known, true,
+            // the field read typed as the column it replaces where the parameter's struct is not known here (a fold's
+            // accumulator): a list field read as a scalar is NULL (JSON_VALUE; 2026-10-20, testFoldToMany kept its
+            // last name)
+            SqlExpr source = struct instanceof SqlType.Struct ? SqlExpr.Column.of(null, param, struct, true,
                     com.legend.sql.OutputCol.Origin.DERIVED) : SqlExpr.Column.derived(null, param);
             return new SqlExpr.StructGet(source, c.name(), c.type());
         }

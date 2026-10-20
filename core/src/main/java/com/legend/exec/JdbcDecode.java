@@ -294,8 +294,11 @@ final class JdbcDecode {
     private static @com.legend.base.Nullable Object struct(Object v, ExecutionPlan.Column c) throws SQLException {
         List<ExecutionPlan.Column> fields = RowDecode.fields(c);
         Map<String, Object> out = new LinkedHashMap<>();
-        if (v instanceof java.sql.Struct s) {
-            Object[] attrs = s.getAttributes();
+        // a struct's attributes in order: a driver's Struct, or ClickHouse's Tuple, which its driver hands as the
+        // Object[] of its fields (the legacy executor's ClickHouse.normalize; channel B's find, head and zip tests,
+        // 2026-10-20)
+        Object[] attrs = v instanceof java.sql.Struct s ? s.getAttributes() : v instanceof Object[] tuple ? tuple : null;
+        if (attrs != null) {
             if (attrs.length != fields.size()) {
                 throw new IllegalStateException("column '" + c.name() + "': a struct cell of " + attrs.length
                         + " attributes under a slot of " + fields.size() + " fields (" + c.slot() + ")");

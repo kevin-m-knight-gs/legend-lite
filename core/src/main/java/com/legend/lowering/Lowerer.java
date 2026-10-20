@@ -284,17 +284,20 @@ public final class Lowerer {
     private final java.util.Set<String> positionsRead = new java.util.HashSet<>();
 
     /** The id of the objects {@code node} builds: its evaluation's site, then the position of the element of each map it
-     *  is evaluated in (docs/OBJECT_IDENTITY_2026_10_20.md §3.2). A construction the compiler builds after the inliner
-     *  (a store row's object, the resolver's) has no evaluation of its own: it is one where it stands. */
+     *  is evaluated in (docs/OBJECT_IDENTITY_2026_10_20.md §3.2). Where the product does not track the evaluations
+     *  (§4), none: a construction the compiler builds after the inliner (a store row's object, the resolver's, the same
+     *  node for every row) and one in a fold's reducer (once for every iteration); reading the identity of such an
+     *  object raises by name ({@link CanonicalRenderSql#trackedId}). The statement executor's verdict lane (the legacy
+     *  judge, deleted by the plan path program's last step) keeps its id per node there, and reads the positions too. */
     private @com.legend.base.Nullable SqlExpr objectId(TypedSpec node,
             com.legend.compiler.spec.typed.Evaluation evaluation) {
         if (instanceIdOf == null) {
             return null;
         }
-        String id = instanceIdOf.apply(evaluation.complete() ? evaluation.site() : node);
-        if (!objectIdentity) {
-            return new SqlExpr.StringLit(id);
+        if (objectIdentity && (!evaluation.complete() || !evaluation.tracked())) {
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR);
         }
+        String id = instanceIdOf.apply(evaluation.complete() ? evaluation.site() : node);
         if (evaluation.iterations().isEmpty()) {
             return new SqlExpr.StringLit(id);
         }
@@ -326,7 +329,7 @@ public final class Lowerer {
      *  id reads the element's position, which the lambda then takes as its second parameter
      *  (docs/OBJECT_IDENTITY_2026_10_20.md §3.2; every dialect's list_transform takes it). */
     SqlExpr.Lambda iterating(String element, java.util.function.Supplier<SqlExpr> body) {
-        if (!objectIdentity) {
+        if (instanceIdOf == null) {
             return new SqlExpr.Lambda(List.of(element), body.get());
         }
         String position = "_ix" + aliasCounter++;

@@ -2178,5 +2178,13 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `resolver/SyntheticHeads.java`, `TypedQuery.java`, `Compiler.java`, `pct_adapter.pure`, the DuckDB ledgers.
   **Step 3 landed 2026-10-20** (GATES "object identity, step 3"): `lowering/InstanceEquality.java`, `Lowerer.java`,
   `MixedEncoding.java`, `StatementExecutor.java`, `compiler/element/type/PlatformTypes.java`, `TypedQuery.java`,
-  `Compiler.java`, the identity and integration tests. **Next:** every lane's ledgers on both channels (not
-  re-measured since `11d4c4e8`).
+  `Compiler.java`, the identity and integration tests. **Every lane's ledgers at the identity head landed 2026-10-20**
+  (968c8b99, 94a55a24, 31196a87; GATES "object identity: every lane at the identity head").
+  **The audit's fixes, in flight 2026-10-20** (the user: "fix all those"; GATES "object identity: the audit's fixes"):
+  `sql/SqlExpr.java` (`StructGet`/`ArrayLit` keep a given type where their parts prove none), `sql/dialect/MariaDb.java`
+  (its one-field-struct workaround deleted); `compiler/spec/typed/Evaluation.java` (`tracked`, `untrack`),
+  `TypedUserCall.java` (`origin`, `untracked`), `Typer.java`, `SourceSubst.java`, `Overloads.java`,
+  `LambdaBodies.java`, `UserCallInliner.java`, `lowering/Lowerer.java`, `CanonicalRenderSql.java`,
+  `InstanceEquality.java`, `Scalars.java` (an untracked object's identity is refused by name, §4); the register
+  (S81, S82 removed; S85). **Merge gate (the user, 2026-10-20):** channel B green on every lane; the lane sessions
+  measure it test by test against the merge-base.

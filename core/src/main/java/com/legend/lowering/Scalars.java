@@ -2762,9 +2762,7 @@ final class Scalars {
         // their own arm), never an instance struct
         if (t instanceof Type.ClassType && Type.schemaView(t) == null
                 && InstanceEquality.userClass(t)) {
-            return cat(new SqlExpr.StringLit("@_"),
-                    new SqlExpr.StructGet(x,
-                            com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
+            return cat(new SqlExpr.StringLit("@_"), CanonicalRenderSql.trackedId(x));
         }
         if ((Type.schemaView(t) != null && !scalarCell)
                 || com.legend.compiler.element.type.PlatformTypes

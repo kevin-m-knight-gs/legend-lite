@@ -612,8 +612,24 @@ public final class CanonicalRenderSql {
                         new SqlExpr.StringLit("_type"),
                         new SqlExpr.StringLit(fqn),
                         new SqlExpr.StringLit("_id"),
-                        new SqlExpr.StructGet(v, idField))));
+                        trackedId(v))));
     }
+
+    /** An object's identity where it is read (compared, printed): an object whose evaluations the product does not
+     *  track carries none (docs/OBJECT_IDENTITY_2026_10_20.md §4, {@code Lowerer.objectId}), and reading it raises by
+     *  name rather than answer by a shared or absent id. */
+    static SqlExpr trackedId(SqlExpr object) {
+        return tracked(new SqlExpr.StructGet(object, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
+    }
+
+    private static SqlExpr tracked(SqlExpr id) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, id),
+                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(UNTRACKED)))), id);
+    }
+
+    static final String UNTRACKED = "an object's identity is read where the product does not track it: an object read"
+            + " from a store, built in a fold's reducer, or named by a lambda body's let and read inside a nested lambda"
+            + " (docs/OBJECT_IDENTITY_2026_10_20.md §4)";
 
     /** F13c — instance equality's ONE canon (the in-SQL eq/equal arm's
      * entry): keyed classes render their key tree ({@code instanceCanon},
@@ -933,7 +949,7 @@ public final class CanonicalRenderSql {
                 SqlType.Scalar.VARCHAR);
         SqlExpr identity = new SqlExpr.JsonObject(List.of(
                 new SqlExpr.StringLit("_type"), type,
-                new SqlExpr.StringLit("_id"), id));
+                new SqlExpr.StringLit("_id"), tracked(id)));
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
                         new SqlExpr.NullLit()),

@@ -139,10 +139,8 @@ final class InstanceEquality {
                 return null;
             }
             return SqlExpr.Call.of(SqlFn.EQUAL,
-                    new SqlExpr.StructGet(scalar.apply(l),
-                            ClassLayouts.SYNTHETIC_ID),
-                    new SqlExpr.StructGet(scalar.apply(r),
-                            ClassLayouts.SYNTHETIC_ID));
+                    CanonicalRenderSql.trackedId(scalar.apply(l)),
+                    CanonicalRenderSql.trackedId(scalar.apply(r)));
         }
         if (!lf.equals(rf)) {
             // the engine's exact-classifier FALSE fold — witnessed
@@ -228,7 +226,7 @@ final class InstanceEquality {
         EqualityKeys keys = keysOf.apply(t);
         return ref -> {
             if (keys == null) {
-                return new SqlExpr.StructGet(ref, ClassLayouts.SYNTHETIC_ID);
+                return CanonicalRenderSql.trackedId(ref);
             }
             SqlExpr canon = CanonicalRenderSql.instanceEqualityCanon(ref, keys, cf, et);
             if (canon == null) {
