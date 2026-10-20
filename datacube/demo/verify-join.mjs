@@ -56,7 +56,7 @@ const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText:
 const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) });
 const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.getAttribute('data-column')));
 /**
- * The first grid's Join… with the customers' grid (not a join of it: a grid beside it may be the first offered), the
+ * The first grid's Join… with the customers' grid (by its name: a join of it, beside it, may be the first offered), the
  * window's answer to what it will do waited for.
  */
 async function joinWindow() {
@@ -64,7 +64,7 @@ async function joinWindow() {
   await item('Join…').click();
   await page.locator('.dc-join').waitFor({ timeout: 10_000 });
   const theirs = await page.$$eval('.dc-join-their option', (os) => os.map((o) => ({ value: o.value, label: o.textContent })));
-  const customersGrid = theirs.find((o) => /customers/.test(o.label) && !o.label.includes('⋈'));
+  const customersGrid = theirs.find((o) => o.label === 'customers.csv');
   if (!customersGrid) throw new Error(`no customers grid offered: ${JSON.stringify(theirs)}`);
   await page.locator('.dc-join-their').selectOption(customersGrid.value);
   await page.waitForFunction(() => document.querySelectorAll('.dc-join-will-line').length > 0
@@ -141,8 +141,8 @@ try {
   await page.locator('.dc-join .dc-primary').click();
   await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 60_000 });
   await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 4, undefined, { timeout: 60_000 });
-  // its tile wherever the page placed it: the one grid of six rows
-  const six = () => page.locator('.dc-status-rows').filter({ hasText: /^6 rows/ });
+  // its tile wherever the page placed it: the one grid of trades' columns and six rows (the customers' grid has six too)
+  const six = () => tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^6 rows/ }) });
   await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
   check(await six().count() === 1, `the trades with no customer: a grid of 6 rows (${await six().count()})`);
 

@@ -52,7 +52,7 @@ import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, 
 const savedQueries = () => import('../saved-queries.ts');
 const queryStores = () => import('../../../query-store/src/index.ts');
 // a join's opener, fetched the first time a grid joins: a page with no join never downloads it (test/bundle-budget.test.ts)
-const joinSources = () => import('./join-sources.ts');
+const joinSources = () => import('./join-app.ts');
 
 /** A grid's place, as a maker takes it: where its rows are and how it is written down. */
 export type GridPlace = {

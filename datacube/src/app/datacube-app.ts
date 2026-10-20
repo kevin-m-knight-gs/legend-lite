@@ -1145,12 +1145,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
     // JOIN… (§17.5): only where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); its
-    // flow fetched with the first Join… (app/join-flow.ts)
+    // flow fetched with the first Join… (app/join-app.ts)
     const localEngine = services.engine.local;
     if (localEngine) joinGrid = (cube) => {
       if (cube === undefined) return;
       const shown = placed;
-      void import('./join-flow.ts').then(({ joinFlow }) => joinFlow({
+      void import('./join-app.ts').then(({ joinFlow }) => joinFlow({
         cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } },
         stillShown: () => placed === shown,
         say: (text) => library?.say(text, 'warn'),
