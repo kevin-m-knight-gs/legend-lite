@@ -1529,14 +1529,15 @@ class Snapped(Paged):
         state['df'] = trades().iloc[:1]
         self.assertEqual((len(joined.to_pandas()), len(mine.to_pandas())), (3, 1))
 
-    def test_a_copy_a_page_in_python_reads_is_pythons_to_let_go_and_goes_with_the_page(self):
-        # a tab's release (its grid closed, gone live, the tab gone) keeps a copy Python's page reads
+    def test_a_copy_a_kept_page_reads_is_kept_and_goes_with_the_page(self):
+        # a tab's release (its grid closed, gone live, the tab gone) keeps a copy a page the keeper keeps reads
         engine = datacube._session.engine()
         page = ll.Page('Snaps')
         grid = page.grid(trades(), name='trades')
         grid.snap()
         said = engine.answer('POST', '/snap.json', '', json.dumps({'op': 'release', 'table': 'snap'}))
-        self.assertEqual((said.status, json.loads(said.body)), (200, {'kept': 'a page in Python reads it: Python lets it go'}))
+        self.assertEqual((said.status, json.loads(said.body)),
+                         (200, {'kept': 'a page reads it: it goes with the last page that reads it'}))
         self.assertTrue(self.held('snap'))
         # the page collected (a cell made it again): its copies let go at the session's next safe moment
         del page, grid

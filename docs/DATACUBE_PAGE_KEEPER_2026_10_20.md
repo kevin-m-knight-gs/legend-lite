@@ -107,3 +107,47 @@ The design note's build, with these changes folded in: (a) the keeper and its co
 by every writer; (d) Snap as the keeper's operation, the ownership code deleted; (e) `ll.show(df)` as a page of one
 grid; (f) the two Snap fixes (a snapped grid opened over its copy everywhere; the copy typed by the live query); then
 an independent audit.
+
+## 6. As built: step 1 (2026-10-20)
+
+Step (a) of section 5, and the Python half of the convergence test.
+
+- **The keeper** (python/legend_lite/keeper.py, `PageKeeper`): each Python page's one document and its version, kept
+  from the page's start (`Page.__init__`), shown or not. `write(key, base, doc, frames, commands)` moves it one version
+  when `base` is its version, raises `Stale` when not, and makes no version for a document it has already; each version
+  keeps its commands (or None, a change by no command) for the last 64, which `changes(key, since)` gives a page open at
+  an older one. `referenced()`: the copies its pages read.
+- **Python writes through it.** Every public call on a `Page`, `Tile`, `Grid`, `Chart` or `Sheet` is an operation
+  (page.py `_operations`): the page as the keeper has it when the outermost call begins, its version pinned for the call
+  (a write from the open page meanwhile is read by the next call), what it changed written when it ends -- or at each
+  `_changed` inside it -- and let go when it raises. Written against a version the page moved on from, the call's
+  commands are made again on the keeper's page by DataCube's own functions (`_rebased`: headless pageApply, gridApply),
+  with the ids the page held at its version, so the ids the change gave out are its own; a change by no command (the
+  page's model, a cube opened again over a changed frame, a load) or one that no longer applies is refused in words.
+  `page.read()` is gone: a write from the open page is Python's page at once.
+- **The engine's page.json** is the keeper's: GET gives the page, or since=v the commands since; POST is the open page's
+  write against the version it is at -- read by DataCube's reader (headless pageRead), every frame it reads one this
+  session serves -- answered `{"version": n}` (200), 409 when stale, 404, or 422. `serve_page`/`close_page` remain for a
+  host that serves a page no Python page keeps.
+- **Copies** (`Engine.sweep`, after every write by either editor and at a cell's end): a copy some kept page reads is
+  the pages' (a tab's release keeps it); one no kept page reads any more is let go; one no page has read yet is its
+  maker's. A collected page is forgotten at the session's next sweep, never in the collector.
+- **The tab** (datacube-app.ts): its report is a versioned write whose answer, the new version, it adopts; its writes and
+  follows run one at a time in order (`liveQueue`).
+- **Tests**: test_keeper.py (the keeper alone; `Converges`: six seeds of fourteen steps interleaving Python's edits --
+  sheets, groups, renames, Snap and Go Live -- with an open page's edits made by headless DataCube and written as the tab
+  writes, some inside one Python call, asserting after every step that Python, the open page and the keeper hold one
+  document and that the copies held are the ones read; a Python change refused when made again on top only for a real
+  conflict); test_page.py's Live tests; the browser harness (a Python change after the open page's write arrives as its
+  command, not a reopen).
+
+Known limits, left to the steps after:
+
+1. **The tab writes whole documents** (commands None). A tab write refused as stale is lost -- the follow then replaces
+   it. Step (b): the tab sends its commands and makes them again on top when refused.
+2. **Ids given out on both sides.** A Python change made again on top keeps the ids it gave out: when the open page gave
+   out the same id meanwhile (a sheet added on each side at once), it is refused rather than renumbered.
+3. **"Changed since saved"** on the open page now stays marked for a change made there after Python's change lands (the
+   whole reopen used to clear it): right, since the person's change is saved nowhere, and noted because it is new.
+4. Following charts are not yet derived by every writer (step (c)); the Snap ownership code (adopt, hand-over, claims)
+   is still in place (step (d)).
