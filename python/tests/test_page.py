@@ -1255,11 +1255,15 @@ class Live(Paged):
     def test_a_write_is_a_page_datacube_reads_over_frames_this_session_serves(self):
         page, _, _ = self.built()
         ll.show(page, browser=False)
-        self.assertEqual(self.said(page, {'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}), 422)
+        engine = datacube._session.engine()
+        refused = engine.answer('POST', '/page.json', f'page={page._key}&version={self.version(page)}',
+                                json.dumps({'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}))
+        # refused by DataCube's reader, in its words -- never by a failure of the engine's own
+        self.assertEqual(refused.status, 422)
+        self.assertNotRegex(refused.body.decode('utf-8'), r'^[A-Za-z]+(Error|Exception):')
         doc = page.to_dict()
         doc['cubes'][0]['cube']['source']['name'] = 'nope'
         self.assertEqual(self.said(page, doc), 422)
-        engine = datacube._session.engine()
         self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', page.to_json()).status, 404)
         self.assertEqual(engine.answer('POST', '/page.json', f'page={page._key}', page.to_json()).status, 400)
         # its numbers exact both ways: a calculated column's 12.30 written by the open page is 12.30 in Python
@@ -1305,9 +1309,76 @@ class Live(Paged):
             self.assertEqual(self.said(page, gone), 200)
             with self.assertRaisesRegex(ValueError, 'the page changed where it is open while this change was made'):
                 grid.group('region')
+            # refused, the page is the keeper's at once -- even inside the call that made it, which goes on from there
+            self.assertEqual(_json.dumps(page.to_dict()), _json.dumps(datacube._session.keeper.current(page._key)[1]))
         finally:
             page._leave(failed=True)
         self.assertEqual(page.grids, [other])
+
+    def test_a_change_by_no_command_made_while_the_open_page_wrote_is_refused(self):
+        # a cube opened again over a frame whose columns moved is no command: nothing to make again on top of the open
+        # page's write, so it is refused in words, the page as the open page wrote it
+        page, grid, _ = self.built()
+        ll.show(page, browser=False)
+        theirs = page.to_dict()
+        theirs['name'] = 'Renamed in DataCube'
+        page._enter()
+        try:
+            self.assertEqual(self.said(page, theirs), 200)
+            with self.assertRaisesRegex(ValueError, 'which is no command to make again on it'):
+                grid.update(trades().assign(extra=1))
+        finally:
+            page._leave(failed=True)
+        self.assertEqual(page.name, 'Renamed in DataCube')
+
+    def test_a_call_that_raised_writes_nothing_it_half_did(self):
+        page, _, _ = self.built()
+        ll.show(page, browser=False)
+        at, name = self.version(page), page.name
+        # a call that changed the page, then failed
+        half = page_module._operation(lambda self: (setattr(self, '_doc', {**self._doc, 'name': 'Half done'}), 1 / 0))
+        with self.assertRaises(ZeroDivisionError):
+            half(page)
+        self.assertEqual((page.name, self.version(page)), (name, at))
+        self.assertEqual(datacube._session.keeper.current(page._key)[1]['name'], name)
+
+    def test_a_page_shown_nowhere_takes_no_write(self):
+        page, _, _ = self.built()
+        tab = ll.show(page, browser=False)
+        doc = page.to_dict()
+        doc['name'] = 'Written after it closed'
+        at = self.version(page)
+        tab.close()
+        self.assertEqual(self.said(page, doc, version=at), 404)
+        self.assertEqual(page.name, 'Q3 review')
+
+    def test_a_frame_a_grid_the_open_page_added_reads_is_followed_at_a_cells_end(self):
+        # the page outside any call is the keeper's as it is now: the session reads which frames a shown page reads at
+        # a cell's end, and a grid the open page added over a live frame is among them, before Python touches the page
+        page, _, _ = self.built()
+        ll.show(page, browser=False)
+        other = ll.Page('Other')
+        other.grid(lambda: desks(), name='livedesks')
+        doc = page.to_dict()
+        engine_h = datacube._session.headless()
+        held = sorted({v['id'] for v in doc['views']} | {s['id'] for s in doc['sheets']} | {c['id'] for c in doc['cubes']})
+        added = json.loads(engine_h.call('pageApply', _json.dumps(doc), json.dumps(held), _json.dumps([{
+            'kind': 'addGrid', 'document': other.to_dict()['cubes'][0]['cube'], 'sheet': doc['sheets'][0]['id'],
+            'near': None, 'title': None, 'columns': None}])))
+        self.assertEqual(self.said(page, _json.loads(added['page'])), 200)
+        engine = datacube._session.engine()
+        before = engine.version('livedesks')
+        datacube._session.after_cell()
+        self.assertEqual(engine.version('livedesks'), before + 1)
+
+    def test_a_loaded_page_is_kept_as_loaded(self):
+        # shown at once, what the tab opens is the page as loaded, not the empty page it started as
+        page, _, _ = self.built()
+        page.sheet('Second')
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        kept = datacube._session.keeper.current(again._key)[1]
+        self.assertEqual([s.get('name') for s in kept['sheets']], [None, 'Second'])
+        self.assertEqual(len(kept['cubes']), 1)
 
 
 class Joined(Paged):
