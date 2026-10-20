@@ -608,7 +608,9 @@ public final class Databricks extends AnsiSqlRenderer {
             // DuckDB's list_reduce: the first element is the accumulator's start, the lambda (acc, x) over the rest
             case LIST_REDUCE -> writer.append("aggregate(filter(").piece(list(xs)).append(", (`__x`, `__i`) -> `__i` > 0), ")
                     .append("element_at(").piece(list(xs)).append(", 1), ").expr(args.get(1), 0).append(")");
-            case TYPEOF -> throw new DialectCapability("typeof reached Databricks: its type names are Spark's");
+            // Spark's own name of the value's type, compared only with typeofName's (the judges' grid sides read a
+            // declared timestamp's DATE cells by it since the plan path program's step 6, 2026-10-20)
+            case TYPEOF -> writer.function("typeof", args);
             case RANGE_FN, REPEAT_VALUE -> throw new IllegalStateException(fnName + " is rendered by call");
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
@@ -1119,7 +1121,16 @@ public final class Databricks extends AnsiSqlRenderer {
             case DECODE_BASE64 -> writer.append("CAST(unbase64(").expr(a.get(0), 0).append(") AS STRING)");
             case SHA256 -> writer.append("sha2(").expr(a.get(0), 0).append(", 256)");
             case GUID -> writer.append("uuid()");
-            case FORMAT -> writer.append("format_string(").list(a).append(")");
+            // format_string is Java's formatter over Spark's values, and its %f takes no Spark Decimal: a Float
+            // literal, written as its decimal digits (NUMERIC CHARTER Rule 1), is handed over as the double it is
+            // (channel B's testFormatFloatWithRounding and its siblings, 2026-10-20)
+            case FORMAT -> writer.append("format_string(").join(a, ", ", (w, x) -> {
+                if (x instanceof SqlExpr.FloatLit) {
+                    w.append("CAST(").expr(x, 0).append(" AS DOUBLE)");
+                } else {
+                    w.expr(x, 0);
+                }
+            }).append(")");
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             case CURRENT_USER_FN -> writer.append("current_user()");
 
@@ -1850,9 +1861,12 @@ public final class Databricks extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Spark's). */
+    /** {@inheritDoc} A DATE is {@code date} (Spark's typeof); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached Databricks: its type names are Spark's");
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "date";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Databricks");
     }
 }

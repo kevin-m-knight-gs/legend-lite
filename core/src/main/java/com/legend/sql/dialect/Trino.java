@@ -614,7 +614,9 @@ public final class Trino extends AnsiSqlRenderer {
             case LIST_REDUCE -> writer.append("reduce(slice(").piece(list(xs)).append(", 2, greatest(cardinality(")
                     .piece(list(xs)).append(") - 1, 0)), element_at(").piece(list(xs)).append(", 1), ")
                     .expr(args.get(1), 0).append(", \"__s\" -> \"__s\")");
-            case TYPEOF -> throw new DialectCapability("typeof reached Trino: its type names are Trino's");
+            // Trino's own name of the value's type, compared only with typeofName's (the judges' grid sides read a
+            // declared timestamp's DATE cells by it since the plan path program's step 6, 2026-10-20)
+            case TYPEOF -> writer.function("typeof", args);
             case RANGE_FN, REPEAT_VALUE -> throw new IllegalStateException(fnName + " is rendered by call");
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
@@ -1933,10 +1935,13 @@ public final class Trino extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Trino's). */
+    /** {@inheritDoc} A DATE is {@code date} (Trino's typeof); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached Trino: its type names are Trino's");
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "date";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Trino");
     }
 
     /** {@inheritDoc} A statement's ROW column is delivered as its JSON text (the driver's own Row class is read

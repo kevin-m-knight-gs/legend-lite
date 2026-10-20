@@ -35,21 +35,17 @@ public class Test_LegendLite_Databricks_GrammarFunctions_PCT extends PCTReportCo
             // INSTANCE IDENTITY (as on DuckDB): eq/== on class instances is REFERENCE equality in real pure;
             // the harness inlines captured instances BY VALUE, so eq($x,$x) and eq($x,$y) arrive as identical
             // text -- identity is erased before the wire
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             // the asserts require the interpreter's ORIGINAL instances back: reference identity cannot cross the wire
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // HARNESS SERIALIZATION LOSS (as on DuckDB): the captured $address never reaches the serialized text
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
-            // 2026-10-19, step 9, the plan route (as on DuckDB, 2026-10-18): a model element referenced as a value
-            // crosses by its simple name, and the text carrier's reader resolves the name by compiling it, which five
-            // TestClasses defeat. Register S82.
-            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches")
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            // NOTE 2026-10-20 (plan-route parity, measured by the Databricks lane session at 31196a87): eq's and
+            // equal's testEqNonPrimitive and testEqPrimitiveExtension pass (object identity), and
+            // testLetChainedWithAnotherFunction (a type value carries its path), their pins removed;
+            // testMapRelationshipFromOneToOne pins the class, as on every lane (the interpreter's ids vary per run)
     );
 
     public static Test suite() {
