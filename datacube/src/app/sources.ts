@@ -22,6 +22,7 @@ import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
 import {
   fileSource,
   frameSource,
+  leavesOf,
   rebuilt,
   type ClassSource,
   type CubeDocument,
@@ -32,7 +33,7 @@ import {
   type RemoteSource,
   type WarehouseSource,
 } from '../cube-document.ts';
-import { canKeepHandles, pickDataFile, readHandle, type FileHandle } from '../file-handles.ts';
+import { canKeepHandles, handleKey, pickDataFile, readHandle, type FileHandle } from '../file-handles.ts';
 import type { InferredModel } from '../infer.ts';
 import type { GridMaker } from '../page/page-app.ts';
 import type { ModelOptions } from '../planner.ts';
@@ -173,7 +174,7 @@ export interface PageSources {
   dropUnread(): void;
   /** A grid's place, by its id. */
   place(id: string): GridPlace | undefined;
-  /** The files on the page now: one per grid that reads one. */
+  /** The files on the page now: each grid's, one per table it reads from a file (a join's leaves' among them). */
   filesNow(): GridFile[];
   /** While a saved page opens, the tables its model keeps: no fresh name takes one of them (the audit's S3). */
   reserve(tables: Iterable<string>): void;
@@ -182,8 +183,11 @@ export interface PageSources {
   opened(chosen: Chosen, capped: boolean): Promise<Opened>;
   /** What a chosen source is called, as asking to open it in place says it. */
   named(chosen: Chosen): string;
-  /** A saved cube's source opened again, the least intrusive way that works; undefined when the person gave up. */
-  reopened(doc: CubeDocument, keys: readonly string[], several: boolean, table?: string): Promise<Opened | undefined>;
+  /**
+   * A saved cube's source opened again, the least intrusive way that works; undefined when the person gave up. `page`:
+   * the saved page it is opened from, whose kept handles its files are read from (file-handles.ts handleKey).
+   */
+  reopened(doc: CubeDocument, page: string | undefined, several: boolean, table?: string): Promise<Opened | undefined>;
   /** A saved query's record -- from a store, or as a share link carries it -- as a cube's source. */
   openedRecord(q: SavedQueryRecord): Promise<OpenedQuery>;
   /** A frame of the host's (Python's dataframe) for a grid: fresh, or a saved cube rebuilt over it. */
@@ -197,9 +201,11 @@ export interface PageSources {
    * file read again (a sample rebuilt, a file open on the page taken, else asked for) and each remote file mounted.
    * Refused where the page has no database of its own (§17.3).
    */
-  openedJoin(source: JoinSource, how?: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly tables?: readonly string[] }): Promise<Opened | undefined>;
-  /** The frame a grid reads, by its id: what following the host's frames refreshes. */
-  frameOf(id: string): string | undefined;
+  openedJoin(source: JoinSource, how?: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly tables?: readonly string[];
+    readonly page?: string }): Promise<Opened | undefined>;
+  /** The frames a grid reads, by its id -- its leaves' (cube-document.ts leavesOf): what following the host's frames
+   *  refreshes. */
+  framesOf(id: string): string[];
   /** A frame's version as the page last read it; undefined when no grid has read it. */
   frameVersion(name: string): number | undefined;
   /** A frame read again, its host having moved it: whether its model is the one its grids read (its new version noted,
@@ -330,12 +336,17 @@ export function pageSources(d: SourcesOf): PageSources {
     taken.add(name);
     return name;
   };
-  /** Each grid's file, by the grid's id: read only for the grids on the page now (`page.cubes`). */
-  const files = new Map<string, Omit<GridFile, 'grid'>>();
-  const filesNow = (): GridFile[] => page.cubes.flatMap((grid) => {
-    const f = files.get(grid);
-    return f ? [{ grid, ...f }] : [];
-  });
+  /**
+   * The file each table of the host's database was read from, by the table, whoever read it -- a file's grid, or a join
+   * that read its leaf's file itself (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3: what a grid reads is its leaves,
+   * never one file of its own). A grid's files are those of the tables it reads (GridPlace.tables).
+   */
+  const tableFiles = new Map<string, Omit<GridFile, 'grid' | 'table'>>();
+  /** The files of the grids on the page now (`page.cubes`): each grid's, one per table it reads from a file. */
+  const filesNow = (): GridFile[] => page.cubes.flatMap((grid) => (gridTables.get(grid) ?? []).flatMap((table) => {
+    const f = tableFiles.get(table);
+    return f ? [{ grid, table, ...f }] : [];
+  }));
   /** The tables files were read into for grids, by table: the file's name, to drop it by. */
   const held = new Map<string, string>();
   /** Each grid's own planners (by its tile's id), which hold its model: let go with the last grid using them. */
@@ -361,13 +372,15 @@ export function pageSources(d: SourcesOf): PageSources {
       const read = joinRead.get(t);
       if (read === undefined) continue;
       joinRead.delete(t);
-      held.set(t, read.fileName);
+      held.set(t, read.file.name);
+      tableFiles.set(t, { file: read.file, ...(read.handle ? { handle: read.handle } : {}), sha256: read.sha256, sample: read.sample });
     }
     const src = place.cubeSource;
     if (src?._type === 'file') readForGrids.delete(src.sha256);
     if (place.file && src?._type === 'file') {
-      files.set(id, { ...place.file, sha256: src.sha256, sample: src.sample !== undefined });
-      held.set(place.file.table, place.file.file.name);
+      const { table, ...file } = place.file;
+      tableFiles.set(table, { ...file, sha256: src.sha256, sample: src.sample !== undefined });
+      held.set(table, place.file.file.name);
     }
   };
 
@@ -379,12 +392,12 @@ export function pageSources(d: SourcesOf): PageSources {
   const dropUnread = (): void => {
     // the grids on the page, and those an undo can bring back: what they read stays
     const live = new Set([...page.cubes, ...(page.recoverable ?? [])]);
-    const read = new Set([...live].flatMap((grid) => [...(files.get(grid) ? [files.get(grid)!.table] : []), ...(gridTables.get(grid) ?? [])]));
-    for (const grid of [...files.keys()]) if (!live.has(grid)) files.delete(grid);
+    const read = new Set([...live].flatMap((grid) => gridTables.get(grid) ?? []));
     for (const grid of [...gridTables.keys()]) if (!live.has(grid)) gridTables.delete(grid);
     for (const [table, fileName] of [...held]) {
       if (read.has(table)) continue;
       held.delete(table);
+      tableFiles.delete(table);
       void database.forgetFile?.(fileName, table).catch(() => {}).finally(() => taken.delete(table));
     }
     // a planner no grid plans through any more lets its model go (a grid and its copies share one)
@@ -669,18 +682,16 @@ export function pageSources(d: SourcesOf): PageSources {
    * reused when it IS that file; a kept handle is read (asking for the browser's permission takes a click, so the window
    * offers one); otherwise the user is asked for it.
    */
-  async function fileFor(src: FileSource, cube: string, keys: readonly string[]): Promise<{ file: File; handle?: FileHandle } | undefined> {
+  async function fileFor(src: FileSource, cube: string, pageId: string | undefined): Promise<{ file: File; handle?: FileHandle } | undefined> {
     if (src.sample) {
       const s = sampleById(src.sample.id);
       if (s) {
         return { file: new File([s.build(src.sample.rows)], src.name, { type: mimeOf(s) }) };
       }
     }
-    const open = [...files.values()].find((f) => f.sha256 === src.sha256);
+    const open = [...tableFiles.values()].find((f) => f.sha256 === src.sha256);
     if (open) return { file: open.file, ...(open.handle ? { handle: open.handle } : {}) };
-    let kept: FileHandle | undefined;
-    const handles = (await services.pages)?.handles;
-    for (const key of keys) kept ??= await handles?.get(key);
+    const kept = pageId === undefined ? undefined : await (await services.pages)?.handles?.get(handleKey(pageId, src.sha256));
     if (kept) {
       const read = await readHandle(kept, false);
       if (read.state === 'file') return { file: read.file, handle: kept };
@@ -767,12 +778,12 @@ export function pageSources(d: SourcesOf): PageSources {
   // -- a join of two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): app/join-sources.ts, fetched with it
 
   async function openedJoin(source: JoinSource, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
-    readonly tables?: readonly string[] } = {}): Promise<Opened | undefined> {
+    readonly tables?: readonly string[]; readonly page?: string } = {}): Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} is a join, read in this tab's own database: this page has none`);
     const { openedJoin: opened } = await joinSources();
     return opened({
       local, database, services, fileFor, freshTable, joinRead, typer, letGo, gridMaker, rowsPlace,
-      tableOfFile: (sha) => [...files.values()].find((f) => f.sha256 === sha)?.table ?? readForGrids.get(sha)
+      tableOfFile: (sha) => [...tableFiles].find(([, f]) => f.sha256 === sha)?.[0] ?? readForGrids.get(sha)
         ?? [...joinRead].find(([, r]) => r.sha256 === sha)?.[0],
       take: (t) => { taken.add(t); },
       untake: (t) => { taken.delete(t); },
@@ -985,7 +996,7 @@ export function pageSources(d: SourcesOf): PageSources {
    * A saved cube's source opened again, the least intrusive way that works (a file asked for, a saved query rerun, a
    * warehouse signed in to, a remote file's keys asked for): its grid's maker, or undefined when the person gave up.
    */
-  async function reopened(doc: CubeDocument, keys: readonly string[], several: boolean, table?: string): Promise<Opened | undefined> {
+  async function reopened(doc: CubeDocument, page: string | undefined, several: boolean, table?: string): Promise<Opened | undefined> {
     const src = doc.source;
     // `several`: one of a page's grids, its columns panel folded as a grid added beside others is
     if (src._type === 'savedQuery') return openedSavedQuery(await openedRecord(src.query), doc, several);
@@ -995,10 +1006,10 @@ export function pageSources(d: SourcesOf): PageSources {
     if (src._type === 'frame') return openedFrame(src.name, doc, several);
     // a class at the revision its grid was read at: its pin, kept by its source (§16.1)
     if (src._type === 'class') return openedClass(src, doc, several);
-    // a join's files are its leaves', each asked for by its name: no handle kept under the page's
-    if (src._type === 'join') return openedJoin(src, { saved: doc, capped: several });
+    // a join's files are its leaves': each read from where the page kept it, as a file's grid's is
+    if (src._type === 'join') return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}) });
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);
-    const got = await fileFor(doc.source, doc.name, keys);
+    const got = await fileFor(doc.source, doc.name, page);
     if (!got) return undefined;
     return openedFile(got.file, {
       ...(got.handle ? { handle: got.handle } : {}),
@@ -1104,9 +1115,9 @@ export function pageSources(d: SourcesOf): PageSources {
     openedFrame,
     openedClass,
     openedJoin,
-    frameOf: (id) => {
+    framesOf: (id) => {
       const src = gridPlaces.get(id)?.cubeSource;
-      return src?._type === 'frame' ? src.name : undefined;
+      return src ? leavesOf(src).flatMap((l) => (l._type === 'frame' ? [l.name] : [])) : [];
     },
     frameVersion: (name) => framesRead.get(name)?.version,
     frameAgain: async (name) => {

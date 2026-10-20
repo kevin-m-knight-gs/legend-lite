@@ -6,7 +6,9 @@
 // tab's sources (app/sources.ts) and a test on Node's DuckDB (test/join-open.test.ts) call it alike.
 
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CUBE_KIND, CUBE_VERSION, openCube, type CubeDocument, type CubeSource, type JoinInput, type JoinSource } from './cube-document.ts';
+import {
+  CUBE_KIND, CUBE_VERSION, leavesOf, openCube, type CubeDocument, type CubeSource, type JoinInput, type JoinSource, type LeafSource,
+} from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
 import { TOTAL_ROWS_COLUMN, classLambda } from './query.ts';
@@ -14,12 +16,6 @@ import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sourceColumns, type RelationTyper } from './source-columns.ts';
 import { CubeRefusal, type ColumnSpec } from './snapshot.ts';
-
-/** The sources a join reads a table of the host's database for, depth first: its left input's, then its right's. A source
- *  that is no join is its own one leaf. */
-export function joinLeaves(source: CubeSource): CubeSource[] {
-  return source._type === 'join' ? [...joinLeaves(source.left.source), ...joinLeaves(source.right.source)] : [source];
-}
 
 /** The kinds of source that are tables of a host's database: the tab's files and remote files; Python's frames too. */
 export type TableKind = 'file' | 'remoteFile' | 'frame';
@@ -40,8 +36,8 @@ const PLURAL: Readonly<Record<TableKind, string>> = { file: 'files', remoteFile:
  * Why a leaf cannot be read where a join is (§17.3: one model, one connection), or undefined: a source of a kind that
  * is a table of the host's database (`here`). Anything else is read somewhere else.
  */
-export function leafRefusal(leaf: CubeSource, here: readonly TableKind[]): string | undefined {
-  if (leaf._type === 'join' || (here as readonly string[]).includes(leaf._type)) return undefined;
+export function leafRefusal(leaf: LeafSource, here: readonly TableKind[]): string | undefined {
+  if ((here as readonly string[]).includes(leaf._type)) return undefined;
   return `a join reads both its inputs in one place, this page's own database (${here.map((k) => PLURAL[k]).join(', ')}); `
     + `${leaf.name} is ${WHAT[leaf._type]}`;
 }
@@ -50,7 +46,7 @@ export function leafRefusal(leaf: CubeSource, here: readonly TableKind[]): strin
 export interface JoinOpening {
   /** The kinds of source that are tables of the host's database (TAB_TABLES in the tab). */
   readonly here: readonly TableKind[];
-  /** The table of the host's database each leaf reads, in joinLeaves' order (a table read twice, named twice). */
+  /** The table of the host's database each leaf reads, in leavesOf's order (cube-document.ts) (a table read twice, named twice). */
   readonly tables: readonly string[];
   /** The host's model writer. */
   readonly models: TableModels;
@@ -105,7 +101,7 @@ function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
  * elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
  */
 export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
-  const leaves = [...joinLeaves(left.source), ...joinLeaves(right.source)];
+  const leaves = [...leavesOf(left.source), ...leavesOf(right.source)];
   for (const leaf of leaves) {
     const why = leafRefusal(leaf, o.here);
     if (why !== undefined) throw new CubeRefusal(why);

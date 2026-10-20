@@ -9,7 +9,7 @@ import { describe, it } from 'node:test';
 
 import { applyLive, followBy, type LiveTarget } from '../src/app/live-follow.ts';
 import type { LiveCommand } from '../src/app/services.ts';
-import type { CubeDocument } from '../src/cube-document.ts';
+import { leavesOf, type CubeDocument, type FrameSource } from '../src/cube-document.ts';
 import type { GridCommand } from '../src/grid-commands.ts';
 import type { PageCommand } from '../src/page-commands.ts';
 import { pageToJson } from '../src/page-document.ts';
@@ -19,6 +19,11 @@ import { corpus } from './fixtures/pages/make.ts';
 
 const trades = (await corpus())['trades.page.json']!;
 const frameCube = (name: string): CubeDocument => ({ ...trades.cubes[0]!.cube, source: { _type: 'frame', name, columns: [] } } as unknown as CubeDocument);
+/** A join of two frames' grids (cube-document.ts JoinSource): what it reads is both frames. */
+const joinCube = (left: string, right: string): CubeDocument => {
+  const input = (name: string) => ({ name, source: { _type: 'frame', name, columns: [] } as FrameSource, query: trades.cubes[0]!.cube.query });
+  return { ...trades.cubes[0]!.cube, source: { _type: 'join', name: `${left} ⋈ ${right}`, left: input(left), right: input(right), how: { form: 'append' }, columns: [] } } as unknown as CubeDocument;
+};
 
 /** A page that records what it was asked, over `frames` (each frame's read version, which `bump` moves on open). */
 function target(o: { grids?: string[]; frames?: Record<string, number>; bump?: string; refuse?: string } = {}) {
@@ -31,8 +36,7 @@ function target(o: { grids?: string[]; frames?: Record<string, number>; bump?: s
     applyGrid: async (grid, commands) => { asked.push(`grid ${grid} ${commands.map((c) => c.kind).join(',')}`); return o.refuse ?? null; },
     open: async (document, grid) => {
       asked.push(`open ${grid}`);
-      const source = document.source;
-      if (o.bump !== undefined && source._type === 'frame' && source.name === o.bump) frames[o.bump] = (frames[o.bump] ?? 0) + 1;
+      if (o.bump !== undefined && leavesOf(document.source).some((l) => l._type === 'frame' && l.name === o.bump)) frames[o.bump] = (frames[o.bump] ?? 0) + 1;
       return { make: () => { throw new Error('not made here'); }, discard: async () => { asked.push(`discard ${grid}`); } };
     },
     frameVersion: (frame) => frames[frame],
@@ -80,6 +84,15 @@ describe('the commands applied, or refused so the page opens again', () => {
     const moved = target({ frames: { trades: 2 }, bump: 'trades' });
     await assert.rejects(applyLive([add('grid-5', 'orders'), add('grid-6', 'trades')], moved.t), /the frame trades moved/);
     assert.deepEqual(moved.asked, ['open grid-5', 'open grid-6', 'discard grid-5', 'discard grid-6'], 'nothing followed; both let go');
+  });
+
+  it('a join of frames reads each: one of them moving while it was opened refuses it (§18.3, leavesOf)', async () => {
+    const add = (id: string, document: CubeDocument): LiveCommand => page({
+      kind: 'addGrid', id, document, sheet: 'sheet-1', near: null, title: null, columns: null,
+    });
+    const moved = target({ frames: { trades: 2, desks: 1 }, bump: 'desks' });
+    await assert.rejects(applyLive([add('grid-7', joinCube('trades', 'desks'))], moved.t), /the frame desks moved/);
+    assert.deepEqual(moved.asked, ['open grid-7', 'discard grid-7']);
   });
 });
 

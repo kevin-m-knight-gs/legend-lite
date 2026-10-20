@@ -212,6 +212,13 @@ try {
   check(await rowsOf(joinedOnly) === 47, `joins alone: the joined grid's rows (${await rowsOf(joinedOnly)})`);
   await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
   check(await six().count() === 1, `joins alone: the trades with no customer, 6 rows (${await six().count()})`);
+  // what a grid reads is its leaves (design §18.3): a page of only joins holds the files they read, so leaving asks first
+  const asks = await page.evaluate(() => {
+    const leave = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(leave);
+    return leave.defaultPrevented;
+  });
+  check(asks, 'joins alone: leaving asks first -- the files the joins read are held in this tab');
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
 } catch (e) {

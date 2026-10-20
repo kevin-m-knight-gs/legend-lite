@@ -4,9 +4,9 @@
 // the grid made of it. What it needs of the page's sources is its host (app/sources.ts); fetched with the first join, so
 // a page with no join loads none of it (test/bundle-budget.test.ts).
 
-import { rebuilt, sha256, type CubeDocument, type CubeSource, type FileSource, type JoinSource } from '../cube-document.ts';
+import { leavesOf, rebuilt, sha256, type CubeDocument, type FileSource, type JoinSource, type LeafSource } from '../cube-document.ts';
 import type { FileHandle } from '../file-handles.ts';
-import { TAB_TABLES, joinLeaves, openJoin } from '../join-open.ts';
+import { TAB_TABLES, openJoin } from '../join-open.ts';
 import type { RelationTyper } from '../source-columns.ts';
 import { catalogColumns, tableNameOf } from '../upload.ts';
 import type { DatabaseService, GridRows, LocalEngine, Services } from './services.ts';
@@ -22,15 +22,16 @@ export interface JoinSourcesHost {
    * read for another join (`joinRead`).
    */
   tableOfFile(sha256: string): string | undefined;
-  /** A saved cube's file got back (sources.ts fileFor): rebuilt, from a kept handle, or asked for. */
-  fileFor(src: FileSource, cube: string, keys: readonly string[]): Promise<{ file: File; handle?: FileHandle } | undefined>;
+  /** A saved cube's file got back (sources.ts fileFor): rebuilt, from the handle `page` kept, or asked for. */
+  fileFor(src: FileSource, cube: string, page: string | undefined): Promise<{ file: File; handle?: FileHandle } | undefined>;
   /** A table name of the host's database no grid holds, taken; given back with `untake`, or taken as read with `take`. */
   freshTable(base: string): string;
   take(table: string): void;
   untake(table: string): void;
   /**
-   * The files read in for joins not made yet, by table: the file's name and hash, and how many of those joins read it --
-   * held once a grid of one is made (sources.ts madeGrid), dropped when the last of them is let go unmade.
+   * The files read in for joins not made yet, by table: the file, where it was picked, its hash, and how many of those
+   * joins read it -- held once a grid of one is made (sources.ts madeGrid: then among the page's files, its handle kept
+   * when the page is saved), dropped when the last of them is let go unmade.
    */
   readonly joinRead: Map<string, JoinRead>;
   typer(rows: GridRows): RelationTyper;
@@ -41,8 +42,11 @@ export interface JoinSourcesHost {
 
 /** A file read in for joins not made yet (JoinSourcesHost.joinRead). */
 export interface JoinRead {
-  readonly fileName: string;
+  readonly file: File;
+  readonly handle?: FileHandle;
   readonly sha256: string;
+  /** A file this product generated (cube-document.ts FileSource.sample): no file the person opened. */
+  readonly sample: boolean;
   users: number;
 }
 
@@ -50,7 +54,7 @@ export interface JoinRead {
  * A join's leaf read again, for a saved join reopened: its table, whether this join is one of the joins holding it
  * (`joinRead`), and -- a file given that is not the one the join was saved over -- that, said.
  */
-async function leafTable(h: JoinSourcesHost, leaf: CubeSource, name: string): Promise<{ table: string; held?: boolean; note?: string } | undefined> {
+async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, page: string | undefined): Promise<{ table: string; held?: boolean; note?: string } | undefined> {
   if (leaf._type === 'remoteFile') {
     if (!h.database.mountRemote) throw new Error('this page reads no remote file');
     const view = h.freshTable('remote');
@@ -66,8 +70,8 @@ async function leafTable(h: JoinSourcesHost, leaf: CubeSource, name: string): Pr
     read.users += 1;
     return { table: already, held: true };
   }
-  // no handle kept under the page's name: the join's files are its own leaves, each asked for by its name
-  const got = await h.fileFor(leaf, name, []);
+  // rebuilt, read from where the page kept it, or asked for by its name
+  const got = await h.fileFor(leaf, name, page);
   if (!got) return undefined;
   const given = await sha256(await got.file.arrayBuffer());
   const note = given === leaf.sha256 ? undefined : `${got.file.name} is not the file "${name}" joined (its contents differ)`;
@@ -81,13 +85,13 @@ async function leafTable(h: JoinSourcesHost, leaf: CubeSource, name: string): Pr
     h.untake(asked);
     h.take(opened.table);
   }
-  h.joinRead.set(opened.table, { fileName: got.file.name, sha256: leaf.sha256, users: 1 });
+  h.joinRead.set(opened.table, { file: got.file, ...(got.handle ? { handle: got.handle } : {}), sha256: leaf.sha256, sample: leaf.sample !== undefined, users: 1 });
   return { table: opened.table, held: true, ...(note !== undefined ? { note } : {}) };
 }
 
 /** A JOIN FOR A GRID (sources.ts openedJoin's): its model, its relation, its grid; undefined when a file was not given. */
 export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
-  readonly tables?: readonly string[] } = {}): Promise<Opened | undefined> {
+  readonly tables?: readonly string[]; readonly page?: string } = {}): Promise<Opened | undefined> {
   const { local } = h;
   /** The tables read in for joins that this one holds. */
   const holding: string[] = [];
@@ -100,7 +104,7 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
       read.users -= 1;
       if (read.users > 0) continue;
       h.joinRead.delete(t);
-      await h.database.forgetFile?.(read.fileName, t).catch(() => {});
+      await h.database.forgetFile?.(read.file.name, t).catch(() => {});
       h.untake(t);
     }
   };
@@ -109,8 +113,8 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
     let tables = how.tables;
     if (tables === undefined) {
       const read: string[] = [];
-      for (const leaf of joinLeaves(source)) {
-        const got = await leafTable(h, leaf, how.saved?.name ?? source.name);
+      for (const leaf of leavesOf(source)) {
+        const got = await leafTable(h, leaf, how.saved?.name ?? source.name, how.page);
         if (!got) {
           await forget();
           return undefined;

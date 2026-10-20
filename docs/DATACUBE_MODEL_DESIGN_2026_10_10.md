@@ -1086,15 +1086,19 @@ run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
 
 ### 18.3 The design
 
-1. **The base query saved.**
-   - A cube document saves its base query beside its leaves: the leaves say where rows come from (a file's name and
-     hash, a frame, a warehouse object), and the base is the query over them.
-   - A table source's base is its accessor, the shorthand.
-   - Reopen reads the leaves again and puts the base back over them, its table names those the leaves are read as now.
-   - Python holds each grid's base and sends it with its model, never a frame's accessor in its place.
-2. **`leavesOf(source)`.**
-   - One function in DataCube over every kind of source, a join's recursively: each leaf's kind, identity, and the
-     table it is read as.
+1. **Each kind of source denotes its base query** (corrected 2026-10-20, reading the code for step 1).
+   - A file, a remote file, a frame or a warehouse table denotes its table's accessor, the shorthand. A join denotes
+     its relation over its inputs (join.ts). A class denotes its projection (`Cls.all()->project(...)`). A saved query
+     denotes its content.
+   - So no second copy of the base is saved beside the source: it could only disagree with what the source denotes.
+     Reopen reads the leaves again, under the names they are read as now, and the source denotes its base over them.
+   - A base no kind describes (a query written in Pure over a page's leaves) would be a kind of its own, saved as
+     written. Nothing makes one yet; it is not built until something does.
+   - Python holds each grid's source and asks DataCube for its base over the frames it serves, never sending a frame's
+     accessor in its place (step 3).
+2. **`leavesOf(source)`** (`cube-document.ts`).
+   - One function over every kind of source, a join's recursively, left's then right's: the sources rows are read
+     from. It replaces `joinLeaves`.
    - Every check in §18.2's second item asks it instead of a kind or a field. Python asks it headless, with no
      second copy.
 3. **Snap by query.**
@@ -1155,7 +1159,7 @@ Read from legend-engine's `MappingTestRunner` and `TestAssertionEvaluator` (read
 
 ### 18.6 Order, each audited
 
-1. The base query saved, and `leavesOf`.
+1. `leavesOf`, and every check of what a grid reads asking it.
 2. Snap by query, in the tab and in Python.
 3. Python pages over any base.
 4. A class, a data space, an association of any base.

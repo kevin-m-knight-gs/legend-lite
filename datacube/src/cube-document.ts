@@ -186,6 +186,18 @@ export interface JoinInput {
 /** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class, a join. */
 export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource | JoinSource;
 
+/** A source that is no join: where rows are read from (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.1). */
+export type LeafSource = Exclude<CubeSource, JoinSource>;
+
+/**
+ * WHAT A GRID READS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its source's leaves -- a join's, its inputs' in
+ * turn, left's then right's; any other source, itself. Every question of what a grid reads (its files, its frames, the
+ * tables a join of it reads) is asked of these, never of its source's kind.
+ */
+export function leavesOf(source: CubeSource): LeafSource[] {
+  return source._type === 'join' ? [...leavesOf(source.left.source), ...leavesOf(source.right.source)] : [source];
+}
+
 /**
  * The cube's definition: a snapshot without its runtime state (source relation, epoch, row window).
  */

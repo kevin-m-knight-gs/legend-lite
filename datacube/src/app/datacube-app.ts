@@ -16,6 +16,7 @@ import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import { gridCapped, type CubeDocument } from '../cube-document.ts';
+import { handleKey } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
@@ -662,12 +663,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     /** Ask that what is saved be kept, once. */
     const persist = async (): Promise<boolean> => (persistent ||= (await pages?.persist()) ?? false);
 
-    /**
-     * Where a saved page keeps the handle of the file a grid reads: by the page and the grid -- or, saved before a page
-     * held several grids, by the page alone.
-     */
-    const handleKeys = (pageId: string | undefined, grid: string): string[] => (pageId === undefined ? [] : [`${pageId}#${grid}`, pageId]);
-
     /** A cube saved alone, before pages: a page of its one grid, the whole board. */
     const pageOf = (cube: CubeDocument): PageDocument => writePageOf({
       name: cube.name, cubes: [{ id: 'cube', cube }], views: startingViews({ id: 'grid', cube: 'cube' }),
@@ -695,7 +690,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           let o: Opened | undefined;
           let why = 'not opened';
           try {
-            o = await sources.reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
+            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
           } catch (e) {
             // a class whose rows are not here (its table read by no grid of the tab), or a join that no longer joins (an
             // input's file changed under it, a remote file that asks for keys) is left out and said, as a file not
@@ -758,11 +753,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }
 
     /**
-     * Each grid's file, where it was picked: kept by the page and the grid (a grid kept off the board for a detached
-     * chart included), so opening the page again reads it from there.
+     * Each file the page's grids read, where it was picked (a join's leaves' among them, a grid kept off the board for a
+     * detached chart included): kept by the page and the file's contents (file-handles.ts handleKey), so opening the
+     * page again reads it from there.
      */
     async function keepHandles(pageId: string): Promise<void> {
-      for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(`${pageId}#${f.grid}`, f.handle);
+      for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
     }
 
     /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */
@@ -1295,7 +1291,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           cubes: page.cubes.length,
           follow: (commands, makers) => page.follow(commands, makers),
           applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
-          open: (document, grid, several) => sources.reopened(document, [], several, current.model?.tables[grid]),
+          open: (document, grid, several) => sources.reopened(document, undefined, several, current.model?.tables[grid]),
           frameVersion: (frame) => sources.frameVersion(frame),
         });
         await page.ready();
@@ -1390,7 +1386,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           }
           for (const id of page.cubes) {
             if (disposed) return undefined;
-            if (sources.frameOf(id) === frame) await madeCubes.get(id)?.state.refresh();
+            if (sources.framesOf(id).includes(frame)) await madeCubes.get(id)?.state.refresh();
           }
         }
         return undefined;

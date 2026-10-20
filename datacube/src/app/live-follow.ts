@@ -3,7 +3,7 @@
 // or refused, so the page is opened again as Python has it. No DOM: the app hands it what it needs (a `LiveTarget`), so
 // every rule here is tested alone (test/live-follow.test.ts).
 
-import { gridCapped, type CubeDocument } from '../cube-document.ts';
+import { gridCapped, leavesOf, type CubeDocument } from '../cube-document.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { GridMaker } from '../page/page-app.ts';
@@ -67,16 +67,19 @@ async function followPage(run: readonly PageCommand[], target: LiveTarget): Prom
     for (const command of run) {
       if (command.kind !== 'addGrid' || command.id === undefined || command.document === null) continue;
       const source = command.document.source;
-      const frame = source._type === 'frame' ? source.name : undefined;
-      const read = frame !== undefined ? target.frameVersion(frame) : undefined;
+      // the frames it reads, its leaves' (a join's of frames, each), as the page read each before it was opened
+      const frames = leavesOf(source).flatMap((l) => (l._type === 'frame' ? [l.name] : []));
+      const read = new Map(frames.map((f) => [f, target.frameVersion(f)]));
       const o = await target.open(command.document, command.id, gridCapped(target.cubes + makers.size + 1));
       if (!o) throw new Error(`${source.name} was not opened`);
       if (o.discard) discards.push(o.discard);
       makers.set(command.id, o.make);
-      // the frame moved while it was opened: the page's other grids over it read it as it was -- opened again, all
+      // a frame moved while it was opened: the page's other grids over it read it as it was -- opened again, all
       // read it as it is now
-      if (read !== undefined && frame !== undefined && target.frameVersion(frame) !== read) {
-        throw new Error(`the frame ${frame} moved while a grid over it was added`);
+      for (const [frame, version] of read) {
+        if (version !== undefined && target.frameVersion(frame) !== version) {
+          throw new Error(`the frame ${frame} moved while a grid over it was added`);
+        }
       }
     }
     await target.follow(run, makers);

@@ -22,7 +22,7 @@ export interface JoinSpec {
   readonly right: { readonly name: string; readonly cube: unknown };
   /** How they combine (join-how.ts JoinHow), read strictly. */
   readonly how: unknown;
-  /** The table of the host's database each of their sources reads, left's then right's (join-open.ts joinLeaves). */
+  /** The table of the host's database each of their sources reads, left's then right's (cube-document.ts leavesOf). */
   readonly tables: readonly string[];
 }
 

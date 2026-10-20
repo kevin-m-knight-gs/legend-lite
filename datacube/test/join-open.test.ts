@@ -10,8 +10,10 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
-import { TAB_TABLES, joinLeaves, leafRefusal, openInputs, openJoin, summaryCounts, type JoinOpening } from '../src/join-open.ts';
-import { rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type SavedQuery } from '../src/cube-document.ts';
+import { TAB_TABLES, leafRefusal, openInputs, openJoin, summaryCounts, type JoinOpening } from '../src/join-open.ts';
+import {
+  leavesOf, rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource, type SavedQuery,
+} from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
@@ -218,7 +220,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const innerQuery = query(file('x', [['id', 'Integer'], ['cust', 'Integer'], ['sym', 'String'], ['at', 'DateTime'], ['qty', 'Float'], ['region', 'String']]));
     const how: JoinHow = { form: 'join', kind: 'left', on: { rows: [{ left: 'sym', op: '==', right: 'sym' }] }, prefix: 'p_', keep: ['px'] };
     const outer = join(input(inner, 'trades ⋈ customers', innerQuery), input(PRICES, 'prices'), how);
-    assert.deepEqual(joinLeaves(outer).map((l) => l.name), ['trades.csv', 'customers.csv', 'prices.csv']);
+    assert.deepEqual(leavesOf(outer).map((l) => l.name), ['trades.csv', 'customers.csv', 'prices.csv']);
     const opened = await openJoin(outer, opening(['trades', 'customers', 'prices']));
     assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty', 'region', 'px']);
     const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
@@ -236,7 +238,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
   });
 
   it('refuses in words what is not read here, a pivoted input, a key either input lacks', async () => {
-    const warehouse: CubeSource = { _type: 'warehouseTable', name: 'sales.orders', warehouse: 'https://w', catalog: 'main', schema: 'sales', table: 'orders', columns: [] };
+    const warehouse: LeafSource = { _type: 'warehouseTable', name: 'sales.orders', warehouse: 'https://w', catalog: 'main', schema: 'sales', table: 'orders', columns: [] };
     assert.match(leafRefusal(warehouse, TAB_TABLES)!, /one place, this page's own database \(files, remote files\); sales\.orders is a warehouse table, read live/);
     await assert.rejects(openJoin(join(input(TRADES, 'trades'), input(warehouse, 'orders', query(CUSTOMERS)), LEFT_ON_CUST), opening(['trades', 'x'])),
       (e: unknown) => e instanceof CubeRefusal && /sales\.orders is a warehouse table/.test(e.message));
