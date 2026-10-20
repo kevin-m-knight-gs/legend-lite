@@ -10,7 +10,7 @@
 
 import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
-import { from, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { EpochGuard, type Stale } from './epoch.ts';
@@ -32,6 +32,7 @@ import {
   levelLambda,
   TOTAL_ROWS_COLUMN,
   pivotValuesLambda,
+  snapPull,
   sourceWithDerived,
 } from './query.ts';
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
@@ -732,7 +733,7 @@ export class CubeController {
     // fresh cube references none, which made this `select(~[])` and the
     // planner refuse it. The query is a tree, so a column called
     // `trade date` is a name, not grammar.
-    const query = from(snapshot.source.query).select(snapshot.columns.map((c) => c.name)).lambda();
+    const query = snapPull(snapshot);
     // one copy per grid: one held already goes first
     if (this.#snaps.isSnapped) await this.release();
     if (this.#snaps instanceof HostSnaps) {

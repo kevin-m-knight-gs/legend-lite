@@ -9,12 +9,12 @@ import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/le
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
   cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridOpened,
-  gridRelation, gridView,
+  gridRelation, gridSnapPull, gridView,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelNames } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
-import { nameGiven, pageApply, pageFilter, pageNew, pageRead } from './page.ts';
+import { gridSnapped, nameGiven, pageApply, pageFilter, pageNew, pageOpenedLive, pageRead } from './page.ts';
 import { joinCube, joinQuestions } from './join.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
@@ -29,7 +29,7 @@ export { REQUEST_KINDS };
  *  a frame's, or a join's of frames (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). */
 export {
   cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridOpened,
-  gridRelation, gridView,
+  gridRelation, gridSnapPull, gridView,
 };
 
 /** Data in (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.3): a file read into the host's database by upload.ts, its
@@ -49,11 +49,16 @@ export { layoutBands, layoutTiles };
 /** A page document read as DataCube reads it (its own version, every rule held) and written as DataCube writes
  *  it: what Python's pages ask when one is loaded, read back, laid out or saved. And a new page as DataCube starts one:
  *  what Python's ll.Page() asks. And a page edited by commands (page-commands.ts): what Python's page edits send. */
-export { pageApply, pageNew, pageRead };
+export { pageApply, pageNew, pageOpenedLive, pageRead };
 
 /** A page filter on a class's property, made as the screen's Add a Filter makes one (a setPageFilter command, for
  *  pageApply): what Python's page.filter asks. */
 export { pageFilter };
+
+/** A grid's Snap as the page command that says it (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): what its base
+ *  query's pull is (gridSnapPull, above) and, its host having copied it, the copy written down as the screen writes
+ *  it -- what Python's grid.snap() asks, so the page's record of a copy is DataCube's. */
+export { gridSnapped };
 
 /** A page's, a tile's or a sheet's name as a person gives it, by DataCube's one rule: what Python's names ask. */
 export { nameGiven };

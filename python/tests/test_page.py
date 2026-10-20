@@ -1299,6 +1299,176 @@ class Joined(Paged):
             tab.close()
 
 
+class Snapped(Paged):
+    """Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): grid.snap() copies the grid's base query by
+    the engine every tab's Snap copies through, and the page's snap command says the grid reads the copy -- every call on
+    it reads the copy whatever its frame does meanwhile; grid.live() reads it live again; a copy no grid reads is let
+    go; a page saved snapped loads live and says so."""
+
+    get = Live.get
+
+    def moving(self):
+        """A live frame whose rows are moved between queries: a function, read at each query."""
+        state = {'df': trades()}
+        return state, (lambda: state['df'])
+
+    def held(self, table):
+        engine = datacube._session.engine()
+        return engine.copy_of(table) is not None or datacube._session.frames.file_table(table) is not None
+
+    def test_a_snapped_grid_reads_its_copy_whatever_its_frame_does_and_live_again_reads_the_frame(self):
+        state, frame = self.moving()
+        page = ll.Page('Snaps')
+        grid = page.grid(frame, name='trades', rows=['region'], measures={'notional': 'sum'})
+        self.assertIsNone(grid.snapped)
+        self.assertIs(grid.snap(), grid)
+        copy = grid.snapped
+        self.assertEqual((copy['table'], copy['rowCount'], 'pulledBy' in copy), ('snap', 3, False))
+        self.assertRegex(copy['label'], r'^Snap \d\d:\d\d$')
+        datetime.datetime.fromisoformat(copy['takenAt'].replace('Z', '+00:00'))
+        # the page's own command, as DataCube's Snap writes it, and the document's copies by cube
+        self.assertEqual(page._page_commands[-1], {'kind': 'snap', 'grid': grid.id, 'copy': copy})
+        self.assertEqual(page.to_dict()['copies'], {grid._view['cube']: copy})
+        # the frame moves: the snapped grid reads its copy, another grid over the same frame reads it live
+        state['df'] = trades().iloc[:1]
+        other = page.grid(frame, name='trades')
+        # its rows at their finest level: by region, two (EMEA, AMER); the frame now holds one trade, EMEA's
+        self.assertEqual((len(grid.to_pandas()), len(other.to_pandas())), (2, 1))
+        self.assertEqual(sorted(r[0] for r in grid.view().rows if r[0] is not None), ['AMER', 'EMEA'])
+        self.assertEqual(grid.export('csv').count('AMER'), 1, 'its export reads the copy too')
+        # what it is a copy of is its live base: its relation reads the frame, never the copy
+        self.assertIn('trades', grid.relation)
+        self.assertNotIn('snap', grid.relation)
+        # live again: its copy let go, its rows the frame's
+        self.assertIs(grid.live(), grid)
+        self.assertIsNone(grid.snapped)
+        self.assertNotIn('copies', page.to_dict())
+        self.assertEqual(page._page_commands[-1], {'kind': 'live', 'grid': grid.id})
+        self.assertFalse(self.held('snap'), 'the copy is let go of')
+        self.assertEqual(len(grid.to_pandas()), 1)
+        self.assertEqual(sorted(r[0] for r in grid.view().rows if r[0] is not None), ['EMEA'])
+        with self.assertRaisesRegex(ValueError, 'reads its live rows already'):
+            grid.live()
+
+    def test_a_copy_belongs_to_its_grid_snapped_again_or_removed_it_is_let_go(self):
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades')
+        keep = page.grid(desks(), name='desks')
+        grid.snap()
+        grid.snap()
+        self.assertEqual(grid.snapped['table'], 'snap_2')
+        self.assertFalse(self.held('snap'), 'the copy it read before is let go of')
+        page.remove(grid)
+        self.assertFalse(self.held('snap_2'), "a grid removed takes its copy with it")
+        self.assertNotIn('copies', page.to_dict())
+        self.assertEqual(page.grids, [keep])
+
+    def test_a_snapped_grid_is_checked_against_its_copy_not_its_frame_as_it_is_now(self):
+        state, frame = self.moving()
+        page = ll.Page('Snaps')
+        grid = page.grid(frame, name='trades')
+        grid.snap()
+        # its frame loses a column: the snapped grid still has it, in an edit and in a chart
+        state['df'] = trades().drop(columns=['pnl'])
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            grid.calculate('half', '$x.pnl->toOne() / 2')
+            grid.chart('bar', x='desk', y=[('pnl', 'sum')])
+        self.assertIn('pnl', list(grid.to_pandas().columns))
+        # live again: opened over the frame as it is now, what it left out said
+        with self.assertWarnsRegex(UserWarning, 'pnl'):
+            grid.live()
+
+    def test_a_class_of_a_snapped_grid_is_of_its_live_base(self):
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades')
+        grid.snap()
+        cls, asked = grid._class()
+        self.assertNotIn('snap', json.dumps(cls['query']))
+        self.assertEqual((asked['tables'], list(asked['samples'])), (['trades'], ['trades']))
+
+    def test_snap_true_reads_a_frame_once_and_a_snap_refused_leaves_the_page_as_it_was(self):
+        state, frame = self.moving()
+        page = ll.Page('Snaps')
+        grid = page.grid(frame, name='trades', snap=True)
+        self.assertEqual(grid.snapped['rowCount'], 3)
+        state['df'] = trades().iloc[:1]
+        self.assertEqual(len(grid.to_pandas()), 3)
+        # the frame stays served as it is: another grid over it reads it live
+        self.assertEqual(len(page.grid(frame, name='trades').to_pandas()), 1)
+        before = page.to_dict()
+        engine = datacube._session.engine()
+        real = engine.snap_copy
+        engine.snap_copy = lambda *a: (_ for _ in ()).throw(ValueError('5,000,001 rows exceeds the snap limit'))
+        try:
+            with self.assertRaisesRegex(ValueError, 'exceeds the snap limit'):
+                page.grid(desks(), name='desks', snap=True)
+        finally:
+            engine.snap_copy = real
+        self.assertEqual(page.to_dict(), before)
+        self.assertNotIn('desks', datacube._session.frames, 'a frame served for the grid refused is served no more')
+
+    def test_a_copy_made_for_a_snap_the_page_refuses_is_let_go(self):
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades')
+        real = page._apply_page
+
+        def refused(commands, what=None, check=None):
+            if commands[0]['kind'] == 'snap':
+                raise ValueError('a snap: refused')
+            return real(commands, what, check)
+
+        page._apply_page = refused
+        with self.assertRaisesRegex(ValueError, 'a snap: refused'):
+            grid.snap()
+        self.assertIsNone(grid.snapped)
+        self.assertFalse(self.held('snap'), 'the copy belongs to no grid: let go')
+
+    def test_a_page_saved_snapped_loads_live_and_says_so(self):
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades')
+        grid.snap()
+        label = grid.snapped['label']
+        saved = page.to_dict()
+        self.assertIn('copies', saved)
+        with warnings.catch_warnings(record=True) as said:
+            warnings.simplefilter('always')
+            again = ll.Page.load(saved, frames={'trades': trades().iloc[:2]})
+        self.assertEqual([str(w.message) for w in said],
+                         [f'trades was snapped ({label}) when the page was saved: it opens live, as a snap lasts only as '
+                          'long as the session that made it'])
+        self.assertNotIn('copies', again.to_dict())
+        self.assertIsNone(again.grids[0].snapped)
+        self.assertEqual(len(again.grids[0].to_pandas()), 2)
+
+    def test_a_join_snapped_reads_its_copy(self):
+        state, frame = self.moving()
+        page = ll.Page('Snaps')
+        mine = page.grid(frame, name='trades')
+        theirs = page.grid(desks(), name='desks')
+        joined = page.join(mine, theirs, Joined.HOW, snap=True)
+        self.assertEqual(joined.snapped['rowCount'], 3)
+        state['df'] = trades().iloc[:1]
+        self.assertEqual((len(joined.to_pandas()), len(mine.to_pandas())), (3, 1))
+
+    def test_shown_a_snap_and_going_live_are_served_as_the_pages_commands(self):
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades')
+        tab = ll.show(page, browser=False)
+        try:
+            since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
+            grid.snap()
+            moved = since(1)
+            self.assertEqual(moved['commands'], [{'page': {'kind': 'snap', 'grid': grid.id, 'copy': grid.snapped}}])
+            self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['copies'],
+                             {grid._view['cube']: grid.snapped})
+            grid.live()
+            self.assertEqual(since(moved['version'])['commands'], [{'page': {'kind': 'live', 'grid': grid.id}}])
+            self.assertFalse(self.held('snap'))
+        finally:
+            tab.close()
+
+
 class CorpusPage(unittest.TestCase):
     """THE SAVED-PAGE CORPUS (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 3): the corpus's frame page,
     written by DataCube's own writers (datacube/test/fixtures/pages/make.ts), loaded in Python over its frame with

@@ -394,9 +394,10 @@ class Engine:
         # (C3): a plan over that model runs on the warehouse, as the signed-in user
         self._warehouse_sessions: dict[str, warehouse.Session] = {}
         self._warehouse_tables: dict[str, _WarehouseTable] = {}
-        # the copies grids snapped (each its own table of the frames' database, served as a page's file is): only these
-        # are let go of by a snap's release
-        self._copies: set[str] = set()
+        # the copies grids snapped (each its own table of the frames' database, served as a page's file is), each with
+        # its model, runtime and relation as DataCube's code modelled it as it landed: only these are let go of by a
+        # snap's release
+        self._copies: dict[str, dict[str, Any]] = {}
         self._warehouse_lock = threading.Lock()
         # the binding's calls on the compiler's threads, never a connection's (warehouse.set_library_thread)
         warehouse.set_library_thread(_on_compiler_threads)
@@ -973,6 +974,32 @@ class Engine:
         answer = {**made, 'frames': {name: self.version(name) for name in read}}
         return Answer(200, 'application/json', _json.dumps(answer).encode('utf-8'))
 
+    def snap_copy(self, model: str, runtime: str, pull: str) -> dict[str, Any]:
+        """A GRID'S BASE QUERY COPIED (Snap, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), for a page in Python: the
+        one way ``snap.json`` copies it (``pull``, the protocol's JSON of DataCube's pull, planned over ``model`` and run
+        where the rows are -- a warehouse table's on the warehouse), called from Python. Its answer -- the copy's table,
+        rows, model, runtime, relation, and the pull's receipt when it ran elsewhere -- or refused in its words
+        (ValueError; an expired warehouse session, PermissionError)."""
+        answer = self._snap_said(json.dumps({'op': 'snap', 'model': model, 'runtime': runtime, 'pull': pull}))
+        if answer.status == 401:
+            raise PermissionError(answer.body.decode('utf-8'))
+        if answer.status != 200:
+            raise ValueError(answer.body.decode('utf-8'))
+        return _json.loads(answer.body.decode('utf-8'))
+
+    def release_copy(self, table: str) -> None:
+        """A snap's copy let go of (Go Live, a snap taken again, its grid or page gone), as ``snap.json``'s release lets
+        one go: dropped by DataCube's code, then served no more; refused in its words (ValueError)."""
+        answer = self._release_copy(table)
+        if answer.status != 200:
+            raise ValueError(answer.body.decode('utf-8'))
+
+    def copy_of(self, table: str) -> dict[str, Any] | None:
+        """A snap's copy this engine holds, by its table: its model, runtime and relation (a grid snapped onto it reads
+        them), or None. Asked with the frames held: it takes no session lock, only this engine's own."""
+        with self._warehouse_lock:
+            return self._copies.get(table)
+
     def _release_copy(self, name: Any) -> Answer:
         """A snap's copy let go of: dropped by DataCube's code, and only then served no more."""
         with self._warehouse_lock:
@@ -990,7 +1017,7 @@ class Engine:
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
         with self._warehouse_lock:
-            self._copies.discard(name)
+            self._copies.pop(name, None)
         return Answer(200, 'application/json', b'{}')
 
     def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int,
@@ -1005,7 +1032,7 @@ class Engine:
                 self.frames.keep_file(name, made['model'])
                 # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
                 with self._warehouse_lock:
-                    self._copies.add(name)
+                    self._copies[name] = made
         except Exception as failure:
             return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
                               f'{failure}')

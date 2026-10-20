@@ -406,6 +406,15 @@ export function sampleLambda(source: ValueSpecification, n: number = SAMPLE_ROWS
   return from(source).limit(n).lambda();
 }
 
+/**
+ * WHAT A SNAP COPIES (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3, §18.8): the grid's base query, its EVERY column --
+ * not the ones its view shows, so a column shown after it is snapped answers from the copy too, and a fresh grid,
+ * which shows none, is no `select(~[])` the planner refuses. The screen's Snap and Python's ask it alike.
+ */
+export function snapPull(snapshot: Pick<CubeSnapshot, 'source' | 'columns'>): Lambda {
+  return from(snapshot.source.query).select(snapshot.columns.map((c) => c.name)).lambda();
+}
+
 /** A table a query reads straight from its store (storeTableOf), and the accessor that reads it. */
 export interface StoreTable {
   readonly database: string;

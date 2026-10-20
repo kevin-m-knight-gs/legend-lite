@@ -98,6 +98,52 @@ export function startingViews(grid?: { readonly id: string; readonly cube: strin
   };
 }
 
+/**
+ * A COPY A GRID OF THE PAGE READS (Snap: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): its base query's result, made
+ * by the page's host -- the tab's DuckDB, or Python's -- in a table of its own. The page says which copy a grid reads;
+ * the copy's model is its host's, looked up by its table (the host modelled it as it landed).
+ */
+export interface GridCopy {
+  readonly table: string;
+  /** What it is called, as the grid's plane says it ("Snap 14:02"). */
+  readonly label: string;
+  /** When it was taken: an ISO instant. */
+  readonly takenAt: string;
+  readonly rowCount: number;
+  /** The pull that made it, when it ran elsewhere (a warehouse): where, and as whom. */
+  readonly pulledBy?: CopyReceipt;
+}
+
+/**
+ * A copy as the page writes it down (§18.8), from what its host made: its table, its rows, when it was taken (its label
+ * "Snap 14:02" unless given: engine-client snap.ts defaultLabel), and the plain part of its pull's receipt. The screen's
+ * Snap and Python's (headless gridSnapped) write it alike.
+ */
+export function gridCopyOf(made: {
+  readonly table: string; readonly rowCount: number; readonly takenAt: Date; readonly label: string;
+  readonly pulledBy?: { readonly plane: CopyReceipt['plane']; readonly where: string; readonly as?: string;
+    readonly statementId?: string; readonly serverRows?: number };
+}): GridCopy {
+  const r = made.pulledBy;
+  return {
+    table: made.table, label: made.label, takenAt: made.takenAt.toISOString(), rowCount: made.rowCount,
+    ...(r ? { pulledBy: {
+      plane: r.plane, where: r.where, ...(r.as !== undefined ? { as: r.as } : {}),
+      ...(r.statementId !== undefined ? { statementId: r.statementId } : {}),
+      ...(r.serverRows !== undefined ? { serverRows: r.serverRows } : {}),
+    } } : {}),
+  };
+}
+
+/** What a copy's pull said of itself (engine-client receipt.ts Receipt: the part a page writes down). */
+export interface CopyReceipt {
+  readonly plane: 'tab' | 'warehouse' | 'engine';
+  readonly where: string;
+  readonly as?: string;
+  readonly statementId?: string;
+  readonly serverRows?: number;
+}
+
 export interface PageDocument extends PageViews {
   readonly kind: typeof PAGE_KIND;
   readonly version: number;
@@ -107,6 +153,8 @@ export interface PageDocument extends PageViews {
   readonly model?: PageModelRef;
   /** Its filters, by a class's property (page-filters.ts): none, none written. */
   readonly filters?: readonly PageFilter[];
+  /** The copy each snapped grid reads, by its cube's id (§18.8): none, none written. */
+  readonly copies?: Readonly<Record<string, GridCopy>>;
   /** Top-level fields a newer writer added, kept verbatim. */
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
@@ -130,7 +178,7 @@ export class PageNoCubeError extends PageDocumentError {
   }
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters']);
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -170,9 +218,11 @@ export function writePageOf(o: {
   readonly views: PageViews;
   readonly model?: PageModelRef;
   readonly filters?: readonly PageFilter[];
+  readonly copies?: Readonly<Record<string, GridCopy>>;
   readonly unknown?: Readonly<Record<string, unknown>>;
 }): PageDocument {
   const filters = filtersFor(o.filters ?? [], o.views.views);
+  const copies = copiesFor(o.copies ?? {}, o.cubes);
   return {
     kind: PAGE_KIND,
     version: PAGE_VERSION,
@@ -183,8 +233,32 @@ export function writePageOf(o: {
     sheets: o.views.sheets,
     ...(o.model ? { model: keptFor(o.model, o.cubes) } : {}),
     ...(filters.length > 0 ? { filters } : {}),
+    ...(Object.keys(copies).length > 0 ? { copies } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
+}
+
+/**
+ * A SAVED PAGE AS IT OPENS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): live -- a copy lasts as long as the session
+ * that made it, so a page saved with a snapped grid opens with that grid reading its live base -- and each grid that was
+ * snapped said. Only the live channel's page (a host serving its page, the page reporting it) keeps its copies.
+ */
+export function openedLive(page: PageDocument): { readonly page: PageDocument; readonly notes: readonly string[] } {
+  if (!page.copies) return { page, notes: [] };
+  const { copies, ...rest } = page;
+  const notes = Object.entries(copies).map(([cube, copy]) => {
+    const name = page.cubes.find((c) => c.id === cube)?.cube.source.name ?? cube;
+    return `${name} was snapped (${copy.label}) when the page was saved: it opens live, as a snap lasts only as long as the session that made it`;
+  });
+  return { page: rest, notes };
+}
+
+/** The copies the page's grids read, kept for the cubes it holds: a grid removed takes its copy off the page (its host
+ *  lets it go, §18.8). */
+export function copiesFor(copies: Readonly<Record<string, GridCopy>>,
+  cubes: readonly { readonly id: string }[]): Readonly<Record<string, GridCopy>> {
+  const ids = new Set(cubes.map((c) => c.id));
+  return Object.fromEntries(Object.entries(copies).filter(([cube]) => ids.has(cube)));
 }
 
 /**
@@ -318,6 +392,7 @@ export function readPage(input: string | unknown): PageDocument {
   const unknown: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) if (!KNOWN.has(k)) unknown[k] = plain(v);
   const model = raw['model'] === undefined ? undefined : readModel(plain(raw['model']), ids);
+  const copies = raw['copies'] === undefined ? undefined : readCopies(plain(raw['copies']), ids);
   let filters: readonly PageFilter[] | undefined;
   if (raw['filters'] !== undefined) {
     try {
@@ -338,7 +413,58 @@ export function readPage(input: string | unknown): PageDocument {
     sheets,
     ...(model ? { model } : {}),
     ...(filters ? { filters } : {}),
+    ...(copies ? { copies } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
+  };
+}
+
+/** The copies the page's snapped grids read, by cube (§18.8), each read strictly: none is written as no field. */
+function readCopies(raw: unknown, ids: ReadonlySet<string>): Readonly<Record<string, GridCopy>> {
+  if (!isObject(raw)) throw new PageDocumentError("'copies' is not an object");
+  const copies: Record<string, GridCopy> = {};
+  for (const [cube, copy] of Object.entries(raw)) {
+    if (!ids.has(cube)) throw new PageDocumentError(`'copies' holds one for ${cube}, which is no cube of the page`);
+    try {
+      copies[cube] = readGridCopy(copy);
+    } catch (e) {
+      throw new PageDocumentError(`the copy of ${cube}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  if (Object.keys(copies).length === 0) throw new PageDocumentError("'copies' is empty: a page with none has no field");
+  return copies;
+}
+
+/**
+ * A copy a grid reads, as a page or a command writes it (§18.8): its table, label, when it was taken (ISO) and its rows,
+ * and the pull's receipt when there was one -- each of its type, or refused in words (Error).
+ */
+export function readGridCopy(raw: unknown): GridCopy {
+  if (!isObject(raw)) throw new Error('a copy is {table, label, takenAt, rowCount, pulledBy?}');
+  const odd = Object.keys(raw).filter((k) => !['table', 'label', 'takenAt', 'rowCount', 'pulledBy'].includes(k));
+  if (odd.length > 0) throw new Error(`a copy has no ${odd.join(', ')}`);
+  const { table, label, takenAt, rowCount, pulledBy } = raw;
+  if (typeof table !== 'string' || table === '') throw new Error('a copy names its table');
+  if (typeof label !== 'string') throw new Error('a copy has a label');
+  if (typeof takenAt !== 'string' || Number.isNaN(Date.parse(takenAt))) throw new Error('a copy says when it was taken, as an instant');
+  if (typeof rowCount !== 'number' || !Number.isInteger(rowCount) || rowCount < 0) throw new Error('a copy says its rows, a whole number');
+  return { table, label, takenAt, rowCount, ...(pulledBy !== undefined ? { pulledBy: readCopyReceipt(pulledBy) } : {}) };
+}
+
+function readCopyReceipt(raw: unknown): CopyReceipt {
+  if (!isObject(raw)) throw new Error("a copy's pull is {plane, where, as?, statementId?, serverRows?}");
+  const odd = Object.keys(raw).filter((k) => !['plane', 'where', 'as', 'statementId', 'serverRows'].includes(k));
+  if (odd.length > 0) throw new Error(`a copy's pull has no ${odd.join(', ')}`);
+  const { plane, where, as, statementId, serverRows } = raw;
+  if (plane !== 'tab' && plane !== 'warehouse' && plane !== 'engine') throw new Error("a copy's pull ran in the tab, a warehouse or an engine");
+  if (typeof where !== 'string') throw new Error("a copy's pull says where it ran");
+  if (as !== undefined && typeof as !== 'string') throw new Error("a copy's pull says whom it ran as, as text");
+  if (statementId !== undefined && typeof statementId !== 'string') throw new Error("a copy's pull names its statement as text");
+  if (serverRows !== undefined && (typeof serverRows !== 'number' || !Number.isInteger(serverRows))) {
+    throw new Error("a copy's pull counts its rows in a whole number");
+  }
+  return {
+    plane, where, ...(as !== undefined ? { as } : {}), ...(statementId !== undefined ? { statementId } : {}),
+    ...(serverRows !== undefined ? { serverRows } : {}),
   };
 }
 

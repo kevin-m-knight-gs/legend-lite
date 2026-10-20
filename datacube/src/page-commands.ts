@@ -11,8 +11,8 @@ import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
 import {
-  PageDocumentError, keptFor, readLayout, writePageOf, type ChartView, type PageDocument, type PageLayout, type PageSheet,
-  type PageView,
+  PageDocumentError, keptFor, readGridCopy, readLayout, writePageOf, type ChartView, type GridCopy, type PageDocument,
+  type PageLayout, type PageSheet, type PageView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
 import { chartTitle, nextPageId } from './page-ids.ts';
@@ -69,11 +69,19 @@ export type PageCommand =
     readonly from: string | null;
   }
   /** A page filter taken off. */
-  | { readonly kind: 'removePageFilter'; readonly filter: string };
+  | { readonly kind: 'removePageFilter'; readonly filter: string }
+  /**
+   * Grid `grid` reads `copy`, a copy of its base query its host has made (Snap: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   * §18.8), in place of the one it read, if any (its host lets that one go). Not a step of the page's history: the
+   * plane is where the grid's rows are, not what it shows.
+   */
+  | { readonly kind: 'snap'; readonly grid: string; readonly copy: GridCopy }
+  /** Grid `grid` reads its live base again (Go Live): its copy, which its host lets go, off the page. */
+  | { readonly kind: 'live'; readonly grid: string };
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter',
+  'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
@@ -140,13 +148,21 @@ function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'ch
 
 /** The page written again by its own writer (page-document.ts writePageOf): its name each cube's too, its model kept
  *  for the cubes it holds, a chart's click filter for the charts it holds. */
-function rewritten(page: PageDocument, change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets' | 'filters'>>): PageDocument {
+function rewritten(page: PageDocument,
+  change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets' | 'filters' | 'copies'>>): PageDocument {
   const next = { ...page, ...change };
   return writePageOf({
     name: next.name, cubes: next.cubes, views: { views: next.views, sheets: next.sheets },
     ...(next.model ? { model: next.model } : {}), ...(next.filters ? { filters: next.filters } : {}),
-    ...(next.unknown ? { unknown: next.unknown } : {}),
+    ...(next.copies ? { copies: next.copies } : {}), ...(next.unknown ? { unknown: next.unknown } : {}),
   });
+}
+
+/** The grid view `grid` names, or a refusal: a chart reads its grid's rows, and snaps with it. */
+function gridNamed(page: PageDocument, grid: string): PageView {
+  const view = viewNamed(page, grid);
+  if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is a chart: its grid snaps, and the chart reads what it reads`);
+  return view;
 }
 
 /**
@@ -384,6 +400,18 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const { filters: _all, ...rest } = page;
       return done(rewritten(left.length > 0 ? { ...rest, filters: left } : rest, {}));
     }
+    case 'snap': {
+      const view = gridNamed(page, command.grid);
+      return done(rewritten(page, { copies: { ...(page.copies ?? {}), [view.cube]: command.copy } }));
+    }
+    case 'live': {
+      const view = gridNamed(page, command.grid);
+      const copies = page.copies ?? {};
+      if (copies[view.cube] === undefined) throw new CubeRefusal(`'${command.grid}' reads its live rows already`);
+      const left = Object.fromEntries(Object.entries(copies).filter(([cube]) => cube !== view.cube));
+      const { copies: _all, ...rest } = page;
+      return done(rewritten(Object.keys(left).length > 0 ? { ...rest, copies: left } : rest, {}));
+    }
   }
 }
 
@@ -538,6 +566,19 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'removePageFilter':
       fields(o, kind, ['filter']);
       return { kind, filter: text(o['filter'], 'a page filter') };
+    case 'snap': {
+      fields(o, kind, ['grid', 'copy']);
+      let copy: GridCopy;
+      try {
+        copy = readGridCopy(o['copy']);
+      } catch (e) {
+        throw new CubeRefusal(e instanceof Error ? e.message : String(e));
+      }
+      return { kind, grid: text(o['grid'], 'a grid'), copy };
+    }
+    case 'live':
+      fields(o, kind, ['grid']);
+      return { kind, grid: text(o['grid'], 'a grid') };
     default:
       throw new CubeRefusal(`'${kind}' is not a page's command: ${PAGE_COMMAND_KINDS.join(', ')}`);
   }

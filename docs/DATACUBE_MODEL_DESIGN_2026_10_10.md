@@ -1223,7 +1223,10 @@ removing Python's `mode='snapped'` left Python no way to read a frame once.
    asked of DataCube by Python (headless). The screen's Snap is: the host makes the copy, then the `snap` command;
    Go Live: the `live` command, then the host lets the copy go.
 3. **Headless grid calls read the copy** when the page says the grid is snapped: Python's grid spec's base is the
-   copy's model and accessor, so `view`, `to_pandas`, export, charts and Create a Class read it.
+   copy's model and accessor, so `view`, `to_pandas`, export, edits and charts read it -- and a snapped grid is checked
+   against its copy, never reopened over its frames until it goes live. What it is a copy OF stays its live base: its
+   `relation`, its pull, and Create a Class (a class maps the tables its rows are read from; a copy lasts only as long
+   as its session).
 4. **Python**: `grid.snap()`, `grid.live()`, `grid.snapped` (its label, when, its rows; None when live), and
    `page.grid(df, snap=True)` / `ll.show(df, snap=True)`: a frame read once, by its grid's Snap. A frame stays
    registered as it is, so another grid over it can stay live.
@@ -1238,4 +1241,14 @@ removing Python's `mode='snapped'` left Python no way to read a frame once.
 Steps: A, the commands, the document's copies and Python's headless Snap (`grid.snap()` reading the copy in every
 grid call); B, the page following a snap made in Python, and the screen's Snap and Go Live as the commands; C, copies
 let go with their grid and page, and a page opened from a save opening live.
+
+**As built, step A (2026-10-20).** page-commands.ts `snap`/`live`; page-document.ts `copies` (read strictly:
+readGridCopy), gridCopyOf, copiesFor (a grid removed takes its copy off the page; a frozen chart kept for its cube
+keeps it), openedLive; query.ts snapPull (the screen's Snap and Python's ask it alike); headless gridSnapPull,
+gridSnapped, pageOpenedLive. Python: `grid.snap()` (headless pull, `Engine.snap_copy`, the `snap` command; the copy
+let go if the page refuses it), `grid.live()` (the `live` command, then the grid opened over its frames as they are
+now), `grid.snapped`, `page.grid(..., snap=True)`, `page.join(..., snap=True)`; a copy no grid reads any more (gone
+live, snapped again, removed) let go once the page is served without it (`Page._release`); `Page.load` opens live,
+each snapped grid said. `ll.show(df, snap=True)` -- a cube's tab, no page document -- comes with step B, as the tab's
+own Snap on open.
 

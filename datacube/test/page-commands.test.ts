@@ -11,7 +11,7 @@ import {
   PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, idsOf, nextPageId, readPageCommand,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
-import type { ChartView, PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
@@ -25,6 +25,8 @@ const refused = (f: () => unknown, words: RegExp): void => {
 };
 const sheet = (page: PageDocument, id: string) => page.sheets.find((s) => s.id === id)!;
 const view = (page: PageDocument, id: string) => page.views.find((v) => v.id === id);
+// a copy as a host's Snap writes it down (page-document.ts gridCopyOf)
+const SNAP = gridCopyOf({ table: 'snap', rowCount: 3, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
 
 describe('ids and titles: one allocator, after every id the page has held', () => {
   it('a new id follows the largest of its kind held, and a removed one is not given out again', () => {
@@ -152,6 +154,55 @@ describe('each command gives the page the screen\'s rules give it', () => {
   });
 });
 
+describe('snapped or live is page state: a snap and a go-live are page commands (design §18.8)', () => {
+  const cube = (id: string) => view(trades, id)!.cube;
+
+  it('a snap says the copy its grid reads, by its cube; another snap replaces it; live takes it off', () => {
+    const snapped = apply({ kind: 'snap', grid: 'grid', copy: SNAP });
+    assert.deepEqual(snapped.page.copies, { [cube('grid')]: SNAP });
+    const again = { ...SNAP, table: 'snap_2' };
+    assert.deepEqual(apply({ kind: 'snap', grid: 'grid', copy: again }, snapped).page.copies, { [cube('grid')]: again },
+      'one copy a grid: the one it read before is its host\'s to let go');
+    const both = apply({ kind: 'snap', grid: 'grid-2', copy: again }, snapped);
+    const live = apply({ kind: 'live', grid: 'grid' }, both);
+    assert.deepEqual(live.page.copies, { [cube('grid-2')]: again });
+    assert.equal(apply({ kind: 'live', grid: 'grid-2' }, live).page.copies, undefined, 'none, no field');
+    // the page's views, sheets and cubes are as they were: where its rows are is no step of what it shows
+    assert.deepEqual({ ...snapped.page, copies: undefined }, { ...trades, copies: undefined });
+  });
+
+  it('a chart snaps with its grid; a grid live already, or none, is refused in words', () => {
+    refused(() => apply({ kind: 'snap', grid: 'chart', copy: SNAP }), /'chart' is a chart: its grid snaps/);
+    refused(() => apply({ kind: 'live', grid: 'grid' }), /'grid' reads its live rows already/);
+    refused(() => apply({ kind: 'snap', grid: 'grid-9', copy: SNAP }), /grid-9/);
+  });
+
+  it('a grid removed takes its copy off the page; a frozen chart kept for its cube keeps it', () => {
+    const snapped = apply({ kind: 'snap', grid: 'grid-2', copy: SNAP });
+    // grid-2's chart is frozen: its cube stays for it, and the copy it reads with it
+    assert.deepEqual(apply({ kind: 'removeTile', tile: 'grid-2' }, snapped).page.copies, { [cube('grid-2')]: SNAP });
+    const onGrid = apply({ kind: 'snap', grid: 'grid', copy: SNAP });
+    assert.equal(apply({ kind: 'removeTile', tile: 'grid' }, onGrid).page.copies, undefined);
+  });
+
+  it('the page writes its copies and reads them strictly; a saved page opens live, each snapped grid said', () => {
+    const page = apply({ kind: 'snap', grid: 'grid', copy: { ...SNAP, pulledBy: { plane: 'warehouse', where: 'acme', as: 'ana', serverRows: 3 } } }).page;
+    assert.deepEqual(readPage(JSON.parse(JSON.stringify(page))), page);
+    const raw = JSON.parse(JSON.stringify(page)) as Record<string, unknown>;
+    const bad = (copies: unknown, words: RegExp) => assert.throws(() => readPage({ ...raw, copies }), words);
+    bad({ nope: SNAP }, /holds one for nope, which is no cube of the page/);
+    bad({}, /'copies' is empty/);
+    bad({ [cube('grid')]: { ...SNAP, rows: 3 } }, /a copy has no rows/);
+    bad({ [cube('grid')]: { ...SNAP, takenAt: 'yesterday' } }, /says when it was taken, as an instant/);
+    bad({ [cube('grid')]: { ...SNAP, pulledBy: { plane: 'moon', where: '' } } }, /ran in the tab, a warehouse or an engine/);
+    const opened = openedLive(page);
+    assert.equal(opened.page.copies, undefined);
+    assert.deepEqual(opened.notes, [`${trades.cubes.find((c) => c.id === cube('grid'))!.cube.source.name} was snapped `
+      + '(Snap 14:02) when the page was saved: it opens live, as a snap lasts only as long as the session that made it']);
+    assert.deepEqual(openedLive(trades), { page: trades, notes: [] });
+  });
+});
+
 describe('a page command read from JSON is the same command, and what DataCube does not know is refused', () => {
   const spec = (view(trades, 'chart') as ChartView).spec;
   const every: PageCommand[] = [
@@ -172,6 +223,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     // a page filter's two (applied over a page of class grids: test/page-filters.test.ts)
     { kind: 'setPageFilter', id: 'filter-1', class: 'trades::domain::Trade', condition: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }, from: null },
     { kind: 'removePageFilter', filter: 'filter-1' },
+    { kind: 'snap', grid: 'grid', copy: SNAP },
+    { kind: 'live', grid: 'grid' },
   ];
 
   it('every kind, through JSON and back', () => {
@@ -184,6 +237,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     refused(() => readPageCommand({ kind: 'removeTile', tiles: 'x' }), /a 'removeTile' command takes tile, not tiles/);
     refused(() => readPageCommand({ kind: 'moveTile', tile: 'x', sheet: 'sheet-1', columns: 0 }), /columns is a whole number/);
     refused(() => readPageCommand({ kind: 'renameTile', tile: 'x', title: 3 }), /a tile's title is text/);
+    // a copy, by the page's own reader
+    refused(() => readPageCommand({ kind: 'snap', grid: 'grid', copy: { ...SNAP, rowCount: -1 } }), /a copy says its rows/);
     // a grid's cube, read by its own reader (the phase 1 audit's 3)
     refused(() => readPageCommand({ kind: 'addGrid', document: { bogus: 1 }, sheet: 'sheet-1', near: null, title: null, columns: null }),
       /cannot read saved cube/);

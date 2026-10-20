@@ -5,7 +5,8 @@
 
 import { CubeDocumentError, readCube } from '../cube-document.ts';
 import {
-  PageDocumentError, PageNoCubeError, pageToJson, readPage, startingViews, writePageOf,
+  gridCopyOf, openedLive, PageDocumentError, PageNoCubeError, pageToJson, readPage, startingViews, writePageOf,
+  type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, readPageCommand } from '../page-commands.ts';
@@ -13,7 +14,7 @@ import { CubeRefusal } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
 import { draftFrom, type GivenFilter } from './grid.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
-import type { PageDocument } from '../page-document.ts';
+import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
 /**
  * A page document (JSON text) as DataCube reads it and would write it again. JSON: `{page}`, the page's text as
@@ -117,10 +118,39 @@ export function pageFilter(page: string, given: string): string {
 function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
-  const { kind, version, name, views, sheets, model, filters, ...unknown } = rest;
+  const { kind, version, name, views, sheets, model, filters, copies, ...unknown } = rest;
   return {
     kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}), ...(filters !== undefined ? { filters } : {}),
+    // the copies its snapped grids read (§18.8): a field of the page, which its snap and live commands edit
+    ...(copies !== undefined ? { copies } : {}),
     cubes: cubes.map((c, i) => ({ id: c.id, cube: readCube(exact[i]!.cube) })),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   } as unknown as PageDocument;
+}
+
+/**
+ * A SNAP AS ITS COMMAND (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): grid `grid` reads the copy its host made
+ * (`made`: the host's answer -- its table, its rows, and the pull's receipt when it ran elsewhere), taken now, written
+ * down as the screen's Snap writes it (page-document.ts gridCopyOf). JSON: the page command, for pageApply.
+ */
+export function gridSnapped(grid: string, made: string): string {
+  const answer = JSON.parse(made) as {
+    table: string; rowCount: number;
+    pulledBy?: { plane: 'tab' | 'warehouse' | 'engine'; where: string; as?: string; statementId?: string; serverRows?: number };
+  };
+  const takenAt = new Date();
+  const copy = gridCopyOf({
+    table: answer.table, rowCount: answer.rowCount, takenAt, label: defaultLabel(takenAt),
+    ...(answer.pulledBy ? { pulledBy: answer.pulledBy } : {}),
+  });
+  return JSON.stringify({ kind: 'snap', grid, copy });
+}
+
+/**
+ * A SAVED PAGE AS IT OPENS (page-document.ts openedLive, §18.8): a page saved with snapped grids opens live, each said.
+ * `text`: a page DataCube reads (pageRead). JSON: `{page, notes}`, the page as its document's text.
+ */
+export function pageOpenedLive(text: string): string {
+  const opened = openedLive(readPage(text));
+  return JSON.stringify({ page: pageToJson(opened.page), notes: opened.notes });
 }

@@ -193,6 +193,14 @@ class _Session:
                 self._headless = Headless(bundle(), connection=self.frames.connection)
             return self._headless
 
+    def copy_of(self, table: str) -> dict[str, Any] | None:
+        """A snap's copy this session's engine holds, by its table (its model, runtime and relation, as DataCube
+        modelled it as it landed), or None -- none made yet, no engine yet. Asked with the frames held (a snapped
+        grid's base, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): it takes no session lock, which a frame's
+        registering takes before the frames', only the engine's own."""
+        engine = self._engine
+        return None if engine is None else engine.copy_of(table)
+
     def web(self) -> WebServer:
         """The engine over HTTP, for the tabs: started by the first."""
         with self._lock:

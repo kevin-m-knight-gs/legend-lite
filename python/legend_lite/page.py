@@ -15,7 +15,7 @@ in DataCube, said in code (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md).
     page.save('q3.page.json')           # DataCube's own page document (Export > Page File writes the same)
     again = ll.Page.load('q3.page.json', frames={'trades': trades_df})
 
-A page IS its document: DataCube's page document (version 5; datacube/src/page-document.ts), the one copy of it. Its
+A page IS its document: DataCube's page document (its own version; datacube/src/page-document.ts), the one copy of it. Its
 grids, charts and sheets are handles onto it -- each its id -- whose methods edit it in place, each edit checked at the
 line that makes it (a column the frame has, a calculated column the compiler types, a word DataCube's vocabulary has).
 So whatever DataCube writes in a page is kept as it is, read back from where it is open by taking the open page's
@@ -264,11 +264,13 @@ class Grid(Tile):
         session = self._page._session
         return session.headless(), session.frames
 
-    def _spec(self, engine: Any, frames: Any) -> dict[str, Any]:
+    def _spec(self, engine: Any, frames: Any, live: bool = False) -> dict[str, Any]:
         """This grid's cube and its base, as the bundle's grid functions take them (the frames held still), asked of
         ``engine`` -- got before the frames were held (``_headless``): getting it takes the session's lock, which a
-        frame's registering takes before the frames', so asking for it here, the frames held, could wait on it forever."""
-        return _cube_spec(self._cube, frames, engine)
+        frame's registering takes before the frames', so asking for it here, the frames held, could wait on it forever.
+        A snapped grid's base is its copy (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), unless ``live``: what it is
+        a copy of (what a snap pulls, what a class is made of)."""
+        return _cube_spec(self._cube, frames, engine, None if live else self._page._copy_base(self._view['cube']))
 
     def view(self) -> GridView:
         """What the grid shows, as DataCube computes it: its columns and rows, their groups and totals, its pivot, and
@@ -287,15 +289,15 @@ class Grid(Tile):
     def relation(self) -> str:
         """Its rows at their finest level, as Pure: filtered and extended by its calculated columns, grouped by its
         innermost group when it is grouped (a flat grid's rows as they are) -- the relation DataCube's Create a Class
-        makes a class of."""
+        makes a class of: over its live base, a snapped grid's too (its copy lasts only as long as this session)."""
         engine, frames = self._headless()
         with frames.serving():
-            return engine.call('gridRelation', self._spec(engine, frames))
+            return engine.call('gridRelation', self._spec(engine, frames, live=True))
 
     def to_pandas(self) -> Any:
         """Every row of ``relation``, as a pandas DataFrame: DataCube says the query, Python plans it over the grid's base
-        model (a frame's, a join's of frames: what DataCube says it is over) and its own database answers it, typed by
-        the plan, the rows coming to Python from there (never through DataCube's engine)."""
+        model (a frame's, a join's of frames: what DataCube says it is over; a snapped grid's, its copy's) and its own
+        database answers it, typed by the plan, the rows coming to Python from there (never through DataCube's engine)."""
         from . import compiler
         from .frames import to_pandas
         engine, frames = self._headless()
@@ -318,7 +320,10 @@ class Grid(Tile):
         # named as the window names it: by its source's name (a frame's, a join's title)
         source = self._cube['source']['name']
         with frames.serving():
-            asked = _json.loads(engine.call('gridClass', self._spec(engine, frames), {'source': source, 'page': self._page.name}))
+            # of its live base, a snapped grid's too: a class maps the tables its rows are read from, never a copy, which
+            # lasts only as long as this session (§18.8)
+            asked = _json.loads(engine.call('gridClass', self._spec(engine, frames, live=True),
+                                            {'source': source, 'page': self._page.name}))
         if 'refused' in asked:
             raise _NotATable(f'{source!r} cannot be a class: {asked["refused"]}')
         if 'problems' in asked:
@@ -503,9 +508,57 @@ class Grid(Tile):
 
     def update(self, frame: Any) -> None:
         """Another frame for this grid (one reading a single frame: ``frame``): a page showing it queries it again, and
-        -- its columns changed -- opens again over them, every grid reading the frame with it."""
+        -- its columns changed -- opens again over them, every grid reading the frame with it (a snapped one reads its
+        copy still, until it goes live)."""
         _ = self._view
         self._page._update(self.frame, frame)
+
+    # -- Snap (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): where its rows are read from, as page state ----------------
+
+    def snap(self) -> Grid:
+        """Its rows read once: its base query (its every column, as DataCube's Snap pulls it: headless gridSnapPull)
+        copied by this session's engine -- as a tab's Snap copies one through it (engine.py ``snap_copy``), a
+        warehouse table's pulled on the warehouse -- and the grid reading the copy from then on (the page's ``snap``
+        command, written as DataCube's Snap writes it: headless gridSnapped): every call on it, and the page shown,
+        read the copy, whatever its frames do meanwhile. Snapped already, it is snapped again (the copy taken anew,
+        the old one let go). Refused in the engine's words (a copy past the snap limit, say), the grid as it was."""
+        _ = self._view
+        page, session = self._page, self._page._session
+        engine, frames = self._headless()
+        with frames.serving():
+            spec = self._spec(engine, frames, live=True)
+            pull = engine.call('gridSnapPull', spec)
+        # copied outside the frames: the engine holds them itself, on its own thread
+        made = session.engine().snap_copy(spec['model'], spec['runtime'], pull)
+        try:
+            with page._batch(tell=False):
+                page._apply_page([json.loads(engine.call('gridSnapped', self._id, _json.dumps(made)))], 'a snap')
+        except BaseException:
+            # the copy belongs to no grid: let go
+            session.engine().release_copy(made['table'])
+            raise
+        # told once it is the grid's: a copy it read before let go then (_changed)
+        page._changed()
+        return self
+
+    def live(self) -> Grid:
+        """Its rows read live again: the page's ``live`` command (as DataCube's Go Live), its copy let go, and the grid
+        opened over its frames as they are now (what changed meanwhile said, as a load says it). Refused when it reads
+        them live already."""
+        _ = self._view
+        page = self._page
+        with page._batch():
+            page._apply_page([{'kind': 'live', 'grid': self._id}], 'go live')
+            page._current(self._view['cube'], 3)
+        return self
+
+    @property
+    def snapped(self) -> dict[str, Any] | None:
+        """The copy it reads when it is snapped, as the page writes it down -- its ``label`` ("Snap 14:02"), when it was
+        ``takenAt`` (an ISO instant), its ``rowCount``, its ``table``, and its ``pulledBy`` when it was pulled from a
+        warehouse -- or None: it reads its rows live."""
+        copy = self._page._doc.get('copies', {}).get(self._view['cube'])
+        return None if copy is None else _copied(copy)
 
     def __repr__(self) -> str:
         return f'<Grid {self._id}>'
@@ -547,18 +600,23 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
     session = page._session
     engine, frames = session.headless(), session.frames
     with frames.serving():
-        made = _json.loads(engine.call('gridChart', _cube_spec(page._cube(cube), frames, engine), _json.dumps(given),
-                                       None if before is None else _json.dumps(before)))
+        made = _json.loads(engine.call('gridChart', _cube_spec(page._cube(cube), frames, engine, page._copy_base(cube)),
+                                       _json.dumps(given), None if before is None else _json.dumps(before)))
     if made['problems']:
         raise ValueError(' '.join(made['problems']))
     return made['spec']
 
 
-def _cube_spec(cube: Mapping[str, Any], frames: Any, engine: Any) -> dict[str, Any]:
+def _cube_spec(cube: Mapping[str, Any], frames: Any, engine: Any, copy: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """A cube document and its base, as the bundle's grid functions take them (the frames held still): the base as
     DataCube says it is over the frames this session serves (headless gridBase -- a frame's own model, a join's of
-    frames one model of them; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), never by the cube's kind here."""
+    frames one model of them; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), never by the cube's kind here -- or, its
+    grid snapped, its ``copy``: the model DataCube wrote for the copy as it landed, and the relation that reads it
+    (§18.8). The cube document never carries its base, so one opened over its copy is written as the live one is."""
     text = _json.dumps(cube)
+    if copy is not None:
+        return {'cube': text, 'model': copy['model'], 'runtime': copy['runtime'],
+                'relation': _json.dumps({'_type': 'lambda', 'parameters': [], 'body': [copy['source']]})}
     return {'cube': text, **json.loads(engine.call('gridBase', text, frames.hosted()))}
 
 
@@ -817,6 +875,9 @@ class Page:
         self._quiet = 0
         # the saved page it was last saved as (``save()``): its id, or None
         self._saved: str | None = None
+        # the copies its grids no longer read (a grid gone live, snapped again or removed), each its table: let go once
+        # the page is served without them (_changed), so a page open on it never reads one gone
+        self._let_go: list[str] = []
 
     # -- the page's model (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): its classes, into a project ----------------------
 
@@ -988,7 +1049,7 @@ class Page:
     def grid(self, frame: Any, *, name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
              measures: Mapping[str, str] | Sequence[tuple[str, str]] | None = None, filter: Any = None,
              sort: Sequence[tuple[str, str]] = (), dimensions: Sequence[str] = (), title: str | None = None,
-             sheet: Sheet | None = None) -> Grid:
+             sheet: Sheet | None = None, snap: bool = False) -> Grid:
         """A grid over ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one), served
         under ``name`` (``frame``, ``frame_2``, ... unless given), in a band of its own at the bottom of ``sheet`` (the
         first unless given). Each query reads the frame as it is then; the grid's Snap keeps its rows as they are. A
@@ -998,7 +1059,8 @@ class Page:
         aggregate)]``), ``filter`` and ``sort``: as ``group``, ``pivot``, ``measure``, ``filter`` and ``sort`` say;
         ``dimensions``: columns made dimensions first (``column(name, kind='dimension')``: a number is a measure until
         then, and only a dimension is grouped or pivoted on) -- all checked before the grid is on the page, so a
-        mistake leaves the page and the frames as they were."""
+        mistake leaves the page and the frames as they were. ``snap``: the frame read once, by the grid's Snap
+        (``grid.snap()``), as it is now -- the frame stays served as it is, so another grid over it can read it live."""
         if sheet is not None and sheet._page is not self:
             raise ValueError(f'{sheet!r} is another page\'s')
         target = self.sheets[0] if sheet is None else sheet
@@ -1047,6 +1109,9 @@ class Page:
                     grid._apply(commands)
                 if filter is not None:
                     grid.filter(filter)
+                if snap:
+                    # its query as set, copied: the copy holds every column of its base, so a later edit reads it too
+                    grid.snap()
         except BaseException:
             # the page as it was (the grid, its id and the commands it was given gone), and a frame served for it served
             # no more
@@ -1063,7 +1128,7 @@ class Page:
         return grid
 
     def join(self, mine: Grid, theirs: Grid, how: Mapping[str, Any], *, title: str | None = None,
-             sheet: Sheet | None = None) -> Grid:
+             sheet: Sheet | None = None, snap: bool = False) -> Grid:
         """A grid of ``mine`` joined with ``theirs`` (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17), as the tab's Join…
         makes one: each grid's rows at their finest level, as each is now, combined as ``how`` says -- DataCube's own
         join (join-how.ts), read strictly: ``{'form': 'join', 'kind': 'inner' | 'left' | 'right' | 'full', 'on':
@@ -1072,7 +1137,8 @@ class Page:
         'asOf', 'match': {...}, 'on': ..., 'prefix', 'keep'}`` or ``{'form': 'append'}``. Written by DataCube (headless
         joinCube) over the frames the two read, judged by the compiler -- a refusal in its words, the page as it was --
         and added on ``sheet`` (the first unless given) by the page command every grid is added by. Each input is kept
-        by value: the join does not follow later edits of the grids joined."""
+        by value: the join does not follow later edits of the grids joined. ``snap``: the join read once, by its grid's
+        Snap (``grid.snap()``); refused, the page is as it was."""
         for g in (mine, theirs):
             if g._page is not self:
                 raise ValueError(f'{g!r} is another page\'s')
@@ -1094,11 +1160,25 @@ class Page:
             }), self.name, len(self._doc['cubes']) + 1))
         for note in made['notes']:
             warnings.warn(note, stacklevel=2)
+        was = (self._doc, set(self._ids), len(self._page_commands),
+               None if self._unserved is None else list(self._unserved))
         with self._batch(tell=False):
             applied = self._apply_page([{'kind': 'addGrid', 'document': _plain(_json.loads(made['cube'])),
                                          'sheet': target.id, 'near': None, 'title': title, 'columns': None}], 'a title')
+        grid = self._tile(applied[0]['id'], Grid)
+        if snap:
+            try:
+                with self._batch(tell=False):
+                    grid.snap()
+            except BaseException:
+                # the page as it was: the join, its id and its command gone
+                self._doc, self._ids = was[0], was[1]
+                del self._page_commands[was[2]:]
+                self._unserved = was[3]
+                self._forget({grid.id})
+                raise
         self._changed()
-        return self._tile(applied[0]['id'], Grid)
+        return grid
 
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
@@ -1147,7 +1227,7 @@ class Page:
     # -- the document --------------------------------------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
-        """The page as DataCube's page document (version 5), a copy: what is done to it is not done to the page. A
+        """The page as DataCube's page document (its own version), a copy: what is done to it is not done to the page. A
         calculated column's numbers are exact (``Decimal``), as the compiler writes them: ``to_json`` and ``save`` write
         them so. It is the page's document as Python holds it; ``to_json`` and ``save`` write it as DataCube writes it
         (its reader's, headless: a chart's options filled, a key DataCube does not know left out)."""
@@ -1192,7 +1272,8 @@ class Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
         cube's ``{"_type": "frame", "name": ...}``), each served: the document as DataCube reads it (its own version
         only; refused in its words when DataCube would not open it), each cube as DataCube opens it
-        over its frame as it is now -- what DataCube leaves out of it warned, in its words."""
+        over its frame as it is now -- what DataCube leaves out of it warned, in its words. A grid saved snapped opens
+        live, said: its copy lasted only as long as the session that made it (``grid.snap()`` takes one anew)."""
         from .datacube import _current
         # read on the session the page will be made on (Page() takes the current one)
         doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'),
@@ -1205,6 +1286,12 @@ class Page:
         page = cls(doc['name'])
         for name in wanted:
             page._session.register(frames[name], name)
+        # live: a copy lasts only as long as the session that made it, so a page saved with a snapped grid opens with it
+        # reading its frames, each said (DataCube's own rule, headless pageOpenedLive: §18.8)
+        opened = json.loads(session.headless().call('pageOpenedLive', _json.dumps(doc)))
+        for note in opened['notes']:
+            warnings.warn(note, stacklevel=2)
+        doc = _plain(_json.loads(opened['page']))
         page._doc = doc
         page._ids |= _ids(doc)
         # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out here
@@ -1262,11 +1349,23 @@ class Page:
         if not self._shown:
             # nothing open on it to move: the page it is first shown as is served whole
             self._unserved = []
-            return
-        commands, self._unserved = self._unserved, []
-        version = self._session.engine().serve_page(self._key, self._doc, sorted(self._frames()), commands)
-        for view in list(self._shown):
-            view._page_moved(version)
+        else:
+            commands, self._unserved = self._unserved, []
+            version = self._session.engine().serve_page(self._key, self._doc, sorted(self._frames()), commands)
+            for view in list(self._shown):
+                view._page_moved(version)
+        self._release()
+
+    def _release(self) -> None:
+        """The copies its grids no longer read let go of by the engine that made them (§18.8: a copy belongs to its
+        grid on its page); one the engine could not drop said, and kept to let go again."""
+        gone, self._let_go = self._let_go, []
+        for table in gone:
+            try:
+                self._session.engine().release_copy(table)
+            except ValueError as refused:
+                warnings.warn(f'a snap\'s copy, {table}, was not let go of: {refused}', stacklevel=4)
+                self._let_go.append(table)
 
     class _Batch:
         def __init__(self, page: Page, tell: bool) -> None:
@@ -1278,9 +1377,12 @@ class Page:
 
         def __exit__(self, kind: Any, *_: Any) -> None:
             self.page._quiet -= 1
-            # told once, when it went through; a change that raised tells nothing
+            # told once, when it went through; a change that raised tells nothing, but lets go of the copies a part of it
+            # that went through left no grid reading
             if kind is None and self.tell:
                 self.page._changed()
+            elif kind is not None and not self.page._quiet:
+                self.page._release()
 
     def _batch(self, tell: bool = True) -> Page._Batch:
         """Several changes, told as one (``tell=False``: not told, what changed not being on the page yet)."""
@@ -1303,6 +1405,10 @@ class Page:
         page = _plain(_json.loads(said['page']))
         if check is not None:
             check(page)
+        # a copy no grid reads any more (gone live, snapped again, its grid removed): let go once the page is served
+        # without it
+        reads = {c['table'] for c in page.get('copies', {}).values()}
+        self._let_go.extend(c['table'] for c in self._doc.get('copies', {}).values() if c['table'] not in reads)
         self._doc = page
         self._ids = set(said['held'])
         applied = [_plain(c) for c in said['commands']]
@@ -1337,6 +1443,20 @@ class Page:
 
     def _cube(self, id: str) -> dict[str, Any]:
         return next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
+
+    def _copy_base(self, cube: str) -> dict[str, Any] | None:
+        """The copy cube ``cube`` (its id) reads when its grid is snapped (§18.8) -- its model, runtime and relation, as
+        the engine holding it modelled it -- or None: it reads its rows live. A copy the page names that this session
+        no longer holds is refused, never read live in its place. Asked with the frames held: it takes no session lock."""
+        copy = self._doc.get('copies', {}).get(cube)
+        if copy is None:
+            return None
+        held = self._session.copy_of(copy['table'])
+        if held is None:
+            name = self._cube(cube)['source']['name']
+            raise ValueError(f'{name}: its snap ({copy["label"]}) is no longer held by this session: grid.live() reads '
+                             'its rows live again, grid.snap() snaps it anew')
+        return held
 
     def _served(self) -> list[str]:
         return [n for n in self._frames() if n in self._session.frames]
@@ -1373,6 +1493,9 @@ class Page:
         leaves out. Whether it was taken. Asked when a page is loaded (``load``: its frames served), when a frame is
         served again (``_update``), and before a filter, a calculated column or a chart is checked against it
         (``_current``: a frame changed in place)."""
+        if c['id'] in self._doc.get('copies', {}):
+            # snapped: it reads its copy, which its frames do not move (it is opened over them again when it goes live)
+            return False
         label = c['cube']['source']['name']
         cube, notes, changed = self._opened_cube(c['cube'])
         # its frames' columns as they were, nothing left out: the cube stands as it is (opened again, the same)

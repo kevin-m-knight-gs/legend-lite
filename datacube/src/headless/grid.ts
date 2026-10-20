@@ -37,7 +37,7 @@ import type { GridDraft } from '../grid-edits.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
-import { classBasis, classLambda, type ClassBasis } from '../query.ts';
+import { classBasis, classLambda, snapPull, type ClassBasis } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
@@ -494,6 +494,15 @@ export async function gridView(spec: GridSpec): Promise<string> {
 /** The grid's rows at their finest level as Pure, as Create a Class makes its class of them (classLambda). */
 export async function gridRelation(spec: GridSpec): Promise<string> {
   return using(spec, async ({ planner, state }) => planner.compose(classLambda(state.snapshot), 'STANDARD'));
+}
+
+/**
+ * WHAT A SNAP OF THE GRID COPIES (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): its base query, its every column, as
+ * the screen's Snap copies it (query.ts snapPull) -- the protocol's JSON, for its host to copy where the rows are (Python:
+ * engine.py snap_copy). `spec` is the grid over its live base.
+ */
+export async function gridSnapPull(spec: GridSpec): Promise<string> {
+  return using(spec, async ({ state }) => toJson(snapPull(state.snapshot)));
 }
 
 /**

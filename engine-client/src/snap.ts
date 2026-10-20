@@ -480,7 +480,8 @@ export class HostSnaps implements Snaps {
   }
 }
 
-function defaultLabel(at: Date): string {
+/** A snap's label when none is given: "Snap 14:02", its time on this machine's clock. */
+export function defaultLabel(at: Date): string {
   const hh = String(at.getHours()).padStart(2, '0');
   const mm = String(at.getMinutes()).padStart(2, '0');
   return `Snap ${hh}:${mm}`;
