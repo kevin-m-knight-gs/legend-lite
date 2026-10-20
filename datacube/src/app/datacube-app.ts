@@ -15,7 +15,7 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import { gridCapped, type CubeDocument, type JoinInput, type JoinSource } from '../cube-document.ts';
+import { gridCapped, type CubeDocument } from '../cube-document.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
@@ -39,9 +39,8 @@ import { EXAMPLE_PAGES } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
-import { catalogColumns } from '../upload.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
-import type { GridRows, Sample, Services, Versions } from './services.ts';
+import type { Sample, Services, Versions } from './services.ts';
 import { applyLive, followBy } from './live-follow.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 
@@ -1145,85 +1144,17 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page.addGrid(opened.make, { near: cube });
       })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
-    // JOIN… (§17.5): only where the page plans and runs its own SQL, its grids' tables in its own database (§17.3)
-    if (services.engine.local) joinGrid = (cube) => {
-      void (async () => {
-        if (cube === undefined) return;
-        const shown = placed;
-        /** A grid of the page as a join reads it: its result as it is now, and the tables it reads. */
-        const inputOf = (id: string): { readonly input: JoinInput; readonly tables: readonly string[] } | undefined => {
-          const place = sources.place(id);
-          const doc = page.grid(id)?.cubeDocument(page.title);
-          if (!place?.tables || !doc) return undefined;
-          return { input: { name: page.titleOf(id) ?? place.label ?? doc.source.name, source: doc.source, query: doc.query }, tables: place.tables };
-        };
-        const mine = inputOf(cube);
-        if (!mine) throw new Error('this grid reads no table of this tab\'s database');
-        const others = new Map(page.grids.filter((id) => id !== cube).flatMap((id) => {
-          const i = inputOf(id);
-          return i ? [[id, i] as const] : [];
-        }));
-        if (others.size === 0) {
-          throw new Error('a join needs another grid on the page over a file or a remote file: add one first (New \u25B8 Data Source\u2026)');
-        }
-        const [{ joinDialog }, { openInputs, summaryCounts }, { joinSummary, joinTitle }] = await Promise.all([
-          import('../ui/join-dialog.ts'), import('../join-open.ts'), import('../join.ts')]);
-        const local = services.engine.local!;
-        // the two inputs over one model, read again only when their grid changes; its planner let go with the window
-        let read: { their: string; inputs: Awaited<ReturnType<typeof openInputs>>; rows: GridRows } | undefined;
-        const release = (): void => { read?.rows.planner?.dispose?.(); read = undefined; };
-        const inputs = async (their: string) => {
-          if (read?.their === their) return read.inputs;
-          release();
-          const other = others.get(their)!;
-          let rows: GridRows | undefined;
-          const opened = await openInputs(mine.input, other.input, {
-            tables: [...mine.tables, ...other.tables],
-            models: local.tables,
-            catalog: (table) => catalogColumns(local.engine, local.tables, table),
-            databaseType: local.engine.databaseType,
-            typer: (model, runtime) => {
-              rows = services.engine.rows(model, runtime);
-              return rows.planner!;
-            },
-          });
-          read = { their, inputs: opened, rows: rows! };
-          return opened;
-        };
-        try {
-          await joinDialog(document, {
-            mine: mine.input.name,
-            others: [...others].map(([id, i]) => ({ id, name: i.input.name })),
-            inputs,
-            parse: (text) => local.planner.parse(text),
-            summary: async (their, how) => {
-              const opened = await inputs(their);
-              const rows = read!.rows;
-              return summaryCounts(joinSummary(opened.left, opened.right, how),
-                async (query) => rows.engine!.run((await rows.planner!.plan(query)).sql, 0));
-            },
-            apply: async (their, how) => {
-              const other = others.get(their)!;
-              const source: JoinSource = {
-                _type: 'join', name: joinTitle(how, mine.input.name, other.input.name), left: mine.input, right: other.input, how, columns: [],
-              };
-              const opened = await sources.openedJoin(source, {
-                capped: gridCapped(page.cubes.length + 1), tables: [...mine.tables, ...other.tables],
-              });
-              if (!opened) return;
-              // the page put in its place meanwhile (another opened, a blank page): no grid of this one
-              if (placed !== shown) {
-                await opened.discard?.();
-                return;
-              }
-              page.addGrid(opened.make, { near: cube });
-              if (opened.notes.length > 0) library?.say(opened.notes.join('; '), 'warn');
-            },
-          });
-        } finally {
-          release();
-        }
-      })().catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
+    // JOIN… (§17.5): only where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); its
+    // flow fetched with the first Join… (app/join-flow.ts)
+    const localEngine = services.engine.local;
+    if (localEngine) joinGrid = (cube) => {
+      if (cube === undefined) return;
+      const shown = placed;
+      void import('./join-flow.ts').then(({ joinFlow }) => joinFlow({
+        cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } },
+        stillShown: () => placed === shown,
+        say: (text) => library?.say(text, 'warn'),
+      })).catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
     };
 
     /** The chosen source IN PLACE of the page: it empties, then one grid over the source (its only one: gridCapped). */

@@ -44,7 +44,7 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
-import { catalogColumns, formatOf, tableNameOf } from '../upload.ts';
+import { formatOf, tableNameOf } from '../upload.ts';
 import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
 
 // saved queries' code, fetched the first time it is needed -- the Saved queries section, a query link -- as charts
@@ -52,7 +52,7 @@ import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, 
 const savedQueries = () => import('../saved-queries.ts');
 const queryStores = () => import('../../../query-store/src/index.ts');
 // a join's opener, fetched the first time a grid joins: a page with no join never downloads it (test/bundle-budget.test.ts)
-const joins = () => import('../join-open.ts');
+const joinSources = () => import('./join-sources.ts');
 
 /** A grid's place, as a maker takes it: where its rows are and how it is written down. */
 export type GridPlace = {
@@ -764,102 +764,18 @@ export function pageSources(d: SourcesOf): PageSources {
     };
   }
 
-  // -- a join of two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17) ----------------------------------
-
-  /** A join's leaf read again, for a saved join reopened: its table, and how to let it go when no grid comes of it. */
-  async function leafTable(leaf: CubeSource, name: string, keys: readonly string[]): Promise<{ table: string; ingested?: string } | undefined> {
-    if (leaf._type === 'remoteFile') {
-      if (!database.mountRemote) throw new Error('this page reads no remote file');
-      const view = freshTable('remote');
-      await database.mountRemote(leaf.url, undefined, view);
-      return { table: view };
-    }
-    if (leaf._type !== 'file') throw new Error(`a join reads files and remote files here; ${leaf.name} is neither`);
-    // the same file open on the page already: its table, read once
-    const open = [...files.values()].find((f) => f.sha256 === leaf.sha256);
-    if (open) return { table: open.table };
-    const beside = readForGrids.get(leaf.sha256);
-    if (beside !== undefined) return { table: beside };
-    const got = await fileFor(leaf, name, keys);
-    if (!got) return undefined;
-    if (!database.ingestFile) throw new Error('this page takes no file');
-    const asked = freshTable(tableNameOf(got.file.name));
-    const opened = await database.ingestFile(got.file, { table: asked }).catch((e: unknown) => {
-      taken.delete(asked);
-      throw e;
-    });
-    if (opened.table !== asked) {
-      taken.delete(asked);
-      taken.add(opened.table);
-    }
-    joinRead.set(opened.table, got.file.name);
-    return { table: opened.table, ingested: opened.table };
-  }
+  // -- a join of two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): app/join-sources.ts, fetched with it
 
   async function openedJoin(source: JoinSource, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
     readonly tables?: readonly string[]; readonly keys?: readonly string[] } = {}): Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} is a join, read in this tab's own database: this page has none`);
-    const { joinLeaves, openJoin } = await joins();
-    const ingested: string[] = [];
-    /** The tables read for it alone, let go: a grid made of it holds them from then on. */
-    const forget = async (): Promise<void> => {
-      for (const t of ingested) {
-        // made into a grid since: its table is the page's to drop once no grid reads it
-        const fileName = joinRead.get(t);
-        if (fileName === undefined) continue;
-        joinRead.delete(t);
-        await database.forgetFile?.(fileName, t).catch(() => {});
-        taken.delete(t);
-      }
-    };
-    let rows: GridRows | undefined;
-    try {
-      let tables = how.tables;
-      if (tables === undefined) {
-        const read: string[] = [];
-        for (const leaf of joinLeaves(source)) {
-          const got = await leafTable(leaf, how.saved?.name ?? source.name, how.keys ?? []);
-          if (!got) {
-            await forget();
-            return undefined;
-          }
-          if (got.ingested !== undefined) ingested.push(got.ingested);
-          read.push(got.table);
-        }
-        tables = read;
-      }
-      const opened = await openJoin(source, {
-        tables,
-        models: local.tables,
-        catalog: (table) => catalogColumns(local.engine, local.tables, table),
-        databaseType: local.engine.databaseType,
-        // the grid's own rows over the join's model: what types it is what plans it
-        typer: (model, runtime) => {
-          rows = services.engine.rows(model, runtime);
-          return typer(rows);
-        },
-      });
-      const grid = rows!;
-      const columns = opened.columns.map((c) => ({ name: c.name, type: c.type }));
-      // the join as it opened: a kept column of theirs gone since is left out of it, as the notes say
-      const cubeSource: JoinSource = { ...source, how: opened.how, columns };
-      const r = rebuilt(how.saved, opened.relation, opened.columns, source.name, how.capped === true);
-      return {
-        label: source.name,
-        notes: [...opened.notes, ...r.notes],
-        discard: async () => {
-          letGo(grid);
-          await forget();
-        },
-        make: gridMaker(r.snapshot, r.configuration, [], {
-          ...rowsPlace(grid), cubeSource, label: source.name, ...(r.tree ? { tree: r.tree } : {}), tables, foldPanel: how.capped === true,
-        }),
-      };
-    } catch (e) {
-      if (rows) letGo(rows);
-      await forget();
-      throw e;
-    }
+    const { openedJoin: opened } = await joinSources();
+    return opened({
+      local, database, services, fileFor, freshTable, joinRead, typer, letGo, gridMaker, rowsPlace,
+      tableOfFile: (sha) => [...files.values()].find((f) => f.sha256 === sha)?.table ?? readForGrids.get(sha),
+      take: (t) => { taken.add(t); },
+      untake: (t) => { taken.delete(t); },
+    }, source, how);
   }
 
   // -- a frame (Python's dataframe) --------------------------------------------------------------------------------

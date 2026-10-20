@@ -740,6 +740,12 @@ export class CubePage {
     return this.#sheetOf(id)?.board.title(id);
   }
 
+  /** The title a person gave a tile; undefined while it has the one it was made with (as views() saves none). */
+  givenTitle(id: string): string | undefined {
+    const title = this.title(id);
+    return title !== undefined && title !== this.#titles.get(id) ? title : undefined;
+  }
+
   /**
    * A LONE GRID IN THE PAGE'S BAR (a page of its own; the design's §3.1): while the board holds one tile and it is a
    * grid, that tile is drawn without its frame and its header's part -- its source, its pill, its menu -- moves into

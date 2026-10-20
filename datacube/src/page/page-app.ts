@@ -483,9 +483,9 @@ export class PageApp {
     return this.#page.grids.has(id) || this.#page.kept.has(id) ? this.#grids.get(id)?.grid : undefined;
   }
 
-  /** A tile's title as shown, by its id. */
-  titleOf(id: string): string | undefined {
-    return this.#page.title(id);
+  /** The title a person gave a tile, by its id; undefined while it has the one it was made with. */
+  givenTitle(id: string): string | undefined {
+    return this.#page.givenTitle(id);
   }
 
   /** The grids on the page now, on the board or kept off it. */
