@@ -648,6 +648,9 @@ public final class CypherToPure {
     /** The leading {@code USE}, which the caller resolved to {@link #model} ({@link #leadingUse}); null when none. */
     private CypherAst.@com.legend.base.Nullable Use leading;
     private int fresh;
+    /** The lists this translation built from JSON text ({@link #concatJson}): their text is JSON's, which a list the
+     *  database computes need not spell. */
+    private final Set<ValueSpecification> textBuilt = new HashSet<>();
 
     /** How many lambdas the database computes (a comprehension's or predicate's over a collection it computes)
      *  the expression being read is inside: {@code %} and integer {@code /} are refused in one by name (lite's
@@ -12055,11 +12058,11 @@ public final class CypherToPure {
                 List.of(call("length", text), new CInteger(1L)))), AppliedFunction.infixRun("minus",
                 List.of(call("length", text), new CInteger(2L))));
         ValueSpecification piece = call("if", isList, thunk(inner), thunk(text));
-        ValueSpecification first = after ? listText : piece;
-        ValueSpecification second = after ? piece : listText;
-        // (an empty side adds no comma; an if over texts, a class's query substitutes no collection literal)
-        ValueSpecification joined = call("if", call("equal", first, new CString("")), thunk(second), thunk(call("if",
-                call("equal", second, new CString("")), thunk(first), thunk(plus(first, new CString(","), second)))));
+        List<ValueSpecification> parts = after ? List.of(listText, piece) : List.of(piece, listText);
+        // (each side read once, an empty one, or the database's null join of no element, dropped: a list the
+        // database computes, a random one among them, is computed again at each read)
+        ValueSpecification joined = call("joinStrings", call("filter", new PureCollection(parts), lambda("t",
+                call("not", call("equal", new Variable("t"), new CString(""))))), new CString(","));
         ValueSpecification absent = call("or", call("isEmpty", v), call("equal", call(IS_KIND, v,
                 new CString("null")), new CBoolean(true)));
         ValueSpecification result = call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()),
@@ -12068,27 +12071,27 @@ public final class CypherToPure {
                 ? list.elementDetail() : null)));
     }
 
-    /** {@code [a, b] + x} ({@code x + [a, b]}) where {@code x} is a Variant of no known shape: its elements in a row
-     *  with the list's where it holds a list, else an element after (before) them; null where it is null. The
-     *  list's JSON text spelled (its elements' texts), the two joined as texts by the database, no collection
-     *  between (a class's query substitutes none). */
+    /** {@code [a, b] + x} ({@code x + [a, b]}) where {@code x} is a Variant of no known shape and the spelled list
+     *  has elements: x's elements in a row with the list's where it holds a list, else an element after (before)
+     *  them; null where it is null. The list's JSON text spelled (its elements' texts), the two joined as texts by
+     *  the database, no collection between (a class's query substitutes none); the list's text read once (a value
+     *  it holds may be the database's random). */
     private Val concatSpelled(ListVal list, Tx x, boolean after, Pos pos) {
         return concatJson(variant(list, pos), x, after);
     }
 
-    /** {@link #concatSpelled} of a list the database holds as a Variant ({@code list}, of a known shape) and
+    /** {@link #concatSpelled} of a list this translation built from text, with elements ({@code list}), and
      *  {@code x}: the two joined as texts; null where either is null. */
-    private static Val concatJson(Tx list, Tx x, boolean after) {
+    private Val concatJson(Tx list, Tx x, boolean after) {
         ValueSpecification lv = SqlToPure.valueOf(list);
         ValueSpecification listText = innerText(call("toString", list.nullable() ? call("toOne", lv) : lv));
         ValueSpecification v = SqlToPure.valueOf(x);
         ValueSpecification text = call("toString", call("toOne", v));
         ValueSpecification isList = call("equal", call(IS_KIND, v, new CString("list")), new CBoolean(true));
         ValueSpecification piece = call("if", isList, thunk(innerText(text)), thunk(text));
-        ValueSpecification first = after ? listText : piece;
-        ValueSpecification second = after ? piece : listText;
-        ValueSpecification joined = call("if", call("equal", first, new CString("")), thunk(second), thunk(call("if",
-                call("equal", second, new CString("")), thunk(first), thunk(plus(first, new CString(","), second)))));
+        // (the list has elements: a comma where x adds any)
+        ValueSpecification joined = call("if", call("equal", piece, new CString("")), thunk(listText), thunk(after
+                ? plus(listText, new CString(","), piece) : plus(piece, new CString(","), listText)));
         ValueSpecification absent = call("or", call("isEmpty", v), call("equal", call(IS_KIND, v,
                 new CString("null")), new CBoolean(true)));
         if (list.nullable()) {
@@ -12096,7 +12099,13 @@ public final class CypherToPure {
         }
         ValueSpecification result = call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()),
                 thunk(call("fromJson", plus(new CString("["), joined, new CString("]")))));
+        textBuilt.add(result);
         return scalar(Tx.value(result, Kind.JSON, true, new ListOf(Kind.JSON, null)));
+    }
+
+    /** Whether a Variant is one this translation built from JSON text ({@link #concatJson}'s). */
+    private boolean builtFromText(ValueSpecification vs) {
+        return textBuilt.contains(vs);
     }
 
     /** A JSON array's text within its brackets: the first and the last character dropped. */
@@ -12118,19 +12127,22 @@ public final class CypherToPure {
         // (a spelled list beside a Variant of no known shape: the Variant's elements in a row with the list's where
         // it holds a list, the database's reading; else an element beside them)
         if (left instanceof ListVal lv && right instanceof Scalar rs && unknownVariant(rs)) {
-            return concatSpelled(lv, rs.tx(), true, pos);
+            return lv.elements().isEmpty() ? concatVariant(spelledCollection(lv, pos), rs.tx(), true, pos)
+                    : concatSpelled(lv, rs.tx(), true, pos);
         }
-        // (a Variant list of a known shape beside one of none: joined as texts too)
-        if (l instanceof Scalar ls && ls.tx().kind() == Kind.JSON && ls.tx().detail() instanceof ListOf
+        // (a list this translation built from JSON text beside a Variant of no known shape: joined as texts too; a
+        // list the database computes has a text of its own, read element by element below)
+        if (l instanceof Scalar ls && ls.tx().detail() instanceof ListOf && builtFromText(ls.tx().vs())
                 && r instanceof Scalar rs && unknownVariant(rs)) {
             return concatJson(ls.tx(), rs.tx(), true);
         }
-        if (r instanceof Scalar rs && rs.tx().kind() == Kind.JSON && rs.tx().detail() instanceof ListOf
+        if (r instanceof Scalar rs && rs.tx().detail() instanceof ListOf && builtFromText(rs.tx().vs())
                 && l instanceof Scalar ls && unknownVariant(ls)) {
             return concatJson(rs.tx(), ls.tx(), false);
         }
         if (right instanceof ListVal rv && left instanceof Scalar ls && unknownVariant(ls)) {
-            return concatSpelled(rv, ls.tx(), false, pos);
+            return rv.elements().isEmpty() ? concatVariant(spelledCollection(rv, pos), ls.tx(), false, pos)
+                    : concatSpelled(rv, ls.tx(), false, pos);
         }
         if (left instanceof Coll || right instanceof Coll) {
             // a list the database computes, and a list or a value beside it: the elements in a row, the database's
@@ -12767,7 +12779,8 @@ public final class CypherToPure {
                         + " not supported yet", pc.pos());
             }
             if (h.ways().size() == 1 && v instanceof Scalar s && s.tx().kind() != Kind.JSON
-                    && s.tx().kind() != Kind.NULL && !s.tx().nullable()) {
+                    && s.tx().kind() != Kind.NULL && !s.tx().nullable() && reads(SqlToPure.valueOf(s.tx()), var)) {
+                // (a value read from the match: a constant one, the pattern's type, is each match's text below)
                 one = new Coll(call("map", coll, lambda(var, SqlToPure.valueOf(s.tx()))), s.tx().kind(), false);
             }
             pieces.add(call("joinStrings", call("map", coll, lambda(var, piece)), new CString("")));

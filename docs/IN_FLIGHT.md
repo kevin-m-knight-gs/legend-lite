@@ -2430,3 +2430,19 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   - guards and generated files: the governance, not-upstream, implementation-kind, broad-catch and Java-evaluation
     pins (each dated), the native claims, `core/BUILD.bazel` and `gates/BUILD.bazel` (`//core:store_writes_postgres_test`).
   The `#SQL` island's DML is leg 4's, asked of the seventh line before it lands.
+- **Landed on the branch, 2026-10-20: writes leg 6, Cypher's writes on the native graph store** (GATES' ninety-fourth
+  landing; the design's §8, leg 6). A Cypher statement that updates the graph is a program over the native store's
+  tables (`nodes`, `node_props`, `rels`, `rel_props`): the rows in hand staged before each write clause into a temporary
+  table of the session, the clauses L1's `write`, `update` and `delete`, the touched elements read back by id. Files of
+  other lines:
+  - the compiler's: `builtin/Pure.java` (`meta::legend::lite::stage`, lite-internal), `platform/CoreFn.java` and
+    `compiler/spec/Typer.java` (`STAGE`, typed by its signature), `compiler/spec/SpecCompiler.java` and
+    `compiler/spec/CypherIslands.java` (an island that updates the graph spliced in as its program's statements),
+    `compiler/element/GraphEdges.java` (the graph profile's `Native` stereotype), `protocol/spec/LambdaFunction.java`
+    (`withBody`, `of`), `resolver/StagedRows.java` (new: a staged let read as its temporary table);
+  - the execution seam: `StatementExecutor.java` (`stageRows`, `storeOf`, `dropStaged`; the Java-evaluation pin moved,
+    dated) and `BodyCompiler.java` (a staged let's table, dropped once the body has run);
+  - the database owner's: `sql/dialect/Postgres.java` (`CREATE TEMPORARY TABLE ... AS`);
+  - `projects/graph/model.pure` (the profile's `Native`), `core/BUILD.bazel` (`//core:cypher_parity_native_test`);
+  - guards and generated files: the code-shape allowlist, the FQN-literal ceiling, the not-upstream pin, the native
+    claims and the implementation kinds (each dated or regenerated).

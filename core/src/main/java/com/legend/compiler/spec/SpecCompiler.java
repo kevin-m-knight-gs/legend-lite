@@ -353,9 +353,8 @@ public final class SpecCompiler {
                 out.add(stmt);
             }
         }
-        return query instanceof com.legend.protocol.spec.LambdaFunction lf
-                ? new com.legend.protocol.spec.LambdaFunction(lf.parameters(), out, lf.pos())
-                : new com.legend.protocol.spec.LambdaFunction(List.of(), out, null);
+        return query instanceof com.legend.protocol.spec.LambdaFunction lf ? lf.withBody(out)
+                : com.legend.protocol.spec.LambdaFunction.of(out);
     }
 
     /**

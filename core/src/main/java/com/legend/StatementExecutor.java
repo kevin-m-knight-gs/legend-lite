@@ -2147,7 +2147,7 @@ final class StatementExecutor {
 
     /** A staged let's rows (Pure.Lite.STAGE, docs/WRITES_DESIGN_2026_10_18.md §8, leg 6): computed now, at the let's
      *  turn among the program's statements, into the session's temporary table {@code table}, which every statement
-     *  after the let reads ({@link #stagedRows}). */
+     *  after the let reads ({@link com.legend.resolver.StagedRows}). */
     private static ExecutionResult stageRows(java.util.List<TypedSpec> body, String table, ExecEnv env) {
         Prelude p = prelude(body, env, null, false);
         if (p.answered() != null) {
@@ -2161,17 +2161,6 @@ final class StatementExecutor {
         record(planned, sql, false);
         com.legend.exec.Executor.executeUpdate(planned.connection(), sql);
         return new ExecutionResult.Scalar(null, p.plannedRoot().info().type());
-    }
-
-    /** What the statements after a staged let read for it: the session's temporary table {@code table}, a relation of
-     *  the staged rows' columns ({@code info}), each named as its projection named it (delimited, so its case holds
-     *  on a database that folds an undelimited name). {@code store} is the store the rows read, when one. */
-    static TypedSpec stagedRows(String table, com.legend.compiler.element.type.ExprType info, String store) {
-        java.util.Set<String> columns = new java.util.LinkedHashSet<>();
-        java.util.Objects.requireNonNull(com.legend.compiler.element.type.Type.schemaView(info.type()),
-                "staged rows are a relation").columns().forEach(c -> columns.add(c.name()));
-        return new com.legend.compiler.spec.typed.TypedTableReference(store, table, info, true, null, columns, false,
-                java.util.Map.of(), false, false);
     }
 
     /** The store a staged let's table is read under: the one store its rows read, else (rows of no table) the one the

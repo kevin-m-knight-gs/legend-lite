@@ -355,7 +355,9 @@ class CypherIslandIntegrationTest {
                 + " (no edge class, the study's §5.6) is not supported yet", e.getMessage());
         com.legend.error.NotImplementedException create = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> run("CREATE (p:Person {name: 'x'})"));
-        assertTrue(create.getMessage().contains("CREATE is not supported yet"), create.getMessage());
+        // a domain model's graph is written by the writes design's leg 5; the native store's (leg 6) is
+        assertTrue(create.getMessage().contains("CREATE over a graph of a domain model is not supported yet"),
+                create.getMessage());
     }
 
     @Test

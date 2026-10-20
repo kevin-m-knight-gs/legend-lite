@@ -701,7 +701,12 @@ class JavaEvalLedgerTest {
             // database (storeWrite; its value the database's update count), the Lowerer's construction shared with
             // lowerAndPrepare (lowererFor), and a program that writes a store runs inside one transaction
             // (Executor.inTransaction); dispatch and sequencing, nothing evaluated in Java
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2329),
+            // 2329 -> 2393 (2026-10-20, the writes design's leg 6, §8): a staged let (Pure.Lite.STAGE) is run at its
+            // turn into a temporary table of the session (stageRows: the let's rows lowered and rendered as the
+            // dialect's CREATE TEMPORARY TABLE ... AS, handed to the database), the store its table is read under
+            // (storeOf), the tables dropped once the program has run (dropStaged), and stage refused by name as a
+            // statement's value; the database computes the rows, Java sequences them
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2393),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

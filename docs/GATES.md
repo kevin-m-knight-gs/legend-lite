@@ -11947,6 +11947,38 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the ninety-fourth landing — writes, leg 6: Cypher's writes on the native graph store
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 6 (register rows S90-S93).
+A Cypher statement with a clause that updates the graph (CREATE, SET, REMOVE, DELETE, DETACH DELETE, MERGE with ON
+CREATE and ON MATCH) now runs over a native graph store: a DataSpace marked `<<graph::graph.Native>>` holding the
+store's tables `nodes`, `node_props`, `rels` and `rel_props`, which its classes' views read.
+- **The program:** the island is a sequence of Pure statements, spliced in where it stood. Before each write clause the
+  rows in hand are staged (`let s = rows->meta::legend::lite::stage()`: a temporary table of the session, computed at
+  the let's turn, dropped once the program has run; `resolver/StagedRows` reads it); each clause is L1's `write`,
+  `update` and `delete` over the staged rows and the narrow tables; the elements a later clause reads are read back by
+  their ids, each identity spelled as the views spell it (its label set's class's path and its id).
+- **Ids** are minted by the database above the store's greatest as the statement started and every id minted since
+  (S92); a set-based clause's rows are the database's order, the last row's write wins (S90); a MERGE property matches
+  by its kind's column (S91); a statement ending in an update has no columns (a hidden one, S93).
+- **The judge:** a case whose query updates the graph runs in a transaction the harness rolls back, even where Neo4j
+  raised; the store's TIMESTAMP and TIME columns are read back as Neo4j spells them.
+- **Read-side fixes found on the way:** a MATCH property map reading a variable of the rows; a string plus a value of
+  unknown kind; a list built as text joined with a value of unknown kind (in one read: a random list read twice is two
+  lists); a self edge class's undirected arms deduped; a pattern comprehension's constant value.
+- **Refused by name:** a list of temporals, a zoned or nanosecond value or a duration written as a property;
+  `startNode`/`endNode`; a hop from a node an edge class reached past depth two; a type joining several class pairs
+  in an OPTIONAL MATCH.
+- **Guards, each moved with its dated justification:** `StatementExecutor`'s Java-evaluation pin 2329 → 2393 (staging,
+  dispatch and sequencing; the database computes the rows), `NOT_UPSTREAM_MAX` 59 → 60 (`stage`), the FQN-literal
+  ceiling 334 → 337, the code-shape allowlist (the writer's fields); `stage` claimed as a `CoreFn` (typed by its
+  signature), the native claims and the implementation kinds regenerated (Form 222 → 223).
+- **Measured:** the native lane (`//core:cypher_parity_native_test`, DuckDB, the whole corpus) in update mode: PASS
+  3989 → 4252, REFUSED 36, BOTH_ERROR 774, FAIL/BUG/ERROR 0, of 5062 cases; against the domain lane, 261 cases
+  REFUSED → PASS (the TCK's write scenarios and their control queries) and 6 PASS → REFUSED (reads over edge classes,
+  every native relationship being one). The domain lane unchanged (`//core:cypher_parity_test` green in check mode:
+  writes on a domain model are leg 5's, refused by name). `//core:core_tests_protocol` green.
+
 ## 2026-10-18 — Writes, leg 2: the store writes (L0 and L1) — the ninety-third landing
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §4 and §8 (leg 2). A query can now

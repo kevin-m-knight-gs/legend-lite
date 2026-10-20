@@ -123,6 +123,12 @@ class CodeShapeGuardrailTest {
             // lambdas the database computes (a comprehension's or predicate's over a collection), raised and lowered
             // around their reading, scoped to one translation (the fresh-name counter's lifecycle)
             "CypherToPure.databaseLambdas",
+            // Writes leg 6, 2026-10-20 (docs/WRITES_DESIGN_2026_10_18.md §8, leg 6): CypherToPure.Writer's frame of one
+            // statement's program -- its native store, the stages' counter, the clause being read, the last stage's
+            // key, row-number and held-identity columns, the high-water mark staged as the program starts -- set as
+            // the program's clauses are read, scoped to one program (the fresh-name counter's lifecycle)
+            "CypherToPure.store", "CypherToPure.stages", "CypherToPure.at", "CypherToPure.keys",
+            "CypherToPure.ordinal", "CypherToPure.heldIdentities", "CypherToPure.highWater",
             // the island's reader of a date's or a timestamp's text (2026-10-13, Postgres's date spellings,
             // docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4): PostgresDateTime.Decoder is datetime.c's DecodeDateTime,
             // these its struct pg_tm and the field mask it fills field by field -- scoped to one constant's read,

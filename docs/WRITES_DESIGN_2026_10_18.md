@@ -451,7 +451,30 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
    - the direct-mapping check, the property-to-column rename, key minting, staging;
    - then CREATE, SET/REMOVE of properties, DELETE/DETACH DELETE, MERGE.
 6. **B and Cypher on B:** the platform schema, then every write clause, label changes included; the 33 control queries
-   run here.
+   run here. **Landed on the branch 2026-10-20** (GATES' ninety-fourth landing).
+   - **The program.** A statement with a clause that updates the graph is a program, spliced in where the island
+     stood (`SpecCompiler.typeQueryBody`, `CypherIslands.statements`): each clause in order, the rows in hand staged
+     before each write clause (`let s = rows->meta::legend::lite::stage()`, a temporary table of the session, dropped
+     when the program has run), the writes L1's `write`, `update` and `delete` over the staged rows and the narrow
+     tables, the elements a later clause reads read back by their ids (`Writer.refreshed`).
+   - **The native store:** a DataSpace marked `<<graph::graph.Native>>` holding the store's database
+     (`CypherToPure.Model.nativeStore`); a write over a graph of a domain model is refused by name (leg 5).
+   - **Ids** are minted by the database: above the store's greatest as the statement started and every id minted
+     since (S92), the row's number and the element's place.
+   - **The clauses.** CREATE (consecutive ones as one); SET and REMOVE of properties, maps and labels (the last row's
+     value where several rows write one property); DELETE and DETACH DELETE of carried elements and of any value
+     naming them (a path, a list's element, a map's entry, by its JSON's identities), Neo4j's DeleteConnectedNode and
+     DeletedEntityAccess raised by the database; MERGE: the pattern matched against the narrow tables, the unmatched
+     rows grouped by their merge key and each group's pattern created once (its first row creating it, ON CREATE over
+     the creating rows, ON MATCH over the others), a named path bound, a null property Neo4j's error (S90, S91).
+   - **The read back:** a node's identity as the views spell it (its label set's class's path and its id), so a
+     merged, created or relabelled element re-anchors; a list written as a property read as its shape.
+   - **The judge:** a case whose query updates the graph runs in a rolled-back transaction even where Neo4j raised;
+     the store's TIMESTAMP and TIME columns read back; a statement ending in an update compared with no columns (S93).
+   - **Refused by name:** a list of temporals written as a property (the Variant spells a temporal as text), a zoned
+     or nanosecond value or a duration written, `startNode`/`endNode`, a write to an element carried without
+     identity; on the read side over edge classes (every native relationship is one): a hop from a node an edge
+     class reached past depth two, a type joining several class pairs in an OPTIONAL MATCH.
 7. **Later:**
    - write plans in `ExecutionPlan`;
    - GraphQL mutations, once `#GQL{...}#` compiles;

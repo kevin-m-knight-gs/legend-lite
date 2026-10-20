@@ -210,8 +210,10 @@ class CatalogUpstreamDiffTest {
      *  the database as; ours alone, legend-engine carries a date-time in the database's own type. 59 on 2026-10-18 (the
      *  writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): delete, update and merge, the store writes
      *  beside upstream's write -- lite's user-facing DML over a store table (NativeCatalogGovernanceTest's
-     *  LITE_SURFACE); upstream declares no write but write itself. */
-    private static final int NOT_UPSTREAM_MAX = 59;
+     *  LITE_SURFACE); upstream declares no write but write itself. 60 on 2026-10-20 (the writes design's leg 6, §8):
+     *  meta::legend::lite::stage, rows computed once into a temporary table of the session for the statements after
+     *  (the Cypher island's writes); a lite-internal native, ours alone. */
+    private static final int NOT_UPSTREAM_MAX = 60;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

@@ -99,8 +99,8 @@ public final class BodyCompiler {
                             rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
                     seg.value(pv);
                     staged.add(table);
-                    letPrefix.add(new TypedLet(let.name(), StatementExecutor.stagedRows(table, rows.info(),
-                            StatementExecutor.storeOf(pv.body(), seg.env())), let.info()));
+                    letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
+                            StatementExecutor.storeOf(pv.body(), seg.env()), let.info()));
                     continue;
                 }
                 if (rhs instanceof TypedNativeCall ec
