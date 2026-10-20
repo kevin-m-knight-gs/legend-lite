@@ -330,7 +330,11 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
-- **2026-10-20, announced: the dynamic pivot's outputs by the cross join, on every engine** (the user's decision after
+- **2026-10-20, WITHDRAWN the same day (the user: "what if I just want the output of a pivot as a relation?"):**
+  the cross join packs each group's cells into one text value, so it cannot give a pivot's result as a relation, which
+  is the main consumer; the premise below ("a dynamic pivot's only consumers are the serialized outputs") was wrong.
+  Nothing landed. What was announced:
+  **the dynamic pivot's outputs by the cross join, on every engine** (the user's decision after
   the pivot discussion of 2026-10-19/20; §7 step 9's residue "the uncast dynamic pivot's text road"): a dynamic pivot's
   only consumers are the serialized outputs (no Pure code names its generated columns without a cast, and a cast
   makes it static; DataCube pivots by its own two ordinary plans), so the TDS text, the CSV and the JSON wires are

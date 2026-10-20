@@ -2139,8 +2139,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   regenerated claims, ladder and ratchets); on the final head `//gates:core` 45 of 45 (the six Postgres lanes under the
   unprivileged wrapper), the PCT lanes this container runs 23 of 23, both corpus lanes exact. Open after step 9: the Snowflake and
   BigQuery lanes (their containers refused the credential read), the pivot's one-query form (the user's decision),
-  steps 8, 10 and 11. **Announced 2026-10-20: the dynamic pivot's outputs by the cross join** (the user's decision; GATES entry to
-  follow): `lowering/Render.java` (the three dynamic-pivot builders over the pivot's source as cells, keys and
+  steps 8, 10 and 11. **Withdrawn 2026-10-20, nothing landed** (the cross join gives no relation, the main consumer; the program's §9):
+  what was announced, the dynamic pivot's outputs by the cross join: `lowering/Render.java` (the three dynamic-pivot builders over the pivot's source as cells, keys and
   groups; the row-as-JSON builder deleted), `lowering/TdsTextWrap.java`, `lowering/WireRender.java`,
   `sql/SqlExpr.java` (`RowJson` deleted) and its arms (`sql/SqlRewriter.java`, `sql/dialect/AnsiSqlRenderer.java`,
   `DuckDb.java`, `MongoDb.java`, `UnqualifyPivotArgs.java`, `FoldToListReduce.java`, `lowering/Windows.java`,
