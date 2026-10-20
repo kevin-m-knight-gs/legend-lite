@@ -105,6 +105,37 @@ public final class MySql extends MariaDb {
         return "MySQL";
     }
 
+    /** No quote and no backslash inside a literal: MySQL re-serializes a CTE that another CTE reads, writing its
+     *  literals with backslash escapes ({@code '\''}, a backslash doubled), and re-parses that text under the session's
+     *  NO_BACKSLASH_ESCAPES -- a syntax error at a quote, a doubled backslash silently (measured on 8.4 by the lane
+     *  session, the judges' verdict statement: channel B's testConcatenateMixedType and three removeDuplicates tests,
+     *  2026-10-20). Each is its own character, {@code CHAR(39 USING utf8mb4)} and {@code CHAR(92 USING utf8mb4)},
+     *  between literal pieces; a text with neither is its plain literal (a JSON path of a name with neither). */
+    @Override
+    protected String stringLit(String value) {
+        if (value.indexOf('\'') < 0 && value.indexOf('\\') < 0) {
+            return "'" + value + "'";
+        }
+        StringBuilder sb = new StringBuilder("CONCAT(''");
+        StringBuilder piece = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '\'' || ch == '\\') {
+                if (piece.length() > 0) {
+                    sb.append(", '").append(piece).append('\'');
+                    piece.setLength(0);
+                }
+                sb.append(ch == '\'' ? ", CHAR(39 USING utf8mb4)" : ", CHAR(92 USING utf8mb4)");
+            } else {
+                piece.append(ch);
+            }
+        }
+        if (piece.length() > 0) {
+            sb.append(", '").append(piece).append('\'');
+        }
+        return sb.append(')').toString();
+    }
+
     @Override
     public List<String> sessionSetup() {
         // NO_UNSIGNED_SUBTRACTION: YEAR() and the like are unsigned here, and their difference is a signed one
