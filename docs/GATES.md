@@ -11957,6 +11957,10 @@ Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.
 - **Measured:** `WritePlansH2Test.executeRefusesACountAnswerBeforeItsWriteRuns` failed with the fix reverted (nothing
   thrown: the plan ran) and passes with it. `//core:core_tests_integration`, `//core:core_tests_server`
   and `//core:guardrails` are green.
+- **The local gate** at `835eabef` (the branch head, these four landings and their test pins): `bazel test
+  --lockfile_mode=error //gates:local` under `tools/postgres/as_unprivileged.sh` ran 383 of 384 tests, 381 passing,
+  one skipped; the two that failed (`//datacube:upload_test`, `//engine-client:model_data_test`) fail only under that
+  wrapper and pass without it.
 
 ## 2026-10-20 — `#Cypher{...}#`: the hundred-and-third landing — three refusals read as Neo4j answers
 
