@@ -477,6 +477,18 @@ public final class CypherParity {
         return a != null && (a.after() != null || c.control() != null);
     }
 
+    /** Whether a case's query has a clause that updates the graph, as lite reads it: run in a transaction rolled
+     *  back after, though Neo4j raised (no graph after to judge), so the cases after over the same seeded graph
+     *  read it as seeded. A query lite cannot read writes nothing. */
+    static boolean updatesGraph(Case c) {
+        try {
+            return com.legend.protocol.cypher.CypherToPure.updates(com.legend.protocol.cypher.CypherParser.parse(
+                    c.query()));
+        } catch (RuntimeException unreadable) {
+            return false;
+        }
+    }
+
     /** One case on one lane, its graph seeded: its island run through lite, judged against Neo4j's answer, or
      *  against the rows its decision names. A write (the writes design's §6) runs in a transaction the harness owns
      *  and rolls back, and passes only on all four of its verdicts: the rows, the graph it left, its side effects
@@ -496,7 +508,8 @@ public final class CypherParity {
         if (!c.procedures().isEmpty()) {
             return procedureOutcome(c, model + CypherGraph.procedures(c.procedures()), lane);
         }
-        if (!writes(c, a)) {
+        boolean judged = writes(c, a);
+        if (!judged && !updatesGraph(c)) {
             return rowsOutcome(c, a, decided, model, lane);
         }
         try {
@@ -506,7 +519,7 @@ public final class CypherParity {
         }
         try {
             SqlParity.Outcome rows = rowsOutcome(c, a, decided, model, lane);
-            if (rows.status() != SqlParity.Status.PASS) {
+            if (rows.status() != SqlParity.Status.PASS || !judged) {
                 return rows;
             }
             if (before == null) {
@@ -798,6 +811,11 @@ public final class CypherParity {
                     : row.get(5) != null ? new CypherValues.Str(String.valueOf(row.get(5)))
                     : row.get(6) != null ? new CypherValues.Bool((Boolean) row.get(6))
                     : row.get(7) != null ? new CypherValues.Opaque("Date('" + row.get(7) + "')")
+                    // (a local date-time and a local time as Neo4j's snapshot spells them: nine digits of the second)
+                    : row.get(8) != null ? new CypherValues.Opaque("DateTime('" + localDateTime(row.get(8)).format(
+                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS", java.util.Locale.ROOT)) + "')")
+                    : row.get(9) != null ? new CypherValues.Opaque("Time('" + localTime(row.get(9)).format(
+                            java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSSSS", java.util.Locale.ROOT)) + "')")
                     : row.get(10) != null ? CypherValues.ofCell(row.get(10))
                     : null;
             if (v == null) {
@@ -808,6 +826,16 @@ public final class CypherParity {
                     .put(String.valueOf(row.get(1)), CypherValues.text(v));
         }
         return out;
+    }
+
+    /** A TIMESTAMP cell as the driver reads it, a local date-time. */
+    private static java.time.LocalDateTime localDateTime(Object cell) {
+        return cell instanceof java.sql.Timestamp ts ? ts.toLocalDateTime() : (java.time.LocalDateTime) cell;
+    }
+
+    /** A TIME cell as the driver reads it, a local time. */
+    private static java.time.LocalTime localTime(Object cell) {
+        return cell instanceof java.sql.Time t ? t.toLocalTime() : (java.time.LocalTime) cell;
     }
 
     /** The model of a native store's graph as its tables hold it now ({@link #storeGraph}), its views made again

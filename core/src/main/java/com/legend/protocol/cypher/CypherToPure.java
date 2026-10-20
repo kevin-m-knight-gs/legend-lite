@@ -1048,13 +1048,49 @@ public final class CypherToPure {
                 }
                 case CypherAst.Use u -> { }
                 case CypherAst.Create cr -> { }
-                case CypherAst.Merge mg -> { }
-                case CypherAst.SetClause st -> { }
+                case CypherAst.Merge mg -> {
+                    mg.onCreate().forEach(CypherToPure::checkSetValue);
+                    mg.onMatch().forEach(CypherToPure::checkSetValue);
+                }
+                case CypherAst.SetClause st -> st.items().forEach(CypherToPure::checkSetValue);
                 case CypherAst.Remove rm -> { }
                 case CypherAst.Delete dl -> { }
                 case CypherAst.OtherClause o -> { }
             }
         }
+    }
+
+    /** Neo4j's static error for a pattern a SET item's value holds outside {@code exists()}: a value, never the test a
+     *  pattern expression stands for (UnexpectedSyntax). */
+    private static void checkSetValue(CypherAst.SetItem item) {
+        Expr value = switch (item) {
+            case CypherAst.SetProperty sp -> sp.value();
+            case CypherAst.SetProperties sp -> sp.value();
+            case CypherAst.SetLabels sl -> null;
+        };
+        CypherAst.PatternPredicate pp = value == null ? null : patternValue(value);
+        if (pp != null) {
+            throw CypherErrors.invalid("A pattern expression should only be used in order to test the existence of a"
+                    + " pattern. It should therefore only be used in contexts that evaluate to a boolean, e.g. inside"
+                    + " the function exists() or in a WHERE-clause.", pp.pos());
+        }
+    }
+
+    /** A pattern an expression holds as a value: outside an {@code exists()}; null for none. */
+    private static CypherAst.@com.legend.base.Nullable PatternPredicate patternValue(Expr e) {
+        if (e instanceof CypherAst.PatternPredicate pp) {
+            return pp;
+        }
+        if (e instanceof CypherAst.Call c && c.name().equalsIgnoreCase("exists")) {
+            return null;
+        }
+        for (Expr child : children(e)) {
+            CypherAst.PatternPredicate found = patternValue(child);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     /** A projection's items and sort keys, checked over the scope before it ({@link #checkExpression}). */
@@ -1521,6 +1557,9 @@ public final class CypherToPure {
     // ------------------------------------------------------------------ MATCH
 
     private State match(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (state instanceof Rows) {
+            m = rowValuedProperties(m);
+        }
         if (open) {
             // an open graph (the study's §12.45): a name the model lacks reads no rows; a typed hop no way of the
             // class reads is a null graph from pattern(), read as the same nothing where the pattern is read
@@ -1533,6 +1572,44 @@ public final class CypherToPure {
             return optionalMatch(m, state);
         }
         return matchPattern(m, state);
+    }
+
+    /** A MATCH over rows whose pattern's property maps read the rows' variables ({@code UNWIND ... AS e MATCH
+     *  (y:Year {year: e.year})}) as the same MATCH with those entries its WHERE's ({@code y.year = e.year}: Cypher's
+     *  meaning of a pattern's property, over the rows the WHERE reads); an unnamed element named, hidden. A
+     *  variable-length relationship's map applies to each of its relationships and stays. */
+    private CypherAst.Match rowValuedProperties(CypherAst.Match m) {
+        Set<String> bound = new HashSet<>();
+        m.patterns().forEach(p -> patternVariables(p, bound));
+        Expr where = m.where();
+        List<PathPattern> patterns = new ArrayList<>();
+        boolean moved = false;
+        for (PathPattern p : m.patterns()) {
+            List<PatternElement> elements = new ArrayList<>();
+            for (PatternElement e : p.elements()) {
+                Map<String, Expr> props = patternProps(e);
+                Set<String> read = new HashSet<>();
+                props.values().forEach(x -> variablesRead(x, read));
+                read.removeAll(bound);
+                if (read.isEmpty() || e instanceof RelPattern rp && rp.lengthRange() != null) {
+                    elements.add(e);
+                    continue;
+                }
+                moved = true;
+                String named = variableOf(e);
+                String v = named != null ? named : HIDDEN + "m" + (++fresh);
+                for (Map.Entry<String, Expr> prop : props.entrySet()) {
+                    Expr eq = new CypherAst.Binary(BinaryOp.EQ, new CypherAst.Prop(new CypherAst.Var(v, prop.getValue()
+                            .pos()), prop.getKey(), prop.getValue().pos()), prop.getValue(), prop.getValue().pos());
+                    where = where == null ? eq : new CypherAst.Binary(BinaryOp.AND, where, eq, eq.pos());
+                }
+                elements.add(e instanceof NodePattern n ? new NodePattern(v, n.labels(), Map.of(), n.pos(), n.mapped())
+                        : new RelPattern(v, ((RelPattern) e).types(), ((RelPattern) e).direction(), Map.of(), null,
+                                ((RelPattern) e).pos()));
+            }
+            patterns.add(new PathPattern(p.variable(), elements, p.pos()));
+        }
+        return moved ? new CypherAst.Match(m.optional(), patterns, where, m.pos()) : m;
     }
 
     /** A MATCH of an OPEN graph naming a label or a relationship type the model has nothing of (the study's
@@ -1810,6 +1887,7 @@ public final class CypherToPure {
             }
         }
         nameRelationshipsWithMaps(elements, taken);
+        nameUndirectedLoops(elements, taken);
         nameRepeats(elements, taken, Set.of());
         order = patternOrder(elements);
         NodePattern root = (NodePattern) elements.get(0);
@@ -3118,9 +3196,15 @@ public final class CypherToPure {
         return armsRows(graphs, order, m.pos());
     }
 
-    /** Whether {@code type} names a property of some class holding that class itself (a self-association): an
-     *  undirected relationship of the type reads both directions as arms, a loop once (the study's §12.50). */
+    /** Whether {@code type} names a property of some class holding that class itself (a self-association), or an
+     *  edge class whose two ends are one class: an undirected relationship of the type reads both directions as
+     *  arms, a loop once (the study's §12.50; an edge instance's identity tells a loop's one row from two). */
     private boolean selfAssociation(String type) {
+        for (Edge e : edges()) {
+            if (e.type().equals(type) && e.from().classPath().equals(e.to().classPath())) {
+                return true;
+            }
+        }
         for (String cls : model.classes()) {
             List<Property> declared = new ArrayList<>(properties(cls));
             declared.addAll(ends(cls));
@@ -3192,6 +3276,20 @@ public final class CypherToPure {
         for (int i = 1; i < elements.size(); i += 2) {
             RelPattern r = (RelPattern) elements.get(i);
             if (r.variable() == null && !r.properties().isEmpty()) {
+                elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
+                        r.lengthRange(), r.pos()));
+            }
+        }
+    }
+
+    /** An undirected relationship over a self-association with no variable is named before the arms are read: the
+     *  arms' rows are deduped (a loop once), and two relationships between the same two nodes are two rows only by
+     *  their identities. */
+    private void nameUndirectedLoops(List<PatternElement> elements, Set<String> taken) {
+        for (int i = 1; i < elements.size(); i += 2) {
+            RelPattern r = (RelPattern) elements.get(i);
+            if (r.variable() == null && r.direction() == CypherAst.Direction.BOTH && r.types().size() == 1
+                    && r.lengthRange() == null && selfAssociation(r.types().get(0))) {
                 elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
                         r.lengthRange(), r.pos()));
             }
@@ -8977,6 +9075,10 @@ public final class CypherToPure {
             if (own != null && own.detail() instanceof Carried cp && cp.parts() != null) {
                 return carriedParts(np.column(), np.kind(), np.nullable());
             }
+            if (own != null && own.detail() instanceof ListOf l && np.kind() == Kind.JSON) {
+                // (a list a write read back, of its known shape)
+                return Tx.value(new AppliedProperty(new Variable(row()), np.column()), Kind.JSON, np.nullable(), l);
+            }
             Tx read = withNanos(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
                     np.nullable()), np.nanos());
             Col zone = column(ZONE_PART + np.column());
@@ -10238,6 +10340,21 @@ public final class CypherToPure {
             // string concatenation; a number is concatenated as Neo4j prints it, which is not read yet
             if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
                 return SqlToPure.nullOf(Kind.STRING);
+            }
+            Tx json = l.kind() == Kind.JSON && l.detail() == null ? l : r.kind() == Kind.JSON && r.detail() == null
+                    ? r : null;
+            if (json != null && (json == l ? r : l).kind() == Kind.STRING) {
+                // a Variant of no known shape (a property read by a key of the row): its string, or a number's or
+                // a boolean's text, the database's; a list or a map held there raises by name
+                Tx text = SqlToPure.strict(Kind.STRING, List.of(json), v -> call("if", call("equal", call(IS_KIND,
+                        v.get(0), new CString("string")), new CBoolean(true)), thunk(call("toOne", call("to",
+                        v.get(0), SqlToPure.typeArg("String")))), thunk(call("if", call("or", call("equal", call(
+                        IS_KIND, v.get(0), new CString("number")), new CBoolean(true)), call("equal", call(IS_KIND,
+                        v.get(0), new CString("boolean")), new CBoolean(true))), thunk(call("toString", v.get(0))),
+                        new LambdaFunction(List.of(), List.of(call("fail", new CString("+ of a string and a list or"
+                        + " a map the database holds as a Variant is not supported yet")), new CString("")))))));
+                return SqlToPure.strict(Kind.STRING, json == l ? List.of(text, r) : List.of(l, text),
+                        v -> AppliedFunction.infixRun("plus", v));
             }
             if (l.kind() != Kind.STRING || r.kind() != Kind.STRING) {
                 throw CypherErrors.unsupported("+ of a string and a " + cypherType(l.kind() == Kind.STRING ? r.kind()
@@ -11938,15 +12055,55 @@ public final class CypherToPure {
                 List.of(call("length", text), new CInteger(1L)))), AppliedFunction.infixRun("minus",
                 List.of(call("length", text), new CInteger(2L))));
         ValueSpecification piece = call("if", isList, thunk(inner), thunk(text));
-        List<ValueSpecification> parts = after ? List.of(listText, piece) : List.of(piece, listText);
-        ValueSpecification joined = call("joinStrings", call("filter", new PureCollection(parts), lambda("t",
-                call("not", call("equal", new Variable("t"), new CString(""))))), new CString(","));
+        ValueSpecification first = after ? listText : piece;
+        ValueSpecification second = after ? piece : listText;
+        // (an empty side adds no comma; an if over texts, a class's query substitutes no collection literal)
+        ValueSpecification joined = call("if", call("equal", first, new CString("")), thunk(second), thunk(call("if",
+                call("equal", second, new CString("")), thunk(first), thunk(plus(first, new CString(","), second)))));
         ValueSpecification absent = call("or", call("isEmpty", v), call("equal", call(IS_KIND, v,
                 new CString("null")), new CBoolean(true)));
         ValueSpecification result = call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()),
                 thunk(call("fromJson", plus(new CString("["), joined, new CString("]")))));
         return scalar(Tx.value(result, Kind.JSON, true, new ListOf(Kind.JSON, list.kind() == Kind.JSON
                 ? list.elementDetail() : null)));
+    }
+
+    /** {@code [a, b] + x} ({@code x + [a, b]}) where {@code x} is a Variant of no known shape: its elements in a row
+     *  with the list's where it holds a list, else an element after (before) them; null where it is null. The
+     *  list's JSON text spelled (its elements' texts), the two joined as texts by the database, no collection
+     *  between (a class's query substitutes none). */
+    private Val concatSpelled(ListVal list, Tx x, boolean after, Pos pos) {
+        return concatJson(variant(list, pos), x, after);
+    }
+
+    /** {@link #concatSpelled} of a list the database holds as a Variant ({@code list}, of a known shape) and
+     *  {@code x}: the two joined as texts; null where either is null. */
+    private static Val concatJson(Tx list, Tx x, boolean after) {
+        ValueSpecification lv = SqlToPure.valueOf(list);
+        ValueSpecification listText = innerText(call("toString", list.nullable() ? call("toOne", lv) : lv));
+        ValueSpecification v = SqlToPure.valueOf(x);
+        ValueSpecification text = call("toString", call("toOne", v));
+        ValueSpecification isList = call("equal", call(IS_KIND, v, new CString("list")), new CBoolean(true));
+        ValueSpecification piece = call("if", isList, thunk(innerText(text)), thunk(text));
+        ValueSpecification first = after ? listText : piece;
+        ValueSpecification second = after ? piece : listText;
+        ValueSpecification joined = call("if", call("equal", first, new CString("")), thunk(second), thunk(call("if",
+                call("equal", second, new CString("")), thunk(first), thunk(plus(first, new CString(","), second)))));
+        ValueSpecification absent = call("or", call("isEmpty", v), call("equal", call(IS_KIND, v,
+                new CString("null")), new CBoolean(true)));
+        if (list.nullable()) {
+            absent = call("or", call("isEmpty", lv), absent);
+        }
+        ValueSpecification result = call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                thunk(call("fromJson", plus(new CString("["), joined, new CString("]")))));
+        return scalar(Tx.value(result, Kind.JSON, true, new ListOf(Kind.JSON, null)));
+    }
+
+    /** A JSON array's text within its brackets: the first and the last character dropped. */
+    private static ValueSpecification innerText(ValueSpecification text) {
+        return call("left", call("right", text, AppliedFunction.infixRun("minus", List.of(call("length", text),
+                new CInteger(1L)))), AppliedFunction.infixRun("minus", List.of(call("length", text),
+                new CInteger(2L))));
     }
 
     /** {@code list + list}, {@code list + value}, {@code value + list}: the elements in a row. */
@@ -11958,6 +12115,23 @@ public final class CypherToPure {
                 ? variantElements(ls.tx()) : asCollection(l);
         Val right = r instanceof Scalar rs && unknownVariant(rs) && l instanceof Scalar ls && unknownVariant(ls)
                 ? variantElements(rs.tx()) : asCollection(r);
+        // (a spelled list beside a Variant of no known shape: the Variant's elements in a row with the list's where
+        // it holds a list, the database's reading; else an element beside them)
+        if (left instanceof ListVal lv && right instanceof Scalar rs && unknownVariant(rs)) {
+            return concatSpelled(lv, rs.tx(), true, pos);
+        }
+        // (a Variant list of a known shape beside one of none: joined as texts too)
+        if (l instanceof Scalar ls && ls.tx().kind() == Kind.JSON && ls.tx().detail() instanceof ListOf
+                && r instanceof Scalar rs && unknownVariant(rs)) {
+            return concatJson(ls.tx(), rs.tx(), true);
+        }
+        if (r instanceof Scalar rs && rs.tx().kind() == Kind.JSON && rs.tx().detail() instanceof ListOf
+                && l instanceof Scalar ls && unknownVariant(ls)) {
+            return concatJson(rs.tx(), ls.tx(), false);
+        }
+        if (right instanceof ListVal rv && left instanceof Scalar ls && unknownVariant(ls)) {
+            return concatSpelled(rv, ls.tx(), false, pos);
+        }
         if (left instanceof Coll || right instanceof Coll) {
             // a list the database computes, and a list or a value beside it: the elements in a row, the database's
             // concatenation (an element of another kind is refused by name: the database's lists are of one type)
@@ -18014,6 +18188,11 @@ public final class CypherToPure {
             Map<String, Kind> kinds) {
     }
 
+    /** A DELETE's target ({@link Writer#delete}): what an error names it by, and which of the store's ids the staged
+     *  rows' row {@code s} names. */
+    private record Deleted(String what, java.util.function.UnaryOperator<ValueSpecification> names) {
+    }
+
     /** Ids a clause minted ({@link Writer#greatest}): the staged rows holding them and their column. */
     private record Mint(ValueSpecification rows, String column) {
     }
@@ -18029,6 +18208,14 @@ public final class CypherToPure {
         private int at;
         /** The staged rows' column of each carried node's and relationship's id in the store, by variable. */
         private Map<String, String> keys = Map.of();
+        /** The staged rows' column of each row's number (the database's order: a later row's write is the last). */
+        private @com.legend.base.Nullable String ordinal;
+        /** The staged rows' column of the identity of each node and relationship held as its value (its JSON's
+         *  {@code "@id"}: an element of a collected list, unwound), by variable. */
+        private Map<String, String> heldIdentities = Map.of();
+        /** The shapes of the lists the clause being read writes as properties, by the element's variable and the
+         *  key ({@code n.key}): what the property read back is read as. */
+        private final Map<String, ListOf> listsWritten = new HashMap<>();
         /** The store's greatest node and relationship ids when the statement starts ({@link #highWater}), staged. */
         private @com.legend.base.Nullable Rows highWater;
         /** The ids the statement's clauses minted, node and relationship, by the staged rows and their column. */
@@ -18097,6 +18284,7 @@ public final class CypherToPure {
                 boolean last = i == clauses.size() - 1;
                 Set<String> scope = scopeBefore(i);
                 at = i;
+                listsWritten.clear();
                 switch (c) {
                     case CypherAst.Use u -> {
                         if (u != leading) {
@@ -18236,6 +18424,10 @@ public final class CypherToPure {
         private Rows carried(@com.legend.base.Nullable State state, Set<String> scope, Pos at) {
             List<Item> items = new ArrayList<>();
             for (String v : scope) {
+                if (state instanceof Rows held && column(held, v) == null) {
+                    // (an element a write did not read back: no later clause reads it)
+                    continue;
+                }
                 items.add(new Item(new CypherAst.Var(v, at), null, v, at));
             }
             if (items.isEmpty()) {
@@ -18254,9 +18446,22 @@ public final class CypherToPure {
             List<ColSpec> specs = new ArrayList<>();
             List<Col> columns = new ArrayList<>(rows.columns());
             Map<String, String> keyed = new LinkedHashMap<>();
+            Map<String, String> held = new LinkedHashMap<>();
+            List<ColSpec> heldSpecs = new ArrayList<>();
             for (Col c : rows.columns()) {
                 String identity = c.detail() instanceof NodeShape ns && !ns.absent() ? ns.identity()
                         : c.detail() instanceof RelShape rs && !rs.absent() ? rs.identity() : null;
+                if (identity == null && c.kind() == Kind.JSON && !c.virtual()
+                        && (c.detail() instanceof NodeValue || c.detail() instanceof RelValue)) {
+                    // (a node or relationship held as its value: its identity its JSON's)
+                    identity = freshName(names);
+                    ValueSpecification v = read(c.name());
+                    heldSpecs.add(new ColSpec(identity, lambda("r", call("if", call("isEmpty", v), thunk(
+                            SqlToPure.nullOf(Kind.STRING).vs()), thunk(call("to", call("get", call("toOne", v),
+                            new CString(IDENTITY_KEY)), SqlToPure.typeArg("String"))))), null, null));
+                    columns.add(new Col(identity, Kind.STRING, true));
+                    held.put(c.name(), identity);
+                }
                 if (identity == null) {
                     continue;
                 }
@@ -18267,9 +18472,15 @@ public final class CypherToPure {
                 columns.add(new Col(key, Kind.INTEGER, true));
                 keyed.put(c.name(), key);
             }
-            ValueSpecification vs = specs.isEmpty() ? rows.vs() : call("extend", rows.vs(), new ColSpecArray(specs));
+            ValueSpecification vs = heldSpecs.isEmpty() ? rows.vs() : call("extend", rows.vs(),
+                    new ColSpecArray(heldSpecs));
+            vs = specs.isEmpty() ? vs : call("extend", vs, new ColSpecArray(specs));
+            String number = freshName(names);
+            columns.add(new Col(number, Kind.INTEGER, false));
             keys = keyed;
-            return staged(vs, columns);
+            heldIdentities = held;
+            ordinal = number;
+            return staged(numbered(vs, number), columns);
         }
 
         /** {@code let s = rows->stage()} of rows as they are: computed once, read by the statements after. */
@@ -18536,11 +18747,16 @@ public final class CypherToPure {
          *  beside it (what a property typed two ways reads). Null for a null value (no property); else the kind. */
         private @com.legend.base.Nullable Kind insertProperty(Rows staged, Element el, String key, Val value,
                 Pos at) {
+            String written = el.variable() + "." + key;
+            listsWritten.remove(written);
             if (isNull(value)) {
                 return null;
             }
             Tx t = propertyValue(key, value, at);
             writeProperty(staged, el, key, SqlToPure.valueOf(t), t.kind(), t.nullable());
+            if (t.detail() instanceof ListOf l) {
+                listsWritten.put(written, l);
+            }
             return t.kind();
         }
 
@@ -18555,6 +18771,13 @@ public final class CypherToPure {
             if (split(t) || t.detail() instanceof Zone) {
                 throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property written (" + key + ") is not"
                         + " supported yet", at);
+            }
+            if (t.detail() instanceof ListOf l && switch (l.element()) {
+                case DATE, DATETIME, TIME, ZONED, ZONED_TIME, DURATION -> true;
+                default -> false;
+            }) {
+                throw CypherErrors.unsupported("a list of " + cypherType(l.element()) + " values written as a property ("
+                        + key + ") is not supported yet (the store's Variant spells a temporal as text)", at);
             }
             if (valueColumn(t.kind()) == null) {
                 throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property written (" + key + ") is not"
@@ -18584,6 +18807,14 @@ public final class CypherToPure {
                 present = present == null ? has : call("and", present, has);
             }
             ValueSpecification rows = present == null ? staged.vs() : call("filter", staged.vs(), lambda("r", present));
+            if (el.minted() == null && ordinal != null) {
+                // (an element several rows write: the last row's value, Neo4j's last write)
+                ValueSpecification later = call("and", call("equal", new AppliedProperty(new Variable("s"), el.key()),
+                        read(el.key())), call("greaterThan", new AppliedProperty(new Variable("s"), ordinal),
+                        read(ordinal)));
+                rows = call("filter", rows, lambda("r", call("equal", call("size", call("filter", staged.vs(),
+                        lambda("s", later))), new CInteger(0L))));
+            }
             statements.add(call("write", call("distinct", call("project", rows, new ColSpecArray(row))),
                     table(el.propTable())));
         }
@@ -18591,7 +18822,14 @@ public final class CypherToPure {
         /** The rows of {@code el}'s property table, of the keys {@code keys} (every key when null), deleted where
          *  {@code el} is an element of the staged rows. */
         private void deleteProperties(Rows staged, Element el, @com.legend.base.Nullable List<String> keys) {
-            ValueSpecification owned = ownedBy(staged, el, new AppliedProperty(new Variable("p"), el.owner()));
+            deleteProperties(staged, el.propTable(), el.owner(), sameKey(el), keys);
+        }
+
+        /** The rows of the property table {@code table} (its owner's column {@code owner}), of the keys {@code keys}
+         *  (every key when null), deleted where their owner is one the staged rows name ({@code names}). */
+        private void deleteProperties(Rows staged, String table, String owner,
+                java.util.function.UnaryOperator<ValueSpecification> names, @com.legend.base.Nullable List<String> keys) {
+            ValueSpecification owned = held(staged, names, new AppliedProperty(new Variable("p"), owner));
             ValueSpecification where = owned;
             if (keys != null) {
                 ValueSpecification anyKey = null;
@@ -18601,15 +18839,25 @@ public final class CypherToPure {
                 }
                 where = call("and", java.util.Objects.requireNonNull(anyKey), owned);
             }
-            statements.add(call(DELETE, table(el.propTable()), lambda("p", where)));
+            statements.add(call(DELETE, table(table), lambda("p", where)));
         }
 
         /** Whether the store's id {@code id} is one of the staged rows' {@code el}: a row of them holds its
          *  identity (a correlated count the database computes). */
         private ValueSpecification ownedBy(Rows staged, Element el, ValueSpecification id) {
-            ValueSpecification same = call("equal", new AppliedProperty(new Variable("s"), el.key()), id);
-            return call("greaterThan", call("size", call("filter", staged.vs(), lambda("s", same))),
+            return held(staged, sameKey(el), id);
+        }
+
+        /** Whether a row of the staged rows (their row {@code s}) names the store's id {@code id}. */
+        private static ValueSpecification held(Rows staged, java.util.function.UnaryOperator<ValueSpecification> names,
+                ValueSpecification id) {
+            return call("greaterThan", call("size", call("filter", staged.vs(), lambda("s", names.apply(id)))),
                     new CInteger(0L));
+        }
+
+        /** An element of the staged rows as the store's ids it names: its key column's. */
+        private static java.util.function.UnaryOperator<ValueSpecification> sameKey(Element el) {
+            return id -> call("equal", new AppliedProperty(new Variable("s"), el.key()), id);
         }
 
         // -------------------------------------------------------------- SET and REMOVE
@@ -18767,6 +19015,11 @@ public final class CypherToPure {
                 if (c.carried() != null && isNull(c.carried()) || c.kind() == Kind.NULL) {
                     return null;
                 }
+                String held = heldIdentities.get(variable);
+                if (held != null) {
+                    // (held as its value: its identity its JSON's, read when staged)
+                    return new Element(variable, c.detail() instanceof NodeValue, held, null, keyOf(variable, at));
+                }
                 throw CypherErrors.invalid("Type mismatch: expected Node or Relationship but was "
                         + cypherType(c.kind()), at);
             }
@@ -18801,7 +19054,11 @@ public final class CypherToPure {
         private List<Reread> rereads(Rows staged, Map<String, Map<String, Kind>> written) {
             List<Reread> out = new ArrayList<>();
             for (Map.Entry<String, Map<String, Kind>> w : written.entrySet()) {
-                Map<String, Kind> props = new LinkedHashMap<>(propertiesOf(staged, w.getKey()));
+                Col held = column(staged, w.getKey());
+                Map<String, Kind> props = new LinkedHashMap<>(held != null && heldIdentities.containsKey(w.getKey())
+                        ? storedProps(held.detail() instanceof NodeValue, held.detail() instanceof RelValue rv
+                        ? List.of(java.util.Objects.requireNonNull(rv.type())) : List.of(), Map.of(), pos)
+                        : propertiesOf(staged, w.getKey()));
                 w.getValue().forEach((k, kind) -> {
                     Kind before = props.get(k);
                     if (kind == Kind.NULL) {
@@ -18813,12 +19070,16 @@ public final class CypherToPure {
                 });
                 Element el = java.util.Objects.requireNonNull(element(staged, w.getKey(), pos));
                 String typeColumn = null;
+                String type = null;
                 for (Col c : staged.columns()) {
                     if (c.name().equals(w.getKey()) && c.detail() instanceof RelShape rs) {
                         typeColumn = rs.type();
                     }
+                    if (c.name().equals(w.getKey()) && c.detail() instanceof RelValue rv) {
+                        type = rv.type();
+                    }
                 }
-                out.add(new Reread(w.getKey(), identityText(el), el.key(), props, null, typeColumn));
+                out.add(new Reread(w.getKey(), identityText(el), el.key(), props, type, typeColumn));
             }
             return out;
         }
@@ -18834,8 +19095,14 @@ public final class CypherToPure {
          *  others. A null property value raises Neo4j's error. */
         private State merge(CypherAst.Merge mg, @com.legend.base.Nullable State state, Set<String> scope) {
             PathPattern p = mg.pattern();
-            if (p.variable() != null && !hidden(p.variable())) {
-                throw CypherErrors.unsupported("a named path merged (MERGE p = ...) is not supported yet", p.pos());
+            Set<String> used = usedAfter(at);
+            // (a named path a later clause reads: its elements read back, each its value in the path's)
+            boolean path = p.variable() != null && !hidden(p.variable()) && (used.contains(STAR)
+                    || used.contains(p.variable()));
+            if (path && p.elements().stream().anyMatch(e -> e instanceof RelPattern r
+                    && r.direction() == CypherAst.Direction.BOTH)) {
+                throw CypherErrors.unsupported("a named path merged over a relationship of no direction is not"
+                        + " supported yet", p.pos());
             }
             Rows rows = carried(state, scope, mg.pos());
             Set<String> names = new HashSet<>();
@@ -18926,12 +19193,16 @@ public final class CypherToPure {
                     List.of(new ColSpec(flag, lambda("r", new CBoolean(false)), null, null)))), both), selected(call(
                     "extend", made, new ColSpecArray(List.of(new ColSpec(flag, lambda("r", call("equal", read(ordinal),
                     read(creator))), null, null)))), both));
-            // each named free node's and relationship's identity: its id's text
+            // each named free node's and relationship's identity: its id's text (an unnamed one's under a hidden
+            // name where the path is read)
             List<ColSpec> texts = new ArrayList<>();
             List<Reread> rereads = new ArrayList<>();
+            List<String> pathNames = new ArrayList<>();
             for (Merged el : elements) {
-                String v = variableOf(el.pattern());
-                if (!el.free() || v == null || hidden(v)) {
+                String named = variableOf(el.pattern());
+                String v = named == null || hidden(named) ? path ? HIDDEN + "merged" + el.key() : null : named;
+                pathNames.add(v);
+                if (!el.free() || v == null) {
                     continue;
                 }
                 String text = freshName(names);
@@ -18948,15 +19219,42 @@ public final class CypherToPure {
             }
             Rows merged = new Rows(texts.isEmpty() ? union : call("extend", union, new ColSpecArray(texts)), both);
             if (mg.onCreate().isEmpty() && mg.onMatch().isEmpty()) {
-                return refreshed(merged, rereads, mg.pos());
+                Rows out = refreshed(merged, rereads, mg.pos(), path);
+                return path ? withPath(out, p, pathNames) : out;
             }
-            Rows again = stage(refreshed(merged, rereads, mg.pos(), true));
+            Rows read = refreshed(merged, rereads, mg.pos(), true);
+            Rows again = stage(path ? withPath(read, p, pathNames) : read);
             Map<String, Map<String, Kind>> written = new LinkedHashMap<>();
             setItems(new Rows(call("filter", again.vs(), lambda("r", read(flag))), again.columns()), mg.onCreate(),
                     written);
             setItems(new Rows(call("filter", again.vs(), lambda("r", call("not", read(flag)))), again.columns()),
                     mg.onMatch(), written);
             return refreshed(again, rereads(again, written), mg.pos());
+        }
+
+        /** The rows with the named path {@code p} a column: its JSON (§12.27's shape) built by the database from its
+         *  elements' values (each read under its name in {@code names}), each relationship's stored direction its
+         *  pattern's. */
+        private Rows withPath(Rows rows, PathPattern p, List<String> names) {
+            RowScope over = new RowScope(rows);
+            ValueSpecification text = new CString("{\"@path\":[");
+            List<String> dirs = new ArrayList<>();
+            for (int i = 0; i < p.elements().size(); i++) {
+                PatternElement e = p.elements().get(i);
+                Tx v = scalarOf(val(new CypherAst.Var(java.util.Objects.requireNonNull(names.get(i)), p.pos()), over),
+                        p.pos());
+                text = plus(text, new CString(i == 0 ? "" : ","), call("toString", v.nullable()
+                        ? call("toOne", SqlToPure.valueOf(v)) : SqlToPure.valueOf(v)));
+                if (e instanceof RelPattern r) {
+                    dirs.add(String.valueOf(r.direction() == CypherAst.Direction.OUT));
+                }
+            }
+            text = plus(text, new CString("],\"@dirs\":[" + String.join(",", dirs) + "]}"));
+            List<Col> columns = new ArrayList<>(rows.columns());
+            String name = java.util.Objects.requireNonNull(p.variable());
+            columns.add(new Col(name, Kind.JSON, false, null, new PathValue()));
+            return new Rows(call("extend", rows.vs(), new ColSpecArray(List.of(new ColSpec(name, lambda("r", call(
+                    "fromJson", text)), null, null)))), columns);
         }
 
         /** A MERGE's pattern's elements: a node the rows carry by its staged key (a row holding it null raises: the
@@ -19249,11 +19547,18 @@ public final class CypherToPure {
 
         /** {@code [DETACH] DELETE x, ...}: each relationship's property rows and row deleted, each node's (DETACH: its
          *  relationships first; without, a node still holding a relationship the clause does not delete is Neo4j's
-         *  DeleteConnectedNode, raised by the database). */
+         *  DeleteConnectedNode, raised by the database). A target is a node or relationship the rows carry (by its
+         *  staged key), or any value naming them -- a path, a list's element, a map's entry -- by the identities its
+         *  value holds (a path's elements'), computed with the rows before they are staged. */
         private State delete(CypherAst.Delete dl, @com.legend.base.Nullable State state, Set<String> scope) {
-            Rows staged = stage(carried(state, scope, dl.pos()));
-            List<Element> nodes = new ArrayList<>();
-            List<Element> rels = new ArrayList<>();
+            Rows rows = carried(state, scope, dl.pos());
+            RowScope over = new RowScope(rows);
+            Set<String> names = new HashSet<>();
+            rows.columns().forEach(c -> names.add(c.name()));
+            List<ColSpec> texts = new ArrayList<>();
+            List<Col> columns = new ArrayList<>(rows.columns());
+            List<CypherAst.Var> carriedTargets = new ArrayList<>();
+            List<String[]> valueTargets = new ArrayList<>();
             for (Expr target : dl.targets()) {
                 Expr t = target;
                 while (t instanceof CypherAst.Paren p) {
@@ -19262,48 +19567,161 @@ public final class CypherToPure {
                 if (t instanceof CypherAst.NullLit) {
                     continue;
                 }
-                if (!(t instanceof CypherAst.Var v)) {
-                    throw CypherErrors.unsupported("DELETE of an expression that is no variable (" + text(target)
-                            + ") is not supported yet", target.pos());
+                Col c = t instanceof CypherAst.Var v ? column(rows, v.name()) : null;
+                if (c != null && (c.detail() instanceof NodeShape || c.detail() instanceof RelShape
+                        || c.kind() == Kind.NULL)) {
+                    carriedTargets.add((CypherAst.Var) t);
+                    continue;
                 }
-                Element el = element(staged, v.name(), target.pos());
+                Val value = val(t, over);
+                if (isNull(value)) {
+                    continue;
+                }
+                if (!(value instanceof Scalar sv) || sv.tx().kind() != Kind.JSON) {
+                    throw CypherErrors.invalid("Type mismatch: expected Node, Path or Relationship but was "
+                            + (value instanceof Scalar sv2 ? cypherType(sv2.tx().kind()) : value instanceof MapVal
+                            ? "Map" : "List<T>"), target.pos());
+                }
+                String nodeIds = freshName(names);
+                String relIds = freshName(names);
+                texts.add(new ColSpec(nodeIds, lambda("r", identitiesHeld(sv.tx(), true)), null, null));
+                texts.add(new ColSpec(relIds, lambda("r", identitiesHeld(sv.tx(), false)), null, null));
+                columns.add(new Col(nodeIds, Kind.STRING, false));
+                columns.add(new Col(relIds, Kind.STRING, false));
+                valueTargets.add(new String[] {nodeIds, relIds, text(target)});
+            }
+            Rows staged = stage(texts.isEmpty() ? rows : new Rows(call("extend", rows.vs(), new ColSpecArray(texts)),
+                    columns));
+            // each target as which of the store's ids the staged rows name
+            List<Deleted> nodes = new ArrayList<>();
+            List<Deleted> rels = new ArrayList<>();
+            for (CypherAst.Var v : carriedTargets) {
+                Element el = element(staged, v.name(), v.pos());
                 if (el != null) {
-                    (el.node() ? nodes : rels).add(el);
+                    (el.node() ? nodes : rels).add(new Deleted(el.variable(), sameKey(el)));
+                    if (readAfter(v.name())) {
+                        // (Neo4j's DeletedEntityAccess: a later clause reads what the clause deleted)
+                        guard(staged, call("isNotEmpty", read(el.key())), (el.node() ? "Node" : "Relationship") + " "
+                                + v.name() + " has been deleted in this transaction");
+                    }
                 }
             }
-            for (Element r : rels) {
-                deleteProperties(staged, r, null);
-                statements.add(call(DELETE, table("rels"), lambda("p", ownedBy(staged, r,
-                        new AppliedProperty(new Variable("p"), "id")))));
+            for (String[] vt : valueTargets) {
+                nodes.add(new Deleted(vt[2], among(vt[0])));
+                rels.add(new Deleted(vt[2], among(vt[1])));
             }
-            for (Element n : nodes) {
-                ValueSpecification touching = call("or", ownedBy(staged, n, new AppliedProperty(new Variable("p"),
-                        "src_id")), ownedBy(staged, n, new AppliedProperty(new Variable("p"), "dst_id")));
+            for (Deleted r : rels) {
+                deleteProperties(staged, "rel_props", "rel_id", r.names(), null);
+                statements.add(call(DELETE, table("rels"), lambda("p", held(staged, r.names(), new AppliedProperty(
+                        new Variable("p"), "id")))));
+            }
+            for (Deleted n : nodes) {
+                ValueSpecification touching = touchingOf(staged, n.names(), "p");
                 if (dl.detach()) {
                     statements.add(call(DELETE, table("rel_props"), lambda("p", call("greaterThan", call("size",
                             call("filter", table("rels"), lambda("x", call("and", call("equal",
                             new AppliedProperty(new Variable("x"), "id"), new AppliedProperty(new Variable("p"),
-                            "rel_id")), touchingOf(staged, n, "x"))))), new CInteger(0L)))));
+                            "rel_id")), touchingOf(staged, n.names(), "x"))))), new CInteger(0L)))));
                     statements.add(call(DELETE, table("rels"), lambda("p", touching)));
                 } else {
                     // (Neo4j's check at commit: a node deleted while a relationship holds it)
                     statements.add(call("project", call("filter", table("rels"), lambda("p", touching)),
                             new ColSpecArray(List.of(new ColSpec(SYNTHETIC + "connected", lambda("p", raisingWhere(
-                            call("isNotEmpty", new AppliedProperty(new Variable("p"), "id")), "Cannot delete node<" + n.variable() + ">, because it still has"
-                            + " relationships. To delete this node, you must first delete its relationships.",
-                            new CInteger(1L))), null, null)))));
+                            call("isNotEmpty", new AppliedProperty(new Variable("p"), "id")), "Cannot delete node<"
+                            + n.what() + ">, because it still has relationships. To delete this node, you must first"
+                            + " delete its relationships.", new CInteger(1L))), null, null)))));
                 }
-                deleteProperties(staged, n, null);
-                statements.add(call(DELETE, table("nodes"), lambda("p", ownedBy(staged, n,
-                        new AppliedProperty(new Variable("p"), "id")))));
+                deleteProperties(staged, "node_props", "node_id", n.names(), null);
+                statements.add(call(DELETE, table("nodes"), lambda("p", held(staged, n.names(), new AppliedProperty(
+                        new Variable("p"), "id")))));
             }
             return staged;
         }
 
-        /** Whether the relationship row {@code row} has an end among the staged rows' {@code n}. */
-        private ValueSpecification touchingOf(Rows staged, Element n, String row) {
-            return call("or", ownedBy(staged, n, new AppliedProperty(new Variable(row), "src_id")),
-                    ownedBy(staged, n, new AppliedProperty(new Variable(row), "dst_id")));
+        /** Whether a clause after the one being read reads a property, the labels, the properties or the keys of
+         *  {@code variable} (its type is no read of the element). */
+        private boolean readAfter(String variable) {
+            for (int k = at + 1; k < clauses.size(); k++) {
+                List<Expr> read = new ArrayList<>();
+                switch (clauses.get(k)) {
+                    case CypherAst.With w -> {
+                        w.items().forEach(it -> {
+                            if (it.expr() != null) {
+                                read.add(it.expr());
+                            }
+                        });
+                        w.orderBy().forEach(o -> read.add(o.expr()));
+                        if (w.where() != null) {
+                            read.add(w.where());
+                        }
+                    }
+                    case CypherAst.Return r -> {
+                        r.items().forEach(it -> {
+                            if (it.expr() != null) {
+                                read.add(it.expr());
+                            }
+                        });
+                        r.orderBy().forEach(o -> read.add(o.expr()));
+                    }
+                    case CypherAst.Unwind u -> read.add(u.list());
+                    default -> { }
+                }
+                if (read.stream().anyMatch(e -> entityRead(e, variable))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Whether {@code e} reads a property, the labels, the properties or the keys of {@code variable}. */
+        private static boolean entityRead(Expr e, String variable) {
+            if (e instanceof CypherAst.Prop p && unwrapped(p.target()) instanceof CypherAst.Var v
+                    && v.name().equals(variable)
+                    || e instanceof CypherAst.Index ix && unwrapped(ix.target()) instanceof CypherAst.Var iv
+                    && iv.name().equals(variable)
+                    || e instanceof CypherAst.Call c && c.args().size() == 1 && List.of("labels", "properties", "keys")
+                    .contains(c.name().toLowerCase(java.util.Locale.ROOT))
+                    && unwrapped(c.args().get(0)) instanceof CypherAst.Var cv && cv.name().equals(variable)) {
+                return true;
+            }
+            return children(e).stream().anyMatch(x -> entityRead(x, variable));
+        }
+
+        /** Whether the relationship row {@code row} has an end among the store's ids the staged rows name. */
+        private ValueSpecification touchingOf(Rows staged, java.util.function.UnaryOperator<ValueSpecification> names,
+                String row) {
+            return call("or", held(staged, names, new AppliedProperty(new Variable(row), "src_id")),
+                    held(staged, names, new AppliedProperty(new Variable(row), "dst_id")));
+        }
+
+        /** A DELETE's target text of a value naming nodes or relationships ({@link #identitiesHeld}): whether the
+         *  staged row {@code s}'s text names the store's id {@code id}, the identity it holds ending {@code :id}. */
+        private static java.util.function.UnaryOperator<ValueSpecification> among(String column) {
+            return id -> call("contains", new AppliedProperty(new Variable("s"), column), plus(new CString(":"),
+                    call("toString", call("toOne", id)), new CString("|")));
+        }
+
+        /** The identities of the nodes ({@code nodes}) or the relationships a value names, each closed by a bar
+         *  ({@code |g::A:7|:9|}; none, {@code |}): a node's or a relationship's own, a path's elements' (a node's
+         *  value holds its labels, a relationship's its type, each its identity, the study's §12.71), read by the
+         *  database from the value's JSON. */
+        private static ValueSpecification identitiesHeld(Tx value, boolean nodes) {
+            ValueSpecification v = SqlToPure.valueOf(value);
+            ValueSpecification one = value.nullable() ? call("toOne", v) : v;
+            java.util.function.UnaryOperator<ValueSpecification> named = e -> call("and", call("equal", call(IS_KIND,
+                    call("get", e, new CString(nodes ? "@labels" : "@type")), new CString(nodes ? "list" : "string")),
+                    new CBoolean(true)), call("equal", call(IS_KIND, call("get", e, new CString(IDENTITY_KEY)),
+                    new CString("string")), new CBoolean(true)));
+            java.util.function.UnaryOperator<ValueSpecification> identity = e -> call("toOne", call("to", call("get",
+                    e, new CString(IDENTITY_KEY)), SqlToPure.typeArg("String")));
+            ValueSpecification path = call("get", one, new CString("@path"));
+            ValueSpecification ofPath = call("joinStrings", call("map", call("filter", call("toMany", path,
+                    SqlToPure.typeArg(VARIANT_TYPE)), lambda("e", named.apply(new Variable("e")))), lambda("e",
+                    plus(identity.apply(new Variable("e")), new CString("|")))), new CString(""));
+            ValueSpecification text = plus(new CString("|"), call("if", call("equal", call(IS_KIND, path,
+                    new CString("list")), new CBoolean(true)), thunk(ofPath), thunk(call("if", named.apply(one),
+                    thunk(plus(identity.apply(one), new CString("|"))), thunk(new CString(""))))));
+            return value.nullable() ? call("if", call("isEmpty", v), thunk(new CString("|")), thunk(text)) : text;
         }
 
         // -------------------------------------------------------------- reading back
@@ -19352,6 +19770,7 @@ public final class CypherToPure {
             for (Reread rr : reread) {
                 boolean node = rr.type() == null && rr.typeColumn() == null;
                 String typeOrLabels;
+                String identity = rr.identity();
                 if (node) {
                     String id = freshName(names);
                     String text = freshName(names);
@@ -19366,6 +19785,13 @@ public final class CypherToPure {
                             call("isEmpty", t), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(labelsJson(call(
                             "toOne", t))))), null, null))));
                     columns.add(new Col(typeOrLabels, Kind.STRING, true));
+                    // (its identity as the store's views spell it: its label set's class's path and its id)
+                    identity = freshName(names);
+                    vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(identity, lambda("r", call("if",
+                            call("isEmpty", t), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(plus(classPathOf(
+                            call("toOne", t)), new CString(":"), call("toString", call("toOne", read(rr.key()))))))),
+                            null, null))));
+                    columns.add(new Col(identity, Kind.STRING, true));
                     dropped.add(id);
                     dropped.add(text);
                 } else if (rr.typeColumn() != null) {
@@ -19375,6 +19801,15 @@ public final class CypherToPure {
                     vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(typeOrLabels, lambda("r",
                             new CString(java.util.Objects.requireNonNull(rr.type()))), null, null))));
                     columns.add(new Col(typeOrLabels, Kind.STRING, false));
+                    // (its identity as the views spell it: its type's edge class's path, where the type has one,
+                    // and its id)
+                    String path = edgeClassOf(java.util.Objects.requireNonNull(rr.type()));
+                    identity = freshName(names);
+                    vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(identity, lambda("r", call("if",
+                            call("isEmpty", read(rr.key())), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(plus(
+                            new CString(path + ":"), call("toString", call("toOne", read(rr.key()))))))), null,
+                            null))));
+                    columns.add(new Col(identity, Kind.STRING, true));
                 }
                 Map<String, NodeProp> props = new LinkedHashMap<>();
                 for (Map.Entry<String, Kind> p : rr.props().entrySet()) {
@@ -19395,13 +19830,15 @@ public final class CypherToPure {
                             ownerColumn, null, null, null), new ColSpec(owner, null, null, null)), new ColSpec(column,
                             null, null, null), new ColSpec(value, null, null, null));
                     vs = call("join", vs, rows, new EnumValue(JOIN_KIND, "LEFT"), joinedOn(rr.key(), owner));
-                    columns.add(new Col(value, p.getValue(), true));
+                    // (a list the clause wrote read as its shape)
+                    columns.add(new Col(value, p.getValue(), true, null, p.getValue() == Kind.JSON
+                            ? listsWritten.get(rr.variable() + "." + p.getKey()) : null));
                     props.put(p.getKey(), new NodeProp(value, p.getValue(), true));
                     dropped.add(owner);
                 }
                 columns.add(new Col(rr.variable(), Kind.JSON, true, null, node
-                        ? new NodeShape(typeOrLabels, props, false, rr.identity())
-                        : new RelShape(typeOrLabels, props, rr.identity())));
+                        ? new NodeShape(typeOrLabels, props, false, identity)
+                        : new RelShape(typeOrLabels, props, identity)));
             }
             List<ColSpec> kept = new ArrayList<>();
             for (Col c : columns) {
@@ -19410,6 +19847,34 @@ public final class CypherToPure {
                 }
             }
             return new Rows(call("select", vs, new ColSpecArray(kept)), columns);
+        }
+
+        /** The path of the model's node class whose labels are the label set {@code text} ({@code :A:B:}, in any
+         *  order: its labels each in it and its length theirs), the database's choice; none, the empty text. */
+        private ValueSpecification classPathOf(ValueSpecification text) {
+            Set<String> edgeClasses = new HashSet<>();
+            edges().forEach(e -> edgeClasses.add(e.classPath()));
+            List<String> classes = new ArrayList<>(model.classes());
+            classes.removeAll(valueClasses());
+            classes.removeAll(edgeClasses);
+            ValueSpecification path = new CString("");
+            for (int i = classes.size() - 1; i >= 0; i--) {
+                List<String> labels = new ArrayList<>(new java.util.LinkedHashSet<>(model.labels(classes.get(i))));
+                ValueSpecification same = call("equal", call("length", text), new CInteger((long) labelText(labels)
+                        .length()));
+                for (String l : labels) {
+                    same = call("and", same, call("contains", text, new CString(":" + l + ":")));
+                }
+                path = call("if", same, thunk(new CString(classes.get(i))), thunk(path));
+            }
+            return path;
+        }
+
+        /** The path of the model's one edge class of the relationship type {@code type}; none (or several, a type
+         *  joining several class pairs), the empty text. */
+        private String edgeClassOf(String type) {
+            List<String> classes = edges().stream().filter(e -> e.type().equals(type)).map(Edge::classPath).toList();
+            return classes.size() == 1 ? classes.get(0) : "";
         }
 
         /** A left join's condition: the left row's key column {@code key} equal to the right's {@code id}. */
