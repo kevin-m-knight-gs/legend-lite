@@ -1025,7 +1025,14 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   (`asOfJoin`); Python's tests only. Not the SQL plan's ground. **Not built, for later:** Python's `page.join` (step 4b:
   a page Python serves needs a model of several frames from its engine -- `engine.py`, the SQL plan's ground);
   for the compiler's line: lite types `[]->cast(@Decimal(10,2))` in an `extend` as `Decimal` (an append of a precise
-  decimal column one side lacks is refused).
+  decimal column one side lacks is refused). **Owns all of Python and DataCube from 2026-10-20** (the user: "you can
+  own all of python and datacube now"): the SQL plan's ground (`engine.py`'s snap, frames and project-data paths,
+  `_headless._query`, `warehouse.py`, `_warehouse_snap`) and D5b are this line's. **Now: step 4c**, on
+  `claude/datacube-model-prep`: no table assumption above a grid's base query (a table is the shorthand `#>{db.t}#`
+  for it) -- Create a Class, the data space, headless and Python's class grids, the page model, a join's reopen, and
+  Snap (the base query's result copied into a table of its own, typed by the compiler, shared by query); samples
+  chosen from the query; a mapping test written by Create a Class and run. Core: a mapping test-suite runner, announced
+  here with its files before the first edit.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
