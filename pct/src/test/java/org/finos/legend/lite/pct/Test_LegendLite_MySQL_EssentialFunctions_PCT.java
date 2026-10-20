@@ -52,7 +52,11 @@ public class Test_LegendLite_MySQL_EssentialFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
-            // NOTE 2026-10-20 (the parity phase): testBigFloatAbs unpinned -- a Float root computed from exact-digit literals alone keeps its DECIMAL value (LiteralSpelling.exactFloatConstant).
+            // 2026-10-20, pinned again (the user's rule: as many tests as possible without hacks): a Float is a double
+            // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
+            // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
+            // column was a double -- and is removed
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ACOS is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"ASIN is undefined outside [-1,1]\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),

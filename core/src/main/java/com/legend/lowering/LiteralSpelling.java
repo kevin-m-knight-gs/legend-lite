@@ -395,36 +395,7 @@ public final class LiteralSpelling {
                         || t.type() == SqlType.Scalar.JSON)) {
             return v;
         }
-        if (exactFloatConstant(v)) {
-            return v;
-        }
         return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE);
-    }
-
-    /** A Float-declared value computed from EXACT literals alone: a decimal literal (no Float literal, no column, no
-     *  subquery), DECIMAL-typed. Under a Float label the decimal literal is a Float literal whose digits no double
-     *  holds (B8, {@code NumberLiterals.floating}: legend-pure's Float is BigDecimal-backed and keeps them; the
-     *  Lowerer writes it as a {@link SqlExpr.DecimalLit}, any other Float literal as a {@link SqlExpr.FloatLit}, which
-     *  DuckDB also types DECIMAL), so it keeps its digits: a DOUBLE cast rounds them (testBigFloatAbs:
-     *  abs(-123456789123456789.99) printed 123456789123456784.0, 2026-10-20). A DECIMAL a column holds under a Float
-     *  property converts as before (the census §9 lesson). */
-    static boolean exactFloatConstant(SqlExpr v) {
-        return v.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Decimal
-                && exactDigits(v) && hasDecimalLiteral(v);
-    }
-
-    private static boolean exactDigits(SqlExpr e) {
-        if (e instanceof SqlExpr.DecimalLit || e instanceof SqlExpr.IntLit) {
-            return true;
-        }
-        if (e instanceof SqlExpr.Call || e instanceof SqlExpr.Cast || e instanceof SqlExpr.Group) {
-            return e.children().stream().allMatch(LiteralSpelling::exactDigits);
-        }
-        return false;
-    }
-
-    private static boolean hasDecimalLiteral(SqlExpr e) {
-        return e instanceof SqlExpr.DecimalLit || e.children().stream().anyMatch(LiteralSpelling::hasDecimalLiteral);
     }
 
     /** Pure's literal spelling of a Float: one call, {@link SqlFn#FLOAT_CANON}, which each dialect spells (2026-10-11:

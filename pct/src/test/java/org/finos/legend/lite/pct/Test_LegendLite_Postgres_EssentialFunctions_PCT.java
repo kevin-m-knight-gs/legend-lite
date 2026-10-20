@@ -41,7 +41,11 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             // Float is a double (numeric charter Rule 2) -- deliberate, on every dialect
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "expected: 0\nactual:   1"),
-            // NOTE 2026-10-20 (the parity phase): testBigFloatAbs unpinned -- a Float root computed from exact-digit literals alone keeps its DECIMAL value (LiteralSpelling.exactFloatConstant).
+            // 2026-10-20, pinned again (the user's rule: as many tests as possible without hacks): a Float is a double
+            // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
+            // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
+            // column was a double -- and is removed
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123457000.0"),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "expected: 1\nactual:   2"),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "expected: 4\nactual:   5"),
             // Postgres raises differently (its own error, or a different position or wording)

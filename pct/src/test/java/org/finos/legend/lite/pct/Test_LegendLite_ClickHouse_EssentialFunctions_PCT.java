@@ -61,7 +61,11 @@ public class Test_LegendLite_ClickHouse_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"scalar lowering not yet implemented for TypedDeactivate\""),
-            // NOTE 2026-10-20 (the parity phase): testBigFloatAbs unpinned -- a Float root computed from exact-digit literals alone keeps its DECIMAL value (LiteralSpelling.exactFloatConstant).
+            // 2026-10-20, pinned again (the user's rule: as many tests as possible without hacks): a Float is a double
+            // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
+            // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
+            // column was a double -- and is removed
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456800.0\""),
             // step 9, 2026-10-19, the plan route (as DuckDB's, 2026-10-18): the text carrier spells the NaN cell NaN, and
             // Pure's parseFloat refuses the character (the legacy route's Java BigDecimal said "Infinite or NaN")
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),

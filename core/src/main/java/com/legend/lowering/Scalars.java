@@ -2716,13 +2716,15 @@ final class Scalars {
                                     instanceof Type.ClassType ac
                             && PlatformTypes.isAny(ac)));
         // a TYPE value prints its NAME (STR_Person->toString() is 'STR_Person'; testClassToString): the cell carries
-        // the type's PATH (register S82, 2026-10-20) -- a literal's name is the model's own, any other value's
-        // package the database strips
+        // the type's PATH (register S82, 2026-10-20), so a type written in the query prints the model's own name;
+        // a type known only at run time is refused by name (cutting the package off its path is text surgery on a
+        // fact the model holds; the form, when one is needed, compares the cell against the candidate classes)
         if (t instanceof Type.GenericType mg && PlatformTypes.isClassMetaclass(mg)) {
-            return x instanceof SqlExpr.StringLit s
-                    ? new SqlExpr.StringLit(MixedEncoding.simpleName(s.value()))
-                    : new SqlExpr.Call(SqlFn.REGEXP_REPLACE, List.of(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
-                            new SqlExpr.StringLit("^.*::"), new SqlExpr.StringLit(""), new SqlExpr.StringLit("")));
+            if (x instanceof SqlExpr.StringLit s) {
+                return new SqlExpr.StringLit(MixedEncoding.simpleName(s.value()));
+            }
+            throw new NotImplementedException("toString of a type known only at run time: its cell holds the type's"
+                    + " path, and its name has no form yet (register S82)");
         }
         // Nil (the []-born bottom) has no inhabitants: the value is
         // provably EMPTY — SQL NULL, cast for the string context

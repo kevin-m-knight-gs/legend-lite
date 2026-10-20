@@ -63,7 +63,11 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
             // wire header's type since the DuckDB lane's landing)
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
             one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2015-08-29T22:22:22.9914234) has no BSON date: refused, never cut\""),
-            // NOTE 2026-10-20 (the parity phase): testBigFloatAbs unpinned -- a Float root computed from exact-digit literals alone keeps its DECIMAL value (LiteralSpelling.exactFloatConstant).
+            // 2026-10-20, pinned again (the user's rule: as many tests as possible without hacks): a Float is a double
+            // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
+            // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
+            // column was a double -- and is removed
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "\"\nexpected: '// Warning: Good for gin -- Sad times no tonic'\nactual:   '@_'\""),
