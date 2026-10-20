@@ -143,7 +143,13 @@ class NativeCatalogGovernanceTest {
         // (Postgres keeps microseconds, DuckDB's TIMESTAMP_NS holds 1678 to 2261) leaves the database so.
         // legend-engine carries a date-time in the database's own type, so neither has an upstream counterpart.
         // Emitted by the Cypher translator only, by FQN, at a result's columns. 26 -> 28.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 28,
+        // +1 2026-10-20 (the writes design's leg 6, docs/WRITES_DESIGN_2026_10_18.md §8: Cypher's writes on the native
+        // graph store): stage -- let s = rows->stage(), the rows computed once at the let's turn into a temporary table
+        // of the session, which the statements after read, so the writes between read the rows as they were (a
+        // relation expression is recomputed at each read, and a write changes what it finds). legend-pure's lets bind
+        // values, not a relation's rows at a point of a program's writes; legend-engine has no counterpart. Emitted by
+        // the Cypher translator only, by FQN, a let's value only. 28 -> 29.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 29,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

@@ -129,6 +129,9 @@ class CodeShapeGuardrailTest {
             // the program's clauses are read, scoped to one program (the fresh-name counter's lifecycle)
             "CypherToPure.store", "CypherToPure.stages", "CypherToPure.at", "CypherToPure.keys",
             "CypherToPure.ordinal", "CypherToPure.heldIdentities", "CypherToPure.highWater",
+            // the Cypher translator's let (2026-10-19, the parity lanes' exponential temporal SQL): Shares' count of
+            // the hidden columns it has named, scoped to one translation (the CypherToPure.fresh shape)
+            "Shares.next",
             // the island's reader of a date's or a timestamp's text (2026-10-13, Postgres's date spellings,
             // docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4): PostgresDateTime.Decoder is datetime.c's DecodeDateTime,
             // these its struct pg_tm and the field mask it fills field by field -- scoped to one constant's read,
