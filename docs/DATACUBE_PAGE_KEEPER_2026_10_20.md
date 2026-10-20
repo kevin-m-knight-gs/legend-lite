@@ -221,5 +221,6 @@ planned would have written it a second time for the tab. Instead the host settle
   unit tests, the Python convergence and two-thread tests on the new protocol. Full suite 210/210.
 
 Still open: known limit 6 (a replaced copy dropped before every open page followed past it; step (d)); the seven tab
-edits that are no commands yet stay whole-page writes, refused when they collide (step (c) dropped: the user,
-2026-10-20, on cost against a rare case); on a combined write the tab reopens the page (its view state lost then).
+edits that are no commands yet stay whole-page writes, refused when they collide (step (c): proposed to drop, for its
+cost against a rare case -- the user's decision pending); on a combined write the tab reopens the page (its view state
+lost then).
