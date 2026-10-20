@@ -172,7 +172,12 @@ Asked whether the tests earn confidence for a change this size, the answer was m
   the page's pin, pull, re-apply, discard, load; the engine's routes and copy sweep; the session's forgetting --
   each applied alone and the tests run (scratch harness: each break, the keeper/page/engine/show/notebook tests,
   restore). The baseline caught 22 of 30. The eight missed became tests (commit 20fa90bc9), and three new breaks
-  were added for what those tests claim; round 2 is recorded below.
+  were added for what those tests claim. Round 2 caught 10 of those 11; the one left -- the load's own last write
+  taken out -- survived because the write was redundant: a public call inside `load` wrote the page as it stood, once
+  per cube opened again, half loaded. `load` now runs as one call (`Page._call`), written once (commit fd933afdb), and
+  the break is moot. So 32 of 32 that can be caught are. Two breaks of the tab's own live code, run through the
+  browser harness: the tab ignoring the version its write made is caught; its follows not waiting for its write in
+  flight is not -- a race no test here provokes, and the first target of step (b)'s tab half of the convergence test.
 - **Intent, not only agreement.** The convergence test keeps a model of what every written edit said (a name, a
   sheet, the grids and charts, a grid's groups, Snap, titles) and checks the page against it after every step, in
   write order -- so "one editor's whole page wins" fails it, where agreement alone passed it. 14 Python edit kinds and
