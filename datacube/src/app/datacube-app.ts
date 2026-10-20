@@ -21,6 +21,7 @@ import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
 import {
+  openedLive,
   openingOrder,
   pageContent,
   pageDefinitionText,
@@ -69,8 +70,12 @@ export type AppStart =
   | { readonly kind: 'link'; readonly hash: string; readonly forget: () => void }
   /** The single-user app's launch key (docs/DATACUBE_APP_PLAN_2026_10_02.md, A3), and the table it asks for. */
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
-  /** One frame of the host's (Python's `ll.show(df)`): a page of one grid over it, following the frame as it changes. */
-  | { readonly kind: 'frame'; readonly name: string }
+  /**
+   * One frame of the host's (Python's `ll.show(df)`): a page of one grid over it, following the frame as it changes --
+   * read once as it opens when `snap` says so then (`ll.show(df, snap=True)`: its grid's Snap, which it reads whatever
+   * the frame does after, until its Go Live: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8).
+   */
+  | { readonly kind: 'frame'; readonly name: string; readonly snap?: () => boolean }
   /** The page another editor serves (`services.live.page`: Python's `ll.Page`), followed and reported back to it. */
   | { readonly kind: 'live' };
 
@@ -678,7 +683,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * layout. A cube whose source was not opened is left out, and said; saving over the page would lose it.
      */
     async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false): Promise<void> {
-      const doc = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
+      const given = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
+      // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
+      // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). The page its other editor serves (`replacing`) keeps them: its
+      // host holds them now.
+      const opened = replacing ? { page: given, notes: [] } : openedLive(given);
+      const doc = opened.page;
       // `replacing`: the page's other editor replaced it -- nothing of the person's is asked about
       if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return;
       // LATEST WINS (P2-330), as an open in place: each source is a wait (a file asked for, a sign-in), and an open
@@ -686,7 +696,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const newest = opens.start();
       const makers = new Map<string, GridMaker>();
       const read: Opened[] = [];
-      const notes: string[] = [];
+      const notes: string[] = [...opened.notes];
       sources.reserve(Object.values(doc.model?.tables ?? {}).flat());
       try {
         // a class's grid after the grids whose tables it reads (page-document.ts openingOrder)
@@ -727,6 +737,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       // the page on screen is this one from now: Save writes over it, never over the page it replaced
       const onScreen = place();
+      // a copy a grid going now reads that the page opened reads too -- its other editor's from now on -- stays
+      for (const [cube, copy] of Object.entries(doc.copies ?? {})) page.grid(cube)?.handOver?.(copy.table);
       page.restore(doc, makers);
       current = {
         ...(id !== undefined ? { cubeId: id } : {}),
@@ -740,6 +752,19 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       await page.ready();
       // another page put on screen while this one landed: that page is the one to keep
       if (!onScreen()) return;
+      // each snapped grid of the page its other editor serves reads that editor's copy (§18.8); one its host no longer
+      // holds reads its rows live, said
+      for (const [cube, copy] of Object.entries(doc.copies ?? {})) {
+        const grid = page.grid(cube);
+        try {
+          if (!grid?.followSnap) throw new Error('this grid reads no copy its host makes');
+          await grid.followSnap(copy);
+        } catch (e) {
+          notes.push(`${doc.cubes.find((c) => c.id === cube)?.cube.source.name ?? cube} reads its rows live: its snap `
+            + `(${copy.label}) was not read: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        if (!onScreen()) return;
+      }
       // each file the page reads, where it was picked: kept for the next time it is opened
       if (id !== undefined) await keepHandles(id);
       // The baseline is the page as it LANDED (normalized by its first refresh); a page opened with parts left out is
@@ -1323,6 +1348,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       current = { ...current, name, savedName: name };
       page.setTitle(name);
       onCubeView?.();
+      // read once, as Python asked (`ll.show(df, snap=True)`): its grid's Snap, the copy Python's
+      if (start.kind === 'frame' && start.snap?.()) {
+        for (const id of page.grids) await madeCubes.get(id)?.snapRows();
+      }
     }
 
     // PYTHON'S START: one frame, a page of one grid over it (`ll.show(df)`); or the page Python serves (`ll.Page`)

@@ -40,6 +40,7 @@ import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
 import type { CubeDocument, CubeSource } from '../cube-document.ts';
+import type { GridCopy } from '../page-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
@@ -65,6 +66,14 @@ export interface PageGrid extends SpawnedGrid {
   readonly cubeSource?: CubeSource | undefined;
   /** Every query it runs rewritten by the page (its filters on the grid's class), `said` in words; `run`: run again now. */
   setLens?(lens: QueryLens | undefined, run: boolean, said?: string): Promise<void>;
+  /** The copy it reads (Snap: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), as the page writes it down; none, live. */
+  readonly copy?: GridCopy | undefined;
+  /** The page's snap command from its other editor: the copy that editor's host made, read from now on. */
+  followSnap?(copy: GridCopy): Promise<void>;
+  /** The page's live command from its other editor: its live rows again. */
+  followLive?(): Promise<void>;
+  /** Its copy, when it is `table`, kept when the grid goes: the page's other editor reads it too (a page opened again). */
+  handOver?(table: string): void;
 }
 
 /**
@@ -612,10 +621,18 @@ export class PageApp {
       cubes.push({ id, cube });
     }
     return writePageOf({
-      name, cubes, views: this.views(), filters: this.#filters,
+      name, cubes, views: this.views(), filters: this.#filters, copies: this.#copies(ids),
       ...(unknown?.model ? { model: unknown.model } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
     });
+  }
+
+  /** The copy each of `ids`' grids reads, by its cube (§18.8): the page's record of where its snapped grids' rows are. */
+  #copies(ids: readonly string[]): Readonly<Record<string, GridCopy>> {
+    return Object.fromEntries(ids.flatMap((id) => {
+      const copy = this.grid(id)?.copy;
+      return copy ? [[id, copy] as const] : [];
+    }));
   }
 
   /** Why the page cannot be saved now, if it cannot: nothing on it, or a grid's own reason, named. */
@@ -743,7 +760,10 @@ export class PageApp {
       const cube = this.grid(id)?.cubeDocument(this.#name);
       if (cube) cubes.push({ id, cube });
     }
-    return { page: writePageOf({ name: this.#name, cubes, views: this.views(), filters: this.#filters }), held: this.#page.held };
+    return {
+      page: writePageOf({ name: this.#name, cubes, views: this.views(), filters: this.#filters, copies: this.#copies(this.cubes) }),
+      held: this.#page.held,
+    };
   }
 
   // -- undo and redo ----------------------------------------------------------------------------------------------
@@ -813,6 +833,17 @@ export class PageApp {
       this.#restoring = undefined;
     }
     this.#applyLenses();
+    // where each grid's rows are as the commands leave them (§18.8), in their order: a snap made by the other editor
+    // read from its host, a live command its live rows again
+    for (const command of commands) {
+      if (command.kind !== 'snap' && command.kind !== 'live') continue;
+      const cube = to.views.find((v) => v.id === command.grid)?.cube;
+      const grid = cube === undefined ? undefined : this.grid(cube);
+      if (!grid?.followSnap || !grid.followLive) throw new Error(`${command.grid} cannot read its other editor's copy here`);
+      if (command.kind === 'snap') await grid.followSnap(command.copy);
+      else await grid.followLive();
+      if (this.#disposed) return;
+    }
     this.#state = new PageState(this.#seen());
     this.#paintSheets();
     this.#paintEmpty();

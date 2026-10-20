@@ -1249,6 +1249,17 @@ gridSnapped, pageOpenedLive. Python: `grid.snap()` (headless pull, `Engine.snap_
 let go if the page refuses it), `grid.live()` (the `live` command, then the grid opened over its frames as they are
 now), `grid.snapped`, `page.grid(..., snap=True)`, `page.join(..., snap=True)`; a copy no grid reads any more (gone
 live, snapped again, removed) let go once the page is served without it (`Page._release`); `Page.load` opens live,
-each snapped grid said. `ll.show(df, snap=True)` -- a cube's tab, no page document -- comes with step B, as the tab's
-own Snap on open.
+each snapped grid said.
+
+**As built, step B (2026-10-20).** The page follows its other editor's `snap` and `live` commands (PageApp.follow): the
+grid adopts the copy its host holds (`snap.json` op `held`; cube.ts CubeController.adopt, HostSnaps.adopt) and goes
+live without letting it go (`forget`) -- whoever made a copy lets it go: an adopted copy is never released by the tab
+(its Go Live, its close). The page's document writes each grid's copy from the grid (page-app.ts `#copies`, in its
+state and in what it reports), so the screen's Snap is in `page.read()`; `read()` lets go of a copy the open page no
+longer reads. A page its other editor serves, opened again, hands over the copies it keeps reading (CubeApp.handOver)
+and adopts them; any other page opens live, each snapped grid said (datacube-app.ts openSaved, openedLive). A copy's
+name is never given again in an engine's life and a release of one let go already is answered as done, so a late
+release (a closing grid's, after Python let the copy go) never drops another grid's copy. `ll.show(df, snap=True)`
+(the tab's `?snap=1`, the widget's `snap`): the grid snaps as its page opens the frame (CubeApp.snapRows), and reads
+its copy until its Go Live -- shown again it is not snapped again.
 

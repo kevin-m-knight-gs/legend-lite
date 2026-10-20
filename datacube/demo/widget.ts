@@ -75,7 +75,8 @@ export function render(model: WidgetModel, el: HTMLElement, fetch: typeof global
       host,
       status,
       windows: el,
-      start: 'page' in shows ? { kind: 'live' } : { kind: 'frame', name: shows.frame },
+      // the frame read once as it opens, while Python says so (ll.show(df, snap=True))
+      start: 'page' in shows ? { kind: 'live' } : { kind: 'frame', name: shows.frame, snap: () => model.get('snap') === true },
       taken: [],
       settled,
     });

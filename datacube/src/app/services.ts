@@ -167,6 +167,12 @@ export interface DatabaseService {
   readonly snap?: (model: string, runtime: string, pull: Lambda) => Promise<HostCopy>;
   /** A snap's copy dropped, by its table. */
   readonly release?: (table: string) => Promise<void>;
+  /**
+   * A copy the host holds, by its table, as it was made -- its model and the relation that reads it: what a page
+   * follows when its other editor snapped a grid (Python's grid.snap(), the page's snap command naming only the copy's
+   * table: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). Refused when the host holds no such copy.
+   */
+  readonly held?: (table: string) => Promise<InferredModel & { readonly table: string }>;
   /** Whose database it is, as a person reads it (`Python`): where a snap's copy is said to be kept. */
   readonly place?: string;
   /**

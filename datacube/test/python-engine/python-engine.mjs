@@ -660,6 +660,56 @@ try {
     () => [...document.querySelectorAll('[data-tile^="grid"]')].some((t) => t.querySelector('.dc-th[data-column="head"]') !== null
       && t.querySelector('.dc-th[data-column="d_desk"]') !== null && t.innerText.includes('Ana')));
 
+  // SNAP AS PAGE STATE (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): a grid snapped in Python reads Python's copy on
+  // the open page, by the page's snap command (not opened again), whatever its frame does; gone live in Python it reads
+  // the frame again; snapped on the page, page.read() in Python has the copy; and ll.show(df, snap=True) opens snapped
+  const pill = () => document.querySelector('[data-tile="grid-1"] .dc-titlebar-toggle')?.textContent;
+  const joinTile = () => [...document.querySelectorAll('[data-tile^="grid"]')].find((t) => t.querySelector('.dc-th[data-column="d_desk"]'));
+  await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
+  await python('py-page-snap');
+  await seen('a grid snapped in Python (grid.snap()) reads Python\'s copy on the open page, by its command',
+    `(${String(pill)})() === 'Snapped' && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes'`);
+  await python('py-page-more');
+  await seen('its frame grows in Python: the join over it (live) reads the new row, the snapped grid its copy',
+    `(${String(joinTile)})()?.innerText.includes('11 rows') === true
+      && !document.querySelector('[data-tile="grid-1"]').innerText.includes('LATAM')`);
+  await python('py-page-live');
+  await seen('gone live in Python (grid.live()): the open page reads the frame again',
+    `(${String(pill)})() === 'Live' && document.querySelector('[data-tile="grid-1"]').innerText.includes('LATAM')`);
+  await tabbed.locator('[data-tile="grid-1"] .dc-titlebar-toggle').click();
+  await seen('snapped on the open page', `(${String(pill)})() === 'Snapped'`);
+  const copies = await (async () => {
+    // the page reports its document once a change settles: asked until it has, or ten seconds
+    for (let tries = 0; tries < 20; tries += 1) {
+      await new Promise((done) => { setTimeout(done, 500); });
+      engine.stdin.write('py-page-copies\n');
+      const line = await nextLine();
+      if (!line.startsWith('done py-page-copies ')) throw new Error(`the engine did not read the page: ${line}`);
+      const said = JSON.parse(line.slice('done py-page-copies '.length));
+      if (said['grid-1']?.table?.startsWith('snap')) return said;
+    }
+    return undefined;
+  })();
+  console.log(`${copies ? 'ok  ' : 'FAIL'} a grid snapped on the open page is snapped in page.read() in Python`
+    + `${copies ? ` (${copies['grid-1'].label}, ${copies['grid-1'].rowCount} rows)` : ''}`);
+  if (!copies) failed = true;
+  await python('py-page-live');
+  await seen('and gone live in Python after: the open page live again', `(${String(pill)})() === 'Live'`);
+  engine.stdin.write('show-snapped\n');
+  const snappedLine = await nextLine();
+  if (!snappedLine.startsWith('done show-snapped ')) throw new Error(`the engine did not show the frame: ${snappedLine}`);
+  const snappedTab = await browser.newPage();
+  snappedTab.on('pageerror', (e) => { console.log(`snapped tab error: ${e.message}`); failed = true; });
+  await snappedTab.goto(JSON.parse(snappedLine.slice('done show-snapped '.length)));
+  const tabSnapped = await snappedTab.waitForFunction(() => document.querySelector('.dc-titlebar-toggle')?.textContent === 'Snapped',
+    undefined, { timeout: 60_000 }).then(() => true, () => false);
+  console.log(`${tabSnapped ? 'ok  ' : 'FAIL'} ll.show(df, snap=True) opens the frame snapped`);
+  if (!tabSnapped) {
+    console.log(`  the tab showed: ${(await snappedTab.evaluate(() => document.body.innerText)).slice(0, 400)}`);
+    failed = true;
+  }
+  await snappedTab.close();
+
   // EVERY PAGE PYTHON WRITES IS ONE DATACUBE READS: pages built with each kind of edit Python makes, one with a frozen
   // chart kept without its grid, and DataCube's own page loaded and changed in Python, read by DataCube's reader
   engine.stdin.write('py-documents\n');

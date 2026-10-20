@@ -124,8 +124,10 @@ class DataCube(_EngineWidget):
 
     table = traitlets.Unicode().tag(sync=True)
     version = traitlets.Int(0).tag(sync=True)
+    # read once as its page opens it (show(df, snap=True)): its grid's Snap
+    snap = traitlets.Bool(False).tag(sync=True)
 
-    def __init__(self, frame: Any, name: str | None = None, *, height: int = 480) -> None:
+    def __init__(self, frame: Any, name: str | None = None, *, height: int = 480, snap: bool = False) -> None:
         # closed until it is made: ipywidgets closes a widget when it is collected, one whose making failed too, and
         # that close must find nothing to undo (the audit of step 7, S1: a bad frame printed a second traceback)
         self._closed = True
@@ -137,7 +139,7 @@ class DataCube(_EngineWidget):
         self._session = session
         # show() displayed it in this cell: the cell's own result (the handle show() returned) shows no second copy
         self._shown_here = False
-        super().__init__(_esm=loader, _module=module, table=name, version=engine.version(name), height=height)
+        super().__init__(_esm=loader, _module=module, table=name, version=engine.version(name), height=height, snap=snap)
         self._closed = False
         self.on_msg(self._received)
         self._unwatch = engine.watch(self._moved)
@@ -243,14 +245,14 @@ class PageCube(_EngineWidget):
         return f'<DataCube page {self._page.name!r}>' if not self._closed else f'<DataCube page {self._page.name!r}: closed>'
 
 
-def for_marimo(frame: Any, name: str | None) -> DataCube:
+def for_marimo(frame: Any, name: str | None, snap: bool = False) -> DataCube:
     """``show()`` in a marimo notebook: a new cube over the frame, for the cell to show as its output. marimo carries its
     calls over its own widget channel; when the cell runs again (or is deleted), marimo closes that channel, and the
     cube closes with it -- its frame out of the engine, its name free for the cube the new run shows. marimo has no
     public hook for that: this is its own (``CellLifecycleItem``, by which it closes every widget's channel), held by
     //datacube:marimo_test at the pinned marimo. Without it -- a marimo that moved it, or a show() run outside a cell (a
     UI element's callback) -- the cube works and keeps its frame until ``close()``, and says so once."""
-    return _closes_with_its_cell(DataCube(frame, name), 'its frame')
+    return _closes_with_its_cell(DataCube(frame, name, snap=snap), 'its frame')
 
 
 def page_for_marimo(page: Any) -> PageCube:
@@ -301,15 +303,16 @@ def _warn_once(message: str) -> None:
         print(f'legend-lite: {message}', file=sys.stderr, flush=True)
 
 
-def shown(frame: Any, name: str | None) -> DataCube:
+def shown(frame: Any, name: str | None, snap: bool = False) -> DataCube:
     """``show()`` in a notebook: the frame registered, its name's cube -- the one it has, else a new one -- shown
-    under this cell."""
+    under this cell, read once as its page opens it when ``snap``."""
     session = datacube._current()
     cube = session.cubes.get(name.lower()) if name is not None else None
     if isinstance(cube, DataCube) and not cube._closed:
+        cube.snap = snap
         cube.update(frame)
     else:
-        cube = DataCube(frame, name)
+        cube = DataCube(frame, name, snap=snap)
     from IPython.display import display
     # shown here, even when it was in this cell already (show() of its name again)
     cube._shown_here = False

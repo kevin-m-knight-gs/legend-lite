@@ -111,8 +111,9 @@ export interface SpawnedGrid {
   dispose(): void;
   /** What its charts need from it. */
   chartSource(): ChartSource;
-  /** Told each time a view lands ('view'), and each time its state changes, a view or a width ('change'). */
-  on(event: 'view' | 'change', fn: () => void): () => void;
+  /** Told each time a view lands ('view'), each time its state changes, a view or a width ('change'), and each time
+   *  where its rows are changes, a snap or going live ('plane'). */
+  on(event: 'view' | 'change' | 'plane', fn: () => void): () => void;
   /** Its part of its tile's header: its source, its Live/Snapped pill, its menu. */
   tileHead(): HTMLElement;
 }
@@ -886,6 +887,8 @@ export class CubePage {
       }),
       // its own changes are the page's: "changed since saved" re-reads the page
       cube.on('change', () => this.#options.onChange()),
+      // where its rows are is the page's too: its copies (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
+      cube.on('plane', () => this.#options.onChange()),
     ];
     this.#grids.set(id, { source: cube.chartSource(), added: { cube, stop: () => stops.forEach((stop) => stop()) } });
     // the cube's own grid is "Grid", and its page's others counted; a page of its own's are numbered by their ids

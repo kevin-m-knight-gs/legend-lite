@@ -74,7 +74,9 @@ import {
 } from './export-render.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
 import type { CubePage, ChartSource, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
-import { PAGE_CUBE, pageToJson, startingViews, writePage, type ChartView, type PageDocument, type PageViews } from './page-document.ts';
+import {
+  PAGE_CUBE, gridCopyOf, pageToJson, startingViews, writePage, type ChartView, type GridCopy, type PageDocument, type PageViews,
+} from './page-document.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
@@ -2967,6 +2969,66 @@ export class CubeApp {
       return;
     }
     download(`${exportFileName(title, new Date())}.json`, 'application/json', pageToJson(page));
+  }
+
+  // -- where its rows are: Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) ---------------
+
+  /** The copy it reads, as its page writes it down (page-document.ts gridCopyOf); undefined: it reads its rows live. */
+  get copy(): GridCopy | undefined {
+    const state = this.#controller.snaps.state;
+    if (state.mode !== 'snapped') return undefined;
+    const { table, rowCount, takenAt, label, pulledBy } = state.snap;
+    return gridCopyOf({ table, rowCount, takenAt, label, ...(pulledBy ? { pulledBy } : {}) });
+  }
+
+  /**
+   * THE PAGE'S SNAP COMMAND FROM ITS OTHER EDITOR (Python's grid.snap()): the copy its host made read from now on -- the
+   * grid run again over it, its plane saying so, as the screen's Snap leaves it. That editor lets the copy go. Refused in
+   * words, the grid as it was.
+   */
+  async followSnap(copy: GridCopy): Promise<void> {
+    await this.#controller.adopt({
+      table: copy.table, label: copy.label, takenAt: new Date(copy.takenAt), rowCount: copy.rowCount,
+      ...(copy.pulledBy ? { pulledBy: copy.pulledBy } : {}),
+    }, this.#owner.committed.snapshot.source.query);
+    await this.#planeMoved();
+  }
+
+  /** The page's live command from its other editor: its live rows again (that editor let its copy go). */
+  async followLive(): Promise<void> {
+    this.#controller.forget();
+    await this.#planeMoved();
+  }
+
+  /**
+   * Its copy kept when the grid goes (`table`, the copy its page's other editor now reads too: a page opened again as
+   * that editor has it, §18.8) -- that editor's to let go from now on.
+   */
+  handOver(table: string): void {
+    this.#controller.handOver(table);
+  }
+
+  /**
+   * ITS ROWS READ ONCE: Snap, as its toggle snaps them -- a frame shown by Python's `ll.show(df, snap=True)`, read once
+   * as its page opens it (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). Refused in its status bar, in words (a copy
+   * past the snap limit: it stays live); snapped already, nothing.
+   */
+  async snapRows(): Promise<void> {
+    if (this.#controller.snaps.isSnapped) return;
+    try {
+      await this.#check(this.#controller.snapAndRun(this.#owner.committed.snapshot, () => this.#owner.refresh()));
+    } catch (e) {
+      this.#status(e instanceof Error ? e.message : String(e), 'error');
+    }
+    this.#paintSnap?.();
+    this.#emit('plane');
+  }
+
+  /** The plane moved by its page: the grid run again where its rows now are, its toggle saying so, its page told. */
+  async #planeMoved(): Promise<void> {
+    await this.#owner.refresh();
+    this.#paintSnap?.();
+    this.#emit('plane');
   }
 
   // -- the saved cube -------------------------------------------------------

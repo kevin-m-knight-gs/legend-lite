@@ -15,7 +15,8 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { configurationOf, type CubeDocument, type FileSource } from '../src/cube-document.ts';
 import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
-import { pageToJson, readPage } from '../src/page-document.ts';
+import { gridCopyOf, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
+import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
@@ -629,6 +630,51 @@ describe('a page of its own', () => {
     const before = page.views();
     await assert.rejects(page.follow([{ kind: 'removeTile', tile: 'grid-9' }], new Map()), CubeRefusal);
     assert.deepEqual(page.views(), before);
+  });
+
+  it("snapped or live is the page's (§18.8): another editor's snap and live commands followed by its grid, the screen's own Snap in the page's document, nothing of the other editor's let go", async () => {
+    // a grid read through its host's runner, its host keeping copies (Python's page): what it was asked to let go
+    const released: string[] = [];
+    const runner = new PlanThenRun(new StubPlanner(), engine) as unknown as QueryRunner;
+    const hosted: GridMaker = (gridHost, spawned) => new CubeApp(gridHost, SNAPSHOT, {
+      runner, cubeSource: file('trades.csv'), sourceLabel: 'trades.csv', compact: true,
+      hostSnap: {
+        store: 'Python',
+        snap: async () => ({ rowCount: 3, table: 'snap_2', source: SNAPSHOT.source.query, runner }),
+        release: async (table) => { released.push(table); },
+        adopt: async (table) => ({ table, source: SNAPSHOT.source.query, runner }),
+      },
+      ...(page ? { windowHost: page.root } : {}), ...spawned,
+    });
+    newPage();
+    const a = page.addGrid(hosted);
+    await settle();
+    // a grid alone on its sheet has its header -- its plane's button -- in the page's bar
+    const pill = (): string | null | undefined => host.querySelector('.dc-titlebar-toggle')?.textContent;
+    const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
+    await page.follow([{ kind: 'snap', grid: a, copy }], new Map());
+    await settle();
+    assert.deepEqual(page.grid(a)?.copy, copy, 'its grid reads the copy, as the page wrote it down');
+    assert.deepEqual(page.state.page.copies, { [a]: copy });
+    assert.deepEqual(page.document('Q3')?.copies, { [a]: copy }, 'what the page reports to its other editor');
+    assert.equal(pill(), 'Snapped');
+    await page.follow([{ kind: 'live', grid: a }], new Map());
+    await settle();
+    assert.equal(page.grid(a)?.copy, undefined);
+    assert.equal(page.state.page.copies, undefined);
+    assert.equal(pill(), 'Live');
+    // the screen's own Snap: the page's document says the copy its host made
+    (host.querySelector('.dc-titlebar-toggle') as HTMLElement).click();
+    await settle();
+    const stateCopies = (): PageDocument['copies'] => page.state.page.copies;
+    assert.equal(stateCopies()?.[a]?.table, 'snap_2', "the screen's Snap is in the page's state");
+    // gone live by the other editor, which let the copy go (it read the page first): nothing let go here
+    await page.follow([{ kind: 'live', grid: a }], new Map());
+    await settle();
+    assert.equal(pill(), 'Live');
+    assert.deepEqual(released, [], "the other editor's copies, and one it read, are its to let go");
+    // a snap command for a grid this page cannot read a host's copy for: refused, so the page opens again as it is there
+    await assert.rejects(page.follow([{ kind: 'snap', grid: 'grid-9', copy }], new Map()));
   });
 
   it("another editor's grid commands: applied as one change, no step of the grid's own history, which starts again from them", async () => {

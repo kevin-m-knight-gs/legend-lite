@@ -239,6 +239,13 @@ class InAKernel(Widget):
         self.assertIs(again, first)
         self.assertEqual((first.version, len(self.displayed)), (1, 2))
 
+    def test_snap_true_tells_the_cubes_page_to_read_the_frame_once_each_time_it_opens(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8: the widget's page snaps its grid as it opens it, while it says so
+        cube = ll.show(trades(), name='once', snap=True)
+        self.assertTrue(cube.snap)
+        self.assertIs(ll.show(trades(2), name='once'), cube)
+        self.assertFalse(cube.snap, 'shown again without it: opened live from then on')
+
     def test_after_each_cell_its_cubes_read_at_each_query_query_again(self):
         # a stream, read once into a table of its own: nothing of it changes after a cell
         import pyarrow as pa

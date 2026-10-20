@@ -1304,8 +1304,9 @@ class Page:
 
     def read(self) -> Page:
         """The page as it is open now: the changes made in DataCube since Python last changed it (a sheet arranged, a
-        chart added, a grid regrouped) taken in -- the open page's document is this page's from now on, its handles
-        still good (a tile closed there is gone here too) -- and it returns itself. Not open, or the open page has said
+        chart added, a grid regrouped, snapped or gone live) taken in -- the open page's document is this page's from
+        now on, its handles still good (a tile closed there is gone here too; a copy it no longer reads let go) -- and
+        it returns itself. Not open, or the open page has said
         nothing since: as it is. (A change made in Python replaces what was changed in DataCube meanwhile: read first, to
         keep it.)"""
         said = self._session.engine().read_page(self._key) if self._shown else None
@@ -1317,11 +1318,16 @@ class Page:
                 raise ValueError(f'the open page reads the frames {", ".join(unserved)}, which this session does not serve')
             # taken quietly: the open page is this already; a handle of a tile it no longer has, gone
             self._forget(_ids(self._doc) - _ids(doc))
+            # a copy this page read that the open page no longer reads (gone live there, snapped again, its grid
+            # closed): let go here, by the engine holding it -- the page's copies are its document's (§18.8)
+            reads = {c['table'] for c in doc.get('copies', {}).values()}
+            self._let_go.extend(c['table'] for c in self._doc.get('copies', {}).values() if c['table'] not in reads)
             self._doc = doc
             self._ids |= _ids(doc)
             # the page as one open view said it is: another view may not have that view's changes, so Python's next change
             # is served whole, every view opening it again (the phase 3 audit's 5)
             self._unnoted()
+            self._release()
         return self
 
     @property
@@ -1361,6 +1367,9 @@ class Page:
         grid on its page); one the engine could not drop said, and kept to let go again."""
         gone, self._let_go = self._let_go, []
         for table in gone:
+            if self._session.copy_of(table) is None:
+                # let go already: by the open page that made it (its own Go Live), or never held by this session
+                continue
             try:
                 self._session.engine().release_copy(table)
             except ValueError as refused:
@@ -1454,8 +1463,9 @@ class Page:
         held = self._session.copy_of(copy['table'])
         if held is None:
             name = self._cube(cube)['source']['name']
-            raise ValueError(f'{name}: its snap ({copy["label"]}) is no longer held by this session: grid.live() reads '
-                             'its rows live again, grid.snap() snaps it anew')
+            raise ValueError(f'{name}: its snap ({copy["label"]}) is no longer held by this session (gone live where the '
+                             'page is open? page.read() takes the open page in): grid.live() reads its rows live again, '
+                             'grid.snap() snaps it anew')
         return held
 
     def _served(self) -> list[str]:

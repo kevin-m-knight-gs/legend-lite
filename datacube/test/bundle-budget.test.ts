@@ -219,8 +219,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  303,000 -> 303,500 (2026-10-20, design §18.8 step A, Snap as page state: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
  *  §18.8): the page document's `copies` -- the copy each snapped grid reads -- read strictly by the page's reader at
  *  open (page-document.ts readGridCopy) and kept for the cubes a page holds as it is written (copiesFor). Measured
- *  303,359. */
-const BUDGET = 303_500;
+ *  303,359.
+ *  303,500 -> 305,000 (2026-10-20, design §18.8 step B: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): the page follows
+ *  its other editor's snap and live commands -- a grid reading a copy its host holds (cube.ts adopt, HostSnaps adopt,
+ *  forget, handOver), the page writing down each grid's copy (page-app.ts #copies) and following them (PageApp.follow),
+ *  a saved page opening live, each snapped grid said (datacube-app.ts openSaved, openedLive) -- and a frame read once as
+ *  it opens (ll.show(df, snap=True): CubeApp.snapRows). Measured 304,504. */
+const BUDGET = 305_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -272,8 +277,10 @@ const BUDGET = 303_500;
  *  model keeping a list of tables per grid. Measured 290,648.
  *  291,000 -> 292,000 (2026-10-20, §18's independent audit -- the grid's note of the same date; this page also asks
  *  Python to open a page.join grid, opened.json). Measured 291,599.
- *  292,000 -> 292,500 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 292,296. */
-const ENGINE_BUDGET = 292_500;
+ *  292,000 -> 292,500 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 292,296.
+ *  292,500 -> 294,000 (2026-10-20, design §18.8 step B -- the grid's note of the same date; this page also asks Python
+ *  for a copy it holds, held). Measured 293,533. */
+const ENGINE_BUDGET = 294_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -387,8 +394,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  Measured 308,467.
  *  308,800 -> 309,800 (2026-10-20, §18's independent audit -- the engine page's note of the same date). Measured
  *  309,429.
- *  309,800 -> 310,300 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 310,121. */
-const WIDGET_BUDGET = 310_300;
+ *  309,800 -> 310,300 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 310,121.
+ *  310,300 -> 311,800 (2026-10-20, design §18.8 step B -- the engine page's note of the same date). Measured 311,364. */
+const WIDGET_BUDGET = 311_800;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -73,13 +73,16 @@ class Cube:
         self._session = session
         self.name = name
         self._closed = False
+        # read once as its page opens it (show(..., snap=True)): its grid's Snap
+        self._snap = False
 
     @property
     def url(self) -> str:
-        """The cube's link: the page, the frame, and the engine's token (in the fragment, never sent to a server)."""
+        """The cube's link: the page, the frame, whether it is read once (``snap``), and the engine's token (in the
+        fragment, never sent to a server)."""
         self._open()
         web = self._session.web()
-        return f'{web.url}/engine.html?table={self.name}#token={web.token}'
+        return f'{web.url}/engine.html?table={self.name}{"&snap=1" if self._snap else ""}#token={web.token}'
 
     def update(self, frame: Any) -> None:
         """Shows another frame in this cube: the page opens it, over its new columns if they changed. It returns
@@ -231,13 +234,15 @@ class _Session:
             if name in self.frames and name.lower() not in self.cubes:
                 self.frames.unregister(name)
 
-    def show(self, frame: Any, name: str | None) -> Cube:
-        """The frame registered, and its name's cube in a tab: the one it has, else a new one."""
+    def show(self, frame: Any, name: str | None, snap: bool = False) -> Cube:
+        """The frame registered, and its name's cube in a tab: the one it has, else a new one -- read once as its page
+        opens it when ``snap``."""
         with self._lock:
             name = self.register(frame, name)
             cube = self.cubes.get(name.lower())
             if not isinstance(cube, Cube):
                 cube = self.adopt(Cube(self, name))
+            cube._snap = snap
             return cube
 
     def adopt(self, cube: Any) -> Any:
@@ -413,24 +418,28 @@ def _release(key: int) -> None:
 
 
 def show(frame: Any, name: str | None = None, *, browser: bool = True,
-         inline: bool | None = None) -> Cube | DataCube | PageTab | PageCube:
+         inline: bool | None = None, snap: bool = False) -> Cube | DataCube | PageTab | PageCube:
     """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
     at once: under the cell in a Jupyter notebook; in a marimo notebook, as the cell's output when it is the cell's last
     expression (marimo's way); in a browser tab anywhere else (a plain script that opened one waits at its end until
     Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name again
     replaces its frame and shows its cube again, in a tab or under this cell, as it first showed -- in marimo, a new
     cube each call, the latest taking the name's frame). Each query reads the frame as it is then; the grid's Snap
-    keeps its rows as they are. ``browser=False`` opens no tab: the link is ``cube.url``.
+    keeps its rows as they are. ``snap=True``: the frame read once, by the grid's Snap as its page opens it -- a copy
+    Python's DuckDB keeps, which the grid reads whatever the frame does after, until its Go Live (the frame stays served
+    as it is). ``browser=False`` opens no tab: the link is ``cube.url``.
     ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
     under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""
     from .page import Page
     if isinstance(frame, Page):
+        if snap:
+            raise ValueError("a page's grids snap one by one: grid.snap(), or page.grid(df, snap=True)")
         return _show_page(frame, browser=browser, inline=inline)
     if _marimo() and inline is not False:
         # a marimo notebook: the cube for the cell to show, as its last expression (marimo's way: nothing is added to
         # the cell's output, which would show it twice); the cell's next run closes it
         from .notebook import for_marimo
-        return for_marimo(frame, name)
+        return for_marimo(frame, name, snap)
     if inline is None:
         # a name shown again shows where it showed; a new one under the cell in a notebook's kernel, else in a tab
         shown_before = _current().cubes.get(name.lower()) if name is not None else None
@@ -438,9 +447,9 @@ def show(frame: Any, name: str | None = None, *, browser: bool = True,
     if inline:
         # the notebook extra: without anywidget, the import says how to install it
         from .notebook import shown
-        return shown(frame, name)
+        return shown(frame, name, snap)
     session = _current()
-    cube = session.show(frame, name)
+    cube = session.show(frame, name, snap)
     print(f'DataCube: {cube.url}', flush=True)
     if browser and webbrowser.open(cube.url):
         session.opened = True

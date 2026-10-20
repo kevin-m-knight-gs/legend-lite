@@ -398,6 +398,11 @@ class Engine:
         # its model, runtime and relation as DataCube's code modelled it as it landed: only these are let go of by a
         # snap's release
         self._copies: dict[str, dict[str, Any]] = {}
+        # the copies let go of already, and how many were made: a copy's name is never given again in this engine's life
+        # (snap, snap_2, ...), so a release that comes late -- a tab's closing grid's, after its page's other editor let
+        # the copy go (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) -- finds it gone, never another grid's copy
+        self._released: set[str] = set()
+        self._copies_made = 0
         self._warehouse_lock = threading.Lock()
         # the binding's calls on the compiler's threads, never a connection's (warehouse.set_library_thread)
         warehouse.set_library_thread(_on_compiler_threads)
@@ -915,19 +920,29 @@ class Engine:
         model this engine serves (a frame's, a page's file's: on the compiler's threads, the frames held still). The
         answer: its count, the pull's receipt (a warehouse's), its table, and its model -- the one its queries are
         planned over. ``{"op": "release", "table"}``: that copy dropped by DataCube's code and served no more; a table
-        that is no copy a snap made is refused. A refusal is its words; an expired session 401."""
+        that is no copy a snap made is refused. ``{"op": "held", "table"}``: a copy this engine holds, as it was made --
+        its table and model -- for a page following a snap made in Python (the page's snap command names only its table:
+        docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8); one it does not hold, 404. A refusal is its words; an expired
+        session 401."""
         try:
             asked = json.loads(body)
         except ValueError:
             return _said(400, 'a snap is JSON')
-        if not isinstance(asked, dict) or asked.get('op') not in ('snap', 'release'):
-            return _said(400, 'a snap is {"op": "snap" | "release", ...}')
+        if not isinstance(asked, dict) or asked.get('op') not in ('snap', 'release', 'held'):
+            return _said(400, 'a snap is {"op": "snap" | "release" | "held", ...}')
         if not self.takes_files():
             return _said(404, 'this engine keeps no copy: legend-lite models one with DataCube\'s own code, headless, '
                               'which this engine was not given')
         assert self._headless is not None
         if asked['op'] == 'release':
             return self._release_copy(asked.get('table'))
+        if asked['op'] == 'held':
+            table = asked.get('table')
+            made = self.copy_of(table) if isinstance(table, str) else None
+            if made is None:
+                return _said(404, f'{table!r} is no copy this engine holds')
+            said = {**{k: v for k, v in made.items() if k != 'accessor'}, 'table': table}
+            return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
         if not all(isinstance(asked.get(k), str) for k in ('model', 'runtime', 'pull')):
             return _said(400, 'a snap is {"model", "runtime", "pull"}, the pull its lambda as JSON')
         with self._warehouse_lock:
@@ -1001,9 +1016,13 @@ class Engine:
             return self._copies.get(table)
 
     def _release_copy(self, name: Any) -> Answer:
-        """A snap's copy let go of: dropped by DataCube's code, and only then served no more."""
+        """A snap's copy let go of: dropped by DataCube's code, and only then served no more. One let go already is gone:
+        said as let go (the page's other editor let it go first)."""
         with self._warehouse_lock:
             ours = isinstance(name, str) and name in self._copies
+            gone = isinstance(name, str) and name in self._released
+        if gone:
+            return Answer(200, 'application/json', b'{}')
         if not ours:
             return _said(404, f'{name!r} is no copy a snap of this engine made')
         assert self._headless is not None
@@ -1018,6 +1037,7 @@ class Engine:
             return _said(422, f'{type(failure).__name__}: {failure}')
         with self._warehouse_lock:
             self._copies.pop(name, None)
+            self._released.add(name)
         return Answer(200, 'application/json', b'{}')
 
     def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int,
@@ -1025,8 +1045,11 @@ class Engine:
         """A copy made: ``land`` puts the rows into the table named (on the frames' connection, held), DataCube's code
         (``headless``, asked for before the frames were held: the session's lock first, then the frames') models it,
         and it is served from then on; a copy that fails leaves nothing under its name."""
+        with self._warehouse_lock:
+            self._copies_made += 1
+            asked = 'snap' if self._copies_made == 1 else f'snap_{self._copies_made}'
         try:
-            with self.frames.reading_file('snap') as name:
+            with self.frames.reading_file(asked) as name:
                 land(self.frames.connection, _host.name(name, schema='main'))
                 made = json.loads(headless.call('landed', json.dumps({'table': name})))
                 self.frames.keep_file(name, made['model'])

@@ -476,6 +476,9 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
       snap: async (model: string, runtime: string, pull: Lambda) =>
         JSON.parse(await posted(link, 'snap.json', { op: 'snap', model, runtime, pull: toJson(pull) })) as HostCopy,
       release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }); },
+      // a copy Python made for its page (grid.snap(), §18.8): what the page follows the snap command with
+      held: async (table: string) =>
+        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as InferredModel & { readonly table: string },
     } : {}),
     ...(offers.files ? {
       ingestFile: async (file: File, options: { readonly table: string }) => {

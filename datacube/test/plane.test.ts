@@ -566,6 +566,75 @@ describe('a snap its host makes (Python\'s page: docs/ONE_PLATFORM_PROGRAM_2026_
   });
 });
 
+describe('a copy the page\'s other editor made (Python\'s grid.snap(): docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)', () => {
+  const applied = async () => ({ kind: 'applied' });
+  const TAKEN = { table: 'snap_4', label: 'Snap 14:02', takenAt: new Date('2026-10-20T14:02:00Z'), rowCount: 9 };
+  /** A cube read through a runner whose host holds a copy Python made: what it let go, and which copy it was asked for. */
+  const following = (withAdopt = true) => {
+    const copy = new RecordingPlanner();
+    const runner = new PlanThenRun(copy, new RecordingEngine()) as unknown as QueryRunner;
+    const live = new RecordingPlanner();
+    const released: string[] = [];
+    const asked: string[] = [];
+    const c = new CubeController(new PlanThenRun(live, new RecordingEngine()) as unknown as QueryRunner, {
+      hostSnap: {
+        store: 'Python',
+        snap: async () => ({ rowCount: 3, table: 'snap_5', source: accessor('python::DB', 'snap_5'), runner }),
+        release: async (table) => { released.push(table); },
+        ...(withAdopt ? {
+          adopt: async (table: string) => { asked.push(table); return { table, source: accessor('python::DB', table), runner }; },
+        } : {}),
+      },
+    });
+    return { c, copy, live, released, asked };
+  };
+
+  it('reads the copy through the host\'s runner, as the page wrote it down, and never lets it go itself', async () => {
+    const f = following();
+    await f.c.run(at(SNAPSHOT));
+    await f.c.adopt(TAKEN, SNAPSHOT.source.query);
+    assert.deepEqual(f.asked, ['snap_4']);
+    const state = f.c.snaps.state;
+    assert.ok(state.mode === 'snapped' && state.snap.table === 'snap_4' && state.snap.rowCount === 9
+      && state.snap.label === 'Snap 14:02' && state.snap.takenAt.getTime() === TAKEN.takenAt.getTime(), JSON.stringify(state));
+    f.live.pure.length = 0;
+    await f.c.run(at(SNAPSHOT));
+    assert.ok(f.copy.pure.length > 0, 'the copy\'s runner answers');
+    assert.deepEqual(f.live.pure, [], 'the live runner answers nothing on the copy');
+    // its own Go Live, and its close, leave the other editor's copy to it
+    await f.c.goLive(applied);
+    assert.equal(f.c.snaps.isSnapped, false);
+    await f.c.adopt(TAKEN, SNAPSHOT.source.query);
+    await f.c.close();
+    assert.deepEqual(f.released, [], 'the other editor lets its copy go');
+  });
+
+  it('the live command: live again, nothing let go here; a snap of its own after is its own to let go', async () => {
+    const f = following();
+    await f.c.adopt(TAKEN, SNAPSHOT.source.query);
+    f.c.forget();
+    assert.equal(f.c.snaps.isSnapped, false);
+    await f.c.snap(SNAPSHOT, 'mine');
+    await f.c.close();
+    assert.deepEqual(f.released, ['snap_5'], 'its own copy is let go with it, the other editor\'s never');
+  });
+
+  it('its own copy, handed over (the page opened again reads it too), is kept when it goes', async () => {
+    const f = following();
+    await f.c.snap(SNAPSHOT, 'mine');
+    f.c.handOver('snap_9');
+    f.c.handOver('snap_5');
+    await f.c.close();
+    assert.deepEqual(f.released, [], 'handed to the page\'s other editor: its to let go');
+  });
+
+  it('a host whose copies only this page makes refuses another editor\'s, in words', async () => {
+    const f = following(false);
+    await assert.rejects(f.c.adopt(TAKEN, SNAPSHOT.source.query), /reads no copy its host makes/);
+    assert.equal(f.c.snaps.isSnapped, false);
+  });
+});
+
 describe('receipts', () => {
   /** An engine that signs what it runs, as a server would. */
   class SigningEngine extends RecordingEngine {

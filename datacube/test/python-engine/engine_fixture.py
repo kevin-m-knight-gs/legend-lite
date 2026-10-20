@@ -7,6 +7,9 @@ its frames served, as `q3`), `page-again` (that page served again, its second sh
 frame a row more), `py-page` (a page built with ll.Page and shown; answered `done py-page <its link as JSON>`),
 `py-page-sheet` (a sheet added to it in Python), `py-page-group` and `py-page-regroup` (its first grid grouped by desk,
 then by region, in Python), `py-page-rename` and `py-page-name-back` (it renamed in Python, and named back),
+`py-page-snap`, `py-page-more` and `py-page-live` (its first grid snapped in Python, its frame a LATAM row more, the grid
+live again), `py-page-copies` (answered `done py-page-copies <each grid's snapped, as page.read() says it, as JSON>`),
+`show-snapped` (a frame shown with snap=True; answered `done show-snapped <its link as JSON>`),
 `widget-page-sheet` (a sheet added to the notebook's page),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
@@ -225,6 +228,25 @@ def main() -> None:
                 pypage.join(mine, theirs, {'form': 'join', 'kind': 'left', 'prefix': 'd_', 'keep': None,
                                            'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]}},
                             title='Trades with their desks', sheet=pypage.sheets[0])
+            elif command == 'py-page-snap':
+                # its first grid's rows read once, in Python (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): the page's
+                # snap command, which the open page follows by reading Python's copy
+                pygrid.snap()
+            elif command == 'py-page-more':
+                # its frame a row more, of a region it had none of: a live grid over it shows LATAM, a snapped one not
+                pygrid.update(pa.concat_tables([frame, pa.Table.from_pylist([dict(zip(SCHEMA.names, (
+                    'LATAM', 'Rates', 'B9', 2024, 'Q2', 1.0, 0.5, 2)))], schema=SCHEMA)]))
+            elif command == 'py-page-live':
+                pygrid.live()
+            elif command == 'py-page-copies':
+                # the copies its grids read, as page.read() takes the open page's (a snap made there among them)
+                pypage.read()
+                command = f'py-page-copies {json.dumps({g.id: g.snapped for g in pypage.grids})}'
+            elif command == 'show-snapped':
+                # ll.show(df, snap=True): the tab's grid snaps as it opens the frame
+                with contextlib.redirect_stdout(io.StringIO()):
+                    once = ll.show(frame.slice(0, 4), name='snapped', browser=False, snap=True)
+                command = f'show-snapped {json.dumps(once.url)}'
             elif command == 'py-page-save':
                 # saved into this user's saved pages, as DataCube's Save keeps a page (B6): Open… lists it
                 command = f'py-page-save {json.dumps(pypage.save())}'

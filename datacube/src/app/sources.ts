@@ -437,7 +437,7 @@ export function pageSources(d: SourcesOf): PageSources {
    * copy.
    */
   const hostSnapOf = (m: { readonly model: string; readonly runtime: string }): HostSnap | undefined => {
-    const { snap, release } = database;
+    const { snap, release, held } = database;
     if (!snap || !release) return undefined;
     const store = database.place ?? 'the host';
     return {
@@ -452,6 +452,15 @@ export function pageSources(d: SourcesOf): PageSources {
         return { ...made, runner };
       },
       release: (table) => release(table),
+      // a copy the page's other editor made (Python's grid.snap(), §18.8), read through the host's runner as one made here
+      ...(held ? {
+        adopt: async (table: string) => {
+          const made = await held(table);
+          const runner = services.engine.rows(made.model, made.runtime, { bitColumns: made.bitColumns }).runner;
+          if (!runner) throw new Error(`${store} holds a copy whose rows it does not run`);
+          return { ...made, runner };
+        },
+      } : {}),
     };
   };
 

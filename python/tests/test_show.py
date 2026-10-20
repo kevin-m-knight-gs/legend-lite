@@ -71,6 +71,16 @@ class Show(Shown):
         self.assertEqual((status, served['version']), (200, 0))
         self.assertIn('#>{frame::DB.frame}#', ll.print_tree({'_type': 'lambda', 'parameters': [], 'body': [served['source']]}))
 
+    def test_snap_true_asks_the_tab_to_read_the_frame_once_as_it_opens_it(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8: the tab's grid snaps as it opens (its Snap, a copy Python's
+        # DuckDB keeps); shown again without it, its link opens it live
+        cube = ll.show(trades(), name='once', browser=False, snap=True)
+        self.assertEqual(parse_qs(urlsplit(cube.url).query), {'table': ['once'], 'snap': ['1']})
+        self.assertIs(ll.show(trades(2), name='once', browser=False), cube)
+        self.assertEqual(parse_qs(urlsplit(cube.url).query), {'table': ['once']})
+        with self.assertRaisesRegex(ValueError, "a page's grids snap one by one"):
+            ll.show(ll.Page('P'), browser=False, snap=True)
+
     def test_each_frame_its_own_name_and_a_name_shown_again_replaces_its_frame(self):
         first, second = ll.show(trades(), browser=False), ll.show(trades(), browser=False)
         self.assertEqual((first.name, second.name), ('frame', 'frame_2'))

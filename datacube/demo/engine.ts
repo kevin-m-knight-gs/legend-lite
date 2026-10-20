@@ -80,7 +80,9 @@ async function start(): Promise<void> {
       host,
       status,
       windows: document.body,
-      start: 'page' in shows ? { kind: 'live' } : { kind: 'frame', name: shows.frame },
+      // `snap=1`: the frame read once (ll.show(df, snap=True))
+      start: 'page' in shows ? { kind: 'live' }
+        : { kind: 'frame', name: shows.frame, ...(params.get('snap') === '1' ? { snap: () => true } : {}) },
       taken: [],
       settled,
     });

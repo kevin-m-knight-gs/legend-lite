@@ -1215,14 +1215,25 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertEqual(status, 200, body)
         rows = pyarrow.ipc.open_stream(body).read_all()
         self.assertEqual(sorted(zip(rows['desk'].to_pylist(), rows['qty'].to_pylist())), [('EQ', 5), ('FX', 3), ('FX', 10)])
+        # a copy held, described for a page following a snap made in Python (§18.8): its table and model, as made
+        status, body = self.call({'op': 'held', 'table': 'snap'}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        held = json.loads(body)
+        self.assertEqual((held['table'], held['model'], held['source']), ('snap', first['model'], first['source']))
         self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap'}, '/snap.json')[0], 404, 'let go: held no more')
+        self.assertEqual(self.call({'op': 'held', 'table': 'POSITIONS'}, '/snap.json')[0], 404, 'no copy a snap made')
         self.assertEqual(self.copy_rows(second)[0], 200, 'the other grid still reads its own')
         self.assertEqual(self.frames.connection.execute(
             "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'the copy is dropped')
         self.assertIsNone(self.frames.file_table('snap'), 'and served no more')
-        # only a copy a snap made is let go of this way, and once
-        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 404)
+        # only a copy a snap made is let go of this way; one let go already is gone (a late release, a tab's closing
+        # grid's after Python let its page's copy go: §18.8), its name never given to another copy
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
         self.assertEqual(self.call({'op': 'release', 'table': 'POSITIONS'}, '/snap.json')[0], 404)
+        self.assertEqual(self.snapped(m)['table'], 'snap_3', 'a new copy takes no name a copy had')
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap_3'}, '/snap.json')[0], 200, 'a late release lets no other copy go')
         # nor is it a page's file to drop
         self.assertEqual(self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'x', 'table': 'snap_2'})).status,
                          404)
