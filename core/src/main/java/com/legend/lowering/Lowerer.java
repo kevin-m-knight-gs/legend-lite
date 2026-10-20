@@ -3225,12 +3225,11 @@ public final class Lowerer {
                             .equals(tc.callee().qualifiedName()) ->
                 Render.lowerToString(tc, this::relation, nextAlias(),
                         deferredTds);
-            // F13c — eq/equal over INSTANCE operands (identity lane):
-            // ONE owner of the equality relation — the same canon the
-            // verdict layer byte-judges with. eq = identity (__id
-            // compare); equal = key-tree canon (keyed) or identity
-            // canon (keyless). An unclaimed shape falls to the generic
-            // rule (the candidate check is type-only, side-effect-free).
+            // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
+            // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
+            // compare); equal = key-tree canon (keyed) or identity canon (keyless). An unclaimed shape falls to the
+            // generic rule (the candidate check is type-only, side-effect-free): measured 2026-10-20, the corpus and
+            // the legacy judge's suites still reach it (its deletion is §5 step 3's follow-up).
             case TypedNativeCall n when instanceKeysOf != null
                     && InstanceEquality.claims(n) -> {
                 SqlExpr ie = InstanceEquality.lower(n, instanceKeysOf,

@@ -1,6 +1,6 @@
 # Object identity in the product (2026-10-20)
 
-**Status: steps 1 and 2 landed 2026-10-20 (§5); step 3 open.** The user's ruling of 2026-10-20: "lets fix identity
+**Status: steps 1 and 2 landed 2026-10-20, step 3's claims too (§5); the struct fallback's deletion open.** The user's ruling of 2026-10-20: "lets fix identity
 properly that's a huge product fix/win". This document says what identity is in Pure, what the product did before
 (measured), and how the product gives every object its identity on every lane.
 
@@ -106,7 +106,12 @@ CSV and TDS writers and the typed rows must too (a gate: every output of an obje
 2. **Landed 2026-10-20.** The id per evaluation (§3.2), and `removeDuplicates` on objects through `InstanceEquality`.
    Found on the way: a map whose mapper's value is a list (a many-valued property, an inner map or filter) did not
    flatten (`[1, 2]->map(i | [3, 4]->map(j | $i + $j))` had two elements); it does (`ListEncodings.map`).
-3. `InstanceEquality` claims every operation, its fallback deleted; refusals by name for 4.1 and 4.2 until decided.
+3. **Claims landed 2026-10-20**: `InstanceEquality` owns `distinct` (so `union`, which the typer desugars to it),
+   `isDistinct`, the list `indexOf` and `==` over collections of objects, beside `eq`, `equal`, `contains`, `in` and
+   `removeDuplicates`. **Open:** deleting its struct fallback. Measured 2026-10-20 with the fallback made to throw: the
+   PCT on DuckDB and channel B never reach it, but both corpus lanes and the legacy judge's suites
+   (`core_tests_exec`, `core_tests_integration`) do, on objects whose struct carries no identity field. Each such shape
+   is to be found and either given an identity or refused by name before the fallback goes.
 4. Tests: **landed 2026-10-20**, `ObjectIdentityTest` (§2's table and more, on DuckDB and SQLite, through the plan);
    channel B's identity tests on the plan route with step 10 of the plan path program.
 5. Register rows: **S85** (§4's four, 2026-10-20).

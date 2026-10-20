@@ -63,6 +63,22 @@ class ObjectIdentityTest {
         {"2", "|let f = {x: Integer[1] | ^s::P(n=1)}; [1, 2]->map($f)->removeDuplicates()->size();"},
         {"false", "|let f = {| ^s::P(n=1)}; $f->eval() == $f->eval();"},
         {"true", "|let a = ^s::P(n=1); let f = {| $a}; $f->eval() == $f->eval();"},
+        // every operation built on equal(): union, distinct, isDistinct, indexOf, a collection's ==
+        {"2", "|[^s::P(n=1)]->union([^s::P(n=1)])->size()"},
+        {"1", "|let a = ^s::P(n=1); [$a]->union([$a])->size();"},
+        {"1", "|[^s::Side(id='a', n=1)]->union([^s::Side(id='a', n=2)])->size()"},
+        {"1", "|let a = ^s::P(n=1); [^s::P(n=1), $a]->indexOf($a);"},
+        {"-1", "|let a = ^s::P(n=1); [^s::P(n=1)]->indexOf($a);"},
+        {"1", "|[^s::Side(id='a', n=1), ^s::Side(id='b', n=2)]->indexOf(^s::Side(id='b', n=9))"},
+        {"2", "|[^s::P(n=1), ^s::P(n=1)]->distinct()->size()"},
+        {"1", "|[^s::Side(id='a', n=1), ^s::Side(id='a', n=2)]->distinct()->size()"},
+        {"true", "|[^s::P(n=1), ^s::P(n=1)]->isDistinct()"},
+        {"false", "|let a = ^s::P(n=1); [$a, $a]->isDistinct();"},
+        {"false", "|[^s::Side(id='a', n=1), ^s::Side(id='a', n=2)]->isDistinct()"},
+        {"true", "|let a = ^s::P(n=1); [$a] == [$a];"},
+        {"false", "|[^s::P(n=1)] == [^s::P(n=1)]"},
+        {"true", "|[^s::Side(id='a', n=1), ^s::Side(id='b', n=1)] == [^s::Side(id='a', n=2), ^s::Side(id='b', n=3)]"},
+        {"false", "|[^s::Side(id='a', n=1), ^s::Side(id='b', n=1)] == [^s::Side(id='b', n=2), ^s::Side(id='a', n=3)]"},
     };
 
     @Test
