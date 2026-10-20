@@ -702,5 +702,63 @@ class ParityWithTheScreen(unittest.TestCase):
         self.assertEqual({'group', 'pivot', 'addSort', 'heatmap', 'hide', 'calculate', 'aggregate', 'kind', 'wavg'},
                          set(held))
 
+class Joins(unittest.TestCase):
+    """Two of a page's grids joined headless (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.4): DataCube's own join --
+    the model of both frames by legend-lite's writer, the join typed by the compiler, its grid's cube for addGrid, what it
+    will do before it is made -- run in V8 over Python's frames, and its rows planned and run by Python."""
+
+    TRADES = pd.DataFrame({'trade_id': [1, 2, 3, 4, 5], 'customer_id': pd.array([10, 10, 20, None, 99], dtype='Int64'),
+                           'qty': [5.0, 7.0, 1.0, 2.0, 3.0]})
+    # customer 20 listed twice: trade 3 comes out twice
+    CUSTOMERS = pd.DataFrame({'customer_id': [10, 20, 20, 30], 'region': ['EMEA', 'AMER', 'APAC', 'EMEA']})
+    HOW = {'form': 'join', 'kind': 'left', 'on': {'rows': [{'left': 'customer_id', 'op': '==', 'right': 'customer_id'}]},
+           'prefix': 'c_', 'keep': None}
+
+    def setUp(self):
+        self.page = ll.Page('Headless joins')
+        self.trades = trades = self.page.grid(self.TRADES, name='join_trades')
+        customers = self.page.grid(self.CUSTOMERS, name='join_customers')
+        self.spec = {'left': {'name': 'trades', 'cube': trades._cube()}, 'right': {'name': 'customers', 'cube': customers._cube()},
+                     'tables': ['join_trades', 'join_customers']}
+        self.headless = datacube._session.headless()
+
+    def ask(self, function, how, *args):
+        return json.loads(self.headless.call(function, json.dumps({**self.spec, 'how': how}), *args))
+
+    def test_two_frames_joined_as_the_tabs_join_joins_them(self):
+        said = self.ask('joinCube', self.HOW, 'Headless joins', 3)
+        cube = json.loads(said['cube'])
+        self.assertEqual(cube['source']['_type'], 'join')
+        self.assertEqual(cube['source']['name'], 'trades \u22c8 customers')
+        self.assertEqual([c['name'] for c in cube['source']['columns']], ['trade_id', 'customer_id', 'qty', 'c_customer_id', 'region'])
+        self.assertEqual(cube['source']['left']['source'], {'_type': 'frame', 'name': 'join_trades', 'columns': cube['source']['left']['source']['columns']})
+        # its rows, planned by Python's own compiler over the join's model and run on the frames' database
+        with ll.HeldModel(said['model']) as held:
+            rows = datacube._session.frames.run(held.plan(said['relation'], said['runtime'])).to_pylist()
+        pairs = sorted((r['trade_id'], r['region']) for r in rows)
+        self.assertEqual(pairs, [(1, 'EMEA'), (2, 'EMEA'), (3, 'AMER'), (3, 'APAC'), (4, None), (5, None)])
+        # a page takes it as it takes every grid: the page command addGrid, the cube document as given
+        doc = json.loads(self.page.to_json())
+        held = [x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]]
+        add = {'kind': 'addGrid', 'document': cube, 'sheet': doc['sheets'][0]['id'], 'near': self.trades.id, 'title': None, 'columns': None}
+        applied = json.loads(self.headless.call('pageApply', self.page.to_json(), json.dumps(held), json.dumps([add])))
+        self.assertNotIn('problems', applied)
+        added = json.loads(applied['page'])['cubes'][-1]
+        self.assertEqual((added['id'], added['cube']['source']['_type']), (applied['commands'][0]['id'], 'join'))
+
+    def test_what_a_join_will_do_before_it_is_made_in_the_windows_words(self):
+        said = self.ask('joinQuestions', self.HOW)
+        self.assertEqual(said['counts'], {'mine': 5, 'matched': 3, 'joined': 6, 'repeated': {'keys': 1, 'most': 2}})
+        self.assertEqual(said['words'][0], '3 rows of my 5 rows find a match, 2 rows do not.')
+        anti = self.ask('joinQuestions', {'form': 'anti', 'on': self.HOW['on']})
+        self.assertEqual(anti['words'], ['3 rows of my 5 rows have a match, 2 rows none.', 'It keeps 2 rows, each once.'])
+
+    def test_what_the_compiler_refuses_is_said_in_its_words(self):
+        with self.assertRaisesRegex(Exception, "no column 'nope'"):
+            self.ask('joinCube', {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'customer_id'}]}}, 'Headless joins', 3)
+        with self.assertRaisesRegex(Exception, "a join's form is one of"):
+            self.ask('joinCube', {'form': 'cross'}, 'Headless joins', 3)
+
+
 if __name__ == '__main__':
     unittest.main()

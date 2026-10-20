@@ -6,7 +6,7 @@
 
 import { rebuilt, type CubeDocument, type CubeSource, type FileSource, type JoinSource } from '../cube-document.ts';
 import type { FileHandle } from '../file-handles.ts';
-import { joinLeaves, openJoin } from '../join-open.ts';
+import { TAB_TABLES, joinLeaves, openJoin } from '../join-open.ts';
 import type { RelationTyper } from '../source-columns.ts';
 import { catalogColumns, tableNameOf } from '../upload.ts';
 import type { DatabaseService, GridRows, LocalEngine, Services } from './services.ts';
@@ -93,6 +93,7 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
       tables = read;
     }
     const opened = await openJoin(source, {
+      here: TAB_TABLES,
       tables,
       models: local.tables,
       catalog: (table) => catalogColumns(local.engine, local.tables, table),

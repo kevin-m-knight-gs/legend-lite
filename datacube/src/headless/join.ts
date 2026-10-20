@@ -1,0 +1,107 @@
+// A JOIN, HEADLESS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.4): two of a page's cubes joined as the tab's Join…
+// joins them -- each cube's result over the table it reads in the host's database (a frame, a file read in, a remote
+// file's view), one model of those tables written by legend-lite's writer over the host's worker, the join typed by its
+// compiler -- so a host's page adds a join's grid by the page command every grid is added by (addGrid with the cube
+// document this gives), and asks what a join will do before it makes it, with no screen. Nothing is held between calls.
+
+import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
+import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
+import { openedState } from '../cube-state.ts';
+import { cubeToJson, gridCapped, readCube, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
+import { openInputs, openJoin, summaryCounts, type JoinOpening, type TableKind } from '../join-open.ts';
+import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
+import { LitePlanner } from '../lite-planner.ts';
+import { TreeState } from '../tree.ts';
+import { catalogColumns } from '../upload.ts';
+import { hostCalls, hostDatabase, hostWorker } from './host.ts';
+
+/** What a host hands in: the two cubes, how they join, and the table of its database each one's sources read. */
+export interface JoinSpec {
+  /** Each cube, as the page holds it: its name on the page (its tile's title, else its source's) and its document. */
+  readonly left: { readonly name: string; readonly cube: unknown };
+  readonly right: { readonly name: string; readonly cube: unknown };
+  /** How they combine (join-how.ts JoinHow), read strictly. */
+  readonly how: unknown;
+  /** The table of the host's database each of their sources reads, left's then right's (join-open.ts joinLeaves). */
+  readonly tables: readonly string[];
+}
+
+/** The kinds of source that are tables of a host's database: its frames, the files and remote files it read in. */
+const HOST_TABLES: readonly TableKind[] = ['frame', 'file', 'remoteFile'];
+
+function read(spec: string): { readonly left: JoinInput; readonly right: JoinInput; readonly how: JoinHow; readonly tables: readonly string[] } {
+  // the protocol's exact JSON: a cube's numbers, and a condition's in Pure, kept as they are
+  const s = fromJson(spec) as unknown as JoinSpec;
+  const input = (side: JoinSpec['left']): JoinInput => {
+    const cube = readCube(side.cube);
+    return { name: side.name, source: cube.source, query: cube.query };
+  };
+  return { left: input(s.left), right: input(s.right), how: readJoinHow(s.how), tables: s.tables };
+}
+
+/** Legend-lite's writer and the planners a call makes over the host's worker, the host's database, let go after. */
+async function using<T>(use: (o: JoinOpening & { readonly engine: DuckDbEngine; readonly planners: LitePlanner[] }) => Promise<T>,
+  tables: readonly string[]): Promise<T> {
+  const calls = hostCalls();
+  // the model writer needs no model of its own: it writes one (the worker's tableModel)
+  const models = new LitePlanner({ model: '', runtime: '', worker: () => hostWorker(calls) });
+  const engine = new DuckDbEngine(hostDatabase(calls).connection);
+  const planners: LitePlanner[] = [];
+  try {
+    return await use({
+      here: HOST_TABLES, tables, models, engine, planners, databaseType: 'DuckDB',
+      catalog: (table) => catalogColumns(engine, models, table),
+      typer: (model, runtime) => {
+        const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });
+        planners.push(p);
+        return p;
+      },
+    });
+  } finally {
+    models.dispose();
+    for (const p of planners) p.dispose();
+  }
+}
+
+/**
+ * A JOIN'S CUBE (the Join window's Apply): the join of two cubes as a new grid's cube document, its rows as they are
+ * (capped at the row limit when it is not its page's only grid: `gridsOnPage` counting it), titled as the tab titles
+ * it (join.ts joinTitle) -- for the page command addGrid. `name` is its page's. JSON: `{cube, notes, model, runtime,
+ * relation}`: the cube document as its text, what drifted in an input, and the join's model, runtime and relation (a
+ * lambda) a host plans its rows over.
+ */
+export async function joinCube(spec: string, name: string, gridsOnPage: number): Promise<string> {
+  const s = read(spec);
+  return using(async (o) => {
+    const source: JoinSource = {
+      _type: 'join', name: joinTitle(s.how, s.left.name, s.right.name), left: s.left, right: s.right, how: s.how, columns: [],
+    };
+    const opened = await openJoin(source, o);
+    const made = rebuilt(undefined, opened.relation, opened.columns, source.name, gridCapped(gridsOnPage));
+    // written as the screen holds the grid it opens (cube-state.ts openedState), as headless gridCube writes one
+    const state = openedState(made.snapshot, made.configuration, made.tree ?? TreeState.empty());
+    const cube = writeCube({
+      name, source: { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
+      snapshot: state.snapshot, configuration: state.configuration, tree: state.tree,
+    });
+    return `{"cube":${JSON.stringify(cubeToJson(cube))},"notes":${JSON.stringify(opened.notes)},`
+      + `"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
+      + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
+  }, s.tables);
+}
+
+/**
+ * WHAT A JOIN WILL DO (the Join window's questions, before it is applied): my rows, those that find a match, the rows
+ * after it, their keys that repeat -- each a query the compiler plans over the two cubes' model, run on the host's
+ * database -- and in the window's words. JSON: `{counts, words}`.
+ */
+export async function joinQuestions(spec: string): Promise<string> {
+  const s = read(spec);
+  return using(async (o) => {
+    const inputs = await openInputs(s.left, s.right, o);
+    const planner = o.typer(inputs.model, inputs.runtime) as LitePlanner;
+    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, s.how),
+      async (query) => o.engine.run((await planner.plan(query)).sql, 0));
+    return JSON.stringify({ counts, words: summaryWords(s.how, counts) });
+  }, s.tables);
+}

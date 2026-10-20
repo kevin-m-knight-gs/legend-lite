@@ -10,7 +10,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
-import { joinLeaves, leafRefusal, openInputs, openJoin, summaryCounts, type JoinOpening } from '../src/join-open.ts';
+import { TAB_TABLES, joinLeaves, leafRefusal, openInputs, openJoin, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import { rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type SavedQuery } from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
 import { catalogColumns } from '../src/upload.ts';
@@ -47,7 +47,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
   let models: LitePlanner;
   const planners: LitePlanner[] = [];
   const opening = (tables: string[]): JoinOpening => ({
-    tables, models, databaseType: 'DuckDB',
+    here: TAB_TABLES, tables, models, databaseType: 'DuckDB',
     catalog: (table) => catalogColumns(engine, models, table),
     typer: (model, runtime) => {
       const p = plannerFor(model, runtime);
@@ -195,7 +195,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
 
   it('refuses in words what is not read here, a pivoted input, a key either input lacks', async () => {
     const warehouse: CubeSource = { _type: 'warehouseTable', name: 'sales.orders', warehouse: 'https://w', catalog: 'main', schema: 'sales', table: 'orders', columns: [] };
-    assert.match(leafRefusal(warehouse)!, /one place, this page's own database \(files, remote files\); sales\.orders is a warehouse table, read live/);
+    assert.match(leafRefusal(warehouse, TAB_TABLES)!, /one place, this page's own database \(files, remote files\); sales\.orders is a warehouse table, read live/);
     await assert.rejects(openJoin(join(input(TRADES, 'trades'), input(warehouse, 'orders', query(CUSTOMERS)), LEFT_ON_CUST), opening(['trades', 'x'])),
       (e: unknown) => e instanceof CubeRefusal && /sales\.orders is a warehouse table/.test(e.message));
     const pivoted = query(CUSTOMERS, { pivotOn: ['region'] });

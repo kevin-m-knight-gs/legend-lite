@@ -4,7 +4,7 @@
 // page with no join loads none of it (test/bundle-budget.test.ts).
 
 import { gridCapped, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
+import { TAB_TABLES, openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
 import { joinSummary, joinTitle } from '../join.ts';
 import type { PageApp } from '../page/page-app.ts';
 import { joinDialog } from '../ui/join-dialog.ts';
@@ -59,6 +59,7 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
     const other = others.get(their)!;
     let rows: GridRows | undefined;
     const opened = await openInputs(mine.input, other.input, {
+      here: TAB_TABLES,
       tables: [...mine.tables, ...other.tables],
       models: local.tables,
       catalog: (table) => catalogColumns(local.engine, local.tables, table),

@@ -14,6 +14,7 @@ import { forget, ingest, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelNames } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import { nameGiven, pageApply, pageFilter, pageNew, pageRead } from './page.ts';
+import { joinCube, joinQuestions } from './join.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -50,6 +51,11 @@ export { pageFilter };
 
 /** A page's, a tile's or a sheet's name as a person gives it, by DataCube's one rule: what Python's names ask. */
 export { nameGiven };
+
+/** A join of two of a page's cubes over the host's tables (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.4): the join's
+ *  grid's cube document, for the page command addGrid, and what the join will do before it is made -- the tab's Join…,
+ *  with no screen. */
+export { joinCube, joinQuestions };
 
 /** What DataCube's code runs on in this host: its planner's worker, and the database. */
 export interface Headless {

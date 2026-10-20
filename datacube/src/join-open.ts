@@ -21,23 +21,35 @@ export function joinLeaves(source: CubeSource): CubeSource[] {
   return source._type === 'join' ? [...joinLeaves(source.left.source), ...joinLeaves(source.right.source)] : [source];
 }
 
+/** The kinds of source that are tables of a host's database: the tab's files and remote files; Python's frames too. */
+export type TableKind = 'file' | 'remoteFile' | 'frame';
+/** The tab's: what its own DuckDB holds. */
+export const TAB_TABLES: readonly TableKind[] = ['file', 'remoteFile'];
+
+const WHAT: Readonly<Record<Exclude<CubeSource['_type'], 'join'>, string>> = {
+  file: 'a file, read in another database',
+  remoteFile: 'a remote file, read in another database',
+  frame: "a dataframe, read on Python's database",
+  savedQuery: 'a saved query, read through its project',
+  warehouseTable: 'a warehouse table, read live on the warehouse',
+  class: "a class, read through its project's mapping",
+};
+const PLURAL: Readonly<Record<TableKind, string>> = { file: 'files', remoteFile: 'remote files', frame: 'dataframes' };
+
 /**
- * Why a leaf cannot be read where a join is (§17.3: one model, one connection), or undefined: a file or a remote file,
- * each a table of the host's own database. Anything else is read somewhere else.
+ * Why a leaf cannot be read where a join is (§17.3: one model, one connection), or undefined: a source of a kind that
+ * is a table of the host's database (`here`). Anything else is read somewhere else.
  */
-export function leafRefusal(leaf: CubeSource): string | undefined {
-  const where: Record<Exclude<CubeSource['_type'], 'file' | 'remoteFile' | 'join'>, string> = {
-    savedQuery: 'a saved query, read through its project',
-    warehouseTable: 'a warehouse table, read live on the warehouse',
-    frame: "a dataframe, read on Python's database",
-    class: "a class, read through its project's mapping",
-  };
-  if (leaf._type === 'file' || leaf._type === 'remoteFile' || leaf._type === 'join') return undefined;
-  return `a join reads both its inputs in one place, this page's own database (files, remote files); ${leaf.name} is ${where[leaf._type]}`;
+export function leafRefusal(leaf: CubeSource, here: readonly TableKind[]): string | undefined {
+  if (leaf._type === 'join' || (here as readonly string[]).includes(leaf._type)) return undefined;
+  return `a join reads both its inputs in one place, this page's own database (${here.map((k) => PLURAL[k]).join(', ')}); `
+    + `${leaf.name} is ${WHAT[leaf._type]}`;
 }
 
 /** What opening a join needs of its host. */
 export interface JoinOpening {
+  /** The kinds of source that are tables of the host's database (TAB_TABLES in the tab). */
+  readonly here: readonly TableKind[];
   /** The table of the host's database each leaf reads, in joinLeaves' order (a table read twice, named twice). */
   readonly tables: readonly string[];
   /** The host's model writer. */
@@ -95,7 +107,7 @@ function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
 export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
   const leaves = [...joinLeaves(left.source), ...joinLeaves(right.source)];
   for (const leaf of leaves) {
-    const why = leafRefusal(leaf);
+    const why = leafRefusal(leaf, o.here);
     if (why !== undefined) throw new CubeRefusal(why);
   }
   if (o.tables.length !== leaves.length) {
@@ -104,8 +116,8 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
   const distinct = [...new Set(o.tables)];
   const written = await o.models.tablesModel(await Promise.all(distinct.map(async (table) => ({
     table,
-    // as each one's own model reads it: an upload rewritten at ingest converts, a remote file's view cannot
-    convertible: leaves[o.tables.indexOf(table)]!._type === 'file',
+    // as each one's own model reads it: an upload rewritten at ingest and a frame convert, a remote file's view cannot
+    convertible: leaves[o.tables.indexOf(table)]!._type !== 'remoteFile',
     columns: await o.catalog(table),
   }))), o.databaseType);
   const relationOf = new Map(distinct.map((t, i) => [t, written.tables[i]!.source]));
