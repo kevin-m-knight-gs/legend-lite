@@ -150,7 +150,11 @@ final class ListEncodings {
                             new SqlExpr.NullLit())), applied)
                     : applied;
         }
-        return collectionMapper
+        // pure's map concatenates the per-element results: a mapper whose value is a list (a spelled collection, a
+        // many-valued property, an inner map or filter) flattens
+        return collectionMapper || lam instanceof SqlExpr.Lambda l
+                        && l.body().type() instanceof com.legend.sql.TypeFact.Typed bt
+                        && bt.type() instanceof SqlType.Array
                 ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, transformed)
                 : transformed;
     }

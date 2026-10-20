@@ -10653,6 +10653,36 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-20 — Object identity, steps 1 and 2: every object carries its evaluation; a map flattens its mapper's lists
+
+The program: `docs/OBJECT_IDENTITY_2026_10_20.md` (the user's ruling of 2026-10-20, "lets fix identity properly"),
+inside the plan-route parity work on DuckDB (`docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9).
+
+**Landed:**
+- **Every object carries `__id` and `__type` on every lane** (`ClassLayouts.objectLayoutOf`, the identity layout
+  without `__canon`; `Lowerer.withObjectIdentity`, armed on the plan path in `TypedQuery` and `Compiler.lower`), and no
+  output shows them (`MixedEncoding.declaredOnly` at the JSON, variant and text writers). `removeDuplicates` on objects
+  is `InstanceEquality`'s (a keyed class by its keys, a keyless class by its id).
+- **The id is the construction's evaluation** (`compiler/spec/typed/Evaluation`, design §3.2): its source node
+  (`NewChecker`), the instantiations around it (`UserCallInliner.reached`: each call inlined, each lambda applied, each
+  spelled element unrolled; a let's value stamped where it is bound), a lambda's body completed where the lambda stands
+  (`UserCallInliner.finish`), and the position of the element of each map it is built in (`Lowerer.objectId`,
+  `Lowerer.iterating`: the mapper takes the 1-based position as its second parameter, which every dialect's
+  `list_transform` takes; `SqlTyping` types that form). A site is a value (origin and path), so the statement executor's
+  one inliner run per statement gives a let's object the same id in every statement (`ObjectSites`,
+  `exec.InstanceIds`). Measured first: a site per tree node gave `mk() == mk()` true, two objects for a let read twice
+  in a lambda's body (spliced before typing), and a let built outside a map its positions.
+- **A map flattens a mapper whose value is a list** (`ListEncodings.map`): `[1, 2]->map(i | [3, 4]->map(j | $i + $j))`
+  had two elements, `$qs->map(q | $q.xs)` a list of lists; the flatten read only a spelled collection.
+- Where the product's identity is not yet Pure's: register **S85** (an object per relation row refused by name; a store
+  row's object one id per construction; a fold's accumulator; a lambda's let read in a nested map).
+
+**Measured** (this container, the branch head): `ObjectIdentityTest` (23 cases on DuckDB and SQLite, each Pure's
+answer; 4 map-flatten cases); `//core:core_tests` all targets; `//spec:corpus_duckdb` and `//spec:corpus_h2` exact;
+`//pct:pct_channel_b` 5 of 5; `//pct:pct_duckdb` 5 of 5 (the ledgers as committed with the plan-route parity work).
+The other PCT lanes' ledgers are not re-measured since `11d4c4e8`: the next step runs every lane this container runs on
+both channels.
+
 ## 2026-10-20 — The parity phase, second batch: twenty-five lane pins removed, ClickHouse's clamped dates refused by name
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9, the user's order of 2026-10-20 (PCT parity on every backend);

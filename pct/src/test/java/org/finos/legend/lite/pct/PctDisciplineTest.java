@@ -86,7 +86,11 @@ class PctDisciplineTest {
     // (the CopyWithUpdate marker, its print handler, its arms in the substitution, the roots walk and the
     // closedness wall), and the substitution runs when nothing was captured too; testFold, testFoldFiltering,
     // testFoldToMany; 561 -> 586.
-    private static final int ADAPTER_MAX_LINES = 586;
+    // 2026-10-20, object identity (docs/OBJECT_IDENTITY_2026_10_20.md): the product compares objects by identity, so
+    // the adapter binds each captured object ONCE by a let at the front of the text (capturedObjects,
+    // isCapturedObject, objectLets; the substitution keeps those names as variables) instead of printing each use as
+    // its own ^C(...), which built a new object per use; testEqVarIdentity, testEqNonPrimitive; 586 -> 626.
+    private static final int ADAPTER_MAX_LINES = 626;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

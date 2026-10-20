@@ -76,7 +76,10 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // lane's adapter-composed model drops the qualifier AND the
             // __id slot, so the default-id arm fails honestly on the
             // missing struct key (was the loud not-modeled wall)
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "Could not find key \"__id\" in struct"),
+            // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the class's
+            // own toString() qualifier is still not in the model the adapter hands over (ModelPacker rebuilds classes
+            // property by property)
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
             // C1.5c extends the SAME divergence to indexOf: the engine's
             // relational runtime translates indexOf to 1-BASED locate()
             // verbatim (testSqlFunctionsInMapping golden + rows [12,12]);

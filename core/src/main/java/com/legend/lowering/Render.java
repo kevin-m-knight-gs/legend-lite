@@ -355,7 +355,9 @@ public final class Render {
         } else if (t != null && dateKind(t)) {
             token = jsonToken(engine ? engineDateText(c, t, slot) : dateText(c, t, slot));
         } else {
-            token = jsonToken(c);
+            // an object is its declared properties: its identity and its class are the lowering's own
+            // (docs/OBJECT_IDENTITY_2026_10_20.md §3.4)
+            token = jsonToken(MixedEncoding.declaredOnly(c));
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c), new SqlExpr.StringLit("null"))), token);

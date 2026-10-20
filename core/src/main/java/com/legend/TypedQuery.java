@@ -121,10 +121,12 @@ public final class TypedQuery {
         TypedSpec root = b.get(b.size() - 1);
         // D91: equal() over keyed instances is the key relation on every lane, the plan's too (2026-10-20: only
         // the legacy executor armed it, so the plan compared every field of a keyed class)
+        // every object carries its identity and its class (docs/OBJECT_IDENTITY_2026_10_20.md §3.1)
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
-                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t));
+                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
+                .withObjectIdentity(new com.legend.lowering.ObjectSites());
         if (!temporalRoot) {
             planLw = planLw.withEngineExistsJoinForm();
         }

@@ -547,8 +547,9 @@ public final class SqlTyping {
                 yield typed(new SqlType.Struct(fs));
             }
             case LIST_TRANSFORM -> {
+                // one parameter, the element; or two, the element and its 1-based position
                 if (a.size() != 2 || !(a.get(1) instanceof SqlExpr.Lambda lam)
-                        || lam.params().size() != 1) {
+                        || lam.params().size() > 2) {
                     yield UNKNOWN;
                 }
                 if (!(a.get(0).type() instanceof TypeFact.Typed lt)

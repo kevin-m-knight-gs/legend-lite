@@ -263,6 +263,80 @@ public final class Lowerer {
         return this;
     }
 
+    /** Whether every object carries its identity and its class (the object layout,
+     *  docs/OBJECT_IDENTITY_2026_10_20.md §3.1): its ids minted at {@code sites}. */
+    private boolean objectIdentity;
+
+    /** The maps around the lowering's current point that lower to a list lambda, outermost first: each one's element
+     *  parameter and the variable its position is read from (§3.2). */
+    private final java.util.ArrayList<String[]> iterationPositions = new java.util.ArrayList<>();
+
+    /** The position variables an object's id read: their lambdas take the position as a second parameter. */
+    private final java.util.Set<String> positionsRead = new java.util.HashSet<>();
+
+    /** The id of the objects {@code node} builds: its evaluation's site, then the position of the element of each map it
+     *  is evaluated in (docs/OBJECT_IDENTITY_2026_10_20.md §3.2). A construction the compiler builds after the inliner
+     *  (a store row's object, the resolver's) has no evaluation of its own: it is one where it stands. */
+    private @com.legend.base.Nullable SqlExpr objectId(TypedSpec node,
+            com.legend.compiler.spec.typed.Evaluation evaluation) {
+        if (instanceIdOf == null) {
+            return null;
+        }
+        String id = instanceIdOf.apply(evaluation.complete() ? evaluation.site() : node);
+        if (!objectIdentity) {
+            return new SqlExpr.StringLit(id);
+        }
+        if (evaluation.iterations().isEmpty()) {
+            return new SqlExpr.StringLit(id);
+        }
+        List<SqlExpr> parts = new java.util.ArrayList<>();
+        parts.add(new SqlExpr.StringLit(id + "#"));
+        int from = 0;
+        for (String element : evaluation.iterations()) {
+            int k = from;
+            while (k < iterationPositions.size() && !iterationPositions.get(k)[0].equals(element)) {
+                k++;
+            }
+            if (k == iterationPositions.size()) {
+                throw new com.legend.error.NotImplementedException("an object built for each element of a map over $"
+                        + element + " that does not lower to a list (a relation's rows, a store's) has no identity"
+                        + " of its own yet (docs/OBJECT_IDENTITY_2026_10_20.md §4.1)");
+            }
+            if (parts.size() > 1) {
+                parts.add(new SqlExpr.StringLit("."));
+            }
+            String position = iterationPositions.get(k)[1];
+            positionsRead.add(position);
+            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived(null, position), SqlType.Scalar.VARCHAR));
+            from = k + 1;
+        }
+        return new SqlExpr.Call(SqlFn.CONCAT, parts);
+    }
+
+    /** A map's mapper over {@code element}, a list lambda: an object its body builds is built once per element, so its
+     *  id reads the element's position, which the lambda then takes as its second parameter
+     *  (docs/OBJECT_IDENTITY_2026_10_20.md §3.2; every dialect's list_transform takes it). */
+    SqlExpr.Lambda iterating(String element, java.util.function.Supplier<SqlExpr> body) {
+        if (!objectIdentity) {
+            return new SqlExpr.Lambda(List.of(element), body.get());
+        }
+        String position = "_ix" + aliasCounter++;
+        iterationPositions.add(new String[] {element, position});
+        SqlExpr b;
+        try {
+            b = body.get();
+        } finally {
+            iterationPositions.remove(iterationPositions.size() - 1);
+        }
+        return new SqlExpr.Lambda(positionsRead.remove(position) ? List.of(element, position) : List.of(element), b);
+    }
+
+    public Lowerer withObjectIdentity(ObjectSites sites) {
+        this.instanceIdOf = sites::idOf;
+        this.objectIdentity = true;
+        return this;
+    }
+
     public Lowerer withInstanceKeys(
             Function<Type, com.legend.compiler.element
                     .@com.legend.base.Nullable EqualityKeys> keys) {
@@ -2834,8 +2908,7 @@ public final class Lowerer {
                 SqlExpr src = scalar(cp.source(), columns);
                 yield ConstructionCanon.bind(instanceKeysOf, () -> aliasCounter++, cp.info().type(), cp.classFqn(), layout.stream().map(c -> {
                     // F13: a copy is a NEW instance — mint at the COPY site
-                    var sf = MixedEncoding.syntheticField(c,
-                            instanceIdOf == null ? null : instanceIdOf.apply(cp), cp.classFqn());
+                    var sf = MixedEncoding.syntheticField(c, objectId(cp, cp.evaluation()), cp.classFqn());
                     if (sf != null) {
                         return sf;
                     }
@@ -2885,15 +2958,15 @@ public final class Lowerer {
                 }
                 // a property-less class's constructor: the synthetic fields alone
                 var layout = classLayout.apply(n.info().type()).or(() -> n.properties().isEmpty()
-                        ? Optional.of(com.legend.compiler.element.ClassLayouts.syntheticOnlyLayout(instanceIdOf != null))
+                        ? Optional.of(objectIdentity ? com.legend.compiler.element.ClassLayouts.objectSyntheticOnlyLayout()
+                                : com.legend.compiler.element.ClassLayouts.syntheticOnlyLayout(instanceIdOf != null))
                         : Optional.empty()).orElseThrow(() ->
                         new IllegalStateException("class value ^" + n.classFqn()
                                 + "(…) has no canonical layout — the class declares no"
                                 + " stored properties (or no model rides this lowering)"));
                 yield ConstructionCanon.bind(instanceKeysOf, () -> aliasCounter++, n.info().type(), n.classFqn(), layout.stream().map(c -> {
                     // F13: one deterministic id per construction SITE (node)
-                    var sf = MixedEncoding.syntheticField(c,
-                            instanceIdOf == null ? null : instanceIdOf.apply(n), n.classFqn());
+                    var sf = MixedEncoding.syntheticField(c, objectId(n, n.evaluation()), n.classFqn());
                     if (sf != null) {
                         return sf;
                     }

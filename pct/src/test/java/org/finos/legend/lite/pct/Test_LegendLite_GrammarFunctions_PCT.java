@@ -34,12 +34,9 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
     // (contains-matched), so any regression that changes the failure
     // shape — or a fix that makes one pass — fails loudly.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // INSTANCE IDENTITY: eq/== on class instances is REFERENCE equality
-            // in real pure; the harness inlines captured instances BY VALUE, so
-            // eq($x,$x) and eq($x,$y) arrive as identical text — identity is
-            // erased before the wire. Struct comparison says true where identity
-            // says false. The reference adapter family limitation.
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
+            // NOTE 2026-10-20 (object identity, docs/OBJECT_IDENTITY_2026_10_20.md): testEqNonPrimitive passes -- every
+            // object carries its identity, and the adapter binds each captured object once by a let (capturedObjects,
+            // objectLets), so eq(, ) compares two objects and eq(, ) one.
             // NOTE 2026-10-20 (the user's rule: as many tests as possible without hacks): testEqualNonPrimitive,
             // testEqPrimitiveExtension and testEqualPrimitiveExtension pass -- the model the adapter hands over keeps
             // <<equality.Key>> and the test's own Primitive (ModelPacker), and the plan's lowering compares a keyed
@@ -62,9 +59,9 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             // the reference adapter excludes this family too.
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),   // F13b(a) 2026-08-23: the flatten fix decodes the collection correctly (Channel B PASSES this test); the reference INTERPRETER still fails on REFERENCE IDENTITY — DB-round-tripped instances mint fresh interpreter ids (@_x vs @_y), inherent to the adapter seam
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
-            // (OneToOne is HARNESS SERIALIZATION LOSS, not an identity assert:
-            // the captured $address never reaches the serialized text)
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\"")
+            // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
+            // lets, object identity); its assertIs then needs the interpreter's own object back, as the two above
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
             // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.

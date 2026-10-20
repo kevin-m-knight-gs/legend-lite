@@ -280,6 +280,9 @@ class TypedSpecChildrenTest {
         if (type == ExprType.class) {
             return one();
         }
+        if (type == com.legend.compiler.spec.typed.Evaluation.class) {
+            return com.legend.compiler.spec.typed.Evaluation.synthesized();
+        }
         if (type == Type.class) {
             return Type.Primitive.INTEGER;
         }

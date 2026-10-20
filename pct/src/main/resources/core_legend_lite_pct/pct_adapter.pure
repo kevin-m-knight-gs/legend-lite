@@ -232,20 +232,54 @@ function <<access.private>> meta::legend::lite::pct::collectRoots(a:Any[1]):Stri
 // falsifies the closedness premise (a captured value carrying a live
 // free VariableExpression), the loud interpreter unbound-variable
 // error IS the tripwire, and alpha-freshening is the fallback.
-function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<Any>[1]):FunctionDefinition<Any>[1]
+function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<Any>[1], keep:String[*]):FunctionDefinition<Any>[1]
 {
-  // Get captured variables from closure (variables from outer scope)
+  // Get captured variables from closure (variables from outer scope); the captured objects the text binds by lets
+  // (keep, capturedObjects) stay variables
   let openVars = $f->openVariableValues();
   // the walk runs with no captured variable too: it also rewrites a copy with updated properties (CopyWithUpdate)
-  let vars = if($openVars->isEmpty(), |newMap([]->cast(@Pair<String, Any>)), |$openVars->toOne());
+  let vars = if($openVars->isEmpty(), |newMap([]->cast(@Pair<String, Any>)),
+                |newMap($openVars->toOne()->keyValues()->filter(kv | !$keep->contains($kv.first))));
   let substitutedExprs = $f.expressionSequence->evaluateAndDeactivate()->map(e |
-    substituteInExpression($e, $vars)
+    substituteInExpression($e, $vars, $keep)
   );
   ^$f(expressionSequence = $substitutedExprs->cast(@ValueSpecification)->toOneMany());
 }
 
+// The evaluated lambda's captured OBJECTS, each bound once by a let at the front of its text (2026-10-20, object
+// identity, docs/OBJECT_IDENTITY_2026_10_20.md): one object read twice is one object, two objects with equal
+// properties are two -- what the test wrote; printing each use as its own ^C(...) built a new object per use
+function <<access.private>> meta::legend::lite::pct::capturedObjects(f:FunctionDefinition<Any>[1]):Pair<String, List<Any>>[*]
+{
+  let openVars = $f->openVariableValues();
+  if($openVars->isEmpty(), |[],
+    | $openVars->toOne()->keyValues()
+        ->map(kv | pair($kv.first, $kv.second->cast(@List<Any>)))
+        ->filter(kv | $kv.second.values->isNotEmpty() && $kv.second.values->forAll(v | $v->isCapturedObject())));
+}
+
+function <<access.private>> meta::legend::lite::pct::isCapturedObject(v:Any[1]):Boolean[1]
+{
+  let t = $v->genericType().rawType->toOne();
+  $t->instanceOf(Class) && !$t->instanceOf(PrimitiveType) && !$t->subTypeOf(Function)
+    && !$t->elementToPath()->startsWith('meta::pure::metamodel');
+}
+
+// The lets binding the captured objects: an object a name earlier in the list holds is that name's
+function <<access.private>> meta::legend::lite::pct::objectLets(objects:Pair<String, List<Any>>[*]):String[1]
+{
+  $objects->map({o | let earlier = $objects->slice(0, $objects->indexOf($o))
+                        ->filter(e | $e.second.values->size() == 1 && $o.second.values->size() == 1
+                                     && $e.second.values->toOne()->eq($o.second.values->toOne()));
+                    'let ' + $o.first + ' = ' + if($earlier->isNotEmpty(),
+                        | '$' + $earlier->at(0).first,
+                        | if($o.second.values->size() == 1, |$o.second.values->toOne()->objectToGrammar(),
+                             |'[' + $o.second.values->map(v | $v->objectToGrammar())->joinStrings(', ') + ']')) + '; ';})
+    ->joinStrings('')
+}
+
 // Recursively substitute variables in an expression
-function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:Map<String, Any>[1]):Any[1]
+function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:Map<String, Any>[1], keep:String[*]):Any[1]
 {
   $expr->match([
     // Variable reference - check if it's in openVars and substitute
@@ -292,11 +326,11 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
             genericType = ^GenericType(rawType = CopyWithUpdate),
             multiplicity = PureOne,
             values = ^CopyWithUpdate(
-              source = substituteInExpression($params->at(0), $openVars)->cast(@ValueSpecification),
+              source = substituteInExpression($params->at(0), $openVars, $keep)->cast(@ValueSpecification),
               keys = $params->at(2)->cast(@InstanceValue).values->cast(@KeyExpression)->map(k |
-                  ^$k(expression = substituteInExpression($k.expression, $openVars)->cast(@ValueSpecification)))));,
+                  ^$k(expression = substituteInExpression($k.expression, $openVars, $keep)->cast(@ValueSpecification)))));,
         | let substitutedParams = $params->map(p |
-            substituteInExpression($p, $openVars)->cast(@ValueSpecification)
+            substituteInExpression($p, $openVars, $keep)->cast(@ValueSpecification)
           );
           ^$sfe(parametersValues = $substitutedParams););,
       
@@ -304,7 +338,7 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
     iv:InstanceValue[1] |
       let substitutedValues = $iv.values->map(v |
         $v->match([
-          vs:ValueSpecification[1] | substituteInExpression($vs, $openVars),
+          vs:ValueSpecification[1] | substituteInExpression($vs, $openVars, $keep),
           cfd:ConcreteFunctionDefinition<Any>[1] |
             // A NAMED function passed by reference: lite's model does not
             // host the PCT support functions, so the reference must be
@@ -313,7 +347,7 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
             // a PRINT-ONLY form no real parser accepts (invention census
             // D2; the lite parse arm for it is deleted).
             let substExprs = $cfd.expressionSequence->evaluateAndDeactivate()->map(e |
-              substituteInExpression($e, $openVars)
+              substituteInExpression($e, $openVars, $keep)
             );
             ^GenericType(
               rawType = LambdaFunction,
@@ -331,9 +365,9 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
             // is then closed AS TEXT, which is the premise the
             // capture-safety proof rests on — and assertClosed below
             // enforces it mechanically on every test.
-            let closed = substituteOpenVariables($fd);
+            let closed = substituteOpenVariables($fd, $keep);
             let substExprs = $closed.expressionSequence->evaluateAndDeactivate()->map(e |
-              substituteInExpression($e, $openVars)
+              substituteInExpression($e, $openVars, $keep)
             );
             ^$closed(expressionSequence = $substExprs->cast(@ValueSpecification)->toOneMany());,
           a:Any[1] | $a
@@ -344,7 +378,7 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
     // Lambda function - recursively substitute in body
     lf:LambdaFunction<Any>[1] |
       let substExprs = $lf.expressionSequence->evaluateAndDeactivate()->map(e |
-        substituteInExpression($e, $openVars)
+        substituteInExpression($e, $openVars, $keep)
       );
       ^$lf(expressionSequence = $substExprs->cast(@ValueSpecification)->toOneMany());,
     
@@ -362,9 +396,9 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
 // EQUALS the substitution's own node vocabulary: anything the
 // substitution can reach, the wall can reach.
 
-function <<access.private>> meta::legend::lite::pct::assertClosed(f:FunctionDefinition<Any>[1]):Boolean[1]
+function <<access.private>> meta::legend::lite::pct::assertClosed(f:FunctionDefinition<Any>[1], letBound:String[*]):Boolean[1]
 {
-  $f->lambdaClosed([])
+  $f->lambdaClosed($letBound)
 }
 
 function <<access.private>> meta::legend::lite::pct::lambdaClosed(fd:FunctionDefinition<Any>[1], bound:String[*]):Boolean[1]
@@ -429,12 +463,17 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     // Substitute captured closure variables before serialization
     // This replaces VariableExpression nodes with their actual values
     let funcDef = $f->cast(@FunctionDefinition<Any>);
-    let substituted = substituteOpenVariables($funcDef);
-    let closednessWall = assertClosed($substituted);
+    let objects = capturedObjects($funcDef);
+    let substituted = substituteOpenVariables($funcDef, $objects.first);
+    let closednessWall = assertClosed($substituted, $objects.first);
     
     // Serialize the substituted function definition to Pure grammar text
     let config = legendLiteGrammarConfiguration();
-    let pureText = $substituted->printFunctionDefinition($config, ^GContext(space=''));
+    let printed = $substituted->printFunctionDefinition($config, ^GContext(space=''));
+    // the captured objects' lets lead the lambda's text (a lambda of no parameter prints as |...), its statements
+    // each closed by ';' (a multi-statement body's grammar)
+    let pureText = if($objects->isEmpty(), |$printed,
+                      |'|' + objectLets($objects) + $printed->substring(1) + if($printed->endsWith(';'), |'', |';'));
     
     // Debug: print the serialized Pure text
     print('[LegendLite PCT] Executing Pure expression: ' + $pureText + '\n');
@@ -444,7 +483,8 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     // depends on pattern-matching the printed text
     // (duplicates fine — the Java consumer dedups by construction)
     let roots = $substituted.expressionSequence->evaluateAndDeactivate()
-        ->map(e | $e->collectRoots());
+        ->map(e | $e->collectRoots())
+        ->concatenate($objects.second.values->map(v | $v->instanceRoots()));
 
     // Execute through Legend-Lite's QueryService via native bridge
     // Java dispatch returns properly typed values:

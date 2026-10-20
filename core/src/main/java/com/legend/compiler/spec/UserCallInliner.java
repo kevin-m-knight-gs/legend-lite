@@ -114,6 +114,17 @@ public final class UserCallInliner {
      * hook's binders). By identity; never iterated. */
     private final Map<TypedSpec, Integer> reducedTerms = new java.util.IdentityHashMap<>();
 
+    // OBJECT IDENTITY (docs/OBJECT_IDENTITY_2026_10_20.md §3.2): every construction is stamped with its evaluation.
+    // Pure makes a new object each time a construction is evaluated and a let names one, so a construction is
+    // evaluated once per instantiation around it (a call inlined, a lambda applied, a spelled element unrolled), and
+    // inside a lambda once per use of the lambda; a let's value is stamped where it is bound, before it is spliced.
+
+    /** The instantiations around the walk's point, inside its innermost lambda (from the root outside every one). */
+    private List<Integer> instantiation = new ArrayList<>();
+    private int instantiations;
+    /** How many lambdas are around the walk's point: a construction inside one is completed where it is used. */
+    private int lambdaDepth;
+
     public UserCallInliner(SpecCompiler specs) {
         this(specs, null);
     }
@@ -187,10 +198,76 @@ public final class UserCallInliner {
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            return List.of(last instanceof TypedLet let
+            return List.of(finish(last instanceof TypedLet let
                     ? reduce(let.value(), scope)
-                    : reduce(last, scope));
+                    : reduce(last, scope), List.of(), List.of()));
         }
+    }
+
+    /** {@code reduction} as one more instantiation around the walk's point: a call's body inlined, a lambda applied,
+     *  a spelled element unrolled. */
+    private <T> T instantiated(java.util.function.Supplier<T> reduction) {
+        instantiation.add(++instantiations);
+        try {
+            return reduction.get();
+        } finally {
+            instantiation.remove(instantiation.size() - 1);
+        }
+    }
+
+    /** A construction where the walk reaches it: stamped with the instantiations around it, completed at once outside
+     *  every lambda. One reached again is a lambda's body being applied: its path continues the instantiations here. */
+    private TypedSpec reached(TypedSpec r) {
+        if (r instanceof com.legend.compiler.spec.typed.TypedNewInstance ni && !ni.evaluation().complete()) {
+            return ni.withEvaluation(reach(ni.evaluation()));
+        }
+        if (r instanceof com.legend.compiler.spec.typed.TypedCopyInstance cp && !cp.evaluation().complete()) {
+            return cp.withEvaluation(reach(cp.evaluation()));
+        }
+        return r;
+    }
+
+    private com.legend.compiler.spec.typed.Evaluation reach(com.legend.compiler.spec.typed.Evaluation e) {
+        List<Integer> p = new ArrayList<>(instantiation);
+        if (e.path() != null) {
+            p.addAll(e.path());
+        }
+        return lambdaDepth > 0 ? e.at(p) : e.complete(p, List.of());
+    }
+
+    /** The reduced tree with every construction inside a lambda completed (§3.2): each lambda where it stands is one
+     *  use of it, and a map's mapper is evaluated once per element, its parameter one of the {@code iterations}. */
+    private TypedSpec finish(TypedSpec n, List<Integer> at, List<String> iterations) {
+        if (n instanceof TypedMap m && m.mapper().parameters().size() == 1) {
+            List<String> inner = new ArrayList<>(iterations);
+            inner.add(m.mapper().parameters().get(0));
+            TypedSpec src = finish(m.source(), at, iterations);
+            TypedSpec mapper = finish(m.mapper(), at, inner);
+            return src == m.source() && mapper == m.mapper() ? m : m.withChildren(List.of(src, mapper));
+        }
+        List<Integer> here = at;
+        if (n instanceof TypedLambda) {
+            here = new ArrayList<>(at);
+            here.add(++instantiations);
+        }
+        List<Integer> h = here;
+        TypedSpec walked = n.mapChildren(c -> finish(c, h, iterations));
+        if (walked instanceof com.legend.compiler.spec.typed.TypedNewInstance ni && !ni.evaluation().complete()) {
+            return ni.withEvaluation(finished(ni.evaluation(), at, iterations));
+        }
+        if (walked instanceof com.legend.compiler.spec.typed.TypedCopyInstance cp && !cp.evaluation().complete()) {
+            return cp.withEvaluation(finished(cp.evaluation(), at, iterations));
+        }
+        return walked;
+    }
+
+    private com.legend.compiler.spec.typed.Evaluation finished(com.legend.compiler.spec.typed.Evaluation e,
+            List<Integer> at, List<String> iterations) {
+        List<Integer> p = new ArrayList<>(at);
+        if (e.path() != null) {
+            p.addAll(e.path());
+        }
+        return e.complete(p, iterations);
     }
 
     /** The environment of one &beta; site: each name's REDUCED term and
@@ -433,8 +510,9 @@ public final class UserCallInliner {
                         widened = true;
                     }
                 }
+                List<TypedSpec> calleeBody = body;
                 reduced = instantiate(deepFoldInlined(
-                        reduceStatements(body, callEnv)), call, args);
+                        instantiated(() -> reduceStatements(calleeBody, callEnv))), call, args);
             }
             if (widened && com.legend.compiler.element.type.Type
                     .relationSchema(call.info().type())
@@ -915,7 +993,7 @@ public final class UserCallInliner {
             for (int i = 0; i < args.size(); i++) {
                 env.put(lam.parameters().get(i), args.get(i));
             }
-            return reduceStatements(lam.body(), env);
+            return instantiated(() -> reduceStatements(lam.body(), env));
         }
     }
 
@@ -988,7 +1066,7 @@ public final class UserCallInliner {
                         TypedSpec r;
                         try (Scope inner = new Scope()) {
                             inner.put(m.mapper().parameters().get(0), e);
-                            r = reduceStatements(m.mapper().body(), inner);
+                            r = instantiated(() -> reduceStatements(m.mapper().body(), inner));
                         }
                         if (!(r instanceof com.legend.compiler.spec.typed.TypedCollection)
                                 && !(r.info().multiplicity() instanceof
@@ -1020,7 +1098,7 @@ public final class UserCallInliner {
                         TypedSpec pred;
                         try (Scope inner = new Scope()) {
                             inner.put(f.predicate().parameters().get(0), e);
-                            pred = reduceStatements(f.predicate().body(), inner);
+                            pred = instantiated(() -> reduceStatements(f.predicate().body(), inner));
                         }
                         if (pred instanceof TypedCBoolean keep) {
                             if (keep.value()) {
@@ -1065,7 +1143,7 @@ public final class UserCallInliner {
                     try (Scope inner = new Scope()) {
                         inner.put(fd.reducer().parameters().get(0), e);
                         inner.put(fd.reducer().parameters().get(1), soFar, soFarFree);
-                        acc = reduceStatements(fd.reducer().body(), inner);
+                        acc = instantiated(() -> reduceStatements(fd.reducer().body(), inner));
                     }
                     accFree = FreeVars.of(acc, soFar, soFarFree);
                 }
@@ -1201,7 +1279,7 @@ public final class UserCallInliner {
         }
         // literal-structure folds (tier 1): exact, or the node itself —
         // never inside quoted code
-        TypedSpec r = rewriteSwitch(n);
+        TypedSpec r = reached(rewriteSwitch(n));
         return quotedFrames.isEmpty() ? LiteralUnroll.fold(r, specs.ctx()) : r;
     }
 
@@ -1278,8 +1356,7 @@ public final class UserCallInliner {
                         props.put(pe.getKey(), rewrite(pe.getValue()));
                     }
                 }
-                yield new com.legend.compiler.spec.typed.TypedNewInstance(
-                        ni.classFqn(), props, ni.info());
+                yield ni.withProperties(props);
             }
             case com.legend.compiler.spec.typed.TypedCopyInstance cpi
                     when cpi.overrides().entrySet().stream().anyMatch(pe ->
@@ -1305,7 +1382,7 @@ public final class UserCallInliner {
                 }
                 yield new com.legend.compiler.spec.typed.TypedCopyInstance(
                         rewrite(cpi.source()), cpi.classFqn(), ovs,
-                        cpi.info());
+                        cpi.info(), cpi.evaluation());
             }
 
             // BINDERS — already α-hygienic (the substitution renamed what a
@@ -1384,7 +1461,7 @@ public final class UserCallInliner {
                             && mb.upper() == 1) {
                         try (Scope inner = new Scope()) {
                             inner.put(lam.parameters().get(0), args.get(0));
-                            yield reduceStatements(lam.body(), inner);
+                            yield instantiated(() -> reduceStatements(lam.body(), inner));
                         }
                     }
                     yield new TypedMap(args.get(0), lam, c.info());
@@ -1436,6 +1513,10 @@ public final class UserCallInliner {
         // let as its statement passes
         List<String> guard = new ArrayList<>(l.parameters());
         l.parameters().forEach(p -> bound.merge(p, 1, Integer::sum));
+        // its body is evaluated where the lambda is used: the instantiations inside it count from it
+        List<Integer> outer = instantiation;
+        instantiation = new ArrayList<>();
+        lambdaDepth++;
         try {
             List<TypedSpec> body = new ArrayList<>(l.body().size());
             for (TypedSpec stmt : l.body()) {
@@ -1448,6 +1529,8 @@ public final class UserCallInliner {
             return sameRefs(body, l.body()) ? l
                     : new TypedLambda(l.parameters(), body, l.info(), l.quoted());
         } finally {
+            instantiation = outer;
+            lambdaDepth--;
             guard.forEach(g -> bound.compute(g,
                     (k, c) -> c == null || c <= 1 ? null : c - 1));
         }

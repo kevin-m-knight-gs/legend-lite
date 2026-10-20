@@ -548,6 +548,12 @@ final class Scalars {
                 Map.entry(Pure.AT_VARIANT_CONVERT_TO_VARIANT, SqlFn.TO_VARIANT)).entrySet()) {
             family(e.getValue(), e.getKey());
         }
+        // toVariant of an object is its declared properties: its identity and its class are the lowering's own
+        // (docs/OBJECT_IDENTITY_2026_10_20.md §3.4)
+        for (com.legend.model.FunctionId f : Pure.AT_VARIANT_CONVERT_TO_VARIANT) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TO_VARIANT,
+                    List.of(MixedEncoding.declaredOnly(args.get(0)))));
+        }
         // startsWith/endsWith carry the pure [0..1]-overload guards
         // (stringExtension.pure: $source->isNotEmpty() && ...) — the
         // COMPARISON-SITE null tolerance (audit 20a H2), overriding the

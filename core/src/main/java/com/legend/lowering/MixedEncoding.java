@@ -500,6 +500,52 @@ final class MixedEncoding {
         return wrapped;
     }
 
+    /** An object as a reader sees it (a variant, a JSON document): its declared properties alone, each nested object
+     *  the same, recursively -- its identity and its class ({@code __id}, {@code __type}) are the lowering's own,
+     *  never data (docs/OBJECT_IDENTITY_2026_10_20.md §3.4). A value that is no struct with synthetic fields is
+     *  unchanged. */
+    static SqlExpr declaredOnly(SqlExpr v) {
+        if (!(v.type() instanceof com.legend.sql.TypeFact.Typed t)) {
+            return v;
+        }
+        return declaredOnly(v, t.type());
+    }
+
+    private static SqlExpr declaredOnly(SqlExpr v, SqlType type) {
+        if (type instanceof SqlType.Array a && carriesSynthetic(a.element())) {
+            return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v, new SqlExpr.Lambda(List.of("__d"),
+                    declaredOnly(SqlExpr.Column.of(null, "__d", a.element(), true,
+                            com.legend.sql.OutputCol.Origin.DERIVED), a.element())));
+        }
+        if (!(type instanceof SqlType.Struct s) || !carriesSynthetic(s)) {
+            return v;
+        }
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
+        for (SqlType.Struct.Field f : s.fields()) {
+            if (synthetic(f.name())) {
+                continue;
+            }
+            SqlExpr get = SqlExpr.StructGet.of(v, f.name());
+            fields.add(new SqlExpr.StructLit.Field(f.name(), declaredOnly(get, f.type()), f.type()));
+        }
+        // an absent object stays absent, not a struct of NULLs
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit())),
+                new SqlExpr.StructLit(fields));
+    }
+
+    private static boolean carriesSynthetic(SqlType t) {
+        if (t instanceof SqlType.Struct s) {
+            return s.fields().stream().anyMatch(f -> synthetic(f.name()) || carriesSynthetic(f.type()));
+        }
+        return t instanceof SqlType.Array a && carriesSynthetic(a.element());
+    }
+
+    private static boolean synthetic(String name) {
+        return com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID.equals(name)
+                || com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(name)
+                || com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON.equals(name);
+    }
+
     /** An instance entering the JSON slot of a class with no layout of its own (instances of several classes meeting
      *  at an abstract ancestor): its struct carries its own class as {@code __type} (register S81, 2026-10-20), the
      *  class the text carrier spells it as ({@code LiteralSpelling.jsonInstanceText}); any other value unchanged. */
@@ -734,9 +780,16 @@ final class MixedEncoding {
      * a model field. */
     static SqlExpr.StructLit.@com.legend.base.Nullable Field syntheticField(
             Type.Column c, @com.legend.base.Nullable String siteId, String classFqn) {
+        return syntheticField(c, siteId == null ? null : new SqlExpr.StringLit(siteId), classFqn);
+    }
+
+    /** {@link #syntheticField(Type.Column, String, String)} with the object's id an expression: its site's id and the
+     *  positions of the iterations around it (docs/OBJECT_IDENTITY_2026_10_20.md §3.2). */
+    static SqlExpr.StructLit.@com.legend.base.Nullable Field syntheticField(
+            Type.Column c, @com.legend.base.Nullable SqlExpr id, String classFqn) {
         if (com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID.equals(c.name())
-                && siteId != null) {
-            return new SqlExpr.StructLit.Field(c.name(), new SqlExpr.StringLit(siteId));
+                && id != null) {
+            return new SqlExpr.StructLit.Field(c.name(), id, SqlType.Scalar.VARCHAR);
         }
         if (com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(c.name())) {
             return new SqlExpr.StructLit.Field(c.name(), new SqlExpr.StringLit(classFqn));

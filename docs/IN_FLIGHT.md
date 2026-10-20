@@ -2170,3 +2170,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   the date range raised), `executionplan/ExecutionPlan.java` and `PlanJson.java` (the keyed result's field names, plan
   JSON v9), `Trino.java`, `PlanMakerTest`, `PlanJsonTest`, `MongoDbDialectTest`, `channelb/ChannelBLane.java` (floors
   raised as measured, Trino Grammar's one wire bug, each dated).
+ **Object identity, steps 1 and 2, landed 2026-10-20** (GATES "object identity, steps 1 and 2";
+  `docs/OBJECT_IDENTITY_2026_10_20.md`): `compiler/spec/typed/Evaluation.java` (new), `TypedNewInstance.java`,
+  `TypedCopyInstance.java`, `NewChecker.java`, `UserCallInliner.java`, `LiteralUnroll.java`, `lowering/Lowerer.java`,
+  `ObjectSites.java` (new), `InstanceEquality.java`, `ListEncodings.java`, `LambdaBinding.java`, `MixedEncoding.java`,
+  `Render.java`, `Scalars.java`, `compiler/element/ClassLayouts.java`, `sql/SqlTyping.java`, `exec/InstanceIds.java`,
+  `resolver/SyntheticHeads.java`, `TypedQuery.java`, `Compiler.java`, `pct_adapter.pure`, the DuckDB ledgers.
+  **Next:** every lane's ledgers on both channels (not re-measured since `11d4c4e8`); step 3 (every equality-built
+  operation through `InstanceEquality`, its struct fallback deleted).
