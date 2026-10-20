@@ -26,6 +26,8 @@ const TRADES = file('trades', [['id', 'Integer'], ['cust', 'Integer'], ['sym', '
 const CUSTOMERS = file('customers', [['id', 'Integer'], ['region', 'String']]);
 const PRICES = file('prices', [['sym', 'String'], ['at', 'DateTime'], ['px', 'Float']]);
 const MORE = file('more', [['sym', 'String'], ['id', 'Integer'], ['venue', 'String']]);
+const LABELS = file('labels', [['id', 'String']]);
+const TWINS = file('twins', [['id', 'Integer'], ['c_id', 'Integer']]);
 
 /** A grid's saved query: its rows as they are, or `over` it. */
 const query = (s: FileSource, over: Partial<SavedQuery> = {}): SavedQuery => {
@@ -78,6 +80,8 @@ describe('a join opened over one model, its rows from DuckDB', () => {
       ('B', '2026-01-01 10:30', 50)`, 0);
     await engine.run('CREATE TABLE more (sym VARCHAR, id BIGINT NOT NULL, venue VARCHAR)', 0);
     await engine.run("INSERT INTO more VALUES ('D', 6, 'X')", 0);
+    await engine.run('CREATE TABLE labels (id VARCHAR)', 0);
+    await engine.run('CREATE TABLE twins (id INTEGER, c_id INTEGER)', 0);
   });
 
   after(async () => {
@@ -165,7 +169,8 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const opened = await openJoin(outer, opening(['trades', 'customers', 'prices']));
     assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty', 'region', 'px']);
     const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
-    assert.equal(got['id']!.length, 9, 'trade 3 twice (two customers); A trades with two prices each');
+    // trade 1 (A): two prices; 2 (B): one; 3 (A, two customers): four; 4 (C): none, kept; 5 (A): two
+    assert.equal(got['id']!.length, 10);
   });
 
   it('says what drifted, and leaves out a kept column of theirs that is gone', async () => {
@@ -185,9 +190,19 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const pivoted = query(CUSTOMERS, { pivotOn: ['region'] });
     await assert.rejects(openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers', pivoted), LEFT_ON_CUST), opening(['trades', 'customers'])),
       (e: unknown) => e instanceof CubeRefusal && /customers is pivoted/.test(e.message));
-    const bad: JoinHow = { ...LEFT_ON_CUST, on: { rows: [{ left: 'cust', op: '==', right: 'customer_id' }] } };
-    await assert.rejects(openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), bad), opening(['trades', 'customers'])),
-      (e: unknown) => e instanceof CubeRefusal && /customers has no column 'customer_id'/.test(e.message));
+  });
+
+  it('leaves to the compiler what it judges: a column an input lacks, a name taken twice, an append of two types', async () => {
+    const refusedBy = async (source: JoinSource, tables: string[], words: RegExp): Promise<void> => {
+      await assert.rejects(openJoin(source, opening(tables)), (e: unknown) => e instanceof Error && words.test(e.message), String(words));
+    };
+    const noKey: JoinHow = { ...LEFT_ON_CUST, on: { rows: [{ left: 'cust', op: '==', right: 'customer_id' }] } };
+    await refusedBy(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), noKey), ['trades', 'customers'], /no column 'customer_id'/);
+    // their id prefixed onto the c_id they have already: a name taken twice
+    await refusedBy(join(input(TRADES, 'trades'), input(TWINS, 'twins'), { ...LEFT_ON_CUST, on: { rows: [] } }),
+      ['trades', 'twins'], /already exists/);
+    // labels' id is text, trades' a number: one name, two types
+    await refusedBy(join(input(TRADES, 'trades'), input(LABELS, 'labels'), { form: 'append' }), ['trades', 'labels'], /cannot unite/);
   });
 
   it('a join source, saved and read back, opens the same', async () => {

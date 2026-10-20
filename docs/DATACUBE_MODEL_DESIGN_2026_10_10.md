@@ -806,9 +806,11 @@ Within that rule:
   `docs/SEMANTICS_REGISTER.md` needs no row for this: it is the query as written, not a difference from the engine.
 - **Semi and anti** are `mine->filter(a | theirs->filter(b | ...)->isNotEmpty())` and `isEmpty()`. lite lowers both to
   a semi-join or an anti-join.
-- **Append** extends each side by the columns it lacks (`[]->cast(@T)`), selects both sides in one order (mine, then
-  any of theirs I lack), and joins them with `concatenate`. A column both sides have, with two different types, is
-  refused by name.
+- **Append** extends each side by the columns it lacks (`[]->cast(@T)`, `T` the type the compiler gave that column),
+  selects both sides in one order (mine, then any of theirs I lack), and joins them with `concatenate`.
+- **Every name goes in as written.** A column an input lacks, a prefixed name that is taken, a column kept twice, an
+  append's column of two types: each is the compiler's to refuse, in its words, as it types the query. join.ts checks
+  only the saved document's shape; it holds no second copy of a type or name rule.
 
 ### 17.3 One place
 

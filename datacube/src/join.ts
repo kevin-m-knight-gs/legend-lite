@@ -5,7 +5,7 @@
 // applied (joinSummary). No DOM, no planner: tested alone, and planned on DuckDB (test/join-open.test.ts).
 
 import {
-  ProtocolError, agg, and, cast, collection, derive, eq, fn, from, ge, gt, isIdentifier, lambda, le, lit, lt, ne, property,
+  ProtocolError, agg, and, cast, collection, derive, eq, fn, from, ge, gt, lambda, le, lit, lt, ne, property,
   readLambda, type, variable, type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { rowCountLambda } from './query.ts';
@@ -41,7 +41,7 @@ export type JoinCondition = { readonly rows: readonly JoinRow[] } | { readonly l
 export type JoinHow =
   | {
     readonly form: 'join'; readonly kind: JoinKindWord; readonly on: JoinCondition; readonly prefix: string;
-    /** Their columns brought over, in their order; null: all. */
+    /** Their columns brought over, by their own names, in the order given; null: all. */
     readonly keep: readonly string[] | null;
   }
   | {
@@ -113,14 +113,11 @@ function readCondition(raw: unknown, what: string): JoinCondition {
 function readKeep(raw: unknown): readonly string[] | null {
   if (raw === null) return null;
   if (!Array.isArray(raw)) throw new CubeRefusal(`a join's kept columns are a list, or null for all, not ${JSON.stringify(raw)}`);
-  const keep = raw.map((c) => name(c, 'a kept column'));
-  const twice = keep.find((c, i) => keep.indexOf(c) !== i);
-  if (twice !== undefined) throw new CubeRefusal(`a join keeps ${twice} twice`);
-  return keep;
+  return raw.map((c) => name(c, 'a kept column'));
 }
 
 function readPrefix(raw: unknown): string {
-  if (typeof raw !== 'string' || !isIdentifier(raw)) throw new CubeRefusal(`a join's prefix starts a column's name (c_), not ${JSON.stringify(raw)}`);
+  if (typeof raw !== 'string' || raw === '') throw new CubeRefusal(`a join's prefix starts a column's name (c_), not ${JSON.stringify(raw)}`);
   return raw;
 }
 
@@ -163,34 +160,18 @@ export function readJoinHow(raw: unknown): JoinHow {
 const KIND: Readonly<Record<JoinKindWord, JoinKind>> = { inner: 'INNER', left: 'LEFT', right: 'RIGHT', full: 'FULL' };
 
 /**
- * Their columns' names as a join or an as-of join brings them out: each one mine has, prefixed. Refused when the
- * prefixed name is one either side has already (a prefix to choose again).
+ * Their columns' names as a join or an as-of join brings them out: each one mine has, prefixed. Whether a name it makes
+ * is taken is the compiler's to say, as it types the join.
  */
 export function theirNames(mine: readonly string[], theirs: readonly string[], prefix: string): ReadonlyMap<string, string> {
   const taken = new Set(mine);
-  const out = new Map<string, string>();
-  for (const c of theirs) {
-    if (!taken.has(c)) {
-      out.set(c, c);
-      continue;
-    }
-    const renamed = `${prefix}${c}`;
-    if (taken.has(renamed) || theirs.includes(renamed)) {
-      throw new CubeRefusal(`their ${c} would be ${renamed}, a name the join has already: choose another prefix`);
-    }
-    out.set(c, renamed);
-  }
-  return out;
+  return new Map(theirs.map((c) => [c, taken.has(c) ? `${prefix}${c}` : c]));
 }
 
-function has(side: JoinSide, column: string): void {
-  if (!side.columns.some((c) => c.name === column)) throw new CubeRefusal(`${side.name} has no column '${column}'`);
-}
-
-/** A row as a term over `$a` (mine) and `$b` (theirs, named `right`): an equal key that is empty matches no row. */
-function rowTerm(row: JoinRow, right: string): ValueSpecification {
-  const a = property(variable('a'), row.left);
-  const b = property(variable('b'), right);
+/** A row as a term over mine (`a`) and theirs (`b`, their column named `right`): an equal key that is empty matches no row. */
+function rowTerm(row: JoinRow, right: string, [ma, tb]: readonly [string, string] = ['a', 'b']): ValueSpecification {
+  const a = property(variable(ma), row.left);
+  const b = property(variable(tb), right);
   switch (row.op) {
     // Pure's == matches an empty with an empty: a key matches only when it has a value (§17.2)
     case '==': return and(fn('isNotEmpty', a), eq(a, b));
@@ -203,14 +184,13 @@ function rowTerm(row: JoinRow, right: string): ValueSpecification {
 }
 
 /** A condition as a lambda of two rows, their columns read through `named` (their name → the name it has here). */
-function conditionLambda(on: JoinCondition, left: JoinSide, right: JoinSide, named: (c: string) => string): Lambda {
+function conditionLambda(on: JoinCondition, named: (c: string) => string): Lambda {
   if ('lambda' in on) return on.lambda;
-  for (const row of on.rows) {
-    has(left, row.left);
-    has(right, row.right);
-  }
   return lambda(['a', 'b'], on.rows.length === 0 ? lit.boolean(true) : and(...on.rows.map((r) => rowTerm(r, named(r.right)))));
 }
+
+/** The names a condition gives its two rows. */
+const rowsOf = (l: Lambda): [string, string] => l.parameters.map((p) => p.name) as [string, string];
 
 /** Their relation with each name mine has renamed (theirNames). */
 function renamed(right: JoinSide, names: ReadonlyMap<string, string>): Relation {
@@ -221,28 +201,26 @@ function renamed(right: JoinSide, names: ReadonlyMap<string, string>): Relation 
 
 /** A semi- or anti-join: my rows that have (or have not) a row of theirs the condition pairs mine with. */
 function semi(left: JoinSide, theirs: Relation, condition: Lambda, keep: 'isNotEmpty' | 'isEmpty'): Relation {
-  const [a, b] = condition.parameters.map((p) => p.name) as [string, string];
+  const [a, b] = rowsOf(condition);
   return from(left.relation).filter(lambda([a], fn(keep, theirs.filter(lambda([b], ...condition.body)).node)));
 }
 
-/** The as-of join's match, as a lambda of two rows. */
-function matchLambda(how: Extract<JoinHow, { form: 'asOf' }>, left: JoinSide, right: JoinSide, named: (c: string) => string): Lambda {
-  has(left, how.match.left);
-  has(right, how.match.right);
-  return lambda(['a', 'b'], rowTerm(how.match, named(how.match.right)));
+/** The as-of join's match, as a lambda of two rows named as its condition names them (`a`, `b` when it has none). */
+function matchLambda(how: Extract<JoinHow, { form: 'asOf' }>, named: (c: string) => string, rows: readonly [string, string]): Lambda {
+  return lambda([...rows], rowTerm(how.match, named(how.match.right), rows));
 }
 
-/** Their kept columns, in their order, as they come out; all of them when `keep` is null. */
-function kept(right: JoinSide, keep: readonly string[] | null, names: ReadonlyMap<string, string>): string[] {
-  if (keep !== null) keep.forEach((c) => has(right, c));
-  return right.columns.filter((c) => keep === null || keep.includes(c.name)).map((c) => names.get(c.name)!);
+/** An as-of join's condition, or none when it has no rows (the match alone pairs). */
+function asOfCondition(how: Extract<JoinHow, { form: 'asOf' }>, named: (c: string) => string): Lambda | undefined {
+  return 'rows' in how.on && how.on.rows.length === 0 ? undefined : conditionLambda(how.on, named);
 }
 
 /**
  * WHAT A JOIN BECOMES, as one relation (§17.2): their names mine has renamed with the prefix, then the join or as-of
- * join, then their columns not kept selected away; a semi- or anti-join a filter of mine by theirs; an append each side
- * extended by the columns it lacks, in one order, concatenated. A column either input lacks, or an append's column of
- * two types, is refused by name.
+ * join, then -- when it keeps some of theirs -- my columns and those selected; a semi- or anti-join a filter of mine by
+ * theirs; an append each side extended by the columns only the other has, in one order, concatenated. Every name goes
+ * in as written: a column an input lacks, a name taken twice, an append's column of two types are the compiler's to
+ * refuse, as it types what this writes.
  */
 export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow): ValueSpecification {
   const mine = left.columns.map((c) => c.name);
@@ -252,37 +230,31 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow): Val
       const names = theirNames(mine, right.columns.map((c) => c.name), how.prefix);
       const named = (c: string): string => names.get(c) ?? c;
       const theirs = renamed(right, names);
-      const on = how.form === 'asOf' && 'rows' in how.on && how.on.rows.length === 0
-        ? undefined : conditionLambda(how.on, left, right, named);
-      const joined = how.form === 'join'
-        ? from(left.relation).join(theirs, KIND[how.kind], on!)
-        : from(left.relation).asOfJoin(theirs, matchLambda(how, left, right, named), on);
-      const brought = kept(right, how.keep, names);
-      return (brought.length < right.columns.length ? joined.select([...mine, ...brought]) : joined).node;
+      let joined: Relation;
+      if (how.form === 'join') {
+        joined = from(left.relation).join(theirs, KIND[how.kind], conditionLambda(how.on, named));
+      } else {
+        const on = asOfCondition(how, named);
+        joined = from(left.relation).asOfJoin(theirs, matchLambda(how, named, on ? rowsOf(on) : ['a', 'b']), on);
+      }
+      return (how.keep === null ? joined : joined.select([...mine, ...how.keep.map(named)])).node;
     }
     case 'semi':
     case 'anti':
-      return semi(left, from(right.relation), conditionLambda(how.on, left, right, (c) => c), how.form === 'semi' ? 'isNotEmpty' : 'isEmpty').node;
+      return semi(left, from(right.relation), conditionLambda(how.on, (c) => c), how.form === 'semi' ? 'isNotEmpty' : 'isEmpty').node;
     case 'append':
       return appended(left, right).node;
   }
 }
 
-/** The columns an append brings out: mine in my order, then theirs I lack; a name of two types refused. */
-export function appendColumns(left: JoinSide, right: JoinSide): { readonly name: string; readonly type: string }[] {
-  const theirs = new Map(right.columns.map((c) => [c.name, c.type]));
-  for (const c of left.columns) {
-    const t = theirs.get(c.name);
-    if (t !== undefined && t !== c.type) throw new CubeRefusal(`${c.name} is ${c.type} in ${left.name} and ${t} in ${right.name}: an append matches a column by its name and its type`);
-  }
-  const mine = new Set(left.columns.map((c) => c.name));
-  return [...left.columns, ...right.columns.filter((c) => !mine.has(c.name))].map((c) => ({ name: c.name, type: c.type }));
-}
-
+/**
+ * An append: mine in my order, then theirs I lack; each side extended by the columns only the other has -- `[]` of the
+ * type the compiler gave that column -- and selected in that order when its own differs.
+ */
 function appended(left: JoinSide, right: JoinSide): Relation {
-  const all = appendColumns(left, right);
+  const mine = new Set(left.columns.map((c) => c.name));
+  const all = [...left.columns, ...right.columns.filter((c) => !mine.has(c.name))];
   const order = all.map((c) => c.name);
-  // a side's rows have no value in a column only the other has: `[]` of the column's type
   const side = (s: JoinSide): Relation => {
     const own = new Set(s.columns.map((c) => c.name));
     const lacking = all.filter((c) => !own.has(c.name));
@@ -292,21 +264,6 @@ function appended(left: JoinSide, right: JoinSide): Relation {
     return now.every((c, i) => c === order[i]) ? rel : rel.select(order);
   };
   return side(left).concatenate(side(right));
-}
-
-/** The columns a join brings out, by name, in order: what the dialog lists before the compiler types it. */
-export function joinedNames(left: JoinSide, right: JoinSide, how: JoinHow): string[] {
-  const mine = left.columns.map((c) => c.name);
-  switch (how.form) {
-    case 'join':
-    case 'asOf':
-      return [...mine, ...kept(right, how.keep, theirNames(mine, right.columns.map((c) => c.name), how.prefix))];
-    case 'semi':
-    case 'anti':
-      return mine;
-    case 'append':
-      return appendColumns(left, right).map((c) => c.name);
-  }
 }
 
 // ---------------------------------------------------------------- what it will do, before it is applied
@@ -337,11 +294,15 @@ export function joinSummary(left: JoinSide, right: JoinSide, how: JoinHow): Join
       const names = theirNames(left.columns.map((c) => c.name), right.columns.map((c) => c.name), how.prefix);
       const named = (c: string): string => names.get(c) ?? c;
       const theirs = renamed(right, names);
-      const empty = 'rows' in how.on && how.on.rows.length === 0;
       // an as-of join's match is part of what pairs a row: matched is "has a nearest row"
-      const pairs = how.form === 'join'
-        ? conditionLambda(how.on, left, right, named)
-        : empty ? matchLambda(how, left, right, named) : both(matchLambda(how, left, right, named), conditionLambda(how.on, left, right, named));
+      let pairs: Lambda;
+      if (how.form === 'join') {
+        pairs = conditionLambda(how.on, named);
+      } else {
+        const on = asOfCondition(how, named);
+        const match = matchLambda(how, named, on ? rowsOf(on) : ['a', 'b']);
+        pairs = on ? lambda([...rowsOf(on)], and(...match.body, ...on.body)) : match;
+      }
       const matched = rowCountLambda(semi(left, theirs, pairs, 'isNotEmpty'));
       if (how.form === 'asOf') return { mine, matched };
       const joined = rowCountLambda(from(joinRelation(left, right, how)));
@@ -351,20 +312,10 @@ export function joinSummary(left: JoinSide, right: JoinSide, how: JoinHow): Join
     }
     case 'semi':
     case 'anti':
-      return { mine, matched: rowCountLambda(semi(left, from(right.relation), conditionLambda(how.on, left, right, (c) => c), 'isNotEmpty')) };
+      return { mine, matched: rowCountLambda(semi(left, from(right.relation), conditionLambda(how.on, (c) => c), 'isNotEmpty')) };
     case 'append':
       return { mine, theirs: rowCountLambda(from(right.relation)) };
   }
-}
-
-/** Two conditions over the same two rows, as one: the second's names read as the first's. */
-function both(first: Lambda, second: Lambda): Lambda {
-  const [a, b] = first.parameters.map((p) => p.name) as [string, string];
-  const [c, d] = second.parameters.map((p) => p.name) as [string, string];
-  if (a !== c || b !== d) {
-    throw new CubeRefusal(`an as-of join's condition names its rows ${a} and ${b}, as its match does: {${a}, ${b} | ...}`);
-  }
-  return lambda([a, b], and(...first.body, ...second.body));
 }
 
 /** Their keys (each with a value: an empty one matches nothing) held by more than one row: how many, and the most rows one has. */

@@ -1,15 +1,15 @@
 // Joining two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17; src/join.ts): a join source's `how` read
 // strictly, what each form becomes as one relation (their names mine has renamed first; an equal key with no value
 // matching nothing; their columns not kept selected away; semi/anti a filter by theirs; an append's sides extended and
-// ordered), the names it brings out, the dialog's questions, and its words. Planned on DuckDB: test/join-open.test.ts.
+// ordered), every name written as given -- what is wrong with one the compiler's to say, as it types it
+// (test/join-open.test.ts) -- the dialog's questions, and its words.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { accessor, readLambda, toJson, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
-  appendColumns, joinRelation, joinSummary, joinTitle, joinWords, joinedNames, readJoinHow, suggestedKeys, theirNames,
-  type JoinHow, type JoinSide,
+  joinRelation, joinSummary, joinTitle, joinWords, readJoinHow, suggestedKeys, theirNames, type JoinHow, type JoinSide,
 } from '../src/join.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 
@@ -96,8 +96,7 @@ describe('a join source\'s how, read strictly', () => {
     refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '=', right: 'b' }] } }), /comparison is one of == != < <= > >=/);
     refused(() => readJoinHow({ ...join(), on: { rows: [], lambda: {} } }), /rows or a lambda, one of them/);
     refused(() => readJoinHow({ ...join(), on: {} }), /rows or a lambda, one of them/);
-    refused(() => readJoinHow({ ...join(), prefix: '1x' }), /prefix starts a column's name/);
-    refused(() => readJoinHow({ ...join(), keep: ['a', 'a'] }), /keeps a twice/);
+    refused(() => readJoinHow({ ...join(), prefix: '' }), /prefix starts a column's name/);
     refused(() => readJoinHow({ ...join(), keep: 'a' }), /a list, or null for all/);
     refused(() => readJoinHow({ form: 'asOf', match: { left: 'at', op: '==', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), /one of >= <= > </);
     refused(() => readJoinHow({ form: 'append', on: { rows: [] } }), /an append takes form, not on/);
@@ -125,8 +124,6 @@ describe('what a join becomes', () => {
   it('selects away their columns not kept, after the join (a key it joined on included)', () => {
     assert.equal(pure(joinRelation(TRADES, CUSTOMERS, join({ keep: ['region'] }))),
       `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {a, b | ($a.cust->isNotEmpty() && ($a.cust == $b.c_id))})->select(~[id, cust, sym, at, region])`);
-    assert.deepEqual(joinedNames(TRADES, CUSTOMERS, join({ keep: ['region'] })), ['id', 'cust', 'sym', 'at', 'region']);
-    assert.deepEqual(joinedNames(TRADES, CUSTOMERS, join()), ['id', 'cust', 'sym', 'at', 'c_id', 'region']);
   });
 
   it('takes a condition in Pure as written, their names as they come out', () => {
@@ -141,14 +138,13 @@ describe('what a join becomes', () => {
       `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {t, c | ($t.cust == $c.c_id)})`);
   });
 
-  it('refuses a column either input lacks, and a prefix that makes a name the join has', () => {
-    refused(() => joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'nope', op: '==', right: 'id' }] } })), /trades has no column 'nope'/);
-    refused(() => joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'cust', op: '==', right: 'nope' }] } })), /customers has no column 'nope'/);
-    refused(() => joinRelation(TRADES, CUSTOMERS, join({ keep: ['nope'] })), /customers has no column 'nope'/);
-    const clash = side('customers', [['id', 'Integer'], ['c_id', 'Integer']]);
-    refused(() => joinRelation(TRADES, clash, join()), /their id would be c_id, a name the join has already: choose another prefix/);
-    refused(() => theirNames(['id', 'c_id'], ['id'], 'c_'), /their id would be c_id/);
-    assert.deepEqual([...theirNames(['id'], ['id', 'region'], 'c_')], [['id', 'c_id'], ['region', 'region']]);
+  it('writes every name as given: one an input lacks, or a prefix that makes a name taken, is the compiler\'s to refuse', () => {
+    assert.match(pure(joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'nope', op: '==', right: 'gone' }] } }))),
+      /\{a, b \| \(\$a\.nope->isNotEmpty\(\) && \(\$a\.nope == \$b\.gone\)\)\}/);
+    assert.match(pure(joinRelation(TRADES, CUSTOMERS, join({ keep: ['gone', 'id'] }))), /->select\(~\[id, cust, sym, at, gone, c_id\]\)$/);
+    // their id prefixed onto a c_id they have: both written, the rename the compiler refuses
+    assert.deepEqual([...theirNames(['id'], ['id', 'c_id'], 'c_')], [['id', 'c_id'], ['c_id', 'c_id']]);
+    assert.deepEqual([...theirNames(['id'], ['id', 'region'], 'their ')], [['id', 'their id'], ['region', 'region']]);
   });
 
   it('as of: the nearest of theirs by the match, among those the condition keeps', () => {
@@ -157,7 +153,11 @@ describe('what a join becomes', () => {
       `${T}->asOfJoin(#>{local::DB.prices}#->rename(~sym, ~p_sym)->rename(~at, ~p_at), {a, b | ($a.at >= $b.p_at)}, {a, b | ($a.sym->isNotEmpty() && ($a.sym == $b.p_sym))})`);
     assert.equal(pure(joinRelation(TRADES, PRICES, { ...how, on: { rows: [] }, keep: ['px'] })),
       `${T}->asOfJoin(#>{local::DB.prices}#->rename(~sym, ~p_sym)->rename(~at, ~p_at), {a, b | ($a.at >= $b.p_at)})->select(~[id, cust, sym, at, px])`);
-    refused(() => joinRelation(TRADES, PRICES, { ...how, match: { left: 'when', op: '>=', right: 'at' } }), /trades has no column 'when'/);
+    // a condition in Pure names the two rows: the match is written over the same names
+    const lambda = readLambda({ _type: 'lambda', parameters: [{ _type: 'var', name: 't' }, { _type: 'var', name: 'p' }], body: [{ _type: 'boolean', value: true }] });
+    assert.equal(pure(joinRelation(TRADES, PRICES, { ...how, on: { lambda } })),
+      `${T}->asOfJoin(#>{local::DB.prices}#->rename(~sym, ~p_sym)->rename(~at, ~p_at), {t, p | ($t.at >= $p.p_at)}, {t, p | true})`);
+    assert.match(pure(joinSummary(TRADES, PRICES, { ...how, on: { lambda } }).matched!.body[0]), /\{p \| \(\(\$t\.at >= \$p\.p_at\) && true\)\}/);
   });
 
   it('semi and anti: my rows filtered by theirs, by their own names', () => {
@@ -165,17 +165,16 @@ describe('what a join becomes', () => {
       `${T}->filter({a | ${C}->filter({b | ($a.cust->isNotEmpty() && ($a.cust == $b.id))})->isNotEmpty()})`);
     assert.equal(pure(joinRelation(TRADES, CUSTOMERS, { form: 'anti', on: { rows: [{ left: 'cust', op: '==', right: 'id' }] } })),
       `${T}->filter({a | ${C}->filter({b | ($a.cust->isNotEmpty() && ($a.cust == $b.id))})->isEmpty()})`);
-    assert.deepEqual(joinedNames(TRADES, CUSTOMERS, { form: 'anti', on: { rows: [] } }), ['id', 'cust', 'sym', 'at']);
   });
 
-  it('append: each side extended by the columns it lacks, in one order; a name of two types refused', () => {
+  it('append: each side extended by the columns it lacks, in one order', () => {
     const more = side('more', [['sym', 'String'], ['id', 'Integer'], ['qty', 'Float']]);
     assert.equal(pure(joinRelation(TRADES, more, { form: 'append' })),
       `${T}->extend(~[qty:{x | []->cast(@Float)}])->concatenate(#>{local::DB.more}#->extend(~[cust:{x | []->cast(@Integer)}, at:{x | []->cast(@DateTime)}])->select(~[id, cust, sym, at, qty]))`);
-    assert.deepEqual(appendColumns(TRADES, more).map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty']);
     // the same columns in the same order: neither side touched
     assert.equal(pure(joinRelation(TRADES, TRADES, { form: 'append' })), `${T}->concatenate(${T})`);
-    refused(() => joinRelation(TRADES, side('bad', [['id', 'String']]), { form: 'append' }), /id is Integer in trades and String in bad/);
+    // a column of two types: written as it is, the compiler's concatenate to refuse
+    assert.match(pure(joinRelation(TRADES, side('bad', [['id', 'String']]), { form: 'append' })), /->concatenate\(#>\{local::DB\.bad\}#->extend/);
   });
 });
 
