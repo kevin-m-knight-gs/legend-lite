@@ -242,6 +242,8 @@ public final class CypherGraph {
         /** The label classes an anonymous label-set class extends (none for a label's own class). */
         final List<String> supers;
         final Map<String, String> propertyTypes = new TreeMap<>();
+        /** A Variant property's graph profile list mark ({@link #listMark}), "" for none, by property. */
+        final Map<String, String> propertyMarks = new TreeMap<>();
         final Set<String> keys = new HashSet<>();
         final List<CypherAnswers.GraphNode> nodes = new ArrayList<>();
         final Map<String, String> fkColumns = new LinkedHashMap<>();   // end name -> column
@@ -268,6 +270,8 @@ public final class CypherGraph {
         final List<CypherAnswers.GraphRel> rels = new ArrayList<>();
         /** The relationships' properties, typed by their values: an edge class when any. */
         final Map<String, String> propertyTypes = new TreeMap<>();
+        /** A Variant property's graph profile list mark ({@link #listMark}), "" for none, by property. */
+        final Map<String, String> propertyMarks = new TreeMap<>();
         /** 0 for the one pair of its type; 1, 2, ... for a type joining several pairs (always edge classes). */
         int pair;
         /** Held by the native store, where a relationship is a row of its own and so has an identity of its own:
@@ -313,7 +317,8 @@ public final class CypherGraph {
 
     /** The property-graph profile, as projects/graph/model.pure declares it (inlined: the model is one text). */
     private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Anonymous, Edge, Open, Native, from,"
-            + " to, type, nanoseconds, timeOfDay];\n}\n";
+            + " to, type, nanoseconds, timeOfDay, listOfDate, listOfLocalTime, listOfZonedTime, listOfLocalDateTime,"
+            + " listOfZonedDateTime, listOfDuration];\n}\n";
 
     /** The native store's tables as the model's database declares them (the island writes them: the writes
      *  design's §8, leg 6), in the model's column types. */
@@ -607,6 +612,7 @@ public final class CypherGraph {
                 String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
                 c.propertyTypes.put(p.getKey(), merged(c.propertyTypes.get(p.getKey()), type, c.name + "."
                         + p.getKey()));
+                marked(c.propertyMarks, p.getKey(), p.getValue(), c.name + "." + p.getKey());
             }
         }
         for (Cls c : classes.values()) {
@@ -659,6 +665,7 @@ public final class CypherGraph {
                 String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
                 t.propertyTypes.put(p.getKey(), merged(t.propertyTypes.get(p.getKey()), type, r.type() + "."
                         + p.getKey()));
+                marked(t.propertyMarks, p.getKey(), p.getValue(), r.type() + "." + p.getKey());
             }
         }
         // a type joining several pairs: its entries numbered (each an edge class of the type)
@@ -747,8 +754,8 @@ public final class CypherGraph {
                         + " (id BIGINT PRIMARY KEY, src_id BIGINT, dst_id BIGINT");
                 for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
                     String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
-                    edgeClasses.append("    ").append(p.getKey()).append(": ").append(p.getValue())
-                            .append("[0..1];\n");
+                    edgeClasses.append("    ").append(markText(t.propertyMarks, p.getKey())).append(p.getKey())
+                            .append(": ").append(p.getValue()).append("[0..1];\n");
                     if (embeddedValue(p.getValue())) {
                         propertyMappings.add(embeddedColumns(p.getKey(), column, p.getValue(), t.table(), zonedNanos,
                                 zonedRegion, columns, ddl));
@@ -948,7 +955,8 @@ public final class CypherGraph {
             for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                 String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
                 provenance(p.getKey(), column, p.getValue(), zonedNanos, zonedRegion, classProvenance);
-                pure.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                pure.append("    ").append(markText(c.propertyMarks, p.getKey())).append(p.getKey()).append(": ")
+                        .append(p.getValue()).append("[0..1];\n");
                 if (embeddedValue(p.getValue())) {
                     propertyMappings.add(embeddedColumns(p.getKey(), column, p.getValue(), c.table, zonedNanos,
                             zonedRegion, columns, ddl));
@@ -1375,10 +1383,85 @@ public final class CypherGraph {
     /** The types a Variant column holds as JSON (an integer, a float, a string, a boolean, a list). */
     private static final Set<String> VARIANT_SPELLED = Set.of("Integer", "Float", "String", "Boolean", VARIANT);
 
+    /** The graph profile's list mark of a list of temporals of one kind (2026-10-20,
+     *  docs/WRITES_DESIGN_2026_10_18.md §5: a Variant property whose elements are each the text of a date, a local or
+     *  zoned time or date-time, or a duration), null for any other value; a list mixing temporals with other values
+     *  is refused by name. */
+    private static @com.legend.base.Nullable String listMark(String valueText) throws Unsupported {
+        if (!(CypherValues.parse(valueText) instanceof CypherValues.Lst l)) {
+            return null;
+        }
+        Set<String> marks = new HashSet<>();
+        for (CypherValues.Value item : l.items()) {
+            marks.add(item instanceof CypherValues.Opaque o ? java.util.Objects.requireNonNullElse(temporalMark(
+                    o.text()), "?") : "");
+        }
+        if (marks.size() > 1 && marks.stream().anyMatch(m -> !m.isEmpty() && !m.equals("?"))) {
+            throw new Unsupported("harness: a list mixing temporal values of a kind with other values ("
+                    + valueText + "): the graph profile marks a list of one kind");
+        }
+        String mark = marks.size() == 1 ? marks.iterator().next() : "";
+        return mark.isEmpty() || mark.equals("?") ? null : mark;
+    }
+
+    /** The list mark of a temporal's text, null for another. */
+    private static @com.legend.base.Nullable String temporalMark(String text) {
+        if (text.startsWith("Date('")) {
+            return "listOfDate";
+        }
+        if (LOCAL_TIME.matcher(text).matches()) {
+            return "listOfLocalTime";
+        }
+        if (LOCAL_DATE_TIME.matcher(text).matches()) {
+            return "listOfLocalDateTime";
+        }
+        if (CypherValues.zonedParts(text) != null) {
+            return CypherValues.zonedTimeText(text) ? "listOfZonedTime" : "listOfZonedDateTime";
+        }
+        return CypherValues.durationSlots(text) != null ? "listOfDuration" : null;
+    }
+
+    /** Records a property's list mark over one more of its values ("" for none): the marks of all its values agree,
+     *  or the property is refused by name (a list of dates under the name where another node holds a number). */
+    private static void marked(Map<String, String> marks, String key, String valueText, String where)
+            throws Unsupported {
+        String mark = java.util.Objects.requireNonNullElse(listMark(valueText), "");
+        String before = marks.putIfAbsent(key, mark);
+        if (before != null && !before.equals(mark)) {
+            throw new Unsupported("harness: the property " + where + " holds a list of temporals on one element and"
+                    + " another value on another: the graph profile marks a list of one kind");
+        }
+    }
+
+    /** A property's list mark as its declaration spells it, before its name; "" for none. */
+    private static String markText(Map<String, String> marks, String key) {
+        String mark = marks.getOrDefault(key, "");
+        return mark.isEmpty() ? "" : "<<graph::graph." + mark + ">> ";
+    }
+
     /** A list property's JSON text, as the seed binds it (DuckDB's JSON, Postgres's JSONB): its primitives spelled
-     *  as JSON spells them. */
+     *  as JSON spells them, a temporal as the string of its text (the graph profile's list marks say what the list
+     *  holds): a date's, a zoned value's and a duration's as the dump spells them, a local time's and date-time's to
+     *  the microsecond as the island spells one (a finer one refused by name). */
     private static String jsonOf(CypherValues.Value v, String key, String valueText) throws Unsupported {
         return switch (v) {
+            case CypherValues.Opaque o when temporalMark(o.text()) != null -> {
+                java.util.regex.Matcher m = LOCAL_TIME.matcher(o.text());
+                if (!m.matches()) {
+                    m = LOCAL_DATE_TIME.matcher(o.text());
+                }
+                if (!m.matches()) {
+                    yield com.legend.json.Json.toCompact(o.text());
+                }
+                String fraction = m.group(2);
+                if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
+                    throw new Unsupported("harness: the property " + key + " holds a list with a value of"
+                            + " nanosecond precision (" + valueText + "), which the island's list does not hold yet");
+                }
+                String micros = (fraction + "000000").substring(0, 6);
+                yield com.legend.json.Json.toCompact((o.text().startsWith("Time('") ? "Time('" : "DateTime('")
+                        + m.group(1) + "." + micros + "')");
+            }
             case CypherValues.Null n -> "null";
             case CypherValues.Bool b -> String.valueOf(b.value());
             case CypherValues.Int i -> i.value().toString();

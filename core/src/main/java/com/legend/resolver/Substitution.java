@@ -1456,6 +1456,14 @@ final class Substitution {
      * a list operation, the mapper is data over its own element (the
      * lowering's list_transform). Pure's map over exactly one value is
      * application, which {@link #objectSpaceFanOut} keeps. */
+    /** Whether a collection operation's source is a list of values, not a relation, a class's instances or a
+     *  navigation from the scope's variable ({@link #listValueMap}'s test of a map's source). */
+    private boolean listValue(TypedSpec source) {
+        return !Type.isRelation(source.info().type())
+                && !(Type.asClassType(source.info().type()) instanceof Type.ClassType)
+                && pathOf(source, target.userVar()) == null;
+    }
+
     private boolean listValueMap(TypedMap m) {
         return m.mapper().parameters().size() == 1
                 && !Type.isRelation(m.source().info().type())
@@ -2038,6 +2046,12 @@ final class Substitution {
             case TypedMap m when listValueMap(m) ->
                     new TypedMap(rewrite(m.source()),
                             (TypedLambda) rewrite(m.mapper()), m.info());
+            // a collection's drop, take or slice over values, not a navigation (an element of a stored list the
+            // Cypher island reads back by its elements' kind, 2026-10-20): a value operation, its operands rewritten
+            case com.legend.compiler.spec.typed.TypedDrop d when listValue(d.source()) -> d.mapChildren(this::rewrite);
+            case TypedLimit d when listValue(d.source()) -> d.mapChildren(this::rewrite);
+            case com.legend.compiler.spec.typed.TypedSlice d when listValue(d.source()) ->
+                    d.mapChildren(this::rewrite);
             case TypedMap m when objectSpaceFanOut(m) ->
                     rewrite(inlineParam(withAggReads(m.mapper().body().get(0)),
                             m.mapper().parameters().get(0), m.source()));

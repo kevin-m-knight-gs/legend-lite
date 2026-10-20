@@ -3375,23 +3375,23 @@ tck/expressions/temporal/Temporal3/[11] Should datetime into date time #8	PASS
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #9	PASS
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #10	PASS
 tck/expressions/temporal/Temporal4/[1] Should store date #1	PASS
-tck/expressions/temporal/Temporal4/[2] Should store date array #1	REFUSED
-tck/expressions/temporal/Temporal4/[2] Should store date array #2	REFUSED
+tck/expressions/temporal/Temporal4/[2] Should store date array #1	PASS
+tck/expressions/temporal/Temporal4/[2] Should store date array #2	PASS
 tck/expressions/temporal/Temporal4/[3] Should store local time #1	PASS
-tck/expressions/temporal/Temporal4/[4] Should store local time array #1	REFUSED
-tck/expressions/temporal/Temporal4/[4] Should store local time array #2	REFUSED
-tck/expressions/temporal/Temporal4/[5] Should store time #1	REFUSED
-tck/expressions/temporal/Temporal4/[6] Should store time array #1	REFUSED
-tck/expressions/temporal/Temporal4/[6] Should store time array #2	REFUSED
+tck/expressions/temporal/Temporal4/[4] Should store local time array #1	PASS
+tck/expressions/temporal/Temporal4/[4] Should store local time array #2	PASS
+tck/expressions/temporal/Temporal4/[5] Should store time #1	PASS
+tck/expressions/temporal/Temporal4/[6] Should store time array #1	PASS
+tck/expressions/temporal/Temporal4/[6] Should store time array #2	PASS
 tck/expressions/temporal/Temporal4/[7] Should store local date time #1	PASS
-tck/expressions/temporal/Temporal4/[8] Should store local date time array #1	REFUSED
-tck/expressions/temporal/Temporal4/[8] Should store local date time array #2	REFUSED
-tck/expressions/temporal/Temporal4/[9] Should store date time #1	REFUSED
-tck/expressions/temporal/Temporal4/[10] Should store date time array #1	REFUSED
-tck/expressions/temporal/Temporal4/[10] Should store date time array #2	REFUSED
-tck/expressions/temporal/Temporal4/[11] Should store duration #1	REFUSED
-tck/expressions/temporal/Temporal4/[12] Should store duration array #1	REFUSED
-tck/expressions/temporal/Temporal4/[12] Should store duration array #2	REFUSED
+tck/expressions/temporal/Temporal4/[8] Should store local date time array #1	PASS
+tck/expressions/temporal/Temporal4/[8] Should store local date time array #2	PASS
+tck/expressions/temporal/Temporal4/[9] Should store date time #1	PASS
+tck/expressions/temporal/Temporal4/[10] Should store date time array #1	PASS
+tck/expressions/temporal/Temporal4/[10] Should store date time array #2	PASS
+tck/expressions/temporal/Temporal4/[11] Should store duration #1	PASS
+tck/expressions/temporal/Temporal4/[12] Should store duration array #1	PASS
+tck/expressions/temporal/Temporal4/[12] Should store duration array #2	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #1	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #2	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #3	PASS

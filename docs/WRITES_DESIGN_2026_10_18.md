@@ -302,6 +302,15 @@ Each clause runs once per row of the rows in hand, as Neo4j's do.
   MergeReadOwnWrites.
 - **The 33 compile-time write errors** (VariableAlreadyBound, UndefinedVariable and others) come from the static
   checks the island already runs, extended to the write clauses' variables.
+- **A temporal written as a property** (2026-10-20): a date, a local time or a local date-time in its column; on B, a
+  zoned value as two slot rows, its instant and its offset (a zoned time's spelled `time:instant` and
+  `time:offsetSeconds`), and a duration as four (its months, days, seconds and nanoseconds), as the store's value
+  classes hold them on A. A list of temporals is the Variant of each element's text, and the model's property carries
+  the graph profile's list mark (`listOfDate` ... `listOfDuration`, `projects/graph/model.pure`): JSON holds no
+  temporal, so the text says what an element is and the mark says what the list holds. A list of dates, local times
+  or local date-times holds the island's own text of each and is read back element by element; a list of zoned
+  values or durations holds each one's whole text, its offset written, and is returned whole (an element of one read
+  alone is refused by name: the island carries one zone for a list's elements, not one each).
 
 ### `#SQL` (L1)
 
@@ -526,10 +535,15 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      merged, created or relabelled element re-anchors; a list written as a property read as its shape.
    - **The judge:** a case whose query updates the graph runs in a rolled-back transaction even where Neo4j raised;
      the store's TIMESTAMP and TIME columns read back; a statement ending in an update compared with no columns (S93).
-   - **Refused by name:** a list of temporals written as a property (the Variant spells a temporal as text), a zoned
-     or nanosecond value or a duration written, `startNode`/`endNode`, a write to an element carried without
+   - **Refused by name:** a nanosecond value written, `startNode`/`endNode`, a write to an element carried without
      identity; on the read side over edge classes (every native relationship is one): a hop from a node an edge
      class reached past depth two, a type joining several class pairs in an OPTIONAL MATCH.
+   - **Temporal properties** (2026-10-20, GATES' ninety-seventh landing; §5's Cypher): zoned values and durations
+     written as their slots, a list of temporals as its elements' texts under the graph profile's list marks. All 18
+     Temporal4 write cases pass on B, the 12 lists on A (a zoned value or a duration on A is an embedded value
+     class, which the class writes do not write yet). Refused by name still: a list of zoned values the database
+     computes (one zone for its elements), of a named zone or a zone the database reads, a list that may hold a null
+     or holds values of several kinds, a list of nanosecond values.
 7. **Later:**
    - write plans in `ExecutionPlan`;
    - GraphQL mutations, once `#GQL{...}#` compiles;

@@ -854,7 +854,7 @@ public final class CypherParity {
                             java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS", java.util.Locale.ROOT)) + "')")
                     : row.get(9) != null ? new CypherValues.Opaque("Time('" + localTime(row.get(9)).format(
                             java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSSSS", java.util.Locale.ROOT)) + "')")
-                    : row.get(10) != null ? CypherValues.ofCell(row.get(10))
+                    : row.get(10) != null ? dumped(CypherValues.ofCell(row.get(10)))
                     : null;
             if (v == null) {
                 throw new IllegalStateException("harness: a property of the native store holds no value it reads"
@@ -870,6 +870,38 @@ public final class CypherParity {
             }
         }
         return out;
+    }
+
+    /** A stored list as the dump spells it: a local time's or date-time's text, the island's (to the minute, or
+     *  the fraction trimmed: {@code Time('13:00')}), to nine digits of the second as the dump writes one; any other
+     *  element as it is. */
+    private static CypherValues.Value dumped(CypherValues.Value v) {
+        if (!(v instanceof CypherValues.Lst l)) {
+            return v;
+        }
+        List<CypherValues.Value> items = new ArrayList<>();
+        for (CypherValues.Value item : l.items()) {
+            String text = item instanceof CypherValues.Opaque o ? o.text() : null;
+            if (text != null && text.startsWith("Time('") && text.endsWith("')")) {
+                try {
+                    item = new CypherValues.Opaque("Time('" + java.time.LocalTime.parse(text.substring(6,
+                            text.length() - 2)).format(java.time.format.DateTimeFormatter.ofPattern(
+                            "HH:mm:ss.SSSSSSSSS", java.util.Locale.ROOT)) + "')");
+                } catch (java.time.format.DateTimeParseException e) {
+                    // a zoned time: as the store holds it
+                }
+            } else if (text != null && text.startsWith("DateTime('") && text.endsWith("')")) {
+                try {
+                    item = new CypherValues.Opaque("DateTime('" + java.time.LocalDateTime.parse(text.substring(10,
+                            text.length() - 2)).format(java.time.format.DateTimeFormatter.ofPattern(
+                            "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS", java.util.Locale.ROOT)) + "')");
+                } catch (java.time.format.DateTimeParseException e) {
+                    // a zoned date-time: as the store holds it
+                }
+            }
+            items.add(item);
+        }
+        return new CypherValues.Lst(items);
     }
 
     /** A property of slots as Neo4j's dump spells its value: a zoned date-time or time (its instant and offset; a

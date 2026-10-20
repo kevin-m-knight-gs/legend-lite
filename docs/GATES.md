@@ -11947,6 +11947,35 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the ninety-seventh landing — temporal values written as properties
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §5 (Cypher) and §8, leg 6.
+- **Scalars on the native store:** a zoned date-time or time is written as two slot rows, its instant (`v_ts`) and its
+  offset's seconds (`v_int`), a zoned time's slots spelled `time:instant` and `time:offsetSeconds` so the store says
+  which it is; a duration as four, its months, days, seconds and nanoseconds. The harness reads the slot rows back in
+  the dump's spelling.
+- **Lists:** a list of temporals is the Variant of each element's text. The graph profile gains six list marks
+  (`listOfDate`, `listOfLocalTime`, `listOfZonedTime`, `listOfLocalDateTime`, `listOfZonedDateTime`,
+  `listOfDuration`; fifteen stereotypes, every copy of the profile updated), put on a Variant property by the harness
+  where its values are lists of one temporal kind. JSON holds no temporal, so the text says what an element is and
+  the mark says what the list holds. A list of dates, local times or local date-times holds the island's own text
+  of each and is read back element by element (an index, IN, UNWIND, a comprehension, as a list the database
+  computes is); a list of zoned values or durations holds each one's whole text, its offset written, and is returned
+  whole, an element of one read alone refused by name (the island carries one zone for a list's elements).
+- **Found on the way, fixed:** a collection's `drop`, `take` or `slice` over values did not substitute in object space
+  (`resolver/Substitution`: an index into a stored list read off a node, `l.dates[1]`, raised "TypedDrop is not
+  substitutable"); a stored list carried through the rows a MATCH materializes lost its shape, so UNWIND after a MATCH
+  returned its elements' texts (the column now carries it); slicing a list the database holds as a Variant raised
+  Neo4j's type error where it is a refusal.
+- **Refused by name still:** a list of zoned values the database computes, or of a named zone or one the database
+  reads; a list that may hold a null or holds values of several kinds; nanosecond values written; on A, a zoned value
+  or a duration written (an embedded value class, which the class writes do not write yet).
+- **Measured** (each lane in update mode): the native lane (`//core:cypher_parity_native_test`) PASS 4253 → 4268,
+  REFUSED 35 → 20 (all 18 Temporal4 write cases); the domain lanes (`//core:cypher_parity_test`,
+  `//core:cypher_parity_postgres_test`) PASS 4227 → 4239, REFUSED 61 → 49 on both (the 12 list cases). Nothing else
+  moved. `CypherIslandIntegrationTest.aMarkedListOfTemporalsReadsItsElementsBackOrIsReadWhole` pins the element
+  reads and the refusals.
+
 ## 2026-10-20 — Writes, leg 4: `#SQL{...}#` statements that write a table — the ninety-sixth landing
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 4 (register row S95).

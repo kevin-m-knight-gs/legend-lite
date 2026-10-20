@@ -6611,6 +6611,39 @@ public final class CypherToPure {
         }
     }
 
+    /** The element mark of a stored list of zoned values or durations (the graph profile's list marks, 2026-10-20,
+     *  docs/WRITES_DESIGN_2026_10_18.md §5): each element the value's whole text, its offset written
+     *  ({@code DateTime('1913-01-01T00:00:00.000000000+01:00')}, {@code Duration('PT12S')}), which no read of the
+     *  island parses back (a list carries one zone for its elements, not one each): the list is returned whole, an
+     *  element of it read alone refused by name ({@link #elementsReadable}). */
+    private record StoredText() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    private static final StoredText STORED_TEXT = new StoredText();
+
+    /** The graph profile's list marks (2026-10-20): the temporal kind a marked Variant property's elements are. */
+    private static final Map<String, Kind> LIST_MARKS = Map.of("listOfDate", Kind.DATE, "listOfLocalTime", Kind.TIME,
+            "listOfZonedTime", Kind.ZONED_TIME, "listOfLocalDateTime", Kind.DATETIME, "listOfZonedDateTime",
+            Kind.ZONED, "listOfDuration", Kind.DURATION);
+
+    /** The shape of a stored list of temporals of {@code kind}: a list of dates, local times or local date-times
+     *  holds the island's own text of each ({@link #jsonText}), read back as a list the database computes is; one of
+     *  zoned values or durations their whole texts ({@link StoredText}). */
+    private static ListOf storedListShape(Kind kind) {
+        return kind == Kind.DATE || kind == Kind.TIME || kind == Kind.DATETIME ? new ListOf(kind)
+                : new ListOf(kind, STORED_TEXT);
+    }
+
+    /** Refuses a read of an element of a list whose elements are whole texts no read parses back
+     *  ({@link StoredText}). */
+    private static void elementsReadable(ListOf shape, Pos pos) {
+        if (shape.elementDetail() instanceof StoredText) {
+            throw CypherErrors.unsupported("an element of a stored list of " + cypherType(shape.element())
+                    + " values, read alone, is not supported yet (the store holds each as its text: the list is read"
+                    + " whole)", pos);
+        }
+    }
+
     /** The mark of a spelled list of values of several kinds the database holds as a Variant ({@code [r, 1]}
      *  carried through WITH): each place's kind and shape, what an index by a spelled place reads its element by
      *  (the study's §12.43). */
@@ -8382,7 +8415,8 @@ public final class CypherToPure {
                     }
                     specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.nullOf(k.getValue()).vs()), null,
                             null));
-                    columns.add(new Col(column, k.getValue(), true));
+                    columns.add(new Col(column, k.getValue(), true, null, storedListAcross(k.getKey(), acrossArms,
+                            pos)));
                     props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true));
                     zoneColumns(column, null, k, acrossArms, specs, columns);
                 }
@@ -8427,7 +8461,8 @@ public final class CypherToPure {
                         : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                 boolean nullable = classes.size() > 1 || t.nullable() || optional;
                 specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
-                columns.add(new Col(column, k.getValue(), nullable));
+                // (a stored list of temporals, the graph profile's list marks: its elements' kind rides the column)
+                columns.add(new Col(column, k.getValue(), nullable, null, storedListAcross(k.getKey(), classes, pos)));
                 props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks));
                 zoneColumns(column, lacks ? null : zoneOf(t), k, classes, specs, columns);
             }
@@ -8610,6 +8645,34 @@ public final class CypherToPure {
             return out.append(']').toString();
         }
 
+        /** The shape of the stored list {@code name} holds on these classes, the graph profile's list mark's
+         *  ({@link #storedList}), null where none marks it; marked on some of them and not on others, or two ways, it
+         *  is refused by name (a list read by one kind on one class and as a Variant on another). */
+        private @com.legend.base.Nullable ListOf storedListAcross(String name, List<String> classes, Pos pos) {
+            ListOf found = null;
+            boolean unmarked = false;
+            for (String c : classes) {
+                Property p = CypherToPure.this.property(c, name);
+                if (p == null) {
+                    continue;
+                }
+                ListOf shape = CypherToPure.this.storedList(p, pos);
+                if (shape == null) {
+                    unmarked = true;
+                } else if (found == null) {
+                    found = shape;
+                } else if (!found.equals(shape)) {
+                    unmarked = true;
+                }
+            }
+            if (found != null && unmarked) {
+                throw CypherErrors.unsupported("the property " + name + " stored as a list of " + cypherType(found
+                        .element()) + " values on some of the classes a label-less node reads and not on others is"
+                        + " not supported yet", pos);
+            }
+            return found;
+        }
+
         /** The stored properties of these classes, in first-declaration order, each of one kind across them (a
          *  property typed differently across the classes a node may be is refused by name). */
         private Map<String, Kind> unionKinds(List<String> classes, Pos pos) {
@@ -8751,6 +8814,11 @@ public final class CypherToPure {
             if (zone != null || marked) {
                 own = new Tx(own.vs(), own.kind(), own.nullable(), own.whenFalse(), new Carried(zone, marked),
                         own.guard(), own.body());
+            }
+            ListOf stored = CypherToPure.this.storedList(prop, pos);
+            if (stored != null) {
+                // a stored list of temporals (the graph profile's list marks, 2026-10-20): its elements' kind
+                own = new Tx(own.vs(), own.kind(), own.nullable(), own.whenFalse(), stored, own.guard(), own.body());
             }
             if (marked) {
                 // read into the parts, as every value of nanosecond precision is carried (W13 leg 6): the database's
@@ -9460,6 +9528,28 @@ public final class CypherToPure {
 
     /** A stored property's kind: a time of day under its mark (the study's §12.64: a DateTime, the date-time at
      *  the time of day on the epoch day), else its type's. */
+    /** The shape of a Variant property a graph profile list mark marks ({@link #LIST_MARKS}: a stored list of
+     *  temporals of one kind, each element its text), null for an unmarked one; a list mark on a property of another
+     *  type, or two of them, is the model's error. */
+    private @com.legend.base.Nullable ListOf storedList(Property p, Pos pos) {
+        Kind found = null;
+        for (String mark : p.marks()) {
+            Kind k = LIST_MARKS.get(mark);
+            if (k == null) {
+                continue;
+            }
+            if (found != null) {
+                throw CypherErrors.invalid("the property " + p.name() + " carries two list marks", pos);
+            }
+            if (!p.type().equals("Variant") || p.many()) {
+                throw CypherErrors.invalid("the property " + p.name() + " is marked " + mark + " but is of type "
+                        + p.type() + " (a list mark takes a Variant[0..1] or Variant[1]: the list's JSON)", pos);
+            }
+            found = k;
+        }
+        return found == null ? null : storedListShape(found);
+    }
+
     private static Kind kindOf(Property p, Pos pos) {
         if (p.timeOfDay()) {
             if (!p.type().equals("DateTime")) {
@@ -10508,7 +10598,7 @@ public final class CypherToPure {
      *  shape is unrolled into a disjunction of equalities (nulls, nested lists and maps among the members). */
     private Tx in(CypherAst.Binary b, Scope scope) {
         Val l = val(b.left(), scope);
-        Val r = asCollection(val(b.right(), scope));
+        Val r = asCollection(val(b.right(), scope), b.right().pos());
         if (r instanceof Scalar rs) {
             if (rs.tx().kind() == Kind.NULL) {
                 return SqlToPure.nullOf(Kind.BOOLEAN);
@@ -10872,7 +10962,7 @@ public final class CypherToPure {
 
     /** {@code tail(list)}: every element but the first. */
     private Val tail(CypherAst.Call c, Val v) {
-        return switch (asCollection(v)) {
+        return switch (asCollection(v, c.pos())) {
             case ListVal l -> new ListVal(l.elements().isEmpty() ? List.of()
                     : l.elements().subList(1, l.elements().size()));
             case Coll col -> new Coll(call("drop", col.vs(), new CInteger(1L)), col.kind(), col.rowFree(),
@@ -10884,7 +10974,7 @@ public final class CypherToPure {
 
     /** {@code reverse(list)}, {@code reverse(string)}. */
     private Val reverse(CypherAst.Call c, Val v) {
-        return switch (asCollection(v)) {
+        return switch (asCollection(v, c.pos())) {
             case ListVal l -> {
                 List<Val> out = new ArrayList<>(l.elements());
                 java.util.Collections.reverse(out);
@@ -11146,6 +11236,7 @@ public final class CypherToPure {
         } else if (t.detail() instanceof PathValue) {
             text = pathText(one);
         } else if (t.detail() instanceof ListOf l && readsBack(l.element())) {
+            elementsReadable(l, pos);
             text = elementsText(elementsOf(one, l.element(), nanosElements(l)), l.element(), pos);
         } else {
             throw CypherErrors.unsupported("toString of a value the database holds as a Variant of no known shape is"
@@ -11643,8 +11734,9 @@ public final class CypherToPure {
      *  column, a spelled list of such lists) as the collection of them the database reads back ({@code toMany} by
      *  that kind), so that a list predicate, IN, an index or a comprehension reads it as it reads any collection the
      *  database computes; any other value as it is. */
-    private static Val asCollection(Val v) {
+    private static Val asCollection(Val v, Pos pos) {
         if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape) {
+            elementsReadable(shape, pos);
             if (shape.element() != Kind.JSON && !readsBack(shape.element())) {
                 return v;
             }
@@ -12052,7 +12144,7 @@ public final class CypherToPure {
     /** A spelled list as the collection the database reads: through its JSON text where its shape says one kind
      *  ({@link #asCollection}), else its elements' values ({@link #collection}). */
     private Coll spelledCollection(ListVal l, Pos pos) {
-        Val read = asCollection(scalar(variant(l, pos)));
+        Val read = asCollection(scalar(variant(l, pos)), pos);
         return read instanceof Coll c ? c : collection(l, pos);
     }
 
@@ -12151,9 +12243,9 @@ public final class CypherToPure {
             return nullValue();
         }
         Val left = l instanceof Scalar ls && unknownVariant(ls) && r instanceof Scalar rs && unknownVariant(rs)
-                ? variantElements(ls.tx()) : asCollection(l);
+                ? variantElements(ls.tx()) : asCollection(l, pos);
         Val right = r instanceof Scalar rs && unknownVariant(rs) && l instanceof Scalar ls && unknownVariant(ls)
-                ? variantElements(rs.tx()) : asCollection(r);
+                ? variantElements(rs.tx()) : asCollection(r, pos);
         // (a spelled list beside a Variant of no known shape: the Variant's elements in a row with the list's where
         // it holds a list, the database's reading; else an element beside them)
         if (left instanceof ListVal lv && right instanceof Scalar rs && unknownVariant(rs)) {
@@ -12233,7 +12325,7 @@ public final class CypherToPure {
      *  either end), a known map's entry by a spelled key, a computed list's element by the database. */
     private Val index(CypherAst.Index ix, Scope scope) {
         Val raw = val(ix.target(), scope);
-        Val target = asCollection(raw);
+        Val target = asCollection(raw, ix.pos());
         Val idx = val(ix.index(), scope);
         if (isNull(target) || isNull(idx)) {
             return nullValue();
@@ -12449,11 +12541,11 @@ public final class CypherToPure {
                     return nullValue();
                 }
                 Entry e = tuple.entries().get((int) at);
-                return e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(navigation(v, i), e));
+                return e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(navigation(v, i), e, ix.pos()));
             }
             ValueSpecification got = navigation(v, i);
             return scalar(v.detail() instanceof ListOf shape
-                    ? entryRead(got, new Entry(shape.element(), true, shape.elementDetail()))
+                    ? entryRead(got, new Entry(shape.element(), true, shape.elementDetail()), ix.pos())
                     : Tx.value(got, Kind.JSON, true));
         }
         if (i.kind() == Kind.STRING) {
@@ -12512,7 +12604,7 @@ public final class CypherToPure {
         ValueSpecification got = call("get", SqlToPure.valueOf(v), new CString(name));
         if (v.detail() instanceof MapOf m) {
             Entry e = m.entries().get(name);
-            return e == null || e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(got, e));
+            return e == null || e.kind() == Kind.NULL ? nullValue() : scalar(entryRead(got, e, pos));
         }
         return scalar(Tx.value(got, Kind.JSON, true));
     }
@@ -12521,7 +12613,10 @@ public final class CypherToPure {
      *  platform's {@code to}, where its kind reads back by type ({@link #elementType}); else as a Variant carrying
      *  the entry's shape (a nested list's or map's). An entry that may be null is read only where its text is not
      *  the JSON null (a null the Variant spells, which Postgres's cast refuses and DuckDB's reads as none). */
-    private static Tx entryRead(ValueSpecification got, Entry e) {
+    private static Tx entryRead(ValueSpecification got, Entry e, Pos pos) {
+        if (e.detail() instanceof StoredText) {
+            elementsReadable(new ListOf(e.kind(), e.detail()), pos);
+        }
         if (e.kind() == Kind.JSON || !readsBack(e.kind())) {
             return Tx.value(got, Kind.JSON, true, e.kind() == Kind.JSON ? e.detail() : null);
         }
@@ -12568,6 +12663,10 @@ public final class CypherToPure {
             case Coll c -> throw CypherErrors.unsupported("slicing a list the database computes is not supported yet",
                     sl.pos());
             case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was Map", sl.pos());
+            // (a list the database holds, a Variant of a list's shape: no slice of it yet, not Neo4j's type error)
+            case Scalar s when s.tx().kind() == Kind.JSON && (s.tx().detail() instanceof ListOf
+                    || s.tx().detail() instanceof TupleOf) -> throw CypherErrors.unsupported("slicing a list the"
+                    + " database holds as a Variant is not supported yet", sl.pos());
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was "
                     + cypherType(s.tx().kind()), sl.target().pos());
         };
@@ -12596,7 +12695,7 @@ public final class CypherToPure {
     private Tx quantifier(CypherAst.Quantifier q, Scope scope) {
         Quantifier name = java.util.Objects.requireNonNull(QUANTIFIERS.get(q.name().toLowerCase(Locale.ROOT)),
                 q.name());
-        Val list = asCollection(val(q.list(), scope));
+        Val list = asCollection(val(q.list(), scope), q.pos());
         if (isNull(list)) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
@@ -13173,7 +13272,7 @@ public final class CypherToPure {
      * and the list stays known; with one, the database filters (and maps) a collection of one kind.
      */
     private Val comprehension(CypherAst.ListComprehension lc, Scope scope) {
-        Val list = asCollection(val(lc.list(), scope));
+        Val list = asCollection(val(lc.list(), scope), lc.pos());
         if (isNull(list)) {
             return nullValue();
         }
@@ -17946,6 +18045,9 @@ public final class CypherToPure {
                             + " not supported yet", u.pos());
                 }
                 ListOf shape = s.tx().detail() instanceof ListOf l ? l : null;
+                if (shape != null) {
+                    elementsReadable(shape, u.pos());
+                }
                 Kind element = shape == null || !readsBack(shape.element()) ? null : shape.element();
                 // (a temporal's text parsed back, §12.76)
                 ValueSpecification elements = element == null ? call("toMany", SqlToPure.valueOf(s.tx()),
@@ -19339,6 +19441,10 @@ public final class CypherToPure {
                     e -> e instanceof MapVal || e instanceof ListVal)) {
                 throw CypherErrors.invalid("Property values can only be of primitive types or arrays thereof", at);
             }
+            if (value instanceof ListVal l && l.elements().stream().anyMatch(e -> e instanceof Scalar s
+                    && wholeTexts(s.tx().kind()))) {
+                return storedTexts(key, l, at);
+            }
             Tx t = scalarOf(value, at);
             if (split(t)) {
                 throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property of nanosecond precision"
@@ -19348,18 +19454,78 @@ public final class CypherToPure {
                 // (written as its slots, insertProperty)
                 return t;
             }
-            if (t.detail() instanceof ListOf l && switch (l.element()) {
-                case DATE, DATETIME, TIME, ZONED, ZONED_TIME, DURATION -> true;
-                default -> false;
-            }) {
-                throw CypherErrors.unsupported("a list of " + cypherType(l.element()) + " values written as a property ("
-                        + key + ") is not supported yet (the store's Variant spells a temporal as text)", at);
+            if (t.detail() instanceof ListOf l && nanosElements(l)) {
+                throw CypherErrors.unsupported("a list of " + cypherType(l.element()) + " values of nanosecond"
+                        + " precision written as a property (" + key + ") is not supported yet", at);
             }
+            if (t.detail() instanceof ListOf l && wholeTexts(l.element())) {
+                // (a list the database computes: one zone for its elements, not each one's)
+                throw CypherErrors.unsupported("a list of " + cypherType(l.element()) + " values the database"
+                        + " computes, written as a property (" + key + "), is not supported yet", at);
+            }
+            // (a list of dates, local times or local date-times: its Variant, each element the island's text of it,
+            // which a read of the list the graph profile marks parses back, 2026-10-20)
             if (valueColumn(t.kind()) == null) {
                 throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " property written (" + key + ") is not"
                         + " supported yet", at);
             }
             return t;
+        }
+
+        /** Whether a list's elements of this kind are stored as their whole texts ({@link StoredText}). */
+        private static boolean wholeTexts(Kind kind) {
+            return kind == Kind.ZONED || kind == Kind.ZONED_TIME || kind == Kind.DURATION;
+        }
+
+        /** A spelled list of zoned values or durations as the store holds one (the graph profile's list marks,
+         *  2026-10-20): the Variant of each element's whole text ({@link #storedText}), the list of one kind and no
+         *  null; any other such list refused by name. */
+        private Tx storedTexts(String key, ListVal l, Pos at) {
+            Kind kind = null;
+            ValueSpecification text = new CString("[");
+            for (int i = 0; i < l.elements().size(); i++) {
+                Tx e = l.elements().get(i) instanceof Scalar s ? s.tx() : null;
+                if (kind == null && e != null) {
+                    kind = e.kind();
+                }
+                if (e == null || e.kind() != kind) {
+                    throw CypherErrors.unsupported("a list of values of several kinds written as a property (" + key
+                            + ") is not supported yet", at);
+                }
+                if (e.nullable() || split(e)) {
+                    throw CypherErrors.unsupported("a list of " + cypherType(kind) + " values that may be null, or of"
+                            + " nanosecond precision, written as a property (" + key + ") is not supported yet", at);
+                }
+                text = plus(text, new CString(i == 0 ? "" : ","), storedText(e, at));
+            }
+            return Tx.value(call("fromJson", plus(text, new CString("]"))), Kind.JSON, false,
+                    storedListShape(java.util.Objects.requireNonNull(kind)));
+        }
+
+        /** A zoned value's or a duration's whole text as a JSON string, as the TCK's graphs spell one: a zoned
+         *  date-time's wall time to the nanosecond and its offset ({@code DateTime('1913-01-01T00:00:00.000000000
+         *  +00:00')}, the UTC offset {@code +00:00}), a zoned time's ({@code Time('13:00:00.000000000+00:00')}), a
+         *  duration's ISO text ({@link #jsonText}); the database writes it of the value. A zone the store would not
+         *  read back from the text (a region's name, an offset the database reads) is refused by name. */
+        private ValueSpecification storedText(Tx e, Pos at) {
+            if (e.kind() == Kind.DURATION) {
+                return jsonText(SqlToPure.valueOf(e), Kind.DURATION, "the element", at);
+            }
+            Zone zone = zoneKnown(e, at);
+            if (zone.named() || zone.read() != null) {
+                throw CypherErrors.unsupported("a list of zoned values of a named zone, or of a zone the database"
+                        + " reads, written as a property is not supported yet (the store writes each one's offset)",
+                        at);
+            }
+            String offset = (zone.zero() ? "+00:00" : zone.offsetText()) + "')\"";
+            if (e.kind() == Kind.ZONED) {
+                Tx wall = localOf(e, zone);
+                return strict(Kind.STRING, List.of(datePartOf(wall), ofDay(wall)), v -> plus(new CString(
+                        "\"DateTime('"), isoText(v.get(0), v.get(1)), new CString(offset))).vs();
+            }
+            Tx wall = wallTimeOf(e, zone);
+            return strict(Kind.STRING, List.of(ofDay(wall)), v -> plus(new CString("\"Time('"), isoText(null,
+                    v.get(0)), new CString(offset))).vs();
         }
 
         /** The slots a zoned value or a duration is written as (the native store's layout, §8 leg 3; the harness's

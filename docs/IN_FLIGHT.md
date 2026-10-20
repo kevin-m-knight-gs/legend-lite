@@ -2481,3 +2481,12 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
     UPDATE and USING tables rewritten), `integration/SqlParityTest.java`, `server/SqlParityPostgresTest.java`,
     `testcases/IqParity.java`, `integration/PostgresRegressCorpusTest.java`; `core/BUILD.bazel`
     (`//core:store_writes_postgres_test` runs `SqlWritesPostgresTest` too).
+- **Landed on the branch, 2026-10-20: temporal values written as properties** (GATES' ninety-seventh landing; the
+  design's §5 and §8, leg 6). On the native store a zoned value is its instant and offset slot rows, a duration its four
+  slots; a list of temporals the Variant of each element's text, its kind the graph profile's new list marks
+  (`listOfDate` ... `listOfDuration`). Files of other lines:
+  - the graph project's: `projects/graph/model.pure` (fifteen stereotypes), `compiler/element/GraphEdges.java`
+    (`STEREOTYPES`), and every copy of the profile (`GraphEdgesTest`, `CypherIslandIntegrationTest`, the showcase
+    models, `testcases/CypherGraph.java`);
+  - the resolver's: `resolver/Substitution.java` (a collection's drop, take or slice over values substitutes in
+    object space).
