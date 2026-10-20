@@ -1032,7 +1032,13 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   for it) -- Create a Class, the data space, headless and Python's class grids, the page model, a join's reopen, and
   Snap (the base query's result copied into a table of its own, typed by the compiler, shared by query); samples
   chosen from the query; a mapping test written by Create a Class and run. Core: a mapping test-suite runner, announced
-  here with its files before the first edit.
+  here with its files before the first edit. **Announced 2026-10-20, before the edit: one edit in `wasm/`** --
+  `wasm/src/main/java/planner/Boundary.java` `tableModel` loses `snapDatabaseType` and its `snapRuntime` (a second
+  runtime over a table's Database, through the snap store's connection): no caller asks for it since §18 step 2 (a
+  copy is modelled from what it holds, `upload.ts modelLanded`), so DataCube's `infer.ts`/`lite-planner.ts`
+  declarations, their tests (`infer.test.ts`, Python's `test_compiler.py`) and `compiler.py`'s docstring go with it.
+  **Not taken up: the mapping test-suite runner** (§18 step 5) is the Studio line's parked A4 (above, 2026-10-05;
+  `studio-tests-parked`), waiting on the user.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

@@ -267,17 +267,14 @@ public final class Boundary {
 
     /**
      * THE MODEL FOR A TABLE, from its catalog rows: what a host plans a table it holds against -- DataCube's file or
-     * warehouse table, a Python frame. The Database (CatalogModel), wrapped in a connection and a runtime the
-     * planner compiles, and, when the table can be snapped, a second runtime over the SAME Database through a
-     * connection of the copy's store's type (the rows pulled with a plan against the table's own runtime; every query
-     * on the copy planned against this one).
-     * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "snapDatabaseType"?,
-     * "columns": [catalog rows]}} in;
-     * {@code {"model", "runtime", "snapRuntime"?, "source" (protocol), "accessor" (its Pure text),
-     * "conversions": [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
-     * {@code copySelectList}: the select list a copy applies, written by the copy's own database: the snap's store,
-     * or the source itself when it is rewritten in place ({@code convertible}); a read-only source with no snap is
-     * never copied, and has none.
+     * warehouse table, a Python frame, a Snap's copy (modelled from what the copy holds, as a file read in is:
+     * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). The Database (CatalogModel), wrapped in a connection and a
+     * runtime the planner compiles.
+     * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
+     * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
+     * [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
+     * {@code copySelectList}: the select list the source applies when it is rewritten in place ({@code convertible}),
+     * written by its own database; a read-only source is never rewritten, and has none.
      * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
      *
      * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
@@ -295,14 +292,12 @@ public final class Boundary {
         }
         String pkg = in.getStringOr("pkg", "local");
         String databaseType = in.getString("databaseType");
-        String snapDatabaseType = in.getStringOr("snapDatabaseType", null);
         java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = catalogColumns(in);
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
         com.legend.sql.dialect.CatalogModel.Database db = com.legend.sql.dialect.CatalogModel.database(
                 pkg + "::DB", in.getStringOr("schema", null), in.getString("table"), columns, dialect,
                 in.getBool("convertible"));
-        String model = db.text() + "\n" + connectionAndRuntime(pkg, "Conn", "RT", databaseType)
-                + (snapDatabaseType == null ? "" : "\n" + connectionAndRuntime(pkg, "SnapConn", "SnapRT", snapDatabaseType));
+        String model = db.text() + "\n" + connectionAndRuntime(pkg, "Conn", "RT", databaseType);
         java.util.List<String> bitColumns = new java.util.ArrayList<>();
         for (com.legend.sql.dialect.CatalogModel.Column c : columns) {
             if (!db.excluded().contains(c.name()) && "BIT".equals(dialect.catalogType(c).declared())) {
@@ -312,16 +307,11 @@ public final class Boundary {
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("model", model);
         out.put("runtime", pkg + "::RT");
-        if (snapDatabaseType != null) {
-            out.put("snapRuntime", pkg + "::SnapRT");
-        }
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        String copyDatabaseType = snapDatabaseType != null ? snapDatabaseType
-                : in.getBool("convertible") ? databaseType : null;
-        if (copyDatabaseType != null) {
-            out.put("copySelectList", dialectOf(copyDatabaseType).copySelectList(db.conversions()));
+        if (in.getBool("convertible")) {
+            out.put("copySelectList", dialect.copySelectList(db.conversions()));
         }
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);

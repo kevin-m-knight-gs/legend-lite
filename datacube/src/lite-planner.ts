@@ -577,15 +577,9 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /**
    * THE MODEL FOR A TABLE, from the rows its CATALOG reports (structured: `catalogColumnsSql`):
    * legend-lite's one writer (planner.Boundary.tableModel, the module's tableModelOrError) -- the Database, read by the table's
-   * own dialect, its connection and runtime, and the snap runtime when asked; the conversions a copy
-   * applies, and the columns left out. The compiler decides every column; nothing here does. The
+   * own dialect, its connection and runtime; the conversions a copy applies, and the columns left out. The compiler decides every column; nothing here does. The
    * same function answers Python's frames.
    */
-  tableModel(
-    columns: readonly CatalogColumn[],
-    options: InferOptions & { readonly snapDatabaseType: string },
-  ): Promise<InferredModel & { readonly snapRuntime: string }>;
-  tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel>;
   async tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel> {
     const table = JSON.stringify({ ...options, columns });
     const answer = await this.#call({ kind: 'tableModel', table });
