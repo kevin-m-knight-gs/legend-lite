@@ -34,11 +34,12 @@ import type { FilterNode } from './snapshot.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
- * 5: the page's filters, by a class's property (2026-10-19, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2). 4: the
- * page's model, where its classes are (2026-10-10, §15.3). 3: sheets, each its own bands (2026-10-09,
- * docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on a 12-column grid. Only 5 is read.
+ * 6: the page's model keeps each grid's tables, a list -- a join's leaves' each (2026-10-20,
+ * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). 5: the page's filters, by a class's property (2026-10-19, §16.2). 4:
+ * the page's model, where its classes are (2026-10-10, §15.3). 3: sheets, each its own bands (2026-10-09,
+ * docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on a 12-column grid. Only 6 is read.
  */
-export const PAGE_VERSION = 5;
+export const PAGE_VERSION = 6;
 /** The sheet a page of one sheet has: a new page's, and a cube alone's. */
 export const FIRST_SHEET = 'sheet-1';
 
@@ -194,8 +195,8 @@ export function writePageOf(o: {
  */
 export function keptFor(model: PageModelRef, cubes: readonly { readonly id: string }[]): PageModelRef {
   const ids = new Set(cubes.map((c) => c.id));
-  const tables: Record<string, string> = {};
-  for (const [cube, table] of Object.entries(model.tables)) if (ids.has(cube)) tables[cube] = table;
+  const tables: Record<string, readonly string[]> = {};
+  for (const [cube, kept] of Object.entries(model.tables)) if (ids.has(cube)) tables[cube] = kept;
   const classes: Record<string, string> = {};
   for (const [cube, cls] of Object.entries(model.classes ?? {})) if (ids.has(cube)) classes[cube] = cls;
   // its classes likewise: none kept, none written -- the model's own would keep the class of a grid removed, which the
@@ -349,11 +350,13 @@ function readModel(raw: unknown, ids: ReadonlySet<string>): PageModelRef {
     if (typeof value !== 'string' || value === '') throw new PageDocumentError(`'model' has no ${field}`);
   }
   if (!isObject(tables)) throw new PageDocumentError("'model' has no tables");
-  const kept: Record<string, string> = {};
-  for (const [cube, table] of Object.entries(tables)) {
-    if (!ids.has(cube)) throw new PageDocumentError(`'model' keeps a table for ${cube}, which is no cube of the page`);
-    if (typeof table !== 'string' || table === '') throw new PageDocumentError(`'model' keeps no table name for ${cube}`);
-    kept[cube] = table;
+  const kept: Record<string, readonly string[]> = {};
+  for (const [cube, names] of Object.entries(tables)) {
+    if (!ids.has(cube)) throw new PageDocumentError(`'model' keeps tables for ${cube}, which is no cube of the page`);
+    if (!Array.isArray(names) || names.length === 0 || !names.every((t) => typeof t === 'string' && t !== '')) {
+      throw new PageDocumentError(`'model' keeps no list of table names for ${cube}`);
+    }
+    kept[cube] = names as string[];
   }
   const made: Record<string, string> = {};
   if (classes !== undefined) {

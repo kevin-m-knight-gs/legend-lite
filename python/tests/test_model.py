@@ -285,6 +285,24 @@ class OnThePage(unittest.TestCase):
         self.assertTrue(space.endswith('TradesByDesk'), space)
         self.assertIn('DataSpace', '\n'.join(self.files(page.model).values()))
 
+    def test_a_joins_grid_made_a_class_over_both_its_tables(self):
+        # its base a query over two frames' tables (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): DataCube's request
+        # names both, with a sample of each, the writer writes both, and the page keeps both under the grid's cube
+        page = _page(self)
+        trades, desks = page.grids
+        joined = page.join(trades, desks, {'form': 'join', 'kind': 'left', 'prefix': 'd_', 'keep': None,
+                                           'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]}})
+        cls, asked = joined._class()
+        self.assertEqual(asked['tables'], ['model_trades', 'model_desks'])
+        self.assertEqual(sorted(cls['where']['samples']), ['model_desks', 'model_trades'])
+        self.assertEqual(cls['where']['samples']['model_desks']['rows'], [['FX', 'Ana'], ['EQ', 'Ben']])
+        path = joined.create_class('TradeDesk')
+        self.assertEqual(path, 'tradesByDesk::domain::TradeDesk')
+        self.assertEqual(page.model['tables'], {joined._view['cube']: ['model_trades', 'model_desks']})
+        files = '\n'.join(self.files(page.model).values())
+        self.assertIn('Model_tradesSample', files)
+        self.assertIn('Model_desksSample', files)
+
     def test_a_grid_removed_after_its_class_takes_its_model_with_it(self):
         """A grid made a class, then removed: its table's name and its class leave the page's model with it, as DataCube
         writes a page (page-document.ts keptFor, asked headless) -- DataCube's reader refuses a page whose model keeps a
@@ -313,7 +331,8 @@ class OnThePage(unittest.TestCase):
             'at': [datetime.datetime(2024, 1, 1, 9, 30, 0, 120000), datetime.datetime(2024, 1, 2, 10, 0)],
             'flag': [True, None]}), name='sampled')
         cls, asked = grid._class()
-        self.assertEqual(cls['where']['samples'][asked['table']['table']], {
+        (table,) = asked['tables']
+        self.assertEqual(cls['where']['samples'][table], {
             'columns': ['desk', 'qty', 'big', 'notional', 'dec', 'day', 'at', 'flag'],
             'rows': [['FX', 1, str(2 ** 60), Decimal('1.5'), '12.30', '2024-01-01', '2024-01-01T09:30:00.12', True],
                      ['EQ', 2, 3, 2, '1.05', '2024-01-02', '2024-01-02T10:00:00', None]]})

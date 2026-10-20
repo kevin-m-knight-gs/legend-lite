@@ -341,6 +341,102 @@ try {
   await fresh.close();
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or other alerts in one go${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
+
+  // A JOIN'S GRID MADE A CLASS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), in a browser of its own: its base reads
+  // both files' tables, so its class's store declares both and a sample of each is written; saved and opened again, each
+  // of its leaves is read under the name the page's model keeps for it, and the class made again writes nothing
+  const third = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const j = await third.newPage();
+  j.on('pageerror', (e) => errors.push(`pageerror (join): ${e.message}`));
+  j.on('dialog', async (d) => { if (d.type() === 'beforeunload') await d.accept(); else { alerts.push(d.message()); await d.dismiss(); } });
+  const jItem = (label) => j.locator('.dc-menu .dc-menu-item', { has: j.locator(`:scope > .dc-menu-label:text-is(${JSON.stringify(label)})`) }).first();
+  const joinedTile = () => j.locator('[data-tile^="grid"]').filter({ has: j.locator('.dc-th[data-column="their_customer_id"]') }).first();
+  const jFiles = () => j.$$eval('.dc-class-file-line', (ls) => ls.map((l) => l.textContent));
+  const jPure = (path) => j.$$eval('.dc-class-file', (ls, p) => ls.find((l) => l.querySelector('.dc-class-path')?.textContent === p)
+    ?.querySelector('.dc-class-pure')?.textContent ?? '', path);
+  const joinedClassWindow = async () => {
+    await joinedTile().locator('.dc-tile-menu').click();
+    await jItem('Create a Class…').click();
+    await j.locator('.dc-class-table tbody tr').first().waitFor({ timeout: 60_000 });
+  };
+  await j.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
+  await j.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
+  await j.click('.dc-titlebar-menu');
+  await jItem('New').hover();
+  await jItem('Blank Page').click();
+  await j.click('.dc-blank .dc-primary');
+  for (const [i, f] of [trades, customers].entries()) {
+    if (i > 0) {
+      await j.click('.dc-titlebar-menu');
+      await jItem('New').hover();
+      await jItem('Data Source…').click();
+    }
+    await j.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 10_000 });
+    await j.setInputFiles('.dc-picker-file', f);
+    await j.waitForFunction((k) => !document.querySelector('.dc-picker') && document.querySelectorAll('.dc-tile-menu').length >= k, i + 1,
+      { timeout: 120_000 });
+  }
+  await j.locator('.dc-tile-menu').nth(0).click();
+  await jItem('Join…').click();
+  await j.locator('.dc-join').waitFor({ timeout: 10_000 });
+  const theirs = await j.$$eval('.dc-join-their option', (os) => os.map((o) => ({ value: o.value, label: o.textContent })));
+  await j.locator('.dc-join-their').selectOption(theirs.find((o) => o.label === 'customers.csv')?.value ?? '');
+  await j.waitForFunction(() => document.querySelectorAll('.dc-join-will-line').length > 0, undefined, { timeout: 60_000 });
+  await j.locator('.dc-join .dc-primary').click();
+  await j.locator('.dc-join').waitFor({ state: 'detached', timeout: 60_000 });
+  await joinedTile().waitFor({ timeout: 60_000 });
+  await joinedClassWindow();
+  await j.locator('.dc-class-names input').first().fill('TradeCustomer');
+  await j.waitForFunction(() => [...document.querySelectorAll('.dc-class-path')].some((p) => /::domain::TradeCustomer$/.test(p.textContent ?? '')),
+    undefined, { timeout: 30_000 });
+  const joinedFiles = await jFiles();
+  check(joinedFiles.some((f) => /^newtrades::data::Trades(_\d+)?Sample$/.test(f ?? '')) && joinedFiles.some((f) => /^newtrades::data::Customers(_\d+)?Sample$/.test(f ?? '')),
+    `a join's class: a sample of each of its tables: ${joinedFiles.join(', ')}`);
+  const joinedStore = await jPure('trades::store::Browser');
+  check(/Table trades(_\d+)?\b/.test(joinedStore) && /Table customers(_\d+)?\b/.test(joinedStore), `its store declares both tables\n${joinedStore}`);
+  await j.locator('.dc-class .dc-primary').click();
+  await j.waitForFunction(() => document.querySelector('.dc-class .dc-picker-status.dc-ok, .dc-class .dc-picker-status.dc-failed'),
+    undefined, { timeout: 60_000 });
+  check(/Created trades::domain::TradeCustomer/.test(await j.locator('.dc-class .dc-picker-status').textContent()),
+    `the join's class created: ${await j.locator('.dc-class .dc-picker-status').textContent()}`);
+  await j.locator('.dc-class .dc-primary').click();
+  await j.locator('.dc-class').waitFor({ state: 'detached', timeout: 10_000 });
+  await j.click('.dc-titlebar-menu');
+  await jItem('Save As…').click();
+  await j.locator('.dc-save').waitFor({ timeout: 10_000 });
+  await j.fill('.dc-save-input', 'Joined classes');
+  await j.locator('.dc-save-foot .dc-primary').click();
+  await j.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
+  await j.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
+  await j.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
+  await j.click('.dc-titlebar-menu');
+  await jItem('Open…').click();
+  const joinedRow = j.locator('#cubelib .dc-lib-row', { hasText: 'Joined classes' });
+  await joinedRow.waitFor({ timeout: 10_000 });
+  await joinedRow.locator('.dc-lib-button', { hasText: 'Open' }).click();
+  for (;;) {
+    const state = await j.waitForFunction(() => (document.querySelector('#cubelib .dc-lib-ask:not([hidden])') ? 'ask'
+      : /opened|not opened/.test(document.querySelector('#cubelib .dc-lib-message')?.textContent ?? '') ? 'done' : false),
+    undefined, { timeout: 60_000 }).then((h) => h.jsonValue());
+    if (state === 'done') break;
+    const which = /customers\.csv/.test(await j.locator('#cubelib .dc-lib-ask').textContent() ?? '') ? 'customers.csv' : 'trades.csv';
+    await j.setInputFiles('#cubelib .dc-lib-choose', which === 'customers.csv' ? customers : trades);
+    await j.waitForFunction((n) => !document.querySelector('#cubelib .dc-lib-ask:not([hidden])')
+      || !document.querySelector('#cubelib .dc-lib-ask')?.textContent?.includes(n), which, { timeout: 30_000 });
+  }
+  const reopenedJoin = await j.locator('#cubelib .dc-lib-message').textContent();
+  check(/opened/.test(reopenedJoin ?? '') && !/not opened|as the page's classes read it/.test(reopenedJoin ?? ''),
+    `reopened, the join's leaves each under its kept name: ${reopenedJoin}`);
+  await joinedTile().waitFor({ timeout: 60_000 });
+  await joinedClassWindow();
+  await j.locator('.dc-class-names input').first().fill('TradeCustomer');
+  await j.waitForFunction(() => document.querySelectorAll('.dc-class-file').length === 0
+    && document.querySelector('.dc-class .dc-primary:not([disabled])'), undefined, { timeout: 30_000 })
+    .then(() => check(true, "reopened: the join's class made again writes nothing (its leaves read the tables its store names)"),
+      async () => bad(`reopened, the join's class made again writes: ${(await jFiles()).join(', ')}`));
+  await third.close();
+  check(errors.length === 0 && alerts.length === 0,
+    `no page errors or other alerts in the join's class${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
 } catch (e) {
   bad(`${e instanceof Error ? e.message : String(e)}${errors.length ? `\n  page: ${errors.join('; ')}` : ''}`);
 } finally {

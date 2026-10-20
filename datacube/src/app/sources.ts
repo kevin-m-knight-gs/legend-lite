@@ -188,9 +188,10 @@ export interface PageSources {
   named(chosen: Chosen): string;
   /**
    * A saved cube's source opened again, the least intrusive way that works; undefined when the person gave up. `page`:
-   * the saved page it is opened from, whose kept handles its files are read from (file-handles.ts handleKey).
+   * the saved page it is opened from, whose kept handles its files are read from (file-handles.ts handleKey); `tables`:
+   * the names its page's model keeps for its leaves' tables (a join's each, in its leaves' order).
    */
-  reopened(doc: CubeDocument, page: string | undefined, several: boolean, table?: string): Promise<Opened | undefined>;
+  reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[]): Promise<Opened | undefined>;
   /** A saved query's record -- from a store, or as a share link carries it -- as a cube's source. */
   openedRecord(q: SavedQueryRecord): Promise<OpenedQuery>;
   /** A frame of the host's (Python's dataframe) for a grid: fresh, or a saved cube rebuilt over it. */
@@ -205,7 +206,7 @@ export interface PageSources {
    * Refused where the page has no database of its own (§17.3).
    */
   openedJoin(source: JoinSource, how?: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly tables?: readonly string[];
-    readonly page?: string }): Promise<Opened | undefined>;
+    readonly page?: string; readonly kept?: readonly string[] }): Promise<Opened | undefined>;
   /** The frames a grid reads, by its id -- its leaves' (cube-document.ts leavesOf): what following the host's frames
    *  refreshes. */
   framesOf(id: string): string[];
@@ -810,7 +811,7 @@ export function pageSources(d: SourcesOf): PageSources {
   // -- a join of two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): app/join-sources.ts, fetched with it
 
   async function openedJoin(source: JoinSource, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
-    readonly tables?: readonly string[]; readonly page?: string } = {}): Promise<Opened | undefined> {
+    readonly tables?: readonly string[]; readonly page?: string; readonly kept?: readonly string[] } = {}): Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} is a join, read in this tab's own database: this page has none`);
     const { openedJoin: opened } = await joinSources();
     return opened({
@@ -819,6 +820,7 @@ export function pageSources(d: SourcesOf): PageSources {
         ?? [...joinRead].find(([, r]) => r.sha256 === sha)?.[0],
       take: (t) => { taken.add(t); },
       untake: (t) => { taken.delete(t); },
+      isTaken: (t) => taken.has(t),
     }, source, how);
   }
 
@@ -1032,7 +1034,7 @@ export function pageSources(d: SourcesOf): PageSources {
    * A saved cube's source opened again, the least intrusive way that works (a file asked for, a saved query rerun, a
    * warehouse signed in to, a remote file's keys asked for): its grid's maker, or undefined when the person gave up.
    */
-  async function reopened(doc: CubeDocument, page: string | undefined, several: boolean, table?: string): Promise<Opened | undefined> {
+  async function reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[]): Promise<Opened | undefined> {
     const src = doc.source;
     // `several`: one of a page's grids, its columns panel folded as a grid added beside others is
     if (src._type === 'savedQuery') return openedSavedQuery(await openedRecord(src.query), doc, several);
@@ -1042,8 +1044,11 @@ export function pageSources(d: SourcesOf): PageSources {
     if (src._type === 'frame') return openedFrame(src.name, doc, several);
     // a class at the revision its grid was read at: its pin, kept by its source (§16.1)
     if (src._type === 'class') return openedClass(src, doc, several);
-    // a join's files are its leaves': each read from where the page kept it, as a file's grid's is
-    if (src._type === 'join') return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}) });
+    // a join's files are its leaves': each read from where the page kept it, as a file's grid's is, under the name its
+    // page's model keeps for it
+    if (src._type === 'join') {
+      return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}) });
+    }
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);
     const got = await fileFor(doc.source, doc.name, page);
     if (!got) return undefined;
@@ -1052,7 +1057,7 @@ export function pageSources(d: SourcesOf): PageSources {
       ...(doc.source.sample ? { sample: doc.source.sample } : {}),
       saved: doc,
       capped: several,
-      ...(table !== undefined ? { table } : {}),
+      ...(tables?.[0] !== undefined ? { table: tables[0] } : {}),
     });
   }
 

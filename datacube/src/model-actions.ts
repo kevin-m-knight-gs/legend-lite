@@ -6,6 +6,7 @@
 // queries and its windows' shapes are handed in), so the page's own modules stay in its bundle.
 
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
+import type { ClassBasis } from './query.ts';
 import type { SdlcClient } from '../../sdlc-client/src/client.ts';
 import type { PlanAndRun } from './runner.ts';
 import type { CubeSnapshot } from './snapshot.ts';
@@ -24,31 +25,31 @@ export interface PageGrid {
   readonly label: string;
   /** Its class, when its rows were made one (the page's model keeps it). */
   readonly cls?: string;
-  /** Its rows at their finest level, the table it reads, its first rows and where its rows are read from, when it can be
-   *  a class; else why not. */
+  /** What a class of it is made over (query.ts classBasis: its rows at their finest level, the tables they read, each
+   *  with its sample), the tables its leaves are read as here (what the page's model keeps), and where its rows are read
+   *  from, when it can be a class; else why not. */
   readonly made: {
-    readonly query: Lambda;
+    readonly basis: ClassBasis;
     readonly relation: ValueSpecification;
-    readonly table: { readonly database: string; readonly schema: string; readonly table: string };
-    readonly sample: Lambda;
+    readonly kept: readonly string[];
     readonly source: GridSource;
   } | { readonly refused: string };
   /** Where its rows are planned and run, on whichever host: its sample and its keys' facts are read there. */
   readonly rows: PlanAndRun;
 }
 
-/** A grid as the page hands it in: its state, what its header says, where its rows plan and run. */
+/** A grid as the page hands it in: its state, what its header says, where its rows plan and run, and the tables of the
+ *  host's database its leaves are read as (GridPlace.tables), when they are. */
 export interface GridOnPage {
   readonly snapshot: CubeSnapshot;
   readonly label: string;
   readonly rows: PlanAndRun;
+  readonly tables?: readonly string[];
 }
 
 /** The query builders the page loads already (query.ts), handed in so this module imports none of the page's own. */
 export interface GridQueries {
-  readonly classLambda: (snapshot: CubeSnapshot) => Lambda;
-  readonly storeTableOf: (source: ValueSpecification) => { readonly database: string; readonly schema: string; readonly table: string } | undefined;
-  readonly sampleLambda: (source: ValueSpecification) => Lambda;
+  readonly classBasis: (snapshot: CubeSnapshot) => ClassBasis;
 }
 
 /** The page's grids as the actions read them: each a class already, or its rows as a class's, or why they cannot be. */
@@ -57,14 +58,12 @@ export function pageGrids(ids: readonly string[], gridOf: (id: string) => GridOn
   return ids.flatMap((id) => {
     const g = gridOf(id);
     if (!g) return [];
-    const table = q.storeTableOf(g.snapshot.source.query);
     const source = g.rows.host.planner.source?.();
     let made: PageGrid['made'];
     try {
-      if (!table) throw new Error('its source is not a table of its own');
       if (!source) throw new Error('its planner does not say where its rows are read from');
-      const query = q.classLambda(g.snapshot);
-      made = { query, relation: query.body[0]!, table, sample: q.sampleLambda(g.snapshot.source.query), source };
+      const basis = q.classBasis(g.snapshot);
+      made = { basis, relation: basis.query.body[0]!, kept: g.tables ?? basis.tables.map((t) => t.table), source };
     } catch (e) {
       made = { refused: e instanceof Error ? e.message : String(e) };
     }
@@ -169,17 +168,20 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
   const model = new PageModel(o.model);
   const pkg = o.model?.package ?? suggestedPackage(o.pageName);
   const state = o.model ? await projectState(o.client, o.model) : { text: '', revision: '' };
-  // each grid not yet a class, as a class action: its first rows read once
-  const samples = new Map<string, Awaited<ReturnType<typeof sampleOf>>>();
+  // each grid not yet a class, as a class action: each of its tables' first rows read once
+  const samples = new Map<string, Record<string, Awaited<ReturnType<typeof sampleOf>>>>();
   for (const g of o.grids) {
-    if (g.cls === undefined && !('refused' in g.made)) samples.set(g.id, await sampleOf(g.rows.host, g.made.sample));
+    if (g.cls !== undefined || 'refused' in g.made) continue;
+    const read: Record<string, Awaited<ReturnType<typeof sampleOf>>> = {};
+    for (const t of g.made.basis.tables) read[t.table] = await sampleOf(g.rows.host, t.sample);
+    samples.set(g.id, read);
   }
   const actions = (choice: DataSpaceChoice): ClassAction[] => choice.made.flatMap((m) => {
     const g = o.grids.find((x) => x.id === m.id);
     if (!g || 'refused' in g.made) return [];
     return [{
-      query: g.made.query, source: g.made.source, name: m.className,
-      where: { from: g.made.table.database, as: o.place, samples: { [g.made.table.table]: samples.get(g.id)! } },
+      query: g.made.basis.query, source: g.made.source, name: m.className,
+      where: { from: g.made.basis.database, as: o.place, samples: samples.get(g.id)! },
     }];
   });
   let last: ModelAnswer | undefined;
@@ -229,11 +231,11 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
         const made = done.answer;
         // the page pinned to what it saved (§16.1)
         model.pin(done.revision);
-        // each grid made a class keeps its table and its class
+        // each grid made a class keeps its tables and its class
         for (const m of choice.made) {
           const g = o.grids.find((x) => x.id === m.id);
           if (!g || 'refused' in g.made) continue;
-          model.keepTable(g.id, g.made.table.table);
+          model.keepTables(g.id, g.made.kept);
           model.keepClass(g.id, `${into.package}::domain::${m.className}`);
         }
         const kept = await o.persist();

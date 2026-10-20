@@ -159,12 +159,12 @@ describe('a saved page', () => {
     const back = readPage(JSON.stringify(withMore));
     assert.deepEqual(back.unknown, { variables: [{ name: 'asOf' }] });
     assert.deepEqual(JSON.parse(pageToJson(back)).variables, [{ name: 'asOf' }]);
-    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 6 })), /newer version \(6 > 5\)/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 7 })), /newer version \(7 > 6\)/);
   });
 
-  it('keeps where its classes are -- its project, its workspace, its package, each grid\'s table -- strictly', () => {
-    // writePage's one cube is PAGE_CUBE ('cube')
-    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2' } };
+  it('keeps where its classes are -- its project, its workspace, its package, each grid\'s tables -- strictly', () => {
+    // writePage's one cube is PAGE_CUBE ('cube'); a join's grid keeps each of its leaves' tables, in order (§18.3)
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: ['trades_2', 'desks'] } };
     const base = page();
     const made = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
     const back = readPage(pageToJson(made));
@@ -173,13 +173,17 @@ describe('a saved page', () => {
     assert.notEqual(pageDefinitionText(back), pageDefinitionText(base), 'a class made: the page has changed');
     const raw = JSON.parse(pageToJson(made));
     assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, project: '' } })), /'model' has no project/);
-    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, tables: { nope: 't' } } })),
-      /keeps a table for nope, which is no cube of the page/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, tables: { nope: ['t'] } } })),
+      /keeps tables for nope, which is no cube of the page/);
+    for (const bad of ['trades_2', [], ['trades_2', ''], [1]]) {
+      assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, tables: { cube: bad } } })),
+        /'model' keeps no list of table names for cube/, JSON.stringify(bad));
+    }
     assert.throws(() => readPage(JSON.stringify({ ...raw, model: 'datacube:trades' })), /'model' is not an object/);
   });
 
   it('keeps the revision the page is pinned to; one that is no revision\'s id refused', () => {
-    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2' }, revision: '7' };
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: ['trades_2'] }, revision: '7' };
     const made = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
     assert.deepEqual(readPage(pageToJson(made)).model, model);
     const raw = JSON.parse(pageToJson(made));
@@ -188,14 +192,14 @@ describe('a saved page', () => {
   });
 
   it('writes a table kept only for a cube it holds: a grid removed since its class was made, the page still opens', () => {
-    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2', gone: 'customers' } };
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: ['trades_2'], gone: ['customers'] } };
     const written = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
-    assert.deepEqual(written.model?.tables, { cube: 'trades_2' });
-    assert.deepEqual(readPage(pageToJson(written)).model, { ...model, tables: { cube: 'trades_2' } });
+    assert.deepEqual(written.model?.tables, { cube: ['trades_2'] });
+    assert.deepEqual(readPage(pageToJson(written)).model, { ...model, tables: { cube: ['trades_2'] } });
   });
 
   it('writes a class kept only for a cube it holds: the class of every grid removed goes with its table', () => {
-    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { gone: 'customers' },
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { gone: ['customers'] },
       classes: { gone: 'trades::domain::Customer' } };
     const written = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
     assert.deepEqual(written.model, { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: {} });

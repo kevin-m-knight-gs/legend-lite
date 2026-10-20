@@ -82,7 +82,7 @@ describe('an older part of a page is refused in words, never read', () => {
 
   it('a page of an older version', () => {
     const old = { ...page(), version: 3 };
-    assert.throws(() => readPage(old), /saved by an older version \(3 < 5\): it is no longer read/);
+    assert.throws(() => readPage(old), /saved by an older version \(3 < 6\): it is no longer read/);
   });
 
   it('a page of a newer version', () => {

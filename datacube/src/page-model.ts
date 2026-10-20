@@ -14,9 +14,10 @@ export interface PageModelRef {
   readonly workspace: string;
   /** The package the page's classes are made in. */
   readonly package: string;
-  /** Each grid's table in the project's store, by the grid's cube id: the name its source's table takes in this tab,
-   *  kept, since the store's mapping reads it by that name. */
-  readonly tables: Readonly<Record<string, string>>;
+  /** Each grid's tables in the project's store, by the grid's cube id: the names its leaves' tables take in this tab
+   *  (a file's grid one, a join one per leaf, in its leaves' order), kept, since the store's mapping reads them by those
+   *  names (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). */
+  readonly tables: Readonly<Record<string, readonly string[]>>;
   /** Each grid's class, by the grid's cube id: the class its rows were made (a page saved before it had none). */
   readonly classes?: Readonly<Record<string, string>>;
   /**
@@ -80,11 +81,11 @@ export class PageModel {
     this.#ref = { ...ref, classes: { ...ref.classes, [cube]: cls } };
   }
 
-  /** The page's model now keeps `table` for the grid `cube`. */
-  keepTable(cube: string, table: string): void {
+  /** The page's model now keeps `tables` (its leaves', in their order) for the grid `cube`. */
+  keepTables(cube: string, tables: readonly string[]): void {
     const ref = this.#need();
-    if (ref.tables[cube] === table) return;
-    this.#ref = { ...ref, tables: { ...ref.tables, [cube]: table } };
+    if (JSON.stringify(ref.tables[cube]) === JSON.stringify(tables)) return;
+    this.#ref = { ...ref, tables: { ...ref.tables, [cube]: [...tables] } };
   }
 
   #need(): PageModelRef {

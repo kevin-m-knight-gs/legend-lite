@@ -303,22 +303,24 @@ class Grid(Tile):
     def _class(self, name: str | None = None, columns: Mapping[str, Any] | None = None,
                documentation: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         """Its rows as a class's, as the window asks for them: DataCube's own request (headless ``gridClass``: its rows
-        at their finest level, its table, its first rows as the window writes them into the project -- planned and run
-        on Python's database, as every headless grid's are -- and the names offered), with the frames held still.
-        Answers the writer's class action and what DataCube said; a grid whose rows cannot be a class refused in
-        DataCube's words (``ValueError``)."""
+        at their finest level, every table they read -- a join's each (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3)
+        -- and each one's first rows as the window writes them into the project, planned and run on Python's database,
+        as every headless grid's are, and the names offered), with the frames held still. Answers the writer's class
+        action and what DataCube said; a grid whose rows cannot be a class refused in DataCube's words
+        (``ValueError``)."""
         engine, frames = self._headless()
+        # named as the window names it: by its source's name (a frame's, a join's title)
+        source = self._cube['source']['name']
         with frames.serving():
-            asked = _json.loads(engine.call('gridClass', self._spec(frames), {'source': self.frame, 'page': self._page.name}))
+            asked = _json.loads(engine.call('gridClass', self._spec(frames), {'source': source, 'page': self._page.name}))
         if 'refused' in asked:
-            raise _NotATable(f'{self.frame!r} cannot be a class: {asked["refused"]}')
+            raise _NotATable(f'{source!r} cannot be a class: {asked["refused"]}')
         if 'problems' in asked:
-            raise ValueError(f'{self.frame!r} cannot be a class: {"; ".join(asked["problems"])}')
+            raise ValueError(f'{source!r} cannot be a class: {"; ".join(asked["problems"])}')
         cls = {'query': asked['query'], 'source': asked['source'], 'name': name or asked['names']['className'],
                **({'documentation': documentation} if documentation else {}),
                **({'columns': _column_choices(columns)} if columns else {}),
-               'where': {'from': asked['table']['database'], 'as': 'Python',
-                         'samples': {asked['table']['table']: asked['sample']}}}
+               'where': {'from': asked['database'], 'as': 'Python', 'samples': asked['samples']}}
         return cls, asked
 
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
@@ -348,7 +350,7 @@ class Grid(Tile):
         makes it (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): with everything it needs to run (its relation function,
         mapping, the frames' store, connection and runtime -- the place ``Python`` -- and its first rows as sample
         data), into the page's project in this user's model home, made with the page's first class. ``name``: the
-        class's (suggested from the frame's name, as the window suggests it); ``package``: the page's (suggested from
+        class's (suggested from its source's name, as the window suggests it); ``package``: the page's (suggested from
         the page's name before its first class). ``columns``: by column, ``'property'`` (the default), ``'key'`` (kept
         for an association to join on, not shown) or ``'omit'``, or ``{'as', 'name', 'documentation'}``. ``project``:
         the name of the project made with the page's first class (the page's name unless given, as the window offers
@@ -359,7 +361,7 @@ class Grid(Tile):
         made = self._page._into(package or asked['names']['package'], sdlc, writer,
                                 lambda s, w, at, made: models.create_class(s, w, *at, cls, made=made), project)
         path = next((c['class'] for c in made.answer.get('classes', [])), None)
-        self._page._keep(self._view['cube'], asked['table']['table'], path)
+        self._page._keep(self._view['cube'], asked['tables'], path)
         return path or cls['name']
 
     def group(self, *rows: str) -> Grid:
@@ -854,11 +856,11 @@ class Page:
             self._changed()
         return created
 
-    def _keep(self, cube: str, table: str, cls: str | None) -> None:
-        """The page's model now keeps ``table`` and ``cls`` for the grid ``cube`` (page-model.ts ``keepTable``,
-        ``keepClass``)."""
+    def _keep(self, cube: str, tables: Sequence[str], cls: str | None) -> None:
+        """The page's model now keeps ``tables`` (every table the grid ``cube`` reads, a join's each) and ``cls`` for it
+        (page-model.ts ``keepTables``, ``keepClass``)."""
         ref = self._doc['model']
-        ref.setdefault('tables', {})[cube] = table
+        ref.setdefault('tables', {})[cube] = list(tables)
         if cls is not None:
             ref.setdefault('classes', {})[cube] = cls
         self._unnoted()
@@ -935,7 +937,7 @@ class Page:
             except _NotATable:
                 continue
             classes.append(cls)
-            kept.append((cube, asked['table']['table'], cls['name']))
+            kept.append((cube, asked['tables'], cls['name']))
         package = ref['package'] if ref else names['package']
         data_space = {'name': name or names['dataSpace'], **({'title': title} if title else {}),
                       **({'description': description} if description else {})}
@@ -944,9 +946,9 @@ class Page:
             s, w, *at, data_space, classes, [{**j, 'ends': [_end(e) for e in j['ends']]} for j in joined], made=m),
             project)
         made_classes = [c['class'] for c in made.answer.get('classes', [])]
-        for cube, table, class_name in kept:
+        for cube, tables, class_name in kept:
             path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)
-            self._keep(cube, table, path)
+            self._keep(cube, tables, path)
         return made.answer.get('dataSpace') or data_space['name']
 
     @property

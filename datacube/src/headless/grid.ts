@@ -37,7 +37,7 @@ import type { GridDraft } from '../grid-edits.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
-import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
+import { classBasis, classLambda, type ClassBasis } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
@@ -492,40 +492,48 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
 }
 
 /**
- * A grid's rows as a class's, as Create a Class… asks for one (model-actions.ts `pageGrids`): its rows at their finest
- * level (classLambda), the table its source reads (storeTableOf), that table's first rows as the window writes them
- * into the project (sampleLambda, run on the host's database by sample-rows.ts sampleOf: item 7 of
- * docs/PYTHON_ASKS_DATACUBE_2026_10_15.md), the source they are read from, and the names the window offers (`named`:
- * the grid's source's and the page's) -- DataCube's own
- * semantics, which Python's `grid.create_class()` asks of DataCube's code before it calls the generic library
- * (legend_lite/model.py; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4). JSON, each query as the protocol writes it; a
- * source that is no table of its own refused in words (`{"refused"}`: the window leaves such a grid out of a data
+ * A grid's rows as a class's, as Create a Class… asks for one (model-actions.ts `pageGrids`): what the class is made
+ * over (query.ts classBasis: its rows at their finest level, the Database and every table they read -- a join's each,
+ * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), each table's first rows as the window writes them into the project
+ * (run on the host's database by sample-rows.ts sampleOf: item 7 of docs/PYTHON_ASKS_DATACUBE_2026_10_15.md), the
+ * source they are read from, and the names the window offers (`named`: the grid's source's and the page's) -- DataCube's
+ * own semantics, which Python's `grid.create_class()` asks of DataCube's code before it calls the generic library
+ * (legend_lite/model.py; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4). JSON, each query as the protocol writes it, the
+ * samples by table; rows read from no table refused in words (`{"refused"}`: the window leaves such a grid out of a data
  * space), a sample it cannot carry in its own (`{"problems"}`: the window refuses the whole action).
  */
 export async function gridClass(spec: GridSpec, named: { readonly source: string; readonly page: string }):
   Promise<string> {
   return using(spec, async ({ planner, state }) => {
-    const table = storeTableOf(state.snapshot.source.query);
-    // refused in words, as the window leaves such a grid out (model-actions.ts pageGrids)
-    if (!table) return JSON.stringify({ refused: "its source is not a table of its own: a class is made of a table's rows" });
+    // what a class of it is made over: its rows at their finest level and every table they read, a join's each (§18.3);
+    // refused in words, as the window leaves such a grid out (model-actions.ts pageGrids): rows read from no table
+    let basis: ClassBasis;
+    try {
+      basis = classBasis(state.snapshot);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ refused: e.message });
+    }
     // the names the window offers before a person changes them (model-names.ts)
     const names = {
       className: suggestedClassName(named.source), package: suggestedPackage(named.page),
       dataSpace: suggestedDataSpaceName(named.page),
     };
-    // its first rows as the window writes them into the project (sample-rows.ts sampleOf), read on the host's database
+    // each table's first rows as the window writes them into the project (sample-rows.ts sampleOf), read on the host's
+    // database
     const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
-    let sample: SampleRows;
+    const samples: Record<string, SampleRows> = {};
     try {
-      sample = await sampleOf(runner.host, sampleLambda(state.snapshot.source.query));
+      for (const t of basis.tables) samples[t.table] = await sampleOf(runner.host, t.sample);
     } catch (e) {
       // refused in words, as the window says it (a NaN or an infinity the sample cannot carry): not a grid the window
       // leaves out, an action it refuses
       if (!(e instanceof SampleRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
     }
-    return `{"query":${toJson(classLambda(state.snapshot))},"sample":${JSON.stringify(sample)},`
-      + `"table":${JSON.stringify(table)},"source":${JSON.stringify(planner.source())},"names":${JSON.stringify(names)}}`;
+    return `{"query":${toJson(basis.query)},"samples":${JSON.stringify(samples)},`
+      + `"database":${JSON.stringify(basis.database)},"tables":${JSON.stringify(basis.tables.map((t) => t.table))},`
+      + `"source":${JSON.stringify(planner.source())},"names":${JSON.stringify(names)}}`;
   });
 }
 

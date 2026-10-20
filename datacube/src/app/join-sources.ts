@@ -28,6 +28,8 @@ export interface JoinSourcesHost {
   freshTable(base: string): string;
   take(table: string): void;
   untake(table: string): void;
+  /** Whether a grid on the page holds the table `table` (a name a page's model keeps is taken only when free). */
+  isTaken(table: string): boolean;
   /**
    * The files read in for joins not made yet, by table: the file, where it was picked, its hash, and how many of those
    * joins read it -- held once a grid of one is made (sources.ts madeGrid: then among the page's files, its handle kept
@@ -54,10 +56,20 @@ export interface JoinRead {
  * A join's leaf read again, for a saved join reopened: its table, whether this join is one of the joins holding it
  * (`joinRead`), and -- a file given that is not the one the join was saved over -- that, said.
  */
-async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, page: string | undefined): Promise<{ table: string; held?: boolean; note?: string } | undefined> {
+async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, page: string | undefined,
+  kept: string | undefined): Promise<{ table: string; held?: boolean; note?: string } | undefined> {
+  /** The name the page's model keeps for this leaf's table (its project's store reads it so), when no grid holds it; else
+   *  a fresh one. */
+  const asked = (base: string): string => {
+    if (kept !== undefined && !h.isTaken(kept)) {
+      h.take(kept);
+      return kept;
+    }
+    return h.freshTable(base);
+  };
   if (leaf._type === 'remoteFile') {
     if (!h.database.mountRemote) throw new Error('this page reads no remote file');
-    const view = h.freshTable('remote');
+    const view = asked('remote');
     await h.database.mountRemote(leaf.url, undefined, view);
     return { table: view };
   }
@@ -76,22 +88,26 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
   const given = await sha256(await got.file.arrayBuffer());
   const note = given === leaf.sha256 ? undefined : `${got.file.name} is not the file "${name}" joined (its contents differ)`;
   if (!h.database.ingestFile) throw new Error('this page takes no file');
-  const asked = h.freshTable(tableNameOf(got.file.name));
-  const opened = await h.database.ingestFile(got.file, { table: asked }).catch((e: unknown) => {
-    h.untake(asked);
+  const into = asked(tableNameOf(got.file.name));
+  const opened = await h.database.ingestFile(got.file, { table: into }).catch((e: unknown) => {
+    h.untake(into);
     throw e;
   });
-  if (opened.table !== asked) {
-    h.untake(asked);
+  if (opened.table !== into) {
+    h.untake(into);
     h.take(opened.table);
   }
   h.joinRead.set(opened.table, { file: got.file, ...(got.handle ? { handle: got.handle } : {}), sha256: leaf.sha256, sample: leaf.sample !== undefined, users: 1 });
-  return { table: opened.table, held: true, ...(note !== undefined ? { note } : {}) };
+  // a name the page's classes read it by that it could not take: said, as a file's grid says it
+  const renamed = kept !== undefined && opened.table !== kept
+    ? `${got.file.name} is read as ${opened.table} in this tab, not ${kept} as the page's classes read it` : undefined;
+  const said = [note, renamed].filter((n): n is string => n !== undefined);
+  return { table: opened.table, held: true, ...(said.length > 0 ? { note: said.join('; ') } : {}) };
 }
 
 /** A JOIN FOR A GRID (sources.ts openedJoin's): its model, its relation, its grid; undefined when a file was not given. */
 export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
-  readonly tables?: readonly string[]; readonly page?: string } = {}): Promise<Opened | undefined> {
+  readonly tables?: readonly string[]; readonly page?: string; readonly kept?: readonly string[] } = {}): Promise<Opened | undefined> {
   const { local } = h;
   /** The tables read in for joins that this one holds. */
   const holding: string[] = [];
@@ -113,8 +129,8 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
     let tables = how.tables;
     if (tables === undefined) {
       const read: string[] = [];
-      for (const leaf of leavesOf(source)) {
-        const got = await leafTable(h, leaf, how.saved?.name ?? source.name, how.page);
+      for (const [i, leaf] of leavesOf(source).entries()) {
+        const got = await leafTable(h, leaf, how.saved?.name ?? source.name, how.page, how.kept?.[i]);
         if (!got) {
           await forget();
           return undefined;

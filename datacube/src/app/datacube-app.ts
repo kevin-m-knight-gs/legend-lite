@@ -32,7 +32,7 @@ import {
   type SavedDocument,
 } from '../page-document.ts';
 import type { PageModelRef } from '../page-model.ts';
-import { classLambda, duplicateLambda, sampleLambda, storeTableOf } from '../query.ts';
+import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
@@ -223,8 +223,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           const cls = spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id];
           return [
             ...planeMenu(),
-            // not of a joined grid: its relation reads no one table, and the writer makes a class of a table's rows (§17.7)
-            ...(createClass && rowsOf(place)?.host.planner.source && place.cubeSource?._type !== 'join' ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
+            // of any grid: a class is made over every table its rows read, a join's each (§18.3); refused in words when
+            // it cannot be one
+            ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
             ...(cls !== undefined && classGrid
               ? [{ id: CLASS_GRID_ID, label: `Add a Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'data' as const }] : []),
             // a grid that reads tables of the tab's database: a join of it reads them in one place (§17.3)
@@ -686,7 +687,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const makers = new Map<string, GridMaker>();
       const read: Opened[] = [];
       const notes: string[] = [];
-      sources.reserve(Object.values(doc.model?.tables ?? {}));
+      sources.reserve(Object.values(doc.model?.tables ?? {}).flat());
       try {
         // a class's grid after the grids whose tables it reads (page-document.ts openingOrder)
         for (const { id: cubeId, cube } of openingOrder(doc.cubes)) {
@@ -1037,25 +1038,20 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const source = rows?.host.planner.source?.();
       if (!modelHome || !writing || !rows || !source) return;
       const sourceName = place.label ?? 'this source';
-      const snapshot = grid.snapshot;
-      // refused before the window opens, in words: a source read from no table of its own, a pivot, a lone total
-      const table = storeTableOf(snapshot.source.query);
-      if (!table) {
-        window.alert(`Create a Class makes a class of a table's rows; ${sourceName} is not read from a table of its own.`);
-        return;
-      }
-      let query;
+      // what the class is made over: its rows at their finest level and every table they read -- a file's grid one, a
+      // join its every leaf's (§18.3); refused before the window opens, in words: a pivot, rows read from no table
+      let basis;
       try {
-        query = classLambda(snapshot);
+        basis = classBasis(grid.snapshot);
       } catch (e) {
         window.alert(`Cannot create a class of this grid: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
       const [{ createClassOf }, home] = await Promise.all([import('../create-class.ts'), modelHome.connect()]);
       const model = await createClassOf({
-        query,
-        table,
-        sample: sampleLambda(snapshot.source.query),
+        basis,
+        // the names its leaves' tables have in this tab (a join's each), or the store's own (a warehouse's)
+        kept: place.tables ?? basis.tables.map((t) => t.table),
         rows,
         source,
         writer: writing.writer,
@@ -1088,8 +1084,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         const place = sources.place(id);
         const grid = page.grid(id);
         const rows = place ? rowsOf(place) : undefined;
-        return place && grid && rows ? { snapshot: grid.snapshot, label: place.label ?? id, rows } : undefined;
-      }, (id) => current.model?.classes?.[id], { classLambda, storeTableOf, sampleLambda });
+        return place && grid && rows
+          ? { snapshot: grid.snapshot, label: place.label ?? id, rows, ...(place.tables ? { tables: place.tables } : {}) }
+          : undefined;
+      }, (id) => current.model?.classes?.[id], { classBasis });
       const sourceName = grids[0]?.label ?? 'page';
       return {
         actions,

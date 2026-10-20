@@ -406,6 +406,68 @@ export function sampleLambda(source: ValueSpecification, n: number = SAMPLE_ROWS
   return from(source).limit(n).lambda();
 }
 
+/** A table a query reads straight from its store (storeTableOf), and the accessor that reads it. */
+export interface StoreTable {
+  readonly database: string;
+  readonly schema: string;
+  readonly table: string;
+  readonly relation: ValueSpecification;
+}
+
+/**
+ * THE TABLES A QUERY READS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): every accessor of a store's table in it,
+ * each table once, in the order the query names them -- a file's grid's one, a join's every leaf's. What a class of the
+ * query is mapped over: its store declares them, and its samples are theirs. Structure only: the query is read, never
+ * typed.
+ */
+export function tablesOf(query: unknown): StoreTable[] {
+  const found = new Map<string, StoreTable>();
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const t = storeTableOf(node as ValueSpecification);
+    if (t !== undefined) {
+      const key = JSON.stringify([t.database, t.schema, t.table]);
+      if (!found.has(key)) found.set(key, { ...t, relation: node as ValueSpecification });
+      return;
+    }
+    for (const v of Object.values(node)) walk(v);
+  };
+  walk(query);
+  return [...found.values()];
+}
+
+/** What a class of a grid is made over (classBasis). */
+export interface ClassBasis {
+  /** Its rows at their finest level (classLambda): the class's relation. */
+  readonly query: Lambda;
+  /** The store's Database the tables are declared in: one, the class's store. */
+  readonly database: string;
+  /** Each table the query reads (tablesOf), and the query of its sample: its first rows, as they are. */
+  readonly tables: readonly { readonly table: string; readonly sample: Lambda }[];
+}
+
+/**
+ * WHAT A CLASS OF A GRID IS MADE OVER (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its rows at their finest level,
+ * and every table they read -- a file's grid its one, a join its every leaf's -- each with its sample, all of one
+ * Database. Refused in words: a pivot (classLambda), rows read from no table of a store (a class's grid: a class
+ * already), tables of two Databases.
+ */
+export function classBasis(snapshot: CubeSnapshot): ClassBasis {
+  const query = classLambda(snapshot);
+  const tables = tablesOf(query);
+  if (tables.length === 0) throw new CubeRefusal('its rows are read from no table of a store');
+  const database = tables[0]!.database;
+  const other = tables.find((t) => t.database !== database);
+  if (other !== undefined) {
+    throw new CubeRefusal(`its rows are read from two databases (${database}, ${other.database}): a class's store is one`);
+  }
+  return { query, database, tables: tables.map((t) => ({ table: t.table, sample: sampleLambda(t.relation) })) };
+}
+
 /**
  * A FACT FOR AN ASSOCIATION (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a): the first value of `column` that
  * `relation` holds more than once -- no row, and the column is unique over the relation's rows (an association's end

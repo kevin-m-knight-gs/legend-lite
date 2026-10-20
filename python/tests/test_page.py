@@ -79,7 +79,7 @@ class Document(Paged):
     def test_a_page_is_datacubes_own_document_one_cube_per_grid_over_its_frame(self):
         page, grid, chart = self.built()
         doc = page.to_dict()
-        self.assertEqual((doc['kind'], doc['version'], doc['name']), ('datacube.page', 5, 'Q3 review'))
+        self.assertEqual((doc['kind'], doc['version'], doc['name']), ('datacube.page', 6, 'Q3 review'))
         cube = doc['cubes'][0]
         self.assertEqual(cube['id'], grid.id)
         self.assertEqual(cube['cube']['source']['_type'], 'frame')
@@ -759,7 +759,8 @@ class Document(Paged):
         missing = ll.Page('Missing').grid(pd.DataFrame({'desk': ['FX', 'EQ'], 'rate': [1.5, float('nan')]}),
                                           name='missing_rate')
         cls, asked = missing._class()
-        rows = cls['where']['samples'][asked['table']['table']]['rows']
+        (table,) = asked['tables']
+        rows = cls['where']['samples'][table]['rows']
         self.assertEqual(sorted(r[1] is None for r in rows), [False, True])
 
     def test_a_sort_is_a_column_or_a_pivots_header_and_an_edit_keeps_its_open_groups(self):
@@ -1019,7 +1020,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'shows no cube of this page'):
             ll.Page.load(listed, frames={'trades': trades()})
         # an older page is not read (the user, 2026-10-17), in DataCube's words
-        with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 5\): it is no longer read'):
+        with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 6\): it is no longer read'):
             ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()})
         # and what Python adds: a page in Python is over frames
         elsewhere = copy.deepcopy(doc)
