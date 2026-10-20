@@ -269,8 +269,11 @@ final class JdbcDecode {
 
     private static Object array(Object v, ExecutionPlan.Column c) throws SQLException {
         ExecutionPlan.Column element = RowDecode.element(c);
-        if (v instanceof java.sql.Array a) {
-            Object[] items = (Object[]) a.getArray();
+        // a driver's Array, or a list inside ClickHouse's Tuple, which its driver hands as a java.util.List (channel
+        // B's testHeadComplex and testFirstComplex, 2026-10-20)
+        Object[] items = v instanceof java.sql.Array a ? (Object[]) a.getArray()
+                : v instanceof List<?> l ? l.toArray() : null;
+        if (items != null) {
             List<Object> out = new ArrayList<>(items.length);
             for (Object item : items) {
                 out.add(decode(item, element));
