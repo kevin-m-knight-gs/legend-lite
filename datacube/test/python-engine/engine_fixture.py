@@ -116,6 +116,10 @@ def main() -> None:
     desks = {'now': pa.table({'desk': ['Rates', 'FX', 'Credit'], 'head': ['Ana', 'Ben', 'Cy']})}
     datacube._session.register(lambda: desks['now'], 'desks', LIVE)
     served_page: dict = {}
+
+    def served_frames(doc: dict) -> list[str]:
+        # the frames the test's page reads: each of its cubes over one (the test sends no join)
+        return sorted({c['cube']['source']['name'] for c in doc.get('cubes', [])})
     # a remote file a page reads from Python (step 2b): a Parquet file served by a server on this machine, read by
     # Python's DuckDB through the httpfs extension the wheel carries -- nothing leaves the machine
     remote = tempfile.TemporaryDirectory()
@@ -179,11 +183,11 @@ def main() -> None:
                 notebook_page.sheet('Added in Python')
             elif command.startswith('page '):
                 served_page.update(json.loads(command[len('page '):]))
-                web.engine.serve_page('q3', served_page)
+                web.engine.serve_page('q3', served_page, served_frames(served_page))
                 command = 'page'
             elif command == 'page-again':
                 served_page['sheets'][1]['name'] = 'Desks (v2)'
-                web.engine.serve_page('q3', served_page)
+                web.engine.serve_page('q3', served_page, served_frames(served_page))
             elif command == 'py-page':
                 # a page built in Python (ll.Page), as a person builds one, and shown (the test opens the tab)
                 pypage = ll.Page('Built in Python')

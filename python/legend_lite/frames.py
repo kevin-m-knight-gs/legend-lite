@@ -488,6 +488,13 @@ class Frames:
                 for held, _tables in admitted:
                     held.close()
 
+    def hosted(self) -> dict[str, dict[str, str]]:
+        """Each frame as DataCube's headless code takes it (headless grid.ts HostFrame), by its name: its model, its runtime
+        and the accessor that reads it -- what a page's cube is opened over (gridBase, gridOpened). Asked inside
+        ``serving``, the frames held still."""
+        with self._lock:
+            return {t.name: {'model': t.model, 'runtime': t.runtime, 'accessor': t.accessor} for t in self._tables.values()}
+
     def __getitem__(self, name: str) -> Table:
         return self._tables[name.lower()]
 

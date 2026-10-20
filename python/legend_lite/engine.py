@@ -414,6 +414,8 @@ class Engine:
         # the pages it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): each its document --
         # DataCube's page document, its cubes over these frames -- and its version, moved each time it is served again
         self._pages: dict[str, tuple[int, dict[str, Any]]] = {}
+        # each page's frames, as the page says it reads them (serve_page): what its versions follow
+        self._page_frames: dict[str, list[str]] = {}
         # each page's last version, kept when it closes: a page shown again goes on from it, so what a tab still open
         # on its earlier showing says is of a version replaced
         self._page_versions: dict[str, int] = {}
@@ -1327,17 +1329,19 @@ class Engine:
             said = self._read.get(name)
         return None if said is None else _json.loads(_json.dumps(said))
 
-    def serve_page(self, name: str, document: dict[str, Any], commands: list[Any] | None = None) -> int:
-        """Serves a copy of ``document`` -- DataCube's page document (version 4), each cube over one of this engine's
-        frames (``{"_type": "frame", "name": ...}``) -- as the page ``name``; served again, its version moves, and a page
-        open on it follows it: by ``commands``, when they say what moved it from the version before (each
-        ``{"page": <a page command>}`` or ``{"grid": <its id>, "command": <a grid command>}``, in order), else by opening
-        it again. Returns its version."""
+    def serve_page(self, name: str, document: dict[str, Any], frames: Iterable[str],
+                   commands: list[Any] | None = None) -> int:
+        """Serves a copy of ``document`` -- DataCube's page document, its cubes over this engine's ``frames`` (each
+        cube's leaves', as the page says: a frame's grid its one, a join's of frames each) -- as the page ``name``; served
+        again, its version moves, and a page open on it follows it: by ``commands``, when they say what moved it from
+        the version before (each ``{"page": <a page command>}`` or ``{"grid": <its id>, "command": <a grid command>}``,
+        in order), else by opening it again. Returns its version."""
         kept = _json.loads(_json.dumps(document))
         moved = None if commands is None else _json.loads(_json.dumps(commands))
         with self._changes:
             version = self._page_versions[name] = self._page_versions.get(name, 0) + 1
             self._pages[name] = (version, kept)
+            self._page_frames[name] = sorted(set(frames))
             steps = self._page_steps.get(name)
             if steps is None:
                 # served for the first time, or again after it was closed: no version before it it was moved from
@@ -1354,6 +1358,7 @@ class Engine:
         """Stops serving a page: one open on it stops following it."""
         with self._changes:
             self._pages.pop(name, None)
+            self._page_frames.pop(name, None)
             self._read.pop(name, None)
             self._page_steps.pop(name, None)
 
@@ -1361,10 +1366,9 @@ class Engine:
         """A page's version, and each of its frames' (the frames its cubes read), or None when it serves no such page."""
         with self._changes:
             served = self._pages.get(name)
+            frames = self._page_frames.get(name, [])
         if served is None:
             return None
-        frames = sorted({cube['cube']['source']['name'] for cube in served[1].get('cubes', [])
-                         if cube.get('cube', {}).get('source', {}).get('_type') == 'frame'})
         return {'version': served[0], 'frames': {frame: self.version(frame) for frame in frames}}
 
     def app_config(self, app: str, origin: str) -> Answer:

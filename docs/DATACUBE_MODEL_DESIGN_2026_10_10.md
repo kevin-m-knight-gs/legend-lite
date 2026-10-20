@@ -1119,11 +1119,18 @@ run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
    - Python's per-frame `mode='snapped'` (`ll.show`, `Page.grid`, `Page.load`, `update`) is still there: removing it
      breaks Python's API and drops a frozen copy made without a page open, so it is the user's call (asked
      2026-10-20).
-4. **Python pages over any base.**
-   - `_read_page` reads every kind of source DataCube reads, and `Grid.frame` gives way to the grid's leaves.
-   - `load`, `read`, `update`, change tracking and page versions follow every leaf.
-   - A model of several frames and warehouse tables is served, so step 4b's `page.join` falls out of it.
-   - Warehouse plans are routed by the tables a model declares, not by one table's model text.
+4. **Python pages over any base.** Built (step 3, 2026-10-20) for cubes whose leaves are frames:
+   - Python asks DataCube what a cube reads (headless `cubeLeaves`), its base over the frames Python serves
+     (`gridBase`: a frame's own model; a join's, one model of its leaves' tables) and a saved cube opened over them as
+     it is now (`gridOpened`). Every grid call is given that base (`GridSpec.relation` beside `source`); Python never
+     asks a cube's kind.
+   - `_read_page` holds a cube whose leaves are frames, a join's included; `Grid.frames` says them (`Grid.frame` is a
+     one-frame grid's). `load`, `read`, `update` and `to_pandas` follow every leaf; `serve_page` is told the page's
+     frames, so its versions follow a join's every frame.
+   - `page.join(mine, theirs, how)` makes a join's grid, as the tab's Join… does (headless `joinCube`, then the page
+     command `addGrid`).
+   - Not built: a Python page over a file's, a class's or a warehouse table's leaf (each still refused by name), and
+     warehouse plans routed by the tables a model declares rather than by one table's model text.
 5. **A class of any base.**
    - Create a Class, a Data Space and an Association take the base query, and are shown on every grid.
    - The class's store declares the tables `leavesOf(base)` names, and its samples are per leaf table (§18.4).

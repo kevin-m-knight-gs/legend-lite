@@ -8,7 +8,7 @@ import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
 import { cubeToJson, gridCapped, readCube, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { openInputs, openJoin, summaryCounts, type JoinOpening, type TableKind } from '../join-open.ts';
+import { openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin, type TableKind } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { TreeState } from '../tree.ts';
@@ -88,6 +88,16 @@ export async function joinCube(spec: string, name: string, gridsOnPage: number):
       + `"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
       + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
   }, s.tables);
+}
+
+/**
+ * A SAVED JOIN OPENED OVER THE HOST'S TABLES (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its leaves' tables
+ * (cube-document.ts leavesOf, in its order), one model of them, its inputs and the join typed now (join-open.ts openJoin,
+ * as the tab opens a saved join) -- for a host that opens a page's join grid over its own tables (headless grid.ts
+ * gridBase, gridOpened).
+ */
+export async function joinOpenedOn(source: JoinSource, tables: readonly string[]): Promise<OpenedJoin> {
+  return using((o) => openJoin(source, o), tables);
 }
 
 /**

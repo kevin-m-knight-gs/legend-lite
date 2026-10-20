@@ -8,7 +8,8 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  gridApply, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView,
+  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridOpened,
+  gridRelation, gridView,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelNames } from './model.ts';
@@ -23,8 +24,13 @@ export { REQUEST_KINDS };
  *  as DataCube makes and judges one (chart-spec.ts chartFrom and chartProblems: written once, which Python asks), and
  *  its cube over a frame as DataCube makes one, new or rebuilt over the frame as it is now (cube-document.ts
  *  rebuilt), and a calculated column added to it, its filter set as the screen's editors do, and the grid edited as the
- *  screen edits one (gridApply: grid-commands.ts, the commands its panels, menu and drag zones build). */
-export { gridApply, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView };
+ *  screen edits one (gridApply: grid-commands.ts, the commands its panels, menu and drag zones build). What a cube reads
+ *  (cubeLeaves), its base over the host's frames (gridBase) and a saved cube opened over them as it is now (gridOpened):
+ *  a frame's, or a join's of frames (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). */
+export {
+  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridOpened,
+  gridRelation, gridView,
+};
 
 /** Data in (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.3): a file read into the host's database by upload.ts, its
  *  table dropped again, and a remote file mounted as a view (its extensions and keys put in place first, where the host

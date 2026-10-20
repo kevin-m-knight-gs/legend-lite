@@ -1026,7 +1026,7 @@ class Document(Paged):
         elsewhere['cubes'][0]['cube']['source'] = {'_type': 'remoteFile', 'name': 'trades.parquet',
                                                    'url': 'https://example.com/trades.parquet',
                                                    'columns': doc['cubes'][0]['cube']['source']['columns']}
-        with self.assertRaisesRegex(ValueError, 'reads no frame'):
+        with self.assertRaisesRegex(ValueError, 'reads trades.parquet, which is no frame'):
             ll.Page.load(elsewhere, frames={'trades': trades()})
 
 
@@ -1232,6 +1232,71 @@ class Live(Paged):
         page.sheet('More')
         self.assertEqual(self.said(page, stale, version=1), 409)
         self.assertEqual([s.name for s in page.read().sheets], [None, 'More'])
+
+
+class Joined(Paged):
+    """A join's grid on a page Python serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17, §18.3): made by page.join as
+    the tab's Join… makes one, its rows planned by Python over one model of the two frames it reads, saved and loaded
+    over those frames, reopened when one of them is served again, and the page served with both frames' versions."""
+
+    HOW = {'form': 'join', 'kind': 'left', 'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]},
+           'prefix': 'd_', 'keep': None}
+    # the engine's answers as a tab reads them (Live's), without running Live's own tests again
+    get = Live.get
+    said = Live.said
+
+    def joined(self):
+        page = ll.Page('Joins')
+        mine = page.grid(trades(), name='trades')
+        theirs = page.grid(desks(), name='desks')
+        return page, page.join(mine, theirs, self.HOW)
+
+    def test_a_join_of_two_frames_grids_its_rows_planned_by_python_over_both(self):
+        page, joined = self.joined()
+        self.assertEqual(joined.frames, ['trades', 'desks'])
+        with self.assertRaisesRegex(ValueError, 'reads the frames trades, desks'):
+            _ = joined.frame
+        rows = joined.to_pandas()
+        self.assertEqual(sorted(zip(rows['region'], rows['desk'], rows['head'])),
+                         [('AMER', 'Rates', 'Ben'), ('EMEA', 'FX', 'Ana'), ('EMEA', 'Rates', 'Ben')])
+        self.assertEqual(page._frames(), {'trades', 'desks'})
+        # edited as any grid is, run by DataCube over the join's base
+        joined.group('head')
+        self.assertEqual(sorted(r[0] for r in joined.view().rows if r[0] is not None), ['Ana', 'Ben'])
+        # a refusal in the compiler's words, nothing added
+        with self.assertRaisesRegex(Exception, 'nope'):
+            page.join(page.grids[0], page.grids[1], {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
+        self.assertEqual(len(page.grids), 3)
+
+    def test_saved_and_loaded_over_its_frames_and_reopened_when_one_is_served_again(self):
+        page, joined = self.joined()
+        saved = page.to_dict()
+        cube = next(c['cube'] for c in saved['cubes'] if c['cube']['source']['_type'] == 'join')
+        self.assertEqual([cube['source'][s]['source']['name'] for s in ('left', 'right')], ['trades', 'desks'])
+        with self.assertRaisesRegex(ValueError, 'the page reads the frames desks'):
+            ll.Page.load(saved, frames={'trades': trades()})
+        again = ll.Page.load(saved, frames={'trades': trades(), 'desks': desks()})
+        grid = next(g for g in again.grids if g.frames == ['trades', 'desks'])
+        self.assertEqual(len(grid.to_pandas()), 3)
+        # its frame served again with a column more: the join opened over it as the tab opens a saved join
+        with warnings.catch_warnings(record=True) as said:
+            warnings.simplefilter('always')
+            next(g for g in again.grids if g.frames == ['desks']).update(desks().assign(floor=[3, 4]))
+        self.assertTrue(any('floor' in str(w.message) for w in said), [str(w.message) for w in said])
+        # every column of theirs kept (keep None): the new one among them, under its own name (mine has none of it)
+        self.assertIn('floor', list(grid.to_pandas().columns))
+
+    def test_shown_served_with_both_frames_versions(self):
+        page, joined = self.joined()
+        tab = ll.show(page, browser=False)
+        try:
+            status, versions = self.get(f'/version.json?page={page._key}')
+            self.assertEqual((status, sorted(versions['frames'])), (200, ['desks', 'trades']))
+            # the page in DataCube's hands, read back: a join of frames is a page Python holds
+            self.assertEqual(self.said(page, page.to_dict()), 204)
+            self.assertIs(page.read(), page)
+        finally:
+            tab.close()
 
 
 class CorpusPage(unittest.TestCase):

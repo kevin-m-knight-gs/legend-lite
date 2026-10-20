@@ -204,8 +204,17 @@ class Grid(Tile):
 
     @property
     def frame(self) -> str:
-        """The name of the frame it is over."""
-        return self._cube['source']['name']
+        """The name of the frame it is over -- a grid reading one; a join's grid reads several (``frames``)."""
+        frames = self.frames
+        if len(frames) != 1:
+            raise ValueError(f'this grid reads the frames {", ".join(frames)}: see frames')
+        return frames[0]
+
+    @property
+    def frames(self) -> list[str]:
+        """The frames it reads, as DataCube says what a grid reads (cube-document.ts leavesOf, headless cubeLeaves;
+        docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): a frame's grid its one, a join's each of its leaves'."""
+        return _cube_frames(self._page._session, self._cube)
 
     def _apply(self, commands: list[dict[str, Any]]) -> Grid:
         """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
@@ -238,7 +247,7 @@ class Grid(Tile):
         else:
             self._page._unnoted()
         for note in said['notes']:
-            warnings.warn(f"{self.frame}: {note}", stacklevel=stacklevel)
+            warnings.warn(f"{cube['source']['name']}: {note}", stacklevel=stacklevel)
         self._page._changed()
         return self
 
@@ -252,8 +261,8 @@ class Grid(Tile):
         return session.headless(), session.frames
 
     def _spec(self, frames: Any) -> dict[str, Any]:
-        """This grid's cube and its frame's model, as the bundle's grid functions take them (the frames held still)."""
-        return _cube_spec(self._cube, frames)
+        """This grid's cube and its base, as the bundle's grid functions take them (the frames held still)."""
+        return _cube_spec(self._cube, frames, self._page._session.headless())
 
     def view(self) -> GridView:
         """What the grid shows, as DataCube computes it: its columns and rows, their groups and totals, its pivot, and
@@ -278,13 +287,18 @@ class Grid(Tile):
             return engine.call('gridRelation', self._spec(frames))
 
     def to_pandas(self) -> Any:
-        """Every row of ``relation``, as a pandas DataFrame: DataCube says the query, Python plans it over its frame's
-        model and its own database answers it, typed by the plan (``Table.execute``), the rows coming to Python from
-        there (never through DataCube's engine)."""
+        """Every row of ``relation``, as a pandas DataFrame: DataCube says the query, Python plans it over the grid's base
+        model (a frame's, a join's of frames: what DataCube says it is over) and its own database answers it, typed by
+        the plan, the rows coming to Python from there (never through DataCube's engine)."""
+        from . import compiler
         from .frames import to_pandas
         engine, frames = self._headless()
         with frames.serving():
-            return to_pandas(frames[self.frame].execute(engine.call('gridRelation', self._spec(frames))))
+            spec = self._spec(frames)
+            held = frames.model_for(spec['model'])
+            if held is None:
+                raise ValueError(f'{self._cube["source"]["name"]}: its model reads a table this session does not serve')
+            return to_pandas(frames.run(held.plan(compiler.parse(engine.call('gridRelation', spec)), spec['runtime'])))
 
     def _class(self, name: str | None = None, columns: Mapping[str, Any] | None = None,
                documentation: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -525,17 +539,30 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
     session = page._session
     engine, frames = session.headless(), session.frames
     with frames.serving():
-        made = _json.loads(engine.call('gridChart', _cube_spec(page._cube(cube), frames), _json.dumps(given),
+        made = _json.loads(engine.call('gridChart', _cube_spec(page._cube(cube), frames, engine), _json.dumps(given),
                                        None if before is None else _json.dumps(before)))
     if made['problems']:
         raise ValueError(' '.join(made['problems']))
     return made['spec']
 
 
-def _cube_spec(cube: Mapping[str, Any], frames: Any) -> dict[str, Any]:
-    """A cube document and its frame's model, as the bundle's grid functions take them (the frames held still)."""
-    table = frames[cube['source']['name']]
-    return {'cube': _json.dumps(cube), 'model': table.model, 'runtime': table.runtime, 'source': table.accessor}
+def _cube_spec(cube: Mapping[str, Any], frames: Any, engine: Any) -> dict[str, Any]:
+    """A cube document and its base, as the bundle's grid functions take them (the frames held still): the base as
+    DataCube says it is over the frames this session serves (headless gridBase -- a frame's own model, a join's of
+    frames one model of them; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), never by the cube's kind here."""
+    text = _json.dumps(cube)
+    return {'cube': text, **json.loads(engine.call('gridBase', text, frames.hosted()))}
+
+
+def _cube_leaves(session: Any, cube: Mapping[str, Any]) -> list[dict[str, str]]:
+    """A cube's leaves as DataCube says what a cube reads (headless cubeLeaves: cube-document.ts leavesOf), in its order:
+    each ``{"_type", "name"}`` -- a frame's name its table in the frames' database."""
+    return json.loads(session.headless().call('cubeLeaves', _json.dumps(cube)))
+
+
+def _cube_frames(session: Any, cube: Mapping[str, Any]) -> list[str]:
+    """The frames a cube reads, as DataCube says (its leaves), each once, in its order."""
+    return list(dict.fromkeys(leaf['name'] for leaf in _cube_leaves(session, cube) if leaf['_type'] == 'frame'))
 
 
 def _slots(grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
@@ -1030,6 +1057,44 @@ class Page:
         self._changed()
         return grid
 
+    def join(self, mine: Grid, theirs: Grid, how: Mapping[str, Any], *, title: str | None = None,
+             sheet: Sheet | None = None) -> Grid:
+        """A grid of ``mine`` joined with ``theirs`` (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17), as the tab's Join…
+        makes one: each grid's rows at their finest level, as each is now, combined as ``how`` says -- DataCube's own
+        join (join-how.ts), read strictly: ``{'form': 'join', 'kind': 'inner' | 'left' | 'right' | 'full', 'on':
+        {'rows': [{'left': 'customer_id', 'op': '==', 'right': 'id'}]}, 'prefix': 'their_', 'keep': None}`` (``keep``,
+        the columns of theirs to keep, every one when None), ``{'form': 'semi' | 'anti', 'on': ...}``, ``{'form':
+        'asOf', 'match': {...}, 'on': ..., 'prefix', 'keep'}`` or ``{'form': 'append'}``. Written by DataCube (headless
+        joinCube) over the frames the two read, judged by the compiler -- a refusal in its words, the page as it was --
+        and added on ``sheet`` (the first unless given) by the page command every grid is added by. Each input is kept
+        by value: the join does not follow later edits of the grids joined."""
+        for g in (mine, theirs):
+            if g._page is not self:
+                raise ValueError(f'{g!r} is another page\'s')
+        if sheet is not None and sheet._page is not self:
+            raise ValueError(f'{sheet!r} is another page\'s')
+        target = self.sheets[0] if sheet is None else sheet
+        _ = target._doc
+        if title is not None:
+            title = _given_name(self._session, 'tile', title, 'a title')
+        session = self._session
+        engine, frames = session.headless(), session.frames
+        # each input as the page names it (its tile's title, else its source's), and the tables its leaves read, in
+        # their order: a frame's its own name
+        inputs = [{'name': g.title or g._cube['source']['name'], 'cube': g._cube} for g in (mine, theirs)]
+        tables = [leaf['name'] for g in (mine, theirs) for leaf in _cube_leaves(session, g._cube)]
+        with frames.serving():
+            made = json.loads(engine.call('joinCube', _json.dumps({
+                'left': inputs[0], 'right': inputs[1], 'how': how, 'tables': tables,
+            }), self.name, len(self._doc['cubes']) + 1))
+        for note in made['notes']:
+            warnings.warn(note, stacklevel=2)
+        with self._batch(tell=False):
+            applied = self._apply_page([{'kind': 'addGrid', 'document': _plain(_json.loads(made['cube'])),
+                                         'sheet': target.id, 'near': None, 'title': title, 'columns': None}], 'a title')
+        self._changed()
+        return self._tile(applied[0]['id'], Grid)
+
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
         if name is not None and not isinstance(name, str):
@@ -1127,7 +1192,8 @@ class Page:
         # read on the session the page will be made on (Page() takes the current one)
         doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'),
                          _current())
-        wanted = sorted({c['cube']['source']['name'] for c in doc['cubes']})
+        session = _current()
+        wanted = sorted({f for c in doc['cubes'] for f in _cube_frames(session, c['cube'])})
         missing = [n for n in wanted if n not in frames]
         if missing:
             raise ValueError(f'the page reads the frames {", ".join(missing)}: give them, frames={{name: frame}}')
@@ -1153,7 +1219,8 @@ class Page:
         said = self._session.engine().read_page(self._key) if self._shown else None
         if said is not None:
             doc = _read_page(said, self._session)
-            unserved = sorted({c['cube']['source']['name'] for c in doc['cubes']} - set(self._served()))
+            unserved = sorted({f for c in doc['cubes'] for f in _cube_frames(self._session, c['cube'])}
+                              - set(self._served()))
             if unserved:
                 raise ValueError(f'the open page reads the frames {", ".join(unserved)}, which this session does not serve')
             # taken quietly: the open page is this already; a handle of a tile it no longer has, gone
@@ -1192,7 +1259,7 @@ class Page:
             self._unserved = []
             return
         commands, self._unserved = self._unserved, []
-        version = self._session.engine().serve_page(self._key, self._doc, commands)
+        version = self._session.engine().serve_page(self._key, self._doc, sorted(self._frames()), commands)
         for view in list(self._shown):
             view._page_moved(version)
 
@@ -1259,8 +1326,9 @@ class Page:
             self._handles.pop(key)._dead = True
 
     def _frames(self) -> set[str]:
-        """The frames its cubes read, a frozen chart's whose grid is gone included."""
-        return {c['cube']['source']['name'] for c in self._doc['cubes']}
+        """The frames its cubes read (each cube's leaves: a join's every frame), a frozen chart's whose grid is gone
+        included."""
+        return {f for c in self._doc['cubes'] for f in _cube_frames(self._session, c['cube'])}
 
     def _cube(self, id: str) -> dict[str, Any]:
         return next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
@@ -1286,8 +1354,8 @@ class Page:
         types it now (``_reopened``); the page served again when one changed."""
         session = self._session
         session.register(frame, name, session.frames[name].mode if mode is None else mode)
-        # every cube over the frame reopened, whichever changed
-        reopened = [self._reopened(c, 4) for c in self._doc['cubes'] if c['cube']['source']['name'] == name]
+        # every cube reading the frame reopened (a join of it among them), whichever changed
+        reopened = [self._reopened(c, 4) for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'])]
         if any(reopened):
             self._changed()
 
@@ -1300,13 +1368,13 @@ class Page:
         leaves out. Whether it was taken. Asked when a page is loaded (``load``: its frames served), when a frame is
         served again (``_update``), and before a filter, a calculated column or a chart is checked against it
         (``_current``: a Live frame changed in place)."""
-        frame = c['cube']['source']['name']
-        cube, notes, changed = self._frame_cube(frame, len(self._doc['cubes']), c['cube'])
-        # the frame's columns as they were, nothing left out: the cube stands as it is (opened again, the same)
+        label = c['cube']['source']['name']
+        cube, notes, changed = self._opened_cube(c['cube'])
+        # its frames' columns as they were, nothing left out: the cube stands as it is (opened again, the same)
         if not changed and cube['source'] == c['cube']['source']:
             return False
         for note in notes:
-            warnings.warn(f'{frame}: {note}', stacklevel=stacklevel)
+            warnings.warn(f'{label}: {note}', stacklevel=stacklevel)
         c['cube'] = cube
         # a change by no command: a page open on it opens it again
         self._unnoted()
@@ -1317,6 +1385,16 @@ class Page:
         call checks a change against it and writes the change into it: a Live frame changed in place (a column gone, a
         calculated column that read it left out) is the cube DataCube checks, never the one held before."""
         self._reopened(next(c for c in self._doc['cubes'] if c['id'] == cube), stacklevel + 1)
+
+    def _opened_cube(self, saved: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
+        """A saved cube as DataCube opens it over the frames as they are now -- a frame's, a join's of frames (headless
+        gridOpened: cube-document.ts rebuilt, a join opened as the tab opens one) -- what DataCube says of what changed,
+        and whether it left a part out."""
+        engine, frames = self._session.headless(), self._session.frames
+        with frames.serving():
+            made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
+                                          len(self._doc['cubes'])))
+        return _plain(_json.loads(made['cube'])), list(made['notes']), made['changed']
 
     def _frame_cube(self, frame: str, grids_on_page: int,
                     saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], bool]:
@@ -1354,15 +1432,19 @@ def _read_page(doc: Any, session: Any) -> dict[str, Any]:
     """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
     (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own): of DataCube's
     own version, every rule of its reader held, and refused in its words otherwise -- Python
-    keeps no second copy of them. Then what a page in Python adds: each cube over a frame."""
-    said = json.loads(session.headless().call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
+    keeps no second copy of them. Then what a page in Python adds: each cube reads frames -- its leaves, as DataCube says
+    what a cube reads (headless cubeLeaves: a frame's grid its one, a join's of frames each;
+    docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3)."""
+    engine = session.headless()
+    said = json.loads(engine.call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
     if 'problems' in said:
         raise (_NoCube if said.get('noCube') else ValueError)('; '.join(said['problems']))
     page: dict[str, Any] = _plain(_json.loads(said['page']))
     for c in page['cubes']:
-        source = c['cube']['source']
-        if source.get('_type') != 'frame' or not isinstance(source.get('name'), str):
-            raise ValueError(f'the cube {c["id"]} reads no frame (a page in Python is over frames)')
+        for leaf in json.loads(engine.call('cubeLeaves', _json.dumps(c['cube']))):
+            if leaf['_type'] != 'frame':
+                raise ValueError(f'the cube {c["id"]} reads {leaf["name"]}, which is no frame (a page in Python is over '
+                                 'frames)')
     return page
 
 
