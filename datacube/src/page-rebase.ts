@@ -1,0 +1,174 @@
+// ONE WRITER'S EDITS MADE AGAIN ON TOP OF A PAGE THAT MOVED ON (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the one rule
+// by which a page two editors write -- Python's page and a tab open on it -- takes an edit made against a version the
+// page has moved on from. Whoever keeps the page asks it (headless pageRebase, for Python's keeper); no editor keeps a
+// rule of its own for it. Pure: the page, the ids it has held, the edits; a grid's edit applied by the function its
+// host gives (a grid's commands need its base, which only the host has).
+
+import type { CubeDocument } from './cube-document.ts';
+import { leavesOf } from './cube-document.ts';
+import type { GridCommand } from './grid-commands.ts';
+import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
+import { applyPageCommand, idsOf, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
+import type { PageDocument, PageLayout } from './page-document.ts';
+import { CubeRefusal } from './snapshot.ts';
+
+/** One edit of a page, as its writer made it: a page command, or a grid's command by its tile's id. */
+export type PageEdit =
+  | { readonly page: PageCommand }
+  | { readonly grid: string; readonly command: GridCommand };
+
+/**
+ * A grid's commands applied to its cube (`id`: the cube's id on `page`, the page as the edits before left it -- whether
+ * the grid is snapped is the page's), as the screen applies them: the cube they make, or a CubeRefusal in DataCube's
+ * words. Its host's: only the host has a grid's base (its frame, its copy).
+ */
+export type GridApplier = (page: PageDocument, cube: CubeDocument, id: string, commands: readonly GridCommand[]) =>
+  Promise<CubeDocument>;
+
+/** Edits made again on top: the page they make, the ids it has held, the edits as applied there, and each id an edit
+ *  gave out that the page had held since, as it was given out afresh (its writer's name for it -> the page's). */
+export interface Rebased {
+  readonly page: PageDocument;
+  readonly held: readonly string[];
+  readonly edits: readonly PageEdit[];
+  readonly renamed: Readonly<Record<string, string>>;
+}
+
+/** The commands that make a tile or a sheet: their id is theirs, given out afresh when the page has held it since. */
+const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart']);
+
+/** `id` as the edits made again call it: its new name when an edit before gave it out afresh. */
+const named = (id: string, renamed: ReadonlyMap<string, string>): string => renamed.get(id) ?? id;
+
+/** A layout with each tile renamed: its bands hold tiles' ids and nothing else that is text. */
+function renamedLayout(node: unknown, renamed: ReadonlyMap<string, string>): unknown {
+  if (typeof node === 'string') return named(node, renamed);
+  if (Array.isArray(node)) return node.map((n) => renamedLayout(n, renamed));
+  if (typeof node === 'object' && node !== null) {
+    return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, renamedLayout(v, renamed)]));
+  }
+  return node;
+}
+
+/** A page command with every id it names renamed (the one it makes is its own, never renamed here). */
+export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string, string>): PageCommand {
+  if (renamed.size === 0) return command;
+  const n = (id: string): string => named(id, renamed);
+  switch (command.kind) {
+    case 'renamePage':
+    case 'addSheet':
+    case 'removePageFilter':
+      return command;
+    case 'renameSheet':
+    case 'moveSheet':
+    case 'removeSheet':
+      return { ...command, sheet: n(command.sheet) };
+    case 'renameTile':
+    case 'removeTile':
+      return { ...command, tile: n(command.tile) };
+    case 'addGrid':
+      return { ...command, sheet: n(command.sheet), near: command.near === null ? null : n(command.near) };
+    case 'addChart':
+      return { ...command, near: n(command.near) };
+    case 'setChart':
+      return { ...command, chart: n(command.chart) };
+    case 'moveTile':
+      return { ...command, tile: n(command.tile), sheet: n(command.sheet) };
+    case 'stack':
+      return { ...command, tiles: command.tiles.map(n) };
+    case 'arrange':
+      return { ...command, sheet: n(command.sheet), order: command.order === null ? null : command.order.map(n) };
+    case 'layout':
+      return { ...command, sheet: n(command.sheet), layout: renamedLayout(command.layout, renamed) as typeof command.layout };
+    case 'setPageFilter':
+      return { ...command, from: command.from === null ? null : n(command.from) };
+    case 'snap':
+    case 'live':
+      return { ...command, grid: n(command.grid) };
+  }
+}
+
+/**
+ * A WRITER'S ARRANGEMENT OF A SHEET MADE AGAIN ON TOP (a layout whole -- a drag, a resize -- or an arrangement in an
+ * order): the places of the tiles it knew, as it arranged them; a tile on that sheet now that it did not know (added or
+ * moved there by the other writer) placed as adding places one; one it knew that is no longer there (taken off or moved
+ * away) left out -- so the other writer's tiles keep their sheet, and neither writer's arrangement is refused for them.
+ */
+function rearranged(command: PageCommand, page: PageDocument): PageCommand {
+  if (command.kind !== 'layout' && command.kind !== 'arrange') return command;
+  const sheet = page.sheets.find((s) => s.id === command.sheet);
+  if (sheet === undefined) return command;
+  const now = tiles(sheet.layout);
+  if (command.kind === 'arrange') {
+    if (command.order === null) return command;
+    const knew = command.order;
+    return { ...command, order: [...knew.filter((t) => now.includes(t)), ...now.filter((t) => !knew.includes(t))] };
+  }
+  const { kind: _kind, ...given } = command.layout as PageLayout & Bands;
+  let bands = given as Bands;
+  try {
+    for (const t of tiles(bands)) if (!now.includes(t)) bands = remove(bands, t);
+    for (const t of now) if (!tiles(bands).includes(t)) bands = add(bands, t);
+  } catch {
+    // not a layout the page reads: refused by the command's own rule, as written
+    return command;
+  }
+  return { ...command, layout: { kind: 'bands', ...asSaved(bands) } as PageLayout };
+}
+
+/** `page` with its cube `id` replaced by `cube` (as a grid's edit leaves it: the page otherwise as it was). */
+export function withCube(page: PageDocument, id: string, cube: CubeDocument): PageDocument {
+  return { ...page, cubes: page.cubes.map((c) => (c.id === id ? { id, cube } : c)) };
+}
+
+/**
+ * EDITS MADE AGAIN ON TOP: `edits`, made by one writer against a version of the page it has moved on from, applied in
+ * order to `draft` (the page as it is now, and every id it has held) -- each page command by the page commands' own
+ * function, each grid's by `applyGrid`. An id a command made (a sheet, a grid, a chart) that the page has held since is
+ * given out afresh, and every later edit naming it renamed to match (a writer's handle, or its next edit, follows the
+ * rename it is told). One that no longer applies -- its tile or sheet taken off there, a column gone -- refuses them
+ * all, in DataCube's words (CubeRefusal): a writer's edits are one change, applied whole or not at all. A sheet's
+ * arrangement keeps the other writer's tiles on it (rearranged). A page filter set by its id is set (the id's filter
+ * replaced, else made), as the command says.
+ */
+export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], applyGrid: GridApplier): Promise<Rebased> {
+  let d = draft;
+  const renamed = new Map<string, string>();
+  const applied: PageEdit[] = [];
+  for (const edit of edits) {
+    if ('grid' in edit) {
+      const grid = named(edit.grid, renamed);
+      const view = d.page.views.find((v) => v.id === grid);
+      if (view === undefined || view.kind !== 'grid') throw new CubeRefusal(`${grid} is no longer on the page`);
+      const held = d.page.cubes.find((c) => c.id === view.cube);
+      if (held === undefined) throw new CubeRefusal(`${grid} shows no cube the page holds`);
+      d = { ...d, page: withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, [edit.command])) };
+      applied.push({ grid, command: edit.command });
+      continue;
+    }
+    let command = rearranged(renamedCommand(edit.page, renamed), d.page);
+    const made = MAKERS.has(command.kind) ? (command as { readonly id?: string }).id : undefined;
+    if (made !== undefined && takenIds(d).includes(made)) {
+      // given out on the other side meanwhile: this one is given out afresh
+      const { id: _taken, ...fresh } = command as PageCommand & { id?: string };
+      command = fresh as PageCommand;
+    }
+    const one = applyPageCommand(d, command);
+    const given = (one.command as { readonly id?: string }).id;
+    if (made !== undefined && given !== undefined && given !== made) renamed.set(made, given);
+    d = one.draft;
+    applied.push({ page: one.command });
+  }
+  return { page: d.page, held: d.held, edits: applied, renamed: Object.fromEntries(renamed) };
+}
+
+/**
+ * WHAT A PAGE READS, as its keeper needs it and never reads it itself: the frames its cubes read (their leaves', each
+ * once, in order), the copies its snapped grids read (their tables), and every id it holds.
+ */
+export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {
+  const frames = [...new Set(page.cubes.flatMap((c) => leavesOf(c.cube.source)
+    .filter((leaf) => leaf._type === 'frame').map((leaf) => leaf.name)))].sort();
+  const copies = [...new Set(Object.values(page.copies ?? {}).map((c) => c.table))].sort();
+  return { frames, copies, ids: idsOf(page) };
+}

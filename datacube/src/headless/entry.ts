@@ -14,7 +14,9 @@ import {
 import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelNames } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
-import { gridSnapped, nameGiven, pageApply, pageFilter, pageNew, pageOpenedLive, pageRead } from './page.ts';
+import {
+  gridSnapped, nameGiven, pageApply, pageFilter, pageNew, pageOpenedLive, pageRead, pageReads, pageRebase, pageWritten,
+} from './page.ts';
 import { joinCube, joinQuestions } from './join.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
@@ -50,6 +52,10 @@ export { layoutBands, layoutTiles };
  *  it: what Python's pages ask when one is loaded, read back, laid out or saved. And a new page as DataCube starts one:
  *  what Python's ll.Page() asks. And a page edited by commands (page-commands.ts): what Python's page edits send. */
 export { pageApply, pageNew, pageOpenedLive, pageRead };
+/** The page's keeper (Python's: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) asks DataCube what it never reads itself: an
+ *  open page's write read as DataCube reads a page (pageWritten), what a page reads (pageReads), and a writer's edits
+ *  made again on top of the page as it is now (pageRebase: page-rebase.ts, the one rule for it). */
+export { pageReads, pageRebase, pageWritten };
 
 /** A page filter on a class's property, made as the screen's Add a Filter makes one (a setPageFilter command, for
  *  pageApply): what Python's page.filter asks. */

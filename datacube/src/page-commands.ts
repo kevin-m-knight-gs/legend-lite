@@ -134,12 +134,19 @@ const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => Pag
   ({ ...page, sheets: page.sheets.map((s) => (s.id === id ? change(s) : s)) });
 
 /**
- * A fresh id for a command that makes one, or the one it names -- refused when the page has held it, or a cube of the
- * page has it (a cube kept for a detached chart has no view of its own: its id is taken all the same).
+ * The ids no command may give out: every one the page has held, its cubes' (a cube kept for a detached chart has no
+ * view of its own: its id is taken all the same), and its filters' while it has them, whatever `held` lost (a page
+ * opened again holds its tiles' ids only). page-rebase.ts asks it too, before a writer's id is given out on top.
+ */
+export function takenIds(draft: PageDraft): string[] {
+  return [...draft.held, ...draft.page.cubes.map((c) => c.id), ...(draft.page.filters ?? []).map((f) => f.id)];
+}
+
+/**
+ * A fresh id for a command that makes one, or the one it names -- refused when it is taken (takenIds).
  */
 function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'chart' | 'sheet' | 'filter'): string {
-  // a filter's id is taken while the page has it, whatever `held` lost (a page opened again holds its tiles' ids only)
-  const taken = [...draft.held, ...draft.page.cubes.map((c) => c.id), ...(draft.page.filters ?? []).map((f) => f.id)];
+  const taken = takenIds(draft);
   if (given === undefined) return nextPageId(taken, kind);
   if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
   if (!new RegExp(`^${kind}-\\d+$`).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N, not '${given}'`);

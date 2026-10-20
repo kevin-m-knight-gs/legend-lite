@@ -3,16 +3,18 @@
 // layout, saved or written out -- a page of DataCube's own version, every one of its rules held
 // (readPage), written as DataCube writes it (pageToJson) -- so Python checks and writes no page by rules of its own.
 
-import { CubeDocumentError, readCube } from '../cube-document.ts';
+import { CubeDocumentError, cubeToJson, readCube } from '../cube-document.ts';
 import {
   gridCopyOf, openedLive, PageDocumentError, PageNoCubeError, pageToJson, readPage, startingViews, writePageOf,
   type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
-import { applyPageCommands, readPageCommand } from '../page-commands.ts';
+import { applyPageCommands, readPageCommand, type PageCommand } from '../page-commands.ts';
+import { readGridCommand, type GridCommand } from '../grid-commands.ts';
+import { pageReads as readsOf, rebaseEdits, type PageEdit } from '../page-rebase.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
-import { draftFrom, type GivenFilter } from './grid.ts';
+import { draftFrom, gridApply, gridBase, type GivenFilter, type HostFrame } from './grid.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -153,4 +155,104 @@ export function gridSnapped(grid: string, made: string): string {
 export function pageOpenedLive(text: string): string {
   const opened = openedLive(readPage(text));
   return JSON.stringify({ page: pageToJson(opened.page), notes: opened.notes });
+}
+
+/** A copy its host holds, as the host modelled it (Python's engine: Engine.copy_of): what a snapped grid reads. */
+export interface HeldCopy {
+  readonly model: string;
+  readonly runtime: string;
+  /** The relation that reads it, as the protocol writes one. */
+  readonly source: unknown;
+}
+
+/** A writer's edits read from JSON, each by its own reader: a page command's (a grid's cube with its exact numbers, as
+ *  pageApply reads one), or a grid's by readGridCommand. */
+function readEdits(text: string): PageEdit[] {
+  const exact = fromJson(text) as unknown[];
+  const asked = JSON.parse(text) as unknown;
+  if (!Array.isArray(asked)) throw new CubeRefusal("a writer's edits are a list");
+  return asked.map((e, i) => {
+    const edit = e as { page?: unknown; grid?: unknown; command?: unknown } | null;
+    if (edit !== null && typeof edit === 'object' && 'page' in edit) {
+      const c = edit.page as { kind?: unknown } | null;
+      const command: PageCommand = readPageCommand(c?.kind === 'addGrid'
+        ? { ...(c as object), document: ((exact[i] as { page: Record<string, unknown> }).page)['document'] } : c);
+      return { page: command };
+    }
+    if (edit !== null && typeof edit === 'object' && typeof edit.grid === 'string') {
+      const command: GridCommand = readGridCommand(edit.command);
+      return { grid: edit.grid, command };
+    }
+    throw new CubeRefusal(`an edit is {page: <a page command>} or {grid, command}, not ${JSON.stringify(e)}`);
+  });
+}
+
+/** What a page reads, as its keeper takes it (page-rebase.ts pageReads). */
+const readsJson = (page: PageDocument): string => JSON.stringify(readsOf(page));
+
+/**
+ * WHAT A PAGE READS (page-rebase.ts pageReads), for its keeper, which never reads a page itself: `page` as Python holds
+ * it. JSON: `{frames, copies, ids}` -- the frames its cubes read, the copies its snapped grids read (their tables),
+ * every id it holds.
+ */
+export function pageReads(page: string): string {
+  return readsJson(heldPage(page));
+}
+
+/**
+ * AN OPEN PAGE'S WRITE, read as DataCube reads a page (readPage) -- a page of no grid too, as a page written live may be
+ * (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5) -- and its edits as their readers read them (null: a change
+ * by no command). JSON: `{page, edits, reads}` -- the page as DataCube writes it (its numbers exact), the edits as read
+ * (or null), what it reads (pageReads) -- or `{problems}`, why DataCube does not read it, in its words.
+ */
+export function pageWritten(text: string, edits: string | null): string {
+  try {
+    const page = readPage(text, { empty: true });
+    const read = edits === null ? null : readEdits(edits);
+    return `{"page":${JSON.stringify(pageToJson(page))},`
+      + `"edits":${read === null ? 'null' : `[${read.map((e) => toJson(e)).join(',')}]`},"reads":${readsJson(page)}}`;
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError) && !(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
+ * A WRITER'S EDITS MADE AGAIN ON TOP OF THE PAGE AS IT IS NOW (page-rebase.ts rebaseEdits), for the page's keeper when a
+ * write was made against a version it has moved on from: `page` and `held` as the keeper has them, `edits` as the writer
+ * made them (JSON lists), `frames` the frames the host serves (grid.ts HostFrame, by name) and `copies` the copies it
+ * holds (by table), over which a grid's edit is applied as gridApply applies one -- a snapped grid's over its copy, as
+ * the writer applied it. JSON: `{page, held, edits, renamed, reads}` -- the page they make (as DataCube writes it),
+ * the ids it has held, the edits as applied there, each id given out afresh (the writer's name -> the page's), and what
+ * the page reads -- or `{problems}`: one no longer applies, in DataCube's words, and nothing was applied.
+ */
+export async function pageRebase(page: string, held: string, edits: string,
+  frames: Readonly<Record<string, HostFrame>>, copies: Readonly<Record<string, HeldCopy>>): Promise<string> {
+  try {
+    const now = heldPage(page);
+    const done = await rebaseEdits({ page: now, held: JSON.parse(held) as string[] }, readEdits(edits),
+      async (at, cube, id, commands) => {
+        const text = cubeToJson(cube);
+        const snapped = (at.copies ?? {})[id];
+        let base: object;
+        if (snapped !== undefined) {
+          const copy = copies[snapped.table];
+          if (copy === undefined) throw new CubeRefusal(`${cube.name}: its snap (${snapped.label}) is no longer held`);
+          base = { model: copy.model, runtime: copy.runtime,
+            relation: JSON.stringify({ _type: 'lambda', parameters: [], body: [copy.source] }) };
+        } else {
+          base = JSON.parse(await gridBase(text, frames)) as object;
+        }
+        const said = JSON.parse(await gridApply({ cube: text, ...base } as Parameters<typeof gridApply>[0],
+          `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
+        if (said.problems) throw new CubeRefusal(said.problems.join('; '));
+        return readCube(fromJson(said.cube!));
+      });
+    return `{"page":${JSON.stringify(pageToJson(done.page))},"held":${JSON.stringify(done.held)},`
+      + `"edits":[${done.edits.map((e) => toJson(e)).join(',')}],"renamed":${JSON.stringify(done.renamed)},`
+      + `"reads":${readsJson(done.page)}}`;
+  } catch (e) {
+    if (!(e instanceof CubeRefusal) && !(e instanceof CubeDocumentError) && !(e instanceof PageDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
 }

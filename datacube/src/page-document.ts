@@ -344,7 +344,12 @@ export function readSaved(input: string | unknown): SavedDocument {
   return { kind: 'cube', cube: readCube(raw) };
 }
 
-export function readPage(input: string | unknown): PageDocument {
+/**
+ * `empty`: a page of no grid read as one, where a page is written live and not saved -- one Python holds (it starts
+ * as one) or a tab has taken its last grid off (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5). A saved
+ * page with no cube is never one DataCube opens.
+ */
+export function readPage(input: string | unknown, options: { readonly empty?: boolean } = {}): PageDocument {
   const raw = typeof input === 'string' ? parse(input) : input;
   if (!isObject(raw)) throw new PageDocumentError('expected an object');
   if (raw['kind'] !== PAGE_KIND) {
@@ -362,7 +367,7 @@ export function readPage(input: string | unknown): PageDocument {
   if (!named('page', raw['name'])) throw new PageDocumentError("the page's name is blank");
 
   const cubesRaw = raw['cubes'];
-  if (!Array.isArray(cubesRaw) || cubesRaw.length === 0) throw new PageNoCubeError();
+  if (!Array.isArray(cubesRaw) || (cubesRaw.length === 0 && options.empty !== true)) throw new PageNoCubeError();
   const cubes = cubesRaw.map((c, i) => {
     if (!isObject(c) || typeof c['id'] !== 'string' || !isObject(c['cube'])) {
       throw new PageDocumentError(`cube ${i + 1} is not an id and a cube`);
