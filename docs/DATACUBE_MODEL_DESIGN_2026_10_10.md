@@ -753,3 +753,185 @@ one class (§13): relationships, a filter through an end, and the column chooser
   serving); headless `pageFilter` is ready for it (step 3b); "Add a Grid over" is offered only where the page plans and
   runs its own SQL (the tab), so a Python-served page never gets a class grid it cannot follow. Re-pinning open class
   grids when the page re-pins (step 5).
+
+## 17. Step 4, combining in prep, as it will be built (2026-10-20)
+
+The user, 2026-10-20: "do the join prep here stacked, make sure it's built like everything else now with a real API
+like all other UI components now so it can be driven headless". §3.4 is what it builds. This section says how, and
+(§17.6) what upstream's Legend Cube has that we lack and what a prep flow could be.
+
+### 17.1 A join is a grid of its own, over two grids' results
+
+- **Join…** on a grid's menu joins this grid to another grid of the page. A **new grid** comes beside them, and its
+  source is the join; the two grids stay as they are.
+- **Each input is a grid's RESULT.** That is its rows at its finest level (query.ts `classLambda`, what Create a Class
+  reads): its filter, calculated columns and groups, and the columns it shows. So a join after an aggregate is a join
+  to a grouped grid. Order comes from grids feeding grids, not from a list of steps (§3.4).
+- **The joined grid is an ordinary grid**: everything DataCube does works over the joined relation. Create a Class of
+  it writes one relation function that holds the join (§3.3).
+- **Inputs are kept by value.** The join source holds each input's source and query as they were when it was joined.
+  So a saved join reopens alone: exported, shared, on another page. A live link to the other grid, where its edits
+  flow through, belongs to the prep flow (§17.6).
+
+### 17.2 The join source, and what it becomes
+
+`{"_type": "join", name, left, right, how, columns}` in cube-document.ts. Each input is `{name, source, query}`: a
+cube's source and its saved query. A join can itself be an input, so three tables join as (A ⋈ B) ⋈ C. `how` is read
+strictly (join.ts `readJoinHow`):
+
+| `form` | Fields | What it keeps |
+|---|---|---|
+| `join` | `kind` (inner, left, right, full), `on`, `prefix`, `keep` | rows the condition pairs. No rows in `on`: every pair (a cross join) |
+| `asOf` | `match` (my column, `>=` `<=` `>` `<`, theirs), `on`, `prefix`, `keep` | each of my rows with their nearest row by the match, among those `on` keeps |
+| `semi`, `anti` | `on` | my rows that have a match, or that have none; my columns only, each row once |
+| `append` | (none) | the rows of both, columns matched by name |
+
+- **`on`** is either `{rows: [{left, op, right}]}`, ANDed (op one of `==`, `!=`, `<`, `<=`, `>`, `>=`), or
+  `{lambda}`: a Pure `{a, b | ...}`, parsed before the command is built (as a calculated column is) and typed by the
+  compiler.
+- **`keep`** is their columns brought over (null: all). **`prefix`** is put on their columns whose names mine have.
+
+What it becomes is one rule, join.ts `joinRelation`:
+
+1. **Names that clash are renamed first.** Each of their columns whose name mine has is renamed with the prefix
+   (`->rename(~id, ~c_id)`), so the condition and the result name every column once. A condition names their columns
+   as they come out, renamed.
+2. **Then the join**: `join(mine, theirs, JoinKind.K, {a, b | ...})` or `asOfJoin(mine, theirs, match, on)`.
+3. **Then `->select(...)`**, when some of their columns are not kept.
+
+Within that rule:
+
+- **An empty key matches no row.** An equality row is written `$a.k->isNotEmpty() && $a.k == $b.k`. Pure's `==`
+  would match an empty key with an empty key; SQL's join does not, and neither does any prep tool's.
+  `docs/SEMANTICS_REGISTER.md` needs no row for this: it is the query as written, not a difference from the engine.
+- **Semi and anti** are `mine->filter(a | theirs->filter(b | ...)->isNotEmpty())` and `isEmpty()`. lite lowers both to
+  a semi-join or an anti-join.
+- **Append** extends each side by the columns it lacks (`[]->cast(@T)`), selects both sides in one order (mine, then
+  any of theirs I lack), and joins them with `concatenate`. A column both sides have, with two different types, is
+  refused by name.
+
+### 17.3 One place
+
+Both inputs must be read where one model and one connection reach them (§4.3).
+
+- **In the tab** that means files and remote files: tables of the tab's DuckDB.
+- **The join's model** is one Database holding all their tables (core's `CatalogModel.database` of several tables;
+  Boundary `tableModel` given `tables`). Each table is declared as its own model declares it, so each input's
+  relation reads the same accessor, unchanged.
+- **Any other input is refused in words**: a warehouse table read live, a saved query, a class, or a frame on a page
+  Python serves (§17.7).
+
+### 17.4 The API: the commands every grid already has
+
+- **No new page command.** A join grid is `addGrid` with its cube document (page-commands.ts). The document is made
+  first by one pure function (join.ts `joinCube`), as every grid's document is. So undo, save and the live channel
+  follow, with nothing added.
+- **What the dialog shows before Apply** is a set of queries from one pure function (join.ts `joinSummary`). Each is
+  planned by the compiler over the join's model.
+- **The opener** (join-open.ts) is free of the DOM: given the tables, the model writer and a planner, it gives back the
+  model, the relation and its columns. The tab's sources and a test on Node's DuckDB both call it.
+- **Headless**: the bundle exports `joinCube` and `joinSummary`, for any host that drives pages.
+- **Python**: `page.join(other, on=[('customer_id', 'id')], how='left')` is step 4b (§17.7).
+
+### 17.5 The dialog
+
+**Join…** on a grid's menu, in the tab, where another grid of the page reads a table. It asks:
+
+- **Their grid**: one of the page's other grids.
+- **The form**: inner, left, right, full, as of, keep matching, keep not matching, or append.
+- **The condition**: as rows (my column, the comparison, their column), or in Pure. A key is suggested: a name both
+  sides have, or their table's name with `_id`.
+- **Their columns brought over**: a checklist, with the prefix for names both sides have (editable).
+
+Before Apply, the dialog says **what the join will do**:
+
+- my rows;
+- how many of them find a match, and how many do not;
+- the rows after the join (more than mine means a key repeats on their side);
+- for equal keys, how many of their keys repeat, and the most times one does.
+
+Apply makes the grid (`addGrid`). Its title is `trades ⋈ customers`.
+
+### 17.6 Upstream's Legend Cube, and a prep flow (the user, 2026-10-20)
+
+The user asked us to study upstream's "cube" (not DataCube) in legend-studio for prep features we lack, and to think
+about a prep UI like it, "but maybe more Alteryx like".
+
+**What upstream has.** We read legend-studio's `packages/legend-cube` and `packages/legend-cube-builder` (version
+0.0.7, work in progress), read only.
+
+- **What it is**: a canvas of steps, laid out automatically. Each input begins a chain, and every chain ends in a tree:
+  no step's output feeds two steps. A form edits each step. Any step can be the "▶ running" one, whose rows show in
+  the grid below.
+- **Steps**:
+  - sources: a table, a data product, an ingest, a function with its parameters;
+  - Join, but equal keys only (inner, left, right, full), with key suggestions and a one-click rename of names that
+    clash;
+  - Concatenate, with types widened;
+  - Compare Column Values (a reconciliation diff);
+  - Filter by column, and Filter by a Pure expression;
+  - Extend;
+  - Group;
+  - Pivot (one column, at most 100 values);
+  - window functions (no frames);
+  - Explode Array, and Explore JSON (a field tree with how often each field appears);
+  - restrict, rename, distinct, sort, take, drop, slice.
+- **Around the steps**: Import Pure turns a lambda back into steps. A runs panel gives each run's SQL, lambda, time and
+  error. Grid gestures (sort by, group by, filter by) add steps.
+- **What it lacks** that we have or are building: any join condition, as-of, semi and anti joins, the match summary,
+  window frames, our wider aggregates, pivots over several columns, charts, dashboards, the model.
+
+**What we lack, ranked for a prep user:**
+
+1. Joins: this step.
+2. Steps in any order over several inputs, each previewed. Grids feeding grids gives this. The flow below shows it.
+3. Append: this step.
+4. Compare two inputs: a full join on keys, with each value's difference as a calculated column. A preset of the
+   dialog, once join is in.
+5. Remove duplicates: a grid command, this step or the next.
+6. Filter by a Pure expression.
+7. Import Pure.
+8. A function with parameters, a data product or an ingest as a source.
+9. Take, drop and slice as steps.
+
+**A prep flow, Alteryx-like (a proposal, not built).** The page's grids drawn as one flow:
+
+- **Boxes and lines.** Each grid is a box: its source, and one line of what it does ("region = EMEA · by desk ·
+  3 calculated"). Each join is a box with two inputs. Lines run from input to output. The grid under the canvas shows
+  the chosen box's rows: upstream's running step, Alteryx's results pane.
+- **The same page document.** The boxes are the page's grids, and the lines are their join inputs. No second model.
+- **Live links.** An input can also be kept by the grid it came from (`{grid: 'grid-3'}`). An edit to that grid then
+  flows down, as Alteryx re-runs a workflow: on open, grids are made in dependency order (as class grids already open
+  last, §16.4). A link to a removed grid becomes its value, and this is said; a cycle is refused by the page command.
+- **Tools, grouped as Alteryx groups them.** Each is a command already, or one step away:
+  - In and out: sources, export.
+  - Preparation: filter, calculated column, select and rename, sort, sample, remove duplicates, and cleansing presets
+    for calculated columns (trim, case, empties).
+  - Join: join, as of, append, find matches and no matches.
+  - Parse: Expand, JSON fields, text to columns.
+  - Transform: group, pivot, unpivot, and running totals (window columns).
+  - **Profile**, anywhere: per column, the count, empties, distinct values and top values. This is upstream's JSON
+    explorer made general. Upstream has no profiling and no join match counts.
+- **From upstream, worth taking**:
+  - a run badge on any box;
+  - a box in red when it is invalid, with why;
+  - key suggestions with their reasons;
+  - one-click fixes (rename names that clash);
+  - grid gestures that add steps;
+  - a runs panel;
+  - "Load values" for a pivot;
+  - Import Pure.
+- **Order proposed**: live links and the flow view over today's grids first; then Profile; then unpivot, text to
+  columns and sample; then Import Pure.
+
+### 17.7 Not in this step
+
+- **Python** (step 4b). On a page Python serves, the frames are tables of Python's DuckDB. A join of two frames needs
+  Python's engine to serve one model of several frames, beside `cube.json`. That is engine.py, the SQL plan's ground,
+  so it waits for that line. headless `joinCube` and `joinSummary` are ready for it.
+- **Live links** and the flow view (§17.6).
+- **`lateral`** beyond Expand. Expand already exists: it is the unnest calculated column.
+- **Text comparisons as rows.** Write them in Pure: `$a.s->toOne()->contains($b.t->toOne())`.
+- **A warehouse table read live** as an input; a snapped copy is a table of the tab, but its source reopens live.
+- **A joined file's handle, kept** so a reopened join reads its files without asking. A sample is rebuilt; a file
+  already open on the page is reused; any other file is asked for.

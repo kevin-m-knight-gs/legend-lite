@@ -1009,8 +1009,14 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `create-class.ts`, `model-actions.ts`, `runner.ts`, `cube.ts`, `app.ts`, `grid-commands.ts` (its filter reader
   exported), `page/page-app.ts`, `page/cube-page.ts`, `ui/page-filter-bar.ts` (new), `app/sources.ts`,
   `app/datacube-app.ts`, `headless/page.ts`, `headless/grid.ts`, `headless/entry.ts`; `pure-protocol/src/relation.ts`
-  (`projectObjects`); Python's `page.py` (the pin). Nothing of core; not the SQL plan's ground. **Next: step 4**
-  (combining in prep), on `claude/datacube-model-prep`, stacked.
+  (`projectObjects`); Python's `page.py` (the pin). Nothing of core; not the SQL plan's ground. **Now: step 4**
+  (combining in prep, the user 2026-10-20: "built like everything else now with a real API ... so it can be driven
+  headless"), on `claude/datacube-model-prep`, stacked. **Core edit announced 2026-10-20:** a model of several tables of
+  one database, for a join's two sides -- `core/src/main/java/com/legend/sql/dialect/CatalogModel.java` (a Database of
+  several tables; one table's text unchanged), `wasm/src/main/java/planner/Boundary.java` (`tableModel` given
+  `tables`: their Databases, one connection, one runtime binding each), a core test beside `CatalogModelTest`; the
+  native library's and the tab's `tableModel` entries unchanged (the same request, the new shape); DataCube's
+  `infer.ts`/`lite-planner.ts` and Python's `compiler.py` callers.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
