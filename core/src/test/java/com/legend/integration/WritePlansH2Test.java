@@ -8,8 +8,6 @@ import com.legend.error.NotImplementedException;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.parser.Dialect;
-import com.legend.parser.SpecParser;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
@@ -75,7 +73,7 @@ class WritePlansH2Test {
                 s.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER)");
                 s.execute("INSERT INTO T VALUES (1, 'a', 10)");
             }
-            var delete = SpecParser.parse("|#>{w::DB.T}#->delete(r|true)", Dialect.LEGEND_LITE);
+            var delete = com.legend.Compiler.parseQuery("|#>{w::DB.T}#->delete(r|true)");
             NotImplementedException refused = assertThrows(NotImplementedException.class,
                     () -> com.legend.Execution.executeUpstream(model, delete, "w::RT", (target, ctx) -> {
                         throw new AssertionError("a program that writes opens no query session");
