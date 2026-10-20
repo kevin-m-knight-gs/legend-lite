@@ -111,7 +111,27 @@ describe('the channel', () => {
     channel.shown = 2;
     channel.changed();
     await written(channel);
-    assert.deepEqual(editor.writes.map((w) => w.edits), [[]], 'written as nothing of its own -- never whole, never Python\'s');
+    assert.equal(editor.writes.length, 0, 'nothing of its own to write -- Python\'s change never written back as the screen\'s');
+    // and an edit of its own after: written alone
+    channel.edit({ page: { kind: 'renamePage', name: 'Mine' } });
+    s.now = renamed(trades, 'Mine');
+    channel.changed();
+    await written(channel);
+    assert.deepEqual(editor.writes.map((w) => w.edits), [[{ page: { kind: 'renamePage', name: 'Mine' } }]]);
+  });
+
+  // (the browser harness: such a write, made behind a page Python had moved, had the page opened again in place of
+  // following Python's command)
+  it('writes nothing when nothing was made on screen since it opened', async () => {
+    const editor = new Editor();
+    const s = screen(trades);
+    const channel = new LiveChannel(editor, s, 0);
+    channel.opened(1);
+    // the page as it opened, changed again by nothing (a view landing, a restore settling)
+    channel.changed();
+    channel.changed();
+    await written(channel);
+    assert.equal(editor.writes.length, 0);
   });
 
   it('runs a follow told while a write is on its way after it, at the version the write made', async () => {
@@ -302,18 +322,17 @@ describe('a real page and its keeper', () => {
         });
         channel!.opened(keeper.version);
       },
-      // written when the test says (flush), never by its own timer
-    }, 60_000);
+    }, 0);
     channel.opened(keeper.version);
+    // the other editor writes first: a sheet of its own, so the edits made here next are made against a version the
+    // page has moved on from
+    keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
 
     // edits on screen: a grid regrouped (as its own edits are applied), a grid added to the page
     assert.equal(await cubes.get(a)!.applyGridCommands([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
     const added = page.addGrid(over('more.csv'));
     await settle();
-    assert.equal(keeper.written.length, 0, 'not written yet: the change waits to settle');
-    // meanwhile the other editor wrote: a sheet of its own
-    keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
-    await channel.flush();
+    await written(channel);
     await settle();
 
     // its edits were commands, not the page whole -- the grid's group as its grid made it, the grid added as the page

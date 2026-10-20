@@ -34,8 +34,6 @@ export class LiveChannel {
   #following = 0;
   #queue: Promise<void> = Promise.resolve();
   #timer: ReturnType<typeof setTimeout> | undefined;
-  /** A write waits for its change to settle. */
-  #due = false;
   #stopped = false;
   readonly #editor: LivePage;
   readonly #screen: LiveScreen;
@@ -60,16 +58,7 @@ export class LiveChannel {
     if (this.#following === 0) this.#see();
     if (this.shown === undefined || this.#stopped) return;
     clearTimeout(this.#timer);
-    this.#due = true;
-    this.#timer = setTimeout(() => { void this.flush(); }, this.#after);
-  }
-
-  /** A write waiting for its change to settle, written now (the page leaving; a test); every one before it done. */
-  flush(): Promise<void> {
-    clearTimeout(this.#timer);
-    if (!this.#due) return this.idle();
-    this.#due = false;
-    return this.enqueue(() => this.#write());
+    this.#timer = setTimeout(() => { void this.enqueue(() => this.#write()); }, this.#after);
   }
 
   /** The other editor followed by `work`: nothing the screen does meanwhile is its own; what it shows after is seen. */
@@ -101,7 +90,6 @@ export class LiveChannel {
   /** Nothing more written (the other editor gone, the app taken down). */
   stop(): void {
     this.#stopped = true;
-    this.#due = false;
     clearTimeout(this.#timer);
   }
 
@@ -126,9 +114,12 @@ export class LiveChannel {
   async #write(): Promise<void> {
     const at = this.shown;
     if (at === undefined || this.#stopped) return;
+    const edits = this.#edits;
+    // nothing made on screen since it was last written or opened: nothing to write (a write of no edits against a
+    // version the page moved on from would only have the page opened again)
+    if (edits !== null && edits.length === 0) return;
     const page = this.#screen.page();
     if (page === undefined) return;
-    const edits = this.#edits;
     this.#edits = [];
     this.#told = 0;
     this.#seen = pageToJson(page);
