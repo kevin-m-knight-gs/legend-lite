@@ -10,7 +10,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
-import { joinLeaves, leafRefusal, openInputs, openJoin, type JoinOpening } from '../src/join-open.ts';
+import { joinLeaves, leafRefusal, openInputs, openJoin, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import { rawRows, readCube, cubeToJson, type CubeSource, type FileSource, type JoinInput, type JoinSource, type SavedQuery } from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
 import { catalogColumns } from '../src/upload.ts';
@@ -104,11 +104,15 @@ describe('a join opened over one model, its rows from DuckDB', () => {
   it('answers the dialog\'s questions: my rows, those with a match, the rows after it, their keys that repeat', async () => {
     const inputs = await openInputs(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), opening(['trades', 'customers']));
     const q = joinSummary(inputs.left, inputs.right, LEFT_ON_CUST);
-    assert.equal(await count(inputs.model, inputs.runtime, q.mine), 5);
-    assert.equal(await count(inputs.model, inputs.runtime, q.matched!), 3, 'trade 4 has no key, trade 5 no customer');
-    assert.equal(await count(inputs.model, inputs.runtime, q.joined!), 6, 'customer 20 twice: trade 3 twice');
-    const repeated = await rows(inputs.model, inputs.runtime, q.repeated!);
-    assert.deepEqual([Number(repeated['keys']![0]), Number(repeated['most']![0])], [1, 2]);
+    const p = plannerFor(inputs.model, inputs.runtime);
+    planners.push(p);
+    const counts = await summaryCounts(q, async (query) => engine.run((await p.plan(query)).sql, 0));
+    // trade 4 has no key, trade 5 no customer; customer 20 twice: trade 3 twice
+    assert.deepEqual(counts, { mine: 5, matched: 3, joined: 6, repeated: { keys: 1, most: 2 } });
+    // no key repeats: a count over no rows is none, not a missing answer
+    const once: JoinHow = { ...LEFT_ON_CUST, on: { rows: [{ left: 'sym', op: '==', right: 'region' }] } };
+    const none = await summaryCounts(joinSummary(inputs.left, inputs.right, once), async (query) => engine.run((await p.plan(query)).sql, 0));
+    assert.deepEqual(none, { mine: 5, matched: 0, joined: 5, repeated: { keys: 0, most: 0 } });
   });
 
   it('joins a grouped grid\'s result: a join after an aggregate', async () => {

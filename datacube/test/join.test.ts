@@ -216,9 +216,12 @@ describe('a join in words', () => {
     assert.equal(joinWords({ form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), 'nearest at >= at');
   });
 
-  it('suggests keys: a name both have, their id under their name', () => {
-    assert.deepEqual(suggestedKeys(side('orders', [['customer_id', 'Integer'], ['sym', 'String']]), side('customers', [['id', 'Integer'], ['sym', 'String']])),
-      [{ row: { left: 'sym', op: '==', right: 'sym' }, why: 'the same name' }, { row: { left: 'customer_id', op: '==', right: 'id' }, why: "customers's id" }]);
+  it('suggests keys: their id under their name first, then a name both have (but id, each table\'s own key)', () => {
+    assert.deepEqual(suggestedKeys(side('orders', [['id', 'Integer'], ['customer_id', 'Integer'], ['sym', 'String']]), side('customers', [['id', 'Integer'], ['sym', 'String']])),
+      [{ row: { left: 'customer_id', op: '==', right: 'id' }, why: "customers's id" }, { row: { left: 'sym', op: '==', right: 'sym' }, why: 'the same name' }]);
+    // a file's name: its extension is no part of it
+    const file: JoinSide = { ...side('customers', [['id', 'Integer']]), name: 'customers.csv' };
+    assert.deepEqual(suggestedKeys(side('orders', [['customer_id', 'Integer']]), file).map((k) => k.row.left), ['customer_id']);
     // the same name of another type is no key
     assert.deepEqual(suggestedKeys(side('a', [['k', 'Integer']]), side('b', [['k', 'String']])), []);
   });

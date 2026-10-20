@@ -334,6 +334,47 @@ function repeatedKeys(right: JoinSide, keys: readonly string[]): Lambda {
     .lambda();
 }
 
+/** The dialog's questions answered: each count, and their keys that repeat (how many, the most rows one has). */
+export interface JoinSummaryCounts {
+  readonly mine: number;
+  readonly matched?: number;
+  readonly joined?: number;
+  readonly theirs?: number;
+  readonly repeated?: { readonly keys: number; readonly most: number };
+}
+
+const plural = (n: number, one: string, many = `${one}s`): string => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+
+/** What a join will do, in words, a line each (§17.5): what the dialog shows before it is applied. */
+export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
+  const out: string[] = [];
+  const unmatched = c.matched === undefined ? undefined : c.mine - c.matched;
+  switch (how.form) {
+    case 'append':
+      return [`${plural(c.mine, 'row')} of mine and ${plural(c.theirs ?? 0, 'row')} of theirs: ${plural(c.mine + (c.theirs ?? 0), 'row')}.`];
+    case 'semi':
+    case 'anti':
+      out.push(`${plural(c.matched ?? 0, 'row')} of my ${plural(c.mine, 'row')} ${c.matched === 1 ? 'has' : 'have'} a match, ${plural(unmatched ?? 0, 'row')} none.`);
+      out.push(`It keeps ${plural(how.form === 'semi' ? c.matched ?? 0 : unmatched ?? 0, 'row')}, each once.`);
+      return out;
+    case 'asOf':
+      out.push(`${plural(c.matched ?? 0, 'row')} of my ${plural(c.mine, 'row')} ${c.matched === 1 ? 'finds' : 'find'} a nearest row, ${plural(unmatched ?? 0, 'row')} none (theirs left empty).`);
+      out.push('Each of my rows stays once.');
+      return out;
+    case 'join': {
+      out.push(`${plural(c.matched ?? 0, 'row')} of my ${plural(c.mine, 'row')} ${c.matched === 1 ? 'finds' : 'find'} a match, ${plural(unmatched ?? 0, 'row')} ${unmatched === 1 ? 'does' : 'do'} not.`);
+      const joined = c.joined ?? 0;
+      out.push(joined > c.mine ? `${plural(joined, 'row')} after it: more than mine -- a row of mine repeats once for each of theirs it matches.`
+        : `${plural(joined, 'row')} after it.`);
+      if (c.repeated && c.repeated.keys > 0) {
+        out.push(`${plural(c.repeated.keys, 'key')} of theirs ${c.repeated.keys === 1 ? 'appears' : 'appear'} more than once (at most ${c.repeated.most} times): `
+          + 'the rows of mine with it repeat, and totals count them again.');
+      }
+      return out;
+    }
+  }
+}
+
 // ---------------------------------------------------------------- in words
 
 const KIND_WORDS: Readonly<Record<JoinKindWord, string>> = {
@@ -370,26 +411,25 @@ export function joinWords(how: JoinHow): string {
 }
 
 /**
- * Keys to suggest, each with why: a name both inputs have, or their name's `_id` among mine (`customers` →
- * `customer_id`, `customers_id`). The rows a new join starts with when exactly one is found.
+ * Keys to suggest, each with why: their name's `_id` among mine (`customers` → `customer_id`, `customers_id`) against
+ * their `id`, then a name both inputs have, of one type -- but `id`, each table's own key far more often than the
+ * other's. The row a new join starts with when exactly one is found.
  */
 export function suggestedKeys(left: JoinSide, right: JoinSide): { readonly row: JoinRow; readonly why: string }[] {
   const mine = new Map(left.columns.map((c) => [c.name.toLowerCase(), c]));
   const out: { row: JoinRow; why: string }[] = [];
-  for (const c of right.columns) {
-    const same = mine.get(c.name.toLowerCase());
-    if (same && same.type === c.type) out.push({ row: { left: same.name, op: '==', right: c.name }, why: 'the same name' });
-  }
-  const base = right.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const base = right.name.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9_]/g, '_');
   const singular = base.endsWith('s') ? base.slice(0, -1) : base;
   const id = right.columns.find((c) => c.name.toLowerCase() === 'id');
   if (id) {
     for (const n of new Set([`${singular}_id`, `${base}_id`])) {
       const m = mine.get(n);
-      if (m && !out.some((o) => o.row.left === m.name && o.row.right === id.name)) {
-        out.push({ row: { left: m.name, op: '==', right: id.name }, why: `${right.name}'s id` });
-      }
+      if (m) out.push({ row: { left: m.name, op: '==', right: id.name }, why: `${right.name}'s id` });
     }
+  }
+  for (const c of right.columns) {
+    const same = mine.get(c.name.toLowerCase());
+    if (same && same.type === c.type && c.name.toLowerCase() !== 'id') out.push({ row: { left: same.name, op: '==', right: c.name }, why: 'the same name' });
   }
   return out;
 }

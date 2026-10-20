@@ -8,8 +8,10 @@
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CUBE_KIND, CUBE_VERSION, openCube, type CubeDocument, type CubeSource, type JoinInput, type JoinSource } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
-import { joinRelation, type JoinHow, type JoinSide } from './join.ts';
-import { classLambda } from './query.ts';
+import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
+import { TOTAL_ROWS_COLUMN, classLambda } from './query.ts';
+import type { RawTable } from '../../engine-client/src/engine.ts';
+import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sourceColumns, type RelationTyper } from './source-columns.ts';
 import { CubeRefusal, type ColumnSpec } from './snapshot.ts';
 
@@ -142,4 +144,24 @@ export async function openJoin(source: JoinSource, o: JoinOpening): Promise<Open
   const relation = joinRelation(inputs.left, inputs.right, how);
   const columns = await sourceColumns(inputs.typer, relation);
   return { ...inputs, notes, how, relation, columns };
+}
+
+/** The dialog's questions (join.ts joinSummary) answered by `run`: each query planned over the join's model and run. */
+export async function summaryCounts(q: JoinSummaryQueries, run: (query: Lambda) => Promise<RawTable>): Promise<JoinSummaryCounts> {
+  const value = (t: RawTable, column: string): number => {
+    const v = t.columns.find((c) => c.name === column)?.values[0];
+    // a count over no rows has no group, so no row: none
+    return v === undefined || v === null ? 0 : Number(v);
+  };
+  const count = async (query: Lambda | undefined): Promise<number | undefined> =>
+    (query === undefined ? undefined : value(await run(query), TOTAL_ROWS_COLUMN));
+  const [mine, matched, joined, theirs] = await Promise.all([count(q.mine), count(q.matched), count(q.joined), count(q.theirs)]);
+  const repeated = q.repeated === undefined ? undefined : await run(q.repeated);
+  return {
+    mine: mine!,
+    ...(matched !== undefined ? { matched } : {}),
+    ...(joined !== undefined ? { joined } : {}),
+    ...(theirs !== undefined ? { theirs } : {}),
+    ...(repeated !== undefined ? { repeated: { keys: value(repeated, REPEATED_KEYS), most: value(repeated, MOST_REPEATS) } } : {}),
+  };
 }

@@ -214,11 +214,13 @@ export function filtersFor(filters: readonly PageFilter[], views: readonly PageV
 }
 
 /**
- * The order a saved page's cubes are opened in: a class's after every other, since its rows are the tables the page's
- * other grids read in (a file's grid) -- wherever its tile sits on the page.
+ * The order a saved page's cubes are opened in, wherever their tiles sit on the page: a join's after the grids over one
+ * source, since it reads the files they read in (a file read once); a class's after every other, since its rows are
+ * the tables the page's other grids read in.
  */
 export function openingOrder<T extends { readonly cube: CubeDocument }>(cubes: readonly T[]): T[] {
-  return [...cubes.filter((c) => c.cube.source._type !== 'class'), ...cubes.filter((c) => c.cube.source._type === 'class')];
+  const of = (kind: (t: string) => boolean): T[] => cubes.filter((c) => kind(c.cube.source._type));
+  return [...of((t) => t !== 'class' && t !== 'join'), ...of((t) => t === 'join'), ...of((t) => t === 'class')];
 }
 
 /** The page as a JSON-ready object: each cube as its own document writes itself. */
