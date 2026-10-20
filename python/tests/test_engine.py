@@ -1234,8 +1234,10 @@ class WarehouseOnPython(unittest.TestCase):
                          404)
         # a copy a page the keeper keeps reads (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): a tab's release keeps it, and
         # it goes with the last page that reads it
-        self.engine.keeper.keep('p', {'copies': {'cube-1': {'table': 'snap_2'}}}, [])
-        self.engine.keeper.keep('q', {'copies': {'cube-1': {'table': 'snap_2'}}}, [])
+        # (what a page reads comes with each write, as DataCube says it: headless pageReads)
+        reads = {'frames': [], 'copies': ['snap_2'], 'ids': []}
+        self.engine.keeper.keep('p', {'name': 'p'}, reads, [])
+        self.engine.keeper.keep('q', {'name': 'q'}, reads, [])
         self.engine.sweep()
         status, body = self.call({'op': 'release', 'table': 'snap_2'}, '/snap.json')
         self.assertEqual((status, json.loads(body)), (200, {'kept': 'a page reads it: it goes with the last page that reads it'}))
@@ -1243,7 +1245,7 @@ class WarehouseOnPython(unittest.TestCase):
         self.engine.keeper.forget('p')
         self.engine.sweep()
         self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 200, 'another page reads it')
-        self.engine.keeper.write('q', 1, {'copies': {}}, [], None)
+        self.engine.keeper.write('q', 1, {'name': 'q, live'}, {'frames': [], 'copies': [], 'ids': []}, None, [])
         self.engine.sweep()
         self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 404, 'let go with the last page')
 

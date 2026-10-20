@@ -259,10 +259,14 @@ export interface LivePage {
     | { readonly version: number; readonly commands: readonly LiveCommand[] }
     | { readonly version: number; readonly page: PageDocument }>;
   /**
-   * The page as it is now, written against the version on screen (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the page's
-   * version from then on -- the same, when it changed nothing -- or refused, the page having moved on meanwhile.
+   * The page as it is now, written against the version on screen with the edits that made it there (null: a change by
+   * no command), settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its version from then on -- the
+   * same, when it changed nothing -- and whether the edits were made again on top of a page that had moved on (the
+   * screen then opens the page as the keeper made it); refused (a change by no command made against a version moved
+   * on from, or edits that no longer apply there), and the page follows what moved it.
    */
-  report(version: number, page: PageDocument): Promise<number>;
+  report(version: number, page: PageDocument, edits: readonly LiveCommand[] | null):
+    Promise<{ readonly version: number; readonly combined: boolean }>;
 }
 
 // ------------------------------------------------------------------------------------------------------- the queries

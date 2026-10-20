@@ -608,16 +608,17 @@ export function livePage(link: PythonLink, key: string): LivePage {
       });
       return { version: plain.version, commands };
     },
-    report: async (version: number, page: PageDocument) => {
+    report: async (version: number, page: PageDocument, edits: readonly LiveCommand[] | null) => {
       const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}`, {
         method: 'POST',
         headers: { ...headers(link), 'Content-Type': 'application/json' },
-        body: pageToJson(page),
+        // the page and its edits as DataCube writes them: a grid's cube, a calculated column's, its numbers exact
+        body: `{"page":${pageToJson(page)},"edits":${edits === null ? 'null' : `[${edits.map((e) => toJson(e)).join(',')}]`}}`,
       });
       if (!answer.ok) throw new Error(`the engine refused the page: ${answer.status} ${await answer.text()}`);
-      const said = JSON.parse(await answer.text()) as { version?: unknown };
+      const said = JSON.parse(await answer.text()) as { version?: unknown; combined?: unknown };
       if (typeof said.version !== 'number' || !Number.isSafeInteger(said.version)) throw new Error('the engine said no version of the page');
-      return said.version;
+      return { version: said.version, combined: said.combined === true };
     },
   };
 }

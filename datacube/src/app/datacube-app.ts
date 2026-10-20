@@ -632,8 +632,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           const doc = pageNow(current.name ?? (page.suggestedName || 'page'));
           if (!doc || !live.page) return;
           // a write the keeper refuses (the page moved on, an editor gone) is followed by what it says next
-          const version = await live.page.report(at, doc).catch(() => undefined);
-          if (version !== undefined && liveShown === at) liveShown = version;
+          const said = await live.page.report(at, doc, null).catch(() => undefined);
+          if (said !== undefined && liveShown === at) liveShown = said.version;
         });
       }, REPORT_AFTER);
     }

@@ -60,7 +60,7 @@ from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, UntypedColumn, typed_by_plan
-from .keeper import PageKeeper, Stale
+from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
@@ -1024,6 +1024,12 @@ class Engine:
         with self._warehouse_lock:
             return self._copies.get(table)
 
+    def held_copies(self) -> dict[str, dict[str, Any]]:
+        """Every copy this engine holds, by its table: its model, runtime and relation, as DataCube's pageRebase takes
+        them (headless page.ts HeldCopy)."""
+        with self._warehouse_lock:
+            return {t: {'model': c['model'], 'runtime': c['runtime'], 'source': c['source']} for t, c in self._copies.items()}
+
     def _release_copy(self, name: Any, keep_claimed: bool = True) -> Answer:
         """A snap's copy let go of: dropped by DataCube's code, and only then served no more. One let go already is gone:
         said as let go (the page's other editor let it go first). A tab's release (``keep_claimed``) keeps one a page the
@@ -1400,10 +1406,14 @@ class Engine:
         return Answer(200, 'application/json', _json.dumps({'version': kept[0], 'page': kept[1]}).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
-        """AN OPEN PAGE'S WRITE (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its document as it is now, against the version
-        it is at -- read by DataCube's own reader (headless pageRead), every frame it reads one this engine serves -- the
-        page's new version, ``{"version": n}`` (the same, when it changed nothing); written against a version the page has
-        moved on from, refused (409), and the page follows what moved it. Copies no page reads any more are let go."""
+        """AN OPEN PAGE'S WRITE (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): ``{"page", "edits"}`` -- its document as it is
+        now and the edits that made it from the version it is at (null: a change by no command) -- read by DataCube's own
+        reader (headless pageWritten: a page of no grid too), every frame it reads one this engine serves, and settled by
+        the page's keeper as every editor's write is (keeper.py ``settle``): kept as written, or, the page moved on, its
+        edits made again on top by DataCube's rule. ``{"version", "combined", "renamed"}``: the page's version now,
+        whether it was made again on top (the page then opens what the keeper made), each id it gave out given out
+        afresh. Refused -- a change by no command written against a version moved on from, or edits that no longer apply
+        there -- 409, and the page follows what moved it. Copies no page reads any more are let go."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         version = asked.get('version', [''])[0]
@@ -1415,39 +1425,45 @@ class Engine:
             return _said(404, 'this engine keeps no page: legend-lite reads one with DataCube\'s own code, headless, '
                               'which this engine was not given')
         try:
+            written = _json.loads(body)
+        except ValueError:
+            return _said(400, 'a page\'s write is JSON: {"page", "edits"}')
+        if not isinstance(written, dict) or 'page' not in written or 'edits' not in written:
+            return _said(400, 'a page\'s write is {"page": <its document>, "edits": [<its edits>] | null}')
+        try:
             # asked for holding nothing (the session's lock first, then the frames')
             headless = self._headless()
-            said = _json.loads(headless.call('pageRead', body))
-            if 'problems' in said:
-                return _said(422, '; '.join(said['problems']))
-            document = _json.loads(said['page'])
-            frames = sorted({leaf['name'] for c in document['cubes']
-                             for leaf in json.loads(headless.call('cubeLeaves', _json.dumps(c['cube'])))
-                             if leaf['_type'] == 'frame'})
+            said = _json.loads(headless.call('pageWritten', _json.dumps(written['page']),
+                                             None if written['edits'] is None else _json.dumps(written['edits'])))
         except Exception as refused:
             return _said(422, f'{type(refused).__name__}: {refused}')
-        unserved = [f for f in frames if f not in self.frames]
+        if 'problems' in said:
+            return _said(422, '; '.join(said['problems']))
+        reads = said['reads']
+        unserved = [f for f in reads['frames'] if f not in self.frames]
         if unserved:
             return _said(422, f'the page reads the frames {", ".join(unserved)}, which this engine does not serve')
         try:
-            moved = self.keeper.write(name, int(version), document, frames, None)
-        except Stale as stale:
-            return _said(409, f'the page {name!r} is at version {stale.version}: what version {version} says is replaced')
+            settled = self.keeper.settle(name, int(version), _json.loads(said['page']), said['edits'], reads, reads['ids'])
+        except Refused as refused:
+            return _said(409, str(refused))
         except KeyError:
             return _said(404, f'this engine serves no page named {name!r}')
         self.sweep()
-        return Answer(200, 'application/json', json.dumps({'version': moved}).encode('utf-8'))
+        return Answer(200, 'application/json', json.dumps({'version': settled.version, 'combined': settled.combined,
+                                                           'renamed': settled.renamed}).encode('utf-8'))
 
     def serve_page(self, name: str, document: dict[str, Any], frames: Iterable[str],
                    commands: list[Any] | None = None) -> int:
         """A host's page served as ``document`` -- one no Python page keeps (a page the host replaces whole, as a test
         serves one) -- its cubes over this engine's ``frames``: kept and served, or, kept already, its document replaced
         (moved by ``commands``, when they say what moved it). Returns its version."""
+        reads = {'frames': sorted(set(frames)), 'copies': [], 'ids': []}
         kept = self.keeper.current(name)
         if kept is None:
-            version = self.keeper.keep(name, document, frames)
+            version = self.keeper.keep(name, document, reads, [])
         else:
-            version = self.keeper.write(name, kept[0], document, frames, commands)
+            version = self.keeper.write(name, kept[0], document, reads, commands, [])
         self.keeper.serve(name, True)
         return version
 

@@ -1050,7 +1050,7 @@ class Live(Paged):
         """As ``said``: the answer's status, and the version it made (None when refused)."""
         version = datacube._session.engine().page_versions(page._key)['version'] if version is None else version
         answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
-                                                   _json.dumps(document))
+                                                   _json.dumps({'page': document, 'edits': None}))
         return answer.status, (json.loads(answer.body)['version'] if answer.status == 200 else None)
 
     def version(self, page):
@@ -1257,7 +1257,7 @@ class Live(Paged):
         ll.show(page, browser=False)
         engine = datacube._session.engine()
         refused = engine.answer('POST', '/page.json', f'page={page._key}&version={self.version(page)}',
-                                json.dumps({'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}))
+                                json.dumps({'page': {'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}, 'edits': None}))
         # refused by DataCube's reader, in its words -- never by a failure of the engine's own
         self.assertEqual(refused.status, 422)
         self.assertNotRegex(refused.body.decode('utf-8'), r'^[A-Za-z]+(Error|Exception):')
@@ -1381,6 +1381,25 @@ class Live(Paged):
         self.assertEqual(version, 2)
         self.assertEqual([s.get('name') for s in kept['sheets']], [None, 'Second'])
         self.assertEqual(len(kept['cubes']), 1)
+
+    def test_a_change_asks_datacube_as_often_whatever_the_page_holds(self):
+        # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) the page's frames, copies and ids come with one call, never one a grid:
+        # step 1 asked which frames each grid reads at every write, so a rename of a page of sixty grids made sixty calls
+        asked = []
+        for grids in (1, 12):
+            page = ll.Page(f'Calls {grids}')
+            for i in range(grids):
+                page.grid(trades(), name=f'calls_{grids}_{i}')
+            headless = datacube._session.headless()
+            calls, real = [], headless.call
+            headless.call = lambda function, *args, **kwargs: (calls.append(function), real(function, *args, **kwargs))[1]
+            try:
+                page.name = f'Renamed {grids}'
+            finally:
+                del headless.call
+            asked.append(calls)
+        self.assertEqual(asked[0], asked[1], 'as many calls for twelve grids as for one')
+        self.assertLessEqual(len(asked[1]), 3, f'a rename: its command, what the page reads, its name: {asked[1]}')
 
     def test_a_page_loaded_over_frames_that_changed_is_written_once_whole(self):
         # each cube opened again over its frame as it is now (a column gone, one new): the page written once, loaded
