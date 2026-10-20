@@ -35,6 +35,7 @@ on the newest branch of the stack and updated as each phase lands on its branch.
 | 8 | The other line's small follow-ups (the identifier rule once; the pinned queries compiled in a test; a Python refusal that drops keys) | `claude/datacube-followups` | the first done, audited; the other two skipped |
 | 9 | Dashboards on classes (the other line's F1-F5): page filters and cross-filtering, joins when preparing data, the model view, promote and publish, measures in the model | -- | skipped then; taken over 2026-10-19 (below) |
 | 10 | The model plan's step 3: dashboards on classes (F1) | `claude/datacube-model-dashboards` | done, audited |
+| 11 | The model plan's step 4: combining in prep (F2: joins, as a command API driven headless) | `claude/datacube-model-prep` | done, audited |
 
 ## Skipped, to come back to at the end
 
@@ -147,6 +148,18 @@ on the newest branch of the stack and updated as each phase lands on its branch.
   Python's pages over classes (step 3b: Python's pages are frame-only end to end -- load, read, serving -- so
   `page.grid(page.cls(...))` and `page.filter` wait on that; headless `pageFilter` is ready for them); the source
   picker's Classes section; re-pinning open class grids when the page re-pins (step 5).
+- **Phase 11, step 4, combining in prep** (`claude/datacube-model-prep`; the design note, the study of upstream's
+  Legend Cube, an Alteryx-like prep flow proposed, and its "as built" are `docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`
+  §17): a join of two grids' results as a grid of its own -- any condition (four kinds, every pair), as of, keep my rows
+  with a match or with none, append -- its source by value in the cube document, added by the page command every grid
+  is (`addGrid`), so undo, save and the live channel follow; the model of several tables written by core's writer
+  (the one core edit); Join… in the tab, saying what it will do before it is applied; headless `joinCube` and
+  `joinQuestions` (Python's test drives them over two frames). The user's ask on 2026-10-20: no compiler rule copied in
+  TypeScript -- join.ts writes every name as given and the compiler refuses what is wrong, in its words. Audited by a
+  reviewer that wrote none of it: thirteen findings and three plausible ones, all fixed or named (§17.8). **Not built,
+  named:** Python's `page.join` (step 4b, `engine.py`: the SQL plan's ground); live links and the flow view; Create a
+  Class of a joined grid; a remote input's keys on reopen; the engine planner's booleans in a join; an append of a
+  precise decimal (the compiler's line); remove duplicates as a step.
 
 ## At the end: what to come back to
 

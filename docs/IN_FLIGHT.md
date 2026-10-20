@@ -1016,7 +1016,16 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   several tables; one table's text unchanged), `wasm/src/main/java/planner/Boundary.java` (`tableModel` given
   `tables`: their Databases, one connection, one runtime binding each), a core test beside `CatalogModelTest`; the
   native library's and the tab's `tableModel` entries unchanged (the same request, the new shape); DataCube's
-  `infer.ts`/`lite-planner.ts` and Python's `compiler.py` callers.
+  `infer.ts`/`lite-planner.ts` and Python's `compiler.py` callers. **Step 4 done and audited** (2026-10-20,
+  `claude/datacube-model-prep`, the design's §17): the core edit above; DataCube -- `join-how.ts`, `join.ts`,
+  `join-open.ts`, `app/join-app.ts`, `app/join-flow.ts`, `app/join-sources.ts`, `ui/join-dialog.ts`,
+  `headless/join.ts` (all new), `cube-document.ts` (the join source), `query.ts` (`rowCountLambda`),
+  `page-document.ts` (opening order), `page/page-app.ts` and `page/cube-page.ts` (`givenTitle`), `app/sources.ts`,
+  `app/datacube-app.ts`, `headless/entry.ts`, `app.css`, the bundle budgets; `pure-protocol/src/relation.ts`
+  (`asOfJoin`); Python's tests only. Not the SQL plan's ground. **Not built, for later:** Python's `page.join` (step 4b:
+  a page Python serves needs a model of several frames from its engine -- `engine.py`, the SQL plan's ground);
+  for the compiler's line: lite types `[]->cast(@Decimal(10,2))` in an `extend` as `Decimal` (an append of a precise
+  decimal column one side lacks is refused).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
