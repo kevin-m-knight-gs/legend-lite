@@ -44,7 +44,7 @@ import {
   type SourceRef,
 } from './snapshot.ts';
 import { TreeState, parsePathKey, type RowPath } from './tree.ts';
-import { readJoinHow, type JoinHow } from './join.ts';
+import { readJoinHow, type JoinHow } from './join-how.ts';
 import type { UploadFormat } from './upload.ts';
 import type { SharedQuery } from '../../query-store/src/share.ts';
 

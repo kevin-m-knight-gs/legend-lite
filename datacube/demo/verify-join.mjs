@@ -55,11 +55,18 @@ const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText:
   .waitFor({ timeout: 60_000 }).catch(() => undefined);
 const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) });
 const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.getAttribute('data-column')));
-/** The first grid's Join…, the window's answer to what it will do waited for. */
+/**
+ * The first grid's Join… with the customers' grid (not a join of it: a grid beside it may be the first offered), the
+ * window's answer to what it will do waited for.
+ */
 async function joinWindow() {
   await page.locator('.dc-tile-menu').nth(0).click();
   await item('Join…').click();
   await page.locator('.dc-join').waitFor({ timeout: 10_000 });
+  const theirs = await page.$$eval('.dc-join-their option', (os) => os.map((o) => ({ value: o.value, label: o.textContent })));
+  const customersGrid = theirs.find((o) => /customers/.test(o.label) && !o.label.includes('⋈'));
+  if (!customersGrid) throw new Error(`no customers grid offered: ${JSON.stringify(theirs)}`);
+  await page.locator('.dc-join-their').selectOption(customersGrid.value);
   await page.waitForFunction(() => document.querySelectorAll('.dc-join-will-line').length > 0
     || document.querySelector('.dc-join .dc-picker-status.dc-failed'), undefined, { timeout: 60_000 });
 }
@@ -134,9 +141,10 @@ try {
   await page.locator('.dc-join .dc-primary').click();
   await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 60_000 });
   await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 4, undefined, { timeout: 60_000 });
-  const lonely = page.locator('[data-tile^="grid"]').nth(3);
-  await untilRows(lonely, 6);
-  check(await rowsOf(lonely) === 6, `the trades with no customer: ${await rowsOf(lonely)} rows`);
+  // its tile wherever the page placed it: the one grid of six rows
+  const six = () => page.locator('.dc-status-rows').filter({ hasText: /^6 rows/ });
+  await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
+  check(await six().count() === 1, `the trades with no customer: a grid of 6 rows (${await six().count()})`);
 
   // A COMPILER'S REFUSAL, SAID IN THE WINDOW: a condition in Pure naming a column neither has
   await joinWindow();
@@ -163,9 +171,8 @@ try {
   const again = tileWith('their_customer_id').first();
   await untilRows(again, 47);
   check(await rowsOf(again) === 47, `reopened: the joined grid's rows (${await rowsOf(again)})`);
-  const lonelyAgain = page.locator('[data-tile^="grid"]').nth(3);
-  await untilRows(lonelyAgain, 6);
-  check(await rowsOf(lonelyAgain) === 6, `reopened: the trades with no customer (${await rowsOf(lonelyAgain)})`);
+  await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
+  check(await six().count() === 1, `reopened: the trades with no customer, 6 rows (${await six().count()})`);
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
 } catch (e) {

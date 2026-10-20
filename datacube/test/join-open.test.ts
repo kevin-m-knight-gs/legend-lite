@@ -109,10 +109,17 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const counts = await summaryCounts(q, async (query) => engine.run((await p.plan(query)).sql, 0));
     // trade 4 has no key, trade 5 no customer; customer 20 twice: trade 3 twice
     assert.deepEqual(counts, { mine: 5, matched: 3, joined: 6, repeated: { keys: 1, most: 2 } });
-    // no key repeats: a count over no rows is none, not a missing answer
-    const once: JoinHow = { ...LEFT_ON_CUST, on: { rows: [{ left: 'sym', op: '==', right: 'region' }] } };
-    const none = await summaryCounts(joinSummary(inputs.left, inputs.right, once), async (query) => engine.run((await p.plan(query)).sql, 0));
-    assert.deepEqual(none, { mine: 5, matched: 0, joined: 5, repeated: { keys: 0, most: 0 } });
+    // their region repeats (EMEA twice) whether or not a trade matches it: a key of theirs said as it is
+    const byRegion: JoinHow = { ...LEFT_ON_CUST, on: { rows: [{ left: 'sym', op: '==', right: 'region' }] } };
+    const regions = await summaryCounts(joinSummary(inputs.left, inputs.right, byRegion), async (query) => engine.run((await p.plan(query)).sql, 0));
+    assert.deepEqual(regions, { mine: 5, matched: 0, joined: 5, repeated: { keys: 1, most: 2 } });
+    // no key repeats (each trade's id its own): a count over no rows is none, not a missing answer
+    const self = await openInputs(input(TRADES, 'trades'), input(TRADES, 'again'), opening(['trades', 'trades']));
+    const q2 = joinSummary(self.left, self.right, { ...LEFT_ON_CUST, on: { rows: [{ left: 'id', op: '==', right: 'id' }] } });
+    const p2 = plannerFor(self.model, self.runtime);
+    planners.push(p2);
+    const unique = await summaryCounts(q2, async (query) => engine.run((await p2.plan(query)).sql, 0));
+    assert.deepEqual(unique, { mine: 5, matched: 5, joined: 5, repeated: { keys: 0, most: 0 } });
   });
 
   it('joins a grouped grid\'s result: a join after an aggregate', async () => {
