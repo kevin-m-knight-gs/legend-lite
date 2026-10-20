@@ -11947,6 +11947,17 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the hundred-and-third landing — three refusals read as Neo4j answers
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.96.
+- **What it closes:**
+  - a property map on a variable-length relationship holds of each relationship walked;
+  - two durations compared answer null (durations do not order);
+  - a `+`-signed four-digit year in a date text is that year.
+- **Measured** (each lane in update mode): the domain lanes PASS 4247 → 4250, REFUSED 41 → 38; the native lane PASS
+  4277 → 4280, REFUSED 11 → 8; nothing else moved. The native lane refuses only the TCK's two signed years and lite's
+  six deliberate pins.
+
 ## 2026-10-20 — `#Cypher{...}#`: the hundred-and-second landing — two pinned refusals that were gaps
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.96.

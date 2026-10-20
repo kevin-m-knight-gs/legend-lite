@@ -5809,3 +5809,17 @@ Of lite's own pinned refusals, two were gaps of the routes rather than deliberat
 
 The lanes in update mode: the domain lanes PASS 4245 → 4247, REFUSED 43 → 41 on DuckDB and Postgres; the native lane
 PASS 4276 → 4277, REFUSED 12 → 11 (the cycle; the untyped hop passed there already); nothing else moved.
+
+Three more were refusals of things Neo4j's own answers define, each now read as Neo4j answers:
+- `MATCH (a:A)-[:T*1..2 {w: 1}]->(x)`: a property map on a variable-length relationship holds of every relationship
+  walked. Each relationship of an unrolled chain carries the map (a chain of length zero walks none).
+- `duration({days: 1}) < duration({days: 2})`: null. Durations do not order (a month is no fixed number of days), so
+  Neo4j answers null, as for values of different types; inside a list's comparison, a pair of unequal durations
+  decides null.
+- `date('+2015-07-21')`: a year of four digits after `+` is that year, the text read without its sign. A longer
+  signed year, beyond every database's calendar (Temporal10 [9], [10]), and a negative year stay refused by name.
+
+The lanes in update mode: the domain lanes PASS 4247 → 4250, REFUSED 41 → 38; the native lane PASS 4277 → 4280,
+REFUSED 11 → 8; nothing else moved. The native lane now refuses the TCK's two signed years and lite's six deliberate
+pins: ORDER BY a node, ordering nested lists, a CASE choosing by `rand()`, `percentileCont` over integers, a time's
+named-zone component, and a printed text parsed after a WITH.

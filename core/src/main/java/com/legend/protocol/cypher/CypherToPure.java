@@ -2548,7 +2548,8 @@ public final class CypherToPure {
      * uniqueness (a chain never walks one relationship twice) is not spelled: it needs identity (C5), and only a
      * graph whose data loops a chain back over the same relationship (a self-loop, a two-node cycle walked twice)
      * can tell the difference (docs/SEMANTICS_REGISTER.md S75). No upper bound, or a bound beyond 4, is the walk
-     * the data bounds ({@link #walk}, the study's §12.68). Refused by name: a property map on the relationship, a
+     * the data bounds ({@link #walk}, the study's §12.68). A property map on the relationship holds of every
+     * relationship of a chain (of none for a chain of length zero), as Neo4j reads it. Refused by name: a
      * variable-length relationship after another clause or beside another pattern, or in an OPTIONAL MATCH.
      */
     private State variableLength(CypherAst.Match m, @com.legend.base.Nullable State state) {
@@ -2621,10 +2622,6 @@ public final class CypherToPure {
             if (lower > range.upper()) {
                 throw CypherErrors.invalid("Invalid input '" + spelled + "': the lower bound exceeds the upper",
                         r.pos());
-            }
-            if (!r.properties().isEmpty()) {
-                throw CypherErrors.unsupported("a property map on a variable-length relationship is not supported"
-                        + " yet", r.pos());
             }
             combinations *= range.upper() - lower + 1;
         }
@@ -3058,7 +3055,8 @@ public final class CypherToPure {
             for (int j = 1; j <= k; j++) {
                 String name = HIDDEN + "r" + counter[0]++;
                 names.add(name);
-                head.add(new RelPattern(name, rel.types(), rel.direction(), Map.of(), null, rel.pos()));
+                // (a property map on the relationship holds of every relationship walked, as Neo4j reads it)
+                head.add(new RelPattern(name, rel.types(), rel.direction(), rel.properties(), null, rel.pos()));
                 head.add(j == k ? next : new NodePattern(HIDDEN + "n" + counter[0]++, List.of(), Map.of(),
                         next.pos()));
             }
@@ -10515,7 +10513,8 @@ public final class CypherToPure {
                     + " (null in Neo4j) is not supported yet", pos);
         }
         if (l.kind() == Kind.DURATION) {
-            throw CypherErrors.unsupported("ordering durations is not supported yet", pos);
+            // null in Neo4j: durations do not order (a month is no fixed number of days)
+            return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         SqlAst.BinaryOp sqlOp = switch (op) {
             case LT -> SqlAst.BinaryOp.LT;
@@ -16533,8 +16532,7 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a zoned date-time text of the row (its offset read by the database) is"
                     + " not supported yet", c.pos());
         }
-        String text = (String) java.util.Objects.requireNonNull(s.constant());
-        expandedYear(text, c.pos());
+        String text = expandedYear((String) java.util.Objects.requireNonNull(s.constant()), c.pos());
         TemporalText tt = TemporalText.read(text, true, true);
         if (tt == null) {
             throw CypherErrors.invalid("Text cannot be parsed to a DateTime: \"" + text + "\"", c.pos());
@@ -16968,10 +16966,9 @@ public final class CypherToPure {
             return scalar(strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
                     ? call("parseDate", x.get(0)) : call("datePart", call("parseDate", x.get(0)))));
         }
-        String text = (String) java.util.Objects.requireNonNull(s.constant());
+        String text = expandedYear((String) java.util.Objects.requireNonNull(s.constant()), c.pos());
         com.legend.values.PureDateLiteral lit = isoLiteral(text, withTime);
         if (lit == null) {
-            expandedYear(text, c.pos());
             TemporalText tt = TemporalText.read(text, true, withTime);
             if (tt == null || tt.zoneText() != null || tt.zoneName() != null) {
                 throw CypherErrors.invalid("Text cannot be parsed to a " + (withTime ? "LocalDateTime" : "Date")
@@ -17204,13 +17201,19 @@ public final class CypherToPure {
         }
     }
 
-    /** A text whose year is signed (ISO's expanded form, {@code +999999999-12-31}, {@code -0044-03-15}): Neo4j's
-     *  nine-digit years are beyond the database's calendar, and a year before 1 its own reading; refused by name. */
-    private static void expandedYear(String text, Pos pos) {
+    /** A text whose year is signed (ISO's expanded form, {@code +999999999-12-31}, {@code -0044-03-15}): a year of
+     *  four digits after {@code +} is that year ({@code +2015-07-21}, the text without its sign); Neo4j's longer
+     *  years are beyond the database's calendar, and a year before 1 its own reading; refused by name. */
+    private static String expandedYear(String text, Pos pos) {
+        if (text.startsWith("+") && text.length() > 5 && text.substring(1, 5).chars().allMatch(Character::isDigit)
+                && !Character.isDigit(text.charAt(5))) {
+            return text.substring(1);
+        }
         if (text.startsWith("+") || text.startsWith("-")) {
             throw CypherErrors.unsupported("a signed year (" + text + ", ISO's expanded form) is not supported yet",
                     pos);
         }
+        return text;
     }
 
     /** The component a calendar text spelled (the reader put all three there). */

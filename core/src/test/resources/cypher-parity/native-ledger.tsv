@@ -4729,7 +4729,7 @@ lite/temporal/duration_fraction_cascades	PASS
 lite/temporal/duration_of_a_date_is_neo4js_error	BOTH_ERROR
 lite/temporal/duration_unknown_field_is_neo4js_error	BOTH_ERROR
 lite/temporal/duration_bad_text_is_neo4js_error	BOTH_ERROR
-lite/temporal/duration_order_refused_by_name	REFUSED
+lite/temporal/duration_order_refused_by_name	PASS
 lite/temporal/duration_to_string	PASS
 lite/temporal/duration_date_time_text_form	PASS
 lite/temporal/duration_divided	PASS
@@ -4786,7 +4786,7 @@ lite/temporal/localdatetime_bad_text_is_neo4js_error	BOTH_ERROR
 lite/temporal/datetime_from_compact_text	PASS
 lite/temporal/datetime_from_text_with_named_zone	PASS
 lite/temporal/datetime_named_zone_offset	PASS
-lite/temporal/date_signed_year_refused_by_name	REFUSED
+lite/temporal/date_signed_year_refused_by_name	PASS
 lite/temporal/datetime_text_offset_disagreeing_with_its_zone	BOTH_ERROR
 lite/temporal/datetime_bad_text_is_neo4js_error	BOTH_ERROR
 lite/temporal/datetime_text_unknown_zone_is_neo4js_error	BOTH_ERROR
@@ -5022,7 +5022,7 @@ lite/varlen/an_unbounded_walk_no_way_reads	PASS
 lite/varlen/an_unbounded_walk_then_a_hop	PASS
 lite/varlen/a_variable_length_round_a_cycle	PASS
 lite/varlen/a_variable_length_from_a_labelless_start_over_several_types	PASS
-lite/varlen/a_property_map_on_a_variable_length_is_refused	REFUSED
+lite/varlen/a_property_map_on_a_variable_length_is_refused	PASS
 lite/varlen/a_bounded_variable_length_after_a_match	PASS
 lite/varlen/a_variable_length_pattern_as_a_predicate	PASS
 lite/varlen/an_undirected_fixed_length_pattern_as_a_predicate	PASS
