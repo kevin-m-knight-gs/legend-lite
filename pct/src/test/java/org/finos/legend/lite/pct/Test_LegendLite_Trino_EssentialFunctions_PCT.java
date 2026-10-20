@@ -38,9 +38,9 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
             one("meta::pure::functions::collection::tests::at::testAtError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 37\""),
-            one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
-            one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
-            one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
+            // 2026-10-20, plan-route parity (b0d5e435, measured by the step-9 lane session): the folds pass -- the
+            // adapter prints a copy with its updated values (CopyWithUpdate); testContainsNonPrimitive passes too
+            // (keyed contains compares the key canon)
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "Value 12345695772 exceeds MAX_INT for type date\""),
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "long overflow\""),
@@ -66,14 +66,15 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             // step 9, 2026-10-19, the plan route: the same refusal, its position in the plan's longer statement
             // (line 9:39 where the legacy route's was 1:33), pinned without the position
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "Column reference '__id' is invalid\""),
+            // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+            // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
             // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).
             // TRINO'S OWN LIMIT (2026-10-20, the parity phase: an unset property's NULL field takes the slot its builder
             // declared, Trino.structLit, so the instance is written): contains refuses a list whose elements hold a NULL
-            one("meta::pure::functions::collection::tests::contains::testContainsNonPrimitive_Function_1__Boolean_1_", "contains does not support arrays with elements that are null or contain null")
     );
 
     public static Test suite() {

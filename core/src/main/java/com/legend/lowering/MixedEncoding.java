@@ -513,10 +513,18 @@ final class MixedEncoding {
     }
 
     private static SqlExpr declaredOnly(SqlExpr v, SqlType type) {
+        return declaredOnly(v, type, true);
+    }
+
+    /** {@code mayBeAbsent}: whether {@code v} may be no object at all (a property's or a root's value); an element of
+     *  a collection never is (Pure's collections hold no nulls), so it is rebuilt with no null guard, which a database
+     *  without a null struct cannot type (ClickHouse: no supertype of Nothing and a Tuple, channel B's
+     *  testExistsInSelect, 2026-10-20). */
+    private static SqlExpr declaredOnly(SqlExpr v, SqlType type, boolean mayBeAbsent) {
         if (type instanceof SqlType.Array a && carriesSynthetic(a.element())) {
             return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v, new SqlExpr.Lambda(List.of("__d"),
                     declaredOnly(SqlExpr.Column.of(null, "__d", a.element(), true,
-                            com.legend.sql.OutputCol.Origin.DERIVED), a.element())));
+                            com.legend.sql.OutputCol.Origin.DERIVED), a.element(), false)));
         }
         if (!(type instanceof SqlType.Struct s) || !carriesSynthetic(s)) {
             return v;
@@ -524,11 +532,12 @@ final class MixedEncoding {
         List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
         for (SqlType.Struct.Field f : kept(s)) {
             SqlExpr get = SqlExpr.StructGet.of(v, f.name());
-            fields.add(new SqlExpr.StructLit.Field(f.name(), declaredOnly(get, f.type()), f.type()));
+            fields.add(new SqlExpr.StructLit.Field(f.name(), declaredOnly(get, f.type(), true), f.type()));
         }
+        SqlExpr object = new SqlExpr.StructLit(fields);
         // an absent object stays absent, not a struct of NULLs
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit())),
-                new SqlExpr.StructLit(fields));
+        return mayBeAbsent ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                new SqlExpr.NullLit())), object) : object;
     }
 
     /** {@code t} without its objects' synthetic fields, at any depth (the type {@link #declaredOnly} answers). */

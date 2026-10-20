@@ -1063,7 +1063,10 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /** A JSON value as its text, compact as Pure and DuckDB print JSON: a JSON value is text here, already so. */
     protected SqlWriter.Piece jsonAsText(SqlWriter.Piece json) {
-        return json;
+        // the text, cast so it is no longer JSON to MariaDB: a JSON container (JSON_ARRAYAGG, JSON_OBJECT) holds it as
+        // a string, never as the object it spells (2026-10-20: a list of an equality's key texts held objects, and its
+        // membership read each as text, NULL -- testContainsNonPrimitive, testInNonPrimitive)
+        return w -> w.append("CAST(").piece(json).append(" AS CHAR)");
     }
 
     /** A value as a JSON container holds it ({@link #jsonOf}). */
@@ -1211,7 +1214,13 @@ public class MariaDb extends AnsiSqlRenderer {
 
     private static SqlExpr structFields(SqlExpr body, String param, @com.legend.base.Nullable SqlType struct) {
         if (body instanceof SqlExpr.Column c && param.equals(c.table())) {
-            SqlExpr source = struct instanceof SqlType.Struct ? SqlExpr.Column.of(null, param, struct, true,
+            // the parameter typed as its struct, or, where that is not known here (a fold's accumulator), as a struct
+            // of the one field the column reads, typed as the column is: a field read takes its type from its source,
+            // and a list field read as a scalar is NULL (JSON_VALUE; 2026-10-20, testFoldToMany kept its last name)
+            SqlType known = struct instanceof SqlType.Struct ? struct
+                    : c.type() instanceof com.legend.sql.TypeFact.Typed t
+                            ? new SqlType.Struct(List.of(new SqlType.Struct.Field(c.name(), t.type()))) : null;
+            SqlExpr source = known != null ? SqlExpr.Column.of(null, param, known, true,
                     com.legend.sql.OutputCol.Origin.DERIVED) : SqlExpr.Column.derived(null, param);
             return new SqlExpr.StructGet(source, c.name(), c.type());
         }

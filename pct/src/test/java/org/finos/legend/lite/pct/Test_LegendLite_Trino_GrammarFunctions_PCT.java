@@ -36,15 +36,15 @@ public class Test_LegendLite_Trino_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
+            // 2026-10-20, object identity (docs/OBJECT_IDENTITY_2026_10_20.md, b0d5e435, measured by the step-9 lane
+            // session): eq is identity and equal a keyed class's keys, and the adapter binds each captured object once
+            // by a let -- testEqNonPrimitive, testEqualNonPrimitive and the two primitive-extension tests pass
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            // 2026-10-20 (the parity phase): the instance's NULL field typed (Trino.structLit), the test reaches its
-            // assert and fails it by the DuckDB lane's cause
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\"")
+            // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
+            // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
+            // per run, so the pin is the class), as on the DuckDB lane
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
             // NOTE 2026-10-20 (the parity phase): the instance tests whose unset property was a NULL of no type
             // unpinned -- the field takes the slot its builder declared (Trino.structLit)
             // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
