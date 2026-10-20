@@ -39,16 +39,18 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
     // pinned is the identity tests (instances compared by reference, as on the DuckDB lane), a user element
     // referenced by its simple name, and an instance nested past the layout's depth.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // VALUE DIFFERENCES, measured (step 9, 2026-10-19: testDecimalMinus, testDecimalPlus, testDecimalTimes
-            // unpinned, a Decimal read by the wire header's type since the DuckDB lane's landing)
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
+            // 2026-10-20, object identity (docs/OBJECT_IDENTITY_2026_10_20.md, b0d5e435, measured by the step-9 lane
+            // session): eq is identity and equal a keyed class's keys, and the adapter binds each captured object once
+            // by a let -- testEqNonPrimitive, testEqualNonPrimitive and the two primitive-extension tests pass
+            // NOTE (step 9, 2026-10-19): testDecimalMinus, testDecimalPlus, testDecimalTimes unpinned, a Decimal read
+            // by the wire header's type since the DuckDB lane's landing
             // NOTE 2026-10-20 (the parity phase, second batch): testDecimalDivide unpinned -- a divide's operands are
             // doubles, as on every other dialect (MongoDb's DIVIDE)
             // THE PLATFORM'S OWN (pinned on the DuckDB lane too, by the same cause)
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
+            // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
+            // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
+            // per run, so the pin is the class), as on the DuckDB lane
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // NOTE 2026-10-20 (the parity phase): testRangeStepError unpinned -- a raising operator's literal operand
             // is read through the row (MongoDb.unfolded)
             // THE IDENTITY TESTS: instances compared by reference, which no wire carries (the program's §4)

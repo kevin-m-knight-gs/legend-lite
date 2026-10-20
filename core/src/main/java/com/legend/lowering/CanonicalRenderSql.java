@@ -642,6 +642,11 @@ public final class CanonicalRenderSql {
      * Null = unclaimed shape (to-many key, unknown field, unclaimable
      * leaf kind) — the caller declines, counted.
      */
+    /** A key collection's element, {@code __e}, typed as the collection's element. */
+    private static SqlExpr element(SqlType type) {
+        return SqlExpr.Column.of(null, "__e", type, true, com.legend.sql.OutputCol.Origin.DERIVED);
+    }
+
     static @com.legend.base.Nullable SqlExpr instanceCanon(SqlExpr v,
             com.legend.compiler.element.EqualityKeys keys, SqlType layout) {
         // the BARE-ARRAY carrier (List<T>): the SQL value IS the one
@@ -650,15 +655,15 @@ public final class CanonicalRenderSql {
         if (layout instanceof SqlType.Array at
                 && keys.keys().size() == 1 && keys.keys().get(0).many()) {
             var k = keys.keys().get(0);
-            SqlExpr leaf = taggedLeaf(SqlExpr.Column.derived(null, "__e"),
+            // the element typed as the list's (a dialect carrying a struct as JSON reads its fields by their types)
+            SqlExpr leaf = taggedLeaf(element(at.element()),
                     at.element(), k.nested());
             if (leaf == null) {
                 return null;
             }
-            SqlExpr arr = SqlExpr.Call.of(SqlFn.COALESCE,
-                    SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v,
-                            new SqlExpr.Lambda(List.of("__e"), leaf)),
-                    emptyArray());
+            SqlExpr leaves = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v,
+                    new SqlExpr.Lambda(List.of("__e"), leaf));
+            SqlExpr arr = SqlExpr.Call.of(SqlFn.COALESCE, leaves, emptyLike(leaves));
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.IS_NULL, v),
                     new SqlExpr.NullLit())),
@@ -697,17 +702,16 @@ public final class CanonicalRenderSql {
                 SqlType elem = ft instanceof SqlType.Array at
                         ? at.element() : null;
                 SqlExpr leaf = elem == null ? null
-                        : taggedLeaf(SqlExpr.Column.derived(null, "__e"),
+                        : taggedLeaf(element(elem),
                                 elem, k.nested());
                 if (leaf == null) {
                     return null;
                 }
                 // NULL and empty are both the EMPTY key collection
                 // (engine: empty equals empty) — normalize to []
-                c = SqlExpr.Call.of(SqlFn.COALESCE,
-                        SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, field,
-                                new SqlExpr.Lambda(List.of("__e"), leaf)),
-                        emptyArray());
+                SqlExpr leaves = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, field,
+                        new SqlExpr.Lambda(List.of("__e"), leaf));
+                c = SqlExpr.Call.of(SqlFn.COALESCE, leaves, emptyLike(leaves));
             } else if (ft == null) {
                 return null;
             } else {
@@ -807,6 +811,12 @@ public final class CanonicalRenderSql {
     /** The EMPTY key collection (NULL and empty both normalize to it). */
     private static SqlExpr emptyArray() {
         return new SqlExpr.ArrayLit(List.of());
+    }
+
+    /** The empty list of {@code list}'s type (a dialect that types every list literal reads it), else untyped. */
+    private static SqlExpr emptyLike(SqlExpr list) {
+        return list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array
+                ? new SqlExpr.Cast(emptyArray(), t.type()) : emptyArray();
     }
 
     static boolean hasCanonField(SqlType.Struct st) {

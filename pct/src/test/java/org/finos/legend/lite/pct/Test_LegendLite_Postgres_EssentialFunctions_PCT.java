@@ -73,11 +73,15 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).
             // refused by name: a construct the Postgres dialect does not spell yet
-            one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
-            one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
-            one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
+            // 2026-10-20: the folds' copies print their values now (the adapter's CopyWithUpdate); their accumulator, a
+            // list of objects, has no form on Postgres (a list accumulator of anything but scalars is the jsonb carrier)
+            one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "a list accumulator of anything but scalars is the jsonb carrier"),
+            one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "a list accumulator of anything but scalars is the jsonb carrier"),
+            one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "a list accumulator of anything but scalars is the jsonb carrier"),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "a field '__id' of unknown type reached Postgres")
+            // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+            // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
     );
 
     public static Test suite() {

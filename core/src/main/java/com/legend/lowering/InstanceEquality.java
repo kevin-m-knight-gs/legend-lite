@@ -197,8 +197,10 @@ final class InstanceEquality {
             return null;
         }
         String elemVar = freshVar.get();
+        // the element typed as the collection's (a dialect carrying a struct as JSON reads its fields by their types)
+        SqlType et = sqlTypeOf.apply(coll.info().type());
         SqlExpr elemCanon = CanonicalRenderSql.instanceEqualityCanon(
-                SqlExpr.Column.derived(null, elemVar), keys, cf, lt);
+                SqlExpr.Column.of(null, elemVar, et, true, com.legend.sql.OutputCol.Origin.DERIVED), keys, cf, et);
         SqlExpr needleCanon = CanonicalRenderSql.instanceEqualityCanon(
                 scalar.apply(needle), keys, cf, lt);
         if (elemCanon == null || needleCanon == null) {

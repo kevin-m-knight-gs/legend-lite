@@ -1441,6 +1441,10 @@ public final class Postgres extends AnsiSqlRenderer {
         if (emptyCollection(c.value())) {
             return writer.append("CAST(NULL AS " + carrier(target.element()) + "[])");
         }
+        // the empty list literal typed: a list of no elements, never NULL (an equality canon's empty key collection)
+        if (c.value() instanceof SqlExpr.ArrayLit a && a.elements().isEmpty()) {
+            return writer.append("CAST(ARRAY[] AS " + carrier(target.element()) + "[])");
+        }
         if (isJson(c.value())) {
             // a Variant array: its elements held as the list holds them
             return writer.piece(decode(w -> w.expr(c.value(), 0), target, 0));
