@@ -11,9 +11,9 @@ import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { loadPlanner } from './planner.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
-/** The live source, and where a snap goes: the model would declare both. */
+/** The live source, and where a snap goes: a table of its own, read (once landed) by what the app's model of it says. */
 const LIVE = element('trades');
-const target = (table: string) => ({ table, source: element(table), conversions: [] });
+const target = (table: string) => ({ table, landed: async () => element(table) });
 import {
   SnapManager,
   SnapRefusal,
@@ -127,5 +127,15 @@ describe('SnapManager', () => {
       3,
     );
     assert.equal(stillThere.columns[0]?.values[0], 200);
+  });
+
+  it('drops the copy, live still, when the app cannot model what landed (§18.3)', async () => {
+    const s = new SnapManager(engine, null, planner);
+    await assert.rejects(s.snap('SELECT * FROM trades WHERE region = 2', 4, {
+      target: { table: 'snap_refused', landed: async () => { throw new Error('no model of it'); } },
+    }), /no model of it/);
+    assert.equal(s.isSnapped, false);
+    const left = await engine.run("SELECT count(*) AS n FROM information_schema.tables WHERE table_name = 'snap_refused'", 5);
+    assert.equal(Number(left.columns[0]?.values[0]), 0, 'the copy is gone');
   });
 });

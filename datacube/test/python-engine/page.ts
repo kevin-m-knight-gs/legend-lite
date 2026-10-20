@@ -320,17 +320,17 @@ async function run(): Promise<void> {
     equal(shape(read.rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]', 'its rows, read Live through Python:');
     // a table it did not list is not one Python opens
     await rejects(warehouse.table!(session, { ...objects[0]!, name: 'secret' }), /not a table rita may read/);
-    // SNAP, on Python: the pull sent as Pure, counted and copied there; the copy read through the snap runtime, by
+    // SNAP, on Python (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): the pull sent as Pure, counted and landed there
+    // in a table of its own, modelled by DataCube's code as the tab models its copy; read through that model, by
     // Python's DuckDB; released, the copy is gone, and reading it is refused
-    const copy = services.engine.rows(m.model, m.snapRuntime, { bitColumns: m.bitColumns }).runner!;
-    const two = from(m.source).select(['desk', 'qty']).lambda();
-    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /read on its warehouse, through its own runtime, or snapped/);
     const frozen = await warehouse.snap!(m.model, from(m.source).select(['desk', 'qty', 'px']).lambda());
     deepEqual([frozen.rowCount, frozen.pulledBy?.as, frozen.pulledBy?.serverRows], [3, 'rita', 3], 'what Python froze:');
+    const copy = services.engine.rows(frozen.model, frozen.runtime, { bitColumns: frozen.bitColumns }).runner!;
+    const two = from(frozen.source).select(['desk', 'qty']).lambda();
     equal(shape((await copy.run(two, { epoch: 0 } as CubeSnapshot)).rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]',
       'the copy\'s rows, read in Python\'s DuckDB:');
-    await warehouse.release!(m.model);
-    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /read on its warehouse, through its own runtime, or snapped/);
+    await warehouse.release!(frozen.table);
+    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /plans only over the tables it serves/);
   });
 
   await check('a query\'s types, parse and print: the same compiler\'s answers', async () => {

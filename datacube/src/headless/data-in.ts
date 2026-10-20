@@ -8,7 +8,7 @@
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { accessRemote, inferFormat, scanUrl, type S3Credentials } from '../remote.ts';
-import { dropFileTable, mountRemoteView, readFileInto } from '../upload.ts';
+import { dropFileTable, modelLanded, mountRemoteView, readFileInto } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
 
 /** A file as Python hands it in: where its DuckDB reads it, its name as picked (its format), the table to read it into. */
@@ -35,6 +35,16 @@ export async function ingest(spec: string): Promise<string> {
   const s = JSON.parse(spec) as IngestSpec;
   return using(async ({ engine, writer }) =>
     JSON.stringify(await readFileInto(engine, { at: s.path, fileName: s.name, table: s.table }, writer)));
+}
+
+/**
+ * A SNAP'S COPY, landed in the table Python named (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): made to hold what its
+ * model declares and modelled, as the tab models its own copy (upload.ts modelLanded) -- its model, runtime and source,
+ * JSON.
+ */
+export async function landed(spec: string): Promise<string> {
+  const s = JSON.parse(spec) as { readonly table: string };
+  return using(async ({ engine, writer }) => JSON.stringify(await modelLanded(engine, writer, s.table)));
 }
 
 /** A remote file mounted as the view Python named, through the httpfs extension Python's DuckDB carries: its model,

@@ -51,7 +51,7 @@ import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
   BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
-  QueryService, Services, Versions, WarehouseService,
+  QueryService, Services, Versions, WarehouseService, HostCopy,
 } from '../app/services.ts';
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
@@ -498,11 +498,11 @@ function pythonWarehouse(link: PythonLink): WarehouseService {
     place: 'Python',
     table: async (session, object) => JSON.parse(await posted(link, 'warehouse.json', {
       op: 'table', url: session.baseUrl, catalog: object.catalog, schema: object.schema, name: object.name,
-    })) as InferredModel & { readonly snapRuntime: string },
-    // the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are and keeps the copy
-    snap: async (model, pull) => JSON.parse(await posted(link, 'warehouse.json', { op: 'snap', model, pull: toJson(pull) })) as
-      { readonly rowCount: number; readonly pulledBy?: Receipt },
-    release: async (model) => { await posted(link, 'warehouse.json', { op: 'release', model }); },
+    })) as InferredModel,
+    // the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are and keeps the copy, a
+    // table of its own it models as it holds the rows (§18.3)
+    snap: async (model, pull) => JSON.parse(await posted(link, 'warehouse.json', { op: 'snap', model, pull: toJson(pull) })) as HostCopy,
+    release: async (table) => { await posted(link, 'warehouse.json', { op: 'release', table }); },
   };
 }
 

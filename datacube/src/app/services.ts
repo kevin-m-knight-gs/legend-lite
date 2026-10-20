@@ -16,7 +16,7 @@ import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import type { Planner, SnapTarget } from '../cube.ts';
+import type { Planner } from '../cube.ts';
 import type { CubeStore } from '../cube-store.ts';
 import type { FileHandles } from '../file-handles.ts';
 import type { InferredModel, TableModels } from '../infer.ts';
@@ -276,18 +276,27 @@ export interface WarehouseService {
   live?(session: WarehouseSession, catalog: string, databaseType: string): WarehouseEngine;
   /**
    * A table's model written and held by the host, which then plans and runs its queries itself (Python's: C3, R4) --
-   * the tab's own writer's answer, read-only, with the runtime a copy is planned against.
+   * the tab's own writer's answer, read-only.
    */
-  table?(session: WarehouseSession, object: CatalogObject): Promise<InferredModel & { readonly snapRuntime: string }>;
+  table?(session: WarehouseSession, object: CatalogObject): Promise<InferredModel>;
   /** Whose database a host's table's copy is in, as a person reads it (`Python`): the host that reads its tables. */
   readonly place?: string;
   /**
-   * A table the host read (`table`) snapped there: `pull` (Pure: its every column) planned and run where the rows are,
-   * the copy in the host's database, read through the model's snap runtime. Its count, and the pull's receipt.
+   * A grid over a table the host read (`table`, its model `model`) snapped there (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   * §18.3): `pull` (Pure: the grid's base query, its every column) planned and run where the rows are, the copy a table
+   * of the host's database of its own, modelled by the host as it holds the rows. Its count, the pull's receipt, its
+   * table, and that model.
    */
-  snap?(model: string, pull: Lambda): Promise<{ readonly rowCount: number; readonly pulledBy?: Receipt }>;
-  /** That copy dropped. */
-  release?(model: string): Promise<void>;
+  snap?(model: string, pull: Lambda): Promise<HostCopy>;
+  /** That copy dropped, by its table. */
+  release?(table: string): Promise<void>;
+}
+
+/** A copy its host made of a grid's base query (WarehouseService.snap): its own table, and the host's model of it. */
+export interface HostCopy extends InferredModel {
+  readonly rowCount: number;
+  readonly pulledBy?: Receipt;
+  readonly table: string;
 }
 
 // -------------------------------------------------------------------------------------------------------- the browser
@@ -312,8 +321,8 @@ export interface BrowserService {
 export interface Sample {
   /** Its opening view, typed by the compiler over its source. */
   readonly snapshot: () => Promise<CubeSnapshot>;
-  readonly snapTarget: SnapTarget;
-  /** Generated rows are a copy in the host's database from the start; a mounted remote file is live. */
+  /** Generated rows are a copy in the host's database from the start; a mounted remote file is live, and snaps as any
+   *  grid does (PageSources.snapTarget). */
   readonly heldCopy?: HeldCopy;
   readonly configuration: CubeConfiguration;
   readonly dimensions: { name: string; columns: string[] }[];

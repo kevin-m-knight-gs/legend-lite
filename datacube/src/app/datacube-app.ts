@@ -491,13 +491,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     get: () => (page.grids[0] !== undefined ? page.grid(page.grids[0]) : undefined),
   });
 
-  if (start.kind === 'sample') {
-    const { sample } = start;
-    page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions,
-      { snapTarget: sample.snapTarget, ...(sample.heldCopy ? { heldCopy: sample.heldCopy } : {}) }));
-    await page.ready();
-  }
-
   // OPENING A FILE.
   //
   // DuckDB reads it and sniffs the schema, legend-lite's writer (`tables.tableModel`) writes the
@@ -511,6 +504,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+
+    if (start.kind === 'sample') {
+      const { sample } = start;
+      // generated rows are a copy in the tab from the start; a remote file read through the sample's model is live, and
+      // snaps into a copy of its own, as any grid's rows not in the tab do (§18.3)
+      const snapTarget = sources.snapTarget();
+      page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions,
+        sample.heldCopy ? { heldCopy: sample.heldCopy } : snapTarget ? { snapTarget } : {}));
+      await page.ready();
+    }
     // WHAT LEAVING WOULD LOSE, asked in this order: the warehouse's session, unsaved changes, the files opened
     work.add(() => sources.sessionHeld());
 

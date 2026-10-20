@@ -1102,17 +1102,19 @@ run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
    - Every check in §18.2's second item asks it instead of a kind or a field. Python asks it headless, with no
      second copy.
 3. **Snap by query.**
-   - Snap copies the base query's result into a table of its own, never a source's name.
-   - The copy is declared from the compiler's relation type of the base, and its conversions come from the result's
-     column types.
-   - The snapped grid reads `#>{copy}#`, and its document keeps the live base.
-   - It is offered for any base whose leaves are not already rows of the host's database.
-   - A copy belongs to its grid. Two grids share one only when their base queries are the same: counted, and dropped
-     when the last lets go.
-   - Python's copies work the same way: held by the grid, and registered as tables Python serves, so a model reading
-     them is admitted.
+   - Snap copies the base query's result into a table of its own (`snap`, `snap_2`, ...), never a source's name.
+   - The copy is modelled as a file read in is, once its rows land (corrected 2026-10-20, as built): the database's
+     catalog of what the copy holds, read by the model writer, a column that needs converting rewritten in place
+     (`upload.ts modelLanded`). The copy's types are what it holds, so no second account of the base's types is kept.
+   - The snapped grid reads `#>{copy}#` through a planner over that model, and its document keeps the live base.
+   - It is offered for any grid whose rows are not in the host's database already: a warehouse table's, a remote
+     file's.
+   - A copy belongs to its grid, and goes with it: released, taken live, or the grid closed. (Sharing one copy between
+     grids of the same base query is not built: each grid copies its own.)
+   - Python's copies work the same way: landed in a table of the frames' database of its own, modelled by DataCube's
+     code headless (`landed`), and served as a page's file is, so a query of it is planned over its own model.
    - Python's per-frame Snapped mode folds into this. There is one Snap, per grid, of its base: a frame grid's Snap
-     copies `#>{frame}#`.
+     copies `#>{frame}#` (step 2b).
 4. **Python pages over any base.**
    - `_read_page` reads every kind of source DataCube reads, and `Grid.frame` gives way to the grid's leaves.
    - `load`, `read`, `update`, change tracking and page versions follow every leaf.

@@ -1065,8 +1065,9 @@ class Page(Cube):
 class WarehouseOnPython(unittest.TestCase):
     """A warehouse table on Python's page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3), every route of /warehouse.json
     and the plan-and-run over its model, against a stand-in for the driver (legend_lite.warehouse's Warehouse and
-    connect): the shapes refused, the sign-in, a table opened once as one person, its Live rows and receipt, its copy
-    held by the grids that snapped it and dropped by the last, the snap limit, and an expired session said as one."""
+    connect): the shapes refused, the sign-in, a table opened once as one person, its Live rows and receipt, each snap
+    a copy of its own modelled by DataCube's code and released by its table, the snap limit, and an expired session
+    said as one."""
 
     URL = 'https://wh.example'
     OBJECTS = [{'catalog': 'main', 'databaseType': 'DuckDB', 'schema': 'trading', 'name': 'POSITIONS', 'kind': 'table',
@@ -1120,7 +1121,17 @@ class WarehouseOnPython(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
         self.frames = ll.Frames()
-        self.engine = Engine(self.frames)
+        # DataCube's own code over the frames' database, headless: what models a snap's copy (upload.ts modelLanded)
+        self.headless = None
+
+        def headless():
+            if self.headless is None:
+                from legend_lite._headless import Headless, bundle
+                self.headless = Headless(bundle(), connection=self.frames.connection)
+            return self.headless
+
+        self.addCleanup(lambda: self.headless is not None and self.headless.close())
+        self.engine = Engine(self.frames, headless=headless)
 
     def call(self, said, path='/warehouse.json'):
         a = self.engine.answer('POST', path, '', json.dumps(said))
@@ -1134,7 +1145,7 @@ class WarehouseOnPython(unittest.TestCase):
 
     def query(self, m):
         spec = {'table': 'POSITIONS', 'schema': 'trading', 'convertible': False, 'databaseType': 'DuckDB',
-                'snapDatabaseType': 'DuckDB', 'columns': [{**c, 'dataType': c['type']} for c in self.OBJECTS[0]['columns']]}
+                'columns': [{**c, 'dataType': c['type']} for c in self.OBJECTS[0]['columns']]}
         accessor = ll.table_model(spec)['accessor']
         return json.dumps(ll.parse(f'|{accessor}->select(~[desk, qty])'))
 
@@ -1177,28 +1188,44 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertEqual(status, 409, body)
         self.assertIn('open already as rita', body.decode())
 
-    def test_the_copy_held_by_the_grids_that_snapped_it_and_dropped_by_the_last(self):
+    def snapped(self, m):
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        self.assertEqual(status, 200, body)
+        return json.loads(body)
+
+    def copy_rows(self, copy):
+        """The copy's rows, planned over Python's own model of it and run on the frames' database."""
+        path = copy['source']['value']['path']
+        lam = json.dumps(ll.parse(f'|#>{{{path[0]}.{path[1]}}}#->select(~[desk, qty])'))
+        a = self.engine.answer('POST', '/plan-and-run.json', '', json.dumps(
+            {'lambda': lam, 'model': copy['model'], 'runtime': copy['runtime']}))
+        return a.status, a.body
+
+    def test_each_snap_a_copy_of_its_own_read_through_its_own_model_and_released_by_its_table(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3: the warehouse table's own name was every grid's copy, so a
+        # second grid got the first's rows as they were, and the copy was read through the table's model
         m = self.opened()
-        refused = self.plan_and_run(m, m['snapRuntime'])
-        self.assertIn('or snapped, through its copy', json.loads(refused.body)['plan'])
-        status, first = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
-        self.assertEqual(status, 200, first)
-        pulled = self.pulls
-        # a second grid holds the same copy, as it is: nothing pulled again, the first grid's rows unchanged
-        status, second = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
-        self.assertEqual((status, self.pulls, json.loads(second)), (200, pulled, json.loads(first)))
-        self.assertEqual(json.loads(second)['rowCount'], 3)
-        a = self.plan_and_run(m, m['snapRuntime'])
-        self.assertEqual(a.status, 200, a.body)
-        self.assertEqual(pyarrow.ipc.open_stream(a.body).read_all().num_rows, 3)
-        self.assertEqual(self.call({'op': 'release', 'model': m['model']})[0], 200)
-        self.assertEqual(self.plan_and_run(m, m['snapRuntime']).status, 200, 'the other grid still holds it')
-        self.call({'op': 'release', 'model': m['model']})
-        self.assertIn('or snapped', json.loads(self.plan_and_run(m, m['snapRuntime']).body)['plan'])
-        gone = self.frames.connection.execute(
-            "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'POSITIONS'").fetchone()[0]
-        made = self.frames.connection.execute("SELECT count(*) FROM duckdb_schemas() WHERE schema_name = 'trading'").fetchone()[0]
-        self.assertEqual((gone, made), (0, 0), 'the copy and the schema it made are dropped')
+        first = self.snapped(m)
+        second = self.snapped(m)
+        self.assertEqual((first['table'], second['table'], self.pulls), ('snap', 'snap_2', 4),
+                         'each grid pulls and lands its own copy (a count and a pull each)')
+        self.assertEqual((first['rowCount'], first['pulledBy']['as']), (3, 'rita'))
+        self.assertNotEqual(first['model'], m['model'], 'a copy is read through a model of its own')
+        status, body = self.copy_rows(first)
+        self.assertEqual(status, 200, body)
+        rows = pyarrow.ipc.open_stream(body).read_all()
+        self.assertEqual(sorted(zip(rows['desk'].to_pylist(), rows['qty'].to_pylist())), [('EQ', 5), ('FX', 3), ('FX', 10)])
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'})[0], 200)
+        self.assertEqual(self.copy_rows(second)[0], 200, 'the other grid still reads its own')
+        self.assertEqual(self.frames.connection.execute(
+            "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'the copy is dropped')
+        self.assertIsNone(self.frames.file_table('snap'), 'and served no more')
+        # only a copy a snap made is let go of this way, and once
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'})[0], 404)
+        self.assertEqual(self.call({'op': 'release', 'table': 'POSITIONS'})[0], 404)
+        # nor is it a page's file to drop
+        self.assertEqual(self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'x', 'table': 'snap_2'})).status,
+                         404)
 
     def test_the_dry_run_plans_a_table_as_its_run_does_and_refuses_the_runtime_its_run_refuses(self):
         # plan.json, plan-and-run's planning half (the one-app design §15.10): never run, the run's plan, and the run's
@@ -1216,20 +1243,38 @@ class WarehouseOnPython(unittest.TestCase):
         run = self.plan_and_run(m, m['runtime'])
         self.assertEqual(run.status, 200, run.body)
         self.assertEqual(planned, pyarrow.ipc.open_stream(run.body).read_all().schema.metadata[b'legend.plan'].decode())
-        # the snap runtime with no copy held: refused by both, in the same words
-        refused = dry(m['snapRuntime'])
-        self.assertIn('or snapped, through its copy', refused)
-        self.assertEqual(refused, json.loads(self.plan_and_run(m, m['snapRuntime']).body)['plan'])
+        # another runtime: refused by both, in the same words
+        refused = dry('other::Runtime')
+        self.assertIn('is read on its warehouse, through its own runtime', refused)
+        self.assertEqual(refused, json.loads(self.plan_and_run(m, 'other::Runtime').body)['plan'])
 
     def test_a_copy_that_fails_leaves_nothing(self):
         m = self.opened()
-        # a conversion DuckDB refuses: the copy fails after its schema is made
-        self.engine._warehouse_tables[m['model']].written['conversions'] = [{'column': 'qty', 'sql': 'no_such_function(qty)'}]
+        made = self.engine._headless
+
+        class Refusing:
+            def __init__(self, inner):
+                self.inner = inner
+
+            def call(self, function, *args, **kw):
+                if function == 'landed':
+                    raise RuntimeError('no model of it')
+                return self.inner.call(function, *args, **kw)
+
+        self.engine._headless = lambda: Refusing(made())
         status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
         self.assertEqual(status, 422, body)
         self.assertIn('could not be copied', body.decode())
-        made = self.frames.connection.execute("SELECT count(*) FROM duckdb_schemas() WHERE schema_name = 'trading'").fetchone()[0]
-        self.assertEqual(made, 0, 'no schema left of the copy that failed')
+        self.assertEqual(self.frames.connection.execute(
+            "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'no copy left')
+        self.assertIsNone(self.frames.file_table('snap'))
+
+    def test_an_engine_without_datacubes_code_keeps_no_copy(self):
+        self.engine = Engine(self.frames)
+        m = self.opened()
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        self.assertEqual(status, 404, body)
+        self.assertIn('keeps no copy', body.decode())
 
     def test_the_snap_limit_in_the_tabs_words(self):
         m = self.opened()

@@ -322,23 +322,7 @@ export async function readFileInto(
     from: { file: { at: file.at, format: format === 'parquet' ? 'parquet' : format === 'json' ? 'json' : 'csv' } },
   }]);
 
-  // legend-lite's writer reads the catalog's types and says which columns the
-  // table must convert to hold what the model declares: a TIMESTAMPTZ its UTC
-  // timestamp, a UBIGINT an exact DECIMAL(20,0), a UUID or TIME its text. A
-  // nested STRUCT or LIST needs none: it is a Variant as stored
-  // (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md). An upload is ours to
-  // rewrite, so it is rewritten here.
-  const inferred = await models.tableModel(await catalogColumns(engine, models, table),
-    { table, convertible: true, databaseType: engine.databaseType });
-  if (inferred.conversions.length > 0) {
-    // the writer's own select list: each conversion under its column's name, written by the copy's own database
-    // (SqlDialect.copySelectList); an upload is rewritten in place, so the writer always writes one
-    const selectList = inferred.copySelectList;
-    if (selectList === undefined) throw new Error(`the model of ${table} came back with no copy select list`);
-    await runHostOperations(models, engine, [{
-      op: 'relation', kind: 'table', target, replace: true, selectList, from: { relation: target },
-    }]);
-  }
+  const inferred = await modelLanded(engine, models, table);
 
   const [count] = await models.hostOperations(engine.databaseType, [{ op: 'count', from: { relation: target } }]);
   const counted = await engine.run(count![0]!, 0);
@@ -350,6 +334,31 @@ export async function readFileInto(
     rowCount,
     fileName: file.fileName,
   };
+}
+
+/**
+ * A TABLE OF ROWS JUST LANDED IN THE HOST'S DATABASE, made to hold what its model declares, and its model -- a file read
+ * in, and a Snap's copy of a grid's base query (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). legend-lite's writer
+ * reads the catalog's types and says which columns the table must convert to hold what the model declares: a
+ * TIMESTAMPTZ its UTC timestamp, a UBIGINT an exact DECIMAL(20,0), a UUID or TIME its text. A nested STRUCT or LIST needs
+ * none: it is a Variant as stored (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md). The table is ours to rewrite, so it is
+ * rewritten in place.
+ */
+export async function modelLanded(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
+  table: string): Promise<InferredModel> {
+  const target = { name: table };
+  const inferred = await models.tableModel(await catalogColumns(engine, models, table),
+    { table, convertible: true, databaseType: engine.databaseType });
+  if (inferred.conversions.length > 0) {
+    // the writer's own select list: each conversion under its column's name, written by the copy's own database
+    // (SqlDialect.copySelectList); a table rewritten in place, so the writer always writes one
+    const selectList = inferred.copySelectList;
+    if (selectList === undefined) throw new Error(`the model of ${table} came back with no copy select list`);
+    await runHostOperations(models, engine, [{
+      op: 'relation', kind: 'table', target, replace: true, selectList, from: { relation: target },
+    }]);
+  }
+  return inferred;
 }
 
 /**

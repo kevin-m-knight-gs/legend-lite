@@ -45,7 +45,7 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
-import { formatOf, tableNameOf } from '../upload.ts';
+import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
 import type { JoinRead } from './join-sources.ts';
 import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
 
@@ -176,6 +176,9 @@ export interface PageSources {
   place(id: string): GridPlace | undefined;
   /** The files on the page now: each grid's, one per table it reads from a file (a join's leaves' among them). */
   filesNow(): GridFile[];
+  /** Where a grid whose rows are not in the tab already snaps: copies of its own in the tab's database (§18.3); none
+   *  where the page has no database of its own. */
+  snapTarget(): SnapTarget | undefined;
   /** While a saved page opens, the tables its model keeps: no fresh name takes one of them (the audit's S3). */
   reserve(tables: Iterable<string>): void;
   release(): void;
@@ -364,8 +367,8 @@ export function pageSources(d: SourcesOf): PageSources {
   const readForGrids = new Map<string, string>();
 
   const madeGrid = (id: string, place: GridPlace): void => {
-    // its own planners (its source's, and a snapped copy's): let go with the last grid planning through them
-    gridPlanners.set(id, [place.planner, place.snapTarget?.planner].filter((p): p is Planner => p !== undefined));
+    // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it)
+    gridPlanners.set(id, place.planner ? [place.planner] : []);
     gridPlaces.set(id, place);
     if (place.tables) gridTables.set(id, place.tables);
     for (const t of place.tables ?? []) {
@@ -421,22 +424,33 @@ export function pageSources(d: SourcesOf): PageSources {
   /** The picker's warehouse sign-in, kept between openings of the window. */
   let signedIn: SignedIn | undefined;
 
-  /**
-   * A warehouse table's model: its own runtime (the catalog's database type), and the runtime its Snap -- a copy into
-   * the host's database -- is planned against (the host database's type).
-   */
-  const warehouseModel = (l: LocalEngine, o: CatalogObject): Promise<InferredModel & { readonly snapRuntime: string }> => l.tables.tableModel(
+  /** A warehouse table's model: its own runtime, of the catalog's database type. */
+  const warehouseModel = (l: LocalEngine, o: CatalogObject): Promise<InferredModel> => l.tables.tableModel(
     o.columns.map((c) => ({ ...c, dataType: c.type })),
-    { table: o.name, schema: o.schema, convertible: false, databaseType: o.databaseType, snapDatabaseType: l.engine.databaseType });
+    { table: o.name, schema: o.schema, convertible: false, databaseType: o.databaseType });
   /**
-   * A warehouse table's Snap: the rows pulled with the live plan, into a table of the same name in the host's database,
-   * and every query on the copy planned by the SAME model against the snap runtime.
+   * WHERE A GRID SNAPS IN THE TAB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), for a grid whose rows are not in the
+   * tab already (a warehouse table's, read live there; a remote file's, read afresh by every query): each snap a copy of
+   * the base query's rows in a table of the tab's own, modelled once the rows land as a file read in is (upload.ts
+   * modelLanded), and planned by a planner over that model; its planner let go and its name free again with it.
    */
-  const snapOf = (l: LocalEngine, o: CatalogObject, m: InferredModel & { readonly snapRuntime: string }): { snapTarget: SnapTarget } => ({
-    snapTarget: {
-      schema: o.schema, table: o.name, source: m.source, conversions: m.conversions,
-      planner: l.another(m.model, m.snapRuntime, { bitColumns: m.bitColumns }),
-      host: l.tables,
+  const snapInto = (l: LocalEngine): SnapTarget => ({
+    host: l.tables,
+    copy: () => {
+      const table = freshTable('snap');
+      let planner: Planner | undefined;
+      return {
+        table,
+        landed: async () => {
+          const m = await modelLanded(l.engine, l.tables, table);
+          planner = l.another(m.model, m.runtime, { bitColumns: m.bitColumns });
+          return { source: m.source, planner };
+        },
+        dispose: () => {
+          planner?.dispose?.();
+          taken.delete(table);
+        },
+      };
     },
   });
 
@@ -459,18 +473,14 @@ export function pageSources(d: SourcesOf): PageSources {
       columns: columns.map((c) => ({ name: c.name, type: c.type })),
     };
     const r = rebuilt(saved, m.source, columns, name, capped);
-    const snap = snapOf(local, chosen, m);
     return {
       label: name,
       notes: r.notes,
       make: gridMaker(r.snapshot, r.configuration, [], {
-        planner: own, live, ...snap, cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+        planner: own, live, snapTarget: snapInto(local), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
       }),
-      // never made into a grid: its planners' models let go
-      discard: async () => {
-        own.dispose?.();
-        snap.snapTarget.planner.dispose?.();
-      },
+      // never made into a grid: its planner's model let go
+      discard: async () => own.dispose?.(),
     };
   }
 
@@ -483,13 +493,22 @@ export function pageSources(d: SourcesOf): PageSources {
     saved?: CubeDocument, capped = false): Promise<Opened> {
     const m = await on.table!(session, chosen);
     const rows = services.engine.rows(m.model, m.runtime, { bitColumns: m.bitColumns });
-    // Snap there: the copy under the table's own name in the host's database, read through the same model's snap
-    // runtime -- planned and run by the host as the live rows are
-    const copy = on.snap && on.release ? services.engine.rows(m.model, m.snapRuntime, { bitColumns: m.bitColumns }) : undefined;
-    const hostSnap: HostSnap | undefined = copy?.runner && on.snap && on.release ? {
-      table: chosen.name, schema: chosen.schema, source: m.source, runner: copy.runner, store: on.place ?? 'the host',
-      snap: (pull) => on.snap!(m.model, pull),
-      release: () => on.release!(m.model),
+    // Snap there (§18.3): each snap a copy of the grid's base query in a table of the host's own, modelled by the host as
+    // it holds the rows -- planned and run by the host as the live rows are, through a runner over that model
+    const snap = on.snap;
+    const release = on.release;
+    const hostSnap: HostSnap | undefined = snap && release ? {
+      store: on.place ?? 'the host',
+      snap: async (pull) => {
+        const made = await snap(m.model, pull);
+        const runner = services.engine.rows(made.model, made.runtime, { bitColumns: made.bitColumns }).runner;
+        if (!runner) {
+          await release(made.table);
+          throw new Error(`${on.place ?? 'the host'} made a copy whose rows it does not run`);
+        }
+        return { ...made, runner };
+      },
+      release: (table) => release(table),
     } : undefined;
     const columns = await sourceColumns(typer(rows), m.source);
     const name = `${chosen.schema}.${chosen.name}`;
@@ -508,10 +527,7 @@ export function pageSources(d: SourcesOf): PageSources {
         // an expired session signed in again as the same person, by the host, as the tab's live engine does (P2-297)
         signInAgain: async (password) => { await on.connect(session.baseUrl, session.principal, password); },
       }),
-      discard: async () => {
-        letGo(rows);
-        if (copy) letGo(copy);
-      },
+      discard: async () => letGo(rows),
     };
   }
 
@@ -770,6 +786,8 @@ export function pageSources(d: SourcesOf): PageSources {
       notes: r.notes,
       make: gridMaker(r.snapshot, r.configuration, [], {
         ...rowsPlace(rows), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), tables: [view], foldPanel: capped,
+        // read afresh by every query, so live: snapped into a copy of its own where the tab runs its rows
+        ...(local && !rows.runner ? { snapTarget: snapInto(local) } : {}),
       }),
       discard: async () => letGo(rows),
     };
@@ -1104,6 +1122,7 @@ export function pageSources(d: SourcesOf): PageSources {
     dropUnread,
     place: (id) => gridPlaces.get(id),
     filesNow,
+    snapTarget: () => (local ? snapInto(local) : undefined),
     reserve: (names) => { for (const t of names) reserved.add(t); },
     // the files read for grids not made yet go when each is made or let go (madeGrid, discard), not with an opening: a
     // second page opening over the first still reads them

@@ -90,25 +90,19 @@ export interface SnapInfo {
 }
 
 /**
- * Where a snap materialises: a table the app's MODEL also declares, and the
- * relation that reads it (`#>{db.TABLE_SNAP}#`), so a snapped app's queries
- * are planned exactly as live ones are.
+ * WHERE A SNAP LANDS, and what reads it once it has (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): a table of the
+ * local store of its own -- never a source's name, so two snaps (two grids, a grid and its copy) never share one, and
+ * dropping one never drops another's -- and, once the rows are in it, the relation that reads it, from the app's model
+ * of what the copy holds.
  */
 export interface SnapTable {
-  readonly schema?: string;
   readonly table: string;
-  readonly source: ValueSpecification;
+  readonly schema?: string;
   /**
-   * What the COPY applies so it holds the model's declared types (the catalog model's
-   * `conversions`, CatalogModel.database): a zoned timestamp read in place under the source's
-   * UTC session is copied as its UTC wall time, so the tab's store, in whatever zone, reads the
-   * same values (docs/DATACUBE_APP_PLAN_2026_10_02.md, leg B). SQL in the catalog's own terms --
-   * DuckDB's, whose catalog describes every column (the catalog question) -- so it is applied by the
-   * store the copy is written to, after the pull: the pull runs where the rows are, in that
-   * database's SQL (a Postgres catalog's is Postgres), and a rewrite there would have to be
-   * spelled in it.
+   * The rows are in the table: the app makes it hold what its model declares (its writer over the copy's catalog,
+   * converting in place, as an upload is) and answers the relation that reads it. Refused, the copy is dropped.
    */
-  readonly conversions: readonly { readonly column: string; readonly sql: string }[];
+  landed(): Promise<ValueSpecification>;
 }
 
 export type PlaneState =
@@ -163,7 +157,6 @@ export class SnapManager implements Snaps {
   /** What writes the copy's statements (the tab's planner: D5); none, a snap is refused by name. */
   readonly #host: HostOperationsSource | undefined;
   #state: PlaneState = { mode: 'live' };
-  #counter = 0;
 
   constructor(engine: (QueryEngine & { readonly databaseType: string }) | null, remote: RemoteSource | null = null,
     host?: HostOperationsSource) {
@@ -267,49 +260,40 @@ export class SnapManager implements Snaps {
       throw new SnapRefusal(estimate.refusal ?? 'snap refused');
     }
 
-    this.#counter += 1;
     let pulledBy: Receipt | undefined;
     const schema = options.target.schema;
     const bare = options.target.table;
     const table = named(schema, bare);
     const engine = this.#localStore();
-    // the copy's conversions, applied by the store the copy is written to (SnapTarget.conversions): the same rewrite an
-    // upload applies at ingest (upload.ts), each column replaced by the planner's expression for it
-    const replacing = options.target.conversions.map((c) => ({ column: c.column, sql: c.sql }));
     if (this.#remote) {
       // The rows live on the server: the live plan runs there, and its Arrow
-      // chunks stream into a local table of the same name, so the model -- and
-      // the planned SQL -- read it unchanged. Exactly the rows the server let
-      // this user read. A copy that needs converting lands beside its name
-      // first, and is rewritten into it here.
+      // chunks stream into the copy's own table here -- exactly the rows the
+      // server let this user read.
       const loader = engine as unknown as Partial<ArrowLoader>;
       if (typeof loader.loadArrow !== 'function') {
         throw new SnapRefusal('the local store cannot load Arrow data, so a remote live plane cannot be snapped');
       }
-      const landing = replacing.length === 0 ? bare : `${bare}__pulled`;
-      const pulled = named(schema, landing);
       // its schema made and the table there before dropped, by the planner's statements, before the rows load
       const prepare = await this.#statements(engine.databaseType, [
         ...(schema ? [{ op: 'schema' as const, name: schema }] : []),
-        { op: 'drop', kind: 'table', target: pulled },
+        { op: 'drop', kind: 'table', target: table },
       ]);
-      await loader.loadArrow({ ...(schema ? { schema } : {}), table: landing },
+      await loader.loadArrow({ ...(schema ? { schema } : {}), table: bare },
         this.#remote.arrowChunks(sourceSql, undefined, (r) => { pulledBy = r; }), prepare);
-      if (landing !== bare) {
-        const [copy, drop] = await this.#host!.hostOperations(engine.databaseType, [
-          { op: 'relation', kind: 'table', target: table, replace: true, replacing, from: { relation: pulled } },
-          { op: 'drop', kind: 'table', target: pulled },
-        ]);
-        try {
-          for (const sql of copy!) await engine.run(sql, epoch);
-        } finally {
-          for (const sql of drop!) await engine.run(sql, epoch);
-        }
-      }
     } else {
       for (const sql of await this.#statements(engine.databaseType, [
-        { op: 'relation', kind: 'table', target: table, replace: true, replacing, from: { query: sourceSql } },
+        { op: 'relation', kind: 'table', target: table, replace: true, from: { query: sourceSql } },
       ])) await engine.run(sql, epoch);
+    }
+    // the copy made to hold what its model declares, and what reads it: the app's (SnapTable.landed); refused, it goes
+    let source: ValueSpecification;
+    try {
+      source = await options.target.landed();
+    } catch (e) {
+      for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
+        await engine.run(sql, epoch).catch(() => {});
+      }
+      throw e;
     }
 
     const takenAt = new Date();
@@ -320,7 +304,7 @@ export class SnapManager implements Snaps {
       rowCount: estimate.rowCount,
       table: bare,
       ...(schema ? { schema } : {}),
-      source: options.target.source,
+      source,
     };
     this.#state = { mode: 'snapped', snap };
     return snap;
@@ -391,19 +375,28 @@ export function describePlane(state: PlaneState, where: {
  * A SNAP ITS HOST MAKES (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): where the page has no store of its own (a page on
  * Python), the host pulls the live source's rows into its own database, and the copy's queries are the host's. The page
  * sends the pull as Pure (R4); the host plans it where the rows are, counts it against the same limit
- * (MAX_SNAP_ROWS), copies it with the model's conversions, and says what it froze.
+ * (MAX_SNAP_ROWS), copies it into a table of its own, models the copy as it holds it (converting in place, as an upload
+ * is), and says what it froze and what reads it.
  */
 export interface HostSnapTarget {
-  /** Freeze `pull` (the live source's every column, as Pure) into the host's copy: its count, and the pull's receipt. */
-  snap(pull: Lambda): Promise<{ readonly rowCount: number; readonly pulledBy?: Receipt }>;
-  /** The copy dropped. */
-  release(): Promise<void>;
-  /** The table the copy is (the live table's own name, which the model declares), and the relation that reads it. */
+  /**
+   * Freeze `pull` (the base query's every column, as Pure) into a copy of its own in the host's database: its count, the
+   * pull's receipt, the copy's table and the relation that reads it (the host's model of what the copy holds).
+   */
+  snap(pull: Lambda): Promise<HostFrozen>;
+  /** That copy dropped, by its table. */
+  release(table: string): Promise<void>;
+  /** Whose database the copy is in, as a person reads it: `Python`. */
+  readonly store: string;
+}
+
+/** What a host froze (HostSnapTarget.snap): the copy, its own table, and what reads it. */
+export interface HostFrozen {
+  readonly rowCount: number;
+  readonly pulledBy?: Receipt;
   readonly table: string;
   readonly schema?: string;
   readonly source: ValueSpecification;
-  /** Whose database the copy is in, as a person reads it: `Python`. */
-  readonly store: string;
 }
 
 /** The states SnapManager keeps, for a copy its host keeps (HostSnapTarget). */
@@ -442,7 +435,7 @@ export class HostSnaps implements Snaps {
     }
     if (this.#closed) {
       // the grid closed while the copy was made: it holds none
-      await this.#target.release();
+      await this.#target.release(frozen.table);
       throw new Error('the grid was closed while its snap was made');
     }
     const takenAt = new Date();
@@ -451,9 +444,9 @@ export class HostSnaps implements Snaps {
       label: label ?? defaultLabel(takenAt),
       takenAt,
       rowCount: frozen.rowCount,
-      table: this.#target.table,
-      ...(this.#target.schema ? { schema: this.#target.schema } : {}),
-      source: this.#target.source,
+      table: frozen.table,
+      ...(frozen.schema ? { schema: frozen.schema } : {}),
+      source: frozen.source,
       store: this.#target.store,
     };
     this.#state = { mode: 'snapped', snap };
@@ -476,8 +469,8 @@ export class HostSnaps implements Snaps {
     this.#state = { mode: 'snapped', snap };
   }
 
-  async discard(_snap: SnapInfo): Promise<void> {
-    await this.#target.release();
+  async discard(snap: SnapInfo): Promise<void> {
+    await this.#target.release(snap.table);
   }
 
   /** The grid is gone: the copy it holds let go, and one a snap in flight makes let go once it is made. */

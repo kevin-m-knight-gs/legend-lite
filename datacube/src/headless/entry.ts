@@ -10,7 +10,7 @@ import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.t
 import {
   gridApply, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView,
 } from './grid.ts';
-import { forget, ingest, mount, remoteAccess } from './data-in.ts';
+import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelNames } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import { nameGiven, pageApply, pageFilter, pageNew, pageRead } from './page.ts';
@@ -29,7 +29,7 @@ export { gridApply, gridCalculate, gridChart, gridClass, gridCube, gridExport, g
 /** Data in (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.3): a file read into the host's database by upload.ts, its
  *  table dropped again, and a remote file mounted as a view (its extensions and keys put in place first, where the host
  *  checks what it names). */
-export { forget, ingest, mount, remoteAccess };
+export { forget, ingest, landed, mount, remoteAccess };
 
 /** The page's model as DataCube names it, and a class's key's facts (B4): what Python asks beside the generic library.
  *  (The model a page keeps for the cubes it still holds is the page commands' rule: pageApply.) */
