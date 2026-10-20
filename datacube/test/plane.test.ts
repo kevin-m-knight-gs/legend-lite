@@ -628,6 +628,17 @@ describe('a copy the page\'s other editor made (Python\'s grid.snap(): docs/DATA
     assert.deepEqual(f.released, [], 'handed to the page\'s other editor: its to let go');
   });
 
+  it('its tab going asks its own copy to be let go (its host keeps one a page in Python reads), never an adopted one', async () => {
+    const own = following();
+    await own.c.snap(SNAPSHOT, 'mine');
+    own.c.leaving();
+    assert.deepEqual(own.released, ['snap_5']);
+    const adopted = following();
+    await adopted.c.adopt(TAKEN, SNAPSHOT.source.query);
+    adopted.c.leaving();
+    assert.deepEqual(adopted.released, [], 'the other editor\'s to let go');
+  });
+
   it('a host whose copies only this page makes refuses another editor\'s, in words', async () => {
     const f = following(false);
     await assert.rejects(f.c.adopt(TAKEN, SNAPSHOT.source.query), /reads no copy its host makes/);

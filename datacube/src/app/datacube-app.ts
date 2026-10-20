@@ -599,6 +599,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     };
     window.addEventListener('beforeunload', onLeave);
     undo.push(() => window.removeEventListener('beforeunload', onLeave));
+    // the tab going (closed, navigated away): each copy its grids' host keeps for them asked to be let go -- the host
+    // keeps one its page's other editor reads (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
+    const onGone = (): void => {
+      for (const cube of madeCubes.values()) cube.leaving();
+    };
+    window.addEventListener('pagehide', onGone);
+    undo.push(() => window.removeEventListener('pagehide', onGone));
 
     // THE PAGE ANOTHER EDITOR SERVES (services.live: Python's `ll.Page`, §5): what it is now, reported once a change
     // settles, with the version it opened -- what it says of a version Python has since replaced is refused, never read

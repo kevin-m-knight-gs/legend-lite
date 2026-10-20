@@ -3024,6 +3024,11 @@ export class CubeApp {
     this.#emit('plane');
   }
 
+  /** Its page is going (its tab closed): a copy its host keeps for it asked to be let go, not waited on (§18.8). */
+  leaving(): void {
+    this.#controller.leaving();
+  }
+
   /** The plane moved by its page: the grid run again where its rows now are, its toggle saying so, its page told. */
   async #planeMoved(): Promise<void> {
     await this.#owner.refresh();

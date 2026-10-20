@@ -434,11 +434,13 @@ function pythonModelHome(link: PythonLink, where: string, apps: readonly string[
 }
 
 /** A call carrying JSON to Python: its answer's text, or -- refused -- Python's reason. */
-async function posted(link: PythonLink, path: string, body: unknown): Promise<string> {
+async function posted(link: PythonLink, path: string, body: unknown, keepalive = false): Promise<string> {
   const answer = await link.fetch(`${link.baseUrl}/${path}`, {
     method: 'POST',
     headers: { ...headers(link), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    // a request that outlives its page (a copy let go as the tab closes)
+    ...(keepalive ? { keepalive } : {}),
   }).catch((e: unknown) => { throw new Error(`the engine did not answer: ${String(e)}`); });
   const text = await answer.text();
   if (!answer.ok) throw new Error(text || `the engine answered ${answer.status}`);
@@ -475,7 +477,8 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
     ...(offers.files ? {
       snap: async (model: string, runtime: string, pull: Lambda) =>
         JSON.parse(await posted(link, 'snap.json', { op: 'snap', model, runtime, pull: toJson(pull) })) as HostCopy,
-      release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }); },
+      // sent to outlive the tab: a grid's copy is let go as its tab closes (§18.8)
+      release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }, true); },
       // a copy Python made for its page (grid.snap(), §18.8): what the page follows the snap command with
       held: async (table: string) =>
         JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as InferredModel & { readonly table: string },

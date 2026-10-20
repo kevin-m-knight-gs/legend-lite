@@ -403,6 +403,9 @@ class Engine:
         # the copy go (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) -- finds it gone, never another grid's copy
         self._released: set[str] = set()
         self._copies_made = 0
+        # the copies a page in Python reads (its own grid.snap(), or a tab's snap its page.read() took): Python lets them
+        # go (release_copy); a tab's release of one -- its grid closed, gone live, the tab gone -- keeps it (§18.8)
+        self._claimed: set[str] = set()
         self._warehouse_lock = threading.Lock()
         # the binding's calls on the compiler's threads, never a connection's (warehouse.set_library_thread)
         warehouse.set_library_thread(_on_compiler_threads)
@@ -919,8 +922,9 @@ class Engine:
         warehouse table this engine opened (C3; its HTTP on the caller's thread), else in the frames' database, over a
         model this engine serves (a frame's, a page's file's: on the compiler's threads, the frames held still). The
         answer: its count, the pull's receipt (a warehouse's), its table, and its model -- the one its queries are
-        planned over. ``{"op": "release", "table"}``: that copy dropped by DataCube's code and served no more; a table
-        that is no copy a snap made is refused. ``{"op": "held", "table"}``: a copy this engine holds, as it was made --
+        planned over. ``{"op": "release", "table"}``: that copy dropped by DataCube's code and served no more -- but one a
+        page in Python reads, kept (Python lets it go: §18.8), and one let go already, answered as let go; a table that
+        is no copy a snap made is refused. ``{"op": "held", "table"}``: a copy this engine holds, as it was made --
         its table and model -- for a page following a snap made in Python (the page's snap command names only its table:
         docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8); one it does not hold, 404. A refusal is its words; an expired
         session 401."""
@@ -1000,14 +1004,22 @@ class Engine:
             raise PermissionError(answer.body.decode('utf-8'))
         if answer.status != 200:
             raise ValueError(answer.body.decode('utf-8'))
-        return _json.loads(answer.body.decode('utf-8'))
+        made = _json.loads(answer.body.decode('utf-8'))
+        self.claim_copies([made['table']])
+        return made
 
     def release_copy(self, table: str) -> None:
         """A snap's copy let go of (Go Live, a snap taken again, its grid or page gone), as ``snap.json``'s release lets
         one go: dropped by DataCube's code, then served no more; refused in its words (ValueError)."""
-        answer = self._release_copy(table)
+        answer = self._release_copy(table, keep_claimed=False)
         if answer.status != 200:
             raise ValueError(answer.body.decode('utf-8'))
+
+    def claim_copies(self, tables: Iterable[str]) -> None:
+        """The copies a page in Python reads from now on (each one this engine holds): Python's to let go, a tab's release
+        of one keeping it."""
+        with self._warehouse_lock:
+            self._claimed.update(t for t in tables if t in self._copies)
 
     def copy_of(self, table: str) -> dict[str, Any] | None:
         """A snap's copy this engine holds, by its table: its model, runtime and relation (a grid snapped onto it reads
@@ -1015,14 +1027,18 @@ class Engine:
         with self._warehouse_lock:
             return self._copies.get(table)
 
-    def _release_copy(self, name: Any) -> Answer:
+    def _release_copy(self, name: Any, keep_claimed: bool = True) -> Answer:
         """A snap's copy let go of: dropped by DataCube's code, and only then served no more. One let go already is gone:
-        said as let go (the page's other editor let it go first)."""
+        said as let go (the page's other editor let it go first). A tab's release (``keep_claimed``) keeps one a page in
+        Python reads: Python lets that go."""
         with self._warehouse_lock:
             ours = isinstance(name, str) and name in self._copies
             gone = isinstance(name, str) and name in self._released
+            claimed = keep_claimed and isinstance(name, str) and name in self._claimed
         if gone:
             return Answer(200, 'application/json', b'{}')
+        if claimed:
+            return Answer(200, 'application/json', b'{"kept": "a page in Python reads it: Python lets it go"}')
         if not ours:
             return _said(404, f'{name!r} is no copy a snap of this engine made')
         assert self._headless is not None
@@ -1037,6 +1053,7 @@ class Engine:
             return _said(422, f'{type(failure).__name__}: {failure}')
         with self._warehouse_lock:
             self._copies.pop(name, None)
+            self._claimed.discard(name)
             self._released.add(name)
         return Answer(200, 'application/json', b'{}')
 

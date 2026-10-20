@@ -833,6 +833,12 @@ export class CubeController {
     this.#letCopyGo();
   }
 
+  /** The page is going: a copy its host keeps for this grid asked to be let go (HostSnaps.leaving); the tab's own goes
+   *  with the tab. */
+  leaving(): void {
+    if (this.#snaps instanceof HostSnaps) this.#snaps.leaving();
+  }
+
   /** The copy it reads, when it is `table`, handed to the page's other editor: kept when this grid lets go of it. */
   handOver(table: string): void {
     if (this.#snaps instanceof HostSnaps) this.#snaps.handOver(table);

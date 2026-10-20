@@ -1263,3 +1263,11 @@ release (a closing grid's, after Python let the copy go) never drops another gri
 (the tab's `?snap=1`, the widget's `snap`): the grid snaps as its page opens the frame (CubeApp.snapRows), and reads
 its copy until its Go Live -- shown again it is not snapped again.
 
+**As built, step C (2026-10-20).** A copy a page in Python reads is Python's: made by its `grid.snap()`, or a tab's
+snap its `page.read()` took (Engine.claim_copies). A tab's release of one -- its grid closed, gone live, the tab gone --
+keeps it (`snap.json` answers `{"kept"}`); Python lets it go when its page no longer reads it (`Page._release`, forced:
+Engine.release_copy) or when the page is collected (a finalizer hands its copies to the session, which lets them go at
+its next safe moment -- a page's change, a cell's end -- never inside the collector). A tab going (`pagehide`) asks
+each copy its grids made to be let go, sent to outlive the tab (`keepalive`); a copy in the tab's own DuckDB goes with
+the tab. A saved page opens live, each snapped grid said, in the tab (step B's openSaved) and in Python (`Page.load`).
+

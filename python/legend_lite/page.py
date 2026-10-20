@@ -34,6 +34,7 @@ import math
 import numbers
 import uuid
 import warnings
+import weakref
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
@@ -852,12 +853,18 @@ class Page:
         self._session = _current()
         if not isinstance(name, str):
             raise ValueError(f"a page's name is a name, not {name!r}")
+        # the copies its document says its grids read (kept by the `_doc` setter), and those it let go of and the engine
+        # has yet to drop: let go by the session when the page is collected (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+        # §18.8: a copy belongs to its grid on its page)
+        self._reads: set[str] = set()
+        self._let_go: list[str] = []
+        weakref.finalize(self, _orphaned, self._session, self._reads, self._let_go)
         # the page: its one copy, started as DataCube starts a page (headless pageNew: its name by DataCube's rule, no
         # grid yet, its one sheet an empty board)
         said = json.loads(self._session.headless().call('pageNew', name))
         if 'problems' in said:
             raise ValueError("a page's name: " + '; '.join(said['problems']))
-        self._doc: dict[str, Any] = _plain(_json.loads(said['page']))
+        self._doc = _plain(_json.loads(said['page']))
         # every grid command DataCube applied for this page's grids, in order, as the screen would have built them
         self._commands: list[dict[str, Any]] = []
         # every page command DataCube applied to this page, in order, as applied (page-commands.ts)
@@ -875,9 +882,19 @@ class Page:
         self._quiet = 0
         # the saved page it was last saved as (``save()``): its id, or None
         self._saved: str | None = None
-        # the copies its grids no longer read (a grid gone live, snapped again or removed), each its table: let go once
-        # the page is served without them (_changed), so a page open on it never reads one gone
-        self._let_go: list[str] = []
+        # (`_let_go`, above: the copies its grids no longer read -- a grid gone live, snapped again or removed -- each its
+        # table, let go once the page is served without them (_changed), so a page open on it never reads one gone)
+
+    @property
+    def _doc(self) -> dict[str, Any]:
+        """The page's document: its one copy."""
+        return self._document
+
+    @_doc.setter
+    def _doc(self, doc: dict[str, Any]) -> None:
+        self._document = doc
+        self._reads.clear()
+        self._reads.update(c['table'] for c in doc.get('copies', {}).values())
 
     # -- the page's model (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): its classes, into a project ----------------------
 
@@ -1324,6 +1341,8 @@ class Page:
             self._let_go.extend(c['table'] for c in self._doc.get('copies', {}).values() if c['table'] not in reads)
             self._doc = doc
             self._ids |= _ids(doc)
+            # its copies Python's to let go from now on: a tab's release of one keeps it
+            self._session.engine().claim_copies(self._reads)
             # the page as one open view said it is: another view may not have that view's changes, so Python's next change
             # is served whole, every view opening it again (the phase 3 audit's 5)
             self._unnoted()
@@ -1365,7 +1384,10 @@ class Page:
     def _release(self) -> None:
         """The copies its grids no longer read let go of by the engine that made them (§18.8: a copy belongs to its
         grid on its page); one the engine could not drop said, and kept to let go again."""
-        gone, self._let_go = self._let_go, []
+        # the session's orphans first: copies of pages collected since
+        self._session.release_orphans()
+        gone = list(self._let_go)
+        self._let_go.clear()
         for table in gone:
             if self._session.copy_of(table) is None:
                 # let go already: by the open page that made it (its own Go Live), or never held by this session
@@ -1550,6 +1572,12 @@ class Page:
 
     def __repr__(self) -> str:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'
+
+
+def _orphaned(session: Any, reads: set[str], let_go: list[str]) -> None:
+    """A page collected: the copies it read, and those it let go of that its engine has yet to drop, the session's to let
+    go at its next safe moment (``release_orphans``: never here, where the collector may have stopped any thread)."""
+    session.orphans.extend([*reads, *let_go])
 
 
 def _ids(doc: dict[str, Any]) -> set[str]:

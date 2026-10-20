@@ -174,6 +174,8 @@ class _Session:
         self._hooked = False
         # a cube was opened in a browser: a person is looking, so a plain script's end keeps the engine for them
         self.opened = False
+        # the snaps' copies of pages collected (page.py _orphaned), let go at the next safe moment (release_orphans)
+        self.orphans: list[str] = []
 
     def engine(self) -> Engine:
         with self._lock:
@@ -203,6 +205,21 @@ class _Session:
         registering takes before the frames', only the engine's own."""
         engine = self._engine
         return None if engine is None else engine.copy_of(table)
+
+    def release_orphans(self) -> None:
+        """The copies of pages collected since (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), let go by the engine
+        holding them -- one let go already passed by. Called where nothing is held but, at most, the session's lock: a
+        page's change, a cell's end."""
+        engine = self._engine
+        while self.orphans:
+            table = self.orphans.pop()
+            if engine is None or engine.copy_of(table) is None:
+                continue
+            try:
+                engine.release_copy(table)
+            except ValueError:
+                # its drop failed: it stays served, as any copy whose drop failed
+                pass
 
     def web(self) -> WebServer:
         """The engine over HTTP, for the tabs: started by the first."""
@@ -263,6 +280,8 @@ class _Session:
         """A notebook cell (or an IPython command) has run: each cube, and each frame of a page shown, read at each query
         (a stream's, read once, never changes), queries again, so a change shows."""
         with self._lock:
+            # the copies of pages collected meanwhile (a cell made its page again): let go
+            self.release_orphans()
             for key, cube in list(self.cubes.items()):
                 cube._after_cell()
                 if self._engine is not None and key in self.frames and self.frames[key].live:

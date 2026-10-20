@@ -708,6 +708,26 @@ try {
     console.log(`  the tab showed: ${(await snappedTab.evaluate(() => document.body.innerText)).slice(0, 400)}`);
     failed = true;
   }
+  // the tab gone (navigated away): the copy it made let go in Python (§18.8), as the copies the page tab's grids made
+  // and Python's page read stay Python's
+  const held = async () => {
+    engine.stdin.write('copies-held\n');
+    const line = await nextLine();
+    if (!line.startsWith('done copies-held ')) throw new Error(`the engine did not say its copies: ${line}`);
+    return JSON.parse(line.slice('done copies-held '.length));
+  };
+  const heldBefore = await held();
+  await snappedTab.goto('about:blank');
+  const heldAfter = await (async () => {
+    for (let tries = 0; tries < 20; tries += 1) {
+      const now = await held();
+      if (now.length < heldBefore.length) return now;
+      await new Promise((done) => { setTimeout(done, 500); });
+    }
+    return undefined;
+  })();
+  console.log(`${heldAfter ? 'ok  ' : 'FAIL'} a tab gone lets the copy it made go in Python (${heldBefore.join(', ')} -> ${heldAfter?.join(', ') ?? 'kept'})`);
+  if (!heldAfter) failed = true;
   await snappedTab.close();
 
   // EVERY PAGE PYTHON WRITES IS ONE DATACUBE READS: pages built with each kind of edit Python makes, one with a frozen

@@ -7,6 +7,7 @@ and read back into the same page as the open page says it is."""
 
 import copy
 import datetime
+import gc
 import json
 import os
 import tempfile
@@ -1306,6 +1307,7 @@ class Snapped(Paged):
     go; a page saved snapped loads live and says so."""
 
     get = Live.get
+    said = Live.said
 
     def moving(self):
         """A live frame whose rows are moved between queries: a function, read at each query."""
@@ -1450,6 +1452,50 @@ class Snapped(Paged):
         self.assertEqual(joined.snapped['rowCount'], 3)
         state['df'] = trades().iloc[:1]
         self.assertEqual((len(joined.to_pandas()), len(mine.to_pandas())), (3, 1))
+
+    def test_a_copy_a_page_in_python_reads_is_pythons_to_let_go_and_goes_with_the_page(self):
+        # a tab's release (its grid closed, gone live, the tab gone) keeps a copy Python's page reads
+        engine = datacube._session.engine()
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades')
+        grid.snap()
+        said = engine.answer('POST', '/snap.json', '', json.dumps({'op': 'release', 'table': 'snap'}))
+        self.assertEqual((said.status, json.loads(said.body)), (200, {'kept': 'a page in Python reads it: Python lets it go'}))
+        self.assertTrue(self.held('snap'))
+        # the page collected (a cell made it again): its copies let go at the session's next safe moment
+        del page, grid
+        gc.collect()
+        self.assertTrue(self.held('snap'), 'never in the collector')
+        ll.Page('Another').grid(desks(), name='desks')
+        self.assertFalse(self.held('snap'), 'let go at the next page change')
+
+    def test_a_tabs_snap_that_page_read_takes_in_is_pythons_from_then_on(self):
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades')
+        tab = ll.show(page, browser=False)
+        try:
+            engine = datacube._session.engine()
+            # the tab's Snap: a copy it asked Python for, and the page it reports with it (as its grid's copy)
+            engine_h, frames = datacube._session.headless(), datacube._session.frames
+            with frames.serving():
+                spec = grid._spec(engine_h, frames, live=True)
+                pull = engine_h.call('gridSnapPull', spec)
+            made = json.loads(engine.answer('POST', '/snap.json', '', json.dumps(
+                {'op': 'snap', 'model': spec['model'], 'runtime': spec['runtime'], 'pull': pull})).body)
+            doc = page.to_dict()
+            doc['copies'] = {grid._view['cube']: {'table': made['table'], 'label': 'Snap 14:02',
+                                                  'takenAt': '2026-10-20T14:02:00.000Z', 'rowCount': made['rowCount']}}
+            self.assertEqual(self.said(page, doc), 204)
+            page.read()
+            self.assertEqual(grid.snapped['table'], made['table'])
+            self.assertEqual(len(grid.to_pandas()), 3, 'its copy, read in Python')
+            # Python's now: the tab's release keeps it; Python's live lets it go
+            released = engine.answer('POST', '/snap.json', '', json.dumps({'op': 'release', 'table': made['table']}))
+            self.assertIn(b'kept', released.body)
+            grid.live()
+            self.assertFalse(self.held(made['table']))
+        finally:
+            tab.close()
 
     def test_shown_a_snap_and_going_live_are_served_as_the_pages_commands(self):
         page = ll.Page('Snaps')

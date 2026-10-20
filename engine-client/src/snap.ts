@@ -520,6 +520,16 @@ export class HostSnaps implements Snaps {
     await this.#target.release(snap.table);
   }
 
+  /**
+   * The page is going (its tab closed, navigated away): the copy the grid made asked to be let go -- its host keeps it
+   * when its page's other editor reads it -- without waiting, as nothing here is left to wait. An adopted copy is its
+   * maker's to let go.
+   */
+  leaving(): void {
+    if (this.#state.mode !== 'snapped' || this.adopted) return;
+    void this.#target.release(this.#state.snap.table).catch(() => undefined);
+  }
+
   /** The grid is gone: the copy it holds let go, and one a snap in flight makes let go once it is made. */
   async close(): Promise<void> {
     this.#closed = true;

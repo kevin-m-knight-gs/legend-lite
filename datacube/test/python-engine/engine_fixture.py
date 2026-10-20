@@ -9,7 +9,8 @@ frame a row more), `py-page` (a page built with ll.Page and shown; answered `don
 then by region, in Python), `py-page-rename` and `py-page-name-back` (it renamed in Python, and named back),
 `py-page-snap`, `py-page-more` and `py-page-live` (its first grid snapped in Python, its frame a LATAM row more, the grid
 live again), `py-page-copies` (answered `done py-page-copies <each grid's snapped, as page.read() says it, as JSON>`),
-`show-snapped` (a frame shown with snap=True; answered `done show-snapped <its link as JSON>`),
+`show-snapped` (a frame shown with snap=True; answered `done show-snapped <its link as JSON>`), `copies-held`
+(answered `done copies-held <the copies Python's engine holds, as JSON>`),
 `widget-page-sheet` (a sheet added to the notebook's page),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
@@ -247,6 +248,9 @@ def main() -> None:
                 with contextlib.redirect_stdout(io.StringIO()):
                     once = ll.show(frame.slice(0, 4), name='snapped', browser=False, snap=True)
                 command = f'show-snapped {json.dumps(once.url)}'
+            elif command == 'copies-held':
+                # the snaps' copies Python's engine holds, by table
+                command = f'copies-held {json.dumps(sorted(datacube._session.engine()._copies))}'
             elif command == 'py-page-save':
                 # saved into this user's saved pages, as DataCube's Save keeps a page (B6): Open… lists it
                 command = f'py-page-save {json.dumps(pypage.save())}'
