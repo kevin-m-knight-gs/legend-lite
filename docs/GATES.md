@@ -11947,6 +11947,23 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the hundred-and-fifth landing — durations ordered as Neo4j measures
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.96.
+- **What it fixes:** the hundred-and-third landing read every comparison of two durations as null. The local Neo4j
+  2026.09.0 answers `<=` and `>=` of two equal durations true (null when they differ); `<` and `>` are null. The
+  translator now spells that rule.
+- **The cases:** five lite cases, their answers snapped from that server (`tools/neo4j-oracle/snap.sh --write
+  --only ...`), cover:
+  - a variable-length map that ends a chain at the hop it excludes, zero length included;
+  - a fixed length with a map;
+  - the four operators over equal and unequal durations;
+  - lists of durations;
+  - `+`-signed years in date-time texts.
+- **Measured** (each lane in update mode, the Postgres lane writing its own column): 5062 → 5067 cases; DuckDB and
+  Postgres PASS 4250 → 4255, REFUSED 38; native PASS 4280 → 4285, REFUSED 8; nothing else moved.
+  `//core:guardrails`, `//core:core_tests_protocol` and `//core:census` are green.
+
 ## 2026-10-20 — writes: the hundred-and-fourth landing — a count answer over execute refused before it runs
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 7.
@@ -11967,7 +11984,8 @@ Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.96.
 - **What it closes:**
   - a property map on a variable-length relationship holds of each relationship walked;
-  - two durations compared answer null (durations do not order);
+  - two durations compared answer null (durations do not order; `<=` and `>=` of two equal ones are true, measured
+    and fixed in the hundred-and-fifth landing);
   - a `+`-signed four-digit year in a date text is that year.
 - **Measured** (each lane in update mode): the domain lanes PASS 4247 → 4250, REFUSED 41 → 38; the native lane PASS
   4277 → 4280, REFUSED 11 → 8; nothing else moved. The native lane refuses only the TCK's two signed years and lite's

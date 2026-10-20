@@ -5813,13 +5813,23 @@ PASS 4276 → 4277, REFUSED 12 → 11 (the cycle; the untyped hop passed there a
 Three more were refusals of things Neo4j's own answers define, each now read as Neo4j answers:
 - `MATCH (a:A)-[:T*1..2 {w: 1}]->(x)`: a property map on a variable-length relationship holds of every relationship
   walked. Each relationship of an unrolled chain carries the map (a chain of length zero walks none).
-- `duration({days: 1}) < duration({days: 2})`: null. Durations do not order (a month is no fixed number of days), so
-  Neo4j answers null, as for values of different types; inside a list's comparison, a pair of unequal durations
-  decides null.
+- `duration({days: 1}) < duration({days: 2})`: null. Durations do not order (a month is no fixed number of days).
+  Measured on Neo4j 2026.09.0 with its local server: `<` and `>` are null, and `<=` and `>=` are true where the two
+  durations are equal and null otherwise (`duration({days: 1}) >= duration({days: 1})` is true;
+  `duration({days: 1}) <= duration({hours: 24})` is null, the two unequal). Inside a list's comparison, an equal
+  pair passes on to the next and an unequal one decides null. (The first reading, null for every operator, was
+  wrong for an equal pair under `<=` and `>=`, and the new cases caught it.)
 - `date('+2015-07-21')`: a year of four digits after `+` is that year, the text read without its sign. A longer
   signed year, beyond every database's calendar (Temporal10 [9], [10]), and a negative year stay refused by name.
 
 The lanes in update mode: the domain lanes PASS 4247 → 4250, REFUSED 41 → 38; the native lane PASS 4277 → 4280,
-REFUSED 11 → 8; nothing else moved. The native lane now refuses the TCK's two signed years and lite's six deliberate
+REFUSED 11 → 8; nothing else moved. Five lite cases, their answers snapped from that server, pin the readings:
+- a map holding of every hop, so a later hop it excludes ends the chain; zero length included
+  (`a_property_map_on_a_variable_length_holds_of_every_hop`);
+- a fixed length of two with a map (`a_property_map_on_a_fixed_variable_length`);
+- the four operators over equal and unequal durations (`durations_compared_by_each_operator`);
+- lists of durations compared (`lists_of_durations_compared`);
+- a `+`-signed year in a local date-time, a zoned date-time and a week date
+  (`signed_four_digit_years_in_date_time_texts`). The native lane now refuses the TCK's two signed years and lite's six deliberate
 pins: ORDER BY a node, ordering nested lists, a CASE choosing by `rand()`, `percentileCont` over integers, a time's
 named-zone component, and a printed text parsed after a WITH.

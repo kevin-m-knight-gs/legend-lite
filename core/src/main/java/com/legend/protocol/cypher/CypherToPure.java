@@ -10513,8 +10513,12 @@ public final class CypherToPure {
                     + " (null in Neo4j) is not supported yet", pos);
         }
         if (l.kind() == Kind.DURATION) {
-            // null in Neo4j: durations do not order (a month is no fixed number of days)
-            return SqlToPure.nullOf(Kind.BOOLEAN);
+            // durations do not order (a month is no fixed number of days): < and > are null in Neo4j, <= and >= true
+            // where the two are equal and null otherwise (measured, Neo4j 2026.09.0)
+            if (op == BinaryOp.LT || op == BinaryOp.GT) {
+                return SqlToPure.nullOf(Kind.BOOLEAN);
+            }
+            return Tx.condition(equal(l, r, pos).vs(), new CBoolean(false), true);
         }
         SqlAst.BinaryOp sqlOp = switch (op) {
             case LT -> SqlAst.BinaryOp.LT;
