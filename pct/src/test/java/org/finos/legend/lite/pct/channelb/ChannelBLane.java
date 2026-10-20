@@ -57,12 +57,20 @@ final class ChannelBLane {
             // and 87 -> 91 (2026-10-12, the user's ask): a quoted literal typed for to_jsonb, Levenshtein and
             // Jaro-Winkler as recursive walks (no extension). 327 -> 329, its wire bugs 2 -> 1 (2026-10-12, the user's
             // ask): the ordered list aggregate typed as a list (array_agg here)
+            // 2026-10-20, as measured at the branch head (object identity and the plan-route parity work: the
+            // canon's key fields typed, an empty list arm of a coalesce typed by its siblings, the zip/put decodes):
+            // Essential 329 -> 330, Relation 465 -> 467, Standard 204 -> 205, Unclassified 91 -> 92
             "postgres", Map.of(
-                    "Essential", new Pins(329, 1, 0),
-                    "Grammar", new Pins(132, 3, 0),
-                    "Relation", new Pins(465, 2, 0),
-                    "Standard", new Pins(204, 1, 0),
-                    "Unclassified", new Pins(91, 0, 0)),
+                    "Essential", new Pins(330, 1, 0),
+                    // wire bugs 3 -> 5 (2026-10-20, object identity, docs/OBJECT_IDENTITY_2026_10_20.md, measured at
+                    // the branch head): channel A now passes eq's and equal's testEqVarIdentity and testEqNonPrimitive
+                    // pairs, which channel B's legacy route still refuses on Postgres ("a list transform of unknown
+                    // result type": its verdict lane's canon rider) -- they failed on both before, so the pass floor
+                    // holds; the judges move to plans in the plan path program's step 10, the home of that route
+                    "Grammar", new Pins(132, 5, 0),
+                    "Relation", new Pins(467, 2, 0),
+                    "Standard", new Pins(205, 1, 0),
+                    "Unclassified", new Pins(92, 0, 0)),
             // no engine manifest for SQLite: every wire bug is a true one (10 of Relation's 12 a regular expression
             // with a non-literal pattern, 2 a pivot's column order)
             "sqlite", Map.of(

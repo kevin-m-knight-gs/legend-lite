@@ -413,6 +413,12 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** The empty collection where a list goes: a NULL of no type (the IR's Bottom), compacted or not, or one of the
      *  calls above over it, which the IR types Bottom too. */
+    /** The empty list literal, typed or not. */
+    private static boolean emptyListLiteral(SqlExpr e) {
+        SqlExpr v = e instanceof SqlExpr.Cast c && c.target() instanceof SqlType.Array ? c.value() : e;
+        return v instanceof SqlExpr.ArrayLit a && a.elements().isEmpty();
+    }
+
     private static boolean emptyCollection(SqlExpr e) {
         if (e instanceof SqlExpr.CompactList k) {
             return emptyCollection(k.list());
@@ -716,7 +722,18 @@ public final class Postgres extends AnsiSqlRenderer {
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
             case CHR -> writer.function("chr", c.args());
-            case COALESCE -> writer.function("coalesce", c.args());
+            // an empty list arm takes another arm's type ('{}', which Postgres resolves against them): a list's type
+            // is no SQL type alone here, json[] and jsonb[] both a list of JSON (an equality canon's key texts are
+            // json, a list of JSON values jsonb: 2026-10-20, testEqualNonPrimitive)
+            case COALESCE -> c.args().stream().anyMatch(x -> !emptyListLiteral(x))
+                    ? writer.append("coalesce(").join(c.args(), ", ", (w, x) -> {
+                        if (emptyListLiteral(x)) {
+                            w.append("'{}'");
+                        } else {
+                            w.expr(x, 0);
+                        }
+                    }).append(")")
+                    : writer.function("coalesce", c.args());
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
             case COT -> writer.function("cot", c.args());
