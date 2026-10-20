@@ -54,9 +54,9 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).
-            one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
-            one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
-            one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
+            // NOTE 2026-10-20 (the user's rule: as many tests as possible without hacks): testFold, testFoldFiltering
+            // and testFoldToMany pass -- the grammar printer printed a copy with updated properties without the values
+            // (copy('', lastName)); the adapter prints it itself (CopyWithUpdate, pct_adapter.pure).
 
             // RELATIONAL substring is the engine's VERBATIM 1-based SQL
             // passthrough (testFilterUsingParseIntegerFunction golden +

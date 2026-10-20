@@ -40,9 +40,10 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             // erased before the wire. Struct comparison says true where identity
             // says false. The reference adapter family limitation.
             one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
+            // NOTE 2026-10-20 (the user's rule: as many tests as possible without hacks): testEqualNonPrimitive,
+            // testEqPrimitiveExtension and testEqualPrimitiveExtension pass -- the model the adapter hands over keeps
+            // <<equality.Key>> and the test's own Primitive (ModelPacker), and the plan's lowering compares a keyed
+            // class by its keys (Lowerer.withInstanceKeys on the plan path, D91; only the legacy executor armed it).
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             // testFirstComplex: nested-struct reconstruction now REBUILDS
             // the CO_Person correctly (classPropertyTypeOf); the assert

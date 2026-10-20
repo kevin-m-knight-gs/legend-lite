@@ -811,9 +811,11 @@ public final class Compiler {
         if (relationalRootForm) {
             body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
         }
+        // D91: equal() over keyed instances is the key relation on every lane
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations());
+                f -> ctx.findClass(f).isPresent(), ctx.implementations())
+                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t));
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
         }

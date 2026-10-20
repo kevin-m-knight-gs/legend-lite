@@ -81,7 +81,12 @@ class PctDisciplineTest {
     // 2026-10-18, the DuckDB lane on the plan route (the plan path program's step 9): a Number-typed function's
     // value read by the wire header's type (value:Decimal[1]), where the text alone read a Decimal as a Float; the
     // Decimal arm reads a D the Number root spells (four lines); 557 -> 561.
-    private static final int ADAPTER_MAX_LINES = 561;
+    // 2026-10-20, the user's rule (as many tests as possible without hacks): legend-engine's grammar printer prints a
+    // copy with updated properties without the values (^$p(k = v) as copy('', k)), so the adapter prints it itself
+    // (the CopyWithUpdate marker, its print handler, its arms in the substitution, the roots walk and the
+    // closedness wall), and the substitution runs when nothing was captured too; testFold, testFoldFiltering,
+    // testFoldToMany; 561 -> 586.
+    private static final int ADAPTER_MAX_LINES = 586;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

@@ -119,9 +119,12 @@ public final class TypedQuery {
         Compiler.executesOn(ctx, runtime);
         CrossStoreGuard.check(b, ctx, runtime);
         TypedSpec root = b.get(b.size() - 1);
+        // D91: equal() over keyed instances is the key relation on every lane, the plan's too (2026-10-20: only
+        // the legacy executor armed it, so the plan compared every field of a keyed class)
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations());
+                f -> ctx.findClass(f).isPresent(), ctx.implementations())
+                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t));
         if (!temporalRoot) {
             planLw = planLw.withEngineExistsJoinForm();
         }

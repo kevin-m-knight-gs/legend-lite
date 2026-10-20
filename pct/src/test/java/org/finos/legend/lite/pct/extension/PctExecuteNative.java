@@ -130,8 +130,8 @@ public class PctExecuteNative extends NativeFunction {
             java.util.TreeMap<String, String> injection =
                     packer.injectionFromRoots(semanticRoots, processorSupport);
             StringBuilder defs = new StringBuilder();
-            // grouped enums → classes → functions (the E:/C:/F: keys)
-            for (String prefix : List.of("E:", "C:", "F:")) {
+            // grouped primitives → enums → classes → functions (the P:/E:/C:/F: keys)
+            for (String prefix : List.of("P:", "E:", "C:", "F:")) {
                 for (var en : injection.entrySet()) {
                     if (en.getKey().startsWith(prefix)) {
                         defs.append(en.getValue()).append("\n");

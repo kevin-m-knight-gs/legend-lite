@@ -182,10 +182,12 @@ final class ModelPacker {
      * produced it: {@code E:fqn} / {@code C:fqn} / {@code F:pkg::id}
      * → definition text. */
     private static java.util.TreeMap<String, String> canonicalInjection(
+            java.util.Map<String, String> primitives,
             java.util.Map<String, String> enums,
             java.util.Map<String, String> classes,
             java.util.Map<String, String> fns) {
         var out = new java.util.TreeMap<String, String>();
+        primitives.forEach((k, v) -> out.put("P:" + k, v));
         enums.forEach((k, v) -> out.put("E:" + k, v));
         classes.forEach((k, v) -> out.put("C:" + k, v));
         fns.forEach((k, v) -> out.put("F:" + k, v));
@@ -203,6 +205,7 @@ final class ModelPacker {
         java.util.Set<String> enums = new java.util.LinkedHashSet<>();
         var enumDefs = new java.util.LinkedHashMap<String, String>();
         var fnDefs = new java.util.LinkedHashMap<String, String>();
+        var primitiveDefs = new java.util.LinkedHashMap<String, String>();
         for (String fqn : roots) {
             if (fqn.startsWith("meta::pure::metamodel")
                     || fqn.startsWith("meta::pure::precisePrimitives")) {
@@ -221,6 +224,11 @@ final class ModelPacker {
                 if (com.legend.builtin.Pure.findNativeClass(fqn).isEmpty() && !com.legend.builtin.Prelude.classFqns().contains(fqn)) {
                     extractClassRecursive(fqn, classes, visited, enums, ps);
                 }
+            } else if (el != null && Instance.instanceOf(el,
+                    "meta::pure::metamodel::type::PrimitiveType", ps)) {
+                // a test's own primitive (Primitive ExtendedInteger extends Integer, 2026-10-20: never injected
+                // before, so a cast to it was an unknown type)
+                renderPrimitiveDef(fqn, el, primitiveDefs, ps);
             } else if (fqn.contains("::tests::")) {
                 sliceFunctionsNamed(fqn, fnDefs, ps);
             }
@@ -228,7 +236,7 @@ final class ModelPacker {
         for (String fqn : enums) {
             renderEnumDef(fqn, enumDefs, ps);
         }
-        return canonicalInjection(enumDefs, classes, fnDefs);
+        return canonicalInjection(primitiveDefs, enumDefs, classes, fnDefs);
     }
 
     // (extractClassMetadata — the regex-driven root discovery — is
@@ -324,7 +332,10 @@ final class ModelPacker {
                     typeRef = qualifiedTypeName;
                 }
             }
-            propertyLines.add(propName + ": " + typeRef + multiplicity);
+            // a key of the class's equality (<<equality.Key>>): its equal() compares its keys alone (2026-10-20:
+            // dropped before, so a keyed class compared every field)
+            propertyLines.add((equalityKey(prop, ps) ? "<<equality.Key>> " : "") + propName + ": " + typeRef
+                    + multiplicity);
         }
 
         // SUPERCLASSES ride along (concatenate's LUB is the common
@@ -360,6 +371,42 @@ final class ModelPacker {
         }
         sb.append("}");
         classes.put(fqn, sb.toString());
+    }
+
+    /** Whether {@code prop} carries the platform's {@code <<equality.Key>>} stereotype. */
+    private boolean equalityKey(CoreInstance prop, ProcessorSupport ps) {
+        for (CoreInstance st : Instance.getValueForMetaPropertyToManyResolved(prop, M3Properties.stereotypes, ps)) {
+            CoreInstance profile = Instance.getValueForMetaPropertyToOneResolved(st, M3Properties.profile, ps);
+            CoreInstance value = st.getValueForMetaPropertyToOne(M3Properties.value);
+            if (profile != null && "meta::pure::profiles::equality".equals(getQualifiedName(profile))
+                    && value != null && "Key".equals(PrimitiveUtilities.getStringValue(value))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A test's own primitive: {@code Primitive my::P extends Integer}. A parameterised one (a precise
+     *  primitive's {@code Varchar(x)} form) has no declaration here yet and is refused by name. */
+    private void renderPrimitiveDef(String fqn, CoreInstance el, Map<String, String> out, ProcessorSupport ps) {
+        if (!el.getValueForMetaPropertyToMany("typeVariables").isEmpty()) {
+            throw new UnsupportedOperationException("parameterised primitive '" + fqn + "' in test-model extraction");
+        }
+        List<String> supers = new ArrayList<>();
+        for (CoreInstance gen : Instance.getValueForMetaPropertyToManyResolved(el, M3Properties.generalizations, ps)) {
+            CoreInstance general = gen.getValueForMetaPropertyToOne(M3Properties.general);
+            CoreInstance raw = general == null ? null : general.getValueForMetaPropertyToOne(M3Properties.rawType);
+            if (raw != null) {
+                raw = org.finos.legend.pure.m3.navigation.importstub.ImportStub.withImportStubByPass(raw, ps);
+            }
+            String superFqn = raw == null ? null : getQualifiedName(raw);
+            if (superFqn == null) {
+                throw new UnsupportedOperationException("primitive '" + fqn + "' extends a type with no path");
+            }
+            String primitive = primitivePureName(superFqn);
+            supers.add(primitive != null ? primitive : superFqn);
+        }
+        out.put(fqn, "Primitive " + fqn + (supers.isEmpty() ? "" : " extends " + String.join(", ", supers)));
     }
 
     /** The Pure multiplicity print form: [1], [0..1], [*], [2..*]. */

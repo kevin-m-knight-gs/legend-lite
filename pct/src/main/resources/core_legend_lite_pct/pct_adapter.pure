@@ -13,6 +13,15 @@ Class meta::legend::lite::pct::CapturedInstance
   value: Any[1];
 }
 
+// Marker for a copy with updated properties (^$x(k = v), ^$x(k += v)): the grammar printer prints a copy's keys
+// without their values (copy('', k), legend-engine toPureGrammar.pure), so the adapter prints it itself
+// (2026-10-20; testFold, testFoldFiltering, testFoldToMany)
+Class meta::legend::lite::pct::CopyWithUpdate
+{
+  source: ValueSpecification[1];
+  keys: KeyExpression[*];
+}
+
 // Custom grammar extension for TDS and captured class instance serialization
 function meta::legend::lite::pct::legendLiteGrammarExtension():GrammarExtension[1]
 {
@@ -22,7 +31,12 @@ function meta::legend::lite::pct::legendLiteGrammarExtension():GrammarExtension[
             // Serialize TDS to #TDS\n...\n# format
             t:TDS<Any>[1]|'#TDS\n'+$t.csv+'\n#',
             // Serialize captured class instances to ^Class(prop=val) format
-            c:CapturedInstance[1]|$c.value->objectToGrammar()
+            c:CapturedInstance[1]|$c.value->objectToGrammar(),
+            // A copy with updated properties: ^$x(k = v, k2 += v2)
+            u:CopyWithUpdate[1]|'^' + $u.source->printValueSpecification(legendLiteGrammarConfiguration(), ^GContext(space=''))
+                + '(' + $u.keys->map(k | $k.key.values->toOne()->toString() + if($k.add == true, |' += ', |' = ')
+                    + $k.expression->printValueSpecification(legendLiteGrammarConfiguration(), ^GContext(space='')))->joinStrings(', ')
+                + ')'
           ]
     );
 }
@@ -100,7 +114,7 @@ function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration
 
 function <<access.private>> meta::legend::lite::pct::userTypeRoot(t:meta::pure::metamodel::type::Type[1]):String[*]
 {
-  if($t->instanceOf(Class) || $t->instanceOf(Enumeration),
+  if($t->instanceOf(Class) || $t->instanceOf(Enumeration) || $t->instanceOf(PrimitiveType),
     | let p = $t->elementToPath();
       // metamodel types and the adapter's OWN namespace (the
       // CapturedInstance marker) are never model dependencies
@@ -195,6 +209,7 @@ function <<access.private>> meta::legend::lite::pct::collectRoots(a:Any[1]):Stri
             c:Class<Any>[1]               | $c->userTypeRoot(),
             en:Enumeration<Any>[1]        | $en->userTypeRoot(),
             ci:CapturedInstance[1]        | $ci.value->instanceRoots(),
+            cu:CopyWithUpdate[1]          | $cu.source->collectRoots()->concatenate($cu.keys->map(k | $k.expression->collectRoots())),
             other:Any[1]                  | $other->instanceRoots();
           ])));,
     lf:LambdaFunction<Any>[1]   | $lf->lambdaRoots(),
@@ -221,15 +236,12 @@ function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<A
 {
   // Get captured variables from closure (variables from outer scope)
   let openVars = $f->openVariableValues();
-  
-  if ($openVars->isEmpty(),
-    | $f,
-    | // Substitute variables in expression sequence
-      let substitutedExprs = $f.expressionSequence->evaluateAndDeactivate()->map(e |
-        substituteInExpression($e, $openVars->toOne())
-      );
-      ^$f(expressionSequence = $substitutedExprs->cast(@ValueSpecification)->toOneMany());
+  // the walk runs with no captured variable too: it also rewrites a copy with updated properties (CopyWithUpdate)
+  let vars = if($openVars->isEmpty(), |newMap([]->cast(@Pair<String, Any>)), |$openVars->toOne());
+  let substitutedExprs = $f.expressionSequence->evaluateAndDeactivate()->map(e |
+    substituteInExpression($e, $vars)
   );
+  ^$f(expressionSequence = $substitutedExprs->cast(@ValueSpecification)->toOneMany());
 }
 
 // Recursively substitute variables in an expression
@@ -270,12 +282,23 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
           );
       );,
       
-    // Function expression - recursively substitute in parameters
+    // A copy with updated properties (^$x(k = v)): printed by the adapter (CopyWithUpdate), its source and each
+    // key's value substituted
     sfe:SimpleFunctionExpression[1] |
-      let substitutedParams = $sfe.parametersValues->evaluateAndDeactivate()->map(p |
-        substituteInExpression($p, $openVars)->cast(@ValueSpecification)
-      );
-      ^$sfe(parametersValues = $substitutedParams);,
+      let params = $sfe.parametersValues->evaluateAndDeactivate();
+      if($sfe.func.functionName == 'copy' && $params->size() == 3 && $params->at(2)->instanceOf(InstanceValue)
+            && $params->at(2)->cast(@InstanceValue).values->forAll(k | $k->instanceOf(KeyExpression)),
+        | ^InstanceValue(
+            genericType = ^GenericType(rawType = CopyWithUpdate),
+            multiplicity = PureOne,
+            values = ^CopyWithUpdate(
+              source = substituteInExpression($params->at(0), $openVars)->cast(@ValueSpecification),
+              keys = $params->at(2)->cast(@InstanceValue).values->cast(@KeyExpression)->map(k |
+                  ^$k(expression = substituteInExpression($k.expression, $openVars)->cast(@ValueSpecification)))));,
+        | let substitutedParams = $params->map(p |
+            substituteInExpression($p, $openVars)->cast(@ValueSpecification)
+          );
+          ^$sfe(parametersValues = $substitutedParams););,
       
     // Instance value - recursively substitute in nested values
     iv:InstanceValue[1] |
@@ -387,6 +410,8 @@ function <<access.private>> meta::legend::lite::pct::exprClosed(a:Any[1], bound:
       let checked = $iv.values->map(v | $v->match([
           vs:ValueSpecification[1]      | $vs->exprClosed($bound),
           fd:FunctionDefinition<Any>[1] | $fd->lambdaClosed($bound),
+          cu:CopyWithUpdate[1]          | $cu.source->exprClosed($bound)
+                                            && $cu.keys->forAll(k | $k.expression->exprClosed($bound)),
           other:Any[1]                  | true
         ]));
       true;,
