@@ -45,6 +45,17 @@ class SideOrdinalTest {
     }
 
     @Test
+    void aSideSortedByWhatItDoesNotOutputIsNumberedInsideItself() {
+        // the scan order's key (ScanOrder): a table's row ids, which no output carries
+        SqlSource.Table t = new SqlSource.Table("T", "t", List.of(A), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE);
+        SqlSelect sorted = SqlSelect.starOf(t).withOutputs(List.of(A))
+                .withOrderBy(List.of(new SqlSelect.SortKey(new SqlExpr.RowOrder("t"), true, null, null)));
+        String sql = new DuckDb().render(SideOrdinal.withOrdinal(sorted));
+        assertEquals(true, sql.startsWith("SELECT t.*, ROW_NUMBER() OVER (ORDER BY t.rowid"), sql);
+    }
+
+    @Test
     void aSideWhoseOrderThePlanDoesNotDefineIsNumberedWhereItIsRead() {
         SqlSelect grouped = SqlSelect.starOf(literal()).withOutputs(List.of(A)).withGroupBy(
                 List.of(SqlExpr.Column.of("t", A)));

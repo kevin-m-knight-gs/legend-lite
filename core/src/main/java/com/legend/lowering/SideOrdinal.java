@@ -55,7 +55,12 @@ final class SideOrdinal {
         }
         if (!s.orderBy().isEmpty()) {
             List<SqlSelect.SortKey> keys = outputKeys(s);
-            return keys == null ? null : numbered(s, keys);
+            if (keys != null) {
+                return numbered(s, keys);
+            }
+            // keys that are no output (the scan order's row ids, ScanOrder): numbered in the select itself, by its own
+            // sort expressions (a DISTINCT select would count the ordinal among its distinct columns)
+            return s.distinct() ? null : numberedInside(s);
         }
         if (s.distinct() || !s.groupBy().isEmpty() || s.having() != null || s.limit() != null
                 || s.offset() != null) {
@@ -129,6 +134,41 @@ final class SideOrdinal {
             }
         }
         return null;
+    }
+
+    /** {@code s} with {@code ROW_NUMBER() OVER (ORDER BY <its own sort keys>) AS __ord} among its projections: a star
+     *  frame's star qualified by each source it reads (MySQL and MariaDB take no bare star beside a column). */
+    private static @com.legend.base.Nullable SqlQuery numberedInside(SqlSelect s) {
+        List<SqlSelect.SortKey> keys = new ArrayList<>(s.orderBy().size());
+        for (SqlSelect.SortKey k : s.orderBy()) {
+            keys.add(new SqlSelect.SortKey(k.expr(), k.ascending(), k.nullOrder(), null));
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        if (s.projections().isEmpty()) {
+            List<String> aliases = new ArrayList<>();
+            if (!sourceAliases(s.from(), aliases)) {
+                return null;
+            }
+            for (String a : aliases) {
+                ps.add(new SqlSelect.Projection(new SqlExpr.Star(a), null, null));
+            }
+        } else {
+            ps.addAll(s.projections());
+        }
+        ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), ORD, ORD_OUT));
+        return s.withProjections(ps);
+    }
+
+    /** The aliases a star over {@code from} reads, left to right; false where one has none. */
+    private static boolean sourceAliases(SqlSource from, List<String> out) {
+        return switch (from) {
+            case SqlSource.Join j -> sourceAliases(j.left(), out) && sourceAliases(j.right(), out);
+            case SqlSource.Table t -> t.alias() != null && out.add(t.alias());
+            case SqlSource.Subselect sub -> sub.alias() != null && out.add(sub.alias());
+            case SqlSource.Values v -> v.alias() != null && out.add(v.alias());
+            default -> false;
+        };
     }
 
     /** {@code SELECT __o.*, ROW_NUMBER() OVER (ORDER BY keys) AS __ord FROM (q) __o}. */
