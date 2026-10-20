@@ -86,7 +86,7 @@ describe('an older part of a page is refused in words, never read', () => {
   });
 
   it('a page of a newer version', () => {
-    assert.throws(() => readPage({ ...page(), version: 99 }), /written by a newer version \(99 > 5\); upgrade to open it/);
+    assert.throws(() => readPage({ ...page(), version: 99 }), /written by a newer version \(99 > 6\); upgrade to open it/);
   });
 
   it('a cube of an older version inside a current page', () => {

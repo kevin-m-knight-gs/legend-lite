@@ -365,7 +365,7 @@ export function pageSources(d: SourcesOf): PageSources {
    * The files read in for grids not made yet, by their hash: a saved page makes its grids once all its sources are open,
    * and a join of them opens before -- it reads the table a grid beside it read, never the file again.
    */
-  const readForGrids = new Map<string, string>();
+  const readForGrids = new Map<string, { readonly table: string; readonly file: File; readonly handle?: FileHandle }>();
 
   const madeGrid = (id: string, place: GridPlace): void => {
     // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it)
@@ -657,7 +657,7 @@ export function pageSources(d: SourcesOf): PageSources {
       const rows = services.engine.rows(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
       const columns = await sourceColumns(typer(rows), opened.source);
       const source = await fileSource(file, formatOf(file.name), columns, how.sample);
-      readForGrids.set(source.sha256, table);
+      readForGrids.set(source.sha256, { table, file, ...(how.handle ? { handle: how.handle } : {}) });
       const saved = how.saved;
       const r = rebuilt(saved, opened.source, columns, opened.fileName, how.capped === true);
       const notes = saved
@@ -680,7 +680,7 @@ export function pageSources(d: SourcesOf): PageSources {
         // never made into a grid: its planner's model let go, its table gone, and its name free again
         discard: () => {
           letGo(rows);
-          if (readForGrids.get(source.sha256) === table) readForGrids.delete(source.sha256);
+          if (readForGrids.get(source.sha256)?.table === table) readForGrids.delete(source.sha256);
           return forgetFile(file.name, table).catch(() => {}).finally(() => taken.delete(table));
         },
         make: gridMaker(r.snapshot, r.configuration, [], {
@@ -816,8 +816,10 @@ export function pageSources(d: SourcesOf): PageSources {
     const { openedJoin: opened } = await joinSources();
     return opened({
       local, database, services, fileFor, freshTable, joinRead, typer, letGo, gridMaker, rowsPlace,
-      tableOfFile: (sha) => [...tableFiles].find(([, f]) => f.sha256 === sha)?.[0] ?? readForGrids.get(sha)
-        ?? [...joinRead].find(([, r]) => r.sha256 === sha)?.[0],
+      readFile: (sha) => {
+        const open = [...tableFiles].find(([, f]) => f.sha256 === sha) ?? [...joinRead].find(([, r]) => r.sha256 === sha);
+        return open ? { table: open[0], file: open[1].file, ...(open[1].handle ? { handle: open[1].handle } : {}) } : readForGrids.get(sha);
+      },
       take: (t) => { taken.add(t); },
       untake: (t) => { taken.delete(t); },
       isTaken: (t) => taken.has(t),

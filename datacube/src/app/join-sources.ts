@@ -18,10 +18,10 @@ export interface JoinSourcesHost {
   readonly database: DatabaseService;
   readonly services: Services;
   /**
-   * The table a file is read into already: a grid's on the page, one read for a grid beside it as a page opens, or one
-   * read for another join (`joinRead`).
+   * The table a file is read into already, and that file: a grid's on the page, one read for a grid beside it as a page
+   * opens, or one read for another join (`joinRead`).
    */
-  tableOfFile(sha256: string): string | undefined;
+  readFile(sha256: string): { readonly table: string; readonly file: File; readonly handle?: FileHandle } | undefined;
   /** A saved cube's file got back (sources.ts fileFor): rebuilt, from the handle `page` kept, or asked for. */
   fileFor(src: FileSource, cube: string, page: string | undefined): Promise<{ file: File; handle?: FileHandle } | undefined>;
   /** A table name of the host's database no grid holds, taken; given back with `untake`, or taken as read with `take`. */
@@ -74,16 +74,18 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
     return { table: view };
   }
   if (leaf._type !== 'file') throw new Error(`a join reads files and remote files here; ${leaf.name} is neither`);
-  // the same file read already: its table, read once (one read for a join counts this one among its users)
-  const already = h.tableOfFile(leaf.sha256);
-  if (already !== undefined) {
-    const read = h.joinRead.get(already);
-    if (!read) return { table: already };
+  // the same file read already, under the name the page's model keeps for this leaf or with none kept: its table, read
+  // once (one read for a join counts this one among its users)
+  const already = h.readFile(leaf.sha256);
+  if (already !== undefined && (kept === undefined || already.table === kept)) {
+    const read = h.joinRead.get(already.table);
+    if (!read) return { table: already.table };
     read.users += 1;
-    return { table: already, held: true };
+    return { table: already.table, held: true };
   }
-  // rebuilt, read from where the page kept it, or asked for by its name
-  const got = await h.fileFor(leaf, name, page);
+  // read under the name kept for it -- the file given already (read under another name: a grid's own beside it), never
+  // asked for twice -- else rebuilt, read from where the page kept it, or asked for by its name
+  const got = already ?? await h.fileFor(leaf, name, page);
   if (!got) return undefined;
   const given = await sha256(await got.file.arrayBuffer());
   const note = given === leaf.sha256 ? undefined : `${got.file.name} is not the file "${name}" joined (its contents differ)`;

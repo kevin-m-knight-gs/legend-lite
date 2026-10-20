@@ -224,7 +224,7 @@ class Grid(Tile):
         the cube document DataCube writes, its open groups kept as the screen keeps them."""
         engine, frames = self._headless()
         with frames.serving():
-            said = json.loads(engine.call('gridApply', self._spec(frames), _json.dumps(commands)))
+            said = json.loads(engine.call('gridApply', self._spec(engine, frames), _json.dumps(commands)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         return self._kept(said, 4)
@@ -260,9 +260,11 @@ class Grid(Tile):
         session = self._page._session
         return session.headless(), session.frames
 
-    def _spec(self, frames: Any) -> dict[str, Any]:
-        """This grid's cube and its base, as the bundle's grid functions take them (the frames held still)."""
-        return _cube_spec(self._cube, frames, self._page._session.headless())
+    def _spec(self, engine: Any, frames: Any) -> dict[str, Any]:
+        """This grid's cube and its base, as the bundle's grid functions take them (the frames held still), asked of
+        ``engine`` -- got before the frames were held (``_headless``): getting it takes the session's lock, which a
+        frame's registering takes before the frames', so asking for it here, the frames held, could wait on it forever."""
+        return _cube_spec(self._cube, frames, engine)
 
     def view(self) -> GridView:
         """What the grid shows, as DataCube computes it: its columns and rows, their groups and totals, its pivot, and
@@ -275,7 +277,7 @@ class Grid(Tile):
         with frames.serving():
             # DataCube's cells are exact as it gives them (an Integer or a Float a number, a Decimal its text): read as
             # JSON reads them, an integer past 2^53 and a non-finite float from their tags
-            return GridView(cells(json.loads(engine.call('gridView', self._spec(frames)))))
+            return GridView(cells(json.loads(engine.call('gridView', self._spec(engine, frames)))))
 
     @property
     def relation(self) -> str:
@@ -284,7 +286,7 @@ class Grid(Tile):
         makes a class of."""
         engine, frames = self._headless()
         with frames.serving():
-            return engine.call('gridRelation', self._spec(frames))
+            return engine.call('gridRelation', self._spec(engine, frames))
 
     def to_pandas(self) -> Any:
         """Every row of ``relation``, as a pandas DataFrame: DataCube says the query, Python plans it over the grid's base
@@ -294,7 +296,7 @@ class Grid(Tile):
         from .frames import to_pandas
         engine, frames = self._headless()
         with frames.serving():
-            spec = self._spec(frames)
+            spec = self._spec(engine, frames)
             held = frames.model_for(spec['model'])
             if held is None:
                 raise ValueError(f'{self._cube["source"]["name"]}: its model reads a table this session does not serve')
@@ -312,7 +314,7 @@ class Grid(Tile):
         # named as the window names it: by its source's name (a frame's, a join's title)
         source = self._cube['source']['name']
         with frames.serving():
-            asked = _json.loads(engine.call('gridClass', self._spec(frames), {'source': source, 'page': self._page.name}))
+            asked = _json.loads(engine.call('gridClass', self._spec(engine, frames), {'source': source, 'page': self._page.name}))
         if 'refused' in asked:
             raise _NotATable(f'{source!r} cannot be a class: {asked["refused"]}')
         if 'problems' in asked:
@@ -332,7 +334,7 @@ class Grid(Tile):
         import base64
         engine, frames = self._headless()
         with frames.serving():
-            said = _json.loads(engine.call('gridExport', self._spec(frames), kind))
+            said = _json.loads(engine.call('gridExport', self._spec(engine, frames), kind))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         content: str | bytes = said['content'] if said['text'] else base64.b64decode(said['content'])
@@ -405,7 +407,7 @@ class Grid(Tile):
         self._page._current(self._view['cube'], 4)
         engine, frames = self._headless()
         with frames.serving():
-            said = json.loads(engine.call('gridFilter', self._spec(frames), _json.dumps(_given_filter(condition))))
+            said = json.loads(engine.call('gridFilter', self._spec(engine, frames), _json.dumps(_given_filter(condition))))
         if 'problems' in said:
             raise ValueError(f'{"; ".join(said["problems"])} -- in Python a condition is (column, operator) or '
                              '(column, operator, value), its value a list where the operator takes several')
@@ -431,7 +433,7 @@ class Grid(Tile):
         self._page._current(self._view['cube'], 4)
         engine, frames = self._headless()
         with frames.serving():
-            said = json.loads(engine.call('gridCalculate', self._spec(frames), name, f'x|{expression}', kind))
+            said = json.loads(engine.call('gridCalculate', self._spec(engine, frames), name, f'x|{expression}', kind))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         # the cube with it, as DataCube writes the editor's Apply: the column typed, the state folded

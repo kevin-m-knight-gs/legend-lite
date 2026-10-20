@@ -257,8 +257,12 @@ const BUDGET = 302_000;
  *  285,500 -> 290,000 (2026-10-20, the model plan's step 4, combining in prep -- the grid's note of the same date).
  *  Measured 289,795.
  *  290,000 -> 290,500 (2026-10-20, design §18 step 2, Snap by query -- the grid's note of the same date). Measured
- *  290,349. */
-const ENGINE_BUDGET = 290_500;
+ *  290,349.
+ *  290,500 -> 291,000 (2026-10-20, design §18 step 4, a class of any base: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+ *  §18.3): what a class is made over read at startup, before its window is fetched, so a grid that cannot be one is
+ *  refused in words there (query.ts classBasis, tablesOf: every table a grid's rows read, a join's each), and the page's
+ *  model keeping a list of tables per grid. Measured 290,648. */
+const ENGINE_BUDGET = 291_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -367,8 +371,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  303,000 -> 307,800 (2026-10-20, the model plan's step 4, combining in prep -- the grid's note of the same date).
  *  Measured 307,630.
  *  307,800 -> 308,300 (2026-10-20, design §18 step 2, Snap by query -- the grid's note of the same date). Measured
- *  308,163. */
-const WIDGET_BUDGET = 308_300;
+ *  308,163.
+ *  308,300 -> 308,800 (2026-10-20, design §18 step 4, a class of any base -- the engine page's note of the same date).
+ *  Measured 308,467. */
+const WIDGET_BUDGET = 308_800;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
