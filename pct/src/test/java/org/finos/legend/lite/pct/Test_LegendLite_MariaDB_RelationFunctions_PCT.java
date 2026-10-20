@@ -48,20 +48,10 @@ public class Test_LegendLite_MariaDB_RelationFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
             // MARIADB'S OWN LIMIT: a recursive CTE takes no outer reference (measured), so a fold over a row's list
             // is no walk
-            one("meta::pure::functions::relation::tests::extend::testVariantColumn_fold_Function_1__Boolean_1_", "\"a fold that reads a row reached MariaDB, whose recursive CTE cannot read an outer column (measured: Unknown column)\""),
-            // step 9, 2026-10-19, the plan route: a pivot. A dynamic pivot's text needs the row as JSON, which only DuckDB
-            // has; a static pivot has no emulation on the plan route yet (the grouped CASE-aggregate form, the base
-            // dialect's, is one shared item owned by the merging session). Pinned by name, not fixed (the brief's §5.4)
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\""),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "\"a row as JSON reached a dialect without a row-to-JSON form\"")
+            one("meta::pure::functions::relation::tests::extend::testVariantColumn_fold_Function_1__Boolean_1_", "\"a fold that reads a row reached MariaDB, whose recursive CTE cannot read an outer column (measured: Unknown column)\"")
+            // the ten uncast dynamic pivots answer since the probe plan (2026-10-20, KeyedPivot: the keys read
+            // first, the body written for them on every database); their pins of step 9 (2026-10-19) removed
+            // with the run that passed them
     );
 
     public static Test suite() {

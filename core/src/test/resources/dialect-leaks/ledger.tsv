@@ -77,11 +77,12 @@ core/src/test/java/com/legend/OutputMatrixTest.java	jdbc-url	2
 core/src/test/java/com/legend/OutputMatrixTest.java	product-name	5
 # 2026-10-18, the plan path program's step 4 (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): the dynamic pivot's test names DuckDB, the one database whose pivot the plan path runs, as the plan maker's other tests do (database-type 27 -> 30, product-name 40 -> 43).
 # 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (30 -> 41)
-core/src/test/java/com/legend/PlanMakerTest.java	database-type	41
-core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	4
+# 2026-10-20, the dynamic pivot's probe plan (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9, register S84): PlanMakerTest judges the probe plan on the three in-process databases, SQLite added beside DuckDB and H2 (its connection, its loop): database-type 41 -> 43, jdbc-url 4 -> 5, product-name 57 -> 60.
+core/src/test/java/com/legend/PlanMakerTest.java	database-type	43
+core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	5
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 # 2026-10-19, the plan path program's step 9 merge (steps 6 and 7's judges on plans and typed rows, the siblings' lanes, the Trino opening, the Postgres cells): measured, each a test naming the databases its plans run on, or the session owner's and the plan JSON's one more database (43 -> 57)
-core/src/test/java/com/legend/PlanMakerTest.java	product-name	57
+core/src/test/java/com/legend/PlanMakerTest.java	product-name	60
 core/src/test/java/com/legend/PlanOnJavaBase.java	product-name	4
 core/src/test/java/com/legend/StoreTypesTest.java	jdbc-url	1
 core/src/test/java/com/legend/StoreTypesTest.java	product-name	2

@@ -228,7 +228,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // each projection CARRIES its declared output (outputs-from-
             // projections, SQL-IR slice 2) — the old positional
             // projection↔outputs pairing and its star guard are gone
-            writer.join(s.projections(), ", ", this::projection);
+            projections(writer, s.projections());
         }
         if (!(s.from() instanceof SqlSource.Dual)) {
             nl(writer, depth).append("FROM ");
@@ -304,11 +304,56 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         } else {
             writer.expr(p.expr(), 0);
         }
+        if (p.out() != null && p.out().origin() == com.legend.sql.OutputCol.Origin.PER_KEY) {
+            return perKeyName(writer.append(" AS "), p.out().name());
+        }
         if (p.alias() != null) {
             return writer.append(" AS ").append(aliasIdent(p.alias()));
         }
         String label = implicitLabel(p);
         return label == null ? writer : writer.append(" AS ").append(label);
+    }
+
+    /**
+     * A select's projections, comma-separated; a run of PER-KEY projections ({@link com.legend.sql.OutputCol.Origin#PER_KEY},
+     * a dynamic pivot's generated columns on its probe plan, 2026-10-20) is one per-key region the runner writes once
+     * per key, after the select's other projections: led by a comma when one precedes it, and with no key nothing in
+     * its place (a select with no other projection has no column without a key, which the runner refuses by name).
+     */
+    protected SqlWriter projections(SqlWriter writer, List<SqlSelect.Projection> ps) {
+        int run = -1;
+        for (int i = 0; i < ps.size(); i++) {
+            if (perKey(ps.get(i))) {
+                run = i;
+                break;
+            }
+        }
+        if (run < 0) {
+            return writer.join(ps, ", ", this::projection);
+        }
+        for (int i = run; i < ps.size(); i++) {
+            if (!perKey(ps.get(i))) {
+                throw new IllegalStateException("a per-key projection run is followed by '" + ps.get(i).alias()
+                        + "': the run is written last, after the select's other projections");
+            }
+        }
+        List<SqlSelect.Projection> fixed = ps.subList(0, run);
+        List<SqlSelect.Projection> perKey = ps.subList(run, ps.size());
+        writer.join(fixed, ", ", this::projection);
+        return writer.region(fixed.isEmpty() ? "" : ", ", ", ", fixed.isEmpty() ? null : "",
+                w -> w.join(perKey, ", ", this::projection));
+    }
+
+    private static boolean perKey(SqlSelect.Projection p) {
+        return p.out() != null && p.out().origin() == com.legend.sql.OutputCol.Origin.PER_KEY;
+    }
+
+    /** A per-key name ({@link com.legend.sql.OutputCol.Origin#PER_KEY}): delimited, the key's position written into it by
+     *  the runner after its {@code _pk} ({@code "_pk3__u0"} for {@code _u0}); the dialect's quote
+     *  doubled inside. Refused outside a per-key region. */
+    protected SqlWriter perKeyName(SqlWriter writer, String stem) {
+        String q = String.valueOf(quoteChar());
+        return writer.append(q + "_pk").counter().append(("_" + stem).replace(q, q + q) + q);
     }
 
     /** The label an alias-less projection spells, or null for none. Base: a STORED READ keeps
@@ -547,12 +592,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
             // (render) refuses it
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
-            case SqlExpr.RowJson r -> rowJson(writer, r);
+            case SqlExpr.KeyCell k -> writer.bindKey(k.cell());
             case SqlExpr.RowOrder r -> writer.append((r.table() == null ? ""
                     : aliasIdent(r.table()) + ".") + rowOrderColumn());
             // the QUALIFIER is structurally always a source ALIAS (the
             // lowerer aliases every FROM source) — it spells with the
             // alias rule; the NAME spells by its ORIGIN (columnName)
+            case SqlExpr.Column c when c.origin() == com.legend.sql.OutputCol.Origin.PER_KEY ->
+                    perKeyName(c.table() == null ? writer : writer.append(aliasIdent(c.table()) + "."), c.name());
             case SqlExpr.Column c -> writer.append(columnRef(c));
             case SqlExpr.StoredRead r -> storedRead(writer, r);
             case SqlExpr.Star s -> writer.append(s.table() == null ? "*" : aliasIdent(s.table()) + ".*");
@@ -1311,11 +1358,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt). A dialect whose database types a
      * parameter otherwise writes it typed.
      */
-    /** The aliased source's row as one JSON value ({@link SqlExpr.RowJson}): no ANSI form. */
-    protected SqlWriter rowJson(SqlWriter writer, SqlExpr.RowJson r) {
-        throw new DialectCapability("a row as JSON reached a dialect without a row-to-JSON form");
-    }
-
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
         com.legend.sql.ValueTyping byValue = p.byValue();
         if (byValue != null && byValue.kinds().stream().anyMatch(k -> k == com.legend.sql.ValueKind.DATE_TIME

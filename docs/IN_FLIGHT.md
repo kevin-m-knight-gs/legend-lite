@@ -2146,3 +2146,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `DuckDb.java`, `MongoDb.java`, `UnqualifyPivotArgs.java`, `FoldToListReduce.java`, `lowering/Windows.java`,
   `SubselectPrune.java`, `executionplan/MirJson.java`, `PlanJson.java`'s format), `PlanMakerTest`, the PCT lanes'
   ten uncast-pivot pins each.
+ **The probe plan landed 2026-10-20** (GATES "a dynamic pivot's probe plan"): `lowering/KeyedPivot.java` (new),
+  `PlanMaker.java` (`keyed`, `keyedWire`), `executionplan/ExecutionPlan.java` (`Keyed`, `Region`, `Binding.Key`),
+  `PlanJson.java` (format 8), `MirJson.java`, `exec/PlanRunner.java` (`keyed`, the expansion, the sinks),
+  `exec/Statements.java` and its two sessions (`inSnapshot`), `sql/SqlExpr.java` (`KeyCell`; `RowJson` deleted),
+  `sql/OutputCol.java` (`PER_KEY`), `sql/SqlSelect.java`, `sql/dialect/SqlWriter.java` and `RenderedStatement.java`
+  (regions), `AnsiSqlRenderer.java` and each dialect (`keysSnapshot`, `resultColumnLimit`), `Execution.java` (the
+  legacy wire's bridge), `lowering/Render.java`, `TdsTextWrap.java`, `WireRender.java`, the PCT lanes' pivot pins.
+  **Next, the user's order (2026-10-20): PCT parity on every backend, then the SQL optimization passes, then step 7.**

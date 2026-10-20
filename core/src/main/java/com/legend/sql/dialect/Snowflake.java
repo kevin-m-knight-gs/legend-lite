@@ -169,6 +169,17 @@ public final class Snowflake extends AnsiSqlRenderer {
     }
 
     /** A dynamic pivot is discovered first: the static form is emulated (PivotAsGroupBy). */
+    // the probe plan's facts (2026-10-20): Snowflake: READ COMMITTED only, each statement its own snapshot; no result column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

@@ -124,6 +124,17 @@ public final class ClickHouse extends AnsiSqlRenderer {
     }
 
     /** No native PIVOT: a static pivot is a grouped CASE aggregation, its values discovered first. */
+    // the probe plan's facts (2026-10-20): ClickHouse: no transactions across statements; no column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

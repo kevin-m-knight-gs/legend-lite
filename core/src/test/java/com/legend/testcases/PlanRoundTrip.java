@@ -8,6 +8,8 @@ import com.legend.executionplan.PlanJson;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.RenderedStatement;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,11 +59,13 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Sequence s -> new ExecutionPlan.Sequence(s.steps().stream().map(PlanRoundTrip::withoutTrees).toList());
             case ExecutionPlan.TdsResult t -> new ExecutionPlan.TdsResult(t.columns(), withoutTree(t.sql()));
             case ExecutionPlan.TextResult t -> new ExecutionPlan.TextResult(t.format(), t.type(), withoutTree(t.sql()));
+            case ExecutionPlan.Keyed k -> new ExecutionPlan.Keyed(withoutTree(k.keys()), k.format(), k.outputs(),
+                    withoutTree(k.body()), k.snapshot(), k.maxColumns());
         };
     }
 
     private static ExecutionPlan.Sql withoutTree(ExecutionPlan.Sql sql) {
-        return new ExecutionPlan.Sql(sql.statement(), sql.slots(), sql.target(), null);
+        return new ExecutionPlan.Sql(sql.statement(), sql.slots(), sql.target(), null, sql.regions());
     }
 
     private static long statementChars(ExecutionPlan.Node node) {
@@ -69,6 +73,7 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Sequence s -> s.steps().stream().mapToLong(PlanRoundTrip::statementChars).sum();
             case ExecutionPlan.TdsResult t -> t.sql().statement().length();
             case ExecutionPlan.TextResult t -> t.sql().statement().length();
+            case ExecutionPlan.Keyed k -> k.keys().statement().length() + k.body().statement().length();
         };
     }
 
@@ -77,6 +82,10 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Sequence s -> s.steps().forEach(step -> assertRenders(step, what));
             case ExecutionPlan.TdsResult t -> assertRenders(t.sql(), what);
             case ExecutionPlan.TextResult t -> assertRenders(t.sql(), what);
+            case ExecutionPlan.Keyed k -> {
+                assertRenders(k.keys(), what);
+                assertRenders(k.body(), what);
+            }
         }
     }
 
@@ -89,5 +98,13 @@ public final class PlanRoundTrip {
         RenderedStatement rendered = Databases.dialect(type).renderStatement(sql.tree());
         assertEquals(sql.statement(), rendered.sql(), what + ": the tree read back renders differently");
         assertEquals(sql.slots().size(), rendered.binds().size(), what + ": the tree read back binds differently");
+        assertEquals(sql.regions().size(), rendered.regions().size(), what + ": the tree read back has other regions");
+        for (int i = 0; i < sql.regions().size(); i++) {
+            ExecutionPlan.Region a = sql.regions().get(i);
+            RenderedStatement.Region b = rendered.regions().get(i);
+            assertEquals(List.of(a.start(), a.end(), a.firstSlot(), a.slotCount(), a.counters()),
+                    List.of(b.start(), b.end(), b.firstBind(), b.bindCount(), b.counters()),
+                    what + ": per-key region " + i + " read back differs");
+        }
     }
 }

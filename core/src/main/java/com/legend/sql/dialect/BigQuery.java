@@ -134,6 +134,17 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** No native pivot is used: a static pivot is emulated by the carrier strategies (GROUP BY with one filtered
      *  aggregate per value), so a dynamic pivot is discovered first. */
+    // the probe plan's facts (2026-10-20): BigQuery: a transaction needs a session script; 10,000 columns in a query result (its documented quota)
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 10000;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

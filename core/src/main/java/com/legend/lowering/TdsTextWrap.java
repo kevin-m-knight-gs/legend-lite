@@ -81,9 +81,10 @@ public final class TdsTextWrap {
                 .withOutputs(outs)
                 .withOrderBy(lift.remapped());
         if (dynamic != null) {
-            // the plan path (no probe): the database names the pivot's columns itself (step 4, 2026-10-18)
-            return Render.tdsTextOfDynamicPivot(inner, dynamic, typedCols, templates(dynamic, schema), "_pct1",
-                    quoteStrings, layouts);
+            // the plan path (no probe): a dynamic pivot's text is its keyed plan's (KeyedPivot, 2026-10-20), made
+            // before any wrapper; one reaching here is the planner's bug
+            throw new IllegalStateException("TDS text over a dynamic pivot nothing names: its text is the keyed plan's"
+                    + " (KeyedPivot), not a wrapper's");
         }
         return Render.tdsText(inner, typedCols, "_pct1", quoteStrings, layouts);
     }
@@ -176,7 +177,7 @@ public final class TdsTextWrap {
                 ? name.substring(1, name.length() - 1) : name;
     }
 
-    private record Lift(SqlQuery inner0, List<OutputCol> outs,
+    record Lift(SqlQuery inner0, List<OutputCol> outs,
             List<SqlSelect.SortKey> remapped) {
     }
 
@@ -184,7 +185,7 @@ public final class TdsTextWrap {
      * remap; a key the projection dropped (extend→sort→project) or an
      * expression key carries out as a HIDDEN {@code _pct_ord}
      * projection — it still scopes inside the plan's own select. */
-    private static Lift liftOrder(List<SqlSelect.SortKey> lifted,
+    static Lift liftOrder(List<SqlSelect.SortKey> lifted,
             List<OutputCol> outs, SqlQuery inner0, String alias) {
         java.util.Set<String> outNames = new java.util.LinkedHashSet<>();
         outs.forEach(o -> outNames.add(o.name()));

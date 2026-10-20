@@ -257,41 +257,73 @@ class PlanMakerTest {
             + " SAN, 2000, 1\n SAN, 2000, 2\n#";
 
     /**
-     * A DYNAMIC pivot's text is built by the database alone (the plan path program's step 4,
-     * docs/PLAN_PATH_PROGRAM_2026_10_17.md §3, 2026-10-18): the generated columns named from the pivot's keys, the
-     * cells read from each row's own JSON by those names, the types the template's -- the same TDS text the legacy
-     * route builds with its metadata probe; the CSV and JSON wires built the same way. No probe step, no hole for the
-     * runner. Every carrier names a generated column as the engine labels it, with the quotes as part of the name
-     * (the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md: legend-engine's DuckDB SQL spells
-     * {@code concat('''', year, '''')}, its interpreter {@code "'" + ... + "'"}, and the PCT's expected text and casts
-     * carry them; until 2026-10-18 the two wires printed the bare physical name, the TDS text alone the engine's).
+     * A DYNAMIC pivot's probe plan (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): a pivot no cast names has
+     * columns its data names, so its plan reads the keys first (their text, and each generated column's name as the
+     * output writes one, both by the database) and its body is written once per key in the regions the runner repeats,
+     * each copy binding its key; every output and every database alike. Judged against the legacy probe route's text
+     * on DuckDB, and the same answers on H2 and SQLite, which have no dynamic PIVOT (the row-as-JSON form this replaces
+     * had no form there; DuckDB's streamed rows dropped the generated columns). Every carrier names a generated column
+     * as the engine labels it, the quotes part of the name (the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md).
      */
     @Test
-    void aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt() throws Exception {
+    void aDynamicPivotsPlanReadsItsKeysFirst_everyOutputEveryDatabase() throws Exception {
         String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
                 + "->sort(~city->ascending())";
+        assertAnswersAsToday(model(DatabaseType.DuckDB.name()), DatabaseType.DuckDB, query, query, java.util.Map.of(),
+                TypedQuery.Output.TDS_TEXT);
+        String json = "[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
+                + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]";
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite)) {
+            String model = model(type.name());
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT",
+                    TypedQuery.Output.TDS_TEXT);
+            assertTrue(plan.root() instanceof ExecutionPlan.Keyed, type + ": a keyed plan");
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
+            try (Connection c = fresh(type)) {
+                String text = PlanCases.run(plan, c);
+                assertTrue(text.startsWith("city:String[") && text.endsWith("]," + "'\\'2000__|__newCol\\'':Integer[1],"
+                        + "'\\'2011__|__newCol\\'':Integer[1]\nNYC,15,5\nSAN,3,2"), type + ": " + text);
+            }
+            for (TypedQuery.Output output : List.of(TypedQuery.Output.CSV, TypedQuery.Output.JSON,
+                    TypedQuery.Output.STREAMED_JSON)) {
+                ExecutionPlan p = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", output);
+                com.legend.testcases.PlanRoundTrip.assertRoundTrips(p, query);
+                try (Connection c = fresh(type)) {
+                    assertEquals(output == TypedQuery.Output.CSV
+                            ? "city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n" : json,
+                            PlanCases.run(p, c), type + " " + output);
+                }
+            }
+        }
+        // a STATIC pivot (the engine's form: one column, its values, one aggregate) has its columns from the typer,
+        // named bare; both wires present them the same way, one statement
+        String statics = TREES + "->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted : y | $y->plus())"
+                + "->sort(~city->ascending())";
         String model = model(DatabaseType.DuckDB.name());
-        assertAnswersAsToday(model, DatabaseType.DuckDB, query, query, java.util.Map.of(), TypedQuery.Output.TDS_TEXT);
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
-        com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
         try (Connection c = fresh(DatabaseType.DuckDB)) {
-            String text = PlanCases.run(plan, c);
-            assertTrue(text.endsWith("\nNYC,15,5\nSAN,3,2"), text);
-            assertTrue(text.startsWith("city:String[") && text.contains("'\\'2000__|__newCol\\'':Integer[1],'\\'2011__|__newCol\\'':Integer[1]"), text);
-            ExecutionPlan csv = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.CSV);
-            assertEquals("city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n", PlanCases.run(csv, c));
-            ExecutionPlan json = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT", TypedQuery.Output.JSON);
-            assertEquals("[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
-                    + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]", PlanCases.run(json, c));
-            // a STATIC pivot (the engine's form: one column, its values, one aggregate) has its columns from the typer,
-            // named bare; both wires present them the same way
-            String statics = TREES + "->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted : y | $y->plus())"
-                    + "->sort(~city->ascending())";
             assertEquals("city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n", PlanCases.run(
                     Compiler.query(Compiler.compileModel(model), statics).executionPlan("s::RT", TypedQuery.Output.CSV), c));
-            assertEquals("[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
-                    + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]", PlanCases.run(
+            assertEquals(json, PlanCases.run(
                     Compiler.query(Compiler.compileModel(model), statics).executionPlan("s::RT", TypedQuery.Output.JSON), c));
+        }
+    }
+
+    /**
+     * A probe plan's keys run first and its body is written for them: no key (an empty source) answers the fixed
+     * columns alone; a key written into the data between plans is the next run's column (2026-10-20).
+     */
+    @Test
+    void aDynamicPivotsProbePlanAnswersForTheKeysItsRunFinds() throws Exception {
+        String empty = "#TDS\n city, year, treePlanted\n NYC, 2011, 5\n#->filter(r | $r.city == 'none')"
+                + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])";
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite)) {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), empty).executionPlan("s::RT",
+                    TypedQuery.Output.TDS_TEXT);
+            try (Connection c = fresh(type)) {
+                String text = PlanCases.run(plan, c);
+                assertTrue(text.startsWith("city:String[") && !text.contains(",") && !text.contains("\n"),
+                        type + ": " + text);
+            }
         }
     }
 
@@ -661,6 +693,7 @@ class PlanMakerTest {
             case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
             case H2 -> DriverManager.getConnection("jdbc:h2:mem:planmaker" + H2_NAMES.incrementAndGet()
                     + com.legend.exec.H2Settings.SETTINGS);
+            case SQLite -> DriverManager.getConnection("jdbc:sqlite::memory:");
             default -> throw new IllegalArgumentException(type.name());
         };
     }

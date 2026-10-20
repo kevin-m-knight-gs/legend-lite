@@ -241,6 +241,17 @@ public class MariaDb extends AnsiSqlRenderer {
     }
 
     /** No native pivot: a static pivot is emulated by the carrier strategies, so a dynamic one is discovered first. */
+    // the probe plan's facts (2026-10-20): MariaDB and MySQL: 4,096 columns (the documented column limit); InnoDB REPEATABLE READ reads one snapshot
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.REPEATABLE_READ;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 4096;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

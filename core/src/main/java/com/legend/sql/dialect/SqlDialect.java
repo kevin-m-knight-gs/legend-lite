@@ -100,6 +100,34 @@ public interface SqlDialect {
         return false;
     }
 
+    /** How a dynamic pivot's probe plan's two statements (the keys probe and the body written for its keys) see one
+     *  state of the data (the plan path program's probe plan, 2026-10-20). */
+    enum KeysSnapshot {
+        /** a transaction, the database's own isolation kept: every transaction there is one snapshot */
+        TRANSACTION,
+        /** a transaction at REPEATABLE READ, the isolation that makes its reads one snapshot there */
+        REPEATABLE_READ,
+        /** a transaction at SERIALIZABLE */
+        SERIALIZABLE,
+        /** no transaction across statements: a key written between the two is not the body's (register S84) */
+        NONE
+    }
+
+    /** This database's {@link KeysSnapshot}, said by each dialect that runs a dynamic pivot's probe plan; a dialect
+     *  that says none has no probe plan, refused by name. */
+    default KeysSnapshot keysSnapshot() {
+        throw new DialectCapability("a dynamic pivot's probe plan reached " + getClass().getSimpleName()
+                + ", which says no snapshot for it");
+    }
+
+    /** The most columns one result answers on this database (measured on the in-process ones, the database's own
+     *  documented limit on the servers), a probe plan asked for more refused by name; null where the database has
+     *  none (DuckDB answered 70,000) or none is known. Said by each dialect that runs a probe plan. */
+    default @com.legend.base.Nullable Integer resultColumnLimit() {
+        throw new DialectCapability("a dynamic pivot's probe plan reached " + getClass().getSimpleName()
+                + ", which says no column limit for it");
+    }
+
     /** Whether dynamic PIVOT needs the two-phase staticization
      * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
      * dynamic pivot on this backend). */

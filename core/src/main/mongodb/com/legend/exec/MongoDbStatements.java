@@ -77,6 +77,17 @@ final class MongoDbStatements implements Statements {
         run(command(statement));
     }
 
+    /** {@inheritDoc} MongoDB: no keyed plan is made for it (a pipeline names a dynamic pivot's fields itself), so a
+     *  snapshot is asked of it only as {@code NONE}. */
+    @Override
+    public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
+        if (snapshot != ExecutionPlan.Keyed.Snapshot.NONE) {
+            throw new IllegalStateException("a " + snapshot + " snapshot asked of a MongoDB session: no keyed plan is"
+                    + " made for MongoDB");
+        }
+        work.run();
+    }
+
     @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
@@ -210,6 +221,8 @@ final class MongoDbStatements implements Statements {
                 case PlanParameters.Many many -> throw new IllegalStateException("slot " + index + " binds one value"
                         + " of '" + slot.parameter() + "', given a list");
             };
+            case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
+                    + " cell: no keyed plan is made for MongoDB");
         };
     }
 

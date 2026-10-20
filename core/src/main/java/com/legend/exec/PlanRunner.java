@@ -38,6 +38,12 @@ public final class PlanRunner {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         switch (plan.root()) {
             case ExecutionPlan.TextResult text -> text(text, checked, sessions, out);
+            case ExecutionPlan.Keyed keyed when keyed.format() != null -> {
+                keyed(keyed, checked, sessions, new TextSink(keyed, out));
+                out.flush();
+            }
+            case ExecutionPlan.Keyed keyed -> throw new IllegalArgumentException("a keyed plan whose answer is typed"
+                    + " rows is run by rows(...), which decodes them; run(...) writes a text");
             case ExecutionPlan.TdsResult tds -> throw new IllegalArgumentException("a plan whose answer is typed rows"
                     + " (a tabular result) is run by rows(...), which decodes them; run(...) writes a text");
             case ExecutionPlan.Sequence sequence -> throw new com.legend.error.NotImplementedException("a plan of"
@@ -68,6 +74,13 @@ public final class PlanRunner {
                         st.rows(statement, tds.sql().slots(), bound, tds.columns(), out::add));
                 yield new Rows(tds.columns(), out);
             }
+            case ExecutionPlan.Keyed keyed when keyed.format() == null -> {
+                RowsSink sink = new RowsSink();
+                keyed(keyed, checked, sessions, sink);
+                yield new Rows(sink.columns, sink.rows);
+            }
+            case ExecutionPlan.Keyed keyed -> throw new IllegalArgumentException("a keyed plan whose answer is a text"
+                    + " is run by run(...), which writes it; rows(...) decodes typed rows");
             case ExecutionPlan.TextResult text -> throw new IllegalArgumentException("a plan whose answer is a text"
                     + " is run by run(...), which writes it; rows(...) decodes typed rows");
             case ExecutionPlan.Sequence sequence -> throw new com.legend.error.NotImplementedException("a plan of"
@@ -108,6 +121,276 @@ public final class PlanRunner {
             }
         }
         out.flush();
+    }
+
+    // ---- a keyed plan (a dynamic pivot's probe plan, 2026-10-20; docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) ----------
+
+    /** Where a keyed plan's answer goes, once its keys are known: its columns, then each row's cells. */
+    private interface KeyedSink {
+        void columns(List<ExecutionPlan.Column> columns, List<String> names) throws IOException;
+
+        void row(List<Object> cells) throws IOException;
+
+        void end() throws IOException;
+    }
+
+    /** A keyed plan's typed rows, collected (a tabular result's edge, as {@link #rows} collects a tabular plan's). */
+    private static final class RowsSink implements KeyedSink {
+        private final List<ExecutionPlan.Column> columns = new java.util.ArrayList<>();
+        private final List<List<Object>> rows = new java.util.ArrayList<>();
+
+        @Override
+        public void columns(List<ExecutionPlan.Column> columns, List<String> names) {
+            this.columns.addAll(columns);
+        }
+
+        @Override
+        public void row(List<Object> cells) {
+            rows.add(cells);
+        }
+
+        @Override
+        public void end() {
+        }
+    }
+
+    /** A keyed plan's text: the database writes every cell and every key's name; the runner writes the format's
+     *  punctuation around them (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1): a TDS text's header line and its
+     *  rows on lines of their own; a CSV's header and rows each ended by CRLF; a JSON array of one object per row. */
+    private static final class TextSink implements KeyedSink {
+        private final ExecutionPlan.Format format;
+        private final Writer out;
+        private final List<String> names = new java.util.ArrayList<>();
+        private boolean first = true;
+
+        TextSink(ExecutionPlan.Keyed keyed, Writer out) {
+            this.format = java.util.Objects.requireNonNull(keyed.format());
+            this.out = out;
+        }
+
+        @Override
+        public void columns(List<ExecutionPlan.Column> columns, List<String> names) throws IOException {
+            this.names.addAll(names);
+            switch (format) {
+                case TDS_TEXT -> out.write(String.join(",", names));
+                case CSV -> out.write(String.join(",", names) + "\r\n");
+                case JSON -> out.write('[');
+                case JSON_PER_ROW -> throw new IllegalStateException("a keyed text's JSON is JSON");
+            }
+        }
+
+        @Override
+        public void row(List<Object> cells) throws IOException {
+            List<String> texts = new java.util.ArrayList<>(cells.size());
+            for (int i = 0; i < cells.size(); i++) {
+                if (!(cells.get(i) instanceof String s)) {
+                    throw new IllegalStateException("a keyed text's cell " + (i + 1) + " is " + cells.get(i)
+                            + ": the database writes every cell as its text");
+                }
+                texts.add(s);
+            }
+            switch (format) {
+                case TDS_TEXT -> out.write("\n" + String.join(",", texts));
+                case CSV -> out.write(String.join(",", texts) + "\r\n");
+                case JSON -> {
+                    StringBuilder object = new StringBuilder(first ? "{" : ",{");
+                    for (int i = 0; i < texts.size(); i++) {
+                        object.append(i == 0 ? "" : ",").append(names.get(i)).append(':').append(texts.get(i));
+                    }
+                    out.write(object.append('}').toString());
+                }
+                case JSON_PER_ROW -> throw new IllegalStateException("a keyed text's JSON is JSON");
+            }
+            first = false;
+        }
+
+        @Override
+        public void end() throws IOException {
+            if (format == ExecutionPlan.Format.JSON) {
+                out.write(']');
+            }
+        }
+    }
+
+    /**
+     * Runs a keyed plan on one session, inside its snapshot: the keys probe, then the body written for those keys
+     * (each per-key region once per key, in the probe's order, each copy binding its key's text), its columns and
+     * rows handed to {@code sink}. The runner writes only text the plan carries and the keys' positions; every value
+     * and every name is the database's.
+     */
+    private static void keyed(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
+            PlanSessions.Source sessions, KeyedSink sink) throws IOException {
+        for (ExecutionPlan.Sql sql : List.of(keyed.keys(), keyed.body())) {
+            for (ExecutionPlan.Slot slot : sql.slots()) {
+                if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
+                    nullType(one, slot);
+                }
+            }
+        }
+        int perKey = (int) keyed.outputs().stream().filter(o -> o instanceof ExecutionPlan.Keyed.PerKey).count();
+        List<ExecutionPlan.Column> keyColumns = new java.util.ArrayList<>();
+        for (int i = 0; i <= perKey; i++) {
+            keyColumns.add(new ExecutionPlan.Column(i == 0 ? "key" : "name" + i, "String",
+                    new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null));
+        }
+        try (Sessions.Session session = sessions.open(keyed.keys().target())) {
+            Statements st = session.statements();
+            st.check(keyed.keys().target());
+            try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
+                for (String s : keyed.keys().target().session()) {
+                    StatementOrigin.sent(s);
+                    st.execute(s);
+                }
+            }
+            st.inSnapshot(keyed.snapshot(), () -> {
+                List<List<Object>> keys = new java.util.ArrayList<>();
+                ExecutionPlan.Sql probe = keyed.keys();
+                List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
+                for (int i = 0; i < probe.slots().size(); i++) {
+                    probeValues.add(value(checked, probe.slots().get(i), i + 1));
+                }
+                st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
+                int fixed = keyed.outputs().size() - perKey;
+                int columns = fixed + keys.size() * perKey;
+                if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
+                    throw new com.legend.error.NotImplementedException("a dynamic pivot of " + keys.size() + " keys answers "
+                            + columns + " columns, more than the database's " + keyed.maxColumns());
+                }
+                List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
+                List<String> names = new java.util.ArrayList<>(columns);
+                for (ExecutionPlan.Keyed.Output o : keyed.outputs()) {
+                    if (o instanceof ExecutionPlan.Keyed.Fixed f) {
+                        answered.add(keyed.format() == null ? f.column() : text(f.column()));
+                        names.add(f.name());
+                    }
+                }
+                for (List<Object> key : keys) {
+                    for (ExecutionPlan.Keyed.Output o : keyed.outputs()) {
+                        if (o instanceof ExecutionPlan.Keyed.PerKey p) {
+                            String name = cellText(key, p.name());
+                            ExecutionPlan.Column c = p.column();
+                            answered.add(keyed.format() == null
+                                    ? new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store())
+                                    : text(c));
+                            names.add(name);
+                        }
+                    }
+                }
+                Expanded body = expand(keyed.body(), keys, checked);
+                sink.columns(answered, names);
+                StatementOrigin.sent(body.statement());
+                st.rows(body.statement(), body.slots(), body.values(), answered, sink::row);
+                sink.end();
+            });
+        }
+    }
+
+    /** A cell of a text format's body, read as the text the database wrote. */
+    private static ExecutionPlan.Column text(ExecutionPlan.Column c) {
+        return new ExecutionPlan.Column(c.name(), "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null);
+    }
+
+    private static String cellText(List<Object> key, int cell) {
+        if (cell >= key.size() || !(key.get(cell) instanceof String s)) {
+            throw new IllegalStateException("a keys row's cell " + cell + " is " + (cell < key.size() ? key.get(cell)
+                    : "absent") + ": the probe writes each key's text and names");
+        }
+        return s;
+    }
+
+    /** A body written for its keys: the statement, and each placeholder's slot and value in placeholder order. */
+    private record Expanded(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+    }
+
+    /**
+     * {@code sql} written for {@code keys}: the text outside its regions as it is, its type holes filled; each region
+     * once per key ({@code lead} before the first copy, {@code separator} between copies, the key's position at each
+     * counter; with no key, {@code empty}, or the statement refused where it has no form without one); each slot
+     * outside a region bound once, each inside one bound in every copy, a key's cell to that key's text.
+     */
+    private static Expanded expand(ExecutionPlan.Sql sql, List<List<Object>> keys,
+            Map<String, PlanParameters.Checked> checked) {
+        String text = sql.statement();
+        // the type holes, each outside every region (the writer refuses one inside): their places and types, in order
+        List<int[]> holes = new java.util.ArrayList<>();
+        List<String> holeTypes = new java.util.ArrayList<>();
+        for (int i = 0; i < sql.slots().size(); i++) {
+            ExecutionPlan.Slot each = sql.slots().get(i);
+            if (each.binding() instanceof ExecutionPlan.Binding.One one && one.hole() != null) {
+                holes.add(new int[] {one.hole().at()});
+                holeTypes.add(typeOf(one.hole(), value(checked, each, i + 1), each));
+            }
+        }
+        StringBuilder out = new StringBuilder(text.length() + keys.size() * 64);
+        List<ExecutionPlan.Slot> slots = new java.util.ArrayList<>();
+        List<PlanParameters.Checked> values = new java.util.ArrayList<>();
+        int[] hole = {0};
+        int from = 0;
+        int slot = 0;
+        for (ExecutionPlan.Region r : sql.regions()) {
+            outside(out, text, from, r.start(), holes, holeTypes, hole);
+            for (; slot < r.firstSlot(); slot++) {
+                bindOnce(sql, slot, checked, slots, values);
+            }
+            if (keys.isEmpty()) {
+                if (r.empty() == null) {
+                    throw new com.legend.error.NotImplementedException("a dynamic pivot with no fixed column found no key: its"
+                            + " relation has no column");
+                }
+                out.append(r.empty());
+            } else {
+                out.append(r.lead());
+                for (int k = 0; k < keys.size(); k++) {
+                    if (k > 0) {
+                        out.append(r.separator());
+                    }
+                    int at = r.start();
+                    for (int counter : r.counters()) {
+                        out.append(text, at, counter).append(k);
+                        at = counter;
+                    }
+                    out.append(text, at, r.end());
+                    for (int s = r.firstSlot(); s < r.firstSlot() + r.slotCount(); s++) {
+                        ExecutionPlan.Slot each = sql.slots().get(s);
+                        if (each.binding() instanceof ExecutionPlan.Binding.Key key) {
+                            slots.add(new ExecutionPlan.Slot("", new ExecutionPlan.Binding.One("VARCHAR", null)));
+                            values.add(new PlanParameters.One(cellText(keys.get(k), key.cell())));
+                        } else {
+                            slots.add(each);
+                            values.add(value(checked, each, s + 1));
+                        }
+                    }
+                }
+            }
+            slot = r.firstSlot() + r.slotCount();
+            from = r.end();
+        }
+        outside(out, text, from, text.length(), holes, holeTypes, hole);
+        for (; slot < sql.slots().size(); slot++) {
+            bindOnce(sql, slot, checked, slots, values);
+        }
+        return new Expanded(out.toString(), slots, values);
+    }
+
+    /** The statement's text {@code [from, to)} outside its regions, each type hole up to {@code to} filled (one at
+     *  {@code to} itself before the region that starts there); {@code next} the first hole not yet written. */
+    private static void outside(StringBuilder out, String text, int from, int to, List<int[]> holes,
+            List<String> holeTypes, int[] next) {
+        int at = from;
+        while (next[0] < holes.size() && holes.get(next[0])[0] <= to) {
+            int place = holes.get(next[0])[0];
+            out.append(text, at, place).append(holeTypes.get(next[0]));
+            at = place;
+            next[0]++;
+        }
+        out.append(text, at, to);
+    }
+
+    private static void bindOnce(ExecutionPlan.Sql sql, int slot, Map<String, PlanParameters.Checked> checked,
+            List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+        ExecutionPlan.Slot each = sql.slots().get(slot);
+        slots.add(each);
+        values.add(value(checked, each, slot + 1));
     }
 
     /** What a statement's session is asked, once the session is checked and its own statements have run: the

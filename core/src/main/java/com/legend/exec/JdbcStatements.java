@@ -102,6 +102,70 @@ final class JdbcStatements implements Statements {
         }
     }
 
+    /** {@inheritDoc} JDBC: auto-commit off for the work, at the snapshot's isolation (the database's own kept for
+     *  {@code TRANSACTION}), committed after it, rolled back if it fails, the connection's settings restored. */
+    @Override
+    public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
+        if (snapshot == ExecutionPlan.Keyed.Snapshot.NONE) {
+            work.run();
+            return;
+        }
+        boolean autoCommit;
+        int isolation;
+        try {
+            autoCommit = c.getAutoCommit();
+            isolation = c.getTransactionIsolation();
+            c.setAutoCommit(false);
+            switch (snapshot) {
+                case REPEATABLE_READ -> c.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+                case SERIALIZABLE -> c.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+                case TRANSACTION, NONE -> {
+                }
+            }
+        } catch (SQLException e) {
+            throw PlanSessions.dataError(e, c);
+        }
+        try {
+            work.run();
+            c.commit();
+        } catch (IOException | RuntimeException e) {
+            // the work's own failure is the one told; the session is rolled back and set back as it can be
+            try {
+                restore(snapshot, autoCommit, isolation, true);
+            } catch (SQLException restore) {
+                e.addSuppressed(restore);
+            }
+            throw e;
+        } catch (SQLException e) {
+            // the commit failed: rolled back and set back as it can be, the commit's failure told
+            RuntimeException failure = PlanSessions.dataError(e, c);
+            try {
+                restore(snapshot, autoCommit, isolation, true);
+            } catch (SQLException restore) {
+                failure.addSuppressed(restore);
+            }
+            throw failure;
+        }
+        try {
+            restore(snapshot, autoCommit, isolation, false);
+        } catch (SQLException e) {
+            throw PlanSessions.dataError(e, c);
+        }
+    }
+
+    /** The connection set back after a snapshot: rolled back first when the work failed, its isolation (where the
+     *  snapshot set one) and its auto-commit as they were. */
+    private void restore(ExecutionPlan.Keyed.Snapshot snapshot, boolean autoCommit, int isolation, boolean rollback)
+            throws SQLException {
+        if (rollback) {
+            c.rollback();
+        }
+        if (snapshot != ExecutionPlan.Keyed.Snapshot.TRANSACTION) {
+            c.setTransactionIsolation(isolation);
+        }
+        c.setAutoCommit(autoCommit);
+    }
+
     /** Slot {@code index} bound to its parameter's checked value, as the slot says: one value (an absent one a null of
      *  the slot's type), or a list as one array of the slot's element type (an absent one an empty array). */
     private void bind(PreparedStatement st, int index, ExecutionPlan.Slot slot, PlanParameters.Checked value)
@@ -134,6 +198,8 @@ final class JdbcStatements implements Statements {
                             + " value of '" + slot.parameter() + "', given a list");
                 }
             }
+            case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
+                    + " cell unexpanded: the runner writes a keyed body for its keys before it is sent");
         }
     }
 

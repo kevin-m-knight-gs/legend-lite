@@ -21,7 +21,7 @@ public sealed interface SqlExpr
                 SqlExpr.CompactList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
-                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.RowJson,
+                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
                 SqlExpr.TempTableInSplice, SqlExpr.StoredRead,
                 SqlAgg.Reducer {
@@ -72,7 +72,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> List.of();
             case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
-            case RowJson ignored -> List.of();
+            case KeyCell ignored -> List.of();
             case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
             case ArrayLit a -> a.elements();
@@ -170,7 +170,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> this;
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
-            case RowJson ignored -> this;
+            case KeyCell ignored -> this;
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
@@ -592,24 +592,25 @@ public sealed interface SqlExpr
         }
     }
 
+    /** A key's cell, where a statement is written once per key of its plan's keys probe (a dynamic pivot's, on every
+     *  database: the plan path program's probe plan, 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): the
+     *  probe row's {@code cell} (0: the key's text, as the database writes it) of the key a repetition is of, a value
+     *  the statement binds. It is written only inside a per-key region (a run of {@link OutputCol.Origin#PER_KEY}
+     *  projections), which the runner repeats once per key; anywhere else it is refused by name. */
+    record KeyCell(int cell, TypeFact type) implements SqlExpr {
+        public KeyCell {
+            if (cell < 0) {
+                throw new IllegalArgumentException("a key's cell " + cell);
+            }
+            java.util.Objects.requireNonNull(type, "type");
+        }
+    }
+
     /** A query's parameter, where it is used: in a statement that executes, a value the statement binds (a dialect
      * writes it as a placeholder, typed by {@code type}: what a literal of the parameter's declared type carries,
      * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2); in the legacy engine-text printer, the
      * engine's template placeholder ({@code ${name}} — its freemarker placeholder for a function parameter or an
      * Allocation-bound variable), its {@code type} unknown. */
-    /** The row of the aliased source as ONE JSON value, its columns by name -- the ones a static plan cannot
-     *  enumerate included (a dynamic pivot's: the plan path program's step 4, 2026-10-18). The dialect spells it
-     *  (DuckDB {@code to_json(alias)}); one without a row-to-JSON form refuses it. */
-    record RowJson(String alias, TypeFact type) implements SqlExpr {
-        public RowJson {
-            type = SqlTyping.T_JSON;
-        }
-
-        public RowJson(String alias) {
-            this(alias, SqlTyping.T_JSON);
-        }
-    }
-
     record PlanParam(String name, Kind kind, boolean optional,
             @com.legend.base.Nullable String enumMapFn,
             TypeFact type, @com.legend.base.Nullable ValueTyping byValue) implements SqlExpr {

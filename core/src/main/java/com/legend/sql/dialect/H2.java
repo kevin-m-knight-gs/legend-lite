@@ -265,6 +265,9 @@ public class H2 extends AnsiSqlRenderer {
             // declared quoted: delimited, its case kept
             case PHYSICAL_QUOTED -> delimited(c.name());
             case PHYSICAL -> execPart(c.name());
+            // a per-key name is written with its key's position by the expression writer (AnsiSqlRenderer.perKeyName)
+            case PER_KEY -> throw new IllegalStateException("a per-key name '" + c.name() + "' spelled without its"
+                    + " key's position: the expression writer writes it inside its per-key region");
         };
     }
 
@@ -394,6 +397,17 @@ public class H2 extends AnsiSqlRenderer {
 
     /** No native dynamic PIVOT — the two-phase staticization pre-pass
      * pins the key values, then the static emulation strategy runs. */
+    // the probe plan's facts (2026-10-20): measured 2026-10-20 (2.1.214): 16,384 columns; REPEATABLE READ accepted
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.REPEATABLE_READ;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 16384;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

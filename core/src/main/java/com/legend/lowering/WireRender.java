@@ -63,16 +63,10 @@ public final class WireRender {
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema, Format format, Spelling spelling) {
         SqlSelect inner = asSelect(plan);
         if (dynamicPivotUnnamed(plan, schema)) {
-            // the database names the pivot's columns itself, as for its TDS text (step 4, 2026-10-18), each as the
-            // engine labels it and each cell by its template's type on both wires (the pivot homework, 2026-10-18)
-            SqlSource.Pivot pivot = TdsTextWrap.pivots(plan).stream().filter(p -> p.in().isEmpty()).findFirst()
-                    .orElseThrow(() -> new IllegalStateException("wire: no dynamic pivot in the plan"));
-            List<Type.Column> statics = TdsTextWrap.staticColumns(inner.outputs(), schema);
-            List<Type.Column> templates = TdsTextWrap.templates(pivot, schema);
-            return switch (format) {
-                case JSON -> Render.jsonWireOfDynamicPivot(inner, pivot, statics, templates, "_wire1", spelling);
-                case CSV -> Render.csvWireOfDynamicPivot(inner, pivot, statics, templates, "_wire1");
-            };
+            // a dynamic pivot's wire is its keyed plan's (KeyedPivot, 2026-10-20), made before any wrapper: a wire
+            // over one would print its fixed columns alone
+            throw new IllegalStateException("a wire over a dynamic pivot nothing names: its wire is the keyed plan's"
+                    + " (KeyedPivot), not a wrapper's");
         }
         if (format == Format.JSON) {
             return Render.jsonWire(inner, typedOrNull(inner, schema), "_wire1", spelling);
@@ -107,6 +101,12 @@ public final class WireRender {
 
     /** {@link #rows(SqlQuery, Type.RelationType)} with each cell's token in {@code spelling}. */
     public static SqlQuery rows(SqlQuery plan, Type.RelationType schema, Spelling spelling) {
+        if (KeyedPivot.dynamic(plan) != null && !schema.dynamicColumns().isEmpty()) {
+            // a dynamic pivot's rows are its keyed plan's (KeyedPivot, 2026-10-20): the rows over one printed its
+            // fixed columns alone (DuckDB's streamed rows until then)
+            throw new IllegalStateException("rows over a dynamic pivot nothing names: its rows are the keyed plan's"
+                    + " (KeyedPivot), not a wrapper's");
+        }
         // A statement's own CTEs stay at its head, the wire taken over the body (the plan path program's step 6,
         // 2026-10-18): H2 parses a derived table's text again for each plan it weighs, and a verdict statement's
         // WITH wrapped inside two of them exhausted its heap on the corpus's cross-database bodies, where the same

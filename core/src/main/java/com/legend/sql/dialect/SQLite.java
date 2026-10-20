@@ -151,6 +151,17 @@ public final class SQLite extends AnsiSqlRenderer {
     }
 
     /** No native pivot: a static pivot is emulated by the carrier strategies, so a dynamic one is discovered first. */
+    // the probe plan's facts (2026-10-20): measured 2026-10-20 (3.47.1): 2,000 columns (SQLITE_MAX_COLUMN); a read transaction is one snapshot
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.TRANSACTION;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 2000;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

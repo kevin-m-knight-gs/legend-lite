@@ -330,6 +330,16 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-20, a dynamic pivot's probe plan, on every database** (GATES "a dynamic pivot's probe plan"; register S84;
+  the user's rulings of the day: the probe plan, a plan step whose rows fill the next statement's per-key fragment,
+  and "before we move on we need to have 100% parity on PCT across all backends", then passes of deep SQL
+  optimization): `ExecutionPlan.Keyed` -- a keys probe, a body with per-key regions the runner writes once per key
+  binding each key's text, the outputs with their facts, one snapshot, the database's column limit; every output,
+  every database but MongoDB; the row-as-JSON form and its three builders deleted; plan JSON format 8. The ten uncast
+  pivots answer on H2, SQLite and the server lanes this container runs, their pins removed. Next, before step 7: PCT
+  parity on every backend (the triage of 610 pins: what is neither the engine's failure on that database nor a proven
+  limit of it is fixed, the merged head's MongoDB `testFormatFloat` first), then the SQL optimization passes (the
+  Cypher line's lesson first: a value read more than once computed once).
 - **2026-10-20, WITHDRAWN the same day (the user: "what if I just want the output of a pivot as a relation?"):**
   the cross join packs each group's cells into one text value, so it cannot give a pivot's result as a relation, which
   is the main consumer; the premise below ("a dynamic pivot's only consumers are the serialized outputs") was wrong.

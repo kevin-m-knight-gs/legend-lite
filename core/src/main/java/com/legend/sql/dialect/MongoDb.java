@@ -207,8 +207,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.TempTableInSplice t -> throw new IllegalStateException("temp-table IN splice '"
                     + t.tempTableName() + "' reached an executable dialect — plan-text vocabulary only");
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
-            case SqlExpr.RowJson r -> throw new DialectCapability("a row as JSON reached MongoDb: no pivot runs"
-                    + " there (the MongoDB plan's PR4), and a document is its own JSON");
+            case SqlExpr.KeyCell k -> throw new DialectCapability("a key's cell reached MongoDb: a dynamic pivot's"
+                    + " probe plan repeats SQL text per key, and a pipeline names its fields itself");
             case SqlExpr.RowOrder r -> throw new DialectCapability("a physical row order reached MongoDb: a"
                     + " collection's documents have no row order to read");
             case SqlExpr.Column c -> column(writer, c);
@@ -2590,5 +2590,13 @@ public final class MongoDb extends AnsiSqlRenderer {
             default -> throw new DialectCapability("a row's cell is " + cell.getClass().getSimpleName()
                     + ": a MongoDb insert holds values, not expressions");
         };
+    }
+
+    /** MongoDB: no probe plan (a pipeline could name a dynamic pivot's fields itself, not built): refused by name, as
+     *  the pivot's pipeline is. */
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        throw new DialectCapability("a dynamic pivot reached MongoDb: its columns are known only once the database is"
+                + " asked");
     }
 }

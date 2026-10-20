@@ -35,19 +35,10 @@ public class Test_LegendLite_SQLite_RelationFunctions_PCT extends PCTReportConfi
             // and harness limits, the 0-based indexOf, error positions and messages
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
             // SQLITE'S OWN LIMIT: no users (an embedded database has no session user)
-            one("meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId_Function_1__Boolean_1_", "\"CURRENT_USER_FN reached SQLite: SQLite has no users\""),
-            // step 9, 2026-10-19, the plan route: a dynamic pivot's text needs the row as JSON, which only DuckDB's
-            // dialect has; pinned by name, not fixed (the brief: the pivot item is the merging session's)
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form"),
-            one("meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions_Function_1__Boolean_1_", "a row as JSON reached a dialect without a row-to-JSON form")
+            one("meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId_Function_1__Boolean_1_", "\"CURRENT_USER_FN reached SQLite: SQLite has no users\"")
+            // the ten uncast dynamic pivots answer since the probe plan (2026-10-20, KeyedPivot: the keys read
+            // first, the body written for them on every database); their pins of step 9 (2026-10-19) removed
+            // with the run that passed them
     );
 
     public static Test suite() {

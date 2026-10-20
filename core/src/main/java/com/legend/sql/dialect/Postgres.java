@@ -216,6 +216,17 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
+    // the probe plan's facts (2026-10-20): Postgres: "target lists can have at most 1664 entries" (MaxTupleAttributeNumber); REPEATABLE READ is its snapshot
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.REPEATABLE_READ;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 1664;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

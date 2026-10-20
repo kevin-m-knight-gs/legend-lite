@@ -37,7 +37,14 @@ final class SqlWriter {
 
     private final StringBuilder sql = new StringBuilder();
     private final List<RenderedStatement.Bind> binds = new ArrayList<>();
+    private final List<RenderedStatement.Region> regions = new ArrayList<>();
     private final Expressions expressions;
+    /** The per-key region being written (none, or the one: a region holds no other). */
+    private final java.util.ArrayDeque<OpenRegion> open = new java.util.ArrayDeque<>();
+
+    /** A per-key region while it is written: where it starts, its first placeholder, its counters so far. */
+    private record OpenRegion(int start, int firstBind, List<Integer> counters) {
+    }
 
     SqlWriter(Expressions expressions) {
         this.expressions = java.util.Objects.requireNonNull(expressions, "expressions");
@@ -123,10 +130,54 @@ final class SqlWriter {
         return binds.size();
     }
 
+    /**
+     * Writes {@code body} as a PER-KEY REGION ({@link RenderedStatement.Region}): text the runner writes once per key of
+     * the plan's keys probe, {@code lead} before the first copy and {@code separator} between copies, nothing with no
+     * key ({@code empty} in its place, or the statement refused when that is null). Inside it, {@link #counter} marks
+     * where a copy's key position goes and {@link #bindKey} binds the copy's key; a region holds no other region.
+     */
+    SqlWriter region(String lead, String separator, @com.legend.base.Nullable String empty, Piece body) {
+        if (!open.isEmpty()) {
+            throw new IllegalStateException("a per-key region inside another per-key region");
+        }
+        OpenRegion r = new OpenRegion(sql.length(), binds.size(), new ArrayList<>());
+        open.push(r);
+        body.writeTo(this);
+        open.pop();
+        regions.add(new RenderedStatement.Region(r.start(), sql.length(), lead, separator, empty, r.firstBind(),
+                binds.size() - r.firstBind(), r.counters()));
+        return this;
+    }
+
+    /** The key's position in the probe, written here in each copy of the per-key region being written (a per-key
+     *  name's: {@code "_pk3__u0"}); refused outside a region, where there is no key. */
+    SqlWriter counter() {
+        OpenRegion r = open.peek();
+        if (r == null) {
+            throw new IllegalStateException("a per-key name outside a per-key region: no key to name it by");
+        }
+        r.counters().add(sql.length());
+        return this;
+    }
+
+    /** A placeholder binding the probe row's {@code cell} of each copy's key; refused outside a per-key region. */
+    SqlWriter bindKey(int cell) {
+        if (open.isEmpty()) {
+            throw new IllegalStateException("a key's cell outside a per-key region: no key to bind");
+        }
+        sql.append('?');
+        binds.add(new RenderedStatement.Bind("", new RenderedStatement.Binding.Key(cell)));
+        return this;
+    }
+
     /** The placeholder bound last is typed by its value, its type written HERE when the value is known: records the
      *  hole at this place in the statement, with the spelling of each kind of value. */
     SqlWriter typeHole(java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types,
             com.legend.sql.ValueKind absent) {
+        if (!open.isEmpty()) {
+            throw new IllegalStateException("a value-typed placeholder inside a per-key region: the runner fills a"
+                    + " type hole once, and a region is written once per key");
+        }
         if (binds.isEmpty() || !(binds.get(binds.size() - 1).binding() instanceof RenderedStatement.Binding.One one)
                 || one.hole() != null) {
             throw new IllegalStateException("a type hole follows a placeholder of one value with none: " + binds);
@@ -139,12 +190,16 @@ final class SqlWriter {
 
     /** The statement written, with its parameters in placeholder order. */
     RenderedStatement statement() {
-        return new RenderedStatement(sql.toString(), binds);
+        return new RenderedStatement(sql.toString(), binds, regions);
     }
 
     /** The text written, for a caller that takes SQL as text: refused when a parameter was bound, which only a
      *  statement ({@link #statement}) can carry. */
     String text() {
+        if (!regions.isEmpty()) {
+            throw new IllegalStateException("a statement with per-key regions was asked for as text: render it as a"
+                    + " statement, which the runner writes once per key");
+        }
         if (!binds.isEmpty()) {
             throw new IllegalStateException("a statement with bound parameters " + binds
                     + " was asked for as text: render it as a statement");

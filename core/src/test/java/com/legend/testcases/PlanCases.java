@@ -215,7 +215,12 @@ public final class PlanCases {
     public static String run(ExecutionPlan plan, Connection c, java.util.Map<String, ?> values)
             throws java.io.IOException {
         java.io.StringWriter out = new java.io.StringWriter();
-        ExecutionPlan.Target target = ((ExecutionPlan.TextResult) plan.root()).sql().target();
+        ExecutionPlan.Target target = switch (plan.root()) {
+            case ExecutionPlan.TextResult text -> text.sql().target();
+            case ExecutionPlan.Keyed keyed -> keyed.keys().target();
+            case ExecutionPlan.TdsResult tds -> tds.sql().target();
+            case ExecutionPlan.Sequence s -> throw new IllegalArgumentException("a plan of several steps");
+        };
         com.legend.exec.PlanRunner.run(plan, values, com.legend.exec.PlanSessions.setUp(c, target), out);
         return out.toString();
     }
@@ -259,6 +264,15 @@ public final class PlanCases {
             ExecutionPlan plan, Connection planned, java.util.Map<String, ?> values, String what)
             throws java.io.IOException {
         String actual = run(plan, planned, values);
+        if (plan.root() instanceof ExecutionPlan.Keyed) {
+            // a dynamic pivot's probe plan (2026-10-20): its columns are its keys', named by the database, so the text
+            // is judged whole against today's
+            String expected = todayTdsText(model, query, runtime, today);
+            if (!expected.equals(actual)) {
+                throw new AssertionError(what + ": the TDS text\nexpected: " + expected + "\nactual: " + actual);
+            }
+            return;
+        }
         ExecutionPlan.Relation relation = (ExecutionPlan.Relation) ((ExecutionPlan.TextResult) plan.root()).type();
         ExecutionPlan.Relation lets = (ExecutionPlan.Relation) ((ExecutionPlan.TextResult) com.legend.Compiler.query(
                 com.legend.Compiler.compileModel(model), query)

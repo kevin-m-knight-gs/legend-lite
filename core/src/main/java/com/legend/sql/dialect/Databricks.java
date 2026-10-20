@@ -111,6 +111,17 @@ public final class Databricks extends AnsiSqlRenderer {
     }
 
     /** Native PIVOT takes its values from the query: a dynamic pivot is discovered first. */
+    // the probe plan's facts (2026-10-20): Databricks: no multi-statement transaction; no result column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

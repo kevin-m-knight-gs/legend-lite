@@ -52,9 +52,19 @@ public final class Execution {
             // executor writes bytes and array punctuation only
             case GRAPH -> com.legend.exec.Executor.streamGraph(
                     dialect.render(l.plan()), connection, dialect, out);
-            case TABULAR -> com.legend.exec.Executor.streamWireRows(
-                    dialect.render(com.legend.lowering.WireRender.rows(
+            case TABULAR -> {
+                // a pivot no cast names: its probe plan, on this session (KeyedPivot, 2026-10-20)
+                com.legend.executionplan.ExecutionPlan keyed = PlanMaker.keyedWire(l, runtimeFqn, dialect,
+                        com.legend.exec.Sessions.version(connection), com.legend.lowering.KeyedPivot.Out.JSON,
+                        com.legend.lowering.WireRender.Spelling.PURE);
+                if (keyed != null) {
+                    com.legend.exec.PlanRunner.run(keyed, java.util.Map.of(),
+                            com.legend.exec.PlanSessions.given(connection), out);
+                } else {
+                    com.legend.exec.Executor.streamWireRows(dialect.render(com.legend.lowering.WireRender.rows(
                             l.plan(), com.legend.lowering.WireRender.schema(l.root().info()))), connection, out);
+                }
+            }
             case SCALAR, COLLECTION -> {
                 out.write(com.legend.exec.Executor.wireText(
                         dialect.render(com.legend.lowering.WireRender.wrap(
@@ -115,6 +125,19 @@ public final class Execution {
         }
         com.legend.compiler.element.type.Type.RelationType schema =
                 com.legend.lowering.WireRender.schema(l.root().info());
+        // a pivot no cast names: its probe plan, on this session (KeyedPivot, 2026-10-20)
+        com.legend.executionplan.ExecutionPlan keyed = PlanMaker.keyedWire(l, runtimeFqn, dialect,
+                com.legend.exec.Sessions.version(connection), switch (format) {
+                    case CSV -> com.legend.lowering.KeyedPivot.Out.CSV;
+                    case JSON -> com.legend.lowering.KeyedPivot.Out.JSON;
+                }, com.legend.lowering.WireRender.Spelling.PURE);
+        if (keyed != null) {
+            com.legend.exec.PlanRunner.run(keyed, java.util.Map.of(), com.legend.exec.PlanSessions.given(connection),
+                    out);
+            return schema.columns().stream()
+                    .map(com.legend.compiler.element.type.Type.Column::name)
+                    .toList();
+        }
         out.write(com.legend.exec.Executor.wireText(
                 dialect.render(com.legend.lowering.WireRender.wrap(
                         l.plan(), schema, format)), connection));
@@ -169,6 +192,16 @@ public final class Execution {
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(l.ctx(), runtimeFqn, connection);
         com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
                 connection, dialect, null);
+        // a pivot no cast names: its probe plan, on this session (KeyedPivot, 2026-10-20), in the engine's text
+        com.legend.executionplan.ExecutionPlan keyed = PlanMaker.keyedWire(l, runtimeFqn, dialect,
+                com.legend.exec.Sessions.version(connection), com.legend.lowering.KeyedPivot.Out.JSON,
+                com.legend.lowering.WireRender.Spelling.ENGINE);
+        if (keyed != null) {
+            com.legend.exec.PlanRunner.run(keyed, java.util.Map.of(), com.legend.exec.PlanSessions.given(connection),
+                    out);
+            return new com.legend.plan.QueryPlan(((com.legend.executionplan.ExecutionPlan.Keyed) keyed.root()).body()
+                    .statement(), l.root().info(), shape, com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
+        }
         // the engine's API answers in the engine's text (WireRender.Spelling.ENGINE), over Pure's values
         out.write(com.legend.exec.Executor.wireText(dialect.render(com.legend.lowering.WireRender.wrap(
                 l.plan(), com.legend.lowering.WireRender.schema(l.root().info()),

@@ -71,6 +71,20 @@ final class PlanMaker {
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = com.legend.lowering.SqlPostProcessors.apply(
                 com.legend.sql.EnumValueTables.apply(l.plan()), metamodel.renames());
+        com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(lowered);
+        Type.RelationType rowSchema = Type.schemaView(root.type());
+        if (dynamic != null && rowSchema != null && !rowSchema.dynamicColumns().isEmpty()
+                && com.legend.plan.ResultShape.of(l.root()) == com.legend.plan.ResultShape.TABULAR) {
+            // a pivot no cast names: its columns are the data's, so its plan reads its keys first (the probe plan,
+            // 2026-10-20, KeyedPivot); every output, every database
+            com.legend.lowering.KeyedPivot.Out out = switch (output) {
+                case CSV -> com.legend.lowering.KeyedPivot.Out.CSV;
+                case JSON, STREAMED_JSON -> com.legend.lowering.KeyedPivot.Out.JSON;
+                case TDS_TEXT -> com.legend.lowering.KeyedPivot.Out.TDS_TEXT;
+            };
+            return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
+                    keyed(lowered, dynamic, rowSchema, out, dialect, target, l.ctx(), WireRender.Spelling.PURE));
+        }
         ExecutionPlan.Node node = switch (com.legend.plan.ResultShape.of(l.root())) {
             case GRAPH -> switch (output) {
                 case CSV -> throw new com.legend.error.NotImplementedException("graph results have no CSV wire");
@@ -125,6 +139,79 @@ final class PlanMaker {
         return text(ExecutionPlan.Format.TDS_TEXT, relation(schema, lowered), wrapped, dialect, target);
     }
 
+    /**
+     * A dynamic pivot's probe plan ({@link com.legend.lowering.KeyedPivot}, 2026-10-20): the keys probe, the body with
+     * its per-key regions, the outputs with their three facts (a fixed column's from the typed schema and the lowered
+     * query, a per-key one's from its aggregate's template and slot), the database's snapshot and column limit.
+     * {@code out} {@code ROWS} answers typed rows; a text output its format, the runner writing its punctuation.
+     */
+    static ExecutionPlan.Keyed keyed(SqlQuery lowered, com.legend.sql.SqlSource.Pivot pivot, Type.RelationType schema,
+            com.legend.lowering.KeyedPivot.Out out, SqlDialect dialect, ExecutionPlan.Target target,
+            com.legend.compiler.element.ModelContext ctx, WireRender.Spelling spelling) {
+        // the database's snapshot first: a database with no probe plan (MongoDB) refuses by its own name before any
+        // statement is written
+        SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
+        com.legend.lowering.KeyedPivot.Parts parts = com.legend.lowering.KeyedPivot.of(lowered, pivot, schema, out,
+                false, t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t), spelling);
+        java.util.Map<String, ExecutionPlan.Column> facts = new java.util.HashMap<>();
+        for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered)) {
+            facts.put(c.name(), c);
+        }
+        List<ExecutionPlan.Keyed.Output> outputs = new ArrayList<>();
+        for (com.legend.lowering.KeyedPivot.Output o : parts.outputs()) {
+            outputs.add(switch (o) {
+                case com.legend.lowering.KeyedPivot.Fixed f -> new ExecutionPlan.Keyed.Fixed(java.util.Objects
+                        .requireNonNull(facts.get(f.column().name()), () -> "the fixed column '" + f.column().name()
+                                + "' has no facts in the typed schema " + facts.keySet()), f.name());
+                case com.legend.lowering.KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
+                        new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
+                                com.legend.plan.PlanColumns.multiplicity(k.template().multiplicity()),
+                                com.legend.executionplan.ColumnFacts.slot(k.slot()), null),
+                        k.nameCell());
+            });
+        }
+        ExecutionPlan.Format format = switch (out) {
+            case ROWS -> null;
+            case TDS_TEXT -> ExecutionPlan.Format.TDS_TEXT;
+            case CSV -> ExecutionPlan.Format.CSV;
+            case JSON -> ExecutionPlan.Format.JSON;
+        };
+        ExecutionPlan.Keyed.Snapshot snapshot = switch (keysSnapshot) {
+            case TRANSACTION -> ExecutionPlan.Keyed.Snapshot.TRANSACTION;
+            case REPEATABLE_READ -> ExecutionPlan.Keyed.Snapshot.REPEATABLE_READ;
+            case SERIALIZABLE -> ExecutionPlan.Keyed.Snapshot.SERIALIZABLE;
+            case NONE -> ExecutionPlan.Keyed.Snapshot.NONE;
+        };
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), format, outputs,
+                sql(parts.body(), dialect, target), snapshot, dialect.resultColumnLimit());
+    }
+
+    /**
+     * The probe plan of {@code l} for the legacy wire's callers ({@code Execution}'s wire and streaming paths, until
+     * the plan path program's step 7 switches the query service onto plans): null when the query holds no pivot that no
+     * cast names; else its keyed plan in {@code dialect} (the session's, version-refined) for the session's server
+     * {@code serverVersion}, answered as {@code out} in {@code spelling}. The caller runs it on its own session, whose
+     * data it has set up (2026-10-20: the row-as-JSON wires it replaces are deleted).
+     */
+    public static @com.legend.base.Nullable ExecutionPlan keyedWire(Compiler.LoweredQuery l,
+            @com.legend.base.Nullable String runtime, SqlDialect dialect,
+            @com.legend.base.Nullable String serverVersion, com.legend.lowering.KeyedPivot.Out out,
+            WireRender.Spelling spelling) {
+        com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(l.plan());
+        Type.RelationType rowSchema = Type.schemaView(l.root().info().type());
+        if (dynamic == null || rowSchema == null || rowSchema.dynamicColumns().isEmpty()) {
+            return null;
+        }
+        com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
+        Metamodel metamodel = metamodel(l, decided.type(), dialect);
+        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect,
+                Databases.serversFor(decided.type(), serverVersion), metamodel);
+        SqlQuery lowered = com.legend.lowering.SqlPostProcessors.apply(
+                com.legend.sql.EnumValueTables.apply(l.plan()), metamodel.renames());
+        return new ExecutionPlan(List.of(), keyed(lowered, java.util.Objects.requireNonNull(
+                com.legend.lowering.KeyedPivot.dynamic(lowered)), rowSchema, out, dialect, target, l.ctx(), spelling));
+    }
+
     /** The whole result as one text of {@code format}: the lowered query, of {@code root}'s type, wrapped by the wire. */
     private static ExecutionPlan.TextResult wire(WireRender.Format format, SqlQuery lowered, ExprType root,
             SqlDialect dialect, ExecutionPlan.Target target) {
@@ -147,7 +234,10 @@ final class PlanMaker {
         RenderedStatement rendered = dialect.renderStatement(statement);
         List<ExecutionPlan.Slot> slots = rendered.binds().stream()
                 .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();
-        return new ExecutionPlan.Sql(rendered.sql(), slots, target, statement);
+        List<ExecutionPlan.Region> regions = rendered.regions().stream()
+                .map(r -> new ExecutionPlan.Region(r.start(), r.end(), r.lead(), r.separator(), r.empty(),
+                        r.firstBind(), r.bindCount(), r.counters())).toList();
+        return new ExecutionPlan.Sql(rendered.sql(), slots, target, statement, regions);
     }
 
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */
@@ -159,6 +249,7 @@ final class PlanMaker {
                         : new ExecutionPlan.TypeHole(hole.at(), spellings(hole.types()), kind(hole.absent())));
             }
             case RenderedStatement.Binding.Array array -> new ExecutionPlan.Binding.Array(array.elementSqlType());
+            case RenderedStatement.Binding.Key key -> new ExecutionPlan.Binding.Key(key.cell());
         };
     }
 

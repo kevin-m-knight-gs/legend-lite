@@ -10653,6 +10653,53 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-20 — The plan path program: a dynamic pivot's probe plan, on every database
+
+The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9 (the user's decision of 2026-10-20 after the pivot discussion:
+"What if I just want the output of a pivot as a relation?"; the cross-join form announced and withdrawn the same day);
+register S84.
+
+**What it is.** A pivot no cast names has columns its data names. SQL fixes a result's columns when it prepares the
+statement, so the plan reads the keys first. `ExecutionPlan.Keyed` carries a KEYS probe (the ON column's distinct non-null
+values in their order: each key's text and each generated column's name, as the output writes one, written by the
+database), a BODY rendered once with PER-KEY REGIONS (`ExecutionPlan.Region`: a text span the runner writes once per key,
+a lead, a separator, the key's position at each counter hole, the slots bound again in each copy), the outputs (fixed
+columns with their three facts and their name as a plan constant; per-key columns with their template's facts and the
+keys row's name cell), the database's snapshot and its column limit. The body is the static emulation's grouped CASE
+aggregation (`AGG(CASE WHEN on = CAST(? AS keyType) THEN arg END)`), its per-key aggregates a run of
+`OutputCol.Origin.PER_KEY` projections over the key's cell (`SqlExpr.KeyCell`, a bound placeholder), and for a text output
+each column's cell in the format's text, the per-key ones a second run. The runner (`PlanRunner.keyed`) opens one
+session, runs both statements inside one snapshot (`Statements.inSnapshot`: a transaction, at REPEATABLE READ where the
+database's snapshot needs it; none where the database has no transaction across statements), refuses by name a body
+with more columns than the database answers, writes each region once per key binding the key's text, and writes the
+format's punctuation around the database's cells (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1). It computes nothing:
+every value and every name is the database's, the plan's text the dialect's. Every output (TDS text, CSV, JSON, the
+streamed rows) and every database but MongoDB (refused by name as before: a pipeline would name the fields itself, not
+built), DuckDB included. Plan JSON format 8.
+
+**Deleted:** `SqlExpr.RowJson` and its arms (the row-as-JSON form, DuckDB-only), the three dynamic-pivot builders of
+`Render` (`tdsTextOfDynamicPivot`, `csvWireOfDynamicPivot`, `jsonWireOfDynamicPivot`, `PivotKeys`, `generatedCell`,
+`joinedOverKeys`, `commaUnlessEmpty`); the text and wire wrappers now refuse a dynamic pivot by name (the planner makes
+its keyed plan first). The legacy wire's three execution paths (`Execution`'s streamed rows, the query service's wire,
+`pure/v1`'s) run a dynamic pivot through the keyed plan on their own session (`PlanMaker.keyedWire`) until step 7
+switches them whole.
+
+**Found on the way:** DuckDB's streamed rows of a dynamic pivot printed the fixed columns alone (the per-row wire had no
+dynamic form); the keyed plan's streamed rows carry every column. A projection's constructor turned every non-derived
+output origin into DERIVED, which a per-key name must survive (`SqlSelect.Projection`).
+
+**Measured for the facts** (2026-10-20, the in-process engines): H2 2.1.214 answers at most 16,384 columns, SQLite
+3.47.1 2,000, DuckDB 70,000 without a limit; H2 and SQLite take REPEATABLE READ and SERIALIZABLE, DuckDB refuses to set an
+isolation (every transaction there is one snapshot). DuckDB's own PIVOT is the FILTER form (a count's empty cell 0, a
+list's null) and names no column for a null key, its row kept: the CASE form matches it for every aggregate that skips
+nulls (S84 names the list).
+
+**Verdicts:**
+- `PlanMakerTest.aDynamicPivotsPlanReadsItsKeysFirst_everyOutputEveryDatabase` (DuckDB, H2, SQLite: the TDS text, the CSV, the JSON and the streamed rows, the TDS text judged whole against the legacy probe route's on DuckDB, every plan round-tripping with its regions) and `aDynamicPivotsProbePlanAnswersForTheKeysItsRunFinds` (no key: the fixed columns alone); `PlanJsonTest` at format 8.
+- `//gates:core` 45 of 45 (the six Postgres lanes under `tools/postgres/as_unprivileged.sh ubuntu`), after two guard lanes named five shapes, each fixed or pinned with its dated reason: the dialect-leak ledger (PlanMakerTest names SQLite: database-type 41 -> 43, jdbc-url 4 -> 5, product-name 57 -> 60); a restore that threw inside a `finally` (restructured); the writer's open region and the rows sink's columns made explicit (a final frame, a final list); the text sink's first-row cursor allowlisted with its reason (the `Json.awaitingFieldValue` shape); the snapshot's catch of whatever the work raised, rolled back and rethrown as it is, pinned at 1 (the `PlanSessions.java` shape). `//gates:checks` 164 of 165 (`//tools/guards:classpath_test` skipped on x86-64, the entry below).
+- The PCT lanes this container runs: DuckDB 5 of 5 and `pct_discipline`, channel B 5 of 5; H2 469 of 469 and its channel B; SQLite 5 of 5 and its channel B 5 of 5; Postgres, MariaDB, MySQL and ClickHouse 5 of 5 each (every relation suite 469 of 469); Trino 4 of 5 and MongoDB 4 of 5, each failing `testFormatFloat` alone (Trino: "Query text length (1228415) exceeds the maximum length (1000000)"; MongoDB: "Document size of 16893532 is larger than maximum of 16793600"), which the merged head fails without this landing (MongoDB's suite run on `521b0961` with the change stashed: the same document, byte for byte): the `format` statement's size (658 KB on DuckDB, 783 KB on H2, 1.09 MB on Postgres for two literal arguments), the parity phase's first item. The ten pivot pins removed on H2, SQLite, Postgres, MariaDB, MySQL, ClickHouse and Trino with a dated line; Databricks', Snowflake's and BigQuery's stay until their lanes run (their containers' credentials), MongoDB's are its own refusal, unchanged.
+- The corpus lanes `//spec:corpus_duckdb` and `//spec:corpus_h2` exact.
+
 ## 2026-10-19 — The plan path program, step 9's merge completed: the trino-h2 branch in, the guard lanes reconciled, the verdicts on the final head
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7 step 9. This entry completes the one below ("the siblings' lanes

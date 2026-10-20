@@ -208,9 +208,7 @@ final class SubselectPrune {
             }
             case SqlExpr.PlanParam v -> {
             }
-            case SqlExpr.RowJson v -> {
-                // the whole row: every column of its source stays referenced
-                r.starred().add("*");
+            case SqlExpr.KeyCell v -> {
             }
             case SqlExpr.Group g -> collectExpr(g.inner(), r);
             case SqlExpr.StringLit v -> {

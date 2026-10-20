@@ -50,7 +50,7 @@ public final class MirJson {
         decimalLit, boolLit, nullLit, dateLit, group, planParam, formatLit, datePartLit, jsonKindLit, typeNameLit,
         timestampLit, timeLit, orderedListAgg, arrayLit, structLit, structGet, call, caseExpr, exists, inSubquery,
         checkedDefects, checkedChildValue, quantified, scalarSubquery, checkedOne, compactList, deferredTdsString,
-        tempTableInSplice, jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, rowJson
+        tempTableInSplice, jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, keyCell
     }
 
     enum AggTag { reducer, rankingFn, valueFn }
@@ -336,9 +336,9 @@ public final class MirJson {
                 o.put("inner", expr(g.inner()));
             }
             case SqlExpr.PlanParam p -> planParam(o, p);
-            case SqlExpr.RowJson r -> {
-                tag(o, ExprTag.rowJson, r.type());
-                o.put("alias", r.alias());
+            case SqlExpr.KeyCell k -> {
+                tag(o, ExprTag.keyCell, k.type());
+                o.put("cell", k.cell());
             }
             case SqlExpr.FormatLit f -> formatLit(o, f);
             case SqlExpr.DatePartLit d -> {
@@ -928,7 +928,7 @@ public final class MirJson {
             case nullLit -> new SqlExpr.NullLit(type);
             case dateLit -> new SqlExpr.DateLit(o.getString("iso"), type);
             case group -> new SqlExpr.Group(readExpr(o.getObj("inner")), type);
-            case rowJson -> new SqlExpr.RowJson(o.getString("alias"));
+            case keyCell -> new SqlExpr.KeyCell(o.getInt("cell"), type);
             case planParam -> {
                 Json.Obj v = objOrNull(o, "byValue");
                 ValueTyping byValue = null;

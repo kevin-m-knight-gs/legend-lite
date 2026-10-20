@@ -104,6 +104,17 @@ public final class Trino extends AnsiSqlRenderer {
     }
 
     /** No native PIVOT: a static pivot is a grouped CASE aggregation, its values discovered first. */
+    // the probe plan's facts (2026-10-20): Trino: no transaction across a session's statements for its connectors; no column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

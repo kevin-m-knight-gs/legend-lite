@@ -54,6 +54,20 @@ public interface Statements {
     void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException;
 
+    /**
+     * {@code work} with every statement it sends seeing one state of the data, as {@code snapshot} says (a keyed plan's
+     * keys probe and its body: the keys are the body's; 2026-10-20): a transaction at that isolation, committed when
+     * the work is done and rolled back when it fails, the session's own setting restored; {@code NONE} runs it as it
+     * is, where the database has no transaction across statements.
+     */
+    void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException;
+
+    /** Work a session runs inside a snapshot. */
+    @FunctionalInterface
+    interface Work {
+        void run() throws IOException;
+    }
+
     /** Where a query's typed rows go. */
     @FunctionalInterface
     interface Cells {

@@ -91,6 +91,10 @@ class CodeShapeGuardrailTest {
             // JSON writer's field/value alternation cursor — same
             // lifecycle as a parser cursor, scoped to one document write
             "Json.awaitingFieldValue",
+            // a keyed plan's text sink's first-row cursor (2026-10-20, the dynamic pivot's probe plan): the JSON
+            // array's comma before every row but the first -- the Json.awaitingFieldValue shape, scoped to one
+            // result write (PlanRunner.TextSink)
+            "PlanRunner.first",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",

@@ -93,6 +93,11 @@ class ErrorShapeGuardrailTest {
             // shared sessions close a connection whose setup failed, whatever the failure, and rethrow it as it is, a
             // failed close suppressed on it -- a narrowed list would leak the connection on the next kind
             Map.entry("PlanSessions.java", 1),
+            // the dynamic pivot's probe plan (reviewed 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): a keyed
+            // plan's snapshot sets the session back whatever the work's failure (rolled back, its isolation and
+            // auto-commit restored, a failed restore suppressed on it) and rethrows it as it is -- the
+            // PlanSessions.java shape; a narrowed list would leave a shared session in an open transaction
+            Map.entry("JdbcStatements.java", 1),
             // 4 = the derived/implicit-child PROBE-AND-FALLBACK set
             // (reviewed): navHeadRelation's assoc probe, hopJoin's
             // assoc-vs-slot probe, inlineDerivedCalls' compilable-callee
