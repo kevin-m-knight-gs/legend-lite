@@ -151,3 +151,38 @@ Known limits, left to the steps after:
    whole reopen used to clear it): right, since the person's change is saved nowhere, and noted because it is new.
 4. Following charts are not yet derived by every writer (step (c)); the Snap ownership code (adopt, hand-over, claims)
    is still in place (step (d)).
+5. **A page with no grid** (found by the 80-seed soak of section 7). Python holds one (`ll.Page` starts as one; Python
+   may take off its last grid), but the open page cannot write one: DataCube's reader refuses a page with no cube
+   (`PageNoCubeError`), and the tab writes nothing for a blank page (`pageNow` gives none). The last grid taken off in
+   the tab -- or one taken off on each side at once -- leaves two pages: the tab blank, Python's with the grid. Step (b):
+   a page with no grid is a page both sides write and open (the engine's write accepts one; the tab writes its blank
+   page; opening one shows the blank page). test_keeper.py `EmptyPage` reproduces it, marked expected to fail.
+6. **A copy dropped before every open page has moved past it** (found by section 7's two-thread test). A copy no
+   current page reads is let go at once (`sweep`), but an open page that has not followed yet is at a version that
+   reads it: its queries meet a table gone, and the commands that moved the page since may not apply over it -- the app
+   then opens the page again whole (followLive), so nothing diverges, but the screen flashes an error and loses its
+   view state. Step (d): a copy lives until every open page has followed past the version that dropped it (each
+   follower says its version on every read and write).
+
+## 7. Confidence (1b, 2026-10-20)
+
+Asked whether the tests earn confidence for a change this size, the answer was measured, not argued.
+
+- **Mutation pass.** Thirty deliberate breaks of step 1 -- the keeper's version check, its copies, its kept commands;
+  the page's pin, pull, re-apply, discard, load; the engine's routes and copy sweep; the session's forgetting --
+  each applied alone and the tests run (scratch harness: each break, the keeper/page/engine/show/notebook tests,
+  restore). The baseline caught 22 of 30. The eight missed became tests (commit 20fa90bc9), and three new breaks
+  were added for what those tests claim; round 2 is recorded below.
+- **Intent, not only agreement.** The convergence test keeps a model of what every written edit said (a name, a
+  sheet, the grids and charts, a grid's groups, Snap, titles) and checks the page against it after every step, in
+  write order -- so "one editor's whole page wins" fails it, where agreement alone passed it. 14 Python edit kinds and
+  9 of the open page's, with a pin that each went through somewhere; a refusal only for a real conflict (both gave
+  out one id; the tile taken off on the other side).
+- **The open page writes as step (b)'s tab will**: its edits as commands; refused, it follows what moved the page and
+  makes them again on top. Two design inputs for step (b) came out of it: (1) the tab keeps trying for as long as the
+  page keeps moving -- a fixed few tries starved behind Python in a loop (delayed, nothing lost); (2) a re-applied edit
+  that made an id (a sheet, a tile) gets a fresh one, so a later pending edit naming the old id must be renamed to it.
+- **Two threads.** Python's calls and the open page's writes at once, each forty edits, requiring that they met (a
+  write refused for the other's): no deadlock, one page, every edit on it in version order. Run twenty times clean
+  after the reopen fallback (limit 6).
+- **Soak.** `LEGEND_LITE_KEEPER_SEEDS=80`: 2,400 interleaved steps clean (eight seeds in the suite).
