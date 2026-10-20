@@ -228,8 +228,9 @@ export interface Versions {
 }
 
 /**
- * ANOTHER EDITOR OF WHAT THE PAGE SHOWS (§5): Python, whose code changes the page (`ll.Page`) and its frames, and reads
- * the page back (`page.read()`). Its protocol is the page's document, its versions, and a refusal of a stale report.
+ * ANOTHER EDITOR OF WHAT THE PAGE SHOWS (§5): Python, whose code changes the page (`ll.Page`) and its frames. The page is
+ * one copy, Python's keeper's (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its protocol is the page's document, its
+ * versions, and a write against the version it is at -- refused when the page has moved on since.
  */
 export interface LiveService {
   /**

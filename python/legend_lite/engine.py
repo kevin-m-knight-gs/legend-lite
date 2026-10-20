@@ -911,7 +911,8 @@ class Engine:
         model this engine serves (a frame's, a page's file's: on the compiler's threads, the frames held still). The
         answer: its count, the pull's receipt (a warehouse's), its table, and its model -- the one its queries are
         planned over. ``{"op": "release", "table"}``: that copy dropped by DataCube's code and served no more -- but one a
-        page in Python reads, kept (Python lets it go: §18.8), and one let go already, answered as let go; a table that
+        page the keeper keeps reads, kept (it goes with the last page that reads it: ``sweep``), and one let go already,
+        answered as let go; a table that
         is no copy a snap made is refused. ``{"op": "held", "table"}``: a copy this engine holds, as it was made --
         its table and model -- for a page following a snap made in Python (the page's snap command names only its table:
         docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8); one it does not hold, 404. A refusal is its words; an expired
@@ -1025,8 +1026,8 @@ class Engine:
 
     def _release_copy(self, name: Any, keep_claimed: bool = True) -> Answer:
         """A snap's copy let go of: dropped by DataCube's code, and only then served no more. One let go already is gone:
-        said as let go (the page's other editor let it go first). A tab's release (``keep_claimed``) keeps one a page in
-        Python reads: Python lets that go."""
+        said as let go (the page's other editor let it go first). A tab's release (``keep_claimed``) keeps one a page the
+        keeper keeps reads: it goes with the last page that reads it (``sweep``)."""
         with self._warehouse_lock:
             ours = isinstance(name, str) and name in self._copies
             gone = isinstance(name, str) and name in self._released
@@ -1034,7 +1035,7 @@ class Engine:
         if gone:
             return Answer(200, 'application/json', b'{}')
         if claimed:
-            return Answer(200, 'application/json', b'{"kept": "a page in Python reads it: Python lets it go"}')
+            return Answer(200, 'application/json', b'{"kept": "a page reads it: it goes with the last page that reads it"}')
         if not ours:
             return _said(404, f'{name!r} is no copy a snap of this engine made')
         assert self._headless is not None

@@ -1232,13 +1232,20 @@ class WarehouseOnPython(unittest.TestCase):
         # nor is it a page's file to drop
         self.assertEqual(self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'x', 'table': 'snap_2'})).status,
                          404)
-        # a copy a page in Python reads (its page.read() took it): a tab's release keeps it, Python lets it go (§18.8)
-        self.engine.claim_copies(['snap_2'])
+        # a copy a page the keeper keeps reads (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): a tab's release keeps it, and
+        # it goes with the last page that reads it
+        self.engine.keeper.keep('p', {'copies': {'cube-1': {'table': 'snap_2'}}}, [])
+        self.engine.keeper.keep('q', {'copies': {'cube-1': {'table': 'snap_2'}}}, [])
+        self.engine.sweep()
         status, body = self.call({'op': 'release', 'table': 'snap_2'}, '/snap.json')
-        self.assertEqual((status, json.loads(body)), (200, {'kept': 'a page in Python reads it: Python lets it go'}))
+        self.assertEqual((status, json.loads(body)), (200, {'kept': 'a page reads it: it goes with the last page that reads it'}))
         self.assertEqual(self.copy_rows(second)[0], 200, 'kept')
-        self.engine.release_copy('snap_2')
-        self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 404, 'let go by Python')
+        self.engine.keeper.forget('p')
+        self.engine.sweep()
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 200, 'another page reads it')
+        self.engine.keeper.write('q', 1, {'copies': {}}, [], None)
+        self.engine.sweep()
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 404, 'let go with the last page')
 
     def test_the_dry_run_plans_a_table_as_its_run_does_and_refuses_the_runtime_its_run_refuses(self):
         # plan.json, plan-and-run's planning half (the one-app design §15.10): never run, the run's plan, and the run's

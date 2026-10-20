@@ -1320,6 +1320,7 @@ class Joined(Paged):
     # the engine's answers as a tab reads them (Live's), without running Live's own tests again
     get = Live.get
     said = Live.said
+    wrote = Live.wrote
 
     def joined(self):
         page = ll.Page('Joins')
@@ -1382,6 +1383,7 @@ class Snapped(Paged):
 
     get = Live.get
     said = Live.said
+    wrote = Live.wrote
 
     def moving(self):
         """A live frame whose rows are moved between queries: a function, read at each query."""

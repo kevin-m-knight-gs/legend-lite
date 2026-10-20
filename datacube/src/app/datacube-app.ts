@@ -1305,7 +1305,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       await openSaved({ kind: 'page', page: said.page }, undefined, true);
       if (page.sheets.includes(shown)) page.showSheet(shown);
       liveShown = said.version;
-      // the page as it opened, said once it settles: `page.read()` has it before anything changes (restoring is a change)
+      // the page as it opened, written once it settles (restoring is a change): Python's page is what is on screen
       liveChanged();
       return undefined;
     }
@@ -1354,7 +1354,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       liveShown = moved.version;
       onCubeView?.();
-      // the page as it is now, said once it settles: what the editor's page.read() takes
+      // the page as it is now, written once it settles: Python's page is what is on screen
       liveChanged();
       return undefined;
     }

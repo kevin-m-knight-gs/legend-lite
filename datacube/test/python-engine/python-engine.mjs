@@ -575,8 +575,9 @@ try {
     `(${String(sheetNames)})() === 'trades|Desks (v2)' && document.querySelector('[data-tile="grid-2"]')?.offsetParent !== null`);
 
   // A PAGE BUILT WITH ll.Page (step 2): built and shown in Python as a person does; its link is the one show() gives.
-  // Then a sheet added in Python (the open page opens it again), and a sheet renamed in DataCube read back by
-  // page.read() (the open page reports its document as it changes)
+  // Then a sheet added and the page renamed in Python (the open page follows by their commands), and a sheet renamed in
+  // DataCube that is Python's page at once (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md: one copy of the page, which the open
+  // page writes against the version it is at)
   engine.stdin.write('py-page\n');
   const built = await nextLine();
   if (!built.startsWith('done py-page ')) throw new Error(`the engine did not build the page: ${built}`);
@@ -591,6 +592,14 @@ try {
   await seen('a sheet added to it in Python shows on the open page', `(${String(sheetNames)})() === 'pytrades|Desks|Added in Python'`);
   await seen('followed by its command: the page not opened again (its grid\'s tile the same)',
     () => document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
+  // (the phase 3 audit's 1 and 6) renamed in Python: the open page takes the name, by its command, and is not changed
+  // since it was opened -- Python's change is the page as Python has it
+  await python('py-page-rename');
+  await seen('a page renamed in Python takes the name on the open page, not marked changed, not opened again',
+    () => document.querySelector('.dc-page-name')?.textContent === 'Renamed in Python' && !document.title.startsWith('\u2022')
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
+  await python('py-page-name-back');
+  await seen('and named back', () => document.querySelector('.dc-page-name')?.textContent === 'Built in Python');
   await tabbed.locator('.dc-sheet-tab', { hasText: 'Desks' }).dblclick();
   await tabbed.locator('.dc-sheet-tab input').fill('Renamed in DataCube');
   await tabbed.locator('.dc-sheet-tab input').press('Enter');
@@ -606,29 +615,21 @@ try {
     }
     return undefined;
   })();
-  console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is in page.read() in Python${read ? ` (${read.join(', ')})` : ''}`);
+  console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is on the page in Python${read ? ` (${read.join(', ')})` : ''}`);
   if (!read) failed = true;
-  // Python's first change after it read the page is served whole (another view may not have what this one said): the
-  // page opened again, grouped by desk
+  // Python's change on top of the open page's write is its command, applied there: the page not opened again, the
+  // sheet renamed there kept, and the page still changed since it opened (by that rename, made there)
   await python('py-page-group');
-  await seen('a change in Python after page.read() opens the page again, as Python has it',
-    () => document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') !== null
-      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === undefined);
-  // then a grid's edit in Python is applied to that grid on the open page as its grid command, not opened again
-  await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
+  await seen('a change in Python after the open page wrote the page is applied by its command, what was changed there kept',
+    `(${String(sheetNames)})() === 'pytrades|Renamed in DataCube|Added in Python'
+      && document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') !== null
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes' && document.title.startsWith('\u2022')`);
+  // then another grid edit in Python, the same way
   await python('py-page-regroup');
   await seen('a grid grouped in Python is grouped on the open page by its grid command, the page not opened again',
     () => document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="region"]') !== null
       && document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') === null
       && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
-  // (the phase 3 audit's 1 and 6) renamed in Python: the open page takes the name, by its command, and is not changed
-  // since it was opened -- Python's change is the page as Python has it
-  await python('py-page-rename');
-  await seen('a page renamed in Python takes the name on the open page, not marked changed, not opened again',
-    () => document.querySelector('.dc-page-name')?.textContent === 'Renamed in Python' && !document.title.startsWith('\u2022')
-      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
-  await python('py-page-name-back');
-  await seen('and named back', () => document.querySelector('.dc-page-name')?.textContent === 'Built in Python');
 
   // SAVED FROM PYTHON (D, B6): page.save() keeps the page in this user's saved pages by the rules the tab's own Save
   // keeps it by; DataCube's Open… lists it, and it opens -- its sheets as Python saved them, its grid over its frame
@@ -653,7 +654,7 @@ try {
 
   // A JOIN OF ITS FRAMES (page.join: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), made in Python: the open page opens
   // it through Python (opened.json), whose compiler and frames it reads -- it has neither of its own here -- and reads its
-  // rows there, as a frame's grid's (the audit of §18, 2026-10-20: it was left out, and page.read() then dropped it)
+  // rows there, as a frame's grid's (the audit of §18, 2026-10-20: it was left out, and taking the open page in then dropped it)
   await tabbed.locator('.dc-sheet-tab', { hasText: 'pytrades' }).click();
   await python('py-page-join');
   await seen('a join made in Python (page.join) opens on the open page, its rows from both of its frames',
@@ -662,7 +663,7 @@ try {
 
   // SNAP AS PAGE STATE (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): a grid snapped in Python reads Python's copy on
   // the open page, by the page's snap command (not opened again), whatever its frame does; gone live in Python it reads
-  // the frame again; snapped on the page, page.read() in Python has the copy; and ll.show(df, snap=True) opens snapped
+  // the frame again; snapped on the page, Python's page has the copy; and ll.show(df, snap=True) opens snapped
   const pill = () => document.querySelector('[data-tile="grid-1"] .dc-titlebar-toggle')?.textContent;
   const joinTile = () => [...document.querySelectorAll('[data-tile^="grid"]')].find((t) => t.querySelector('.dc-th[data-column="d_desk"]'));
   await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
@@ -690,7 +691,7 @@ try {
     }
     return undefined;
   })();
-  console.log(`${copies ? 'ok  ' : 'FAIL'} a grid snapped on the open page is snapped in page.read() in Python`
+  console.log(`${copies ? 'ok  ' : 'FAIL'} a grid snapped on the open page is snapped on the page in Python`
     + `${copies ? ` (${copies['grid-1'].label}, ${copies['grid-1'].rowCount} rows)` : ''}`);
   if (!copies) failed = true;
   await python('py-page-live');

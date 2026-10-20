@@ -928,6 +928,9 @@ class Page:
         self._handles: dict[tuple[type[Any], str], Any] = {}
         # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
         self._ids: set[str] = _ids(self._doc)
+        # the ids it held at the version it is at (`_version`): what a change it made since is made again on top of,
+        # when the page moved on -- an id that change gave out is the change's own, never one held before (_rebased)
+        self._held: set[str] = set(self._ids)
         # where it is shown (datacube.show_page): told each time it changes
         self._shown: list[Any] = []
         self._quiet = 0
@@ -960,6 +963,7 @@ class Page:
         self._forget(_ids(self._document) - _ids(doc))
         self._document, self._version = doc, version
         self._ids |= _ids(doc)
+        self._held = set(self._ids)
         self._unserved = []
 
     def _enter(self) -> None:
@@ -1000,7 +1004,8 @@ class Page:
                     raise ValueError('the page changed where it is open while this change was made, which is no command '
                                      'to make again on it: make the change again') from None
                 try:
-                    self._version, self._document, self._ids = _rebased(self, commands)
+                    self._version, self._document, held = _rebased(self, commands)
+                    self._ids |= held
                 except ValueError as refused:
                     self._discard()
                     raise ValueError(f'the page changed where it is open while this change was made: {refused}') from None
@@ -1009,6 +1014,7 @@ class Page:
             raise ValueError('the page kept changing where it is open while this change was made: make it again')
         self._dirty = False
         self._unserved = []
+        self._held = set(self._ids)
 
     # -- the page's model (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): its classes, into a project ----------------------
 
@@ -1653,7 +1659,8 @@ def _rebased(page: Page, noted: list[dict[str, Any]]) -> tuple[int, dict[str, An
     if kept is None:
         raise ValueError('the page is no longer kept')
     version, doc = kept[0], copy.deepcopy(kept[1])
-    held = page._ids | _ids(doc)
+    # the ids held before the change (the ones it gave out its own, given again as it gave them) and the page's now
+    held = page._held | _ids(doc)
     engine, frames = session.headless(), session.frames
     for entry in noted:
         if 'page' in entry:

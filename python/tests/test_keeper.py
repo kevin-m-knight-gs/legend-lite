@@ -126,22 +126,27 @@ class OpenPage:
         return _with_cube(self.doc, view['cube'], _json.loads(said['cube']))
 
     def edit(self, rng):
-        """One edit as a person makes one on the page: refused ones (an id gone) are let be, as the screen lets be."""
+        """One edit as a person makes one on the page: refused ones (an id gone) are let be, as the screen lets be. Its
+        kind: ``addSheet`` when it gave out an id."""
         grids = [v['id'] for v in self.doc['views'] if v['kind'] == 'grid']
         choice = rng.randrange(4)
         try:
             if choice == 0:
                 self.doc = self.applied({'kind': 'renamePage', 'name': f'Named there {rng.randrange(100)}'})
-            elif choice == 1:
+                return 'renamePage'
+            if choice == 1:
                 self.doc = self.applied({'kind': 'addSheet', 'name': f'There {rng.randrange(100)}'})
-            elif choice == 2 and grids:
+                return 'addSheet'
+            if choice == 2 and grids:
                 self.doc = self.grid_applied(rng.choice(grids), {'kind': 'group', 'rows': [rng.choice(['desk', 'region'])]})
-            else:
-                sheets = [s['id'] for s in self.doc['sheets']]
-                if len(sheets) > 1:
-                    self.doc = self.applied({'kind': 'renameSheet', 'sheet': rng.choice(sheets), 'name': 'Renamed there'})
+                return 'group'
+            sheets = [s['id'] for s in self.doc['sheets']]
+            if len(sheets) > 1:
+                self.doc = self.applied({'kind': 'renameSheet', 'sheet': rng.choice(sheets), 'name': 'Renamed there'})
+                return 'renameSheet'
         except ValueError:
             pass
+        return None
 
     def write(self):
         """Written as the app writes it: against its version; refused, it follows and writes again."""
@@ -188,6 +193,7 @@ class Converges(unittest.TestCase):
             os.environ['LEGEND_LITE_SITE'] = self._site
 
     def python_edit(self, page, rng):
+        """One edit made in Python; refused, its refusal (else None)."""
         grids = page.grids
         choice = rng.randrange(5)
         try:
@@ -205,9 +211,10 @@ class Converges(unittest.TestCase):
                     grid.live()
             elif len(page.sheets) > 1:
                 page.sheets[-1].name = 'Renamed in Python'
-        except ValueError:
+        except ValueError as refused:
             # refused in DataCube's words, or made against a page that moved on and no longer applying: nothing changed
-            pass
+            return refused
+        return None
 
     def same(self, page, open_page, seed, step):
         kept = datacube._session.keeper.current(page._key)
@@ -241,10 +248,13 @@ class Converges(unittest.TestCase):
                     # the open page edits, Python edits on top of the page as it began its call, then the page writes
                     page._enter()
                     try:
-                        open_page.edit(rng)
+                        theirs = open_page.edit(rng)
                         open_page.write()
-                        self.python_edit(page, rng)
+                        refused = self.python_edit(page, rng)
                     finally:
                         page._leave(failed=False)
+                    # made again on top of the open page's edit, refused only for a conflict: both gave out the same id
+                    if refused is not None and 'changed where it is open' in str(refused):
+                        self.assertEqual(theirs, 'addSheet', f'seed {seed}, step {step}: refused for no conflict: {refused}')
                 self.same(page, open_page, seed, step)
             tab.close()

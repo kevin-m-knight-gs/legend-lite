@@ -11,8 +11,9 @@
 //   server does (§15.2, as amended 2026-10-15: no worker messages carried over HTTP).
 // - THE DATA IN is Python's frames: each a model Python wrote when the frame was registered (`cube.json?table=`).
 // - PYTHON IS ANOTHER EDITOR of what the page shows (§5): it changes the page (`ll.Page`) and its frames, the page
-//   follows their versions (`version.json`, or the widget's), and it says what it is now, for `page.read()`
-//   (`page.json`, with the version it opened: what it says of a page Python has replaced is refused).
+//   follows their versions (`version.json`, or the widget's), and it writes what it is now into the one copy Python keeps
+//   (`page.json`, against the version it is at: a write against one the page moved on from is refused;
+//   docs/DATACUBE_PAGE_KEEPER_2026_10_20.md).
 //
 // - A PAGE'S FILE (an upload, an example) goes into Python's DuckDB (step 2b): its bytes to Python a part at a time
 //   (`file-part.json`), read there as one file by DataCube's own code (upload.ts, run headless: `file.json`), which
