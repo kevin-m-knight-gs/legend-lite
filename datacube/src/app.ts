@@ -353,7 +353,8 @@ export interface HeldCopy {
   readonly label: string;
   /** When they were copied into the tab. */
   readonly takenAt: Date;
-  readonly rowCount: number;
+  /** How many rows were copied: a file's; a join of copies has its own to say, and none here. */
+  readonly rowCount?: number;
 }
 
 /**
@@ -3859,8 +3860,9 @@ export class CubeApp {
       snap.classList.add('dc-fixed');
       snap.setAttribute('aria-disabled', 'true');
       snap.title = held !== undefined
-        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}, ` +
-          `${held.rowCount.toLocaleString(UI_LOCALE)} rows. Nothing can change it while you work.`
+        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}` +
+          `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. ` +
+          'Nothing can change it while you work.'
         : describePlane({ mode: 'live' }, { remote: false, toggles: false }).title;
       host.append(snap);
       this.#paintSnap = null;

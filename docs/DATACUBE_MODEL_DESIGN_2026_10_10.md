@@ -1108,7 +1108,8 @@ run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
      (`upload.ts modelLanded`). The copy's types are what it holds, so no second account of the base's types is kept.
    - The snapped grid reads `#>{copy}#` through a planner over that model, and its document keeps the live base.
    - It is offered for any grid whose rows are not in the host's database already: a warehouse table's, a remote
-     file's.
+     file's, a join's that reads a remote file. A join of files read into the tab is a copy held there from the
+     start, as a file's grid is: its plane says Snapped, its files and when they were read (2026-10-20).
    - A copy belongs to its grid, and goes with it: released, taken live, or the grid closed. (Sharing one copy between
      grids of the same base query is not built: each grid copies its own.)
    - Python's copies work the same way: landed in a table of the frames' database of its own, modelled by DataCube's

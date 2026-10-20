@@ -7,6 +7,8 @@
 import { leavesOf, rebuilt, sha256, type CubeDocument, type FileSource, type JoinSource, type LeafSource } from '../cube-document.ts';
 import type { FileHandle } from '../file-handles.ts';
 import { TAB_TABLES, openJoin } from '../join-open.ts';
+import type { HeldCopy } from '../app.ts';
+import type { SnapTarget } from '../cube.ts';
 import type { RelationTyper } from '../source-columns.ts';
 import { catalogColumns, tableNameOf } from '../upload.ts';
 import type { DatabaseService, GridRows, LocalEngine, Services } from './services.ts';
@@ -36,6 +38,10 @@ export interface JoinSourcesHost {
    * when the page is saved), dropped when the last of them is let go unmade.
    */
   readonly joinRead: Map<string, JoinRead>;
+  /** When each table a file was read into was read, by the table (sources.ts): a join of copies held here says it. */
+  readonly readAt: Map<string, Date>;
+  /** The tab's own Snap (sources.ts snapInto): a copy of a grid's base query in this tab's database. */
+  snapTarget(): SnapTarget;
   typer(rows: GridRows): RelationTyper;
   letGo(rows: GridRows): void;
   readonly gridMaker: SourcesOf['gridMaker'];
@@ -99,12 +105,26 @@ async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, pag
     h.untake(into);
     h.take(opened.table);
   }
+  h.readAt.set(opened.table, new Date());
   h.joinRead.set(opened.table, { file: got.file, ...(got.handle ? { handle: got.handle } : {}), sha256: leaf.sha256, sample: leaf.sample !== undefined, users: 1 });
   // a name the page's classes read it by that it could not take: said, as a file's grid says it
   const renamed = kept !== undefined && opened.table !== kept
     ? `${got.file.name} is read as ${opened.table} in this tab, not ${kept} as the page's classes read it` : undefined;
   const said = [note, renamed].filter((n): n is string => n !== undefined);
   return { table: opened.table, held: true, ...(said.length > 0 ? { note: said.join('; ') } : {}) };
+}
+
+/**
+ * A join of copies held in the tab, as its plane says it: its files by name, read in by the latest of their read times
+ * (its row count is the grid's own to say). A table read at no time the tab knows is a bug of the tab's, refused.
+ */
+function heldCopyOf(leaves: readonly LeafSource[], tables: readonly string[], readAt: ReadonlyMap<string, Date>): HeldCopy {
+  const times = tables.map((t) => {
+    const at = readAt.get(t);
+    if (at === undefined) throw new Error(`the table ${t} was read in at no time this tab knows`);
+    return at.getTime();
+  });
+  return { label: leaves.map((l) => l.name).join(', '), takenAt: new Date(Math.max(...times)) };
 }
 
 /** A JOIN FOR A GRID (sources.ts openedJoin's): its model, its relation, its grid; undefined when a file was not given. */
@@ -122,6 +142,7 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
       read.users -= 1;
       if (read.users > 0) continue;
       h.joinRead.delete(t);
+      h.readAt.delete(t);
       await h.database.forgetFile?.(read.file.name, t).catch(() => {});
       h.untake(t);
     }
@@ -160,6 +181,12 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
     // the join as it opened: a kept column of theirs gone since is left out of it, as the notes say
     const cubeSource: JoinSource = { ...source, how: opened.how, columns };
     const r = rebuilt(how.saved, opened.relation, opened.columns, source.name, how.capped === true);
+    // where its rows are (§18.3): a remote file is read where it lives, so the join is live and the tab's Snap offered;
+    // every leaf a file read into the tab, it is a copy held here from the start, as a file's grid is
+    const leaves = leavesOf(source);
+    const plane: Pick<GridPlace, 'heldCopy' | 'snapTarget'> = leaves.some((l) => l._type === 'remoteFile')
+      ? { snapTarget: h.snapTarget() }
+      : { heldCopy: heldCopyOf(leaves, tables, h.readAt) };
     return {
       label: source.name,
       notes: [...said, ...opened.notes, ...r.notes],
@@ -168,7 +195,8 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, how: { 
         await forget();
       },
       make: h.gridMaker(r.snapshot, r.configuration, [], {
-        ...h.rowsPlace(grid), cubeSource, label: source.name, ...(r.tree ? { tree: r.tree } : {}), tables, foldPanel: how.capped === true,
+        ...h.rowsPlace(grid), ...plane, cubeSource, label: source.name, ...(r.tree ? { tree: r.tree } : {}), tables,
+        foldPanel: how.capped === true,
       }),
     };
   } catch (e) {

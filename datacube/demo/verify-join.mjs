@@ -136,6 +136,12 @@ try {
   check(await rowsOf(joined) === 47, `the joined grid: every trade, customer 5's twice (${await rowsOf(joined)} rows)`);
   check(JSON.stringify(await columnsOf(joined)) === JSON.stringify(['trade_id', 'customer_id', 'region', 'notional', 'their_customer_id', 'name']),
     `its columns: mine, then theirs, the one mine has prefixed (${await columnsOf(joined)})`);
+  // where its rows are (§18.3): two files read into this tab, so a copy held here from the start, as a file's grid is --
+  // never Live, and no Snap of a copy offered
+  const pill = joined.locator('.dc-titlebar-toggle').first();
+  const plane = { text: await pill.textContent(), title: await pill.getAttribute('title') ?? '' };
+  check(plane.text === 'Snapped' && /^trades\.csv, customers\.csv — copied into this tab at /.test(plane.title)
+    && await pill.getAttribute('aria-disabled') === 'true', `the join's plane: its files' copies, held here (${JSON.stringify(plane)})`);
 
   // THE TRADES WITH NO CUSTOMER: keep my rows that have none, their columns not brought
   await joinWindow();

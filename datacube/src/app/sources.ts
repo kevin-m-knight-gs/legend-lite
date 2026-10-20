@@ -366,6 +366,8 @@ export function pageSources(d: SourcesOf): PageSources {
    * and a join of them opens before -- it reads the table a grid beside it read, never the file again.
    */
   const readForGrids = new Map<string, { readonly table: string; readonly file: File; readonly handle?: FileHandle }>();
+  /** When each table a file was read into was read, by the table: what a grid of copies held here says of them. */
+  const readAt = new Map<string, Date>();
 
   const madeGrid = (id: string, place: GridPlace): void => {
     // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it)
@@ -402,6 +404,7 @@ export function pageSources(d: SourcesOf): PageSources {
       if (read.has(table)) continue;
       held.delete(table);
       tableFiles.delete(table);
+      readAt.delete(table);
       void database.forgetFile?.(fileName, table).catch(() => {}).finally(() => taken.delete(table));
     }
     // a planner no grid plans through any more lets its model go (a grid and its copies share one)
@@ -654,6 +657,7 @@ export function pageSources(d: SourcesOf): PageSources {
         taken.add(table);
       }
       const loadedAt = new Date();
+      readAt.set(table, loadedAt);
       const rows = services.engine.rows(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
       const columns = await sourceColumns(typer(rows), opened.source);
       const source = await fileSource(file, formatOf(file.name), columns, how.sample);
@@ -681,6 +685,7 @@ export function pageSources(d: SourcesOf): PageSources {
         discard: () => {
           letGo(rows);
           if (readForGrids.get(source.sha256)?.table === table) readForGrids.delete(source.sha256);
+          readAt.delete(table);
           return forgetFile(file.name, table).catch(() => {}).finally(() => taken.delete(table));
         },
         make: gridMaker(r.snapshot, r.configuration, [], {
@@ -699,6 +704,7 @@ export function pageSources(d: SourcesOf): PageSources {
       // read, then refused further on (its columns not typed, say): its table goes, and its name is free again
       if (read !== undefined) {
         const gone = read;
+        readAt.delete(gone);
         await database.forgetFile?.(file.name, gone).catch(() => {});
         taken.delete(gone);
       }
@@ -815,7 +821,8 @@ export function pageSources(d: SourcesOf): PageSources {
     if (!local) throw new Error(`${source.name} is a join, read in this tab's own database: this page has none`);
     const { openedJoin: opened } = await joinSources();
     return opened({
-      local, database, services, fileFor, freshTable, joinRead, typer, letGo, gridMaker, rowsPlace,
+      local, database, services, fileFor, freshTable, joinRead, readAt, typer, letGo, gridMaker, rowsPlace,
+      snapTarget: () => snapInto(local),
       readFile: (sha) => {
         const open = [...tableFiles].find(([, f]) => f.sha256 === sha) ?? [...joinRead].find(([, r]) => r.sha256 === sha);
         return open ? { table: open[0], file: open[1].file, ...(open[1].handle ? { handle: open[1].handle } : {}) } : readForGrids.get(sha);
