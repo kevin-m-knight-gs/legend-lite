@@ -39,6 +39,13 @@ class CypherParityPostgresTest {
     void everyCaseHasItsLedgerStatusOnPostgres() throws Exception {
         List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
                 Runfile.property("cypher.parity.lite").getParent());
+        // a development run over some of the cases (-Dcypher.parity.only=<a regex found in a case's key>): each
+        // case's outcome printed, the ledger not read (as CypherParityTest's)
+        String only = System.getProperty("cypher.parity.only");
+        if (only != null) {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(only);
+            cases = cases.stream().filter(c -> p.matcher(c.key()).find()).toList();
+        }
         CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
         Map<String, CypherParity.Decision> decisions = CypherParity.decisions(
                 Runfile.property("cypher.parity.decisions"), "postgres");
@@ -79,6 +86,10 @@ class CypherParityPostgresTest {
                     admin.setAutoCommit(true);
                 }
             }, problems);
+        }
+        if (only != null) {
+            outcomes.forEach((k, o) -> System.out.println(o.status() + "\t" + k + "\t" + o.detail()));
+            return;
         }
         CypherParity.census(outcomes, "postgres");
         System.out.println("the write cases by what a graph over a domain model needs: "

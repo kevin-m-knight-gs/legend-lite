@@ -3396,8 +3396,13 @@ public final class CypherToPure {
     /** The class's relationships read forward, as the model reports them. */
     private List<Property> ends(String classPath) {
         List<Property> out = new ArrayList<>();
-        model.ends(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
-                out.add(new Property(n, type, classTyped, enumTyped, lower, upper, List.of())));
+        List<String> values = valueClasses();
+        model.ends(classPath, (n, type, classTyped, enumTyped, lower, upper) -> {
+            // (a property holding a value class, a duration's or a zoned value's, is a value, no relationship)
+            if (!(classTyped && values.contains(type))) {
+                out.add(new Property(n, type, classTyped, enumTyped, lower, upper, List.of()));
+            }
+        });
         return out;
     }
 
@@ -11024,11 +11029,22 @@ public final class CypherToPure {
                 throw CypherErrors.invalid("Type mismatch: expected String but was " + cypherType(s.tx().kind()),
                         c.args().get(i).pos());
             }
-            if (s.tx().nullable()) {
-                throw CypherErrors.unsupported("split of a value that may be null is not supported yet", c.pos());
-            }
             txs.add(s.tx());
             rowFree &= s.literal();
+        }
+        if (txs.get(0).nullable() || txs.get(1).nullable()) {
+            // (an argument that may be null: null where it is, else the parts, held as a Variant of strings)
+            ValueSpecification absent = null;
+            for (Tx t : txs) {
+                if (t.nullable()) {
+                    ValueSpecification is = call("isEmpty", SqlToPure.valueOf(t));
+                    absent = absent == null ? is : call("or", absent, is);
+                }
+            }
+            ValueSpecification parts = call("split", txs.get(0).nullable() ? call("toOne", txs.get(0).vs())
+                    : txs.get(0).vs(), txs.get(1).nullable() ? call("toOne", txs.get(1).vs()) : txs.get(1).vs());
+            return scalar(Tx.value(call("if", java.util.Objects.requireNonNull(absent), thunk(SqlToPure.nullOf(
+                    Kind.JSON).vs()), thunk(call("toVariant", parts))), Kind.JSON, true, new ListOf(Kind.STRING)));
         }
         return new Coll(call("split", txs.get(0).vs(), txs.get(1).vs()), Kind.STRING, rowFree);
     }
@@ -18272,10 +18288,17 @@ public final class CypherToPure {
      *  column of its identity's text, its properties' kinds (its own before the write and the ones the write set),
      *  and, for a relationship, its type. */
     private record Reread(String variable, String identity, String key, Map<String, Kind> props,
-            @com.legend.base.Nullable String type, @com.legend.base.Nullable String typeColumn) {
+            @com.legend.base.Nullable String type, @com.legend.base.Nullable String typeColumn,
+            /** over a domain model, a node's class where the clause knows it */
+            @com.legend.base.Nullable String classPath) {
         Reread(String variable, String identity, String key, Map<String, Kind> props,
                 @com.legend.base.Nullable String type) {
-            this(variable, identity, key, props, type, null);
+            this(variable, identity, key, props, type, null, null);
+        }
+
+        Reread(String variable, String identity, String key, Map<String, Kind> props,
+                @com.legend.base.Nullable String type, @com.legend.base.Nullable String typeColumn) {
+            this(variable, identity, key, props, type, typeColumn, null);
         }
     }
 
@@ -18293,7 +18316,7 @@ public final class CypherToPure {
     }
 
     /** Ids a clause minted ({@link Writer#greatest}): the staged rows holding them and their column. */
-    private record Mint(ValueSpecification rows, String column) {
+    private record Mint(ValueSpecification rows, ValueSpecification id) {
     }
 
     /** The program of one statement that updates the graph ({@link #program}). */
@@ -18757,6 +18780,15 @@ public final class CypherToPure {
             };
         }
 
+        /** Over a domain model, each created relationship whose edge class its row's ends choose (several of its
+         *  type's join the classes the clause knows), by its minted id's column: each candidate's path and whether a
+         *  row's relationship is one of it. */
+        private final Map<String, List<Map.Entry<String, ValueSpecification>>> edgeChoices = new HashMap<>();
+
+        /** The ids of the created elements the clause's writes alone read, by their minted column's name: each the
+         *  expression over a staged row ({@code r}) that computes it ({@link #minted}). */
+        private final Map<String, ValueSpecification> mintedIds = new HashMap<>();
+
         /** The column of the rows a class write reads each instance's key from (a name no property has). */
         private static final String DOMAIN_KEY = SYNTHETIC + "key";
 
@@ -18772,20 +18804,73 @@ public final class CypherToPure {
             statements.add(call(fqn, args.toArray(ValueSpecification[]::new)));
         }
 
-        /** The edge class of the relationship {@code r} created from {@code src} to {@code dst} over a domain model:
-         *  its type's between the two ends' classes (each where the clause knows it; the model declares one per class
-         *  pair the type joins); none or several, refused by name. */
-        private String edgeClassFor(RelPattern r, Element src, Element dst) {
+        /** The edge classes the relationship {@code r} created from {@code src} to {@code dst} over a domain model
+         *  may be an instance of: its type's whose ends hold the two ends' classes (each where the clause knows it; the
+         *  model declares one per class pair the type joins). None is refused by name. */
+        private List<Edge> edgeClassesFor(RelPattern r, Element src, Element dst) {
             String type = r.types().get(0);
             List<Edge> candidates = edges().stream().filter(e -> e.type().equals(type)
-                    && (src.classPath() == null || e.from().classPath().equals(src.classPath()))
-                    && (dst.classPath() == null || e.to().classPath().equals(dst.classPath()))).toList();
-            if (candidates.size() != 1) {
+                    && (src.classPath() == null || model.isSubclass(src.classPath(), e.from().classPath()))
+                    && (dst.classPath() == null || model.isSubclass(dst.classPath(), e.to().classPath()))).toList();
+            if (candidates.isEmpty()) {
                 throw CypherErrors.unsupported("a relationship of the type " + type + " created over a graph of a"
-                        + " domain model where " + candidates.size() + " of its edge classes join the two nodes' classes"
-                        + " is not supported yet", r.pos());
+                        + " domain model where none of its edge classes joins the two nodes' classes is not supported"
+                        + " (a domain model's edge classes are its relationships)", r.pos());
             }
-            return candidates.get(0).classPath();
+            return candidates;
+        }
+
+        /** Whether a row's node {@code end} (its id {@code id}) is an instance of the class {@code cls}: known where
+         *  the clause knows its class; else its identity's class (the path before its id) the class or a subclass,
+         *  where the rows carry its identity; else whether an instance of one of those holds the id, as the database
+         *  finds it (ids are the graph's, unique across the classes). */
+        private ValueSpecification instanceOf(Element end, ValueSpecification id, String cls) {
+            if (end.classPath() != null) {
+                return new CBoolean(model.isSubclass(end.classPath(), cls));
+            }
+            ValueSpecification any = null;
+            ValueSpecification x = new Variable("x");
+            for (String c : nodeClasses()) {
+                if (!model.isSubclass(c, cls)) {
+                    continue;
+                }
+                ValueSpecification is = end.identity() != null
+                        ? call("startsWith", call("toOne", read(end.identity())), new CString(c + ":"))
+                        : call("isNotEmpty", call("filter", call("project", call("getAll", new PackageableElementPtr(
+                                c)), new ColSpecArray(List.of(new ColSpec("id", lambda("x", storeId(call("toOne", call(
+                                ELEMENT_ID, x)))), null, null)))), lambda("x", call("equal", new AppliedProperty(x,
+                                "id"), id))));
+                any = any == null ? is : call("or", any, is);
+            }
+            return any == null ? new CBoolean(false) : any;
+        }
+
+        /** The relationships created over a domain model, one per row of {@code rows}: each row's an instance of
+         *  the one of {@code candidates} whose ends hold its two nodes' classes ({@link #instanceOf}: where several
+         *  may, the database decides row by row, and a row none holds raises), its key the minted id, its ends
+         *  linked to the nodes {@code srcEnd} and {@code dstEnd} of the ids {@code src} and {@code dst}. */
+        private void edgesWritten(Rows rows, String minted, List<Edge> candidates, Element srcEnd,
+                ValueSpecification src, Element dstEnd, ValueSpecification dst, String type) {
+            if (candidates.size() == 1) {
+                edgeWritten(rows.vs(), minted, candidates.get(0).classPath(), src, dst);
+                return;
+            }
+            ValueSpecification anyOf = null;
+            for (Edge e : candidates) {
+                ValueSpecification is = choice(e, srcEnd, src, dstEnd, dst);
+                edgeWritten(call("filter", rows.vs(), lambda("r", is)), minted, e.classPath(), src, dst);
+                anyOf = anyOf == null ? is : call("or", anyOf, is);
+            }
+            guard(rows, call("not", java.util.Objects.requireNonNull(anyOf)), "a relationship of the type " + type
+                    + " between nodes of classes no edge class of the domain model joins");
+        }
+
+        /** Whether a row's relationship is an instance of the edge class {@code e}: its ends hold the row's nodes'
+         *  classes. */
+        private ValueSpecification choice(Edge e, Element srcEnd, ValueSpecification src, Element dstEnd,
+                ValueSpecification dst) {
+            return call("and", instanceOf(srcEnd, src, e.from().classPath()), instanceOf(dstEnd, dst,
+                    e.to().classPath()));
         }
 
         /** A relationship created over a domain model, one per row of {@code rows}: an instance of its edge class, its
@@ -18794,11 +18879,11 @@ public final class CypherToPure {
                 ValueSpecification dst) {
             Edge e = edges().stream().filter(x -> x.classPath().equals(edgeClass)).findFirst().orElseThrow();
             classWrite(WRITE_INSTANCES, call("project", rows, new ColSpecArray(List.of(new ColSpec(DOMAIN_KEY,
-                    lambda("r", read(minted)), null, null)))), edgeClass, null, DOMAIN_KEY);
+                    lambda("r", mintedId(minted)), null, null)))), edgeClass, null, DOMAIN_KEY);
             for (Object[] end : List.of(new Object[] {e.from().property(), src}, new Object[] {e.to().property(), dst})) {
                 String property = (String) end[0];
                 classWrite(LINK, call("project", rows, new ColSpecArray(List.of(new ColSpec(DOMAIN_KEY, lambda("r",
-                        read(minted)), null, null), new ColSpec(property, lambda("r", (ValueSpecification) end[1]), null,
+                        mintedId(minted)), null, null), new ColSpec(property, lambda("r", (ValueSpecification) end[1]), null,
                         null)))), edgeClass, property, DOMAIN_KEY);
             }
         }
@@ -18807,9 +18892,12 @@ public final class CypherToPure {
          *  own, where the clause knows it; else every node or edge class declaring the key). */
         private List<String> candidates(Element el, String key) {
             if (el.classPath() != null) {
-                return List.of(el.classPath());
+                return property(el.classPath(), key) != null ? List.of(el.classPath()) : List.of();
             }
-            List<String> classes = el.node() ? nodeClasses() : edges().stream().map(Edge::classPath).toList();
+            List<Map.Entry<String, ValueSpecification>> chosen = el.minted() == null ? null
+                    : edgeChoices.get(el.minted());
+            List<String> classes = chosen != null ? chosen.stream().map(Map.Entry::getKey).toList()
+                    : el.node() ? nodeClasses() : edges().stream().map(Edge::classPath).toList();
             return classes.stream().filter(c -> property(c, key) != null).toList();
         }
 
@@ -18910,8 +18998,10 @@ public final class CypherToPure {
             Map<String, Element> bound = new LinkedHashMap<>();
             for (Col c : rows.columns()) {
                 if (c.detail() instanceof NodeShape ns && ns.identity() != null) {
-                    // (its key column is the staged rows': read once they are staged)
-                    bound.put(c.name(), new Element(c.name(), true, ns.identity(), null, c.name()));
+                    // (its key column is the staged rows': read once they are staged; over a domain model, its class
+                    // where the rows carry nodes of one)
+                    bound.put(c.name(), new Element(c.name(), true, ns.identity(), null, c.name()).withClass(domain
+                            ? ns.classPath() : null));
                 }
             }
             List<NodePattern> newNodes = new ArrayList<>();
@@ -18919,6 +19009,7 @@ public final class CypherToPure {
             List<RelPattern> newRels = new ArrayList<>();
             List<Element[]> relEnds = new ArrayList<>();
             List<Element> relElements = new ArrayList<>();
+            List<List<Edge>> relClasses = new ArrayList<>();
             Map<String, Element> created = new LinkedHashMap<>();
             for (PathPattern p : cr.patterns()) {
                 if (p.variable() != null && !hidden(p.variable())) {
@@ -18954,9 +19045,18 @@ public final class CypherToPure {
                         String minted = freshName(names);
                         Element near = java.util.Objects.requireNonNull(refs.get(k - 1));
                         Element far = java.util.Objects.requireNonNull(refs.get(k + 1));
+                        boolean in = r.direction() == CypherAst.Direction.IN;
+                        List<Edge> classes = domain ? edgeClassesFor(r, in ? far : near, in ? near : far) : List.of();
+                        relClasses.add(classes);
                         Element rel = new Element(r.variable() == null ? minted : r.variable(), false, null, minted,
-                                minted).withClass(domain ? edgeClassFor(r, r.direction() == CypherAst.Direction.IN
-                                ? far : near, r.direction() == CypherAst.Direction.IN ? near : far) : null);
+                                minted).withClass(classes.size() == 1 ? classes.get(0).classPath() : null);
+                        if (classes.size() > 1) {
+                            Element src = in ? far : near;
+                            Element dst = in ? near : far;
+                            // (a carried end's identity, its class's path before its id; a created one's class)
+                            edgeChoices.put(minted, classes.stream().map(e -> Map.entry(e.classPath(), choice(e,
+                                    src, new CInteger(0L), dst, new CInteger(0L)))).toList());
+                        }
                         newRels.add(r);
                         relElements.add(rel);
                         relEnds.add(r.direction() == CypherAst.Direction.IN ? new Element[] {far, near}
@@ -18964,12 +19064,26 @@ public final class CypherToPure {
                     }
                 }
             }
-            Rows minted = minted(rows, nodeElements, relElements, names, cr.pos());
+            // (an element the pattern names no variable for is read by this clause's writes alone: its id the
+            // expression over the row's number, never a column of the staged rows, which a clause of hundreds of
+            // elements would make wider than a database holds)
+            Set<String> anonymous = new HashSet<>();
+            for (int j = 0; j < newNodes.size(); j++) {
+                if (newNodes.get(j).variable() == null) {
+                    anonymous.add(java.util.Objects.requireNonNull(nodeElements.get(j).minted()));
+                }
+            }
+            for (int j = 0; j < newRels.size(); j++) {
+                if (newRels.get(j).variable() == null) {
+                    anonymous.add(java.util.Objects.requireNonNull(relElements.get(j).minted()));
+                }
+            }
+            Rows minted = minted(rows, nodeElements, relElements, names, cr.pos(), anonymous);
             Rows staged = stage(minted);
-            nodeElements.forEach(el -> mintedNodes.add(new Mint(staged.vs(), java.util.Objects.requireNonNull(
-                    el.minted()))));
-            relElements.forEach(el -> mintedRels.add(new Mint(staged.vs(), java.util.Objects.requireNonNull(
-                    el.minted()))));
+            nodeElements.forEach(el -> mintedNodes.add(new Mint(staged.vs(), mintedId(java.util.Objects
+                    .requireNonNull(el.minted())))));
+            relElements.forEach(el -> mintedRels.add(new Mint(staged.vs(), mintedId(java.util.Objects
+                    .requireNonNull(el.minted())))));
             RowScope scopeOver = new RowScope(staged);
             List<Reread> reread = new ArrayList<>();
             for (int j = 0; j < newNodes.size(); j++) {
@@ -18978,11 +19092,11 @@ public final class CypherToPure {
                 if (domain) {
                     // (an instance of its label set's class, its key the minted id)
                     classWrite(WRITE_INSTANCES, call("project", staged.vs(), new ColSpecArray(List.of(new ColSpec(
-                            DOMAIN_KEY, lambda("r", read(java.util.Objects.requireNonNull(el.minted()))), null, null)))),
+                            DOMAIN_KEY, lambda("r", mintedId(java.util.Objects.requireNonNull(el.minted()))), null, null)))),
                             java.util.Objects.requireNonNull(el.classPath()), null, DOMAIN_KEY);
                 } else {
                     List<ColSpec> row = List.of(
-                            new ColSpec("id", lambda("r", read(java.util.Objects.requireNonNull(el.minted()))), null,
+                            new ColSpec("id", lambda("r", mintedId(java.util.Objects.requireNonNull(el.minted()))), null,
                                     null),
                             new ColSpec("labels", lambda("r", new CString(labelText(n.labels()))), null, null));
                     statements.add(call("write", call("project", staged.vs(), new ColSpecArray(row)),
@@ -18997,7 +19111,8 @@ public final class CypherToPure {
                     }
                 }
                 if (n.variable() != null && !hidden(n.variable())) {
-                    reread.add(new Reread(n.variable(), identityText(el), el.key(), kinds, null));
+                    reread.add(new Reread(n.variable(), identityText(el), el.key(), kinds, null, null,
+                            el.classPath()));
                 }
             }
             for (int j = 0; j < newRels.size(); j++) {
@@ -19005,11 +19120,11 @@ public final class CypherToPure {
                 Element el = relElements.get(j);
                 Element[] ends = relEnds.get(j);
                 if (domain) {
-                    edgeWritten(staged.vs(), java.util.Objects.requireNonNull(el.minted()), java.util.Objects
-                            .requireNonNull(el.classPath()), key(carriedKey(ends[0])), key(carriedKey(ends[1])));
+                    edgesWritten(staged, java.util.Objects.requireNonNull(el.minted()), relClasses.get(j), ends[0],
+                            key(carriedKey(ends[0])), ends[1], key(carriedKey(ends[1])), r.types().get(0));
                 } else {
                     List<ColSpec> row = List.of(
-                            new ColSpec("id", lambda("r", read(java.util.Objects.requireNonNull(el.minted()))), null,
+                            new ColSpec("id", lambda("r", mintedId(java.util.Objects.requireNonNull(el.minted()))), null,
                                     null),
                             new ColSpec("type", lambda("r", new CString(r.types().get(0))), null, null),
                             new ColSpec("src_id", lambda("r", key(carriedKey(ends[0]))), null, null),
@@ -19054,7 +19169,7 @@ public final class CypherToPure {
                     List.of(new ColSpec("id", lambda("r", read(table)), null, null))));
             for (Mint m : minted) {
                 ids = call("concatenate", ids, call("project", m.rows(), new ColSpecArray(List.of(new ColSpec("id",
-                        lambda("r", read(m.column())), null, null)))));
+                        lambda("r", m.id()), null, null)))));
             }
             return call("aggregate", ids, new ColSpecArray(List.of(new ColSpec(name, lambda("x", new AppliedProperty(
                     new Variable("x"), "id")), lambda("y", call("max", new Variable("y"))), null))));
@@ -19064,6 +19179,13 @@ public final class CypherToPure {
          *  statement has held ({@link #greatest}; none: 0) plus the row's number times the clause's count of them
          *  plus the element's place; beside each a created element's identity, its id's text. */
         private Rows minted(Rows rows, List<Element> nodes, List<Element> rels, Set<String> names, Pos at) {
+            return minted(rows, nodes, rels, names, at, Set.of());
+        }
+
+        /** {@link #minted(Rows, List, List, Set, Pos)}, the ids of the elements {@code anonymous} names (their minted
+         *  columns') computed where they are read ({@link #mintedId}), no column of the rows. */
+        private Rows minted(Rows rows, List<Element> nodes, List<Element> rels, Set<String> names, Pos at,
+                Set<String> anonymous) {
             if (nodes.isEmpty() && rels.isEmpty()) {
                 return rows;
             }
@@ -19086,23 +19208,45 @@ public final class CypherToPure {
                         thunk(call("toOne", read(greatest))));
                 for (int j = 0; j < group.size(); j++) {
                     Element el = group.get(j);
-                    ids.add(new ColSpec(java.util.Objects.requireNonNull(el.minted()), lambda("r", plus(base,
-                            AppliedFunction.infixRun("times", List.of(AppliedFunction.infixRun("minus", List.of(
-                            read(number), new CInteger(1L))), new CInteger((long) group.size()))),
-                            new CInteger((long) j + 1))), null, null));
+                    ValueSpecification id = plus(base, AppliedFunction.infixRun("times", List.of(
+                            AppliedFunction.infixRun("minus", List.of(read(number), new CInteger(1L))),
+                            new CInteger((long) group.size()))), new CInteger((long) j + 1));
+                    if (anonymous.contains(el.minted())) {
+                        mintedIds.put(java.util.Objects.requireNonNull(el.minted()), id);
+                        continue;
+                    }
+                    ids.add(new ColSpec(java.util.Objects.requireNonNull(el.minted()), lambda("r", id), null, null));
                     columns.add(new Col(el.minted(), Kind.INTEGER, false));
                 }
             }
-            vs = call("extend", vs, new ColSpecArray(ids));
+            if (!ids.isEmpty()) {
+                vs = call("extend", vs, new ColSpecArray(ids));
+            }
             List<ColSpec> texts = new ArrayList<>();
             for (Element el : concat(nodes, rels)) {
-                // (a created element's identity: its id after a ':', as an elementId's key follows its class's path)
-                texts.add(new ColSpec(identityText(el), lambda("r", plus(new CString((el.classPath() == null ? ""
-                        : el.classPath()) + ":"), call("toString", call("toOne", read(java.util.Objects.requireNonNull(
-                        el.minted())))))), null, null));
+                if (!edgeChoices.containsKey(el.minted())) {
+                    // (an identity's text is what a relationship's run-time edge class is read by: every other's the
+                    // read back computes from its id)
+                    continue;
+                }
+                // (a created element's identity: its id after a ':', as an elementId's key follows its class's path;
+                // a relationship of several edge classes, the one its row's ends choose)
+                ValueSpecification prefix = new CString((el.classPath() == null ? "" : el.classPath()) + ":");
+                List<Map.Entry<String, ValueSpecification>> chosen = edgeChoices.get(el.minted());
+                if (el.classPath() == null && chosen != null) {
+                    prefix = new CString(":");
+                    for (int k = chosen.size() - 1; k >= 0; k--) {
+                        prefix = call("if", chosen.get(k).getValue(), thunk(new CString(chosen.get(k).getKey() + ":")),
+                                thunk(prefix));
+                    }
+                }
+                texts.add(new ColSpec(identityText(el), lambda("r", plus(prefix, call("toString", call("toOne",
+                        mintedId(java.util.Objects.requireNonNull(el.minted())))))), null, null));
                 columns.add(new Col(identityText(el), Kind.STRING, false));
             }
-            vs = call("extend", vs, new ColSpecArray(texts));
+            if (!texts.isEmpty()) {
+                vs = call("extend", vs, new ColSpecArray(texts));
+            }
             return new Rows(vs, columns);
         }
 
@@ -19120,8 +19264,15 @@ public final class CypherToPure {
         }
 
         /** An element's id in the store, over the staged rows' {@code r}. */
-        private static ValueSpecification key(Element el) {
-            return read(el.key());
+        private ValueSpecification key(Element el) {
+            return mintedId(el.key());
+        }
+
+        /** The value of the staged rows' ({@code r}'s) column {@code column} that holds a created element's id: the
+         *  column's, or the expression computing it where the rows hold none ({@link #mintedIds}). */
+        private ValueSpecification mintedId(String column) {
+            ValueSpecification computed = mintedIds.get(column);
+            return computed != null ? computed : read(column);
         }
 
         /** A carried element with its staged key column (a created one as it is). */
@@ -19496,6 +19647,7 @@ public final class CypherToPure {
                 Element el = java.util.Objects.requireNonNull(element(staged, w.getKey(), pos));
                 String typeColumn = null;
                 String type = null;
+                String classPath = null;
                 for (Col c : staged.columns()) {
                     if (c.name().equals(w.getKey()) && c.detail() instanceof RelShape rs) {
                         typeColumn = rs.type();
@@ -19503,8 +19655,11 @@ public final class CypherToPure {
                     if (c.name().equals(w.getKey()) && c.detail() instanceof RelValue rv) {
                         type = rv.type();
                     }
+                    if (c.name().equals(w.getKey()) && c.detail() instanceof NodeShape ns && domain) {
+                        classPath = ns.classPath();
+                    }
                 }
-                out.add(new Reread(w.getKey(), identityText(el), el.key(), props, type, typeColumn));
+                out.add(new Reread(w.getKey(), identityText(el), el.key(), props, type, typeColumn, classPath));
             }
             return out;
         }
@@ -19635,7 +19790,8 @@ public final class CypherToPure {
                         null));
                 both.add(new Col(text, Kind.STRING, false));
                 if (el.pattern() instanceof NodePattern n) {
-                    rereads.add(new Reread(v, text, el.key(), storedProps(true, n.labels(), el.kinds(), n.pos()), null));
+                    rereads.add(new Reread(v, text, el.key(), storedProps(true, n.labels(), el.kinds(), n.pos()), null,
+                            null, domain ? classOfLabels(n.labels(), n.pos()) : null));
                 } else {
                     RelPattern r = (RelPattern) el.pattern();
                     rereads.add(new Reread(v, text, el.key(), storedProps(false, r.types(), el.kinds(), r.pos()),
@@ -19831,16 +19987,42 @@ public final class CypherToPure {
             groupColumns.add(new Col(creator, Kind.INTEGER, true));
             List<Element> nodes = new ArrayList<>();
             List<Element> rels = new ArrayList<>();
-            for (Merged el : elements) {
-                if (el.free()) {
-                    boolean node = el.pattern() instanceof NodePattern;
-                    (node ? nodes : rels).add(new Element(el.key(), node, null, el.key(), el.key()));
+            Map<String, List<Edge>> relClasses = new HashMap<>();
+            for (int i = 0; i < elements.size(); i++) {
+                Merged el = elements.get(i);
+                if (!el.free()) {
+                    continue;
                 }
+                boolean node = el.pattern() instanceof NodePattern;
+                // (over a domain model, its class: a node's label set's, a relationship's edge class where one of its
+                // type's joins its ends' classes, else the one its row's ends choose)
+                String classPath = null;
+                if (domain && el.pattern() instanceof NodePattern n) {
+                    classPath = classOfLabels(n.labels(), n.pos());
+                } else if (domain) {
+                    RelPattern r = (RelPattern) el.pattern();
+                    boolean in = r.direction() == CypherAst.Direction.IN;
+                    Merged near = elements.get(i - 1);
+                    Merged far = elements.get(i + 1);
+                    Element src = mergedEnd(in ? far : near, staged, elements);
+                    Element dst = mergedEnd(in ? near : far, staged, elements);
+                    List<Edge> classes = edgeClassesFor(r, src, dst);
+                    relClasses.put(el.key(), classes);
+                    if (classes.size() == 1) {
+                        classPath = classes.get(0).classPath();
+                    } else {
+                        ValueSpecification srcId = read(endKey(in ? far : near, groupOf));
+                        ValueSpecification dstId = read(endKey(in ? near : far, groupOf));
+                        edgeChoices.put(el.key(), classes.stream().map(e -> Map.entry(e.classPath(), choice(e,
+                                src, srcId, dst, dstId))).toList());
+                    }
+                }
+                (node ? nodes : rels).add(new Element(el.key(), node, null, el.key(), el.key(), classPath));
             }
             Rows minted = minted(new Rows(groups, groupColumns), nodes, rels, names, at);
             Rows created = staged(minted.vs(), minted.columns());
-            nodes.forEach(el -> mintedNodes.add(new Mint(created.vs(), el.key())));
-            rels.forEach(el -> mintedRels.add(new Mint(created.vs(), el.key())));
+            nodes.forEach(el -> mintedNodes.add(new Mint(created.vs(), read(el.key()))));
+            rels.forEach(el -> mintedRels.add(new Mint(created.vs(), read(el.key()))));
             for (int i = 0; i < elements.size(); i++) {
                 Merged el = elements.get(i);
                 if (!el.free()) {
@@ -19862,9 +20044,10 @@ public final class CypherToPure {
                         Merged far = elements.get(i + 1);
                         Element src = mergedEnd(in ? far : near, staged, elements);
                         Element dst = mergedEnd(in ? near : far, staged, elements);
-                        classPath = edgeClassFor(r, src, dst);
-                        edgeWritten(created.vs(), el.key(), classPath, read(endKey(in ? far : near, groupOf)),
-                                read(endKey(in ? near : far, groupOf)));
+                        List<Edge> classes = java.util.Objects.requireNonNull(relClasses.get(el.key()));
+                        classPath = classes.size() == 1 ? classes.get(0).classPath() : null;
+                        edgesWritten(created, el.key(), classes, src, read(endKey(in ? far : near, groupOf)), dst,
+                                read(endKey(in ? near : far, groupOf)), r.types().get(0));
                     }
                     Element w = new Element(el.key(), node, null, el.key(), el.key(), classPath);
                     for (Map.Entry<String, String> prop : el.props().entrySet()) {
@@ -20045,7 +20228,8 @@ public final class CypherToPure {
                     continue;
                 }
                 Val value = val(t, over);
-                if (isNull(value)) {
+                if (isNull(value) || value instanceof Scalar absent && absent.tx().detail() instanceof AbsentPath) {
+                    // (a null, or a path an OPTIONAL MATCH never found: no element to delete)
                     continue;
                 }
                 if (!(value instanceof Scalar sv) || sv.tx().kind() != Kind.JSON) {
@@ -20126,9 +20310,7 @@ public final class CypherToPure {
          *  an edge class). */
         private boolean associated() {
             for (String c : nodeClasses()) {
-                boolean[] any = {false};
-                model.ends(c, (n, type, classTyped, enumTyped, lower, upper) -> any[0] = true);
-                if (any[0]) {
+                if (!CypherToPure.this.ends(c).isEmpty()) {
                     return true;
                 }
             }
@@ -20330,9 +20512,25 @@ public final class CypherToPure {
                     // and its id)
                     String path = edgeClassOf(java.util.Objects.requireNonNull(rr.type()));
                     if (domain && path.isEmpty()) {
-                        // (over a domain model, a type of several edge classes: the identity the clause gave it, its
-                        // edge class's path the one it was written to)
-                        identity = rr.identity();
+                        // (over a domain model, a type of several edge classes: its edge class's path the one of
+                        // them holding its id, as the database finds it)
+                        identity = freshName(names);
+                        ValueSpecification x = new Variable("x");
+                        ValueSpecification prefix = new CString(":");
+                        List<Edge> ofType = edges().stream().filter(e -> e.type().equals(rr.type())).toList();
+                        for (int k = ofType.size() - 1; k >= 0; k--) {
+                            String c = ofType.get(k).classPath();
+                            ValueSpecification held = call("isNotEmpty", call("filter", call("project", call("getAll",
+                                    new PackageableElementPtr(c)), new ColSpecArray(List.of(new ColSpec("id", lambda(
+                                    "x", storeId(call("toOne", call(ELEMENT_ID, x)))), null, null)))), lambda("x",
+                                    call("equal", new AppliedProperty(x, "id"), call("toOne", read(rr.key()))))));
+                            prefix = call("if", held, thunk(new CString(c + ":")), thunk(prefix));
+                        }
+                        ValueSpecification text = prefix;
+                        vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(identity, lambda("r", call("if",
+                                call("isEmpty", read(rr.key())), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(plus(
+                                text, call("toString", call("toOne", read(rr.key()))))))), null, null))));
+                        columns.add(new Col(identity, Kind.STRING, true));
                     } else {
                         identity = freshName(names);
                         vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(identity, lambda("r", call("if",
@@ -20360,7 +20558,7 @@ public final class CypherToPure {
                     dropped.add(owner);
                 }
                 columns.add(new Col(rr.variable(), Kind.JSON, true, null, node
-                        ? new NodeShape(typeOrLabels, props, false, identity)
+                        ? new NodeShape(typeOrLabels, props, false, identity, rr.classPath())
                         : new RelShape(typeOrLabels, props, identity)));
             }
             List<ColSpec> kept = new ArrayList<>();

@@ -446,10 +446,36 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
        the model has their classes and views;
      - the clauses, each over the staged rows and the narrow tables.
 4. **`#SQL` DML** on L1, judged by Postgres 16.
-5. **L2 and Cypher on A:**
-   - `CypherGraph`'s A schema from the pre-graph plus the query's typed writes (moved from leg 1);
-   - the direct-mapping check, the property-to-column rename, key minting, staging;
-   - then CREATE, SET/REMOVE of properties, DELETE/DETACH DELETE, MERGE.
+5. **L2 and Cypher on A:** **Landed on the branch 2026-10-20** (GATES' ninety-fifth landing; register row S94).
+   - **L2, the class writes:** `rows->meta::legend::lite::writeInstances(C, ~key)`, `mergeInstances(C, ~key)`,
+     `deleteInstances(C, ~key)`, `pairs->link(C, ~end, ~key)` and `unlink(...)`, lite natives typed by their
+     signatures. The store resolver rewrites each, in any space, into L1's statement over the class's mapping
+     (`resolver/ClassWrites`): the rows' columns renamed from properties to columns, the key column into the primary
+     key; a merge by the key; a delete where a row names the instance's key; a link or an unlink a merge of the
+     foreign key's table (the class's own row, or the other end's). `ClassWritesExecutionTest` on DuckDB and H2.
+   - **Direct, checked by name:** a mapping is writable when its pipeline is its main table alone (no filter, no
+     distinct, no group-by, no union) and every property a plain column of it; the key the mapping's primary key. An
+     association is writable over one foreign key (the association's condition the equality of it and the other
+     table's key); a junction table is refused by name.
+   - **Cypher's writer over a domain model** (`CypherToPure.Writer`, `domain`): a node's class is its label set's;
+     the store's `nodes` and `rels` as the writer reads them are unions over the classes' and edge classes' extents,
+     and a property's rows the classes declaring it (`domainTable`, `propRows`); every write a class write. Ids are
+     the graph's, unique across the classes (minted as on B, S92); an element's identity its class's path and its id.
+     A relationship's edge class is its type's between its ends' classes, the database choosing row by row where
+     several may.
+   - **The resolver, two gaps closed on the way:** a closed class query under a data lambda resolves where it stands
+     (`SubQueryLift.resolveClosedQueries`: a delete's predicate over the instances a clause matched, a merge's rows
+     no node matches), and a relation operator whose rows no class chain feeds resolves as the relation-space
+     wrapper it is.
+   - **The harness:** a write case's model is the schema of the graphs before and after (`CypherGraph.inferWrite`),
+     every relationship type an edge class, plus each property of a literal value the query sets (a branch Neo4j's
+     run never took: an ON MATCH where it created); its tables seeded with the graph before's rows alone.
+   - **Refused by name** (S94): a label set or removed (a node's labels are its class), a property no class declares,
+     a node deleted whose class has an association end, a mapping that is not direct, a junction association.
+   - **Found on the way, fixed for both graphs:** a relation read whole as a value indexed its columns by a scan per
+     column (`ValueCollections.rowMajorCellList`), quadratic in a staged row's columns: `Create4/[2]`'s few hundred
+     CREATE clauses took 427s on the native lane, 21s after (`SqlExpr.Column.lookup`).
+   - **Measured:** see GATES' ninety-fifth landing.
 6. **B and Cypher on B:** the platform schema, then every write clause, label changes included; the 33 control queries
    run here. **Landed on the branch 2026-10-20** (GATES' ninety-fourth landing).
    - **The program.** A statement with a clause that updates the graph is a program, spliced in where the island

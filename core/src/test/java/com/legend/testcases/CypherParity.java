@@ -377,6 +377,9 @@ public final class CypherParity {
      *  write case runs over is read back through the island once it is seeded ({@link #readBack}): the state lite's
      *  side effects are counted from, which must be the graph Neo4j's dump holds, or the judge is broken there (a
      *  problem added to {@code problems}, naming the graph's first case). */
+    /** -Dcypher.parity.trace: each case printed as it finishes, with its time (a development run's aid). */
+    private static final boolean TRACE = System.getProperty("cypher.parity.trace") != null;
+
     public static Map<String, SqlParity.Outcome> run(List<Case> cases, Map<String, CypherAnswers.Answer> answers,
             Map<String, Decision> decisions, Lane lane, List<String> problems) throws Exception {
         return run(cases, answers, decisions, lane, problems, CypherGraph.Realization.DOMAIN);
@@ -411,7 +414,7 @@ public final class CypherParity {
                 // (a write over a domain model: the schema of the graphs before and after, the writes design's leg
                 // 5; over the native store the schema is the store's own)
                 inf = realization == CypherGraph.Realization.DOMAIN && a.after() != null
-                        ? CypherGraph.inferWrite(java.util.Objects.requireNonNull(a.graph()), a.after())
+                        ? writeSchema(java.util.Objects.requireNonNull(a.graph()), a.after(), c.query())
                         : CypherGraph.infer(java.util.Objects.requireNonNull(a.graph()), realization);
             } catch (CypherGraph.Unsupported u) {
                 outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.SKIP, u.getMessage()));
@@ -468,11 +471,32 @@ public final class CypherParity {
                 }
             }
             for (Case c : e.getValue()) {
+                long started = System.nanoTime();
+                if (TRACE) {
+                    System.err.println("START\t" + c.key());
+                }
                 outcomes.put(c.key(), outcome(c, java.util.Objects.requireNonNull(answers.get(c.key())),
                         decisions.get(c.key()), model, lane, before, unread, realization, liveViews));
+                if (TRACE) {
+                    // (a development run's trace: each case as it finishes, and its time)
+                    System.err.println("TRACE\t" + (System.nanoTime() - started) / 1_000_000 + "ms\t" + c.key()
+                            + "\t" + outcomes.get(c.key()).status());
+                }
             }
         }
         return outcomes;
+    }
+
+    /** A write case's domain model: the schema of the graphs before and after it ({@link CypherGraph#inferWrite});
+     *  where the harness cannot model the graph after (a value it holds no column for: a list of temporals), the
+     *  graph before's, so the island's own refusal of the write is what the case measures. */
+    private static CypherGraph.Inferred writeSchema(CypherAnswers.Graph before, CypherAnswers.Graph after,
+            String query) throws CypherGraph.Unsupported {
+        try {
+            return CypherGraph.inferWrite(before, after, query);
+        } catch (CypherGraph.Unsupported afterUnmodelled) {
+            return CypherGraph.infer(before, CypherGraph.Realization.DOMAIN);
+        }
     }
 
     /** Whether a case writes (the writes design's §6): Neo4j's summary marked its query as writing, or it reads the
@@ -718,6 +742,10 @@ public final class CypherParity {
     }
 
     private static String oneLine(Throwable e) {
+        if (TRACE && e.getClass().getName().startsWith("java.lang.")) {
+            // (a development run's trace: a Java failure's stack)
+            e.printStackTrace();
+        }
         String m = e.getClass().getSimpleName() + ": " + e.getMessage();
         m = m.replace('\n', ' ').replace('\t', ' ');
         return m.length() > 300 ? m.substring(0, 300) + "..." : m;

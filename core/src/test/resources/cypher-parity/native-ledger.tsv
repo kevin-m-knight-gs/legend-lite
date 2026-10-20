@@ -630,7 +630,7 @@ tck/clauses/merge/Merge5/[10] Merge should bind a path	PASS
 tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	REFUSED
 tck/clauses/merge/Merge5/[12] Match outgoing relationship when direction unspecified	PASS
 tck/clauses/merge/Merge5/[13] Match both incoming and outgoing relationships when direction unspecified	PASS
-tck/clauses/merge/Merge5/[14] Using list properties via variable	REFUSED
+tck/clauses/merge/Merge5/[14] Using list properties via variable	PASS
 tck/clauses/merge/Merge5/[15] Matching using list property	PASS
 tck/clauses/merge/Merge5/[16] Aliasing of existing nodes 1	PASS
 tck/clauses/merge/Merge5/[17] Aliasing of existing nodes 2	PASS

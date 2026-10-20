@@ -2446,3 +2446,19 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   - `projects/graph/model.pure` (the profile's `Native`), `core/BUILD.bazel` (`//core:cypher_parity_native_test`);
   - guards and generated files: the code-shape allowlist, the FQN-literal ceiling, the not-upstream pin, the native
     claims and the implementation kinds (each dated or regenerated).
+- **Landed on the branch, 2026-10-20: writes leg 5, the class writes (L2) and Cypher's writes on a domain model**
+  (GATES' ninety-fifth landing; the design's §8, leg 5; register row S94). Five lite natives write a class's instances
+  through its direct mapping (`writeInstances`, `mergeInstances`, `deleteInstances`, `link`, `unlink`), the store
+  resolver rewriting each into L1's statement over the mapping's table; Cypher's writer over a domain model reads the
+  graph as unions over the classes' extents and writes it through them. Files of other lines:
+  - the compiler's: `builtin/Pure.java` (the five natives, lite-internal), `builtin/NativeFn.java` (their resolver
+    forms), `compiler/spec/StatementEffects.java` (a class write is a store write);
+  - the resolver's: `resolver/ClassWrites.java` (new: the direct-mapping check and the rewrite),
+    `resolver/StoreResolver.java` (a class write rewritten before any space dispatch; a relation operator whose rows
+    no class chain feeds; a data lambda's closed class queries), `resolver/SubQueryLift.java`
+    (`resolveClosedQueries`);
+  - the lowering's and the SQL tree's: `lowering/ValueCollections.java` and `sql/SqlExpr.java` (`Column.lookup`: a
+    relation read whole as a value indexes its columns once, not a scan per column);
+  - the database owner's: `sql/dialect/Postgres.java` (`doubleJsonb`: a whole double into jsonb keeps its fraction);
+  - guards and generated files: the governance, not-upstream and FQN-literal pins, the code-shape allowlist (each
+    dated), the native claims and the implementation kinds (regenerated).

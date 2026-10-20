@@ -328,6 +328,14 @@ public final class CypherGraph {
      * relationships one by one, parallel ones apart.
      */
     public static Inferred inferWrite(CypherAnswers.Graph before, CypherAnswers.Graph after) throws Unsupported {
+        return inferWrite(before, after, null);
+    }
+
+    /** {@link #inferWrite(CypherAnswers.Graph, CypherAnswers.Graph)}, the schema also holding each property of a
+     *  literal value the query {@code query} sets ({@link #written}): a branch of it Neo4j's run never took (a MERGE's
+     *  ON MATCH where it created, ON CREATE where it matched) writes a property the model must declare. */
+    public static Inferred inferWrite(CypherAnswers.Graph before, CypherAnswers.Graph after,
+            @com.legend.base.Nullable String query) throws Unsupported {
         int offset = 1 + Math.max(before.nodes().stream().mapToInt(CypherAnswers.GraphNode::id).max().orElse(0),
                 after.nodes().stream().mapToInt(CypherAnswers.GraphNode::id).max().orElse(0));
         int relOffset = 1 + Math.max(before.rels().stream().mapToInt(CypherAnswers.GraphRel::id).max().orElse(0),
@@ -337,6 +345,11 @@ public final class CypherGraph {
         List<CypherAnswers.GraphRel> rels = new ArrayList<>(before.rels());
         after.rels().forEach(r -> rels.add(new CypherAnswers.GraphRel(r.id() + relOffset, r.start() + offset,
                 r.end() + offset, r.type(), r.props())));
+        // (the query's written properties: elements past the graph after's, never seeded)
+        CypherAnswers.Graph phantoms = query == null ? new CypherAnswers.Graph(List.of(), List.of())
+                : written(query, new CypherAnswers.Graph(nodes, rels), 2 * offset, 2 * relOffset);
+        nodes.addAll(phantoms.nodes());
+        rels.addAll(phantoms.rels());
         // (each relationship type an edge class: a relationship a write creates or deletes is its own row)
         Inferred both = infer(new CypherAnswers.Graph(nodes, rels), Realization.DOMAIN, true);
         List<SqlParity.Table> tables = new ArrayList<>();
@@ -353,7 +366,144 @@ public final class CypherGraph {
             }
             tables.add(new SqlParity.Table(t.name(), t.columns(), rows));
         }
-        return new Inferred(both.model(), tables, graphKey(before) + "+" + graphKey(after));
+        return new Inferred(both.model(), tables, graphKey(before) + "+" + graphKey(after) + "+" + graphKey(phantoms));
+    }
+
+    /** The properties of a literal value {@code query} sets (a SET's, an ON CREATE's or an ON MATCH's) on a node its
+     *  patterns label or a relationship they type, as elements of {@code graph}'s schema (ids from {@code nodeId} and
+     *  {@code relId}): a node of each label set of the graph holding the query's labels (else of those labels), a
+     *  relationship of the type between nodes of its ends' (one of the graph's of the type where its ends hold them).
+     *  A query lite's parser refuses has none. */
+    static CypherAnswers.Graph written(String query, CypherAnswers.Graph graph, int nodeId, int relId) {
+        com.legend.protocol.cypher.CypherAst.Statement st;
+        try {
+            st = com.legend.protocol.cypher.CypherParser.parse(query);
+        } catch (RuntimeException unparsed) {
+            return new CypherAnswers.Graph(List.of(), List.of());
+        }
+        Map<String, Set<String>> labelsOf = new HashMap<>();
+        Map<String, String[]> relOf = new HashMap<>();
+        List<String[]> sets = new ArrayList<>();
+        for (com.legend.protocol.cypher.CypherAst.Clause c : st.clauses()) {
+            List<com.legend.protocol.cypher.CypherAst.PathPattern> patterns = switch (c) {
+                case com.legend.protocol.cypher.CypherAst.Match m -> m.patterns();
+                case com.legend.protocol.cypher.CypherAst.Create cr -> cr.patterns();
+                case com.legend.protocol.cypher.CypherAst.Merge mg -> List.of(mg.pattern());
+                default -> List.of();
+            };
+            for (com.legend.protocol.cypher.CypherAst.PathPattern p : patterns) {
+                var els = p.elements();
+                for (int i = 0; i < els.size(); i++) {
+                    if (els.get(i) instanceof com.legend.protocol.cypher.CypherAst.NodePattern n && n.variable() != null) {
+                        labelsOf.computeIfAbsent(n.variable(), k -> new java.util.TreeSet<>()).addAll(n.labels());
+                    } else if (els.get(i) instanceof com.legend.protocol.cypher.CypherAst.RelPattern r
+                            && r.variable() != null && r.types().size() == 1 && i > 0 && i + 1 < els.size()
+                            && els.get(i - 1) instanceof com.legend.protocol.cypher.CypherAst.NodePattern a
+                            && els.get(i + 1) instanceof com.legend.protocol.cypher.CypherAst.NodePattern b
+                            && a.variable() != null && b.variable() != null) {
+                        boolean in = r.direction() == com.legend.protocol.cypher.CypherAst.Direction.IN;
+                        relOf.put(r.variable(), new String[] {r.types().get(0), in ? b.variable() : a.variable(),
+                                in ? a.variable() : b.variable()});
+                    }
+                }
+            }
+            List<com.legend.protocol.cypher.CypherAst.SetItem> items = switch (c) {
+                case com.legend.protocol.cypher.CypherAst.SetClause sc -> sc.items();
+                case com.legend.protocol.cypher.CypherAst.Merge mg -> {
+                    List<com.legend.protocol.cypher.CypherAst.SetItem> both = new ArrayList<>(mg.onCreate());
+                    both.addAll(mg.onMatch());
+                    yield both;
+                }
+                default -> List.of();
+            };
+            for (com.legend.protocol.cypher.CypherAst.SetItem item : items) {
+                if (item instanceof com.legend.protocol.cypher.CypherAst.SetProperty sp
+                        && sp.target() instanceof com.legend.protocol.cypher.CypherAst.Var v) {
+                    String text = literalText(sp.value());
+                    if (text != null) {
+                        sets.add(new String[] {v.name(), sp.key(), text});
+                    }
+                } else if (item instanceof com.legend.protocol.cypher.CypherAst.SetProperties sp
+                        && sp.value() instanceof com.legend.protocol.cypher.CypherAst.MapLit map) {
+                    for (var e : map.entries().entrySet()) {
+                        String text = literalText(e.getValue());
+                        if (text != null) {
+                            sets.add(new String[] {sp.variable(), e.getKey(), text});
+                        }
+                    }
+                }
+            }
+        }
+        List<CypherAnswers.GraphNode> nodes = new ArrayList<>();
+        List<CypherAnswers.GraphRel> rels = new ArrayList<>();
+        int[] ids = {nodeId, relId};
+        for (String[] set : sets) {
+            Map<String, String> props = Map.of(set[1], set[2]);
+            String[] rel = relOf.get(set[0]);
+            if (rel != null) {
+                Set<String> from = labelsOf.getOrDefault(rel[1], Set.of());
+                Set<String> to = labelsOf.getOrDefault(rel[2], Set.of());
+                List<String> fromSet = null;
+                List<String> toSet = null;
+                for (CypherAnswers.GraphRel r : graph.rels()) {
+                    List<String> a = labelsOfNode(graph, r.start());
+                    List<String> b = labelsOfNode(graph, r.end());
+                    if (r.type().equals(rel[0]) && a.containsAll(from) && b.containsAll(to)) {
+                        fromSet = a;
+                        toSet = b;
+                        break;
+                    }
+                }
+                if (fromSet == null) {
+                    fromSet = List.copyOf(from);
+                    toSet = List.copyOf(to);
+                }
+                int a = ids[0]++;
+                int b = ids[0]++;
+                nodes.add(new CypherAnswers.GraphNode(a, fromSet, Map.of()));
+                nodes.add(new CypherAnswers.GraphNode(b, java.util.Objects.requireNonNull(toSet), Map.of()));
+                rels.add(new CypherAnswers.GraphRel(ids[1]++, a, b, rel[0], props));
+                continue;
+            }
+            Set<String> labels = labelsOf.get(set[0]);
+            if (labels == null || labels.isEmpty()) {
+                continue;
+            }
+            Set<List<String>> labelSets = new java.util.LinkedHashSet<>();
+            for (CypherAnswers.GraphNode n : graph.nodes()) {
+                if (n.labels().containsAll(labels)) {
+                    labelSets.add(n.labels());
+                }
+            }
+            if (labelSets.isEmpty()) {
+                labelSets.add(List.copyOf(labels));
+            }
+            for (List<String> l : labelSets) {
+                nodes.add(new CypherAnswers.GraphNode(ids[0]++, l, props));
+            }
+        }
+        return new CypherAnswers.Graph(nodes, rels);
+    }
+
+    private static List<String> labelsOfNode(CypherAnswers.Graph g, int id) {
+        for (CypherAnswers.GraphNode n : g.nodes()) {
+            if (n.id() == id) {
+                return n.labels();
+            }
+        }
+        return List.of();
+    }
+
+    /** A literal's text as a dumped graph spells a property's value; null for any other expression. */
+    private static @com.legend.base.Nullable String literalText(com.legend.protocol.cypher.CypherAst.Expr e) {
+        return switch (e) {
+            case com.legend.protocol.cypher.CypherAst.IntLit i -> Long.toString(i.value());
+            case com.legend.protocol.cypher.CypherAst.FloatLit f -> Double.toString(f.value());
+            case com.legend.protocol.cypher.CypherAst.StringLit str -> "'" + str.value().replace("\\", "\\\\")
+                    .replace("'", "\\'") + "'";
+            case com.legend.protocol.cypher.CypherAst.BoolLit b -> Boolean.toString(b.value());
+            default -> null;
+        };
     }
 
     public static Inferred infer(CypherAnswers.Graph g, Realization realization) throws Unsupported {

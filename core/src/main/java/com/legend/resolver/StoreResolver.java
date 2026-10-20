@@ -569,6 +569,10 @@ public final class StoreResolver {
             // once (TypedRelationOp), so none can be missed (TypedPivot was)
             case com.legend.compiler.spec.typed.TypedRelationOp op when anchored(op.source()) ->
                     structural(op, context);
+            // a relation operator over rows no class chain feeds, a class query only in its lambdas (a closed one,
+            // SubQueryLift.resolveClosedQueries: the Cypher island's writes over a domain model, 2026-10-20): the same
+            // relation-space wrapper
+            case com.legend.compiler.spec.typed.TypedRelationOp op -> structural(op, context);
             case TypedSpec js when com.legend.compiler.spec.typed.TypedJsonAccess.isJsonNode(js) -> structural(js, context);
             case TypedCast c
                     when anchored(c.source())
@@ -654,11 +658,13 @@ public final class StoreResolver {
             }
             // a BARE lambda VALUE is DATA — but a SELF-CONTAINED query
             // beneath it has no other owner (SubQueryLift.resolveClosed
-            // javadoc): resolve those, leave param-dependent reads as data
+            // javadoc): resolve those, and the closed class queries
+            // (SubQueryLift.resolveClosedQueries); leave param-dependent
+            // reads as data
             case com.legend.compiler.spec.typed.TypedLambda l ->
-                    l.mapChildren(b -> SubQueryLift.resolveClosed(b,
+                    l.mapChildren(b -> SubQueryLift.resolveClosedQueries(SubQueryLift.resolveClosed(b,
                             new java.util.LinkedHashSet<>(l.parameters()),
-                            r -> resolveNode(r, context)));
+                            r -> resolveNode(r, context)), r -> resolveNode(r, context)));
             case com.legend.compiler.spec.typed.TypedFrameRef fr -> fr;   // leg 3.4 step 2: a planned frame's reference is resolved already
             // The NAMED wall: an ANCHORED variant with no arm — loud, never
             // a silent pass-through; a USER CALL wrapper names its CALLEE

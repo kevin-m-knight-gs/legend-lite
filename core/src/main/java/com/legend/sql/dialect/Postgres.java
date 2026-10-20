@@ -1500,7 +1500,29 @@ public final class Postgres extends AnsiSqlRenderer {
             // a quoted literal is of no type yet, which to_jsonb refuses (asJsonb)
             return writer.piece(asJsonb(w -> w.expr(a.get(0), 0), SqlType.Scalar.VARCHAR));
         }
+        if (isDouble(a.get(0))) {
+            return writer.piece(doubleJsonb(w -> w.expr(a.get(0), 0)));
+        }
+        if (a.get(0).type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array arr
+                && arr.element() == SqlType.Scalar.DOUBLE) {
+            // a list of doubles, each element so (in order; a null list null, an empty one [])
+            SqlWriter.Piece xs = w -> w.expr(a.get(0), 0);
+            return writer.append("(CASE WHEN ").piece(xs).append(" IS NULL THEN NULL ELSE COALESCE((SELECT"
+                    + " jsonb_agg(").piece(doubleJsonb(w -> w.append("__ve"))).append(" ORDER BY __vo) FROM unnest(")
+                    .piece(xs).append(") WITH ORDINALITY AS __v(__ve, __vo)), CAST('[]' AS JSONB)) END)");
+        }
         return writer.append("to_jsonb(").expr(a.get(0), 0).append(")");
+    }
+
+    /** A double as jsonb, a Float still: Postgres's jsonb holds a numeric, and {@code to_jsonb} of a whole double
+     *  spells it with no fraction ({@code 1}, which a reader takes for an integer), so a whole finite one is written
+     *  as the numeric of its value with one decimal place ({@code 1.0}); a fraction, an infinity, NaN and null as
+     *  {@code to_jsonb} writes them (measured on Postgres 16, 2026-10-20: the TCK's Set1 [5] reads
+     *  {@code [i IN n.numbers | i / 2.0]}, [0.5, 1.0, 1.5]). */
+    private static SqlWriter.Piece doubleJsonb(SqlWriter.Piece x) {
+        return w -> w.append("(CASE WHEN ").piece(x).append(" = trunc(").piece(x).append(") AND abs(").piece(x)
+                .append(") < CAST('Infinity' AS DOUBLE PRECISION) THEN to_jsonb(round(CAST(").piece(x)
+                .append(" AS NUMERIC), 1)) ELSE to_jsonb(").piece(x).append(") END)");
     }
 
     // ==================================================================

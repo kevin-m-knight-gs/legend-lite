@@ -11947,6 +11947,42 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — Writes, leg 5: the class writes (L2) and Cypher's writes on a domain model — the ninety-fifth landing
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 5 (register row S94).
+- **L2:** five lite natives write a class's instances through its direct mapping: `writeInstances`, `mergeInstances`,
+  `deleteInstances` (by a key column), `link` and `unlink` (an association end held by one foreign key, from either
+  end). The store resolver rewrites each into L1's statement over the mapping's table (`resolver/ClassWrites`); a
+  mapping that is not direct, a column no property names and a junction association are refused by name.
+  `ClassWritesExecutionTest` on DuckDB and H2.
+- **Cypher over a domain model (graph A):** the writer reads the graph as unions over the classes' and edge classes'
+  extents and writes it through the class writes; a node's class is its label set's, a relationship's edge class its
+  type's between its ends' classes (the database choosing row by row where several may). Labels set or removed, a
+  property no class declares and a node deleted whose class has an association end are refused by name (S94).
+- **The resolver:** a closed class query under a data lambda resolves where it stands (`SubQueryLift
+  .resolveClosedQueries`), and a relation operator whose rows no class chain feeds resolves as the relation-space
+  wrapper it is; before, both were `getAll` left unresolved.
+- **The harness:** a write case's model is the schema of the graphs before and after, every relationship type an edge
+  class, plus each property of a literal value the query sets; seeded with the graph before's rows. Where the graph
+  after holds a value the harness has no column for (a list of temporals), the graph before's schema, so the island's
+  refusal is measured. `-Dcypher.parity.trace` prints each case and its time as it finishes.
+- **Found on the way:** `ValueCollections.rowMajorCellList` scanned a relation's outputs once per column (quadratic in
+  a staged row's width): the native lane's `Create4/[2]` (a few hundred CREATE clauses) took 427s of the lane's 733s,
+  now 21s, the lane 170s (`SqlExpr.Column.lookup`). `split` of a value that may be null; a property holding a value
+  class (a duration's, a zoned value's) no relationship of an untyped hop.
+- **Guards, each moved with its dated justification:** `INTERNAL_DESUGAR` 29 → 34 and `NOT_UPSTREAM_MAX` 60 → 65 (the
+  five natives), the FQN-literal ceiling 337 → 341, the code-shape allowlist (`CypherToPure.domain`); the native claims
+  and the implementation kinds regenerated.
+- **Measured:** the domain lane (`//core:cypher_parity_test`, DuckDB, the whole corpus) in update mode: PASS 3997 →
+  4227, REFUSED 291 → 61, BOTH_ERROR 774, FAIL/BUG/ERROR 0, of 5062 cases (the write clauses: 212 PASS, 31 REFUSED, 29
+  of them the label changes); the native lane PASS 4252 → 4253 (`Merge5/[14]`), REFUSED 35, no case moved against the
+  head; the Postgres lane (`//core:cypher_parity_postgres_test`) the same census as DuckDB's, case for case. Postgres
+  measured three things on the way: a CREATE of hundreds of elements staged a column per element, past its 1664
+  target-list entries and its 8160-byte row (an element no variable names is now read by the clause's writes alone,
+  its id computed where it is read, and only a run-time edge class's identity text is staged); `to_jsonb` of a whole
+  double spells no fraction (`1`, read as an integer: a whole finite double is written as its numeric with one
+  decimal place, `doubleJsonb`); a path an OPTIONAL MATCH never found deleted as a value (nothing to delete).
+
 ## 2026-10-20 — `#Cypher{...}#`: the ninety-fourth landing — writes, leg 6: Cypher's writes on the native graph store
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 6 (register rows S90-S93).

@@ -57,9 +57,17 @@ class TempTableAsTest {
         }
     }
 
+    /** Postgres spells it too (the writes design's leg 6, 2026-10-19: a Cypher statement's staged rows, its run measured
+     *  on the embedded Postgres 16 by //core:cypher_parity_postgres_test). */
+    @Test
+    void postgresSpellsItToo() {
+        String create = new Postgres().render(new SqlDml.CreateTempTableAs("tdg_t", values("a")));
+        assertEquals("CREATE TEMPORARY TABLE \"tdg_t\" AS SELECT 'a' AS \"v0\";", create);
+    }
+
     @Test
     void everyOtherDialectRefusesIt() {
-        for (SqlDialect d : List.<SqlDialect>of(new Postgres(), new MariaDb(), new MySql(), new Trino(),
+        for (SqlDialect d : List.<SqlDialect>of(new MariaDb(), new MySql(), new Trino(),
                 new ClickHouse(), new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
                 new EngineStyleDB2(), new EngineStyleComposite())) {
             DialectCapability refusal = assertThrows(DialectCapability.class,
