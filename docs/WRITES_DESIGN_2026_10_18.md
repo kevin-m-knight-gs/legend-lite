@@ -613,7 +613,8 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      - `CypherWritePlansTest` runs nine Cypher writes on the native store (CREATE, SET of a property and a label,
        REMOVE, DETACH DELETE, MERGE that creates and that matches, UNWIND then CREATE, an undirected MERGE) and
        DeleteConnectedNode. Each is run by its plan and by its execution, and must give the same rows, the same graph
-       after and the same error.
+       after and the same error. A write with no RETURN also runs through upstream's execute path
+       (`Execution.executeUpstream`), answering its empty relation and leaving the graph its plan leaves.
      - `PureV1ApiTest.e8_execute_aProgramThatWrites_runsFromItsPlan` runs a staged write program through `execute`.
    - **Not yet:** a write whose answer is a count, over `execute` (a scalar's TDS answer is unprobed for reads too).
      Since 2026-10-20 it is refused by name before its plan runs, as a read's scalar is

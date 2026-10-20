@@ -11951,8 +11951,8 @@ regenerated; the local gate below.
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 7.
 - **What it fixes:** over `pure/v1/execution/execute`, a program that writes and answers with a count (an L1 write
-  as its last statement, a Cypher write with no RETURN) ran its plan, so the write landed, and only then failed to
-  serialize the answer. A value's answer there is unprobed, as a read's is. `Execution.executeUpstream` now refuses
+  as its last statement) ran its plan, so the write landed, and only then failed to serialize the answer. (A Cypher
+  write with no RETURN answers its empty relation, so it runs: `CypherWritePlansTest`.) A value's answer there is unprobed, as a read's is. `Execution.executeUpstream` now refuses
   any answer but a relation's rows or a graph fetch's objects by name before the plan runs.
 - **Measured:** `WritePlansH2Test.executeRefusesACountAnswerBeforeItsWriteRuns` failed with the fix reverted (nothing
   thrown: the plan ran) and passes with it. `//core:core_tests_integration`, `//core:core_tests_server`

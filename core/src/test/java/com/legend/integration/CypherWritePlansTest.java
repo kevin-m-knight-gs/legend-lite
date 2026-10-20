@@ -91,6 +91,24 @@ class CypherWritePlansTest {
                     () -> planned(session, model, connected)));
             assertEquals(byExecution.getMessage(), byPlan.getMessage());
             assertTrue(String.valueOf(byPlan.getMessage()).contains("Cannot delete node"), byPlan.getMessage());
+            // over upstream's execute (the server's path), a write with no RETURN runs from its plan and answers its
+            // empty relation
+            String detach = "MATCH (n:N {name: 'b'}) DETACH DELETE n";
+            StringWriter answer = new StringWriter();
+            List<String> after = inTransaction(session, () -> {
+                com.legend.plan.QueryPlan ran = com.legend.Execution.executeUpstream(model,
+                        com.legend.Compiler.parseQuery(island(detach)),
+                        CypherGraph.RUNTIME, (target, ctx) -> {
+                            throw new AssertionError("a program that writes opens no query session");
+                        }, PlanSessions.given(session), answer);
+                assertEquals(com.legend.plan.ResultShape.TABULAR, ran.shape(), detach);
+                return graph(session, model);
+            });
+            assertEquals(List.of(), ((Json.Arr) Json.parse(answer.toString())).items(), answer.toString());
+            assertEquals(inTransaction(session, () -> {
+                planned(session, model, detach);
+                return graph(session, model);
+            }), after, detach);
         }
     }
 
