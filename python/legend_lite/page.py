@@ -28,6 +28,7 @@ grid (as many to a band as DataCube's layout takes), a tile taken off leaving it
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import datetime
 import functools
@@ -65,15 +66,8 @@ def _operation(run: Any) -> Any:
     what it changed written (Page._changed), or, refused, nothing changed (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)."""
     @functools.wraps(run)
     def call(self: Any, *args: Any, **kwargs: Any) -> Any:
-        page = self if isinstance(self, Page) else self._page
-        page._enter()
-        try:
-            result = run(self, *args, **kwargs)
-        except BaseException:
-            page._leave(failed=True)
-            raise
-        page._leave(failed=False)
-        return result
+        with (self if isinstance(self, Page) else self._page)._call():
+            return run(self, *args, **kwargs)
     return call
 
 
@@ -966,6 +960,19 @@ class Page:
         self._held = set(self._ids)
         self._unserved = []
 
+    @contextlib.contextmanager
+    def _call(self) -> Any:
+        """Work on the page as one call (``_operation``; ``load``): the page as the keeper has it when the outermost
+        begins, what it changed written once when it ends, let go when it raises -- a public call made inside it (the
+        page's ``name``, read while a cube opens) part of it, never a write of a page half made."""
+        self._enter()
+        try:
+            yield
+        except BaseException:
+            self._leave(failed=True)
+            raise
+        self._leave(failed=False)
+
     def _enter(self) -> None:
         if self._depth == 0 and not self._dirty:
             self._pull()
@@ -1424,23 +1431,25 @@ class Page:
         if missing:
             raise ValueError(f'the page reads the frames {", ".join(missing)}: give them, frames={{name: frame}}')
         page = cls(doc['name'])
-        for name in wanted:
-            page._session.register(frames[name], name)
-        # live: a copy lasts only as long as the session that made it, so a page saved with a snapped grid opens with it
-        # reading its frames, each said (DataCube's own rule, headless pageOpenedLive: §18.8)
-        opened = json.loads(session.headless().call('pageOpenedLive', _json.dumps(doc)))
-        for note in opened['notes']:
-            warnings.warn(note, stacklevel=2)
-        doc = _plain(_json.loads(opened['page']))
-        page._doc = doc
-        page._ids |= _ids(doc)
-        # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out here
-        # too and said once, so no later call on the grid sends it
-        for c in doc['cubes']:
-            page._reopened(c['id'], 3)
-        # written as one: a page loaded is a page made whole, by no command
-        page._unnoted()
-        page._changed()
+        # loaded as one call on the page: written once, whole, when it ends (a public call inside, as a cube opens,
+        # never writes a page half loaded)
+        with page._call():
+            for name in wanted:
+                page._session.register(frames[name], name)
+            # live: a copy lasts only as long as the session that made it, so a page saved with a snapped grid opens
+            # with it reading its frames, each said (DataCube's own rule, headless pageOpenedLive: §18.8)
+            opened = json.loads(session.headless().call('pageOpenedLive', _json.dumps(doc)))
+            for note in opened['notes']:
+                warnings.warn(note, stacklevel=2)
+            doc = _plain(_json.loads(opened['page']))
+            page._doc = doc
+            page._ids |= _ids(doc)
+            # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out
+            # here too and said once, so no later call on the grid sends it
+            for c in doc['cubes']:
+                page._reopened(c['id'], 3)
+            # a page loaded is a page made whole, by no command
+            page._unnoted()
         return page
 
     # -- shown ---------------------------------------------------------------------------------------------------------

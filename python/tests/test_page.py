@@ -1376,9 +1376,27 @@ class Live(Paged):
         page, _, _ = self.built()
         page.sheet('Second')
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
-        kept = datacube._session.keeper.current(again._key)[1]
+        version, kept = datacube._session.keeper.current(again._key)
+        # one write: the page started empty (version 1), then loaded whole -- never a half-loaded page between
+        self.assertEqual(version, 2)
         self.assertEqual([s.get('name') for s in kept['sheets']], [None, 'Second'])
         self.assertEqual(len(kept['cubes']), 1)
+
+    def test_a_page_loaded_over_frames_that_changed_is_written_once_whole(self):
+        # each cube opened again over its frame as it is now (a column gone, one new): the page written once, loaded
+        # whole -- never a page with some of its cubes opened again and not the others
+        page = ll.Page('Two frames')
+        page.grid(trades(), name='first_trades', rows=['region'])
+        page.grid(trades(), name='second_trades', rows=['region'])
+        changed = trades().drop(columns=['desk']).assign(book='B1')
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            again = ll.Page.load(page.to_dict(), frames={'first_trades': changed, 'second_trades': changed})
+        version, kept = datacube._session.keeper.current(again._key)
+        self.assertEqual(version, 2)
+        self.assertEqual(_json.dumps(kept), _json.dumps(again.to_dict()))
+        self.assertEqual([[c['name'] for c in cube['cube']['source']['columns']] for cube in kept['cubes']],
+                         [['region', 'notional', 'pnl', 'book']] * 2)
 
 
 class Joined(Paged):
