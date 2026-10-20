@@ -2462,3 +2462,22 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   - the database owner's: `sql/dialect/Postgres.java` (`doubleJsonb`: a whole double into jsonb keeps its fraction);
   - guards and generated files: the governance, not-upstream and FQN-literal pins, the code-shape allowlist (each
     dated), the native claims and the implementation kinds (regenerated).
+- **Landed on the branch, 2026-10-20: writes leg 4, `#SQL{...}#` statements that write a table** (GATES' ninety-sixth
+  landing; the design's §8, leg 4; register row S95). INSERT (VALUES or a query, ON CONFLICT DO NOTHING / DO UPDATE),
+  UPDATE (with FROM) and DELETE (with USING) as L1's writes, RETURNING as a program of the staged rows, the write and
+  the rows; judged by Postgres 16 on both SQL lanes (`sql-parity/lite/dml.yaml`, with a check query per case). Files of
+  other lines:
+  - the protocol's: `protocol/sql/SqlAst.java` (`Write`: `Insert`, `Update`, `Delete`), `protocol/sql/SqlParser.java`,
+    `protocol/sql/SqlToPure.java` (the writes section; `Sources.primaryKey`), `protocol/sql/PostgresCasts.java`
+    (`numeric(p, s)`), `protocol/sql/PostgresFunctions.java` (`toPlaces` visible to the casts),
+    `protocol/sql/PostgresDialect.java` and the IQ reader's switches (`iq/IqParser`, `IqAliases`, `IqDialect`,
+    `IqAggregates`, `IqKeys`: a write is never IQ's);
+  - the compiler's: `compiler/spec/SqlIslands.java` (the primary key, a RETURNING island's statements),
+    `compiler/spec/SpecCompiler.java` (spliced in as a Cypher write's program is);
+  - the SQL tree's and the database owners': `sql/SqlDml.java` (`CreateTempTableAs` names its columns),
+    `sql/dialect/AnsiSqlRenderer.java` and `sql/dialect/Postgres.java` (the named form on Postgres),
+    `StatementExecutor.java` (`stageRows` names them);
+  - the harnesses: `testcases/SqlParity.java` (a case's check, a writing case in a rolled-back transaction, INTO,
+    UPDATE and USING tables rewritten), `integration/SqlParityTest.java`, `server/SqlParityPostgresTest.java`,
+    `testcases/IqParity.java`, `integration/PostgresRegressCorpusTest.java`; `core/BUILD.bazel`
+    (`//core:store_writes_postgres_test` runs `SqlWritesPostgresTest` too).

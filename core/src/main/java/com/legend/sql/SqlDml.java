@@ -42,8 +42,18 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
     }
 
     /** {@code CREATE TEMPORARY TABLE table AS query}: a table of the session's own, holding a query's rows, its
-     *  columns the query's (the test-data generator's fetches, 2026-10-16). The name is one the platform makes: bare. */
-    record CreateTempTableAs(String table, SqlQuery query) implements SqlDml {
+     *  columns the query's (the test-data generator's fetches, 2026-10-16). The name is one the platform makes: bare.
+     *  {@code columns}, when given, names the table's columns in the query's order, each as its relation names it (a
+     *  program's staged rows, read after by those names: the writes design's leg 4, 2026-10-20), for a dialect whose
+     *  database would otherwise fold a stored column's name; empty for the query's own. */
+    record CreateTempTableAs(String table, SqlQuery query, List<String> columns) implements SqlDml {
+        public CreateTempTableAs {
+            columns = List.copyOf(columns);
+        }
+
+        public CreateTempTableAs(String table, SqlQuery query) {
+            this(table, query, List.of());
+        }
     }
 
     // ------------------------------------------------------------------ the store writes (docs/WRITES_DESIGN_2026_10_18.md §4, L1)

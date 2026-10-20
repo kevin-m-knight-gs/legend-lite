@@ -20866,9 +20866,9 @@ public final class CypherToPure {
 
     /** Lite's natives the program spells (the protocol layer reads no catalog: the names are spelled here, as
      *  {@link #ELEMENT_ID}'s is): the staged rows, and the store writes the write verb beside. */
-    private static final String STAGE = "meta::legend::lite::stage";
-    private static final String DELETE = "meta::legend::lite::delete";
-    private static final String UPDATE = "meta::legend::lite::update";
+    private static final String STAGE = SqlToPure.STAGE;
+    private static final String DELETE = SqlToPure.DELETE;
+    private static final String UPDATE = SqlToPure.UPDATE;
     /** The class writes over a domain model's direct mappings (the writes design's L2; Pure.Lite.WRITE_INSTANCES and
      *  its siblings). */
     private static final String WRITE_INSTANCES = "meta::legend::lite::writeInstances";

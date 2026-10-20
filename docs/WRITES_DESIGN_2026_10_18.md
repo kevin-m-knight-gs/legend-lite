@@ -307,7 +307,8 @@ Each clause runs once per row of the rows in hand, as Neo4j's do.
 
 - `INSERT INTO t [(cols)] VALUES | SELECT` becomes `write`.
 - `UPDATE … WHERE` becomes `update`; `DELETE … WHERE` becomes `delete`.
-- `INSERT … ON CONFLICT … DO UPDATE` becomes `merge`, and `DO NOTHING` is `merge` with no updates.
+- `INSERT … ON CONFLICT … DO UPDATE` becomes `merge`, and `DO NOTHING` a `write` of the rows no row of the table holds
+  the key of (as landed, leg 4).
 - `RETURNING` reads the staged rows back.
 - **The judge:** the table's state after the statement, compared with Postgres 16's (the SQL parity harness's oracle).
 - **Refused by name:** data-modifying CTEs and multi-statement scripts.
@@ -445,7 +446,35 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      - the write-schema: the labels, keys and types a query's writes introduce, typed by the translator itself, so
        the model has their classes and views;
      - the clauses, each over the staged rows and the narrow tables.
-4. **`#SQL` DML** on L1, judged by Postgres 16.
+4. **`#SQL` DML** on L1, judged by Postgres 16. **Landed on the branch 2026-10-20** (GATES' ninety-sixth landing;
+   register row S95).
+   - **The parser:** `INSERT`, `UPDATE` and `DELETE` (`SqlAst.Write`: `Insert`, `Update`, `Delete`) as the statement
+     itself; inside a query, Postgres's syntax error; as a WITH query, refused by name. An INSERT's VALUES is typed by
+     the columns it writes (no text for a column of NULLs alone).
+   - **The translator** (`SqlToPure`, the writes section): an INSERT is `write` of its source's rows, each column by
+     its place (a literal of no type yet typed by its column, as Postgres types it); `ON CONFLICT (key) DO NOTHING` a
+     `write` of the rows no row of the table holds the key of; `DO UPDATE SET c = EXCLUDED.c` L1's `merge` by the key,
+     the key checked against the table's primary key as the store declares it (`Sources.primaryKey`). UPDATE is
+     `update`, DELETE `delete`; `UPDATE … FROM` an EXISTS and a correlated scalar subquery per SET, `DELETE … USING` an
+     EXISTS. A value written into a column of another type is Postgres's error unless both are numbers (the
+     database's assignment cast).
+   - **RETURNING** is a program of statements (`SqlToPure.program`, spliced in by `SpecCompiler` as a Cypher write's
+     is): the rows the statement writes staged (`stage`), the write, then the RETURNING list over the staged rows, each
+     column cast to its declared type (a `numeric(p, s)` cast, new in the translator: rounded to its places, its
+     overflow the database's error). Staging named the session's temporary table's columns on Postgres (`CREATE
+     TEMPORARY TABLE t ("ID", ...) AS ...`): a stored column a store declares bare is read folded, and the staged rows
+     are read by their relation's names. A staged NULL constant is typed by a branch never taken (`if(false, |0,
+     |[])`), so it is `[0..1]`: a NULL of `[0]` raises wherever it is read, and a column of it has no type.
+   - **The judge:** a case of `sql-parity/lite/dml.yaml` carries a `check` query; Postgres's answer to the statement
+     (its count, or its RETURNING rows) and to the check, run in one transaction rolled back after, are snapped
+     (`postgres-answers.jsonl`, keys `lite/dml/<id>` and `lite/dml/<id>#check`); each lane runs both in a transaction
+     it rolls back and judges each. 56 cases: 45 PASS on both lanes, 8 BOTH_ERROR (Postgres's own errors: unknown and
+     repeated columns, too many expressions or columns, text into a number, ON CONFLICT on no unique index), 3 REFUSED
+     (DEFAULT, DEFAULT VALUES, a data-modifying WITH).
+   - **Keyed tables:** the parity schema has no primary key, so ON CONFLICT, RETURNING, `UPDATE … FROM` and
+     `DELETE … USING` over a keyed table run in `SqlWritesExecutionTest` on DuckDB, H2 and Postgres 16 (H2 reaches no
+     outer row from a derived table: a SET's correlated scalar subquery is its error there, so `UPDATE … FROM` is
+     measured on DuckDB and Postgres).
 5. **L2 and Cypher on A:** **Landed on the branch 2026-10-20** (GATES' ninety-fifth landing; register row S94).
    - **L2, the class writes:** `rows->meta::legend::lite::writeInstances(C, ~key)`, `mergeInstances(C, ~key)`,
      `deleteInstances(C, ~key)`, `pairs->link(C, ~end, ~key)` and `unlink(...)`, lite natives typed by their

@@ -2157,7 +2157,9 @@ final class StatementExecutor {
         ExecEnv planned = p.plannedEnv();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), planned, planned.ctx(), planned.dialect(),
                 planned.connection(), false);
-        String sql = planned.dialect().render(new com.legend.sql.SqlDml.CreateTempTableAs(table, plan));
+        // (each column named as the staged relation names it: the statements after read it by those names)
+        String sql = planned.dialect().render(new com.legend.sql.SqlDml.CreateTempTableAs(table, plan,
+                com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
         record(planned, sql, false);
         com.legend.exec.Executor.executeUpdate(planned.connection(), sql);
         return new ExecutionResult.Scalar(null, p.plannedRoot().info().type());

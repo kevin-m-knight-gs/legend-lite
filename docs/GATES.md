@@ -11947,6 +11947,30 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — Writes, leg 4: `#SQL{...}#` statements that write a table — the ninety-sixth landing
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 4 (register row S95).
+- **The statements:** `INSERT` (a VALUES list or a query, its source read by its columns' places; `ON CONFLICT (key) DO
+  NOTHING` and `DO UPDATE SET c = EXCLUDED.c`, the key the table's primary key as the store declares it), `UPDATE`
+  (`FROM` as an EXISTS and a correlated scalar subquery per SET) and `DELETE` (`USING` as an EXISTS), as L1's
+  `write`, `merge`, `update` and `delete`, each the island's own statement (inside a query, Postgres's syntax error).
+- **RETURNING:** a program of statements spliced in where the island stands, as a Cypher write's is: the rows staged
+  (`stage`), the write, the RETURNING list over them, each column cast to its declared type (`numeric(p, s)`, a cast
+  the translator gains: rounded half away from zero, its overflow the database's error).
+- **Found on the way:** a temporary table staged on Postgres from a store's bare-declared column took its folded name
+  (`id`) and was read by the relation's (`"ID"`): the statement now names its columns (`CREATE TEMPORARY TABLE t ("ID",
+  ...) AS ...`). A staged NULL constant of multiplicity `[0]` raised wherever it was read and gave its column no type
+  (`VARCHAR` on DuckDB): it is typed by a branch never taken. H2 reaches no outer row from a derived table, so a SET's
+  correlated scalar subquery is its error there.
+- **Refused by name:** DEFAULT and DEFAULT VALUES, a data-modifying WITH, ON CONFLICT ON CONSTRAINT, ON CONFLICT DO
+  UPDATE of any value but the EXCLUDED one, RETURNING with FROM, USING or DO UPDATE, RETURNING inside an expression.
+- **The judge:** `sql-parity/lite/dml.yaml`, 56 cases, each with a check query reading the table after it; Postgres's
+  answers to both snapped from one transaction it rolls back, each lane running both in a transaction it rolls back.
+  `SqlWritesExecutionTest` over a keyed table on DuckDB, H2 and Postgres 16 (`//core:store_writes_postgres_test`).
+- **Measured:** both SQL lanes (`//core:sql_parity_test`, `//core:sql_parity_postgres_test`) in update mode: PASS 1564
+  → 1609, BOTH_ERROR 153 → 161 on DuckDB and 152 → 160 on Postgres, REFUSED 445 → 448, SKIP 68, the one Postgres BUG
+  as it was; only the 56 new cases moved (45 PASS, 8 BOTH_ERROR, 3 REFUSED on both).
+
 ## 2026-10-20 — Writes, leg 5: the class writes (L2) and Cypher's writes on a domain model — the ninety-fifth landing
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 5 (register row S94).

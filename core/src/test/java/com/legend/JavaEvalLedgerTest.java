@@ -706,7 +706,10 @@ class JavaEvalLedgerTest {
             // dialect's CREATE TEMPORARY TABLE ... AS, handed to the database), the store its table is read under
             // (storeOf), the tables dropped once the program has run (dropStaged), and stage refused by name as a
             // statement's value; the database computes the rows, Java sequences them
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2393),
+            // 2393 -> 2394 (2026-10-20, the writes design's leg 4, §8: #SQL{...}# RETURNING): a staged let's temporary
+            // table names its columns as the staged relation does (StagedRows.columns), Postgres folding a stored
+            // column's name otherwise; one wrapped argument, a name passed, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2394),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

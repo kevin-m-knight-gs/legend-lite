@@ -28,10 +28,16 @@ public final class StagedRows {
      *  ({@code rows}), each named as its projection named it (delimited, so its case holds on a database that folds
      *  an undelimited name); {@code store} is the store the table is read under, {@code letInfo} the let's type. */
     public static TypedLet boundTo(String name, String table, ExprType rows, String store, ExprType letInfo) {
-        Set<String> columns = new LinkedHashSet<>();
-        Objects.requireNonNull(Type.schemaView(rows.type()), "staged rows are a relation").columns()
-                .forEach(c -> columns.add(c.name()));
+        Set<String> columns = new LinkedHashSet<>(columns(rows));
         return new TypedLet(name, new TypedTableReference(store, table, rows, true, null, columns, false, Map.of(),
                 false, false), letInfo);
+    }
+
+    /** The staged rows' columns ({@code rows}, a relation), in order, as their projection names them: the session's
+     *  temporary table's, which the statements after read by these names (writes leg 4, 2026-10-20: a dialect whose
+     *  database folds a stored column's name names the table's columns so). */
+    public static java.util.List<String> columns(ExprType rows) {
+        return Objects.requireNonNull(Type.schemaView(rows.type()), "staged rows are a relation").columns().stream()
+                .map(Type.Column::name).toList();
     }
 }

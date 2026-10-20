@@ -61,8 +61,17 @@ public final class SqlParity {
     // ------------------------------------------------------------------ the corpus
 
     /** A case: its file (relative to parity-tests/), its id, its SQL, and why upstream skips it, if it does. */
-    public record Case(String file, String id, String sql, @com.legend.base.Nullable String skip) {
+    public record Case(String file, String id, String sql, @com.legend.base.Nullable String skip,
+            /** a statement that writes a table (the writes design's leg 4): the query that reads what it wrote, its
+             *  answer snapped under the case's key and {@link #CHECK} */
+            @com.legend.base.Nullable String check) {
+        public Case(String file, String id, String sql, @com.legend.base.Nullable String skip) {
+            this(file, id, sql, skip, null);
+        }
     }
+
+    /** The suffix of a writing case's key its check query's answer is snapped under. */
+    public static final String CHECK = "#check";
 
     /** A table of the schema: its columns (name and SQL type, as upstream writes them) and its rows. */
     public record Table(String name, List<Column> columns, List<List<Object>> rows) {
@@ -110,8 +119,9 @@ public final class SqlParity {
                     // upstream runs these against a joined model function of its own e2e-model.pure, not this SQL
                     skip = "join_func: upstream's own joined-model function";
                 }
-                Case c = new Case(file, id, sql, skip);
-                cases.add(VOLATILE.containsKey(key(c)) ? new Case(file, id, sql, VOLATILE.get(key(c))) : c);
+                String check = (String) m.get("check");
+                Case c = new Case(file, id, sql, skip, check);
+                cases.add(VOLATILE.containsKey(key(c)) ? new Case(file, id, sql, VOLATILE.get(key(c)), check) : c);
             }
         }
         return cases;
@@ -325,8 +335,9 @@ public final class SqlParity {
             SqlLexer.Token name = tokens.get(last);
             SqlLexer.Token after = at(tokens, last + 1);
             String table = last > i && tables.contains(qualified) ? qualified : folded(name);
+            boolean into = prev(tokens, i).is("into");
             if (!tables.contains(table) || after.kind() == SqlLexer.Kind.DOT
-                    || after.kind() == SqlLexer.Kind.LPAREN) {
+                    || after.kind() == SqlLexer.Kind.LPAREN && !into) {
                 continue;
             }
             int start = offset(lineStarts, t);
@@ -337,7 +348,7 @@ public final class SqlParity {
                 after = at(tokens, last + 2);
             }
             out.append(sql, copied, start).append("tb('").append(DATABASE).append('.').append(table).append("')");
-            if (!hasAlias(after) && !prev(tokens, i).is("table")) {
+            if ((!hasAlias(after) || prev(tokens, i).is("update") && after.is("set")) && !prev(tokens, i).is("table")) {
                 out.append(" AS ").append(sql, offset(lineStarts, name), end);
             }
             copied = end;
@@ -353,7 +364,10 @@ public final class SqlParity {
     /** Whether the token after {@code prev} (at {@code index}) is where a FROM list's table goes. */
     private static boolean tablePlace(SqlLexer.Token prev, int index, Deque<Boolean> inFrom, Set<Integer> joinParens) {
         return prev.is("from") || prev.is("join") || prev.is("table") || joinParens.contains(index)
-                || prev.kind() == SqlLexer.Kind.COMMA && Boolean.TRUE.equals(inFrom.peek());
+                || prev.kind() == SqlLexer.Kind.COMMA && Boolean.TRUE.equals(inFrom.peek())
+                // (a statement that writes a table names it after INTO or UPDATE, and DELETE's other tables after
+                // USING: the writes design's leg 4; a join's USING is followed by its column list)
+                || prev.is("into") || index == 0 && prev.is("update") || prev.is("using");
     }
 
     private static SqlLexer.Token prev(List<SqlLexer.Token> tokens, int i) {
@@ -445,6 +459,10 @@ public final class SqlParity {
 
     /** A legend-lite result. */
     public static Grid grid(ExecutionResult result) {
+        if (result instanceof ExecutionResult.Scalar s) {
+            // (a statement that writes a table: its count of rows, as Postgres's update count is read)
+            return new Grid(List.of("count"), List.of(java.util.Collections.singletonList(cell(s.value()))));
+        }
         List<String> columns = result.columns().stream().map(c -> c.name()).toList();
         List<List<Object>> rows = new ArrayList<>();
         for (var row : result.rows()) {
@@ -639,6 +657,7 @@ public final class SqlParity {
             case com.legend.protocol.sql.SqlAst.Select q -> q.orderBy();
             case com.legend.protocol.sql.SqlAst.SetOperation q -> q.orderBy();
             case com.legend.protocol.sql.SqlAst.With w -> List.of();
+            case com.legend.protocol.sql.SqlAst.Write w -> List.of();
         };
         if (orderBy.isEmpty()) {
             return null;
@@ -836,13 +855,20 @@ public final class SqlParity {
 
     public static void writeAnswers(Path file, List<Case> cases, Map<String, Answer> answers) throws IOException {
         StringBuilder out = new StringBuilder();
+        List<String> keys = new ArrayList<>();
         for (Case c : cases) {
-            Answer a = answers.get(key(c));
+            keys.add(key(c));
+            if (c.check() != null) {
+                keys.add(key(c) + CHECK);
+            }
+        }
+        for (String k : keys) {
+            Answer a = answers.get(k);
             if (a == null) {
                 continue;
             }
             Map<String, Object> o = new LinkedHashMap<>();
-            o.put("id", key(c));
+            o.put("id", k);
             switch (a) {
                 case Rejected r -> {
                     Map<String, Object> error = new LinkedHashMap<>();
@@ -988,6 +1014,41 @@ public final class SqlParity {
     @FunctionalInterface
     public interface Legend {
         ExecutionResult run(String island) throws Exception;
+
+        /** Begins a transaction a writing case runs in ({@link #rollback} ends it). */
+        default void begin() throws Exception {
+        }
+
+        default void rollback() throws Exception {
+        }
+    }
+
+    /** One case in one lane, its answers in {@code answers}: a query's as {@link #outcome(Case, Answer, Set, Legend)}
+     *  judges it; a writing case's statement run in a transaction rolled back after, its count and its check query's
+     *  rows each judged against Postgres's. */
+    public static Outcome outcome(Case c, Map<String, Answer> answers, Set<String> tables, Legend legend)
+            throws Exception {
+        if (c.check() == null || c.skip() != null) {
+            return outcome(c, answers.get(key(c)), tables, legend);
+        }
+        Answer expected = answers.get(key(c));
+        Answer checked = answers.get(key(c) + CHECK);
+        if (expected == null || expected instanceof Rows && checked == null) {
+            throw new IllegalStateException("no snapped Postgres answer for " + key(c) + " and its check");
+        }
+        legend.begin();
+        try {
+            Outcome written = outcome(c, expected, tables, legend);
+            if (written.status() != Status.PASS) {
+                return written;
+            }
+            // (Postgres wrote the rows: the table after it, read in the same transaction)
+            Outcome read = outcome(new Case(c.file(), c.id() + CHECK, c.check(), null), checked, tables, legend);
+            return read.status() == Status.PASS ? written : new Outcome(read.status() == Status.FAIL ? Status.FAIL
+                    : Status.ERROR, "the table after it: " + read.detail());
+        } finally {
+            legend.rollback();
+        }
     }
 
     /** One case in one lane: its island run through legend-lite, judged against Postgres's answer by upstream's

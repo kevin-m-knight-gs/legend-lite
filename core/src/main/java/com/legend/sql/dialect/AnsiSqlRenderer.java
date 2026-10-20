@@ -1790,8 +1790,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  written as this dialect writes a query, its passes applied. A query with plan parameters is refused: the
      *  statement is text. */
     protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
-        RenderedStatement create = query(newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()))
-                .append(" AS "), passed(ct.query()), 0).append(";").statement();
+        return createTemporaryTableAs(ct, false);
+    }
+
+    /** {@link #createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs)}; {@code named}: its columns named
+     *  ({@code CREATE TEMPORARY TABLE t ("a", ...) AS <query>}), each delimited, when the statement names them. */
+    protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct, boolean named) {
+        SqlWriter head = newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()));
+        if (named && !ct.columns().isEmpty()) {
+            head.append(" (").append(String.join(", ", ct.columns().stream().map(this::delimited).toList()))
+                    .append(")");
+        }
+        RenderedStatement create = query(head.append(" AS "), passed(ct.query()), 0).append(";").statement();
         if (!create.binds().isEmpty()) {
             throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
                     + " a DML statement is text");
