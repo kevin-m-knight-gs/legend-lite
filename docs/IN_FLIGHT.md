@@ -2489,4 +2489,5 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
     (`STEREOTYPES`), and every copy of the profile (`GraphEdgesTest`, `CypherIslandIntegrationTest`, the showcase
     models, `testcases/CypherGraph.java`);
   - the resolver's: `resolver/Substitution.java` (a collection's drop, take or slice over values substitutes in
-    object space).
+    object space), and, in the ninety-ninth landing, `resolver/ClassWrites.java` (an embedded property's
+    sub-property written as the column its mapping reads it from, the rows' column `p.sub`).

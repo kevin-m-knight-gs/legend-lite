@@ -18536,12 +18536,13 @@ public final class CypherToPure {
      *  {@code firstKey} is null (a CREATE writes the pattern's direction), else the one whose id, the rows' column
      *  {@code firstKey}, the stored relationship's source is (a MERGE matches either direction). */
     private record WrittenEnds(String first, String second, @com.legend.base.Nullable String firstKey) {
-        /** The ends, where the pattern names both nodes; else null. */
-        static @com.legend.base.Nullable WrittenEnds of(@com.legend.base.Nullable String first,
-                @com.legend.base.Nullable String second, @com.legend.base.Nullable String firstKey) {
-            return first == null || second == null || hidden(first) || hidden(second) ? null
-                    : new WrittenEnds(first, second, firstKey);
-        }
+    }
+
+    /** A written relationship's ends ({@link WrittenEnds}), where the pattern names both nodes; else null. */
+    private static @com.legend.base.Nullable WrittenEnds writtenEnds(@com.legend.base.Nullable String first,
+            @com.legend.base.Nullable String second, @com.legend.base.Nullable String firstKey) {
+        return first == null || second == null || hidden(first) || hidden(second) ? null
+                : new WrittenEnds(first, second, firstKey);
     }
 
     /** A node or relationship of a MERGE's pattern ({@link Writer#merge}): its pattern; the column of its id in the
@@ -19196,7 +19197,17 @@ public final class CypherToPure {
                 List<ColSpec> cols = new ArrayList<>();
                 cols.add(new ColSpec(DOMAIN_KEY, lambda("x", id), null, null));
                 for (Property p : properties(c)) {
-                    if (keys != null && !keys.contains(p.name()) || p.classTyped() && keys == null) {
+                    boolean embedded = p.classTyped() && p.upper() == 1 && (storedValueKind(p) != null
+                            || partsKind(p.type()) != null);
+                    if (keys != null && !keys.contains(p.name()) || p.classTyped() && !embedded && keys == null) {
+                        continue;
+                    }
+                    if (embedded) {
+                        // (a zoned value, a duration or a value's parts: its embedded value class's sub-properties)
+                        for (Property sub : properties(p.type())) {
+                            cols.add(new ColSpec(p.name() + "." + sub.name(), lambda("x", SqlToPure.nullOf(kindOf(sub,
+                                    pos)).vs()), null, null));
+                        }
                         continue;
                     }
                     if (p.classTyped() || p.enumTyped() || p.upper() != 1) {
@@ -19384,7 +19395,7 @@ public final class CypherToPure {
                 }
                 if (r.variable() != null && !hidden(r.variable())) {
                     reread.add(new Reread(r.variable(), identityText(el), el.key(), kinds, r.types().get(0), null,
-                            null, WrittenEnds.of(ends[0].variable(), ends[1].variable(), null)));
+                            null, writtenEnds(ends[0].variable(), ends[1].variable(), null)));
                 }
             }
             return refreshed(staged, reread, cr.pos());
@@ -19560,9 +19571,14 @@ public final class CypherToPure {
             }
             Tx t = propertyValue(key, value, at);
             if (t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION) {
-                // (a zoned value or a duration: a row per slot, as the store holds one, §8 leg 3)
+                // (a zoned value or a duration: a row per slot, as the store holds one, §8 leg 3; over a domain
+                // model, the slots of its embedded value class)
                 ValueSpecification whole = SqlToPure.valueOf(t);
-                for (Map.Entry<String, ValueSpecification> slot : slots(t, at).entrySet()) {
+                if (domain) {
+                    domainSlots(staged, el, key, slots(t, false, at), whole, t, at);
+                    return t.kind();
+                }
+                for (Map.Entry<String, ValueSpecification> slot : slots(t, true, at).entrySet()) {
                     writeSlot(staged, el, key, slot.getKey(), slot.getKey().endsWith(ZONED_SLOTS.get(0)) ? "v_ts"
                             : "v_int", slot.getValue(), whole, t.kind(), t.nullable(), at);
                 }
@@ -19674,7 +19690,7 @@ public final class CypherToPure {
          *  {@code time:instant} and {@code time:offsetSeconds}) and its offset's seconds; a duration's months, days,
          *  seconds and nanoseconds. A zone named by its region, or one the
          *  translation does not carry, is refused by name. */
-        private Map<String, ValueSpecification> slots(Tx t, Pos at) {
+        private Map<String, ValueSpecification> slots(Tx t, boolean timePrefixed, Pos at) {
             Map<String, ValueSpecification> out = new LinkedHashMap<>();
             ValueSpecification v = SqlToPure.valueOf(t);
             if (t.kind() == Kind.DURATION) {
@@ -19689,7 +19705,7 @@ public final class CypherToPure {
                         + " yet (the store holds its offset)", at);
             }
             // (a zoned time's slots spelled apart from a zoned date-time's: the store says which the value is)
-            String prefix = t.kind() == Kind.ZONED_TIME ? "time:" : "";
+            String prefix = timePrefixed && t.kind() == Kind.ZONED_TIME ? "time:" : "";
             out.put(prefix + ZONED_SLOTS.get(0), v);
             out.put(prefix + ZONED_SLOTS.get(1), zone.read() != null ? zone.read() : lit((long) zone.sign()
                     * (zone.hours() * 3600L + zone.minutes() * 60L + zone.seconds())));
@@ -19723,6 +19739,18 @@ public final class CypherToPure {
                 row.add(new ColSpec("v_json", lambda("r", call("toVariant", nullable ? call("toOne", v) : v)), null,
                         null));
             }
+            ValueSpecification rows = writtenRows(staged, el, whole, nullable);
+            if (domain) {
+                domainProperty(rows, el, key, nullable ? call("toOne", v) : v, kind);
+                return;
+            }
+            statements.add(call("write", call("distinct", call("project", rows, new ColSpecArray(row))),
+                    table(el.propTable())));
+        }
+
+        /** The staged rows a property of {@code el} is written for: where the element and the value ({@code whole},
+         *  where it may be none) are present; of an element several rows write, the last row's (Neo4j's last write). */
+        private ValueSpecification writtenRows(Rows staged, Element el, ValueSpecification whole, boolean nullable) {
             ValueSpecification present = el.minted() != null ? null : call("isNotEmpty", read(el.key()));
             if (nullable) {
                 ValueSpecification has = call("isNotEmpty", whole);
@@ -19737,12 +19765,43 @@ public final class CypherToPure {
                 rows = call("filter", rows, lambda("r", call("equal", call("size", call("filter", staged.vs(),
                         lambda("s", later))), new CInteger(0L))));
             }
-            if (domain) {
-                domainProperty(rows, el, key, nullable ? call("toOne", v) : v, kind);
-                return;
+            return rows;
+        }
+
+        /** A zoned value's or a duration's slots ({@link #slots}) written as the property {@code key} of {@code el}
+         *  over a domain model: the merge of each class's instance, the property's embedded value class's
+         *  sub-properties each a column ({@code key.slot}, the store's column its mapping reads it from; a region's
+         *  slot none, the zone being an offset). A class whose property is of another type is refused by name. */
+        private void domainSlots(Rows staged, Element el, String key, Map<String, ValueSpecification> slots,
+                ValueSpecification whole, Tx t, Pos at) {
+            List<String> classes = candidates(el, key);
+            if (classes.isEmpty()) {
+                throw CypherErrors.unsupported("the property " + key + " written on " + el.variable() + ", which no"
+                        + " class of the domain model declares, is not supported (a domain model's class declares its"
+                        + " properties)", at);
             }
-            statements.add(call("write", call("distinct", call("project", rows, new ColSpecArray(row))),
-                    table(el.propTable())));
+            ValueSpecification rows = writtenRows(staged, el, whole, t.nullable());
+            for (String c : classes) {
+                Property p = java.util.Objects.requireNonNull(property(c, key));
+                if (!p.classTyped() || storedValueKind(p) != t.kind()) {
+                    throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " written into the property " + key
+                            + " of " + c + ", a " + p.type() + ", is not supported (the domain model types it)", at);
+                }
+                ValueSpecification arm = el.classPath() != null ? rows : call("filter", rows, lambda("r", call(
+                        "startsWith", call("toOne", read(identityText(el))), new CString(c + ":"))));
+                List<ColSpec> cols = new ArrayList<>();
+                cols.add(new ColSpec(DOMAIN_KEY, lambda("r", key(el)), null, null));
+                for (Map.Entry<String, ValueSpecification> slot : slots.entrySet()) {
+                    cols.add(new ColSpec(key + "." + slot.getKey(), lambda("r", t.nullable() ? call("toOne",
+                            slot.getValue()) : slot.getValue()), null, null));
+                }
+                if (regionSlot(p.type())) {
+                    cols.add(new ColSpec(key + "." + ZONE_SLOT, lambda("r", SqlToPure.nullOf(Kind.STRING).vs()),
+                            null, null));
+                }
+                classWrite(MERGE_INSTANCES, call("distinct", call("project", arm, new ColSpecArray(cols))), c, null,
+                        DOMAIN_KEY);
+            }
         }
 
         /** The rows of {@code el}'s property table, of the keys {@code keys} (every key when null), deleted where
@@ -20156,7 +20215,7 @@ public final class CypherToPure {
                     int at = elements.indexOf(el);
                     Merged before = elements.get(at - 1);
                     rereads.add(new Reread(v, text, el.key(), storedProps(false, r.types(), el.kinds(), r.pos()),
-                            r.types().get(0), null, null, WrittenEnds.of(variableOf(before.pattern()),
+                            r.types().get(0), null, null, writtenEnds(variableOf(before.pattern()),
                             variableOf(elements.get(at + 1).pattern()), before.key())));
                 }
             }

@@ -11947,6 +11947,22 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the ninety-ninth landing — zoned values and durations written on a domain model
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, legs 5 and 6.
+- **L2's class writes write an embedded property by its sub-properties:** the rows' columns named `p.sub`, each the
+  column the embedded mapping reads that sub-property from (`resolver/ClassWrites`: the binding of `sub` inside the
+  instance the mapping builds for `p`, under its `toOne` or its guard where `p` may be none).
+  `ClassWritesExecutionTest.anEmbeddedPropertysSubPropertiesAreItsColumns` pins it.
+- **The Cypher writer over a domain model:** a zoned date-time or time is written as its embedded value class's
+  instant and offset, and a duration as its four parts, each a merge of the class's instance by its key (a region's
+  slot none, the zone being an offset). A class whose property is of another type is refused by name. A REMOVE, or a
+  SET to null, sets each sub-property to none.
+- **Measured** (each lane in update mode): the domain lanes PASS 4241 → 4244, REFUSED 47 → 44 on DuckDB and Postgres
+  (Temporal4 [5], [9] and [11]: every Temporal4 write case now passes on both graphs); the native lane unchanged (PASS
+  4271, REFUSED 17). The domain lanes' refusals are now the 29 label changes (S94, by design), the two signed years
+  (Temporal10 [9], [10]) and lite's own refusals.
+
 ## 2026-10-20 — `#Cypher{...}#`: the ninety-eighth landing — startNode and endNode; a second pattern past an edge class
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 6.

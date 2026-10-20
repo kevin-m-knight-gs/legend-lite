@@ -492,7 +492,10 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      key; a merge by the key; a delete where a row names the instance's key; a link or an unlink a merge of the
      foreign key's table (the class's own row, or the other end's). `ClassWritesExecutionTest` on DuckDB and H2.
    - **Direct, checked by name:** a mapping is writable when its pipeline is its main table alone (no filter, no
-     distinct, no group-by, no union) and every property a plain column of it; the key the mapping's primary key. An
+     distinct, no group-by, no union) and every property a plain column of it; the key the mapping's primary key.
+     An embedded property is written by its sub-properties, the rows' columns named `p.sub` (2026-10-20), each the
+     column the embedded mapping reads it from; the Cypher writer writes a zoned value's instant and offset, and a
+     duration's four slots, so, and removes one by setting each sub-property to none. An
      association is writable over one foreign key (the association's condition the equality of it and the other
      table's key); a junction table is refused by name.
    - **Cypher's writer over a domain model** (`CypherToPure.Writer`, `domain`): a node's class is its label set's;
@@ -541,8 +544,9 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      class reached past depth two, a type joining several class pairs in an OPTIONAL MATCH.
    - **Temporal properties** (2026-10-20, GATES' ninety-seventh landing; §5's Cypher): zoned values and durations
      written as their slots, a list of temporals as its elements' texts under the graph profile's list marks. All 18
-     Temporal4 write cases pass on B, the 12 lists on A (a zoned value or a duration on A is an embedded value
-     class, which the class writes do not write yet). Refused by name still: a list of zoned values the database
+     Temporal4 write cases pass on B, the 12 lists on A; on A a zoned value or a duration is an embedded value
+     class, written since 2026-10-20 (GATES' ninety-ninth landing) through its sub-properties (leg 5's class
+     writes), so all 18 pass there too. Refused by name still: a list of zoned values the database
      computes (one zone for its elements), of a named zone or a zone the database reads, a list that may hold a null
      or holds values of several kinds, a list of nanosecond values.
    - **`startNode` and `endNode`** (2026-10-20, GATES' ninety-eighth landing): of a relationship a write created or

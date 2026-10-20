@@ -183,6 +183,10 @@ final class ClassWrites {
                 into = pk;
             } else {
                 TypedSpec binding = cs.bindings().get(c.name());
+                if (binding == null && c.name().indexOf('.') > 0) {
+                    // an embedded property's sub-property ({@code p.sub}): its binding inside the embedded instance's
+                    binding = embedded(cs, c.name());
+                }
                 if (binding == null) {
                     throw new MappingResolutionException("writing " + cs.classFqn() + ": the rows' column " + c.name()
                             + " is no property its mapping " + cs.mappingFqn() + " maps", cs.classFqn());
@@ -287,6 +291,24 @@ final class ClassWrites {
                     + " table's PRIMARY KEY)", cs.classFqn());
         }
         return column(java.util.Objects.requireNonNull(cs.bindings().get(keys.get(0))), cs, keys.get(0));
+    }
+
+    /** The binding of the sub-property {@code path} ({@code p.sub}) of an embedded property {@code p}: the
+     *  sub-property's inside the instance its mapping builds ({@code ^V(sub = ..., ...)}, under a guard where the
+     *  property may be none); null for any other shape. */
+    private static @com.legend.base.Nullable TypedSpec embedded(ClassSource cs, String path) {
+        int dot = path.indexOf('.');
+        TypedSpec b = cs.bindings().get(path.substring(0, dot));
+        while (b instanceof TypedNativeCall c && c.args().size() == 1
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
+            b = c.args().get(0);
+        }
+        if (b instanceof com.legend.compiler.spec.typed.TypedIf i) {
+            b = i.thenBranch() instanceof com.legend.compiler.spec.typed.TypedNewInstance ? i.thenBranch()
+                    : i.elseBranch().orElse(null);
+        }
+        return b instanceof com.legend.compiler.spec.typed.TypedNewInstance ni ? ni.properties().get(path.substring(
+                dot + 1)) : null;
     }
 
     /** The column of the class's row a binding reads as it is ({@code $row.col}, through a {@code toOne}); refused by

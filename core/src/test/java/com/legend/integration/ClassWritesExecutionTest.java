@@ -73,6 +73,58 @@ class ClassWritesExecutionTest {
         }
     }
 
+    /** A class with an embedded property (a value class's sub-properties, each a column of the class's table). */
+    private static final String EMBEDDED = """
+            ###Relational
+            Database e::DB (
+              Table EVENT (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), SPAN_FROM INTEGER, SPAN_TO INTEGER)
+            )
+            ###Pure
+            Class e::Span { start: Integer[1]; stop: Integer[1]; }
+            Class e::Event { name: String[0..1]; span: e::Span[0..1]; }
+            ###Mapping
+            Mapping e::M (
+              e::Event: Relational { ~mainTable [e::DB]EVENT name: [e::DB]EVENT.NAME,
+                span ( start: [e::DB]EVENT.SPAN_FROM, stop: [e::DB]EVENT.SPAN_TO ) }
+            )
+            ###Connection
+            RelationalDatabaseConnection e::Conn {
+              store: e::DB;
+              %s
+            }
+            ###Runtime
+            Runtime e::RT { mappings: [ e::M ]; connections: [ e::DB: [ k: e::Conn ] ]; }
+            """;
+
+    /** An embedded property's sub-properties written by name ({@code span.start}, 2026-10-20: the Cypher island's
+     *  zoned values and durations over a domain model): each the column the embedded mapping reads it from; a
+     *  sub-property the value class lacks refused by name. */
+    @Test
+    void anEmbeddedPropertysSubPropertiesAreItsColumns() throws Exception {
+        var backend = TestBackends.platform();
+        try (Connection c = backend.openWorkspace()) {
+            run(c, "CREATE TABLE EVENT (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), SPAN_FROM INTEGER, SPAN_TO INTEGER)");
+            String model = EMBEDDED.formatted(backend.connectionBody());
+            assertEquals(1L, ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(com.legend.Execution.execute(
+                    model, "|#TDS\nk, name\n1, a\n#->meta::legend::lite::writeInstances(e::Event, ~k)", "e::RT", c)))
+                    .value());
+            assertEquals(1L, ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(com.legend.Execution.execute(
+                    model, "|#TDS\nk, a, b\n1, 3, 4\n#->rename(~a, ~'span.start')->rename(~b, ~'span.stop')"
+                    + "->meta::legend::lite::mergeInstances(e::Event, ~k)", "e::RT", c))).value());
+            try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(
+                    "SELECT ID, NAME, SPAN_FROM, SPAN_TO FROM EVENT")) {
+                assertTrue(rs.next());
+                assertEquals("1|a|3|4", rs.getInt(1) + "|" + rs.getString(2) + "|" + rs.getInt(3) + "|"
+                        + rs.getInt(4));
+            }
+            Exception lacking = assertThrows(Exception.class, () -> com.legend.Execution.execute(model,
+                    "|#TDS\nk, a\n1, 3\n#->rename(~a, ~'span.nope')->meta::legend::lite::mergeInstances(e::Event,"
+                    + " ~k)", "e::RT", c));
+            assertTrue(String.valueOf(lacking.getMessage()).contains("span.nope is no property"),
+                    lacking.getMessage());
+        }
+    }
+
     /** Every check, on {@code backend}'s own workspace. */
     static void writes(TestBackend backend) throws Exception {
         try (Connection c = backend.openWorkspace()) {
