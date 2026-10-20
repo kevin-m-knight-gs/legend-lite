@@ -47,7 +47,7 @@ public final class TdsTextWrap {
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
             com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
             java.util.function.Function<String, Type> sqlTypeToPure, boolean quoteStrings) {
-        return wrap(plan, schema, probe, sqlTypeToPure, quoteStrings, t -> java.util.Optional.empty());
+        return wrap(plan, schema, probe, sqlTypeToPure, quoteStrings, LiteralSpelling.Layouts.NONE);
     }
 
     /** {@link #wrap(SqlQuery, Type.RelationType, PlanProbe, Function, boolean)} with {@code layouts}, the classes'

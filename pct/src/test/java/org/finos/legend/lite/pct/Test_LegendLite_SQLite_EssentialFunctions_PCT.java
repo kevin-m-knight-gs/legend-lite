@@ -67,11 +67,11 @@ public class Test_LegendLite_SQLite_EssentialFunctions_PCT extends PCTReportConf
             // raised here; a five-digit year compares as text)
             one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"a date past the years 0000-9999 has no SQLite value\""),
             // SQLITE'S OWN LIMIT: no time zones but UTC
-            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached SQLite: SQLite has no time zones but UTC\""),
-            // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor
-            // (CO_Address and CO_Location as CO_GeographicEntity) crosses as JSON without its class, which the text
-            // carrier has no form for (the DuckDB lane's pin, the same cause; register S81)
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form")
+            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached SQLite: SQLite has no time zones but UTC\"")
+            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
     );
 
     public static Test suite() {

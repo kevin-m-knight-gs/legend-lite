@@ -59,11 +59,12 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
             // 2026-10-20 (the parity phase): two dates without a time compare on their day numbers in any year now
             // (MixedEncoding.dayNumberOrNull), so the test reaches its sub-millisecond date-times, which a BSON date
             // has no form for: MongoDB's own limit
-            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2014-02-13T13:15:19.14231) has no BSON date: refused, never cut\""),
+            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2014-02-13T13:15:19.14231) has no BSON date: refused, never cut\"")
             // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
             // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
-            // THE TDS TEXT ROUTE: a value the text does not carry (an empty string, a class instance, a List, a Map, an Any)
-            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined!")
+            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
+            // whatever its namesakes; a printer takes the name.
     );
 
     public static Test suite() {

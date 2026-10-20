@@ -2715,6 +2715,15 @@ final class Scalars {
                             && rt.columns().get(0).type()
                                     instanceof Type.ClassType ac
                             && PlatformTypes.isAny(ac)));
+        // a TYPE value prints its NAME (STR_Person->toString() is 'STR_Person'; testClassToString): the cell carries
+        // the type's PATH (register S82, 2026-10-20) -- a literal's name is the model's own, any other value's
+        // package the database strips
+        if (t instanceof Type.GenericType mg && PlatformTypes.isClassMetaclass(mg)) {
+            return x instanceof SqlExpr.StringLit s
+                    ? new SqlExpr.StringLit(MixedEncoding.simpleName(s.value()))
+                    : new SqlExpr.Call(SqlFn.REGEXP_REPLACE, List.of(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
+                            new SqlExpr.StringLit("^.*::"), new SqlExpr.StringLit(""), new SqlExpr.StringLit("")));
+        }
         // Nil (the []-born bottom) has no inhabitants: the value is
         // provably EMPTY — SQL NULL, cast for the string context
         if (t instanceof Type.ClassType nil0 && PlatformTypes.isNil(nil0)) {

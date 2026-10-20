@@ -709,6 +709,19 @@ public final class PlatformTypes {
         return g.rawFqn().equals(CLASS_METACLASS);
     }
 
+    /** A type VALUE's wire form (register S82, 2026-10-20): its path as Pure's {@code elementToPath} spells it -- a base
+     *  primitive's is its name ({@code String}, {@code Integer}: top-level elements of the metamodel), every other
+     *  element's its package-qualified path, so the reader resolves it whatever its namesakes. */
+    public static String typeValuePath(String fqn) {
+        return Type.Primitive.findByFqn(fqn).filter(p -> p.qualifiedName().equals(fqn))
+                .map(Type.Primitive::typeName).orElse(fqn);
+    }
+
+    /** {@link #typeValuePath(String)} of {@code t}. */
+    public static String typeValuePath(Type t) {
+        return t instanceof Type.Primitive p ? p.typeName() : typeValuePath(t.typeName());
+    }
+
     public static boolean isNil(Type t) {
         return t instanceof Type.ClassType c && c.fqn().equals(NIL);
     }

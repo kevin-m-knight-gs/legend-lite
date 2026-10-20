@@ -2842,7 +2842,9 @@ final class StatementExecutor {
                         com.legend.compiler.element.type.Type
                                 .requireRelationSchema(root.info().type()),
                         probe, com.legend.exec.Executor::pureOfSqlType, false,
-                        t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t));
+                        com.legend.lowering.LiteralSpelling.Layouts.of(
+                                t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
+                                env.ctx()::subtree));
         ExecutionResult text = Executor.execute(renderFor(env, rendered), rendered,
                 com.legend.compiler.element.type.ExprType.one(
                         com.legend.compiler.element.type.Type.Primitive

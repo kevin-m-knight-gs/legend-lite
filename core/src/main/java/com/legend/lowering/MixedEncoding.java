@@ -500,6 +500,21 @@ final class MixedEncoding {
         return wrapped;
     }
 
+    /** An instance entering the JSON slot of a class with no layout of its own (instances of several classes meeting
+     *  at an abstract ancestor): its struct carries its own class as {@code __type} (register S81, 2026-10-20), the
+     *  class the text carrier spells it as ({@code LiteralSpelling.jsonInstanceText}); any other value unchanged. */
+    static SqlExpr withClass(com.legend.compiler.spec.typed.TypedSpec e, SqlExpr lowered) {
+        if (e.info().type() instanceof Type.ClassType own && lowered instanceof SqlExpr.StructLit s
+                && s.fields().stream().noneMatch(f ->
+                        com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(f.name()))) {
+            java.util.List<SqlExpr.StructLit.Field> fields = new java.util.ArrayList<>(s.fields());
+            fields.add(new SqlExpr.StructLit.Field(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE,
+                    new SqlExpr.StringLit(own.fqn())));
+            return new SqlExpr.StructLit(fields);
+        }
+        return lowered;
+    }
+
     private static boolean staticallyNonNull(SqlExpr e) {
         return e instanceof SqlExpr.StringLit || e instanceof SqlExpr.IntLit
                 || e instanceof SqlExpr.FloatLit

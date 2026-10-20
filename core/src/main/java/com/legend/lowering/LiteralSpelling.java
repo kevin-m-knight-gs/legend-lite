@@ -892,8 +892,32 @@ public final class LiteralSpelling {
     // ==================================================================
 
     /** The canonical layout of a class ({@code ClassLayouts.layoutOf}): the struct's fields, by name, with their Pure
-     *  types and multiplicities; empty for a type that is no class of the model. */
+     *  types and multiplicities; empty for a type that is no class of the model. With it the model's other fact the
+     *  carrier spells by, each class's strict subclasses ({@code ModelContext.subtree}): an instance carried as JSON
+     *  with its own class is spelled as the subclass it names (register S81, 2026-10-20). The driver supplies both. */
     public interface Layouts extends java.util.function.Function<Type, java.util.Optional<List<Type.Column>>> {
+
+        /** The strict subclasses of the class {@code fqn}, in the model's order. */
+        java.util.Set<String> subclasses(String fqn);
+
+        /** No model: an instance's cell is refused by name. */
+        Layouts NONE = of(t -> java.util.Optional.empty(), fqn -> java.util.Set.of());
+
+        /** The layouts {@code layout} answers and the subclasses {@code subclasses} answers. */
+        static Layouts of(java.util.function.Function<Type, java.util.Optional<List<Type.Column>>> layout,
+                java.util.function.Function<String, java.util.Set<String>> subclasses) {
+            return new Layouts() {
+                @Override
+                public java.util.Optional<List<Type.Column>> apply(Type t) {
+                    return layout.apply(t);
+                }
+
+                @Override
+                public java.util.Set<String> subclasses(String fqn) {
+                    return subclasses.apply(fqn);
+                }
+            };
+        }
     }
 
     /**
@@ -974,9 +998,9 @@ public final class LiteralSpelling {
             }
             if (com.legend.compiler.element.type.PlatformTypes.isClassMetaclass(g) && g.arguments().size() == 1) {
                 // a Type value: its path from the typed fact where the fact names one class (Class<my::X>); where it
-                // names their common ancestor (a collection of types, Class<Any>) the cell, the type's simple name
-                // (the value lane's convention), which the reader resolves unless it has a namesake (refused by
-                // name there; register S82; 2026-10-18)
+                // names their common ancestor (a collection of types, Class<Any>) the cell, which carries the type's
+                // path too (the value lane's convention, register S82, 2026-10-20), so the reader resolves it
+                // whatever its namesakes
                 Type arg = g.arguments().get(0);
                 return arg instanceof Type.ClassType ac && !com.legend.compiler.element.type.PlatformTypes.isAny(ac)
                         ? text(ac.fqn()) : new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
@@ -992,29 +1016,22 @@ public final class LiteralSpelling {
             }
             if (slot == SqlType.Scalar.VARCHAR) {
                 // a class-typed value whose slot is text is a model element referenced as a value (a Type, a Class, a
-                // ModelElement -- an instance's slot is a struct): the lowering carries its name, which the reader
-                // compiles; a platform type's resolves, a user element's would need its path (pinned by name)
+                // ModelElement -- an instance's slot is a struct): the lowering carries its path (register S82),
+                // which the reader compiles
                 return new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
             }
             if (com.legend.compiler.element.type.PlatformTypes.isVariant(cls)) {
                 throw new IllegalStateException("the text carrier has no form for a Variant inside a value");
             }
             if (slot == SqlType.Scalar.JSON) {
-                // the lowering's layout recursion stops here (a self-typed property past the depth it unrolls, a
-                // JSON slot that is NULL in every value built so far): a value present at this depth has no form
-                // yet, and the database says so, never a JSON text passed off as grammar
-                return SqlExpr.Call.of(SqlFn.ERROR, text("the text carrier: an instance of " + cls.fqn()
-                        + " nested past the layout's depth has no form"));
+                return jsonInstanceText(c, cls, layouts);
             }
             List<Type.Column> layout = layouts.apply(t).orElseThrow(() -> new IllegalStateException(
                     "the text carrier: no canonical layout for the class " + cls.fqn()));
             SqlType.Struct s = structSlot(slot, t);
             List<SqlExpr> fields = new java.util.ArrayList<>();
-            fields.add(text(""));
             for (Type.Column col : layout) {
-                if (col.name().equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
-                        || col.name().equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
-                        || col.name().equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON)) {
+                if (synthetic(col.name())) {
                     continue;
                 }
                 SqlExpr v = SqlExpr.StructGet.of(c, col.name());
@@ -1025,18 +1042,83 @@ public final class LiteralSpelling {
                         ? join(text("["), elementsText(v, col.type(), elementSlot(fieldSlot, col.type(), cls.fqn()
                                 + "." + col.name()), layouts), text("]"))
                         : pureValueText(v, col.type(), fieldSlot, layouts);
-                SqlExpr present = join(text("," + col.name() + "="), valueText);
-                fields.add(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.IS_NULL, v), text(""))), present));
+                fields.add(property(col.name(), v, valueText));
             }
-            // the fields' texts each lead with a comma; the first one's goes
-            SqlExpr all = join(fields.toArray(new SqlExpr[0]));
-            return join(text("^" + cls.fqn() + "("),
-                    SqlExpr.Call.of(SqlFn.SUBSTRING, all, new SqlExpr.IntLit(2),
-                            SqlExpr.Call.of(SqlFn.LENGTH, all)),
-                    text(")"));
+            return instanceLiteral(cls.fqn(), fields);
         }
         throw new IllegalStateException("the text carrier has no form for a value of type " + t);
+    }
+
+    /** Whether {@code name} is one of the layouts' synthetic fields, which no literal spells. */
+    private static boolean synthetic(String name) {
+        return name.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
+                || name.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
+                || name.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON);
+    }
+
+    /** A property's {@code ,name=value} text, or none where the value {@code v} is absent. */
+    private static SqlExpr property(String name, SqlExpr v, SqlExpr valueText) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), text(""))),
+                join(text("," + name + "="), valueText));
+    }
+
+    /** {@code ^fqn(...)} over the properties' texts, each leading with a comma (the first one's goes). */
+    private static SqlExpr instanceLiteral(String fqn, List<SqlExpr> properties) {
+        SqlExpr all = join(java.util.stream.Stream.concat(java.util.stream.Stream.of(text("")), properties.stream())
+                .toArray(SqlExpr[]::new));
+        return join(text("^" + fqn + "("),
+                SqlExpr.Call.of(SqlFn.SUBSTRING, all, new SqlExpr.IntLit(2), SqlExpr.Call.of(SqlFn.LENGTH, all)),
+                text(")"));
+    }
+
+    /**
+     * An instance carried as JSON (register S81, 2026-10-20). Where instances of several classes meet at an ancestor
+     * with no layout of its own (a collection of them typed by the abstract ancestor), the lowering writes each one's
+     * own class into its JSON ({@code __type}, {@code MixedEncoding.withClass}), and its text is the literal of the
+     * class it names, each property read from the JSON by its type: the database compares the class against the
+     * ancestor's subclasses with a layout, the model's facts spelled as the plan's constants. A value naming none of
+     * them (where the lowering's layout recursion stopped: a self-typed property past the depth it unrolls), or a
+     * property the JSON carries untyped (a to-many one, a nested instance), has no form, and the database says so,
+     * never a JSON text passed off as grammar.
+     */
+    private static SqlExpr jsonInstanceText(SqlExpr c, Type.ClassType ancestor, Layouts layouts) {
+        SqlExpr named = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, c,
+                text(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)), SqlType.Scalar.VARCHAR);
+        List<String> classes = new java.util.ArrayList<>();
+        classes.add(ancestor.fqn());
+        classes.addAll(layouts.subclasses(ancestor.fqn()));
+        List<SqlExpr.Case.When> arms = new java.util.ArrayList<>();
+        for (String fqn : classes) {
+            java.util.Optional<List<Type.Column>> layout = layouts.apply(new Type.ClassType(fqn));
+            if (layout.isPresent()) {
+                arms.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, named, text(fqn)),
+                        jsonPropertiesText(c, fqn, layout.get(), layouts)));
+            }
+        }
+        SqlExpr none = SqlExpr.Call.of(SqlFn.ERROR, text("the text carrier: an instance of " + ancestor.fqn()
+                + " carried as JSON without a class of its own has no form"));
+        return arms.isEmpty() ? none : new SqlExpr.Case(arms, none);
+    }
+
+    /** The literal of an instance of {@code fqn} carried as JSON, over its layout: each property read typed. */
+    private static SqlExpr jsonPropertiesText(SqlExpr c, String fqn, List<Type.Column> layout, Layouts layouts) {
+        List<SqlExpr> properties = new java.util.ArrayList<>();
+        for (Type.Column col : layout) {
+            if (synthetic(col.name())) {
+                continue;
+            }
+            boolean many = col.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                    && b.isMany();
+            SqlType typed = col.type() instanceof Type.Primitive p ? PureSql.type(p)
+                    : col.type() instanceof Type.EnumType ? SqlType.Scalar.VARCHAR : null;
+            if (many || typed == null) {
+                return SqlExpr.Call.of(SqlFn.ERROR, text("the text carrier: the property " + col.name()
+                        + " of an instance of " + fqn + " carried as JSON has no form"));
+            }
+            SqlExpr v = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, c, text(col.name())), typed);
+            properties.add(property(col.name(), v, pureValueText(v, col.type(), typed, layouts)));
+        }
+        return instanceLiteral(fqn, properties);
     }
 
     /** A String as Pure's quoted literal: backslash, quote, newline, return and tab escaped. */

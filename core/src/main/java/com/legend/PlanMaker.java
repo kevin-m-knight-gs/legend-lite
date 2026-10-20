@@ -134,7 +134,7 @@ final class PlanMaker {
             throw new IllegalStateException("TDS text: an output column outside the query's typed schema (SQL type "
                     + sqlType + "): the lowering's typed slot is missing");
         }, own == null,   // a value's strings quoted whole: the reader types an unquoted cell by its text
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t));
+                layouts(ctx));
         return text(ExecutionPlan.Format.TDS_TEXT, relation(schema, lowered), wrapped, dialect, target);
     }
 
@@ -151,7 +151,7 @@ final class PlanMaker {
         // statement is written
         SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
         com.legend.lowering.KeyedPivot.Parts parts = com.legend.lowering.KeyedPivot.of(lowered, pivot, schema, out,
-                false, t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t), spelling);
+                false, layouts(ctx), spelling);
         java.util.Map<String, ExecutionPlan.Column> facts = new java.util.HashMap<>();
         for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered)) {
             facts.put(c.name(), c);
@@ -227,6 +227,12 @@ final class PlanMaker {
             case JSON -> ExecutionPlan.Format.JSON;
         };
         return text(text, relation(schema, lowered), WireRender.wrap(lowered, schema, format), dialect, target);
+    }
+
+    /** The model's facts the text carrier spells a class instance by: the classes' layouts and their subclasses. */
+    private static com.legend.lowering.LiteralSpelling.Layouts layouts(com.legend.compiler.element.ModelContext ctx) {
+        return com.legend.lowering.LiteralSpelling.Layouts.of(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t), ctx::subtree);
     }
 
     static ExecutionPlan.TextResult text(ExecutionPlan.Format format, ExecutionPlan.ResultType type,

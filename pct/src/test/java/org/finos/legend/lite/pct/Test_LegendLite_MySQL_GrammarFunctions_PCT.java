@@ -42,12 +42,12 @@ public class Test_LegendLite_MySQL_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\"")
             // NOTE 2026-10-20 (the parity phase): testDateCompare unpinned -- two dates without a time compare on their
             // day numbers, year*10000 + month*100 + day, in any year (MixedEncoding.dayNumberOrNull)
-            // step 9, 2026-10-19, the plan route: a model element referenced as a value crosses by its simple name, and
-            // five TestClasses defeat the text carrier's reader; register S82 (as on DuckDB)
-            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "\"the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches:\n    meta::json::tests::TestClass\n    meta::pure::functions::collection::tests::removeAll::TestClass\n    meta::pure::functions::lang::tests::letFn::TestClass\n    meta::pure::metamodel::serialization::grammar::tests::testNew::TestClass\n    meta::pure::tds::toRelation::TestClass -- TestClass\"")
+            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
+            // whatever its namesakes; a printer takes the name.
     );
 
     public static Test suite() {

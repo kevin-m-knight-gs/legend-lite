@@ -50,10 +50,10 @@ public class Test_LegendLite_SQLite_GrammarFunctions_PCT extends PCTReportConfig
             // raised here)
             one("meta::pure::functions::math::tests::minus::testLargeMinus_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),
             one("meta::pure::functions::math::tests::plus::testLargePlus_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),
-            one("meta::pure::functions::math::tests::times::testLargeTimes_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),
-            // step 9, 2026-10-19, the plan route: a type value crosses by its simple name, and TestClass has five
-            // namesakes in the PCT's graph (the DuckDB lane's pin, the same cause; register S82)
-            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches")
+            one("meta::pure::functions::math::tests::times::testLargeTimes_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\"")
+            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
+            // whatever its namesakes; a printer takes the name.
     );
 
     public static Test suite() {

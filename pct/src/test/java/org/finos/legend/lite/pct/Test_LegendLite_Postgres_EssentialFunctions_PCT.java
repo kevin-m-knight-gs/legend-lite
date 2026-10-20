@@ -64,11 +64,10 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             // reduction keeps it (Unknown); the fix is a semantic dedup node (CARRIER_REDESIGN tenet #1), not a dialect's
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
-            // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor
-            // (CO_Address and CO_Location as CO_GeographicEntity) crosses as JSON without its class, which the text
-            // carrier has no form for (the DuckDB lane's pin, the same cause; register S81). The legacy route's
-            // message was pgjdbc's PGobject reaching the bridge unread.
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form"),
+            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
             // refused by name: a construct the Postgres dialect does not spell yet
             one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),

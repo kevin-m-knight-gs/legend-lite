@@ -983,7 +983,7 @@ public final class Render {
      *  relation, TdsTextWrap). */
     public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
             String rowAlias, boolean quoteStrings) {
-        return tdsText(inner, typedCols, rowAlias, quoteStrings, t -> java.util.Optional.empty());
+        return tdsText(inner, typedCols, rowAlias, quoteStrings, LiteralSpelling.Layouts.NONE);
     }
 
     /** {@link #tdsText(SqlSelect, List, String, boolean)} with {@code layouts}, the classes' canonical layouts a

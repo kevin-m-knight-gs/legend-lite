@@ -68,10 +68,11 @@ public class Test_LegendLite_ClickHouse_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "\"Code: 10. DB::Exception: Tuple doesn't have element with name '__id'"),
-            // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor crosses
-            // as JSON without its class, which the text carrier has no form for; register S81 (as on DuckDB)
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "\"the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form\"")
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "\"Code: 10. DB::Exception: Tuple doesn't have element with name '__id'")
+            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
     );
 
     public static Test suite() {

@@ -44,15 +44,14 @@ public class Test_LegendLite_Trino_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\"")
             // NOTE 2026-10-20 (the parity phase): the instance tests whose unset property was a NULL of no type
             // unpinned -- the field takes the slot its builder declared (Trino.structLit)
             // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
             // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
-            // step 9, 2026-10-19, the plan route (as on the DuckDB lane, register S82): a model element referenced as a
-            // value crosses by its simple name, and the text carrier's reader resolves the name by compiling it, which
-            // five TestClasses defeat
-            one("meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction_Function_1__Boolean_1_", "the text carrier's cell does not compile: TestClass has not been defined! The system found 5 possible matches")
+            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
+            // whatever its namesakes; a printer takes the name.
     );
 
     public static Test suite() {

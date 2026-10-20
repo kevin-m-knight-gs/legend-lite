@@ -48,10 +48,10 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // NOTE 2026-10-20 (the parity phase): testBigFloatAbs's pin removed on every lane that runs here -- a
             // Float root computed from exact-digit literals alone keeps its DECIMAL value
             // (LiteralSpelling.exactFloatConstant), the fix this pin's note named.
-            // 2026-10-18, the plan route (step 9): a heterogeneous class collection meeting at an abstract ancestor
-            // (CO_Address and CO_Location as CO_GeographicEntity) crosses as JSON without its class, which the text
-            // carrier has no form for; the legacy route rebuilt the instances in Java. Register S81.
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form"),
+            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
             one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),

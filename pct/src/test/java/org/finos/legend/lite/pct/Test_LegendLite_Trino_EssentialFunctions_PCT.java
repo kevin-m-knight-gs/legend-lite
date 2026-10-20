@@ -63,10 +63,10 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             // step 9, 2026-10-19, the plan route: the same refusal, its position in the plan's longer statement
             // (line 9:39 where the legacy route's was 1:33), pinned without the position
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "Column reference '__id' is invalid\""),
-            // step 9, 2026-10-19, the plan route (as on the DuckDB lane, register S81): a heterogeneous class
-            // collection meeting at an abstract ancestor crosses as JSON without its class, which the text carrier has
-            // no form for; the legacy route rebuilt the instances in Java
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form"),
+            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
             // TRINO'S OWN LIMIT (2026-10-20, the parity phase: an unset property's NULL field takes the slot its builder
             // declared, Trino.structLit, so the instance is written): contains refuses a list whose elements hold a NULL
             one("meta::pure::functions::collection::tests::contains::testContainsNonPrimitive_Function_1__Boolean_1_", "contains does not support arrays with elements that are null or contain null")

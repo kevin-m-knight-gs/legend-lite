@@ -2634,16 +2634,21 @@ public final class Lowerer {
                                                 SqlType.Scalar.LITERAL));
                     }
                 }
+                // instances meeting at a model class with no layout carry
+                // their own class (register S81; an Any collection's do not)
+                boolean classed = !PlatformTypes.isAny(ct);
+                java.util.function.Function<TypedSpec, SqlExpr> element = e -> classed
+                        ? MixedEncoding.withClass(e, scalar(e, columns)) : scalar(e, columns);
                 // C1 collapse (ValueCollections.c1Singleton — witness
                 // in::H2Test); the VARIANT carrier stays, the box goes.
                 if (ValueCollections.c1Singleton(c)) {
                     var e0 = c.elements().get(0);
                     yield MixedEncoding.variantElement(e0,
-                            scalar(e0, columns), cellSlots);
+                            element.apply(e0), cellSlots);
                 }
                 SqlExpr varr = new SqlExpr.ArrayLit(c.elements().stream()
                         .map(e -> MixedEncoding.variantElement(
-                                e, scalar(e, columns), cellSlots))
+                                e, element.apply(e), cellSlots))
                         .toList());
                 // the plain arm's literal FLATTENING (a conditional-membership residual)
                 yield !cellSlots && MixedEncoding.compacts(c) ? new SqlExpr.CompactList(varr) : varr;
@@ -3004,21 +3009,22 @@ public final class Lowerer {
                     scalarStructural(pa.source(), columns);
 
             // a TYPE written as a value ([String, Integer] vs columns.type;
-            // Car): type VALUES travel as canonical simple names (the value
-            // lane's convention, which the corpus's asserts compare against a
-            // TDS's cells and the store's names; a path here moved eight H2
-            // bodies and seven DuckDB ones, 2026-10-18 -- the text carrier
-            // takes the path from the static type instead, LiteralSpelling)
+            // Car): type VALUES travel as their PATHS (register S82,
+            // 2026-10-20; a base primitive's is its name), as do a TDS's
+            // column types and an instance's rawType, so equality compares
+            // paths and the text carrier's reader resolves a namesake; a
+            // printer takes the name (Scalars.pureToString)
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
-                    new SqlExpr.StringLit(MixedEncoding.simpleName(tr.target().typeName()));
+                    new SqlExpr.StringLit(com.legend.compiler.element.type.PlatformTypes
+                            .typeValuePath(tr.target()));
             case com.legend.compiler.spec.typed.TypedPackageableRef pr
                     when pr.info().type() instanceof
                             com.legend.compiler.element.type.Type.GenericType g
                     && g.rawFqn().equals(
                             com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
                     && g.arguments().size() == 1 ->
-                    new SqlExpr.StringLit(MixedEncoding.simpleName(
-                            g.arguments().get(0).typeName()));
+                    new SqlExpr.StringLit(com.legend.compiler.element.type.PlatformTypes
+                            .typeValuePath(g.arguments().get(0)));
 
             default -> scalarRelationalArms(spec, columns);
         };

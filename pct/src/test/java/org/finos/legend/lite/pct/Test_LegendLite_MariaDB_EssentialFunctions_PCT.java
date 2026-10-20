@@ -63,12 +63,15 @@ public class Test_LegendLite_MariaDB_EssentialFunctions_PCT extends PCTReportCon
             one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"a date past the year 9999 has no MariaDB value\""),
             // MARIADB'S OWN LIMIT: no named time zone without the server's zone tables (loaded from the host's
             // zoneinfo, which a hermetic server does not read)
-            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached MariaDB: MariaDB knows no named time zone but UTC without its zone tables\""),
+            one("meta::pure::functions::string::tests::format::testFormatDate_Function_1__Boolean_1_", "\"TIMEZONE reached MariaDB: MariaDB knows no named time zone but UTC without its zone tables\"")
             // NOTE 2026-10-20 (the parity phase): testRemoveDuplicatesPrimitiveStandardFunctionExplicit unpinned -- an
             // ordered derived table takes a LIMIT here, so the server keeps its ORDER BY (MariaDb.subselectSource)
             // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor crosses
             // as JSON without its class, which the text carrier has no form for; register S81 (as on DuckDB)
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "\"the text carrier: an instance of meta::pure::functions::collection::tests::model::CO_GeographicEntity nested past the layout's depth has no form\"")
+            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
     );
 
     public static Test suite() {
