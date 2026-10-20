@@ -576,7 +576,7 @@ tck/clauses/match/Match7/[29] Satisfies the open world assumption, relationships
 tck/clauses/match/Match7/[30] Satisfies the open world assumption, single relationship	PASS	PASS
 tck/clauses/match/Match7/[31] Satisfies the open world assumption, relationships between different nodes	PASS	PASS
 tck/clauses/match/Match8/[1] Pattern independent of bound variables results in cross product	PASS	PASS
-tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	REFUSED	REFUSED
+tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	PASS	REFUSED
 tck/clauses/match/Match8/[3] Matching and disregarding output, then matching again	PASS	PASS
 tck/clauses/match/Match9/[1] Variable length relationship variables are lists of relationships	PASS	PASS
 tck/clauses/match/Match9/[2] Return relationships by collecting them as a list - directed, one way	PASS	PASS
@@ -627,7 +627,7 @@ tck/clauses/merge/Merge5/[7] Matching incoming relationship	PASS	PASS
 tck/clauses/merge/Merge5/[8] Creating relationship with property	PASS	PASS
 tck/clauses/merge/Merge5/[9] Creating relationship using merged nodes	PASS	PASS
 tck/clauses/merge/Merge5/[10] Merge should bind a path	PASS	PASS
-tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	REFUSED	REFUSED
+tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	PASS	REFUSED
 tck/clauses/merge/Merge5/[12] Match outgoing relationship when direction unspecified	PASS	PASS
 tck/clauses/merge/Merge5/[13] Match both incoming and outgoing relationships when direction unspecified	PASS	PASS
 tck/clauses/merge/Merge5/[14] Using list properties via variable	PASS	PASS

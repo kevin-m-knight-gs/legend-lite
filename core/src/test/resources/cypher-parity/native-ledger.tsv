@@ -395,7 +395,7 @@ tck/clauses/match/Match3/[14] Directed match of self-relationship on self-relati
 tck/clauses/match/Match3/[15] Mixing directed and undirected pattern parts with self-relationship, simple	PASS
 tck/clauses/match/Match3/[16] Mixing directed and undirected pattern parts with self-relationship, undirected	PASS
 tck/clauses/match/Match3/[17] Handling cyclic patterns	PASS
-tck/clauses/match/Match3/[18] Handling cyclic patterns when separated into two parts	REFUSED
+tck/clauses/match/Match3/[18] Handling cyclic patterns when separated into two parts	PASS
 tck/clauses/match/Match3/[19] Two bound nodes pointing to the same node	PASS
 tck/clauses/match/Match3/[20] Three bound nodes pointing to the same node	PASS
 tck/clauses/match/Match3/[21] Three bound nodes pointing to the same node with extra connections	PASS
@@ -627,7 +627,7 @@ tck/clauses/merge/Merge5/[7] Matching incoming relationship	PASS
 tck/clauses/merge/Merge5/[8] Creating relationship with property	PASS
 tck/clauses/merge/Merge5/[9] Creating relationship using merged nodes	PASS
 tck/clauses/merge/Merge5/[10] Merge should bind a path	PASS
-tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	REFUSED
+tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	PASS
 tck/clauses/merge/Merge5/[12] Match outgoing relationship when direction unspecified	PASS
 tck/clauses/merge/Merge5/[13] Match both incoming and outgoing relationships when direction unspecified	PASS
 tck/clauses/merge/Merge5/[14] Using list properties via variable	PASS
@@ -4021,7 +4021,7 @@ lite/continue/untyped_hop_from_a_node_no_way_leaves	PASS
 lite/cycles/a_self_loop_matched	PASS
 lite/cycles/a_two_node_cycle_matched	PASS
 lite/cycles/a_cycle_through_a_label_less_node	PASS
-lite/cycles/a_cycle_in_a_second_pattern_of_one_match	REFUSED
+lite/cycles/a_cycle_in_a_second_pattern_of_one_match	PASS
 lite/cycles/an_optional_cycle	PASS
 lite/cycles/an_optional_untyped_hop	PASS
 lite/cycles/a_self_loop_undirected_matches_once	PASS

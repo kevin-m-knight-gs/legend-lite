@@ -11947,6 +11947,29 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-20 — `#Cypher{...}#`: the ninety-eighth landing — startNode and endNode; a second pattern past an edge class
+
+Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §8, leg 6.
+- **`startNode(r)`, `endNode(r)`** of a relationship a write created or merged: the nodes the clause wrote it between,
+  where the rows carry both. A relationship's shape on the rows names their identity columns (`RelEnds`). A CREATE's
+  start is the pattern's. A MERGE's is the stored relationship's source, which the database reads row by row, since
+  an undirected MERGE matches either direction. `startNode(r).p` reads the node's own column, by its kind; of null,
+  null. Refused by name: a relationship no write created (one a pattern reads, or one carried through a
+  projection), and over a domain model one over an association (the store has no row to read its source from).
+  `CypherNativeEndsTest` pins both directions of CREATE, an undirected MERGE that matches the stored relationship
+  either way round, and one that creates.
+- **A MATCH of several patterns whose later one hops from a node an earlier one reached through an edge class** (a
+  cycle closed by the second pattern, Match3 [18] on the native store, where every relationship is an edge class):
+  each pattern read as rows, joined on the nodes they share, the relationships distinct across them, as patterns
+  sharing no node already were.
+- **The harness:** a domain model holds the class of a MERGE's free node's label set where Neo4j's run matched and
+  created nothing (Match8 [2]: `MERGE (b)` over a graph of A and B nodes), so its creating branch compiles, as it holds
+  a property of a branch never taken.
+- **Measured** (each lane in update mode): the native lane PASS 4268 → 4271, REFUSED 20 → 17 (Match3 [18], Merge5
+  [11], and the lite cycle case in a second pattern); the domain lanes PASS 4239 → 4241, REFUSED 49 → 47 on both
+  (Merge5 [11], Match8 [2]). The TCK's refusals on the native store are now only Temporal10 [9] and [10]: years of
+  ±999,999,999, which no database's date holds.
+
 ## 2026-10-20 — `#Cypher{...}#`: the ninety-seventh landing — temporal values written as properties
 
 Branch `claude/keen-noether-v5mis0`; the plan is `docs/WRITES_DESIGN_2026_10_18.md` §5 (Cypher) and §8, leg 6.
