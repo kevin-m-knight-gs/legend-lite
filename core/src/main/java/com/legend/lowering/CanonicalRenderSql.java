@@ -446,11 +446,15 @@ public final class CanonicalRenderSql {
             plan = Fold.conformValueEgress(ps,
                     LiteralSpelling.ValueLane.GRID_FETCH);
         }
+        // the rows' order as a column (SideOrdinal), carried after the row canon: a judge reading the side through
+        // other selects numbers its rows by it (2026-10-20, channel B's reduce and pivot tests on MariaDB and Trino)
+        int width = schema.columns().size();
+        plan = SideOrdinal.withOrdinal(plan);
         // leg 3.1b: every cell's canon is ALSO projected on its own
         // (__cell<i>) so the database-mode cell-pool verdict reads cells
         // without splitting the row canon (no string_split on any dialect)
         List<SqlExpr> cellCanons = new java.util.ArrayList<>();
-        for (int i = 0; i < plan.outputs().size(); i++) {
+        for (int i = 0; i < width; i++) {
             com.legend.sql.OutputCol col = plan.outputs().get(i);
             Type kind = schema.columns().get(i).type();
             // the engine's boundary rule (dataTypeTransformer; the same rule
@@ -530,11 +534,12 @@ public final class CanonicalRenderSql {
         // each cell twice (2026-09-23, columnValueDifferenceTest).
         List<com.legend.sql.SqlSelect.Projection> inner = new java.util.ArrayList<>();
         List<com.legend.sql.OutputCol> innerOuts = new java.util.ArrayList<>();
-        for (com.legend.sql.OutputCol col : plan.outputs()) {
+        for (com.legend.sql.OutputCol col : plan.outputs().subList(0, width)) {
             inner.add(new com.legend.sql.SqlSelect.Projection(
                     SqlExpr.Column.of(null, col), col.name(), col));
             innerOuts.add(col);
         }
+        com.legend.sql.OutputCol ordOut = plan.outputs().get(width);
         for (int i = 0; i < cellCanons.size(); i++) {
             com.legend.sql.OutputCol out = new com.legend.sql.OutputCol(CELL_CANON + i,
                     SqlType.Scalar.VARCHAR, true);
@@ -542,11 +547,16 @@ public final class CanonicalRenderSql {
                     cellCanons.get(i), CELL_CANON + i, out));
             innerOuts.add(out);
         }
-        com.legend.sql.SqlSelect cells = new com.legend.sql.SqlSelect(inner,
+        List<com.legend.sql.SqlSelect.Projection> innerWithOrd = new java.util.ArrayList<>(inner);
+        innerWithOrd.add(new com.legend.sql.SqlSelect.Projection(SqlExpr.Column.of(null, ordOut), ordOut.name(),
+                ordOut));
+        List<com.legend.sql.OutputCol> innerOutsWithOrd = new java.util.ArrayList<>(innerOuts);
+        innerOutsWithOrd.add(ordOut);
+        com.legend.sql.SqlSelect cells = new com.legend.sql.SqlSelect(innerWithOrd,
                 false,
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, List.of(), null, null,
-                List.copyOf(innerOuts));
+                List.copyOf(innerOutsWithOrd));
         List<com.legend.sql.SqlSelect.Projection> projections =
                 new java.util.ArrayList<>();
         for (com.legend.sql.OutputCol col : innerOuts) {
@@ -569,6 +579,8 @@ public final class CanonicalRenderSql {
                 ROW_CANON,
                 new com.legend.sql.OutputCol(ROW_CANON,
                         SqlType.Scalar.VARCHAR, true)));
+        projections.add(new com.legend.sql.SqlSelect.Projection(
+                SqlExpr.Column.of("cells", innerOutsWithOrd, ordOut.name()), ordOut.name(), ordOut));
         return new TdsWrap(new com.legend.sql.SqlSelect(projections,
                 false,
                 new com.legend.sql.SqlSource.Subselect(cells, "cells", null),

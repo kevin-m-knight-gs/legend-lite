@@ -1478,9 +1478,7 @@ public final class VerdictSql {
 
     private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, SqlSource source,
             @com.legend.base.Nullable SqlExpr where) {
-        SqlExpr rn = new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                List.of(), List.of(), null);
+        SqlExpr rn = rowNumber(source.outputs());
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
@@ -1491,6 +1489,16 @@ public final class VerdictSql {
                 false, source, where,
                 List.of(), null, null, List.of(), null, null,
                 List.of(cOut, rnOut, vOut));
+    }
+
+    /** The rows of a source read as {@code w}, numbered: a grid side's by its ordinal (SideOrdinal: the order its plan
+     *  defines, never its rows' arrival through the verdict's selects, which a database need not keep: MariaDB and
+     *  Trino did not, 2026-10-20); any other source's by arrival. */
+    private static SqlExpr rowNumber(List<OutputCol> outs) {
+        List<SqlSelect.SortKey> by = outs.stream().anyMatch(o -> o.name().equals(SideOrdinal.ORD))
+                ? List.of(new SqlSelect.SortKey(SqlExpr.Column.of("w", outs, SideOrdinal.ORD), true, null, null))
+                : List.of();
+        return new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), by, null);
     }
 
     /** The DOUBLE value of a projection when its type fact says DOUBLE,
@@ -1550,9 +1558,7 @@ public final class VerdictSql {
                     SqlExpr.Column.of("w", grid.wrapped().outputs(), o.name()), o.name(), o));
         }
         OutputCol r = new OutputCol(ROW, SqlType.Scalar.BIGINT, false);
-        ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                List.of(), List.of(), null), ROW, r));
+        ps.add(new SqlSelect.Projection(rowNumber(grid.wrapped().outputs()), ROW, r));
         outs.add(r);
         SqlSource rows = new SqlSource.Subselect(new SqlSelect(ps, false, over(grid, named), null,
                 List.of(), null, null, List.of(), null, null, List.copyOf(outs)), "w", null);
