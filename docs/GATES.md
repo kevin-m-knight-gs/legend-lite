@@ -12342,3 +12342,55 @@ The same branch (neema2/legend-lite#56), at the seventh line's quiet point after
     - stale comments;
     - the ban fails when a root it reads yields no source;
     - the records' wording.
+
+## 2026-10-21 — the protocol program's leg 8, finished: the Mac's stranded step 2 rebased and judged again, rule A, an operator by its shape, step 3, and the parser returning protocol only (the Studio / SDLC / Depot line)
+
+Built on the branch `studio-program` (the user, 2026-10-21: "build everything on a branch here that is up to date on
+main"; this cloud session's pushes to `main` are refused, as the Mac session's were from 2026-10-11). Its base is main
+adcb420b7 throughout. The plan's record is `docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 8 ("Built next on the user's
+Mac", "The dropped-text rule, decided", and the three "As built" paragraphs).
+
+1. **The Mac's branches, rebased** (`leg8-records` at cc7ec535d, `leg8-step2b`, `leg8-tds`; tip ba230daed): a relation
+   column without a multiplicity is `[0..1]`; a decimal keeps no spelling (PARK-27); a relation cast read from JSON as
+   its text is; persistence spans, a reference body, every value specification's equality without its position; a
+   `#TDS{...}#` literal's table between its delimiters, from either door (`TdsLiteral.of`). The rebase's own change:
+   main's five later makers of a TDS literal (`SqlToPure`, `IqDialect`, `CypherToPure` three times) pass the table, and
+   main's brace strip in `TdsChecker` (61ff4872d) gives way to the same rule; `SqlIsland`'s position-free equality
+   compares its language and profile. Judged on ba230daed: the six corpus passes' result files identical to main's,
+   PCT 17 of 17, the reference lane equal to main's own build, `//gates:parser_equivalence` green.
+2. **Step 2's rest** (f8e84a261, 5ac60f452): an operator run is its shape (`Typer.markOperatorRun`), the compiler no
+   longer reading the parser's infix mark; rule A (`docs/SEMANTICS_REGISTER.md` S89), the user's: the engine's dialect
+   reads what legend-engine's parser drops as it does, lite's keeps it, and its JSON writes it or refuses it by name
+   (`ProtocolEmitter.placeless`); `EngineDropsTest` holds one case of each construct. Guards answered by restructuring:
+   `SpecParser`'s instance-data flag a final constructor argument; NAME_COMPARE_REVERSED 79 -> 78 (the emitter's
+   negation fold deleted with its `"minus"` test).
+3. **Step 3** (f6b17df89): the `pure/v1` routes that take a model read a PureModelContextData as well as a text
+   (`server/ModelInput`, registered in `JavaEvalLedgerTest`'s server row); execute compiles once; a plan's connection
+   is found in the records by `Protocol.pathOf` and written by the emitter.
+4. **Measured on f6b17df89** (steps 2 and 3, against main adcb420b7):
+   - `bazel test //gates:local`: 374 of 384 pass; the eight Postgres targets refuse root here and pass through
+     `tools/postgres/as_unprivileged.sh ubuntu` (8 of 8); `//datacube:verify_layout_test` missed its 100 ms task budget
+     once (160 ms on a tile dropped onto a sheet's tab, four tests running beside it) and passes alone (16 of 16; no
+     DataCube code in the change).
+   - the six corpus passes (`//spec:judge_{host,database}_{duckdb,h2,warehouse}`): no result file differs from main's
+     (`compare_judges.py`).
+   - PCT: `//pct:pct_duckdb`, `//pct:pct_h2`, `//pct:pct_channel_b`, and `//pct:pct_postgres` unprivileged, all green.
+   - the reference lane: equal to main's own build (0 lines differ; the committed `core_relational.txt` is stale on main
+     itself, 53 lines, not this change's).
+   - `//gates:parser_equivalence` (not in `//gates:local`: run apart): green. The oracle (`JsonModelDoorTest`, in
+     `:round_trip_proof`): the engine collection 7,099 matched, 4 failed (149 on ba230daed), rule A 102 written whole
+     and 10 refused by name (8 an include's several substitutions, 1 a dotted key, 1 a supertype's arguments); lite's
+     projects 167 of 167; the showcase 123 of 123. The 4: two quoted trees over a let-bound string (the fold belongs in
+     name resolution, after the door), two variables typed `Result` that the engine's own reader upgrades. Own corpus:
+     2,892 matched, its pin.
+5. **The last step** (the parser returns protocol only; ArchitectureTest 7c's `model..` deleted; `//core:door`):
+   measured on its commit with these docs (b3f8ef3d6), against main adcb420b7 -- every number as on f6b17df89:
+   - `bazel test //gates:local`: 375 of 384 pass (1 skipped); the eight Postgres targets pass unprivileged (8 of 8).
+   - the six corpus passes: no result file differs from main's.
+   - PCT: DuckDB, H2 and channel B (12 of 12), Postgres unprivileged (5 of 5).
+   - the reference lane: equal to main's own build (0 lines).
+   - `//gates:parser_equivalence`: 3 of 3. The oracle and the own corpus unchanged: the engine collection 7,099
+     matched and the same 4 failed, rule A 102 written and the same 10 refused; lite's projects 167 of 167; the
+     showcase 123 of 123; own corpus 2,892 matched.
+   - `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test` (the door's layer, the parser's without
+     `model`) green before the run; ArchitectureTest's 46 rules among them.

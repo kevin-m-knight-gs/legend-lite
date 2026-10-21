@@ -511,29 +511,78 @@ not be written back, so it is refused.
    (`JsonModelDoorTest`): the JSON round trip loses 401 of the engine collection's texts (821 before step 2), none
    of lite's projects or the showcase. Judged against main's baseline at each change: the six corpus passes
    identical, the census within its ceilings, the shadow probe and the reference lane unchanged, PCT 17 of 17.
-   **Landed next (2026-10-11; GATES 2026-10-11):** a relation column without a multiplicity is `[0..1]` (the engine
-   and legend-pure; lite said `[1]`); `CDecimal.written` deleted, the typer deciding a decimal by its value (its
-   rounding past DECIMAL(38) parked as PARK-27); a relation cast read from JSON as the parser reads its text. The JSON
-   round trip then loses 267 of the engine collection's texts.
+   **Built next on the user's Mac (2026-10-11 to 2026-10-13), stranded there, then rebased on main and judged again
+   (2026-10-21, on the branch `studio-program`; GATES 2026-10-21).** That session's pushes were refused by its
+   permission check from 2026-10-11; the user pushed its branches on 2026-10-21, and this program now builds on one
+   branch kept up to date with main (the user, 2026-10-21: "build everything on a branch here that is up to date on
+   main"). On it: a relation column without a multiplicity is `[0..1]` (the engine and legend-pure; lite said `[1]`);
+   `CDecimal.written` deleted, the typer deciding a decimal by its value (its rounding past DECIMAL(38) parked as
+   PARK-27); a relation cast read from JSON as the parser reads its text; persistence spans as the JSON has them, a
+   reference body read as parsed, every value specification's equality without its position. And a braced
+   `#TDS{...}#` literal (reported by the Python / DataCube line, 2026-10-13), the engine's own form, which read its
+   braces as the header and a row (a column `{`; with two columns, an IndexOutOfBoundsException in the lowering),
+   through the text door and the JSON door alike: the literal now carries the table between its delimiters in either
+   form, from either door (`TdsLiteral.of`), and the compiler reads no delimiter; a brace-less literal composed back to
+   text is the engine's `#TDS{...}#` (it was `#TDS{#TDS ... #}#`); the lexer ends a braced literal at its `}#`, and one
+   with no `}#` is refused ("unterminated #TDS{ literal"). The rebase moved main's own later makers of a TDS literal
+   (the SQL, IQ and Cypher translators) onto the same rule, and replaced main's brace strip in `TdsChecker` (61ff4872d,
+   2026-10-17) with it. The JSON round trip then lost 149 of the engine collection's texts.
 
-   **Still open in step 2:** the compiler no longer
-   reading how an operator was spelled (`infix`); spans and orders the parser still keeps that no JSON has. And one
-   decision for the user, before code: text the engine's grammar accepts and its parser then drops (function
-   pre-constraints, an include's several store substitutions, an Operation mapping's `extends`, a generic supertype's
-   type arguments, a dotted `^X(a.b = ..)` key, all but the first term of `^X(s = 'a' + $v)`, `Result<Any|m>`): the
-   engine's JSON has no place for most of them, so an include's several substitutions and an Operation mapping's
-   `extends` cannot survive the hop as step 2's text above says (one substitution, and an ordinary class mapping's
-   `extends`, do); which rule lite follows is the user's to choose.
+   **The dropped-text rule, decided: rule A (the user, 2026-10-21; `docs/SEMANTICS_REGISTER.md` S89).** Text the
+   engine's grammar accepts and its parser drops is read at the engine's dialect exactly as the engine reads it, so the
+   records and their JSON are the engine's and a JSON hop gives the same records; lite's dialect keeps what was
+   written; written as the engine's JSON, lite's records carry it where the engine's JSON has a field for it as written,
+   and are refused by name (`ProtocolEmitter.placeless`) where it has none -- never dropped silently. (The options put
+   to the user, 2026-10-11 and again 2026-10-21: A, this; B, keep them at every dialect and refuse them at the engine's,
+   so lite would refuse text the engine accepts; C, drop them everywhere.) The constructs, each from the engine's
+   source: a `^X(..)` binding's chain after its first expression (`processRightSide`: `s = 'a' + $v` binds `'a'`), a
+   dotted key after its first name, `+=` (its walker never sets `add`), a function's constraint block (`visitFunction`
+   reads none), an include's several store substitutions, an Operation mapping's `extends`, a generic supertype's type
+   arguments, a service store's description. Written whole from lite's dialect: a chain, `"add":true`, an Operation
+   mapping's `extendsClassMappingId` (as older JSON writes it), a description. Refused by name: a dotted key, several
+   substitutions, a supertype's arguments, and a function's constraints (the engine's JSON has `preConstraints` and
+   `postConstraints`, which its compiler reads, but which of lite's constraints is which is legend-pure's split, not yet
+   lite's: writing them is open). A model store's instances are the engine's data walker's, which reads its values whole
+   (`SpecParser.parseInstanceData`).
 
-   **Found and fixed on `leg8-tds` (2026-10-13, reported by the Python / DataCube line):** a braced `#TDS{...}#`
-   literal, the engine's own form, read its braces as the header and a row (a column `{`; with two columns, an
-   IndexOutOfBoundsException in the lowering), through the text door and the JSON door alike: the compiler stripped
-   `#TDS` and `#` only. Now the literal carries the table between its delimiters in either form, from either door
-   (`TdsLiteral.of`), and the compiler reads no delimiter. Two more come with it: a brace-less literal composed back
-   to text is the engine's `#TDS{...}#` (it was `#TDS{#TDS ... #}#`, its tdsString the whole token), and the lexer
-   ends a braced literal at its `}#`, so a `#` in a value is the value's (it cut the literal there); one with no
-   `}#` is refused ("unterminated #TDS{ literal"). Lands with step
-   2b; the compiler's part approved by the Compiler Rewrite line (2026-10-13).
+   **As built, step 2's rest (2026-10-21, on `studio-program`; GATES 2026-10-21).** Rule A, as above. The compiler no
+   longer reads how an operator was spelled: a run is an arithmetic carrier over a literal list of two or more operands
+   (`Typer.markOperatorRun`), so `1 + 2 + 3`, `plus([1, 2, 3])` and `[1, 2, 3]->plus()` are one call, as they are to
+   the engine. Three readings the oracle found, each the engine's: a model store's `-1` is one literal (its data
+   walker's; the emitter's own fold deleted), a path segment `prop()` with no argument is the property at the engine's
+   and lite's dialects (as `$x.f()` is `$x.f`), and a keyExpression's `add` is read. The oracle (`JsonModelDoorTest`)
+   counts rule A apart: where the dialects read a text differently, lite's records written as JSON are refused by name
+   (counted per construct) or read back to the same records and the same compiler input (counted); anything else fails.
+   The engine collection: 7,099 matched, 4 failed (149 before), rule A 102 written whole and 10 refused, pinned exactly;
+   lite's projects 167 of 167, the showcase 123 of 123. No span or order difference is left. **The 4 left, named:** two
+   quoted trees over a let-bound string (`compileLegendValueSpecification($treeString)`), which the parser folds and a
+   JSON model cannot carry -- the fold belongs after the door, in name resolution, so both doors fold (the Compiler
+   Rewrite line's area; not done); and two variables typed `meta::pure::mapping::Result`, which legend-engine's own
+   reader brings up to `Result<Any|1..*>` (its converter; the print measured in `PureV1ApiTest`), so its own JSON hop
+   changes them.
+
+   **As built, step 3 (2026-10-21, on `studio-program`; GATES 2026-10-21).** The routes that take a model --
+   compile (both), `lambdaReturnType`, `lambdaRelationType`, `generatePlan`, `execute` -- take `{"_type":"data", ...}`
+   as well as `{"_type":"text", ...}` (`server/ModelInput`); a pointer context is refused by name. Execute compiles the
+   model once, by the route, and hands it on (`PureV1Api.Runner.run(ModelContext, ...)`,
+   `Execution.executeWire(ModelContext, ...)` beside the text overload): the seam the execution plan's step 4 builds on.
+   `connectionOf` reads the records and writes the plan's connection from its record through the emitter. Python's
+   Arrow route, the host routes and the model-change routes keep text. `PureV1ApiTest` holds each route's answer to a
+   model's JSON equal to its answer to the text.
+
+   **As built, the last step (2026-10-21, on `studio-program`; GATES 2026-10-21): the parser returns protocol only.**
+   `ElementParser` returns an element's record (its `parseSingle` too, for the IDE's slices), the section grammars lose
+   their `toModel`, and the quoted-grammar fold reads its text into records (`PmcdParser`). A text meets the compiler's
+   model in one place, outside the parser: `door.ModelFromText` (`//core:door`) -- `parse(text, dialect)`, the one
+   parser's records through `ModelFromProtocol` (a shape the model cannot represent is the text's `ParseException` at
+   the element), and `element(record)` for the IDE's one element. Its callers moved to it: the compiler, the platform's
+   boot (`Pure`, `Prelude`, `SystemMetamodel`), the IDE, the generators, the tests and the corpora. The set-id rule
+   moved to the records (`protocol.SetIds`, the model's `SetId` delegating), because the mapping grammar needs an
+   aggregation-aware mapping's outer id. One position moved: a shape the model refuses in an element the IDE parses
+   alone is placed at the element's start, as it already was for a whole text. ArchitectureTest 7c's `model..`
+   allowance is deleted: the parser depends on the lexer, the protocol, values, the shared errors and the overlay seam
+   alone. Leg 8 is done.
+
 9. **Imports and comments through the round trip** (added 2026-10-10, the user: "add a leg to design/implement
    imports and comments too so we don't forget"). Today a model's text keeps both only because lite's own SDLC
    stores the text itself (`docs/STUDIO_DESIGN_2026_10_02.md` S13, S5), and imports are refused at save, as
