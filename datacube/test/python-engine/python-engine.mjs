@@ -666,9 +666,9 @@ try {
   await seen('the page opened again, nothing changed since',
     `(${String(sheetNames)})() === 'pytrades|Renamed in DataCube|Added in Python'`);
   await new Promise((done) => { setTimeout(done, 2000); });
-  const after = await versionOf();
-  console.log(`${after === steady ? 'ok  ' : 'FAIL'} opened again with nothing changed, the page writes nothing (version ${steady} -> ${after})`);
-  if (after !== steady) failed = true;
+  const versionNow = await versionOf();
+  console.log(`${versionNow === steady ? 'ok  ' : 'FAIL'} opened again with nothing changed, the page writes nothing (version ${steady} -> ${versionNow})`);
+  if (versionNow !== steady) failed = true;
 
   // SAVED FROM PYTHON (D, B6): page.save() keeps the page in this user's saved pages by the rules the tab's own Save
   // keeps it by; DataCube's Open… lists it, and it opens -- its sheets as Python saved them, its grid over its frame
