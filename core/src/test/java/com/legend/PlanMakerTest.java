@@ -324,6 +324,10 @@ class PlanMakerTest {
             ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT",
                     TypedQuery.Output.TDS_TEXT);
             assertTrue(plan.root() instanceof ExecutionPlan.Keyed, type + ": a keyed plan");
+            // every reference to a per-key column carries the runner's per-key name, never the bare stem (Snowflake
+            // read the outer select's as a plain column, measured on its lane 2026-10-21)
+            String body = ((ExecutionPlan.Keyed) plan.root()).body().statement();
+            assertTrue(!java.util.regex.Pattern.compile("(?<!_pk_)_u0").matcher(body).find(), type + ": " + body);
             com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + query);
         }
     }

@@ -429,6 +429,11 @@ public final class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
+            // a dynamic pivot's per-key column is the base's per-key name, its key written in by the runner: read as a
+            // plain column it named no column ("invalid identifier '"_pct0"."_u0"'", the ten dynamic pivots on the
+            // lane at 9dfb0ae1, 2026-10-21)
+            case SqlExpr.Column c when c.origin() == com.legend.sql.OutputCol.Origin.PER_KEY ->
+                    super.expr(writer, e, parentPrec);
             case SqlExpr.Column c -> column(writer, c);
             case SqlExpr.OrderedListAgg ola -> writer.append("ARRAY_AGG(").piece(keepNull(ola.value()))
                     .append(") WITHIN GROUP (ORDER BY ").expr(ola.orderBy(), 0).append(")");
