@@ -59,6 +59,15 @@ class BigQueryDialectTest {
         assertFalse(sql.contains("SAFE_OFFSET"), sql);
     }
 
+    /** A text cast to a timestamp has its fraction cut to BigQuery's microseconds: the judges' grid decode writes nine
+     *  digits ("Invalid datetime string", channel B's lead-adjust tests). */
+    @Test
+    void aTextsFractionIsCutToMicrosecondsForATimestamp() {
+        SqlExpr text = SqlExpr.Column.of("t", "s", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
+        String sql = render(new SqlExpr.Cast(text, SqlType.Scalar.TIMESTAMP), null);
+        assertTrue(sql.contains("CAST(REGEXP_REPLACE(`t`.`s`, '(\\\\.[0-9]{6})[0-9]+', '\\\\1') AS DATETIME)"), sql);
+    }
+
     /** A text operand beside a JSON one in a COALESCE is parsed (the zips of Pairs of Pairs). */
     @Test
     void aCoalescesTextBesideJsonIsParsed() {

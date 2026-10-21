@@ -1320,6 +1320,14 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** {@code value} (of type {@code from}, when known) cast to {@code to}. */
     private SqlWriter.Piece castTo(SqlWriter.Piece value, @com.legend.base.Nullable SqlType from, SqlType to) {
+        // BigQuery's DATETIME and TIMESTAMP hold microseconds and refuse a text with more fraction digits ("Invalid
+        // datetime string \"2026-01-08T00:00:00.000000000\"": the judges' grid decode writes nine, channel B's
+        // lead-adjust tests on the lane, 2026-10-21); the fraction is cut to six, as DuckDB's cast reads such a text
+        if (from == SqlType.Scalar.VARCHAR && (to == SqlType.Scalar.TIMESTAMP || to == SqlType.Scalar.TIMESTAMPTZ)) {
+            return w -> w.append("CAST(REGEXP_REPLACE(").piece(value).append(", ")
+                    .append(stringLit("(\\.[0-9]{6})[0-9]+")).append(", ").append(stringLit("\\1")).append(") AS ")
+                    .append(bqType(to)).append(")");
+        }
         if (to instanceof SqlType.Decimal d) {
             return w -> w.append("ROUND(CAST(").piece(value).append(" AS BIGNUMERIC), " + d.scale() + ")");
         }
