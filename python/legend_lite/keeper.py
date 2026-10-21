@@ -3,15 +3,17 @@ hold, shown or not, and its version -- the host's storage, which never reads a p
 copies, its ids) comes with each write from DataCube's own code (headless pageReads, pageWritten, pageRebase), and so
 does every rule of how two editors' edits combine (page-rebase.ts).
 
-Either editor -- Python's page, a tab or a notebook widget open on it -- writes a page against the version it is at, with
-the edits that made it (``settle``). Written against an older one, the keeper has DataCube make the writer's edits again
-on top of the page as it is now (``combine``: headless pageRebase) and keeps what that makes; a change by no command, or
-edits that no longer apply, are refused (``Refused``). So the two never hold two pages, and neither keeps a rule of its
-own for combining them.
+THE HOST APPLIES THE COMMANDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): either editor -- Python's page, a tab or a
+notebook widget open on it -- writes a page as the version it is at and the edits it made there (``settle``), never the
+page itself. The keeper has DataCube apply them to the page as it is now (``combine``: headless pageRebase -- at the
+writer's version there is nothing to combine; at one the page has moved on from they are made again on top) and keeps
+what they make; edits that do not apply there are refused (``Refused``), nothing kept. So the page is what the commands
+make, the two editors never hold two pages, and neither keeps a rule of its own for combining them. One write is a page
+whole: a RESTORE (an undo or a redo, the plan's N2; a page loaded, N1), taken only at the version it was made at.
 
-Each version keeps the edits that moved the page to it (a page's, or a grid's with its tile's id), or none -- a change
-by no command -- so a page open at an older version follows by the edits since, or opens the page again. A write that
-leaves the page as it was is no new version.
+Each version keeps the edits that moved the page to it (a page's, or a grid's with its tile's id), or none -- a page
+restored whole -- so a page open at an older version follows by the edits since, or opens the page again; and the ids
+the page had held then (what a write made at it knew). A write that leaves the page as it was is no new version.
 """
 
 from __future__ import annotations
@@ -38,14 +40,15 @@ class Stale(Exception):
 
 
 class Refused(Exception):
-    """A write the page cannot take: made against a version it moved on from, and a change by no command, or edits that
-    no longer apply there (DataCube's words)."""
+    """A write the page cannot take: edits that do not apply to the page as it is now (DataCube's words), or a restore
+    made against a version it moved on from."""
 
 
 @dataclass(frozen=True)
 class Settled:
-    """A write kept: the page's version now; whether its edits were made again on top of a page that had moved on (the
-    writer then takes the page as the keeper has it); and each id they gave out that was given out afresh."""
+    """A write kept: the page's version now; whether the keeper made another page of it than the writer's -- its edits
+    made again on top of a page that had moved on, or an id given out afresh (the writer then takes the page as the keeper
+    has it); and each id they gave out that was given out afresh."""
     version: int
     combined: bool
     renamed: Mapping[str, str]
@@ -59,15 +62,21 @@ class _Kept:
     reads: dict[str, list[str]]
     # every id the page has held: none is given out again
     held: list[str]
-    # the edits that moved the page to each version kept, or None: moved by no command
+    # the edits that moved the page to each version kept, or None: born or restored whole
     steps: dict[int, list[Any] | None] = field(default_factory=dict)
+    # the ids the page had held at each version kept: what a write made at it knew (a page filter it made, told from one
+    # another writer made since under the same id: H3)
+    helds: dict[int, list[str]] = field(default_factory=dict)
     # shown somewhere (a tab, a notebook widget): what an open page may read and write
     served: bool = False
 
 
-# combine(page, held, edits): DataCube's pageRebase as the host asks it -- {page, held, edits, renamed, reads}, or
+# combine(page, held, edits, known): DataCube's pageRebase as the host asks it -- the page and the ids it has held now, a
+# writer's edits, the ids the page had held at the version they were made at -- {page, held, edits, renamed, reads}, or
 # {problems}
-Combine = Callable[[dict[str, Any], list[str], list[Any]], dict[str, Any]]
+Combine = Callable[[dict[str, Any], list[str], list[Any], list[str]], dict[str, Any]]
+# admit(reads): the host's own refusal of a page its edits make (what it reads: a frame the host does not serve), or None
+Admit = Callable[[Mapping[str, list[str]]], str | None]
 
 
 class PageKeeper:
@@ -78,13 +87,14 @@ class PageKeeper:
         self._pages: dict[str, _Kept] = {}
         # told each new version (its page's key, the version), outside the lock: where the page is shown follows it
         self.on_write = on_write
-        # how a write made against an older version is made again on top (asked outside the lock: DataCube's, headless)
+        # how a write's edits are applied to the page as it is (asked outside the lock: DataCube's, headless)
         self.combine = combine
 
     def keep(self, key: str, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
         """A page kept from now on (a new Python page), at version 1."""
         with self._lock:
-            self._pages[key] = _Kept(1, copy.deepcopy(doc), _reads(reads), sorted(set(held)), {1: None})
+            ids = sorted(set(held))
+            self._pages[key] = _Kept(1, copy.deepcopy(doc), _reads(reads), ids, {1: None}, {1: ids})
         return 1
 
     def forget(self, key: str) -> None:
@@ -112,9 +122,10 @@ class PageKeeper:
 
     def write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], edits: list[Any] | None,
               held: list[str]) -> int:
-        """The page made ``doc`` (reading what ``reads`` says), moved there from version ``base`` by ``edits`` (None: by no
-        command): its new version -- or, the page no longer at ``base``, ``Stale``. A document the page has already is no
-        new version. A page not kept is a ``KeyError``."""
+        """The page made ``doc`` (reading what ``reads`` says), moved there from version ``base`` by ``edits`` (None: whole):
+        its new version -- or, the page no longer at ``base``, ``Stale``. A document the page has already is no new
+        version. A page not kept is a ``KeyError``. What the keeper takes from its editors is ``settle``'s and
+        ``restore``'s; this is theirs, and a host's that replaces a page whole it serves alone (engine.py serve_page)."""
         kept_doc = copy.deepcopy(doc)
         kept_edits = None if edits is None else copy.deepcopy(edits)
         kept_reads = _reads(reads)
@@ -129,41 +140,55 @@ class PageKeeper:
             kept.doc = kept_doc
             kept.reads = kept_reads
             kept.steps[kept.version] = kept_edits
+            kept.helds[kept.version] = list(kept.held)
             for old in [v for v in kept.steps if v <= kept.version - STEPS_KEPT]:
                 del kept.steps[old]
+                kept.helds.pop(old, None)
             version = kept.version
         if self.on_write is not None:
             self.on_write(key, version)
         return version
 
-    def settle(self, key: str, base: int, doc: dict[str, Any], edits: list[Any] | None, reads: Mapping[str, list[str]],
-               held: list[str]) -> Settled:
-        """A WRITE, SETTLED (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): ``doc``, made by ``edits`` from version ``base``,
-        kept as written while the page is still at ``base``; else the edits made again on top of the page as it is now
-        (``combine``: DataCube's pageRebase) and what that makes kept -- or ``Refused``: a change by no command, or edits
-        that no longer apply there."""
-        try:
-            return Settled(self.write(key, base, doc, reads, edits, held), False, {})
-        except Stale:
-            pass
-        if edits is None:
-            raise Refused('the page changed where it is open while this change was made, which is no command to make '
-                          'again on it: make the change again')
+    def settle(self, key: str, base: int, edits: list[Any], admit: Admit | None = None) -> Settled:
+        """A WRITE, SETTLED (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4, H1): ``edits``, made by a writer at version
+        ``base``, applied by DataCube to the page as it is now (``combine``: headless pageRebase -- at ``base`` nothing to
+        combine, past it made again on top) and what they make kept -- or ``Refused``: one does not apply there, in
+        DataCube's words, or the host refuses the page they make (``admit``), nothing kept. The ids the page holds from
+        then on are the ones the commands gave out (H3)."""
         if self.combine is None:
-            raise Refused('the page changed where it is open while this change was made')
+            raise Refused('this page keeps no rule to apply its edits by')
         for _ in range(COMBINED_AT_MOST):
             with self._lock:
                 kept = self._pages[key]
                 at, now, now_held = kept.version, kept.doc, list(kept.held)
-            said = self.combine(now, now_held, edits)
+                known = kept.helds.get(base) if base <= at else None
+            if known is None:
+                raise Refused('the page changed where it is open, further than it keeps, while this change was made: make it '
+                              'again')
+            said = self.combine(now, now_held, edits, known)
             if 'problems' in said:
-                raise Refused('the page changed where it is open while this change was made: ' + '; '.join(said['problems']))
+                raise Refused('the page changed where it is open while this change was made: ' + '; '.join(said['problems'])
+                              if at != base else '; '.join(said['problems']))
+            if admit is not None:
+                refused = admit(said['reads'])
+                if refused is not None:
+                    raise Refused(refused)
             try:
                 version = self.write(key, at, said['page'], said['reads'], said['edits'], said['held'])
             except Stale:
                 continue
-            return Settled(version, True, dict(said['renamed']))
+            renamed = dict(said['renamed'])
+            return Settled(version, at != base or bool(renamed), renamed)
         raise Refused('the page kept changing where it is open while this change was made: make it again')
+
+    def restore(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
+        """A PAGE WRITTEN WHOLE (the plan's N1, N2: a page loaded, an undo or a redo) -- the one write that is no commands --
+        kept only at the version it was made at: its version from then on; else ``Refused``, nothing kept (the page
+        moved on: the writer opens it as it is)."""
+        try:
+            return self.write(key, base, doc, reads, None, held)
+        except Stale:
+            raise Refused('the page changed where it is open while this was undone or redone: it is shown as it is now') from None
 
     def changes(self, key: str, since: int) -> tuple[int, list[Any] | None]:
         """What moved the page since version ``since``: its version now, and the edits since, in order -- or None, when

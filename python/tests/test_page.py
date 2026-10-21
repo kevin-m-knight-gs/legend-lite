@@ -1119,15 +1119,15 @@ class Live(Paged):
             return e.code, e.read().decode('utf-8')
 
     def said(self, page, document, version=None):
-        """The open page writing what it is now, as DataCube's app writes it (src/app/datacube-app.ts): against the
-        version it is at (the page's now, unless given), its document. Its answer's status."""
+        """The open page writing what it is now whole, as DataCube's app writes an undo or a redo (a restore: the plan's
+        N2): against the version it is at (the page's now, unless given), its document. Its answer's status."""
         return self.wrote(page, document, version)[0]
 
     def wrote(self, page, document, version=None):
         """As ``said``: the answer's status, and the version it made (None when refused)."""
         version = datacube._session.engine().page_versions(page._key)['version'] if version is None else version
         answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
-                                                   _json.dumps({'page': document, 'edits': None}))
+                                                   _json.dumps({'restore': document}))
         return answer.status, (json.loads(answer.body)['version'] if answer.status == 200 else None)
 
     def version(self, page):
@@ -1294,7 +1294,8 @@ class Live(Paged):
         # another tab, or the first reloaded: the page as the open one wrote it, which is Python's too
         self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['sheets'][0]['name'], 'Renamed in DataCube')
         ll.show(page, browser=False)
-        self.assertEqual(self.get(f'/page.json?page={page._key}')[1], {'version': self.version(page), 'page': page.to_dict()})
+        self.assertEqual(self.get(f'/page.json?page={page._key}')[1], {'version': self.version(page), 'page': page.to_dict(),
+                                                                  'held': ['chart-1', 'grid-1', 'sheet-1']})
 
     def test_shown_again_and_closed_and_shown_again(self):
         page, grid, _ = self.built()
@@ -1341,7 +1342,7 @@ class Live(Paged):
         ll.show(page, browser=False)
         engine = datacube._session.engine()
         refused = engine.answer('POST', '/page.json', f'page={page._key}&version={self.version(page)}',
-                                json.dumps({'page': {'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}, 'edits': None}))
+                                json.dumps({'restore': {'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}}))
         # refused by DataCube's reader, in its words -- never by a failure of the engine's own
         self.assertEqual(refused.status, 422)
         self.assertNotRegex(refused.body.decode('utf-8'), r'^[A-Za-z]+(Error|Exception):')
@@ -1406,12 +1407,10 @@ class Live(Paged):
         ll.show(page, browser=False)
         page._enter()
         try:
-            theirs = page.to_dict()
             taken = f"sheet-{1 + max(int(i.split('-')[1]) for i in page._ids if i.startswith('sheet-'))}"
-            theirs['sheets'].append({'id': taken, 'name': 'There', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
             version = datacube._session.engine().page_versions(page._key)['version']
             answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
-                                                       _json.dumps({'page': theirs, 'edits': None}))
+                                                       _json.dumps({'edits': [{'page': {'kind': 'addSheet', 'id': taken, 'name': 'There'}}]}))
             self.assertEqual(answer.status, 200, answer.body.decode('utf-8'))
             mine = page.sheet('Mine')
         finally:

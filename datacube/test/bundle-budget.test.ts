@@ -320,8 +320,12 @@ const BUDGET = 315_500;
  *  298,000 -> 304,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 304,314.
  *  304,500 -> 305,000 (2026-10-21, step S3's G8 and P7: a step's selection put back by its grid's own refilter, each
  *  sheet's layout as the page has it kept apart from the board's drawing). Measured 304,513.
- *  305,000 -> 305,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 305,177. */
-const ENGINE_BUDGET = 305_500;
+ *  305,000 -> 305,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 305,177.
+ *  305,500 -> 306,000 (2026-10-21, step S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the host applies the commands":
+ *  the page Python serves written as its edits or, undone or redone, whole (a restore), the ids it has held read with it,
+ *  and Open..., in place and Blank Page leaving it for a page of the tab's own (D1), said on a blank page's card).
+ *  Measured 305,535. */
+const ENGINE_BUDGET = 306_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

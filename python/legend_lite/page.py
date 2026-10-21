@@ -51,7 +51,7 @@ require_datacube()
 
 from . import _json
 from ._types import is_boolean, is_decimal, is_float, is_integer, is_number
-from .keeper import Refused
+from .keeper import Refused, Settled
 
 _KEEP: Any = object()
 
@@ -1024,15 +1024,21 @@ class Page:
         self._pull()
 
     def _commit(self) -> None:
-        """WHAT CHANGED, WRITTEN: the page's document, against the version its call started at, with the commands that
-        changed it, settled by the page's keeper as every editor's write is (keeper.py ``settle``): kept as written, or --
-        the page moved on meanwhile, an open page wrote it -- the commands made again on top of the page as it is now by
-        DataCube's own rule (headless pageRebase), the page then taken as the keeper has it, a handle of a tile or a sheet
-        whose id was given out afresh following it. A change by no command, or one that no longer applies there (a tile
-        closed there), is refused in words, nothing changed."""
+        """WHAT CHANGED, WRITTEN (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): the commands that changed it, against the
+        version its call started at, settled by the page's keeper as every editor's write is (keeper.py ``settle``):
+        DataCube applies them to the page as it is now (headless pageRebase) and the keeper keeps what they make -- the
+        page this call made, when it had not moved on; else the commands made again on top, the page then taken as the
+        keeper has it, a handle of a tile or a sheet whose id was given out afresh following it. One that no longer
+        applies there (a tile closed there) is refused in words, nothing changed. A page loaded (N1) is written whole, a
+        restore, at the version it was made at."""
+        keeper = self._session.keeper
         try:
-            settled = self._session.keeper.settle(self._key_name, self._version, self._document, self._unserved,
-                                                  self._reads(), sorted(self._ids))
+            if self._unserved is None:
+                reads = self._reads()
+                settled = Settled(keeper.restore(self._key_name, self._version, self._document, reads,
+                                                 sorted(self._ids | set(reads['ids']))), False, {})
+            else:
+                settled = keeper.settle(self._key_name, self._version, self._unserved)
         except Refused as refused:
             self._discard()
             raise ValueError(str(refused)) from None

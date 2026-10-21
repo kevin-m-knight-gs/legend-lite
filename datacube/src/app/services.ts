@@ -249,26 +249,36 @@ export type LiveCommand =
   | { readonly page: PageCommand }
   | { readonly grid: string; readonly command: GridCommand };
 
+/**
+ * What a page open on screen writes to the page's keeper (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): the edits made
+ * on screen at the version it is at, each a command, which the keeper applies -- or, an undo or a redo (N2), the page
+ * whole, a restore the keeper takes only at that version.
+ */
+export type LiveWrite =
+  | { readonly edits: readonly LiveCommand[] }
+  | { readonly restore: PageDocument };
+
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {
-  /** The page as the editor says it is now, at its version; refused with the editor's reason. */
-  read(): Promise<{ readonly version: number; readonly page: PageDocument }>;
+  /** The page as the editor says it is now, at its version, with every id it has held (none is given out again: B12);
+   *  refused with the editor's reason. */
+  read(): Promise<{ readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
   /**
-   * What moved the page since version `since` (the one open): the commands the editor made, in order -- or, when it
-   * keeps none for a version since (a change by no command, a version long gone), the page as it is now.
+   * What moved the page since version `since` (the one open): the commands its editors made, in order -- or, when it
+   * keeps none for a version since (a page born or restored whole, a version long gone), the page as it is now.
    */
   changes(since: number): Promise<
     | { readonly version: number; readonly commands: readonly LiveCommand[] }
-    | { readonly version: number; readonly page: PageDocument }>;
+    | { readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
   /**
-   * The page as it is now, written against the version on screen with the edits that made it there (null: a change by
-   * no command), settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its version from then on -- the
-   * same, when it changed nothing -- and whether the edits were made again on top of a page that had moved on (the
-   * screen then opens the page as the keeper made it); refused (a change by no command made against a version moved
-   * on from, or edits that no longer apply there), and the page follows what moved it.
+   * A write against the version on screen, settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its
+   * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept -- or a restore, kept
+   * whole at that version. Its version from then on -- the same, when it changed nothing -- and whether the keeper made
+   * another page than the screen's (the page had moved on, or an id was given out afresh: the screen then opens the
+   * page as the keeper made it). Refused in the keeper's words (an edit that does not apply there, a restore made
+   * against a version moved on from): nothing kept.
    */
-  report(version: number, page: PageDocument, edits: readonly LiveCommand[] | null):
-    Promise<{ readonly version: number; readonly combined: boolean }>;
+  report(version: number, write: LiveWrite): Promise<{ readonly version: number; readonly combined: boolean }>;
 }
 
 // ------------------------------------------------------------------------------------------------------- the queries

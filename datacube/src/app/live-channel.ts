@@ -1,12 +1,14 @@
 // THE TAB'S SIDE OF THE PAGE KEEPER (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): a page another editor serves (Python's
 // `ll.Page`), open here. One copy of the page is kept by the host; this screen writes it against the version it is at,
-// with the edits it made there -- the host keeps what it wrote, or makes its edits again on top of what moved the page
-// meanwhile (DataCube's pageRebase), and the screen then opens the page as the host made it -- and follows the other
-// editor's moves. Writes and follows run one at a time, in order: a move told while a write is on its way is followed
-// once the write has said its version, never taken for the other editor's.
+// with the edits it made there, each a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) -- the host applies them
+// by DataCube's one rule to the page as it has it and keeps what they make (made again on top of what moved the page
+// meanwhile: the screen then opens the page as the host made it) -- and follows the other editor's moves. An undo or a
+// redo is the one write of the page whole: a restore, kept only at the version it was made at (N2). Writes and follows
+// run one at a time, in order: a move told while a write is on its way is followed once the write has said its
+// version, never taken for the other editor's.
 
-import { pageToJson, type PageDocument } from '../page-document.ts';
-import type { LiveCommand, LivePage } from './services.ts';
+import type { PageDocument } from '../page-document.ts';
+import type { LiveCommand, LivePage, LiveWrite } from './services.ts';
 
 /** How long a change waits to settle before it is written (a drag, a typed name: one write, ms). */
 export const WRITE_AFTER = 500;
@@ -16,20 +18,17 @@ export interface LiveScreen {
   /** The page as the screen holds it now -- a page of no grid too -- or undefined: nothing it can say yet. */
   page(): PageDocument | undefined;
   /** The page as the host has it, opened again whole: a write the host made again on top, which the screen then opens
-   *  as the host made it. */
-  reopen(): Promise<void>;
+   *  as the host made it -- or one it refused (`refused`, its words), what the screen made then not the page's. */
+  reopen(refused?: string): Promise<void>;
 }
 
 export class LiveChannel {
   /** The version of the page on screen, which its writes name: undefined while none is (opening it, following it). */
   shown: number | undefined;
-  /** The edits made on screen since it was last written, as applied there -- or null: a change no command made (a
-   *  write of the page whole, which the host takes only at the version it was made against). */
-  #edits: LiveCommand[] | null = [];
-  /** How many edits were told since the screen's last change was seen: a change seen with none told is no command's. */
-  #told = 0;
-  /** The page's text as it was last seen. */
-  #seen: string | undefined;
+  /** The edits made on screen since it was last written, as applied there. */
+  #edits: LiveCommand[] = [];
+  /** The page on screen put back whole since (an undo, a redo): written whole, as a restore (N2). */
+  #restore = false;
   /** How deep in following the other editor: what the screen does meanwhile is that editor's, not its own. */
   #following = 0;
   #queue: Promise<void> = Promise.resolve();
@@ -45,32 +44,34 @@ export class LiveChannel {
     this.#after = after;
   }
 
-  /** An edit made on screen (a grid's command, a page's), as applied there: written with the page. While following the
-   *  other editor, a page's command told is that editor's (the page put at its commands); a grid's is the person's own
-   *  -- a grid tells none of another editor's (CubeApp.applyGridCommands) -- and is kept (the S1 audit's 2). */
+  /** An edit made on screen (a grid's command, a page's), as applied there: written with the next write. While following
+   *  the other editor, a page's command told is that editor's (the page put at its commands); a grid's is the person's
+   *  own -- a grid tells none of another editor's (CubeApp.applyGridCommands) -- and is kept (the S1 audit's 2). */
   edit(command: LiveCommand): void {
     if (this.#following > 0 && 'page' in command) return;
-    this.#edits?.push(command);
-    this.#told += 1;
+    this.#edits.push(command);
   }
 
-  /** The screen changed: seen (a change no edit was told for makes the next write the page whole), and written once
-   *  it settles. */
+  /** The page on screen put back whole by an undo or a redo (the page's, a grid's): the next write is the page whole,
+   *  a restore (N2) -- the edits made before it are in it. Not while following the other editor. */
+  restored(): void {
+    if (this.#following === 0) this.#restore = true;
+  }
+
+  /** The screen changed: written once it settles. */
   changed(): void {
-    if (this.#following === 0) this.#see();
     if (this.shown === undefined || this.#stopped) return;
     clearTimeout(this.#timer);
     this.#timer = setTimeout(() => { void this.enqueue(() => this.#write()); }, this.#after);
   }
 
-  /** The other editor followed by `work`: nothing the screen does meanwhile is its own; what it shows after is seen. */
+  /** The other editor followed by `work`: nothing the screen does meanwhile is its own. */
   async following<T>(work: () => Promise<T>): Promise<T> {
     this.#following += 1;
     try {
       return await work();
     } finally {
       this.#following -= 1;
-      if (this.#following === 0) this.#seen = this.#text();
     }
   }
 
@@ -78,8 +79,7 @@ export class LiveChannel {
   opened(version: number): void {
     this.shown = version;
     this.#edits = [];
-    this.#told = 0;
-    this.#seen = this.#text();
+    this.#restore = false;
   }
 
   /** Work in the channel's one queue, after every write and follow before it; its failure is its caller's. */
@@ -100,43 +100,36 @@ export class LiveChannel {
     return this.#queue;
   }
 
-  #text(): string | undefined {
-    const page = this.#screen.page();
-    return page === undefined ? undefined : pageToJson(page);
-  }
-
-  #see(): void {
-    const text = this.#text();
-    if (text === this.#seen) return;
-    if (this.#told === 0 && this.#seen !== undefined) this.#edits = null;
-    this.#seen = text;
-    this.#told = 0;
-  }
-
   async #write(): Promise<void> {
     const at = this.shown;
     if (at === undefined || this.#stopped) return;
-    const edits = this.#edits;
-    // nothing made on screen since it was last written or opened: nothing to write (a write of no edits against a
-    // version the page moved on from would only have the page opened again)
-    if (edits !== null && edits.length === 0) return;
-    const page = this.#screen.page();
-    if (page === undefined) return;
+    // nothing made on screen since it was last written or opened: nothing to write
+    if (!this.#restore && this.#edits.length === 0) return;
+    let write: LiveWrite;
+    if (this.#restore) {
+      const page = this.#screen.page();
+      if (page === undefined) return;
+      write = { restore: page };
+    } else {
+      write = { edits: this.#edits };
+    }
     this.#edits = [];
-    this.#told = 0;
-    this.#seen = pageToJson(page);
+    this.#restore = false;
     let said: { readonly version: number; readonly combined: boolean };
     try {
-      said = await this.#editor.report(at, page, edits);
-    } catch {
-      // refused (the page moved on and the edits no longer apply there; a change no command made, written against a
-      // version moved on from) or the editor gone: what is on screen is written whole next, once the page is followed
-      this.#edits = null;
+      said = await this.#editor.report(at, write);
+    } catch (e) {
+      // refused -- an edit that does not apply where the page now is, a restore made against a version it moved on from
+      // -- or the editor gone: what was made here is not the page; the page is opened as its keeper has it, said
+      if (this.#stopped || this.shown !== at) return;
+      this.shown = undefined;
+      await this.#screen.reopen(e instanceof Error ? e.message : String(e));
       return;
     }
     if (this.shown !== at || this.#stopped) return;
     if (said.combined) {
-      // made again on top of what moved the page meanwhile: the page as the host made it
+      // the keeper made another page than the screen's (made again on top of what moved it meanwhile, an id given out
+      // afresh): the page as the keeper made it
       this.shown = undefined;
       await this.#screen.reopen();
       return;

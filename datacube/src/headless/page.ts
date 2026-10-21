@@ -194,8 +194,8 @@ export interface HeldCopy {
 }
 
 /** A writer's edits read from JSON, each by its own reader: a page command's (a grid's cube with its exact numbers, as
- *  pageApply reads one), or a grid's by readGridCommand. */
-function readEdits(text: string): PageEdit[] {
+ *  pageApply reads one), or a grid's by readGridCommand -- as the page's keeper reads a write (pageRebase). */
+export function readEdits(text: string): PageEdit[] {
   const exact = fromJson(text) as unknown[];
   const asked = JSON.parse(text) as unknown;
   if (!Array.isArray(asked)) throw new CubeRefusal("a writer's edits are a list");
@@ -227,33 +227,35 @@ export function pageReads(page: string): string {
 }
 
 /**
- * AN OPEN PAGE'S WRITE, read as DataCube reads a page (readPage) -- a page of no grid too, as a page written live may be
- * (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5) -- and its edits as their readers read them (null: a change
- * by no command). JSON: `{page, edits, reads}` -- the page as DataCube writes it (its numbers exact), the edits as read
- * (or null), what it reads (pageReads) -- or `{problems}`, why DataCube does not read it, in its words.
+ * A PAGE WRITTEN WHOLE -- an open page's undo or redo (a restore, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N2, which its
+ * keeper takes only at the version it was made at), the one write that is no commands -- read as DataCube reads a page
+ * (readPage): a page of no grid too, as a page written live may be (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit
+ * 5). JSON: `{page, reads}` -- the page as DataCube writes it (its numbers exact), what it reads (pageReads) -- or
+ * `{problems}`, why DataCube does not read it, in its words.
  */
-export function pageWritten(text: string, edits: string | null): string {
+export function pageWritten(text: string): string {
   try {
     const page = readPage(text, { empty: true });
-    const read = edits === null ? null : readEdits(edits);
-    return `{"page":${JSON.stringify(pageToJson(page))},`
-      + `"edits":${read === null ? 'null' : `[${read.map((e) => toJson(e)).join(',')}]`},"reads":${readsJson(page)}}`;
+    return `{"page":${JSON.stringify(pageToJson(page))},"reads":${readsJson(page)}}`;
   } catch (e) {
-    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError) && !(e instanceof CubeRefusal)) throw e;
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
   }
 }
 
 /**
- * A WRITER'S EDITS MADE AGAIN ON TOP OF THE PAGE AS IT IS NOW (page-rebase.ts rebaseEdits), for the page's keeper when a
- * write was made against a version it has moved on from: `page` and `held` as the keeper has them, `edits` as the writer
- * made them (JSON lists), `frames` the frames the host serves (grid.ts HostFrame, by name) and `copies` the copies it
- * holds (by table), over which a grid's edit is applied as gridApply applies one -- a snapped grid's over its copy, as
- * the writer applied it. JSON: `{page, held, edits, renamed, reads}` -- the page they make (as DataCube writes it),
- * the ids it has held, the edits as applied there, each id given out afresh (the writer's name -> the page's), and what
- * the page reads -- or `{problems}`: one no longer applies, in DataCube's words, and nothing was applied.
+ * A WRITER'S EDITS APPLIED TO THE PAGE AS IT IS NOW (page-rebase.ts rebaseEdits), for the page's keeper, which keeps what
+ * a write's commands make (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4, H1) -- at the version they were made at there is
+ * nothing to combine; at one the page has moved on from, they are made again on top: `page` and `held` as the keeper has
+ * them, `edits` as the writer made them (JSON lists), `known` every id the page had held at the version they were made at
+ * (a JSON list: a page filter the writer made is told from one it set, H3), `frames` the frames the host serves (grid.ts
+ * HostFrame, by name) and `copies` the copies it holds (by table), over which a grid's edit is applied as gridApply
+ * applies one -- a snapped grid's over its copy, as the writer applied it. JSON: `{page, held, edits, renamed, reads}`
+ * -- the page they make (as DataCube writes it), the ids it has held, the edits as applied there, each id given out
+ * afresh (the writer's name -> the page's), and what the page reads -- or `{problems}`: one does not apply, in
+ * DataCube's words, and nothing was applied.
  */
-export async function pageRebase(page: string, held: string, edits: string,
+export async function pageRebase(page: string, held: string, edits: string, known: string,
   frames: Readonly<Record<string, HostFrame>>, copies: Readonly<Record<string, HeldCopy>>): Promise<string> {
   try {
     const now = heldPage(page);
@@ -274,7 +276,7 @@ export async function pageRebase(page: string, held: string, edits: string,
           `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));
         return readCube(fromJson(said.cube!));
-      });
+      }, JSON.parse(known) as string[]);
     return `{"page":${JSON.stringify(pageToJson(done.page))},"held":${JSON.stringify(done.held)},`
       + `"edits":[${done.edits.map((e) => toJson(e)).join(',')}],"renamed":${JSON.stringify(done.renamed)},`
       + `"reads":${readsJson(done.page)}}`;

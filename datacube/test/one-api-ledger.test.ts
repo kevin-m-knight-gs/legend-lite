@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
-  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 14, UNCHECKED: 7,
+  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 9, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -61,8 +61,8 @@ const GRID_CALLS = /this\.(#change|#owner\.change|#owner\.undo|#owner\.redo|#own
 const L1_GRID: Record<string, Entry> = {
   '#change:#owner.change': { items: [], why: PLUMBING },
   '#applyCommands:#change': { items: [], why: 'the command path: applyGridCommands, told by onCommand' },
-  '#undo:#owner.undo': { items: ['G12'], why: 'N2: undo writes the page whole, as a restore' },
-  '#redo:#owner.redo': { items: ['G12'], why: 'N2' },
+  '#undo:#owner.undo': { items: [], why: 'N2: an undo is told as a restore (onRestore), the page written whole at its version' },
+  '#redo:#owner.redo': { items: [], why: 'N2: as an undo' },
   // a retry stays a retry: the refused change run again, its commands kept and told when it lands
   // (cube-transactions.test.ts G13)
   'submit:#owner.retryRefused': { items: [], why: "the refused change run again: its commands told (#refusedCommands)" },
@@ -97,13 +97,13 @@ const L1_ROUTES: Record<string, Entry> = {
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
 const GAP_CALLS_HOST = /(?<![\w.#]|function )(inPlace|openSaved|blankPage|openFrame)\(/g;
 const L1_REACH: Record<string, Entry> = {
-  'datacube-app.ts:openInPlace:inPlace': { items: ['P10'] },
-  'datacube-app.ts:openFrame:inPlace': { items: ['P10', 'P12'] },
-  'datacube-app.ts:open:openSaved': { items: ['P10'], count: 2 },
-  'datacube-app.ts:openText:openSaved': { items: ['P10'] },
-  'datacube-app.ts:examplesList:openSaved': { items: ['P10'] },
-  'datacube-app.ts:openDataCube:openSaved': { items: ['P10'] },
-  'datacube-app.ts:openDataCube:blankPage': { items: ['P10', 'B9'], count: 2 },
+  'datacube-app.ts:openInPlace:inPlace': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'datacube-app.ts:openFrame:inPlace': { items: ['P12'] },
+  'datacube-app.ts:open:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
+  'datacube-app.ts:openText:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'datacube-app.ts:examplesList:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'datacube-app.ts:openDataCube:blankPage': { items: ['B9'], count: 2 },
   'datacube-app.ts:openDataCube:openFrame': { items: ['P12'] },
   'datacube-app.ts:followed:openFrame': { items: ['P12', 'B10'], count: 2 },
 };
@@ -125,15 +125,15 @@ const L1_PLANE: Record<string, Entry> = {
 /** The host's own writes of the page (app/datacube-app.ts) in a function that tells no command. */
 const HOST_CALLS = /(current\s*=\s*\{|page\.setTitle\(|page\.clear\(\)|page\.restore\()/g;
 const L1_HOST: Record<string, Entry> = {
-  'inPlace:page.clear()': { items: ['P10'] },
-  'inPlace:current = {': { items: ['P10'], count: 2 },
-  'inPlace:page.setTitle(': { items: ['P10'] },
-  'openSaved:page.restore(': { items: ['P10'], why: 'N1 off a served page: a page born whole' },
-  'openSaved:current = {': { items: ['P10'], count: 2 },
-  'openSaved:page.setTitle(': { items: ['P10'] },
-  'blankPage:page.clear()': { items: ['P10', 'B9'] },
-  'blankPage:current = {': { items: ['P10', 'B9'] },
-  'blankPage:page.setTitle(': { items: ['P10', 'B9'] },
+  'inPlace:page.clear()': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'inPlace:current = {': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
+  'inPlace:page.setTitle(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'openSaved:page.restore(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'openSaved:current = {': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
+  'openSaved:page.setTitle(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'blankPage:page.clear()': { items: ['B9'] },
+  'blankPage:current = {': { items: ['B9'] },
+  'blankPage:page.setTitle(': { items: ['B9'] },
   'openFrame:current = {': { items: ['P12', 'B10'] },
   'openFrame:page.setTitle(': { items: ['P12', 'B10'] },
   'followLive:current = {': { items: [], why: "following another editor's page: its name as it now is", count: 2 },
@@ -352,11 +352,7 @@ const MARKERS: readonly Marker[] = [
   // the grid
   // telling exactly what landed: placeholders until S1 writes each one's failing behavioural test first
   // the page
-  { file: 'src/page/page-app.ts', text: "#move(way: 'undo' | 'redo'): void {", items: ['P5'] },
   // the board a cube alone shows its charts on is given no way to tell its page's edits
-  // the no-command write, on the tab's side and the host reader's
-  { file: 'src/app/live-channel.ts', text: 'if (this.#told === 0 && this.#seen !== undefined) this.#edits = null;', items: ['H2'] },
-  { file: 'src/headless/page.ts', text: 'const read = edits === null ? null : readEdits(edits);', items: ['H2'] },
   // derived state, and what the keeper keeps
   { file: 'src/page-rebase.ts', text: 'export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {', items: ['X3'] },
   // the browser's half of the same jobs done by different rules
@@ -368,9 +364,6 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
   { file: 'src/app/datacube-app.ts', text: 'current.cubeId : crypto.randomUUID()', items: ['B13'] },
   { file: 'src/page/page-app.ts', text: 'There is nothing on this page to save: add a data source first.', items: ['B14'] },
-  // the tab's other half of H1: it sends the page whole beside its edits, and the host reads that page
-  { file: 'src/app/live-channel.ts', text: 'said = await this.#editor.report(at, page, edits);', items: ['H1'] },
-  { file: 'src/headless/page.ts', text: 'const page = readPage(text, { empty: true });', items: ['H1'] },
 ];
 
 describe('the gaps no scan reaches, pinned by their code', () => {

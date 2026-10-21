@@ -126,9 +126,12 @@ describe("Python's commands read as the page reads them", () => {
     assert.match(written, /"value":1180591620717411303424/);
   });
 
-  it('the page as it is now when the engine says the page; a command of no page and no grid refused', async () => {
-    const said = await livePage(link(`{"version": 7, "page": ${pageToJson(trades)}}`), 'q3').changes(2);
+  it('the page as it is now when the engine says the page, with the ids it has held; a command of no page and no grid refused', async () => {
+    const said = await livePage(link(`{"version": 7, "page": ${pageToJson(trades)}, "held": ["grid", "grid-9"]}`), 'q3').changes(2);
     assert.ok('page' in said && said.version === 7 && said.page.name === trades.name);
+    assert.deepEqual(said.held, ['grid', 'grid-9'], 'the ids the keeper holds, read with the page (B12)');
+    // a page said with no ids held is no page the keeper serves: refused, never taken as holding none
+    await assert.rejects(livePage(link(`{"version": 7, "page": ${pageToJson(trades)}}`), 'q3').changes(2), /no ids the page has held/);
     await assert.rejects(livePage(link('{"version": 3, "commands": [{"nope": 1}]}'), 'q3').changes(2), /a command of no page and no grid/);
   });
 });

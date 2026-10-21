@@ -176,7 +176,7 @@ class _Session:
         # a cube was opened in a browser: a person is looking, so a plain script's end keeps the engine for them
         self.opened = False
         # the one copy of each Python page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): each new version told
-        # where its page is shown; a write made against an older one made again on top by DataCube's rule (_combine)
+        # where its page is shown; each write's edits applied by DataCube's rule (_combine)
         self.keeper = PageKeeper(on_write=self._page_written, combine=self._combine)
         # the keys of pages collected, forgotten by the keeper at the next safe moment (sweep): never in the collector
         self.gone: list[str] = []
@@ -220,18 +220,19 @@ class _Session:
         if engine is not None:
             engine.sweep()
 
-    def _combine(self, page: dict[str, Any], held: list[str], edits: list[Any]) -> dict[str, Any]:
-        """A writer's edits made again on top of ``page`` as the keeper has it now, by DataCube's one rule (headless
-        pageRebase: page-rebase.ts) -- a grid's over the frames this session serves, a snapped grid's over the copy its
-        engine holds: ``{page, held, edits, renamed, reads}``, or ``{problems}``. The keeper's, asked holding nothing (the
-        session's lock first, then the frames')."""
+    def _combine(self, page: dict[str, Any], held: list[str], edits: list[Any], known: list[str]) -> dict[str, Any]:
+        """A writer's edits applied to ``page`` as the keeper has it now, by DataCube's one rule (headless pageRebase:
+        page-rebase.ts; made again on top when the page moved on since they were made, ``known`` the ids it held then) --
+        a grid's over the frames this session serves, a snapped grid's over the copy its engine holds: ``{page, held,
+        edits, renamed, reads}``, or ``{problems}``. The keeper's, asked holding nothing (the session's lock first, then
+        the frames')."""
         from . import _json
         headless = self.headless()
         engine = self._engine
         copies = {} if engine is None else engine.held_copies()
         with self.frames.serving():
             said = _json.loads(headless.call('pageRebase', _json.dumps(page), _json.dumps(held), _json.dumps(edits),
-                                             self.frames.hosted(), copies))
+                                             _json.dumps(known), self.frames.hosted(), copies))
         if 'page' in said:
             said['page'] = _json.loads(said['page'])
         return said

@@ -3,10 +3,12 @@
 // page another editor serves; each gesture made as a person makes it, on a page that is quiet first, and what the
 // channel then writes held to the tenet:
 //
-//   told    the change was told as commands: the channel did not have to write the page whole (L2)
-//   wire    the host reads them: headless pageWritten, what Python's keeper reads a write with, takes them as sent (L3)
+//   told    the change was told as commands: the channel wrote no page whole -- but an undo's or a redo's, a restore
+//           (N2) -- and the screen shows the page its writes make (L2)
+//   wire    the host reads them as Python's keeper reads a write (headless readEdits, pageRebase's; a restore by
+//           pageWritten), as sent (L3)
 //   replays the commands as the host read them, applied to the page before by the shared functions (rebaseEdits:
-//           applyPageCommand, and a grid's applyGridCommands), make the page the screen wrote (L2)
+//           applyPageCommand, and a grid's applyGridCommands), make the page the screen shows (L2)
 //
 // Each gesture's failing checks are listed by the plan's items, with what fails (the host's words, the parts of the page
 // that differ), and only those: a gesture failing a check it is not listed for, or failing it in another way, is a new
@@ -23,14 +25,14 @@ import { CubeApp } from '../src/app.ts';
 import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { fold } from '../src/cube-state.ts';
 import { configurationOf, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
-import { applyGridCommands, GRID_COMMAND_KINDS, readGridCommand } from '../src/grid-commands.ts';
+import { applyGridCommands, GRID_COMMAND_KINDS } from '../src/grid-commands.ts';
 import { LiveChannel } from '../src/app/live-channel.ts';
-import type { LiveCommand, LivePage } from '../src/app/services.ts';
-import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS, readPageCommand } from '../src/page-commands.ts';
+import type { LivePage, LiveWrite } from '../src/app/services.ts';
+import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS } from '../src/page-commands.ts';
 import { pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
 import { rebaseEdits, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
-import { pageWritten } from '../src/headless/page.ts';
+import { pageWritten, readEdits } from '../src/headless/page.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
@@ -45,8 +47,9 @@ let page: PageApp | undefined;
 let channel: LiveChannel | undefined;
 const cubes = new Map<string, CubeApp>();
 
-/** What the channel wrote, each write as the host was sent it. */
-interface Write { readonly at: number; readonly page: PageDocument; readonly edits: readonly LiveCommand[] | null }
+/** What the channel wrote, each write as the host was sent it -- and the page the screen showed as it was sent (the
+ *  test's own look: no write carries the page but a restore). */
+interface Write { readonly at: number; readonly write: LiveWrite; readonly screen: PageDocument }
 const writes: Write[] = [];
 /** Every command kind some gesture told, across the run. */
 const told = new Set<string>();
@@ -55,8 +58,8 @@ const told = new Set<string>();
 const editor: LivePage = {
   read: () => { throw new Error('not opened here'); },
   changes: () => { throw new Error('not followed here'); },
-  report: async (at, written, edits) => {
-    writes.push({ at, page: written, edits });
+  report: async (at, write) => {
+    writes.push({ at, write, screen: onScreen() });
     return { version: at + 1, combined: false };
   },
 };
@@ -104,6 +107,7 @@ const over = (name: string): GridMaker => (gridHost, spawned, start) => {
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
     ...(page ? { windowHost: page.root } : {}), ...spawned,
     onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+    onRestore: () => channel?.restored(),
   });
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
@@ -129,6 +133,7 @@ const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
     ...(page ? { windowHost: page.root } : {}), ...spawned,
     onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+    onRestore: () => channel?.restored(),
   });
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
@@ -156,6 +161,7 @@ const overClass = (): GridMaker => (gridHost, spawned, start) => {
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'Trade' },
     ...(page ? { windowHost: page.root } : {}), ...spawned,
     onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+    onRestore: () => channel?.restored(),
   });
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
@@ -174,6 +180,7 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
     host, title: 'Q3', confirm: () => true, empty: (slot) => { slot.textContent = 'empty'; },
     onChange: () => channel?.changed(),
     onPageCommand: (command) => channel?.edit({ page: command }),
+    onRestore: () => channel?.restored(),
     onRename: (name) => {
       pg().rename(name);
       channel?.changed();
@@ -382,38 +389,44 @@ type Check = 'told' | 'wire' | 'replays';
 /** How a check failed: in words, and -- a replay -- the parts of the page that differ. */
 interface Failed { readonly words: string; readonly paths?: readonly string[] }
 
-/** What a gesture made the channel write, held to the three checks: each failing one, how. */
-async function judged(before: PageDocument, made: readonly Write[]): Promise<Partial<Record<Check, Failed>>> {
+/** What a gesture made the channel write, held to the three checks: each failing one, how. `restores`: an undo or a
+ *  redo, whose write is the page whole (N2). */
+async function judged(before: PageDocument, made: readonly Write[], restores: boolean): Promise<Partial<Record<Check, Failed>>> {
   assert.ok(made.length > 0, 'the gesture changed the page (the channel wrote)');
   const failed: Partial<Record<Check, Failed>> = {};
   let was = before;
   for (const w of made) {
-    if (w.edits === null) {
-      failed.told = { words: 'written whole: a change no command was told for' };
-      was = w.page;
+    if ('restore' in w.write) {
+      if (!restores) failed.told = { words: 'written whole: a restore by no undo or redo' };
+      const said = JSON.parse(pageWritten(pageToJson(w.write.restore))) as { problems?: string[] };
+      if (said.problems) failed.wire = { words: said.problems.join('; ') };
+      was = w.write.restore;
       continue;
     }
-    for (const e of w.edits) told.add('page' in e ? e.page.kind : e.command.kind);
-    const sent = `[${w.edits.map((e) => toJson(e)).join(',')}]`;
-    const said = JSON.parse(pageWritten(pageToJson(w.page), sent)) as { problems?: string[]; edits?: Record<string, unknown>[] };
-    if (said.problems) {
-      failed.wire = { words: said.problems.join('; ') };
-      was = w.page;
+    for (const e of w.write.edits) told.add('page' in e ? e.page.kind : e.command.kind);
+    const sent = `[${w.write.edits.map((e) => toJson(e)).join(',')}]`;
+    // the commands as the host reads them, applied as the host applies them
+    let read: PageEdit[];
+    try {
+      read = readEdits(sent);
+    } catch (e) {
+      failed.wire = { words: e instanceof Error ? e.message : String(e) };
+      was = w.screen;
       continue;
     }
-    if (JSON.stringify(said.edits) !== JSON.stringify(JSON.parse(sent))) failed.wire = { words: 'the host reads other commands than were sent' };
-    // the commands as the host read them, applied as the host applies them
-    const read: PageEdit[] = said.edits!.map((e) => ('page' in e ? { page: readPageCommand(e['page']) }
-      : { grid: e['grid'] as string, command: readGridCommand(e['command']) }));
+    if (`[${read.map((e) => toJson(e)).join(',')}]` !== sent) failed.wire = { words: 'the host reads other commands than were sent' };
     try {
       const replayed = (await rebaseEdits({ page: was, held: idsOf(was) }, read, applyGrid)).page;
-      const paths = differing(JSON.parse(pageToJson(replayed)), JSON.parse(pageToJson(w.page)));
-      if (paths.length > 0) failed.replays = { words: 'its commands, applied, make another page than the screen wrote', paths };
+      const paths = differing(JSON.parse(pageToJson(replayed)), JSON.parse(pageToJson(w.screen)));
+      if (paths.length > 0) failed.replays = { words: 'its commands, applied, make another page than the screen shows', paths };
     } catch (e) {
       failed.replays = { words: `its commands do not apply to the page before: ${e instanceof Error ? e.message : String(e)}` };
     }
-    was = w.page;
+    was = w.screen;
   }
+  // nothing changed after the last write that no write says
+  const after = differing(JSON.parse(pageToJson(was)), JSON.parse(pageToJson(onScreen())));
+  if (after.length > 0) failed.told = { words: 'changed by no command: the screen shows another page than its writes make', paths: after };
   return failed;
 }
 
@@ -422,6 +435,8 @@ interface Gesture {
   readonly name: string;
   /** A change of the view alone (no part of the saved page): it must write nothing. */
   readonly quiet?: true;
+  /** An undo or a redo: its write is the page whole, a restore (N2). */
+  readonly restores?: true;
   readonly setUp: () => Promise<Record<string, string>>;
   readonly make: (ids: Record<string, string>) => Promise<void> | void;
 }
@@ -540,7 +555,25 @@ const GESTURES: readonly Gesture[] = [
   {
     name: 'a page edit undone',
     setUp: withSheet,
+    restores: true,
     make: () => pg().undo(),
+  },
+  {
+    name: 'a page edit undone and redone',
+    setUp: withSheet,
+    restores: true,
+    make: () => { pg().undo(); pg().redo(); },
+  },
+  {
+    name: 'a grid edit undone',
+    setUp: async () => {
+      const g = await twoGrids();
+      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+      await settle();
+      return g;
+    },
+    restores: true,
+    make: async ({ a }) => { await cubes.get(a!)!.undo(); },
   },
   // charts
   {
@@ -695,9 +728,7 @@ const GESTURES: readonly Gesture[] = [
 /** A gap a gesture shows: its items, and how it fails (the host's words; the parts of the page that differ). */
 interface Gap { readonly items: readonly string[]; readonly words?: RegExp; readonly paths?: readonly string[] }
 /** Each gesture's checks that fail today, by the plan's items: the only failures allowed, until each is closed. */
-const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
-  'a page edit undone': { told: { items: ['P5'] } },
-};
+const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {};
 
 /** The command kinds no gesture here tells, each by its item or why: the screen makes none, or none is driven yet. */
 const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?: string }> = {
@@ -756,7 +787,7 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
         assert.equal(writes.length, 0, `${g.name}: a change of the view alone wrote the page`);
         return;
       }
-      const failed = await judged(before, writes);
+      const failed = await judged(before, writes, g.restores === true);
       const listed = L2_GAPS[g.name] ?? {};
       for (const check of ['told', 'wire', 'replays'] as const) {
         const f = failed[check];

@@ -987,7 +987,7 @@ class Page(Cube):
         self.assertEqual(self.server.engine.serve_page('q3', self.DOC, ['trades']), 1)
         status, content_type, body = self.get('/page.json?page=q3', auth)
         self.assertEqual((status, content_type), (200, 'application/json'))
-        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC})
+        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC, 'held': []})
         self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 0}})
         # its frame changed: the frame's version moves, the page's not
         self.server.engine.changed('trades')
@@ -1006,7 +1006,8 @@ class Page(Cube):
         asked = lambda since: json.loads(self.get(f'/page.json?page=q3&since={since}', auth)[2])
         engine.serve_page('q3', self.DOC, ['trades'])
         self.assertEqual(asked(1), {'version': 1, 'commands': []}, 'nothing moved it')
-        self.assertEqual(asked(0), {'version': 1, 'page': self.DOC}, 'first served: no version before it it was moved from')
+        self.assertEqual(asked(0), {'version': 1, 'page': self.DOC, 'held': []},
+                         'first served: no version before it it was moved from')
         sheet = {'page': {'kind': 'addSheet', 'id': 'sheet-2', 'name': None}}
         group = {'grid': 'grid-1', 'command': {'kind': 'group', 'rows': ['desk']}}
         engine.serve_page('q3', {**self.DOC, 'name': 'Q4'}, ['trades'], [sheet])

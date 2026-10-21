@@ -113,6 +113,28 @@ describe('edits made again on top of a page that moved on', () => {
       /grid-2 is no longer on the page/);
   });
 
+  it('a page filter both writers made under one id: the writer\'s made afresh, never put in place of the other\'s (H3)', async () => {
+    // the corpus's page, its grids' cubes over a class (a page filter's class is one a grid reads)
+    const over = (c: PageDocument['cubes'][number]) => ({ ...c, cube: { ...c.cube, source: { _type: 'class' as const, name: 'Trade',
+      class: 'trades::domain::Trade', project: 'datacube:trades', workspace: 'datacube', revision: '3', mapping: 'trades::mapping::Model',
+      runtime: 'trades::runtime::Browser', columns: (c.cube.source as { readonly columns: readonly { readonly name: string; readonly type: string }[] }).columns } } });
+    const classPage: PageDocument = { ...trades, cubes: trades.cubes.map(over) };
+    const filter = (value: string): PageCommand => ({ kind: 'setPageFilter', class: 'trades::domain::Trade',
+      condition: { kind: 'condition', column: 'region', operator: 'equal', value }, from: null });
+    // each writer made its filter at the same version: each given filter-1
+    const theirs = applyPageCommands(draft(classPage), [filter('AMER')]).draft;
+    const mine = made(classPage, [filter('EMEA'), { kind: 'removePageFilter', filter: 'filter-1' }, filter('APAC')]);
+    assert.equal((mine.edits[0] as { page: { id: string } }).page.id, 'filter-1');
+    // the ids the page held at the writer's version: what it knew
+    const done = await rebaseEdits(theirs, mine.edits, applier().apply, idsOf(classPage));
+    const values = (done.page.filters ?? []).map((f) => [f.id, (f.condition as { value: string }).value]);
+    assert.deepEqual(values, [['filter-1', 'AMER'], ['filter-3', 'APAC']], 'theirs kept; mine made afresh, taken off, made again');
+    assert.equal(done.renamed['filter-1'], 'filter-2');
+    // a filter the writer knew (held at its version) is set where it is, as the command says
+    const known = await rebaseEdits(theirs, [{ page: { ...filter('LATAM'), id: 'filter-1' } as PageCommand }], applier().apply, theirs.held);
+    assert.deepEqual((known.page.filters ?? []).map((f) => (f.condition as { value: string }).value), ['LATAM']);
+  });
+
   it('a grid\'s edit is applied over the page as the edits before it left it: snapped, or live again', async () => {
     const { apply, asked } = applier();
     await rebaseEdits(draft(), [

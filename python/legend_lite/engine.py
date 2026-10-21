@@ -60,7 +60,7 @@ from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, UntypedColumn, typed_by_plan
-from .keeper import PageKeeper, Refused
+from .keeper import PageKeeper, Refused, Settled
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
@@ -1385,7 +1385,8 @@ class Engine:
         return Answer(200, 'application/json', json.dumps({'version': self.version(name)}).encode('utf-8'))
 
     def _page(self, query: str) -> Answer:
-        """A page it serves (keeper.py: shown somewhere) as it is now: ``{"version": n, "page": <its document>}``, or 404.
+        """A page it serves (keeper.py: shown somewhere) as it is now: ``{"version": n, "page": <its document>, "held": [<every
+        id it has held>]}``, or 404.
         Asked ``since=v`` by a page open at version ``v``: what moved it from there, ``{"version": n, "commands":
         [...]}``, when every version since was moved by commands (Python's or an open page's) -- else the page, as asked
         without."""
@@ -1403,17 +1404,20 @@ class Engine:
                 return Answer(200, 'application/json',
                               _json.dumps({'version': version, 'commands': commands}).encode('utf-8'))
             kept = self.keeper.current(name) or kept
-        return Answer(200, 'application/json', _json.dumps({'version': kept[0], 'page': kept[1]}).encode('utf-8'))
+        # every id it has held with it: an open page gives none of them out again (B12)
+        return Answer(200, 'application/json', _json.dumps({'version': kept[0], 'page': kept[1],
+                                                            'held': self.keeper.held(name)}).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
-        """AN OPEN PAGE'S WRITE (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): ``{"page", "edits"}`` -- its document as it is
-        now and the edits that made it from the version it is at (null: a change by no command) -- read by DataCube's own
-        reader (headless pageWritten: a page of no grid too), every frame it reads one this engine serves, and settled by
-        the page's keeper as every editor's write is (keeper.py ``settle``): kept as written, or, the page moved on, its
-        edits made again on top by DataCube's rule. ``{"version", "combined", "renamed"}``: the page's version now,
-        whether it was made again on top (the page then opens what the keeper made), each id it gave out given out
-        afresh. Refused -- a change by no command written against a version moved on from, or edits that no longer apply
-        there -- 409, and the page follows what moved it. Copies no page reads any more are let go."""
+        """AN OPEN PAGE'S WRITE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4: the host applies the commands): ``{"edits"}``,
+        the edits it made at the version it is at, which the page's keeper has DataCube apply to the page as it is now
+        and keeps what they make (keeper.py ``settle``) -- or ``{"restore"}``, the page whole (an undo, a redo: the plan's
+        N2), read by DataCube's own reader (headless pageWritten: a page of no grid too) and kept only at the version it
+        was made at (``restore``). Every frame the page then reads is one this engine serves. ``{"version", "combined",
+        "renamed"}``: the page's version now, whether the keeper made another page than the writer's (its edits made again
+        on top, or an id given out afresh: the page then opens what the keeper made), each id given out afresh. Refused
+        -- an edit that does not apply there, a restore made against a version moved on from, a frame not served -- 409,
+        and the page opens what the keeper has. Copies no page reads any more are let go."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         version = asked.get('version', [''])[0]
@@ -1427,28 +1431,35 @@ class Engine:
         try:
             written = _json.loads(body)
         except ValueError:
-            return _said(400, 'a page\'s write is JSON: {"page", "edits"}')
-        if not isinstance(written, dict) or 'page' not in written or 'edits' not in written:
-            return _said(400, 'a page\'s write is {"page": <its document>, "edits": [<its edits>] | null}')
+            return _said(400, 'a page\'s write is JSON: {"edits"} or {"restore"}')
+        if not isinstance(written, dict) or sorted(written) not in (['edits'], ['restore']) \
+                or ('edits' in written and not isinstance(written['edits'], list)):
+            return _said(400, 'a page\'s write is {"edits": [<its edits>]} -- or, an undo or a redo, {"restore": <the page>}')
+
+        def unserved(reads: Mapping[str, list[str]]) -> str | None:
+            missing = [f for f in reads['frames'] if f not in self.frames]
+            return f'the page reads the frames {", ".join(missing)}, which this engine does not serve' if missing else None
+
         try:
-            # asked for holding nothing (the session's lock first, then the frames')
-            headless = self._headless()
-            said = _json.loads(headless.call('pageWritten', _json.dumps(written['page']),
-                                             None if written['edits'] is None else _json.dumps(written['edits'])))
-        except Exception as refused:
-            return _said(422, f'{type(refused).__name__}: {refused}')
-        if 'problems' in said:
-            return _said(422, '; '.join(said['problems']))
-        reads = said['reads']
-        unserved = [f for f in reads['frames'] if f not in self.frames]
-        if unserved:
-            return _said(422, f'the page reads the frames {", ".join(unserved)}, which this engine does not serve')
-        try:
-            settled = self.keeper.settle(name, int(version), _json.loads(said['page']), said['edits'], reads, reads['ids'])
+            if 'restore' in written:
+                # asked for holding nothing (the session's lock first, then the frames')
+                said = _json.loads(self._headless().call('pageWritten', _json.dumps(written['restore'])))
+                if 'problems' in said:
+                    return _said(422, '; '.join(said['problems']))
+                reads = said['reads']
+                refused = unserved(reads)
+                if refused is not None:
+                    return _said(422, refused)
+                settled = Settled(self.keeper.restore(name, int(version), _json.loads(said['page']), reads, reads['ids']),
+                                  False, {})
+            else:
+                settled = self.keeper.settle(name, int(version), written['edits'], unserved)
         except Refused as refused:
             return _said(409, str(refused))
         except KeyError:
             return _said(404, f'this engine serves no page named {name!r}')
+        except Exception as refused:
+            return _said(422, f'{type(refused).__name__}: {refused}')
         self.sweep()
         return Answer(200, 'application/json', json.dumps({'version': settled.version, 'combined': settled.combined,
                                                            'renamed': settled.renamed}).encode('utf-8'))

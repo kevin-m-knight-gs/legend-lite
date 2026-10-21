@@ -50,14 +50,14 @@ function renamedLayout(node: unknown, renamed: ReadonlyMap<string, string>): unk
   return node;
 }
 
-/** A page command with every id it names renamed (the one it makes is its own, never renamed here). */
+/** A page command with every id it names renamed (the one it makes is its own, never renamed here; a page filter's is
+ *  the one it sets, which an edit before may have made afresh). */
 export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string, string>): PageCommand {
   if (renamed.size === 0) return command;
   const n = (id: string): string => named(id, renamed);
   switch (command.kind) {
     case 'renamePage':
     case 'addSheet':
-    case 'removePageFilter':
     case 'modelInto':
     case 'modelPin':
       return command;
@@ -88,7 +88,9 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'layout':
       return { ...command, sheet: n(command.sheet), layout: renamedLayout(command.layout, renamed) as typeof command.layout };
     case 'setPageFilter':
-      return { ...command, from: command.from === null ? null : n(command.from) };
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), from: command.from === null ? null : n(command.from) };
+    case 'removePageFilter':
+      return { ...command, filter: n(command.filter) };
     case 'snap':
     case 'live':
       return { ...command, grid: n(command.grid) };
@@ -136,12 +138,18 @@ export function withCube(page: PageDocument, id: string, cube: CubeDocument): Pa
  * rename it is told). One that no longer applies -- its tile or sheet taken off there, a column gone -- refuses them
  * all, in DataCube's words (CubeRefusal): a writer's edits are one change, applied whole or not at all. A sheet's
  * arrangement keeps the other writer's tiles on it (rearranged). A page filter set by its id is set (the id's filter
- * replaced, else made), as the command says.
+ * replaced, else made), as the command says -- but, given `known` (every id the page had held at the version the
+ * writer made its edits at), one by an id it did not know and no edit before made is a filter the writer made: given
+ * out afresh when the page has held its id since (another writer's filter made under it), never put in its place (H3,
+ * docs/DATACUBE_ONE_API_PLAN_2026_10_21.md).
  */
-export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], applyGrid: GridApplier): Promise<Rebased> {
+export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], applyGrid: GridApplier,
+  known?: readonly string[]): Promise<Rebased> {
   let d = draft;
   const renamed = new Map<string, string>();
   const applied: PageEdit[] = [];
+  // each page filter the writer made, by its name for it: set again, it is set where it was made
+  const filters = new Set<string>();
   for (const edit of edits) {
     if ('grid' in edit) {
       const grid = named(edit.grid, renamed);
@@ -155,7 +163,10 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
       continue;
     }
     let command = rearranged(renamedCommand(edit.page, renamed), d.page);
-    const made = MAKERS.has(command.kind) ? (command as { readonly id?: string }).id : undefined;
+    const mine = edit.page.kind === 'setPageFilter' ? edit.page.id : undefined;
+    const filter = mine !== undefined && known !== undefined && !known.includes(mine) && !filters.has(mine);
+    if (filter) filters.add(mine);
+    const made = MAKERS.has(command.kind) || filter ? (command as { readonly id?: string }).id : undefined;
     if (made !== undefined && takenIds(d).includes(made)) {
       // given out on the other side meanwhile: this one is given out afresh
       const { id: _taken, ...fresh } = command as PageCommand & { id?: string };

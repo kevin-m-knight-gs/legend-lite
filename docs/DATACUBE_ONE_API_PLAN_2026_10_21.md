@@ -146,8 +146,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **G11** public `change()` / `state` → removed or read-only — closed S1: `change()` and the `controller` getter gone;
   `state` is `CubeStateView` (busy, historyDepth); a refresh and a debug print are `refresh()` and `printQuery()`; L1
   pins that neither the owner nor the controller is handed out again
-- [ ] **G12** grid undo / redo → N2 restore write — S4, L9 (closed in S4: its L1 entries become item-less N2 entries, held by
-  L9's test that a stale restore is refused)
+- [x] **G12** grid undo / redo → N2 restore write — closed S4: an undo or a redo that lands (the owner's `moved`) is told
+  as `onRestore`, and the page's channel writes the page whole, a restore its keeper takes only at the version it was
+  made at (live-channel.test.ts, a real page: a grid's undo written whole, a stale one refused; test_one_api.py, a
+  restore behind the page refused); its L1 entries are item-less N2 entries
 - [x] **G13** an edit retried after signing in again → its commands kept and told — closed S1: a refused change's
   commands are kept (app.ts `#refusedCommands`) and told when it is run again and lands (cube-transactions.test.ts)
 - [x] **G14** a grid made while the page bar is folded → `showTitleBar` in the `addGrid` document — closed S0: not a gap (the
@@ -181,7 +183,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **P4** Create a Class / Association / Data Space → model page commands (`modelInto`, `modelPin`, `modelKeep`)
   applied by `page-model.ts`'s functions — closed S1: `modelMade`, `modelPinned`, `modelKept` are the rules, in page-commands.ts
   beside the commands they apply (PageModel uses them; kept there, a lazy chunk, so the page loads none of them at start); the tab tells `modelCommands(before, after)` after each model action (page-commands.test.ts)
-- [ ] **P5** page undo / redo → N2 restore write — S4, L9 (closed as G12)
+- [x] **P5** page undo / redo → N2 restore write — closed S4 as G12: PageApp's `#move` tells `onRestore` (the gesture
+  ledger's undo and redo gestures write a restore and nothing else)
 - [x] **P6** chart options told before the chart re-follows → falls out of S2 — closed S2: `setChart`'s rule keeps a live
   chart followed (followedPage), so the spec told before the panel follows replays to the one it keeps
   (page-commands.test.ts)
@@ -200,7 +203,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   a cube whose source was not opened is kept as saved (page-app `#unopened`), its views placeholder tiles that say why
   (cube-page `placeUnavailable`), written back in their places; removed as removeTile removes a view, undone back
   (one-api-gestures.test.ts P9)
-- [ ] **P10** Open…, in place, Blank Page on a served page → a new page (D1) — S4
+- [x] **P10** Open…, in place, Blank Page on a served page → a new page (D1) — closed S4: on a page another editor serves,
+  each puts a page of the tab's own on screen and leaves the served one as it is -- its channel stopped, its moves no
+  longer followed, said once, a blank page on its card (datacube-app.ts `leaveServed`; the browser harness: Blank Page
+  says so, then Python's change to its page is Python's alone and not followed)
 - [x] **P11** the tab reopens cubes over frames as they are now → `rebuilt {cube, document}` page command made by one
   side (with Y2) — closed S1: whichever side opens a cube again over its frames tells it, once, by one rule
   (cube-document.ts `cubeTaken`): the tab opening a host's page tells `rebuilt` for each cube it opened as another
@@ -251,12 +257,19 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   (`TreeState.saved`; regrouped, the closed paths go and the level stays)
 
 ### The host (audit root cause R2)
-- [ ] **H1** the keeper applies a write's commands and keeps what they make — S4, L9
-- [ ] **H2** the no-command path deleted: the tab's `#told/#seen` guess and `edits: null`, the keeper's refusal for
-  it, `pageWritten`'s null — S4, L9
-- [ ] **H3** the ids a page has held come from the applied commands (an id given and removed within one write is never
-  given again) — S4, L9; and a page filter two writers made under one id: the rebase does not know a write's base, so
-  the second replaces the first rather than being given a fresh id (the S2 audit, outside S2: with H1's base version)
+- [x] **H1** the keeper applies a write's commands and keeps what they make — closed S4: a write is its base version
+  and its edits; the keeper has DataCube apply them to the page as it is (headless `pageRebase`: at the base nothing to
+  combine) and keeps what they make; the tab sends no page, Python's page writes its commands the same way
+  (keeper.py `settle`; test_one_api.py, test_keeper.py)
+- [x] **H2** the no-command path deleted: the tab's `#told/#seen` guess and `edits: null`, the keeper's refusal for
+  it, `pageWritten`'s null — closed S4: the one write that is no commands is a restore (N1, N2: keeper.py `restore`,
+  headless `pageWritten(text)`); the tab writes its edits, or an undo's page whole, and nothing else
+  (live-channel.test.ts, one-api-gestures.test.ts: a change no command made writes nothing)
+- [x] **H3** the ids a page has held come from the applied commands (an id given and removed within one write is never
+  given again) — closed S4: the keeper holds what the commands gave out, and an open page reads them with the page;
+  and a page filter two writers made under one id: the keeper keeps the ids each version held, and the rebase is told
+  the ones a write knew (`rebaseEdits` `known`), so a filter the writer made is given out afresh, never put in the
+  other's place (page-rebase.test.ts, test_one_api.py)
 
 ### Python's copies of TypeScript rules (audit §5)
 - [x] **Z1** `_with_cube` — closed S2 (early): a grid's edit is kept by headless `pageWithCube` (the cube spliced and
@@ -296,7 +309,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **B9** one new-page skeleton (`pageNew` for the tab's Blank Page too) — S5, L10
 - [ ] **B10** a frame's column change keeps grid edits everywhere (with P12) — S5, L10
 - [ ] **B11** Join on both sides over every source kind — S5, L10
-- [ ] **B12** ids held (with H3) — S4, L10
+- [x] **B12** ids held (with H3) — closed S4: one held set -- the keeper's, from the applied commands, which the tab
+  reads with the page and its state holds (`PageApp.restore`'s `held`) -- so neither side gives out an id the other
+  has held (test_one_api.py)
 - [ ] **B13** one saved record per page: the record's id kept in the page document, so both sides save to it — S5, L10
 - [ ] **B14** one "nothing to save" wording — S5, L10
 

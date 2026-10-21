@@ -735,6 +735,39 @@ try {
   if (!copies) failed = true;
   await python('py-page-live');
   await seen('and gone live in Python after: the open page live again', `(${String(pill)})() === 'Live'`);
+
+  // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New > Blank Page on the page Python serves puts a page of the
+  // tab's own on screen and leaves Python's page as it is -- nothing written to it, and Python's next change to it not
+  // followed here
+  const servedVersion = async () => {
+    engine.stdin.write('py-page-version\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-version ')) throw new Error(`the engine did not say the version: ${line}`);
+    return JSON.parse(line.slice('done py-page-version '.length));
+  };
+  const sheetsInPython = async () => {
+    engine.stdin.write('py-page-read\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-read ')) throw new Error(`the engine did not read the page: ${line}`);
+    return JSON.parse(line.slice('done py-page-read '.length));
+  };
+  const leftAt = await servedVersion();
+  const leftSheets = await sheetsInPython();
+  tabbed.on('dialog', (d) => { void d.accept(); });
+  await tabbed.click('.dc-page-bar .dc-titlebar-menu');
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await seen('Blank Page on the page Python serves: a page of the tab\'s own, said',
+    () => document.querySelector('[data-tile="grid-1"]') === null && /a page of this tab's own/.test(document.body.innerText));
+  await python('py-page-sheet');
+  await new Promise((done) => { setTimeout(done, 3_000); });
+  const leftNow = await servedVersion();
+  const sheetsNow = await sheetsInPython();
+  const leftAlone = leftNow === leftAt + 1 && JSON.stringify(sheetsNow) === JSON.stringify([...leftSheets, 'Added in Python'])
+    && (await tabbed.evaluate(() => document.querySelector('[data-tile="grid-1"]') === null
+      && ![...document.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].some((t) => t.textContent === 'Added in Python')));
+  console.log(`${leftAlone ? 'ok  ' : 'FAIL'} Python's page left as it was: moved by Python's change alone (${leftAt} -> ${leftNow}), not followed here`);
+  if (!leftAlone) failed = true;
   engine.stdin.write('show-snapped\n');
   const snappedLine = await nextLine();
   if (!snappedLine.startsWith('done show-snapped ')) throw new Error(`the engine did not show the frame: ${snappedLine}`);

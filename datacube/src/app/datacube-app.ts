@@ -223,10 +223,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         compact: true,
         // a copy is a grid added beside others; the same grid made again folds as it did
         foldPanel: (start !== undefined && start.tree === undefined) || place.foldPanel === true,
-        // each edit it keeps, written with the page to its keeper, on a page another editor serves
+        // each edit it keeps, written to the page's keeper, on a page another editor serves; an undo or a redo, the page
+        // whole (a restore, N2)
         onCommand: (command) => {
           if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command });
         },
+        onRestore: () => channel?.restored(),
         // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes; and, where the
         // page has a model home and the host writes models, Create a Class… of the grid's rows
         hostMenu: () => {
@@ -431,8 +433,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     hostStatus: (slot) => slot.append(status),
     // THE NAME BOX renamed: the page's name from now, saved by Save (a change of the page until then)
     onRename: (name) => renamePage(name),
-    // each edit of the page's structure, written with the page to its keeper, on a page another editor serves
+    // each edit of the page's structure, written to its keeper, on a page another editor serves; an undo or a redo, the
+    // page whole (a restore, N2)
     onPageCommand: (command) => channel?.edit({ page: command }),
+    onRestore: () => channel?.restored(),
     // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
@@ -586,6 +590,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     let notFollowed: string | undefined;
     /** Why following it failed the last time it moved (it is tried again at its next move): said as not following. */
     let followFailed: string | undefined;
+    /** The page another editor serves, left: a new page opened here in its place (D1). For good. */
+    let left = false;
+    /** Stops watching the other editor (services.live.watch). */
+    let unwatch: (() => void) | undefined;
     onCubeView = () => {
       const changed = dirty();
       page.setChanged(changed);
@@ -623,15 +631,33 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (live?.page) {
       channel = new LiveChannel(live.page, {
         page: () => pageNow(current.name ?? (page.suggestedName || 'page'), true),
-        reopen: async () => {
+        reopen: async (refused) => {
           const why = await openLive();
           if (why !== undefined) sayResting({ text: `not following the page: ${why}`, warn: true });
+          // a write its keeper refused: what was made here is not the page, said
+          else if (refused !== undefined) sayResting({ text: `not kept: ${refused} -- the page is as its keeper has it`, warn: true });
         },
       });
       undo.push(() => channel?.stop());
     }
     function liveChanged(): void {
       if (notFollowed === undefined) channel?.changed();
+    }
+    /**
+     * A NEW PAGE ON A PAGE ANOTHER EDITOR SERVES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D1, P10): Open..., open in place
+     * and Blank Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
+     * written to it, none of its moves followed here -- said once, in the status line; what is said, for a page that has
+     * no grid to show that line (a blank page says it on its card), or undefined: no page served is left.
+     */
+    function leaveServed(): string | undefined {
+      if (!live?.page || left) return undefined;
+      left = true;
+      channel?.stop();
+      channel = undefined;
+      unwatch?.();
+      const said = "a page of this tab's own: the page Python serves is left as it was";
+      sayResting({ text: said, warn: false });
+      return said;
     }
     /** Work in the live queue: the channel's (writes and follows in order), or, following a frame alone, one of its own. */
     let frameQueue: Promise<void> = Promise.resolve();
@@ -669,6 +695,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return [];
       }
       const onScreen = place();
+      // a page of this tab's own, in place of the one its other editor serves (D1)
+      if (!replacing) leaveServed();
       page.clear();
       current = {};
       // the page has no name of its own until saved: its bar says the grid's report title (its source's name)
@@ -703,9 +731,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * source, in turn, then the page laid out as it was saved -- its grids under their saved ids, its charts, its
      * layout. A cube whose source was not opened is kept as the page saved it, its views placeholders that say why
      * (P9), and said. The cubes opened again as another than the page held (a host's frame whose columns moved:
-     * Opened.taken), by their ids.
+     * Opened.taken), by their ids. `held`: every id the page has held where its other editor keeps it (B12).
      */
-    async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false): Promise<readonly string[]> {
+    async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false,
+      held: readonly string[] = []): Promise<readonly string[]> {
       const given = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
       // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
       // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). The page its other editor serves (`replacing`) keeps them: its
@@ -764,7 +793,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const onScreen = place();
       // a copy a grid going now reads that the page opened reads too -- its other editor's from now on -- stays
       for (const [cube, copy] of Object.entries(doc.copies ?? {})) page.grid(cube)?.handOver?.(copy.table);
-      page.restore(doc, makers);
+      // a page of this tab's own, in place of the one its other editor serves (D1)
+      if (!replacing) leaveServed();
+      page.restore(doc, makers, held);
       current = {
         ...(id !== undefined ? { cubeId: id } : {}),
         name: doc.name,
@@ -1239,10 +1270,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     blankPage = (reason?: string) => {
       if (dirty() && !window.confirm('The page has unsaved changes. Start a blank page anyway?')) return;
       place();
+      // a page of this tab's own, in place of the one its other editor serves (D1): said on the card, the page having no
+      // grid whose status line would say it
+      const servedLeft = leaveServed();
       page.clear();
       current = {};
       page.setTitle('');
-      sayWhyBlank(reason);
+      sayWhyBlank(reason ?? servedLeft);
       if (blankCard) blankCard.hidden = false;
       services.browser.title?.set('New page');
       (host.querySelector('.dc-blank-actions .dc-primary') as HTMLElement | null)?.focus();
@@ -1322,7 +1356,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // opened as the keeper has it: nothing the screen does meanwhile is an edit of its own
       let taken: readonly string[] = [];
       const open = async (): Promise<void> => {
-        taken = await openSaved({ kind: 'page', page: said.page }, undefined, true);
+        taken = await openSaved({ kind: 'page', page: said.page }, undefined, true, said.held);
         if (page.sheets.includes(shown)) page.showSheet(shown);
       };
       await (channel ? channel.following(open) : open());
@@ -1474,13 +1508,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         }
         return undefined;
       };
-      undo.push(live.watch((now) => {
+      unwatch = live.watch((now) => {
         enqueue(async () => {
-          if (disposed || notFollowed !== undefined) return;
+          if (disposed || left || notFollowed !== undefined) return;
           if (typeof now === 'string') return stop(now);
           failed(await followed(now));
         }).catch((e: unknown) => failed(e instanceof Error ? e.message : String(e)));
-      }));
+      });
+      undo.push(() => unwatch?.());
     }
 
     // A START THAT OPENED NOTHING (a link that failed, a key refused) leaves the blank page, saying

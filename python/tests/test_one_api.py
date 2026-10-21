@@ -12,7 +12,7 @@ datacube/test/one-api-ledger.test.ts, which reads this file.)
       right-hand side pinned), or a gap
   L6  Python's copies of TypeScript rules: each by its function, or by the code that is it (a marker)
   L7  derived state Python leaves as it was where the screen derives it again (a following chart, a selection, totals)
-  L9  what the page's keeper takes whole; who writes the keeper at all
+  L9  who writes the keeper at all (what it takes whole: a page born or loaded, N1, an undo or a redo, N2)
   L10 (Python's half) the same job done by another rule than the browser's
 
 A behavioural entry asserts the gap as it is today: closing it makes the assertion fail, and its entry comes off."""
@@ -38,8 +38,11 @@ MODEL = PAGE.with_name('model.py')
 ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 
 # each ledger's size, pinned: lower it with the fix that shrank it; raise it only with a dated note here
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 15, 'L9_KEEPER': 6,
-            'BEHAVIOUR': 4}
+# 2026-10-21 (One API S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N1, N2): L9_KEEPER 6 -> 8 -- the page written whole
+# is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
+# open page's undo or redo (N2), both named exceptions the plan's end state keeps
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 15, 'L9_KEEPER': 8,
+            'BEHAVIOUR': 1}
 
 
 def trades():
@@ -105,7 +108,7 @@ L4_FLAGS = {
 L5_DOCUMENT = {
     'Page.__init__': (ALLOWED, 1, "_plain(_json.loads(said['page']))"),  # headless pageNew's page
     'Page._doc': (ALLOWED, 1, 'doc'),  # the property itself: every other assignment is through it
-    'Page._pull': (ALLOWED, 1, '(doc, version)'),  # the keeper's copy (headless's, or an open page's read by pageWritten)
+    'Page._pull': (ALLOWED, 1, '(doc, version)'),  # the keeper's copy: what the commands made (headless pageRebase), or a restore read by pageWritten
     'Page._apply_page': (ALLOWED, 1, 'page'),  # headless pageApply's page (its binding pinned in MARKERS)
     'Page.grid': (ALLOWED, 1, '(was[0], was[1])'),  # a refused call puts back the page as it was
     'Page.join': (ALLOWED, 1, '(was[0], was[1])'),
@@ -213,7 +216,7 @@ class Static(unittest.TestCase):
         for path in (PAGE, ENGINE, SESSION):
             for node, where, _ in _where(ast.parse(path.read_text('utf-8'))):
                 if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                        and node.func.attr in ('keep', 'write', 'settle', 'forget')
+                        and node.func.attr in ('keep', 'write', 'settle', 'restore', 'forget')
                         and 'keeper' in ast.unparse(node.func.value)):
                     found[f'{path.name}:{where}:{node.func.attr}'] += 1
         _held_to(self, found, L9_KEEPER, 'keeper writers', 'L9_KEEPER')
@@ -256,8 +259,10 @@ MARKERS = [
 
 L9_KEEPER = {
     'page.py:Page.__init__:keep': (ALLOWED, 1),  # N1: a page born, as headless pageNew made it
-    'page.py:Page._commit:settle': (ALLOWED, 1),  # every Python write: its commands, and the page they made (H1, H2)
-    'engine.py:Engine._page_said:settle': (('H1', 'H2'), 1),  # an open page's write: kept as sent at the version now
+    'page.py:Page._commit:settle': (ALLOWED, 1),  # every Python write: its commands, the keeper keeping what they make
+    'page.py:Page._commit:restore': (ALLOWED, 1),  # N1: a page loaded, written whole at the version it was made at
+    'engine.py:Engine._page_said:settle': (ALLOWED, 1),  # an open page's write: its commands, applied (H1)
+    'engine.py:Engine._page_said:restore': (ALLOWED, 1),  # N2: an open page's undo or redo, at its version only
     'engine.py:Engine.serve_page:keep': (('Y6',), 1),
     'engine.py:Engine.serve_page:write': (('Y6',), 1),
     'datacube.py:_Session.sweep:forget': (ALLOWED, 1),  # a page gone: no longer kept
@@ -268,9 +273,6 @@ L9_KEEPER = {
 
 # each behavioural gap by its items: the test that holds it, which asserts the gap as it is (closing it fails the test)
 BEHAVIOUR = {
-    'test_h1_an_open_pages_write_is_kept_as_sent_not_as_its_commands_make_it': ('H1',),
-    'test_h2_an_open_pages_write_by_no_command_is_taken_at_the_version_now': ('H2',),
-    'test_h3_an_id_given_and_taken_off_within_one_write_is_not_held': ('H3', 'B12'),
     'test_b8_a_detached_chart_goes_live_in_python_and_not_on_the_screen': ('B8',),
 }
 
@@ -300,39 +302,50 @@ class Session(unittest.TestCase):
         datacube._session.keeper.serve(page._key, True)
         return page, datacube._session.engine()
 
-    def written(self, engine, page, doc, edits):
-        """An open page's write (what the tab sends: its page and its edits) at the version the keeper has now."""
-        version = datacube._session.keeper.current(page._key)[0]
-        return engine._page_said(f'page={page._key}&version={version}', json.dumps({'page': doc, 'edits': edits}))
+    def written(self, engine, page, write, version=None):
+        """An open page's write, as the tab sends it -- ``{edits}`` or ``{restore}`` -- at the version the keeper has now,
+        unless given."""
+        version = datacube._session.keeper.current(page._key)[0] if version is None else version
+        return engine._page_said(f'page={page._key}&version={version}', json.dumps(write))
 
 
-class HostWrites(Session):
-    """L9: what the page's keeper takes whole, through the engine's own write (what an open page's write meets)."""
+class HostApplies(Session):
+    """L9 (closed in S4: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md H1-H3, B12): the page's keeper keeps what an open page's
+    commands make, never a page it sends -- but an undo or a redo, a restore kept at its version only (N2)."""
 
-    def test_h1_an_open_pages_write_is_kept_as_sent_not_as_its_commands_make_it(self):
-        page, engine = self.served('H1')
-        doc = {**page.to_dict(), 'name': 'sent'}
-        said = self.written(engine, page, doc, [{'page': {'kind': 'renamePage', 'name': 'said'}}])
+    def test_h1_an_open_pages_write_is_kept_as_its_commands_make_it(self):
+        page, engine = self.served('applied')
+        said = self.written(engine, page, {'edits': [{'page': {'kind': 'renamePage', 'name': 'said'}}]})
         self.assertEqual(said[0], 200, said)
-        self.assertEqual(datacube._session.keeper.current(page._key)[1]['name'], 'sent',
-                         'H1 open: the keeper keeps the page as sent, whatever its commands make')
+        self.assertEqual(datacube._session.keeper.current(page._key)[1]['name'], 'said')
+        self.assertEqual(page.name, 'said')
+        # a page sent with its edits is no write the host takes
+        sent = self.written(engine, page, {'page': {**page.to_dict(), 'name': 'sent'}, 'edits': []})
+        self.assertEqual(sent[0], 400, sent)
 
-    def test_h2_an_open_pages_write_by_no_command_is_taken_at_the_version_now(self):
-        page, engine = self.served('H2')
-        before = datacube._session.keeper.current(page._key)[0]
-        said = self.written(engine, page, {**page.to_dict(), 'name': 'whole'}, None)
+    def test_h2_n2_a_restore_is_kept_at_its_version_only(self):
+        page, engine = self.served('restored')
+        at = datacube._session.keeper.current(page._key)[0]
+        said = self.written(engine, page, {'restore': {**page.to_dict(), 'name': 'undone'}})
         self.assertEqual(said[0], 200, said)
-        self.assertEqual(datacube._session.keeper.current(page._key)[0], before + 1,
-                         'H2 open: a write by no command is taken whole')
+        self.assertEqual(page.name, 'undone')
+        # behind the page (Python moved it since): refused, nothing kept
+        page.name = 'moved in Python'
+        stale = self.written(engine, page, {'restore': {**page.to_dict(), 'name': 'undone again'}}, version=at + 1)
+        self.assertEqual(stale[0], 409, stale)
+        self.assertEqual(page.name, 'moved in Python')
 
-    def test_h3_an_id_given_and_taken_off_within_one_write_is_not_held(self):
-        page, engine = self.served('H3')
+    def test_h3_b12_an_id_given_and_taken_off_within_one_write_is_held_and_said(self):
+        page, engine = self.served('held')
         edits = [{'page': {'kind': 'addSheet', 'id': 'sheet-9', 'name': 'Briefly'}},
                  {'page': {'kind': 'removeSheet', 'sheet': 'sheet-9'}}]
-        said = self.written(engine, page, page.to_dict(), edits)
+        said = self.written(engine, page, {'edits': edits})
         self.assertEqual(said[0], 200, said)
-        self.assertNotIn('sheet-9', datacube._session.keeper.held(page._key),
-                         'H3, B12 open: the ids held are the written page\'s, not every one its commands gave out')
+        self.assertIn('sheet-9', datacube._session.keeper.held(page._key), 'every id its commands gave out is held')
+        # and an open page reads them with the page: it gives none out again
+        answer = engine.answer('GET', '/page.json', f'page={page._key}', None)
+        self.assertIn('sheet-9', json.loads(answer.body)['held'])
+        self.assertNotEqual(page.sheet('Mine').id, 'sheet-9')
 
 
 class SameJob(Session):
@@ -352,7 +365,7 @@ class SameJob(Session):
 
 class Ledger(unittest.TestCase):
     def test_each_behavioural_gap_names_a_test_that_holds_it(self):
-        tests = {name for case in (HostWrites, SameJob) for name in dir(case) if name.startswith('test_')}
+        tests = {name for case in (SameJob,) for name in dir(case) if name.startswith('test_')}
         self.assertEqual(sorted(set(BEHAVIOUR) - tests), [], 'listed, but no such test')
         self.assertEqual(sorted(tests - set(BEHAVIOUR)), [], 'a behavioural test that names no item')
         self.assertEqual(len(BEHAVIOUR), CEILINGS['BEHAVIOUR'])

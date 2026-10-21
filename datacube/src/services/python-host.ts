@@ -51,7 +51,7 @@ import type { InferredModel } from '../infer.ts';
 import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
-  BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
+  BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, LiveWrite, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
   QueryService, Services, Versions, WarehouseService, HostCopy, HostOpened,
 } from '../app/services.ts';
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
@@ -574,13 +574,15 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
 /** The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays. */
 export function livePage(link: PythonLink, key: string): LivePage {
   const at = `page.json?page=${encodeURIComponent(key)}`;
-  /** The page as Python serves it now, read from the answer's exact JSON. */
-  const read = (text: string): { version: number; page: PageDocument } => {
+  /** The page as Python serves it now, read from the answer's exact JSON, and every id it has held. */
+  const read = (text: string): { version: number; page: PageDocument; held: readonly string[] } => {
     const said = fromJson(text) as { version: unknown; page: unknown };
     const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
     if (!Number.isSafeInteger(version)) throw new Error('the engine said no version of the page');
+    const { held } = JSON.parse(text) as { held?: unknown };
+    if (!Array.isArray(held) || !held.every((id) => typeof id === 'string')) throw new Error('the engine said no ids the page has held');
     // a page of no grid too: one written live is a page (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5)
-    return { version, page: readPage(said.page, { empty: true }) };
+    return { version, page: readPage(said.page, { empty: true }), held };
   };
   return {
     read: async () => read(await asked(link, at)),
@@ -611,12 +613,13 @@ export function livePage(link: PythonLink, key: string): LivePage {
       });
       return { version: plain.version, commands };
     },
-    report: async (version: number, page: PageDocument, edits: readonly LiveCommand[] | null) => {
+    report: async (version: number, write: LiveWrite) => {
       const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}`, {
         method: 'POST',
         headers: { ...headers(link), 'Content-Type': 'application/json' },
-        // the page and its edits as DataCube writes them: a grid's cube, a calculated column's, its numbers exact
-        body: `{"page":${pageToJson(page)},"edits":${edits === null ? 'null' : `[${edits.map((e) => toJson(e)).join(',')}]`}}`,
+        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), or the page whole
+        body: 'restore' in write ? `{"restore":${pageToJson(write.restore)}}`
+          : `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}]}`,
       });
       if (!answer.ok) throw new Error(`the engine refused the page: ${answer.status} ${await answer.text()}`);
       const said = JSON.parse(await answer.text()) as { version?: unknown; combined?: unknown };

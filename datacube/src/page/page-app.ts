@@ -113,6 +113,9 @@ export interface PageAppOptions {
   readonly confirm?: (question: string) => boolean;
   /** Each edit of the page's structure as its page commands (page/cube-page.ts onPageEdit; page-commands.ts). */
   readonly onPageCommand?: (command: PageCommand) => void;
+  /** The page put back whole by an undo or a redo, which no command says: written whole, a restore its keeper takes only
+   *  at the version it was made at (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N2, P5). */
+  readonly onRestore?: () => void;
   /** The host's own menu entries (Save, Open, Share, where the planner runs), by their `section`. */
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
@@ -705,9 +708,10 @@ export class PageApp {
    * A SAVED PAGE PUT BACK: its grids, each made by its cube's maker (the host opened each cube's source) under its
    * saved id and title, in the saved layout's reading order; the cubes no grid view names kept off the board for their
    * detached charts; then the charts and the sheets' layouts. A cube with no maker (its source not opened) is left out, with
-   * the views that read it. The page is emptied first.
+   * the views that read it. The page is emptied first. `held`: every id the page has held where it is kept (its keeper's,
+   * B12), none of which is given out again here.
    */
-  restore(page: PageDocument, makers: ReadonlyMap<string, GridMaker>): void {
+  restore(page: PageDocument, makers: ReadonlyMap<string, GridMaker>, held: readonly string[] = []): void {
     this.#page.dispose();
     this.#grids.clear();
     this.#gone.clear();
@@ -755,7 +759,8 @@ export class PageApp {
     this.#filters = filtersFor(this.#filters, this.views().views);
     this.#applyLenses();
     // a page opened has no history: its first step is the first edit made on it
-    this.#state = new PageState(this.#seen());
+    const seen = this.#seen();
+    this.#state = new PageState({ ...seen, held: [...new Set([...seen.held, ...held])] });
     this.#paintSheets();
     this.#paintEmpty();
     this.#onGridChange();
@@ -956,6 +961,7 @@ export class PageApp {
     const from = this.#state.draft.page;
     const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
     if (!step) return;
+    this.#options.onRestore?.();
     this.#syncTo(step.draft.page, from);
     // its grids keep their own history (G8): a chart brought back with a selection its grid's filter lost meanwhile has
     // it put back by that grid's own refilter, as a click puts it there
