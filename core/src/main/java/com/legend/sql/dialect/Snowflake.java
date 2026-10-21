@@ -1296,11 +1296,8 @@ public final class Snowflake extends AnsiSqlRenderer {
             return writer.append("CAST(REGEXP_REPLACE(").expr(v, 0)
                     .append(", '([+-][0-9]{2})([0-9]{2})$', '\\\\1:\\\\2') AS TIMESTAMP_LTZ)");
         }
-        // DuckDB's Float text keeps an integral value's '.0' (-1.0, where Snowflake writes -1, measured)
         if (target == SqlType.Scalar.VARCHAR && isDouble(v)) {
-            writer.append("REGEXP_REPLACE(");
-            super.variantAwareCast(writer, c);
-            return writer.append(", '^(-?[0-9]+)$', '\\\\1.0')");
+            return floatText(writer, v);
         }
         // DuckDB's timestamp text: the seconds' fraction to its last nonzero digit, none when zero (measured form)
         if (target == SqlType.Scalar.VARCHAR && isTimestamp(v)) {
@@ -1747,6 +1744,34 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SqlType.Map m -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
             case SqlType.Struct st -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
         };
+    }
+
+    /**
+     * A Float's text as DuckDB's cast writes it: the shortest digits that read back as the same double (Java's rule),
+     * plain where the exponent is from -4 to 15 with an integral value's {@code .0}, else with its exponent. Snowflake's
+     * own cast writes ten significant digits and TM9 sixteen ({@code EXP(1)} '2.718281828', {@code 0.1 + 0.2} '0.3';
+     * measured on the lane 2026-10-21, where 22 PCT tests passing at the merge-base failed on the plan route, which has
+     * the database print a Float). Its formatter rounds a double correctly to a given number of significant digits, so
+     * the 15-, 16- and 17-digit spellings are each read back and the first that is the value is taken: a double's
+     * shortest digits that read back are at most 17, and at 15 or fewer they are its 15-digit rounding. The plain form
+     * is that text read as an exact NUMBER, its trailing zeros dropped. NaN and the infinities are Snowflake's own.
+     */
+    private SqlWriter floatText(SqlWriter writer, SqlExpr v) {
+        SqlWriter.Piece x = w -> w.expr(v, 0);
+        SqlWriter.Piece shortest = w -> {
+            w.append("CASE");
+            for (int digits = 15; digits <= 16; digits++) {
+                String format = "'FM9." + "9".repeat(digits - 1) + "EE'";
+                w.append(" WHEN TO_DOUBLE(TO_VARCHAR(").piece(x).append(", " + format + ")) = ").piece(x)
+                        .append(" THEN TO_VARCHAR(").piece(x).append(", " + format + ")");
+            }
+            w.append(" ELSE TO_VARCHAR(").piece(x).append(", 'FM9." + "9".repeat(16) + "EE') END");
+        };
+        return writer.append("CASE WHEN ").piece(x).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CAST(")
+                .piece(x).append(" AS VARCHAR) WHEN ").piece(x).append(" = 0 OR (ABS(").piece(x)
+                .append(") >= 1E-4 AND ABS(").piece(x).append(") < 1E16) THEN REGEXP_REPLACE(REGEXP_REPLACE(TO_VARCHAR(")
+                .append("CAST(").piece(shortest).append(" AS NUMBER(38, 22))), '0+$', ''), '\\\\.$', '.0') ELSE LOWER(")
+                .piece(shortest).append(") END");
     }
 
     /** A projection that IS error() raised in its column's type, as a CASE branch is: a bare raise is text, and a
