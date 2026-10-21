@@ -309,6 +309,26 @@ class PlanMakerTest {
     }
 
     /**
+     * A dynamic pivot's probe plan is made on every SQL database, each select's per-key projections one region: a dialect
+     * writing its own select writes its per-key run through the base's projections (2026-10-21: Snowflake's wrote each
+     * projection itself and refused its ten uncast pivots "a per-key name outside a per-key region", found on its lane;
+     * no other test made a plan on a cloud database).
+     */
+    @Test
+    void aDynamicPivotsProbePlanIsMadeOnEverySqlDatabase() {
+        String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
+                + "->sort(~city->ascending())";
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite,
+                DatabaseType.Postgres, DatabaseType.MariaDB, DatabaseType.MySQL, DatabaseType.ClickHouse,
+                DatabaseType.Trino, DatabaseType.Snowflake, DatabaseType.Databricks, DatabaseType.BigQuery)) {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT",
+                    TypedQuery.Output.TDS_TEXT);
+            assertTrue(plan.root() instanceof ExecutionPlan.Keyed, type + ": a keyed plan");
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + query);
+        }
+    }
+
+    /**
      * A probe plan's keys run first and its body is written for them: no key (an empty source) answers the fixed
      * columns alone; a key written into the data between plans is the next run's column (2026-10-20).
      */

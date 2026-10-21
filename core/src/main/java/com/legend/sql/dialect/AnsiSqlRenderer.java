@@ -321,6 +321,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * its place (a select with no other projection has no column without a key, which the runner refuses by name).
      */
     protected SqlWriter projections(SqlWriter writer, List<SqlSelect.Projection> ps) {
+        return projections(writer, ps, (w, i) -> projection(w, ps.get(i)));
+    }
+
+    /** {@link #projections(SqlWriter, List)}, each projection written by {@code each} from its position: a dialect
+     *  that writes some projections its own way writes them here, so its per-key run is still one region (Snowflake's
+     *  select wrote its projections one by one, and its dynamic pivots were refused a per-key name outside a region,
+     *  measured on its lane 2026-10-21). */
+    protected SqlWriter projections(SqlWriter writer, List<SqlSelect.Projection> ps,
+            java.util.function.BiConsumer<SqlWriter, Integer> each) {
         int run = -1;
         for (int i = 0; i < ps.size(); i++) {
             if (perKey(ps.get(i))) {
@@ -328,8 +337,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 break;
             }
         }
+        List<Integer> at = java.util.stream.IntStream.range(0, ps.size()).boxed().toList();
         if (run < 0) {
-            return writer.join(ps, ", ", this::projection);
+            return writer.join(at, ", ", each);
         }
         for (int i = run; i < ps.size(); i++) {
             if (!perKey(ps.get(i))) {
@@ -337,11 +347,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                         + "': the run is written last, after the select's other projections");
             }
         }
-        List<SqlSelect.Projection> fixed = ps.subList(0, run);
-        List<SqlSelect.Projection> perKey = ps.subList(run, ps.size());
-        writer.join(fixed, ", ", this::projection);
+        List<Integer> fixed = at.subList(0, run);
+        List<Integer> perKey = at.subList(run, ps.size());
+        writer.join(fixed, ", ", each);
         return writer.region(fixed.isEmpty() ? "" : ", ", ", ", fixed.isEmpty() ? null : "",
-                w -> w.join(perKey, ", ", this::projection));
+                w -> w.join(perKey, ", ", each));
     }
 
     private static boolean perKey(SqlSelect.Projection p) {

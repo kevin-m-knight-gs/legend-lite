@@ -2694,23 +2694,21 @@ public final class Snowflake extends AnsiSqlRenderer {
                 List<com.legend.sql.OutputCol> labels = depth == 0 && rootLabels().size() == s.projections().size()
                         ? rootLabels() : s.outputs();
                 boolean aligned = labels.size() == s.projections().size();
-                for (int i = 0; i < s.projections().size(); i++) {
+                // through the base's projections, so a dynamic pivot's per-key run is one region (2026-10-21)
+                projections(writer, s.projections(), (w, i) -> {
                     SqlSelect.Projection p = s.projections().get(i);
-                    if (i > 0) {
-                        writer.append(", ");
-                    }
                     if (p.expr() instanceof SqlExpr.Star st && !scope.isEmpty()) {
                         // a star beside other columns, over a FROM holding a marker's FLATTEN: spelled out as well
                         List<SqlWriter.Piece> star = new ArrayList<>();
                         star(st.table() == null ? s.from() : sourceNamed(s.from(), st.table()), star);
-                        writer.join(star, ", ", SqlWriter::piece);
+                        w.join(star, ", ", SqlWriter::piece);
                     } else if (aligned && nullOverNullList(p.expr())) {
-                        writer.append("CAST(NULL AS " + castTypeName(labels.get(i).type()) + ")");
-                        writer.append(" AS ").append(aliasIdent(markerColumn(p)));
+                        w.append("CAST(NULL AS " + castTypeName(labels.get(i).type()) + ")");
+                        w.append(" AS ").append(aliasIdent(markerColumn(p)));
                     } else {
-                        projection(writer, p);
+                        projection(w, p);
                     }
-                }
+                });
             }
             if (!(s.from() instanceof SqlSource.Dual)) {
                 nl(writer, depth).append("FROM ");
