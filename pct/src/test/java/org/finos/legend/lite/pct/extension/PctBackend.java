@@ -135,6 +135,11 @@ public final class PctBackend {
             Connection openSystem() throws SQLException {
                 return CloudLane.openSystem(CloudLane.Cloud.DATABRICKS);
             }
+
+            @Override
+            Connection heldSystem() throws SQLException {
+                return CloudLane.system(CloudLane.Cloud.DATABRICKS);
+            }
         },
         SNOWFLAKE(DatabaseType.Snowflake) {
             @Override
@@ -146,6 +151,11 @@ public final class PctBackend {
             Connection openSystem() throws SQLException {
                 return CloudLane.openSystem(CloudLane.Cloud.SNOWFLAKE);
             }
+
+            @Override
+            Connection heldSystem() throws SQLException {
+                return CloudLane.system(CloudLane.Cloud.SNOWFLAKE);
+            }
         },
         BIGQUERY(DatabaseType.BigQuery) {
             @Override
@@ -156,6 +166,11 @@ public final class PctBackend {
             @Override
             Connection openSystem() throws SQLException {
                 return CloudLane.openSystem(CloudLane.Cloud.BIGQUERY);
+            }
+
+            @Override
+            Connection heldSystem() throws SQLException {
+                return CloudLane.system(CloudLane.Cloud.BIGQUERY);
             }
         },
         /** MongoDB 8.0 (docs/MONGODB_PLAN_2026_10_16.md §6, 2026-10-17): no JDBC session -- channel A runs through
@@ -188,6 +203,13 @@ public final class PctBackend {
         Connection openSystem() throws SQLException {
             throw new IllegalStateException(this + " is in-process: the platform's system database is its own"
                     + " private instance, on no system connection");
+        }
+
+        /** The suite's one held system session, where a login is dear (the clouds: {@code CloudLane.system}), or
+         *  null where a new one per plan costs nothing worth holding (the servers in this process's reach, as the
+         *  legacy route opened one per case). */
+        @com.legend.base.Nullable Connection heldSystem() throws SQLException {
+            return null;
         }
 
         boolean inProcess() {
@@ -284,8 +306,10 @@ public final class PctBackend {
      * The sessions channel A's plans run on ({@link PctPlanRoute}; step 9, 2026-10-19). An in-process lane's plan
      * opens its own session from its target ({@link com.legend.exec.PlanSessions#shared}: the declared in-memory
      * database, set up by the plan), as MongoDB's does through its connector. A SERVER lane's plan runs on the
-     * harness's own session, as the legacy route's did ({@code PctExecuteNative} opened one per case): a NEW session
-     * per plan, opened as the lane's SYSTEM session ({@code Lane.openSystem}: the one that holds a session's own
+     * harness's own session, as the legacy route's did ({@code PctExecuteNative} opened one per case, a cloud lane's
+     * the suite's held one): on a cloud, the lane's held system session ({@code Lane.heldSystem}) for a plan whose
+     * session statements are its dialect's options alone; else a NEW session per plan, opened as the lane's SYSTEM
+     * session ({@code Lane.openSystem}: the one that holds a session's own
      * tables -- ClickHouse's HTTP session, Snowflake's schema, BigQuery's session -- which the plan's session
      * statements make for the system metamodel store), checked by the runner against the plan's target and given the
      * target's session statements as any session is, and closed after. The platform cannot open it itself: the
@@ -303,6 +327,26 @@ public final class PctBackend {
             case POSTGRES, MARIADB, MYSQL, TRINO, CLICKHOUSE, DATABRICKS, SNOWFLAKE, BIGQUERY -> target -> {
                 if (!target.setup().isEmpty()) {
                     return own.open(target);
+                }
+                Connection held;
+                try {
+                    held = optionsOnly(target) ? lane().heldSystem() : null;
+                } catch (SQLException e) {
+                    throw new IllegalStateException("the " + name() + " lane's held session could not be opened: "
+                            + e.getMessage(), e);
+                }
+                if (held != null) {
+                    return new com.legend.exec.Sessions.Session() {
+                        @Override
+                        public Connection connection() {
+                            return held;
+                        }
+
+                        @Override
+                        public void close() {
+                            // held for the suite: the JVM's exit closes it
+                        }
+                    };
                 }
                 Connection c;
                 try {
@@ -329,6 +373,13 @@ public final class PctBackend {
                 };
             };
         };
+    }
+
+    /** Whether a plan's session statements are its dialect's own options alone (ALTER SESSION, run on any session
+     *  again as on a new one): a plan that makes a table of the session's own (the system metamodel store's) runs on
+     *  a new session, which drops the table when it closes. */
+    private static boolean optionsOnly(com.legend.executionplan.ExecutionPlan.Target target) {
+        return target.session().equals(com.legend.database.Databases.dialect(target.database().type()).sessionSetup());
     }
 
     private static volatile @com.legend.base.Nullable String serverVersion;

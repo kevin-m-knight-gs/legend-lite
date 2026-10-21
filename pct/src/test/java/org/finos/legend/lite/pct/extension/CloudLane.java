@@ -88,6 +88,7 @@ final class CloudLane {
     private static Properties properties;
     private static Connection session;
     private static IllegalStateException failed;
+    private static final java.util.Map<Cloud, Connection> systems = new java.util.EnumMap<>(Cloud.class);
 
     private CloudLane() {
     }
@@ -122,7 +123,35 @@ final class CloudLane {
             }));
             session = opened;
         }
-        Connection held = session;
+        return unclosable(session);
+    }
+
+    /**
+     * The suite's one SYSTEM session on {@code cloud} ({@link #openSystem}'s properties), held as {@link #connect}'s is:
+     * closing it is a no-op; the JVM's exit closes it. Channel A's plans run on it where they make no table of the
+     * session's own (PctBackend.planSessions): a login per plan cost every test a second or more, channel A's suites
+     * two to three times the merge-base's on the Snowflake lane (2026-10-21), whose legacy route ran every case on the
+     * held session.
+     */
+    static synchronized Connection system(Cloud cloud) throws SQLException {
+        Connection held = systems.get(cloud);
+        if (held == null || held.isClosed()) {
+            Connection opened = openSystem(cloud);
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    opened.close();
+                } catch (SQLException e) {
+                    System.err.println("[LegendLite PCT] closing the " + cloud.key + " system session: " + e.getMessage());
+                }
+            }));
+            systems.put(cloud, opened);
+            held = opened;
+        }
+        return unclosable(held);
+    }
+
+    /** {@code held}, its {@code close()} a no-op. */
+    private static Connection unclosable(Connection held) {
         return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(), new Class<?>[] {Connection.class},
                 (proxy, method, args) -> {
                     if (method.getName().equals("close") && method.getParameterCount() == 0) {
