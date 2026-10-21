@@ -24,13 +24,19 @@ import java.util.List;
  *
  * <ul>
  *   <li>A literal's rows (a VALUES source): its row index, a literal column of each row.</li>
- *   <li>A sorted select: {@code ROW_NUMBER() OVER (ORDER BY <its sort keys>)} over its outputs, each key an output
- *       column of it.</li>
+ *   <li>A sorted select: {@code ROW_NUMBER() OVER (ORDER BY <its own sort expressions>)} among its own projections;
+ *       a sorted DISTINCT select (the ordinal would count among its distinct columns) over its outputs, outside it,
+ *       where its keys are outputs.</li>
  *   <li>A select that keeps its source's rows in order (no sort, no grouping, no DISTINCT, one source) over a source
  *       whose order is defined: the source's ordinal, passed through.</li>
- *   <li>Any other: its rows as the database returns them ({@code ROW_NUMBER() OVER ()} over the side itself), the order
- *       the host judge reads it in.</li>
+ *   <li>Any other: its rows as the database returns them ({@code ROW_NUMBER() OVER ()}), the order the host judge
+ *       reads it in: among a select's own projections, outside only a DISTINCT select or a union.</li>
  * </ul>
+ *
+ * <p>Numbered inside the side, never by a select wrapped around it where its own select can carry the ordinal: H2
+ * re-parses a derived table's text for each plan it weighs, and a wrapper per grid side took the corpus's
+ * columnValueDifferenceTest from 2,164 MB to 3,593 MB of heap in H2's database pass, the pass from under its 4 GB to
+ * out of it (an OutOfMemoryError in H2's tokenizer, measured 2026-10-21).
  */
 final class SideOrdinal {
 
@@ -45,7 +51,13 @@ final class SideOrdinal {
     /** {@code q} with its rows' ordinal as its last output. */
     static SqlQuery withOrdinal(SqlQuery q) {
         SqlQuery defined = defined(q);
-        return defined != null ? defined : numbered(q, List.of());
+        if (defined != null) {
+            return defined;
+        }
+        // an unsorted select numbers its rows as it returns them in itself (a sorted one's window would number them
+        // before its sort)
+        SqlQuery inside = q instanceof SqlSelect s && !s.distinct() && s.orderBy().isEmpty() ? numberedInside(s) : null;
+        return inside != null ? inside : numbered(q, List.of());
     }
 
     /** {@code q} with the ordinal its plan defines, or null where it defines none. */
@@ -54,13 +66,13 @@ final class SideOrdinal {
             return null;
         }
         if (!s.orderBy().isEmpty()) {
-            List<SqlSelect.SortKey> keys = outputKeys(s);
-            if (keys != null) {
-                return numbered(s, keys);
+            // a key that is a window's answer takes no place in another window's order: numbered outside, as a DISTINCT
+            // select is (it would count the ordinal among its distinct columns), by its keys where they are outputs
+            if (!s.distinct() && s.orderBy().stream().noneMatch(k -> windowed(k.expr()))) {
+                return numberedInside(s);
             }
-            // keys that are no output (the scan order's row ids, ScanOrder): numbered in the select itself, by its own
-            // sort expressions (a DISTINCT select would count the ordinal among its distinct columns)
-            return s.distinct() ? null : numberedInside(s);
+            List<SqlSelect.SortKey> keys = outputKeys(s);
+            return keys == null ? null : numbered(s, keys);
         }
         if (s.distinct() || !s.groupBy().isEmpty() || s.having() != null || s.limit() != null
                 || s.offset() != null) {
@@ -136,8 +148,9 @@ final class SideOrdinal {
         return null;
     }
 
-    /** {@code s} with {@code ROW_NUMBER() OVER (ORDER BY <its own sort keys>) AS __ord} among its projections: a star
-     *  frame's star qualified by each source it reads (MySQL and MariaDB take no bare star beside a column). */
+    /** {@code s} with {@code ROW_NUMBER() OVER (ORDER BY <its own sort keys>) AS __ord} among its projections (an
+     *  unsorted select's {@code OVER ()}): a star frame's star qualified by each source it reads (MySQL and MariaDB take
+     *  no bare star beside a column); null where a source has no alias to qualify it by. */
     private static @com.legend.base.Nullable SqlQuery numberedInside(SqlSelect s) {
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.orderBy().size());
         for (SqlSelect.SortKey k : s.orderBy()) {
@@ -158,6 +171,11 @@ final class SideOrdinal {
         ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
                 new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), ORD, ORD_OUT));
         return s.withProjections(ps);
+    }
+
+    /** Whether {@code e} holds a window function. */
+    private static boolean windowed(SqlExpr e) {
+        return e instanceof SqlExpr.WindowCall || e.children().stream().anyMatch(SideOrdinal::windowed);
     }
 
     /** The aliases a star over {@code from} reads, left to right; false where one has none. */

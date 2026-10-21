@@ -37,8 +37,19 @@ class SideOrdinalTest {
     }
 
     @Test
-    void aSortedSideIsNumberedByItsOwnKeys() {
+    void aSortedSideIsNumberedByItsOwnKeysInsideItself() {
+        // no select wrapped around the side: H2 re-parses each derived table per plan it weighs (2026-10-21)
         SqlSelect sorted = SqlSelect.starOf(literal()).withOutputs(List.of(A))
+                .withOrderBy(List.of(new SqlSelect.SortKey(SqlExpr.Column.of("t", A), false, null, null)));
+        String sql = new DuckDb().render(SideOrdinal.withOrdinal(sorted));
+        assertEquals(true, sql.startsWith("SELECT t.*, ROW_NUMBER() OVER (ORDER BY t.a DESC"), sql);
+        assertEquals(false, sql.contains("__o"), sql);
+    }
+
+    @Test
+    void aDistinctSortedSideIsNumberedOutsideIt() {
+        // inside, the ordinal would count among its distinct columns
+        SqlSelect sorted = SqlSelect.starOf(literal()).withOutputs(List.of(A)).withDistinct()
                 .withOrderBy(List.of(new SqlSelect.SortKey(SqlExpr.Column.of("t", A), false, null, null)));
         String sql = new DuckDb().render(SideOrdinal.withOrdinal(sorted));
         assertEquals(1, sql.split("ROW_NUMBER\\(\\) OVER \\(ORDER BY __o\\.a DESC", -1).length - 1, sql);
@@ -56,10 +67,11 @@ class SideOrdinalTest {
     }
 
     @Test
-    void aSideWhoseOrderThePlanDoesNotDefineIsNumberedWhereItIsRead() {
+    void aSideWhoseOrderThePlanDoesNotDefineIsNumberedByArrivalInsideItself() {
         SqlSelect grouped = SqlSelect.starOf(literal()).withOutputs(List.of(A)).withGroupBy(
                 List.of(SqlExpr.Column.of("t", A)));
         String sql = new DuckDb().render(SideOrdinal.withOrdinal(grouped));
         assertEquals(1, sql.split("ROW_NUMBER\\(\\) OVER \\(\\)", -1).length - 1, sql);
+        assertEquals(false, sql.contains("__o"), sql);
     }
 }
