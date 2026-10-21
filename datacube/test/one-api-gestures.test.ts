@@ -651,6 +651,11 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   stack: { items: ['P14'] },
   arrange: { items: ['P14'] },
   measures: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" },
+  // the model home is not in this harness: page-commands.test.ts holds what the screen tells (modelCommands), and
+  // python/tests/test_model.py the commands Python's model actions apply
+  modelInto: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
+  modelPin: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
+  modelKeep: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). */
 const GESTURES_AT_LEAST = 38;

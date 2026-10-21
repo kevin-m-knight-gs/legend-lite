@@ -43,7 +43,7 @@ interface Entry {
 
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 13, L1_PLANE: 4, L1_HOST: 14,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 10, L1_PLANE: 4, L1_HOST: 12,
   L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 23, UNCHECKED: 7,
 };
 
@@ -97,12 +97,9 @@ const L1_ROUTES: Record<string, Entry> = {
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
 const GAP_CALLS_APP = /this\.(#applyDraft)\(/g;
-const GAP_CALLS_HOST = /(?<![\w.#]|function )(makeClass|landed|inPlace|openSaved|blankPage|openFrame)\(/g;
+const GAP_CALLS_HOST = /(?<![\w.#]|function )(inPlace|openSaved|blankPage|openFrame)\(/g;
 const L1_REACH: Record<string, Entry> = {
   'app.ts:onApply:#applyDraft': { items: ['G3'] },
-  'datacube-app.ts:createClass:makeClass': { items: ['P4'] },
-  'datacube-app.ts:createAssociation:landed': { items: ['P4'] },
-  'datacube-app.ts:createDataSpace:landed': { items: ['P4'] },
   'datacube-app.ts:openInPlace:inPlace': { items: ['P10'] },
   'datacube-app.ts:openFrame:inPlace': { items: ['P10', 'P12'] },
   'datacube-app.ts:open:openSaved': { items: ['P10'], count: 2 },
@@ -131,8 +128,6 @@ const L1_PLANE: Record<string, Entry> = {
 /** The host's own writes of the page (app/datacube-app.ts) in a function that tells no command. */
 const HOST_CALLS = /(current\s*=\s*\{|page\.setTitle\(|page\.clear\(\)|page\.restore\()/g;
 const L1_HOST: Record<string, Entry> = {
-  'makeClass:current = {': { items: ['P4'] },
-  'landed:current = {': { items: ['P4'] },
   'inPlace:page.clear()': { items: ['P10'] },
   'inPlace:current = {': { items: ['P10'], count: 2 },
   'inPlace:page.setTitle(': { items: ['P10'] },

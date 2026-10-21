@@ -72,7 +72,7 @@ export function pageApply(page: string, held: string, commands: string): string 
     const doc = heldPage(page);
     // a grid's cube read from the commands' exact numbers (a calculated column's 1.10 kept), as the page's cubes are
     const exact = fromJson(commands) as unknown[];
-    read = (JSON.parse(commands) as unknown[]).map((c, i) => readPageCommand((c as { kind?: unknown } | null)?.kind === 'addGrid'
+    read = (JSON.parse(commands) as unknown[]).map((c, i) => readPageCommand(carriesCube((c as { kind?: unknown } | null)?.kind)
       ? { ...(c as object), document: (exact[i] as Record<string, unknown>)['document'] } : c));
     const done = applyPageCommands({ page: doc, held: JSON.parse(held) as string[] }, read);
     return `{"page":${JSON.stringify(pageToJson(done.draft.page))},"held":${JSON.stringify(done.draft.held)},`
@@ -117,6 +117,9 @@ export function pageFilter(page: string, given: string): string {
  * by its own reader (readCube: a calculated column's numbers exact, every other number plain, as DataCube holds a
  * cube), and the fields a newer writer added kept aside, as the page's own reader keeps them (`unknown`).
  */
+/** Whether a page command of `kind` carries a cube's document (read with its exact numbers, as the page's cubes are). */
+const carriesCube = (kind: unknown): boolean => kind === 'addGrid' || kind === 'setChartCube';
+
 function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
@@ -175,7 +178,7 @@ function readEdits(text: string): PageEdit[] {
     const edit = e as { page?: unknown; grid?: unknown; command?: unknown } | null;
     if (edit !== null && typeof edit === 'object' && 'page' in edit) {
       const c = edit.page as { kind?: unknown } | null;
-      const command: PageCommand = readPageCommand(c?.kind === 'addGrid'
+      const command: PageCommand = readPageCommand(carriesCube(c?.kind)
         ? { ...(c as object), document: ((exact[i] as { page: Record<string, unknown> }).page)['document'] } : c);
       return { page: command };
     }

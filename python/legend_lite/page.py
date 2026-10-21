@@ -409,10 +409,12 @@ class Grid(Tile):
         path."""
         from . import model as models
         cls, asked = self._class(name, columns, documentation)
-        made = self._page._into(package or asked['names']['package'], sdlc, writer,
-                                lambda s, w, at, made: models.create_class(s, w, *at, cls, made=made), project)
+        made = self._page._model_action(package or asked['names']['package'], sdlc, writer,
+                                        lambda s, w, at, made: models.create_class(s, w, *at, cls, made=made), project)
         path = next((c['class'] for c in made.answer.get('classes', [])), None)
-        self._page._keep(self._view['cube'], asked['tables'], path)
+        # the grid's tables and its class, kept by the page's model (page-commands.ts modelKept)
+        self._page._apply_page([{'kind': 'modelKeep', 'cube': self._view['cube'], 'tables': list(asked['tables']),
+                                 'class': path}])
         return path or cls['name']
 
     def group(self, *rows: str) -> Grid:
@@ -1070,45 +1072,23 @@ class Page:
         package, its data space, its project to make and DataCube's workspace in it."""
         return _json.loads(self._session.headless().call('pageModelNames', self.name))
 
-    def _into(self, package: str, sdlc: Any, writer: Any, call: Any, project: str | None = None) -> Any:
-        """A model action into the page's project (this user's model home, unless ``sdlc`` and ``writer`` say otherwise):
-        the page's own, or one made as DataCube makes a page's (``pageModelNames``: in its group, named after the page,
-        or ``project``), the page's from the moment it is made."""
+    def _model_action(self, package: str, sdlc: Any, writer: Any, call: Any, project: str | None = None) -> Any:
+        """A model action into the page's project (this user's model home, unless ``sdlc`` and ``writer`` say otherwise),
+        where DataCube's page model says it writes (headless ``pageModelInto``: page-model.ts ``into`` -- the page's own,
+        or one to make named ``project`` or after the page), and what it changes of the page applied as DataCube applies
+        it: ``modelInto`` when it makes the page's project, ``modelPin`` to the revision it saved (page-commands.ts)."""
         from . import model as models
-        ref = self._doc.get('model')
-        if ref:
-            at = (ref['project'], ref['workspace'], ref['package'])
-        else:
-            names = self._names()
-            made_project = names['project']
-            at = (models.NewProject(project or made_project['name'], made_project['group'], made_project['description']),
-                  names['workspace'], package)
+        into = _json.loads(self._session.headless().call('pageModelInto', _json.dumps(self._doc), package, project))
+        target = into['project']
+        at = (target if isinstance(target, str) else models.NewProject(target['name'], target['group'], target['description']),
+              into['workspace'], into['package'])
 
         def made(project_id: str) -> None:
-            self._doc = {**self._doc, 'model': {'project': project_id, 'workspace': at[1], 'package': at[2], 'tables': {}}}
-            # the page's model is no page command's: a page open on it opens it again
-            self._unnoted()
-            self._changed()
+            self._apply_page([{'kind': 'modelInto', 'project': project_id, 'workspace': at[1], 'package': at[2]}])
         created = call(sdlc if sdlc is not None else models.local_sdlc(),
                        writer if writer is not None else models.local_writer(), at, made)
-        # the page pinned to what it saved (page-model.ts ``pin``): its class grids are read at it
-        ref = self._doc['model']
-        if ref.get('revision') != created.revision:
-            self._doc = {**self._doc, 'model': {**ref, 'revision': created.revision}}
-            self._unnoted()
-            self._changed()
+        self._apply_page([{'kind': 'modelPin', 'revision': created.revision}])
         return created
-
-    def _keep(self, cube: str, tables: Sequence[str], cls: str | None) -> None:
-        """The page's model now keeps ``tables`` (every table the grid ``cube`` reads, a join's each) and ``cls`` for it
-        (page-model.ts ``keepTables``, ``keepClass``)."""
-        ref = dict(self._doc['model'])
-        ref['tables'] = {**ref.get('tables', {}), cube: list(tables)}
-        if cls is not None:
-            ref['classes'] = {**ref.get('classes', {}), cube: cls}
-        self._doc = {**self._doc, 'model': ref}
-        self._unnoted()
-        self._changed()
 
     def create_association(self, a: Any, b: Any, *, name: str | None = None, sdlc: Any = None,
                            writer: Any = None) -> str:
@@ -1127,7 +1107,7 @@ class Page:
         def made_with_facts(s: Any, w: Any, at: Any, m: Any) -> Any:
             self._facts(s, w, at, ends)
             return models.create_association(s, w, *at, {**({'name': name} if name else {}), 'ends': ends}, made=m)
-        made = self._into(ref['package'], sdlc, writer, made_with_facts)
+        made = self._model_action(ref['package'], sdlc, writer, made_with_facts)
         return next((x['association'] for x in made.answer.get('associations', [])), name or 'the association')
 
     def _facts(self, sdlc: Any, writer: Any, at: Any, ends: list[dict[str, Any]]) -> None:
@@ -1186,13 +1166,16 @@ class Page:
         data_space = {'name': name or names['dataSpace'], **({'title': title} if title else {}),
                       **({'description': description} if description else {})}
         joined = [x if isinstance(x, Mapping) else {'ends': [_end(x[0]), _end(x[1])]} for x in associations]
-        made = self._into(package, sdlc, writer, lambda s, w, at, m: models.create_data_space(
+        made = self._model_action(package, sdlc, writer, lambda s, w, at, m: models.create_data_space(
             s, w, *at, data_space, classes, [{**j, 'ends': [_end(e) for e in j['ends']]} for j in joined], made=m),
             project)
         made_classes = [c['class'] for c in made.answer.get('classes', [])]
+        keeps = []
         for cube, tables, class_name in kept:
             path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)
-            self._keep(cube, tables, path)
+            keeps.append({'kind': 'modelKeep', 'cube': cube, 'tables': list(tables), 'class': path})
+        if keeps:
+            self._apply_page(keeps)
         return made.answer.get('dataSpace') or data_space['name']
 
     @property

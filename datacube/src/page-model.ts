@@ -5,6 +5,7 @@
 // (model-changes/, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4); this is only the page's record.
 
 import type { NewProject } from '../../model-changes/src/project.ts';
+import { modelKept, modelMade, modelPinned, type PageCommand } from './page-commands.ts';
 
 /** Where the page's model is, as the page document keeps it. */
 export interface PageModelRef {
@@ -37,6 +38,28 @@ export function pageProject(pageName: string): NewProject {
   return { name: pageName, group: PAGE_GROUP, description: 'The classes of a DataCube page (Create a Class…)' };
 }
 
+/**
+ * WHAT A MODEL ACTION CHANGED OF THE PAGE'S MODEL, AS THE PAGE COMMANDS THAT MAKE THAT CHANGE (page-commands.ts
+ * modelInto, modelKeep, modelPin): what the screen tells for Create a Class…, an Association, a Data Space -- the
+ * commands Python's model actions apply -- so a page's other editor follows it, never reads it whole.
+ */
+export function modelCommands(before: PageModelRef | undefined, after: PageModelRef): PageCommand[] {
+  const out: PageCommand[] = [];
+  if (before === undefined) out.push({ kind: 'modelInto', project: after.project, workspace: after.workspace, package: after.package });
+  const cubes = new Set([...Object.keys(after.tables), ...Object.keys(after.classes ?? {})]);
+  for (const cube of cubes) {
+    const tables = after.tables[cube];
+    const cls = after.classes?.[cube];
+    const tablesChanged = tables !== undefined && JSON.stringify(before?.tables[cube]) !== JSON.stringify(tables);
+    const classChanged = cls !== undefined && before?.classes?.[cube] !== cls;
+    if (tablesChanged || classChanged) {
+      out.push({ kind: 'modelKeep', cube, tables: tablesChanged ? [...tables!] : null, class: classChanged ? cls! : null });
+    }
+  }
+  if (after.revision !== undefined && after.revision !== before?.revision) out.push({ kind: 'modelPin', revision: after.revision });
+  return out;
+}
+
 export class PageModel {
   #ref: PageModelRef | undefined;
 
@@ -62,34 +85,23 @@ export class PageModel {
       workspace: ref?.workspace ?? PAGE_WORKSPACE,
       package: ref?.package ?? pkg,
       made: (project) => {
-        this.#ref = { project, workspace: PAGE_WORKSPACE, package: pkg, tables: {} };
+        this.#ref = modelMade(undefined, project, PAGE_WORKSPACE, pkg);
       },
     };
   }
 
   /** The page is now pinned to `revision`: the one its last model action saved. */
   pin(revision: string): void {
-    const ref = this.#need();
-    if (ref.revision === revision) return;
-    this.#ref = { ...ref, revision };
+    this.#ref = modelPinned(this.#ref, revision);
   }
 
   /** The page's model now keeps `cls` as the grid `cube`'s class. */
   keepClass(cube: string, cls: string): void {
-    const ref = this.#need();
-    if (ref.classes?.[cube] === cls) return;
-    this.#ref = { ...ref, classes: { ...ref.classes, [cube]: cls } };
+    this.#ref = modelKept(this.#ref, cube, null, cls);
   }
 
   /** The page's model now keeps `tables` (its leaves', in their order) for the grid `cube`. */
   keepTables(cube: string, tables: readonly string[]): void {
-    const ref = this.#need();
-    if (JSON.stringify(ref.tables[cube]) === JSON.stringify(tables)) return;
-    this.#ref = { ...ref, tables: { ...ref.tables, [cube]: [...tables] } };
-  }
-
-  #need(): PageModelRef {
-    if (!this.#ref) throw new Error('the page has no model yet');
-    return this.#ref;
+    this.#ref = modelKept(this.#ref, cube, tables, null);
   }
 }

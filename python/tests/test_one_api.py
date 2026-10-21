@@ -38,7 +38,7 @@ MODEL = PAGE.with_name('model.py')
 ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 
 # each ledger's size, pinned: lower it with the fix that shrank it; raise it only with a dated note here
-CEILINGS = {'L4_WHOLE': 6, 'L4_FLAGS': 13, 'L5_DOCUMENT': 12, 'L6_FUNCTIONS': 11, 'MARKERS': 17, 'L9_KEEPER': 6,
+CEILINGS = {'L4_WHOLE': 3, 'L4_FLAGS': 13, 'L5_DOCUMENT': 9, 'L6_FUNCTIONS': 9, 'MARKERS': 17, 'L9_KEEPER': 6,
             'BEHAVIOUR': 7}
 
 
@@ -80,9 +80,6 @@ def _held_to(test, found, ledger, what, ceiling):
 
 L4_WHOLE = {
     'Grid._kept': (('Y3',), 1),
-    '_into.made': (('Y1',), 1),
-    'Page._into': (('Y1',), 1),
-    'Page._keep': (('Y1',), 1),
     'Page._reopened': (('Y2',), 1),
     'Page.load': (ALLOWED, 1),  # N1: a page born whole
 }
@@ -116,9 +113,6 @@ L5_DOCUMENT = {
     'Page.join': (ALLOWED, 1, '(was[0], was[1])'),
     'Page.load': (ALLOWED, 1, 'doc'),  # N1: headless pageRead's page
     'Grid._kept': (('Y3', 'Z1'), 1, None),
-    '_into.made': (('Y1', 'Z3'), 1, None),
-    'Page._into': (('Y1', 'Z3'), 1, None),
-    'Page._keep': (('Y1', 'Z3'), 1, None),
     'Page._reopened': (('Y2', 'Z1', 'Z10'), 1, None),
 }
 
@@ -233,8 +227,6 @@ class Static(unittest.TestCase):
 L6_FUNCTIONS = {
     '_with_cube': ('Z1',),
     '_ids': ('Z2',),
-    '_into': ('Z3',),
-    '_keep': ('Z3',),
     '_class': ('Z4',),
     '_facts': ('Z5',),
     '_column_choices': ('Z7',),

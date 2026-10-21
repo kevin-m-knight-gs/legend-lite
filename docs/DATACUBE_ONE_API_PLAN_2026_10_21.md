@@ -166,8 +166,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **P3** Snap / Go Live in the tab → `snap` / `live` — closed S1: a grid that moves its rows itself (its toggle,
   snapRows) says so (`moved`); its page tells `snap {grid, copy}` or `live {grid}`, no step of its history; two gestures
   (snapped, live again) are told, read, replay
-- [ ] **P4** Create a Class / Association / Data Space → model page commands (`modelInto`, `modelPin`, `modelKeep`)
-  applied by `page-model.ts`'s functions — S1, L2
+- [x] **P4** Create a Class / Association / Data Space → model page commands (`modelInto`, `modelPin`, `modelKeep`)
+  applied by `page-model.ts`'s functions — closed S1: `modelMade`, `modelPinned`, `modelKept` are the rules, in page-commands.ts
+  beside the commands they apply (PageModel uses them; kept there, a lazy chunk, so the page loads none of them at start); the tab tells `modelCommands(before, after)` after each model action (page-commands.test.ts)
 - [ ] **P5** page undo / redo → N2 restore write — S4, L9 (closed as G12)
 - [ ] **P6** chart options told before the chart re-follows → falls out of S2 — S2, L2 L7
 - [ ] **P7** Open in grid resets the chart's band shares after a resize → an editor tile never touches the saved layout — S3,
@@ -187,7 +188,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **P14** stack and arrange gestures told as a whole `layout` → told as `stack` / `arrange` — S3, L2
 
 ### Python writes that are no command (audit §2, Python)
-- [ ] **Y1** `_into` / `_keep` → P4's model commands — S1, L4 L5
+- [x] **Y1** `_into` / `_keep` → P4's model commands — closed S1: Python's model actions apply `modelInto`, `modelPin`,
+  `modelKeep` through pageApply (test_model.py)
 - [ ] **Y2** `_reopened` → `rebuilt`; the take-or-not rule moved to TypeScript — S1, L4
 - [ ] **Y3** `_kept` with notes → `rebuilt` — S1, L4
 - [ ] **Y6** `serve_page` works out reads in Python → `pageReads`, or deleted — S5, L5
@@ -209,7 +211,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 ### Python's copies of TypeScript rules (audit §5)
 - [ ] **Z1** `_with_cube` — S5, L6
 - [ ] **Z2** `_ids` — S5, L6
-- [ ] **Z3** `_into` / `_keep` (with Y1) — S1, L6
+- [x] **Z3** `_into` / `_keep` (with Y1) — closed S1: where a model action writes is TS's (headless `pageModelInto`:
+  PageModel.into); `_keep` is gone, `_into` is `_model_action`, glue that asks and applies
 - [ ] **Z4** `_class` action — S5, L6
 - [ ] **Z5** `_facts` association uniqueness — S5, L6
 - [ ] **Z6** Create a Data Space orchestration — S5, L6

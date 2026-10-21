@@ -15,11 +15,44 @@ import {
   type PageLayout, type PageSheet, type PageView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
+import type { PageModelRef } from './page-model.ts';
 import { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from './snapshot.ts';
+
+// -- the page's model (page-model.ts keeps its record; its rules are here, the commands' own) --
+
+/** The page's model made by its first model action: its project, DataCube's workspace, the package its classes go in,
+ *  no tables kept yet. Refused when the page has one: a page has one model. */
+export function modelMade(ref: PageModelRef | undefined, project: string, workspace: string, pkg: string): PageModelRef {
+  if (ref !== undefined) throw new CubeRefusal(`the page's model is ${ref.project} already: a page has one model`);
+  return { project, workspace, package: pkg, tables: {} };
+}
+
+/** The page pinned to `revision`, the one its last model action saved. */
+export function modelPinned(ref: PageModelRef | undefined, revision: string): PageModelRef {
+  const has = need(ref);
+  return has.revision === revision ? has : { ...has, revision };
+}
+
+/** The page's model keeping, for the grid `cube`, its leaves' `tables` (in their order) and `cls`, its class -- null
+ *  leaving either as it is. */
+export function modelKept(ref: PageModelRef | undefined, cube: string, tables: readonly string[] | null, cls: string | null):
+  PageModelRef {
+  let has = need(ref);
+  if (tables !== null && JSON.stringify(has.tables[cube]) !== JSON.stringify(tables)) {
+    has = { ...has, tables: { ...has.tables, [cube]: [...tables] } };
+  }
+  if (cls !== null && has.classes?.[cube] !== cls) has = { ...has, classes: { ...has.classes, [cube]: cls } };
+  return has;
+}
+
+function need(ref: PageModelRef | undefined): PageModelRef {
+  if (!ref) throw new CubeRefusal('the page has no model yet: its first model action makes it');
+  return ref;
+}
 
 /** A page as its commands edit it: its document, and every tile and sheet id it has held -- none is given out again,
  *  so a handle a host kept never meets a new tile under its old one's id. */
@@ -83,11 +116,19 @@ export type PageCommand =
    */
   | { readonly kind: 'snap'; readonly grid: string; readonly copy: GridCopy }
   /** Grid `grid` reads its live base again (Go Live): its copy, which its host lets go, off the page. */
-  | { readonly kind: 'live'; readonly grid: string };
+  | { readonly kind: 'live'; readonly grid: string }
+  /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
+   *  in it, the package its classes go in (modelMade, above). */
+  | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
+  /** The page pinned to the revision its last model action saved (modelPinned, above). */
+  | { readonly kind: 'modelPin'; readonly revision: string }
+  /** The page's model keeping a grid's tables and its class -- null leaving either as it is (modelKept, above). */
+  | { readonly kind: 'modelKeep'; readonly cube: string; readonly tables: readonly string[] | null; readonly class: string | null };
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
   'setChartCube', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
+  'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
@@ -447,6 +488,13 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const { copies: _all, ...rest } = page;
       return done(rewritten(Object.keys(left).length > 0 ? { ...rest, copies: left } : rest, {}));
     }
+    case 'modelInto':
+      return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
+    case 'modelPin':
+      return done(rewritten({ ...page, model: modelPinned(page.model, command.revision) }, {}));
+    case 'modelKeep':
+      if (!page.cubes.some((c) => c.id === command.cube)) throw new CubeRefusal(`'${command.cube}' is no grid's cube of the page`);
+      return done(rewritten({ ...page, model: modelKept(page.model, command.cube, command.tables, command.class) }, {}));
   }
 }
 
@@ -621,6 +669,22 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'live':
       fields(o, kind, ['grid']);
       return { kind, grid: text(o['grid'], 'a grid') };
+    case 'modelInto':
+      fields(o, kind, ['project', 'workspace', 'package']);
+      return { kind, project: text(o['project'], "a page model's project"), workspace: text(o['workspace'], "a page model's workspace"),
+        package: text(o['package'], "a page model's package") };
+    case 'modelPin':
+      fields(o, kind, ['revision']);
+      return { kind, revision: text(o['revision'], "a page model's revision") };
+    case 'modelKeep': {
+      fields(o, kind, ['cube', 'tables', 'class']);
+      const tables = o['tables'];
+      if (tables !== null && !(Array.isArray(tables) && tables.every((t) => typeof t === 'string'))) {
+        throw new CubeRefusal(`a grid's tables are a list of names, or null, not ${JSON.stringify(tables)}`);
+      }
+      return { kind, cube: text(o['cube'], "a grid's cube"), tables: tables as readonly string[] | null,
+        class: textOrNull(o['class'], "a grid's class") };
+    }
     default:
       throw new CubeRefusal(`'${kind}' is not a page's command: ${PAGE_COMMAND_KINDS.join(', ')}`);
   }

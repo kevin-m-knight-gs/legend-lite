@@ -1116,8 +1116,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         persist,
       });
       if (!model) return;
-      // the page's model, made with its first class or a grid's table kept: the page has changed
+      // the page's model, made with its first class or a grid's table kept: the page has changed, told as the model
+      // commands that change it (page-model.ts modelCommands), the ones Python's create_class applies
+      const was = current.model;
       current = { ...current, model };
+      // fetched with the model action's own code (the page's first has none)
+      const { modelCommands } = await import('../page-model.ts');
+      for (const command of modelCommands(was, model)) channel?.edit({ page: command });
       onCubeView?.();
     };
     pageModelNow = () => current.model;
@@ -1156,17 +1161,20 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         },
       };
     };
-    const landed = (model: PageModelRef | undefined): void => {
+    const landed = async (model: PageModelRef | undefined): Promise<void> => {
       if (!model) return;
+      const was = current.model;
       current = { ...current, model };
+      const { modelCommands } = await import('../page-model.ts');
+      for (const command of modelCommands(was, model)) channel?.edit({ page: command });
       onCubeView?.();
     };
     const said = (e: unknown): void => window.alert(e instanceof Error ? e.message : String(e));
     createAssociation = (first) => {
-      void modelActions().then(async (m) => m && landed(await m.actions.createAssociationOf(m.of, first))).catch(said);
+      void modelActions().then(async (m) => m && await landed(await m.actions.createAssociationOf(m.of, first))).catch(said);
     };
     createDataSpace = () => {
-      void modelActions().then(async (m) => m && landed(await m.actions.createDataSpaceOf(m.of))).catch(said);
+      void modelActions().then(async (m) => m && await landed(await m.actions.createDataSpaceOf(m.of))).catch(said);
     };
     createClass = (grid, place, cube) => {
       void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));

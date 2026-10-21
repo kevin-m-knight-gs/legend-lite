@@ -58,7 +58,11 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'renamePage':
     case 'addSheet':
     case 'removePageFilter':
+    case 'modelInto':
+    case 'modelPin':
       return command;
+    case 'modelKeep':
+      return { ...command, cube: n(command.cube) };
     case 'renameSheet':
     case 'moveSheet':
     case 'removeSheet':

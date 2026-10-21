@@ -13,6 +13,7 @@ import {
 } from '../src/page-commands.ts';
 import { gridCopyOf, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
+import { modelCommands, type PageModelRef } from '../src/page-model.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) stacked with chart-2 (frozen, of
@@ -241,6 +242,9 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'removePageFilter', filter: 'filter-1' },
     { kind: 'snap', grid: 'grid', copy: SNAP },
     { kind: 'live', grid: 'grid' },
+    { kind: 'modelInto', project: 'datacube:q3', workspace: 'datacube', package: 'q3' },
+    { kind: 'modelPin', revision: 'r2' },
+    { kind: 'modelKeep', cube: 'grid', tables: ['t_trades'], class: null },
   ];
 
   it('every kind, through JSON and back', () => {
@@ -261,5 +265,32 @@ describe('a page command read from JSON is the same command, and what DataCube d
     // a grid whose source the page cannot write down is the screen's own: never one Python sends (the phase 2 audit's 9)
     refused(() => readPageCommand({ kind: 'addGrid', document: null, sheet: 'sheet-1', near: null, title: null, columns: null }),
       /a grid's cube is its document/);
+  });
+});
+
+describe("the page's model, by its commands (page-model.ts: P4)", () => {
+  // the corpus page with no model of its own yet
+  const start: PageDocument = (({ model: _none, ...rest }) => rest)(trades);
+  const draftOf = (p: PageDocument): PageDraft => ({ page: p, held: idsOf(p) });
+
+  it('a model action told as the commands of what it changed: applied, they make the model it made', () => {
+    const cube = start.cubes[0]!.id;
+    const made: PageModelRef = { project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [cube]: ['t_trades'] },
+      classes: { [cube]: 'q3::domain::Trade' }, revision: 'r1' };
+    const commands = modelCommands(undefined, made);
+    assert.deepEqual(commands.map((c) => c.kind), ['modelInto', 'modelKeep', 'modelPin']);
+    const after = applyPageCommands(draftOf(start), commands).draft.page;
+    assert.deepEqual(after.model, made);
+    // the next action: what it changed alone
+    const next: PageModelRef = { ...made, revision: 'r2' };
+    assert.deepEqual(modelCommands(made, next), [{ kind: 'modelPin', revision: 'r2' }]);
+    assert.deepEqual(modelCommands(made, made), []);
+  });
+
+  it('refused in words: a second model, a pin or a keep with none, a cube the page has not', () => {
+    const with1 = applyPageCommand(draftOf(start), { kind: 'modelInto', project: 'p', workspace: 'w', package: 'k' }).draft;
+    refused(() => applyPageCommand(with1, { kind: 'modelInto', project: 'q', workspace: 'w', package: 'k' }), /a page has one model/);
+    refused(() => applyPageCommand(draftOf(start), { kind: 'modelPin', revision: 'r' }), /the page has no model yet/);
+    refused(() => applyPageCommand(with1, { kind: 'modelKeep', cube: 'nope', tables: [], class: null }), /'nope' is no grid's cube/);
   });
 });

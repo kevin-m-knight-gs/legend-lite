@@ -12,7 +12,7 @@ import {
   gridRelation, gridSnapPull, gridView,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
-import { classDuplicate, pageModelNames } from './model.ts';
+import { classDuplicate, pageModelInto, pageModelNames } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
   gridSnapped, nameGiven, pageApply, pageFilter, pageNew, pageOpenedLive, pageRead, pageReads, pageRebase, pageWritten,
@@ -41,7 +41,7 @@ export { forget, ingest, landed, mount, remoteAccess };
 
 /** The page's model as DataCube names it, and a class's key's facts (B4): what Python asks beside the generic library.
  *  (The model a page keeps for the cubes it still holds is the page commands' rule: pageApply.) */
-export { classDuplicate, pageModelNames };
+export { classDuplicate, pageModelInto, pageModelNames };
 
 /** A sheet's layout read by DataCube's own rules (layout/bands.ts): its tiles, and bands of tiles as the layout
  *  picker's shape -- what Python's pages ask, so they walk no layout by rules of their own (a layout is edited by page

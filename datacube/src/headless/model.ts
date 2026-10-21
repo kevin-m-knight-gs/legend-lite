@@ -6,11 +6,22 @@
 
 import { fn, toJson } from '../../../pure-protocol/src/index.ts';
 import { suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
-import { PAGE_WORKSPACE, pageProject } from '../page-model.ts';
+import { PAGE_WORKSPACE, PageModel, pageProject, type PageModelRef } from '../page-model.ts';
 import { duplicateLambda } from '../query.ts';
 
 /** A page's model as the windows name it before its first class: its package, its data space, its project to make
  *  (page-model.ts `pageProject`) and DataCube's workspace in it. JSON. */
+/**
+ * WHERE A PAGE'S NEXT MODEL ACTION WRITES (page-model.ts PageModel.into, the screen's rule): the page's project, or one
+ * to make (named `project`, else after the page: in DataCube's group) -- its workspace, the package its classes go in
+ * (`pkg`, unless the page has one). JSON: `{project, workspace, package}`, `project` its id or the project to make.
+ */
+export function pageModelInto(page: string, pkg: string, project: string | null): string {
+  const doc = JSON.parse(page) as { name: string; model?: PageModelRef };
+  const into = new PageModel(doc.model).into(project ?? doc.name, pkg);
+  return JSON.stringify({ project: into.project, workspace: into.workspace, package: into.package });
+}
+
 export function pageModelNames(pageName: string): string {
   return JSON.stringify({
     package: suggestedPackage(pageName), dataSpace: suggestedDataSpaceName(pageName), project: pageProject(pageName),

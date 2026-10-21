@@ -271,6 +271,9 @@ class OnThePage(unittest.TestCase):
         self.assertEqual(ref['classes'], {trades._view['cube']: trade})
         # pinned to the revision its class was saved as (page-model.ts pin): where its class grids are read
         self.assertEqual(ref['revision'], self.sdlc.revision(ref['project'], ref['workspace'])['id'])
+        # each change of the page's model a page command, as the screen tells it (page-model.ts modelCommands): a page
+        # open on it follows the commands, never reads the page whole (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P4, Y1)
+        self.assertEqual([c['kind'] for c in page._page_commands[-3:]], ['modelInto', 'modelPin', 'modelKeep'])
         desk = desks.create_class(columns={'desk': 'key'})
         self.assertEqual(desk, 'tradesByDesk::domain::ModelDesk')
         self.assertEqual(page.model['project'], ref['project'], "the page's one project")
