@@ -295,15 +295,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // the synthetic scalar-map marker (PlatformTypes.SYNTH_MAP_COL)
         // stays IN the execution alias — downstream references are built
         // from the (prefixed) row type; engine-TEXT renderers drop it
-        if (p.expr() instanceof SqlExpr.NullLit && p.out() != null && typedNullSlot(p.out().type())) {
-            // THE SLOT IS THE WIRE: a NULL projected under a typed slot
-            // spells its type — a bare NULL is typed by its use when the
-            // select is inlined and INTEGER by default when it is
-            // materialized (leg 3.4 step 2: a frame CTE's NULL column)
-            writer.append("CAST(NULL AS ").append(castTypeName(p.out().type())).append(")");
-        } else {
-            writer.expr(p.expr(), 0);
-        }
+        projectionValue(writer, p);
         if (p.out() != null && p.out().origin() == com.legend.sql.OutputCol.Origin.PER_KEY) {
             return perKeyName(writer.append(" AS "), p.out().name());
         }
@@ -312,6 +304,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         String label = implicitLabel(p);
         return label == null ? writer : writer.append(" AS ").append(label);
+    }
+
+    /** A projection's value, before its label. */
+    protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
+        if (p.expr() instanceof SqlExpr.NullLit && p.out() != null && typedNullSlot(p.out().type())) {
+            // THE SLOT IS THE WIRE: a NULL projected under a typed slot
+            // spells its type — a bare NULL is typed by its use when the
+            // select is inlined and INTEGER by default when it is
+            // materialized (leg 3.4 step 2: a frame CTE's NULL column)
+            return writer.append("CAST(NULL AS ").append(castTypeName(p.out().type())).append(")");
+        }
+        return writer.expr(p.expr(), 0);
     }
 
     /**

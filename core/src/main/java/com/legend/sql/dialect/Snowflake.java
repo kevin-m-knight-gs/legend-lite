@@ -1749,6 +1749,18 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
+    /** A projection that IS error() raised in its column's type, as a CASE branch is: a bare raise is text, and a
+     *  read of the column as its type is refused before the statement runs (the TDS text's date print, TO_CHAR with
+     *  a format, takes no text: testNewDateError's "too many arguments for function [TO_CHAR(...)]", measured on the
+     *  lane 2026-10-21, where every other lane raised the test's own message). */
+    @Override
+    protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
+        if (p.out() != null && p.expr() instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR) {
+            return writer.piece(raise(call.args(), p.out().type()));
+        }
+        return super.projectionValue(writer, p);
+    }
+
     /** The base CASE, with a branch that IS error() raised in the CASE's own type. */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
