@@ -596,11 +596,6 @@ export class CubePage {
         const on = board(sheetFor.get(view.id));
         if (on) this.#planned.set(view.id, on);
         this.openChart(view, view.cube);
-        const chart = this.#charts.get(view.id)!;
-        if (view.selection && chart.link.grid !== null) {
-          const source = this.#sourceOf(chart.link);
-          if (withoutConditions(source.snapshot.filter, view.selection, true) === null) source.refilter([], view.selection, 'filter to chart mark');
-        }
       }
       // what it says of the tiles both have: each one's title, its spec, its sheet
       for (const view of to.views) {
@@ -624,14 +619,10 @@ export class CubePage {
             if (!chart.panel.frozen) this.#closeEditor(view.id);
             chart.paint();
           }
-          // its selection as the step has it: a frozen chart's, cleared when its grid went, comes back with it -- put on
-          // its grid's filter where that filter has lost it
+          // its selection as the step has it (a frozen chart's, cleared when its grid went, comes back with it): a grid's
+          // filter that lost it meanwhile is its owner's to put back, by that grid's command (G8)
           const selection = view.selection ?? [];
           if (chart.link.grid !== null && JSON.stringify(selection) !== JSON.stringify(chart.conditions)) {
-            const source = this.#sourceOf(chart.link);
-            if (selection.length > 0 && withoutConditions(source.snapshot.filter, selection, true) === null) {
-              source.refilter([], selection, 'filter to chart mark');
-            }
             chart.conditions = [...selection];
             chart.key = selection.length > 0 ? JSON.stringify(selection) : '';
             this.#paintSelection(view.id);

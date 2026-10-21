@@ -132,11 +132,14 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   rule moved out of `app.ts:2741` and `cube-page.ts:1462` — closed S1: the refilter rule is grid-commands.ts's, the
   chart's selection page-commands.ts's; a click tells both (a chart removed tells its grid's refilter, removeTile its
   page part); the gesture "a chart's mark clicked" is told, read, replays; Python's chart selection is K7 (S6)
-- [ ] **G8** restore heals a filter missing a chart's selection → the document kept consistent by G7's rule — S3, L1 (moved
-  from S1: a page step restores views and sheets, not the grids' documents, so the heal stays until S3 restores the
-  board by commands; since S1 it goes through G7's rule, the grid's `refilter`, told); with it, the chart panel's own
-  following and the screen's reconcile, against the grid's state on screen and told by no command: the panel draws the
-  spec and the selection the page gives (the S2 audit's 7)
+- [x] **G8** restore heals a filter missing a chart's selection → the document kept consistent by G7's rule — closed S3:
+  the board heals nothing (CubePage.sync puts it at the page and takes no rule of its own); a step of the page's history
+  that brings back a chart with a selection its grid's filter lost meanwhile (the grids keep their own history) has it
+  put back by that grid's own `refilter` command, told -- the owner's, by one rule (page-commands.ts
+  `selectionRefilters`; page-app.ts #move; cube-page-shell.test.ts, a chart removed while it filters, undone). Not
+  done, and said in As built (S3): the chart panel still regroups and the screen still reconciles a selection by the
+  same rules on their own (followCube, the strict `withoutConditions`), against the grid's state -- a cube alone over
+  rows its host names no source for has no cube in its page's state to follow (the S2 audit's 7)
 - [x] **G9** use a dimension → `group` — closed S1: `#useDimension` (no longer public) builds `group`
 - [x] **G10** `applyConfiguration` → deleted; its tests use `configure` — closed S1: a host edits a grid by
   `CubeApp.edit(commands, label)` (the screen's own path, told); the gesture "a grid's settings set by its host" passes
@@ -227,7 +230,7 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   `followedPage` (followCube over the cube as its document holds it), applied by `rebuilt`, `setChartCube`, `setChart`,
   the rebase after a grid's edit and headless `pageWithCube` (Python's grid edits); the gesture "a grid with a following
   chart ungrouped" replays (page-commands.test.ts, test_page.py). The screen's chart panel still follows by the same
-  `followCube` on its own, against the grid's state on screen: drawn from the page in S3 (G8; the S2 audit's 7)
+  `followCube` on its own, against the grid's state on screen (G8's note; As built S3; the S2 audit's 7)
 - [x] **V2** a chart's selection reconciled with its grid's filter, on every path — closed S2: the same rule takes off a
   selection its cube's filter no longer holds, as the screen's reconcile does (page-commands.test.ts, test_page.py),
   judged when that filter moves (F1), a chart's removal among what moves it (F2)

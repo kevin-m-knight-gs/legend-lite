@@ -43,7 +43,7 @@ interface Entry {
 
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
   L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 15, UNCHECKED: 7,
 };
 
@@ -87,9 +87,6 @@ const ROUTES = /\.((?:state\.(?:change|undo|redo|retryRefused|refresh))|change|r
 const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('.ts') && f !== 'src/app.ts'
   && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
 const L1_ROUTES: Record<string, Entry> = {
-  // a page step restores views, not the grids' documents (S3): the selection put back on its grid's filter, by the
-  // grid's refilter command, told
-  'src/page/cube-page.ts:sync:refilter': { items: ['G8'], count: 2 },
   'src/page/cube-page.ts:#select:refilter': { items: [], why: "a chart's mark on its grid's filter: the grid's refilter command, told beside the page's select" },
   'src/page/page-app.ts:follow:followSnap': { items: [], why: "following another editor's snap" },
   'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },

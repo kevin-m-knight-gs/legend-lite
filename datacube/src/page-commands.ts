@@ -18,7 +18,7 @@ import { givenName } from './page-names.ts';
 import type { PageModelRef } from './page-model.ts';
 import { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
-import { readFilterNode } from './grid-commands.ts';
+import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
 import { CubeRefusal, withoutConditions, type CubeShape, type FilterNode } from './snapshot.ts';
 
@@ -600,6 +600,22 @@ export function followedPage(page: PageDocument, cube: string, before: PageDocum
     return { ...(kept ? v : unselected), spec };
   });
   return moved ? { ...page, views } : page;
+}
+
+/**
+ * THE GRIDS' REFILTERS A PAGE PUT AT A STEP OF ITS HISTORY NEEDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md G8): a step
+ * holds its charts' selections, and its grids keep their own history -- so a chart brought back with a selection its
+ * grid's filter (`filterOf`: the grid as it is now) no longer holds has it put back by that grid's own command, as a
+ * click puts it there (G7's rule: the page's select, the grid's refilter). By grid tile, in the page's order.
+ */
+export function selectionRefilters(page: PageDocument, filterOf: (cube: string) => FilterNode | undefined):
+  { readonly grid: string; readonly command: GridCommand }[] {
+  return page.views.flatMap((v) => {
+    if (v.kind !== 'chart' || v.selection === undefined || v.selection.length === 0) return [];
+    const grid = page.views.find((g) => g.kind === 'grid' && g.cube === v.cube);
+    if (grid === undefined || withoutConditions(filterOf(v.cube), v.selection, true) !== null) return [];
+    return [{ grid: grid.id, command: { kind: 'refilter', remove: [], add: [...v.selection] } as const }];
+  });
 }
 
 /**

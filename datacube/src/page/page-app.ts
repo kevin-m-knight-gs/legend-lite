@@ -35,7 +35,9 @@ import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
 import { CubeRefusal, type FilterNode } from '../snapshot.ts';
-import { applyPageCommands, applyToState, idsOf, takenIds, type PageCommand, type PageDraft } from '../page-commands.ts';
+import {
+  applyPageCommands, applyToState, idsOf, selectionRefilters, takenIds, type PageCommand, type PageDraft,
+} from '../page-commands.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
@@ -45,6 +47,7 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
 import type { TreeState } from '../tree.ts';
+import type { GridCommand } from '../grid-commands.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -74,6 +77,8 @@ export interface PageGrid extends SpawnedGrid {
   followLive?(): Promise<void>;
   /** Its copy, when it is `table`, kept when the grid goes: the page's other editor reads it too (a page opened again). */
   handOver?(table: string): void;
+  /** Its edit by commands, as a host makes one (grid-commands.ts): told, one step of its own history; the refusal or null. */
+  edit(commands: readonly GridCommand[], label: string): Promise<string | null>;
 }
 
 /**
@@ -948,6 +953,11 @@ export class PageApp {
     const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
     if (!step) return;
     this.#syncTo(step.draft.page, from);
+    // its grids keep their own history (G8): a chart brought back with a selection its grid's filter lost meanwhile has
+    // it put back by that grid's own refilter, as a click puts it there
+    for (const { grid, command } of selectionRefilters(step.draft.page, (cube) => this.grid(cube)?.snapshot.filter)) {
+      void this.grid(grid)?.edit([command], 'filter to chart mark');
+    }
     // the screen is the page: what it now shows is the state's (a grid made again writes its own cube)
     this.#state.keep(this.#seen());
     this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${step.label}.`);
