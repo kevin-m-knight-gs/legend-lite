@@ -25,7 +25,7 @@
 // history -- kept as the screen is after every change, each structural edit a step -- so Undo and Redo take back a tile
 // removed, a sheet deleted, a tile moved or renamed, a layout, a chart's options, and put the screen at the step.
 
-import { CubePage, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
+import { CubePage, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
@@ -34,8 +34,8 @@ import { filtersFor, pageToJson, writePageOf, type PageDocument, type PageView, 
 import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
-import type { FilterNode } from '../snapshot.ts';
-import type { PageCommand, PageDraft } from '../page-commands.ts';
+import { CubeRefusal, type FilterNode } from '../snapshot.ts';
+import { applyPageCommands, applyToState, idsOf, takenIds, type PageCommand, type PageDraft } from '../page-commands.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
@@ -803,11 +803,10 @@ export class PageApp {
       sheetLabel: (id) => this.sheetLabel(id),
       onSheets: () => this.#onSheets(),
       sheetTabs: { at: (x, y) => this.#sheetTabs.at(x, y), hover: (id) => this.#sheetTabs.hover(id) },
-      // each structural edit a step of the page's history, begun before its change is kept; its commands told
-      onPageEdit: (edit) => {
-        if (edit.step !== false) this.#state.begin(edit.label);
-        for (const command of edit.commands) this.#options.onPageCommand?.(command);
-      },
+      // each structural edit applied to the page's state by the one rule, a step of its history, the board put at what
+      // it makes; its commands told
+      onPageEdit: (edit) => this.#edit(edit),
+      taken: () => takenIds(this.#state.draft),
       documentOf: (grid) => this.grid(grid)?.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
       onPick: (chart, grid, conditions) => this.#pick(chart, grid, conditions),
@@ -823,10 +822,53 @@ export class PageApp {
     }
     const views = this.views();
     const written = this.#withUnopened(cubes, views);
-    return {
-      page: writePageOf({ name: this.#name, cubes: written, views, filters: this.#filters, copies: this.#copies(this.cubes, written) }),
-      held: this.#page.held,
-    };
+    const page = writePageOf({ name: this.#name, cubes: written, views, filters: this.#filters, copies: this.#copies(this.cubes, written) });
+    return { page, held: idsOf(page) };
+  }
+
+  /**
+   * A PAGE EDIT (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S3: the board produced by the commands): its commands applied
+   * to the page's state by the one rule (page-commands.ts applyPageCommands) -- refused in their words, nothing changed
+   * -- a step of the page's history (but a snap or going live: where its rows are, not what the page is), the commands
+   * as applied told, and the board put at the page they make (`#syncTo`). True when applied.
+   */
+  #edit(edit: PageEdit): boolean {
+    const from = this.#state.draft.page;
+    let applied: PageCommand[];
+    try {
+      applied = applyToState(this.#state, edit.commands, edit.label, edit.step !== false);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#refused(e);
+      return false;
+    }
+    for (const command of applied) this.#options.onPageCommand?.(command);
+    this.#syncTo(this.#state.draft.page, from);
+    return true;
+  }
+
+  /**
+   * The board put at `to` from `from` (CubePage.sync), what it changes no change of the page's own: its filters as `to`
+   * has them (a grid it makes opens with them), a grid it makes made by its maker -- the one that made it, or `makers`'
+   * (another editor's) -- and each grid's lens given it again.
+   */
+  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map()): void {
+    const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
+    this.#filters = to.filters ?? [];
+    this.#restoring = to.views;
+    this.#syncing = true;
+    try {
+      this.#page.sync(views(to), views(from), (grid) => {
+        const make = makers.get(grid);
+        return this.#remake(grid) ?? (make ? this.#maker(make) : undefined);
+      }, (cube) => this.#unopenedWhy(cube));
+    } finally {
+      this.#syncing = false;
+      this.#restoring = undefined;
+    }
+    this.#applyLenses();
+    this.#paintSheets();
+    this.#paintEmpty();
   }
 
   // -- undo and redo ----------------------------------------------------------------------------------------------
@@ -874,28 +916,16 @@ export class PageApp {
    * nothing changed.
    */
   async follow(commands: readonly PageCommand[], makers: ReadonlyMap<string, GridMaker>): Promise<void> {
-    // the page commands' rules, fetched with the first commands another editor sends (the screen's page has none)
-    const { applyPageCommands } = await import('../page-commands.ts');
     if (this.#disposed) return;
     const from = this.#state.draft.page;
-    const to = applyPageCommands(this.#state.draft, commands).draft.page;
-    const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
+    const made = applyPageCommands(this.#state.draft, commands).draft;
+    const to = made.page;
     // its name too (a page renamed in Python): the host reads it back (`title`)
-    if (to.name !== from.name) this.setTitle(to.name);
-    // its filters as the editor's commands leave them: a grid they add opens with them
-    this.#filters = to.filters ?? [];
-    this.#restoring = to.views;
-    this.#syncing = true;
-    try {
-      this.#page.sync(views(to), views(from), (grid) => {
-        const make = makers.get(grid);
-        return this.#remake(grid) ?? (make ? this.#maker(make) : undefined);
-      }, (cube) => this.#unopenedWhy(cube));
-    } finally {
-      this.#syncing = false;
-      this.#restoring = undefined;
+    if (to.name !== from.name) {
+      this.#name = to.name;
+      this.#paintTitle();
     }
-    this.#applyLenses();
+    this.#syncTo(to, from, makers);
     // where each grid's rows are as the commands leave them (§18.8), in their order: a snap made by the other editor
     // read from its host, a live command its live rows again
     for (const command of commands) {
@@ -907,9 +937,8 @@ export class PageApp {
       else await grid.followLive();
       if (this.#disposed) return;
     }
-    this.#state = new PageState(this.#seen());
-    this.#paintSheets();
-    this.#paintEmpty();
+    // the page the commands made, whole -- the ids it has held, its cubes -- the start of its history again
+    this.#state = new PageState(made);
   }
 
   #move(way: 'undo' | 'redo'): void {
@@ -918,23 +947,10 @@ export class PageApp {
     const from = this.#state.draft.page;
     const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
     if (!step) return;
-    const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
-    // the page's filters as the step has them: a grid it makes again opens with them
-    this.#filters = step.draft.page.filters ?? [];
-    this.#restoring = step.draft.page.views;
-    this.#syncing = true;
-    try {
-      this.#page.sync(views(step.draft.page), views(from), (grid) => this.#remake(grid), (cube) => this.#unopenedWhy(cube));
-    } finally {
-      this.#syncing = false;
-      this.#restoring = undefined;
-    }
-    this.#applyLenses();
+    this.#syncTo(step.draft.page, from);
     // the screen is the page: what it now shows is the state's (a grid made again writes its own cube)
     this.#state.keep(this.#seen());
     this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${step.label}.`);
-    this.#paintSheets();
-    this.#paintEmpty();
   }
 
   /** A grid made again, by the maker that made it, starting where it was (on the board, kept, or let go). */
@@ -1014,8 +1030,6 @@ export class PageApp {
   }
 
   async #applyFilterCommand(make: () => PageCommand | undefined, label: string): Promise<PageCommand[]> {
-    // the page commands' rules, fetched with the first filter (a page with none never downloads them)
-    const { applyToState } = await import('../page-commands.ts');
     if (this.#disposed) return [];
     const command = make();
     if (command === undefined) return [];

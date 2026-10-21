@@ -201,7 +201,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   document) and is applied by one rule to the cube the page holds then (cube-document.ts `cubeOpenedAgain`), so made
   again on top of another writer's edit of the grid it keeps that edit
 - [ ] **P12** `ll.show(df)` page unkept; a frame's column change loses grid edits → a kept page of one grid — S5, L10
-- [ ] **P13** charts on a cube alone (embedded CubeApp) tell nothing → the same state and commands — S3, L2
+- [x] **P13** charts on a cube alone (embedded CubeApp) tell nothing → the same state and commands — closed S3: a cube
+  alone's board keeps a page state (page-state.ts) and applies each edit by the same one step as a page of its own
+  (page-commands.ts applyToState), then puts the board at what it makes (CubePage.sync), and tells the commands
+  (CubeAppOptions.onPageCommand); the rules come with the board's module, never with a grid alone
+  (cube-page-shell.test.ts: added, clicked, a second, removed -- each replays to the board shown)
 - [x] **P14** stack and arrange gestures told as a whole `layout` → told as `stack` / `arrange` — closed S3: the board
   says what the hand did (band-board.ts `LayoutMove`): a lone tile let go on another's middle is told as `stack {tiles:
   [onto, tile]}` (stackTiles stacks as a drop does; a tab dragged out of its stack is not one), a preset picked as

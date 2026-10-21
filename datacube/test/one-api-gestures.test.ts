@@ -747,6 +747,11 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
       await drawn();
       await channel.idle();
       await drawn();
+      // the board is the page's state (S3: the board produced by the commands): what it shows is what the state holds
+      // (as content: a key's place in the text is the writer's)
+      const state = pg().state.page;
+      assert.deepEqual(JSON.parse(JSON.stringify({ views: onScreen().views, sheets: onScreen().sheets })),
+        JSON.parse(JSON.stringify({ views: state.views, sheets: state.sheets })), `${g.name}: the board shows another page than its state holds`);
       if (g.quiet) {
         assert.equal(writes.length, 0, `${g.name}: a change of the view alone wrote the page`);
         return;

@@ -19,7 +19,7 @@ import { openCube, type CubeDocument, type FileSource } from '../src/cube-docume
 import type { ExportPage } from '../src/export-model.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
-import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { PAGE_CUBE, pageToJson, readPage, startingViews, writePageOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { pageSources } from '../src/app/sources.ts';
 import type { TreeState } from '../src/tree.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
@@ -1251,6 +1251,40 @@ describe('Open in grid on a detached chart of a cube alone: its kept query made 
     await setAggregation(`edit-${chart}`, 'notional', 'max');
     await update(chart);
     assert.match(await drawing(chart), /^Bar chart of max_notional by region, split by desk/);
+  });
+});
+
+describe("a cube alone's board: the same state and commands as a page of its own's (P13)", () => {
+  beforeEach(setUpCube);
+  afterEach(cube.tearDown);
+
+  it('tells each edit of its board as page commands, applied first: they replay to the board it shows', async () => {
+    const told: PageCommand[] = [];
+    await cube.remount({ onPageCommand: (c) => told.push(c) });
+    inertCanvas(cube.dom.window);
+    // the board a cube alone grows: its own grid, the whole board
+    const start = writePageOf({ name: '', cubes: [], views: startingViews({ id: 'grid', cube: PAGE_CUBE }) });
+    const replayed = (): unknown => {
+      const page = applyPageCommands({ page: start, held: idsOf(start) }, told).draft.page;
+      return JSON.parse(JSON.stringify({ views: page.views, sheets: page.sheets }));
+    };
+    const shown = (): unknown => JSON.parse(JSON.stringify(cube.app.pageViews()));
+    await cube.app.openChart();
+    await settle();
+    assert.deepEqual(told.map((c) => c.kind), ['addChart']);
+    assert.deepEqual(replayed(), shown(), 'a chart added');
+    const chart = cube.app.pageViews().views.find((v) => v.kind === 'chart')!.id;
+    clickMark(tile(chart), 0, 0);
+    await settle();
+    assert.deepEqual(told.map((c) => c.kind), ['addChart', 'select']);
+    assert.deepEqual(replayed(), shown(), "a chart's mark clicked");
+    await cube.app.openChart();
+    await settle();
+    assert.deepEqual(replayed(), shown(), 'a second chart, beside the first');
+    tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.deepEqual(told.slice(-2).map((c) => c.kind), ['select', 'removeTile'], 'its selection cleared as it goes');
+    assert.deepEqual(replayed(), shown(), 'a chart removed');
   });
 });
 

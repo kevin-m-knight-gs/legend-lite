@@ -522,12 +522,14 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
 }
 
 /**
- * Commands applied to a page's state (page-state.ts) as one step named `label` -- undo takes them all back -- the
- * commands as applied returned; a refusal changes nothing.
+ * Commands applied to a page's state (page-state.ts) as one step named `label` -- undo takes them all back -- or, `step`
+ * false, as none (a snap or going live: where a grid's rows are, not what the page is); the commands as applied
+ * returned; a refusal changes nothing. What every board's owner applies a page edit by (page/page-app.ts, a cube
+ * alone's in app.ts).
  */
-export function applyToState(state: PageState, commands: readonly PageCommand[], label: string): PageCommand[] {
+export function applyToState(state: PageState, commands: readonly PageCommand[], label: string, step = true): PageCommand[] {
   const { draft, applied } = applyPageCommands(state.draft, commands);
-  state.begin(label);
+  if (step) state.begin(label);
   state.keep(draft);
   return applied;
 }

@@ -70,9 +70,11 @@ import {
   columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportedFile, type ExportKind, type Heatmap,
 } from './export-render.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
-import type { CubePage, ChartSource, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
+import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
+import type { PageCommand, PageDraft } from './page-commands.ts';
+import type { PageState } from './page-state.ts';
 import {
-  PAGE_CUBE, gridCopyOf, pageToJson, startingViews, writePage, type ChartView, type GridCopy, type PageDocument, type PageViews,
+  PAGE_CUBE, gridCopyOf, pageToJson, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
 } from './page-document.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
@@ -214,6 +216,12 @@ export interface CubeAppBaseOptions {
    * flight's when it lands. One refused or cancelled -- or carried by a change refused or cancelled -- is never told.
    */
   readonly onCommand?: (command: GridCommand) => void;
+  /**
+   * Each edit of the board around the cube -- its charts, their layout -- as the page commands it is
+   * (page-commands.ts), applied to the board's state before it is drawn (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P13):
+   * the same state and commands as a page of its own's.
+   */
+  readonly onPageCommand?: (command: PageCommand) => void;
   /** The groups to open on (a saved cube's), instead of the configuration's expand level. */
   readonly tree?: TreeState;
   /** Called whenever the snap state changes, for a plane badge. */
@@ -519,8 +527,15 @@ export class CubeApp {
    * takes nothing away.
    */
   #zonePeek = false;
-  /** The board of the grid and its charts (page/cube-page.ts), once a chart is open; until then the grid sits alone. */
-  #page: { readonly page: CubePage; readonly host: HTMLElement } | null = null;
+  /**
+   * The board of the grid and its charts (page/cube-page.ts), once a chart is open; until then the grid sits alone. Its
+   * page's state (page-state.ts, as a page of its own keeps its), the rules it is edited by (fetched with the board),
+   * and whether the board is being put at that state (what it changes then is no change of its own).
+   */
+  #page: {
+    readonly page: CubePage; readonly host: HTMLElement; readonly state: PageState;
+    readonly rules: Pick<typeof import('./page/cube-page.ts'), 'applyToState' | 'idsOf'>; syncing: boolean;
+  } | null = null;
   /** The grid's part of its tile's header (`tileHead`). */
   readonly #tileHeadEl: HTMLElement;
   /** Where the grid lives when there is no board. */
@@ -2581,6 +2596,8 @@ export class CubeApp {
       return;
     }
     (await this.#ensurePage())?.openChart(restore);
+    // a saved chart put back is no edit: the board's state keeps it as it is
+    if (restore) this.#pageChanged();
   }
 
   /** Another grid on the page, starting as this one is (page/cube-page.ts `addGrid`). */
@@ -2646,7 +2663,7 @@ export class CubeApp {
    */
   async #ensurePage(): Promise<CubePage | undefined> {
     if (this.#page) return this.#page.page;
-    const { CubePage } = await loadPage();
+    const { CubePage, PageState: State, applyToState, idsOf, takenIds } = await loadPage();
     // made meanwhile by another call (read afresh: the await may have let one in), or the cube gone while it came
     const made = this.#pageNow();
     if (made) return made;
@@ -2667,6 +2684,9 @@ export class CubeApp {
       host,
       grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl },
       onChange: () => this.#pageChanged(),
+      // its edits applied to its page's state by the page commands' one rule, told, the board put at what they make (P13)
+      onPageEdit: (edit) => this.#pageEdit(edit),
+      taken: () => (this.#page ? takenIds(this.#page.state.draft) : []),
       onEmpty: () => {
         // back where they were, the board gone: the title bar carries the source and pill again
         for (const el of parts) root.insertBefore(el, host);
@@ -2676,7 +2696,7 @@ export class CubeApp {
         this.#renderChrome();
       },
     });
-    this.#page = { page, host };
+    this.#page = { page, host, state: new State(this.#boardSeen(page, idsOf)), rules: { applyToState, idsOf }, syncing: false };
     // on the board: the grid's source and pill move into its tile's header
     this.#renderChrome();
     return page;
@@ -2762,7 +2782,48 @@ export class CubeApp {
 
   /** The views and their layout changed: "changed since saved" re-reads the page. */
   #pageChanged(): void {
+    // the board's page as its state holds it: what its owners change (the grid's own edits, a chart following it) kept
+    const held = this.#page;
+    if (held && !held.syncing) held.state.keep(this.#boardSeen(held.page, held.rules.idsOf));
     this.#emit('change');
+  }
+
+  /** The board's page as it is on screen: the cube's own grid over this cube (when it can say its source), each grid
+   *  added to it under its own id, the charts, the layout. */
+  #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
+    const cube = this.cubeDocument('');
+    const seen = writePageOf({ name: '', cubes: cube ? [{ id: PAGE_CUBE, cube }] : [],
+      views: page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid)) });
+    return { page: seen, held: idsOf(seen) };
+  }
+
+  /**
+   * AN EDIT OF THE BOARD (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P13): its commands applied to the board's page by the
+   * one rule (page-commands.ts applyToState: a page of its own's too) -- refused in their words, nothing changed --
+   * told to the host, and the board put at the page they make. True when applied.
+   */
+  #pageEdit(edit: PageEdit): boolean {
+    const held = this.#page;
+    if (!held) return false;
+    const from = held.state.draft.page;
+    let applied: PageCommand[];
+    try {
+      applied = held.rules.applyToState(held.state, edit.commands, edit.label, edit.step !== false);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return false;
+    }
+    for (const command of applied) this.#options.onPageCommand?.(command);
+    const to = held.state.draft.page;
+    held.syncing = true;
+    try {
+      held.page.sync({ views: to.views, sheets: to.sheets }, { views: from.views, sheets: from.sheets }, () => undefined);
+    } finally {
+      held.syncing = false;
+    }
+    this.#emit('change');
+    return true;
   }
 
   /**
@@ -2806,6 +2867,8 @@ export class CubeApp {
   async restoreViews(page: PageViews): Promise<void> {
     if (!page.views.some((v) => v.kind === 'chart')) return;
     (await this.#ensurePage())?.restore(page);
+    // a saved page put back is no edit: the board's state keeps it as it is
+    this.#pageChanged();
   }
 
 
