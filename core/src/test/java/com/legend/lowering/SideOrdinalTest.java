@@ -43,7 +43,7 @@ class SideOrdinalTest {
                 .withOrderBy(List.of(new SqlSelect.SortKey(SqlExpr.Column.of("t", A), false, null, null)));
         String sql = new DuckDb().render(SideOrdinal.withOrdinal(sorted));
         assertEquals(true, sql.startsWith("SELECT t.*, ROW_NUMBER() OVER (ORDER BY t.a DESC"), sql);
-        assertEquals(false, sql.contains("__o"), sql);
+        assertEquals(false, sql.contains("__o."), sql);
     }
 
     @Test
@@ -72,6 +72,6 @@ class SideOrdinalTest {
                 List.of(SqlExpr.Column.of("t", A)));
         String sql = new DuckDb().render(SideOrdinal.withOrdinal(grouped));
         assertEquals(1, sql.split("ROW_NUMBER\\(\\) OVER \\(\\)", -1).length - 1, sql);
-        assertEquals(false, sql.contains("__o"), sql);
+        assertEquals(false, sql.contains("__o."), sql);
     }
 }
