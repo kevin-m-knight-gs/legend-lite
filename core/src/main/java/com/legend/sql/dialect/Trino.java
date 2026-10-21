@@ -777,6 +777,13 @@ public final class Trino extends AnsiSqlRenderer {
         if (c.target() == SqlType.Scalar.TIMESTAMPTZ && isText(c.value())) {
             return writer.append("from_iso8601_timestamp(").expr(c.value(), 0).append(")");
         }
+        // a timestamp from text: DuckDB's cast takes ISO 8601's T between the date and the time (Pure's DateTime text,
+        // LiteralSpelling.dateTimeText), Trino's only a space ('Value cannot be cast to timestamp:
+        // 2026-01-07T00:00:01.000000000', the database judge's tolerance cells, measured); as MariaDB's cast
+        if (c.target() == SqlType.Scalar.TIMESTAMP && isText(c.value())) {
+            return writer.append("CAST(replace(").expr(c.value(), 0).append(", 'T', ' ') AS ")
+                    .append(castTypeName(c.target())).append(")");
+        }
         if (c.target() == SqlType.Scalar.JSON) {
             return isText(c.value()) ? writer.append("json_parse(").expr(c.value(), 0).append(")")
                     : writer.piece(toVariant(c.value()));
