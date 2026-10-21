@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import type { GridCommand } from '../src/grid-commands.ts';
+import { stand } from './fake-planner.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
 import {
   app, busy, chevron, dom, engine, groupRow, menu, menuItems, remount, root, settle, setUp, statuses, tearDown, unhandled, zoneChips,
@@ -344,5 +346,100 @@ describe('history through the app (B2)', () => {
     assert.notEqual(redo()?.getAttribute('aria-disabled'), 'true', 'one to redo');
     await sort('Descending');
     assert.equal(redo()?.getAttribute('aria-disabled'), 'true', 'a new change ended it');
+  });
+});
+
+describe('the commands told are the ones that landed, in the order they landed (One API S1: T1-T4, G13)', () => {
+  let told: GridCommand[];
+  beforeEach(async () => {
+    told = [];
+    await remount({ onCommand: (command) => told.push(command), signInAgain: async () => {} });
+  });
+  const kinds = (): string[] => told.map((c) => c.kind);
+  const release = async (): Promise<void> => {
+    engine.gate.hold = false;
+    engine.gate.releaseAll();
+    await settle();
+  };
+  const twice = { name: 'twice', lambda: stand('$x.notional * 2'), kind: 'measure' as const };
+
+  it('a setting of the column the change in flight adds is no refusal: told after the change that adds it (T1)', async () => {
+    engine.gate.hold = true;
+    void app.edit([{ kind: 'calculate', level: 'row', column: twice }], 'calculate');
+    await settle();
+    const pin: GridCommand = { kind: 'configure', patch: { columns: { twice: { pinned: 'left' } } } };
+    assert.equal(await app.edit([pin], 'settings'), null, 'the column is on screen: the setting is no refusal');
+    assert.deepEqual(statuses.filter(([, kind]) => kind === 'warn'), [], 'nothing said refused');
+    assert.deepEqual(kinds(), [], 'nothing landed yet');
+    await release();
+    assert.equal(app.configuration.columns['twice']?.pinned, 'left');
+    assert.deepEqual(told, [{ kind: 'calculate', level: 'row', column: twice }, pin], 'told as they landed: the column, then its setting');
+  });
+
+  it('a setting made while a change runs is told again after it, the order the grid took them in (T2)', async () => {
+    engine.gate.hold = true;
+    // a change of the query (the row limit) that also pins desk right
+    const change: GridCommand = { kind: 'configure', patch: { maxRows: 50, columns: { desk: { pinned: 'right' } } } };
+    void app.edit([change], 'settings');
+    await settle();
+    // a setting alone, on top of it: desk pinned left, at once
+    const pin: GridCommand = { kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } };
+    await app.edit([pin], 'settings');
+    await settle();
+    await release();
+    assert.equal(app.configuration.columns['desk']?.pinned, 'left', 'the setting made last is the one on screen');
+    // replayed in the order told, a host's grid ends where this one did: pinned left, the limit 50
+    let pinned: unknown;
+    let maxRows: unknown;
+    for (const c of told) {
+      if (c.kind !== 'configure') continue;
+      const p = c.patch as { maxRows?: number; columns?: Record<string, { pinned?: string }> };
+      if (p.maxRows !== undefined) maxRows = p.maxRows;
+      if (p.columns?.['desk']?.pinned !== undefined) pinned = p.columns['desk'].pinned;
+    }
+    assert.deepEqual([pinned, maxRows], ['left', 50], `replayed in the order told (${JSON.stringify(told)})`);
+  });
+
+  it('a change made while an Undo runs lands with it: no command says the undo, so none is told (T3)', async () => {
+    menu('EMEA', 'Ascending');
+    await settle();
+    told = [];
+    engine.gate.hold = true;
+    void app.undo();
+    await settle();
+    menu('EMEA', 'Remove Vertical Pivot on region');
+    await settle();
+    await release();
+    assert.deepEqual([app.snapshot.rows, app.snapshot.sorts], [['desk'], []], 'the undo AND the change landed');
+    // told the change alone, a host would keep the sort the undo took away: the grid is written whole instead
+    assert.deepEqual(kinds(), [], 'no command told for a transition an undo is part of');
+  });
+
+  it("another editor's commands are that editor's own: never told back, the person's made meanwhile are (T4)", async () => {
+    engine.gate.hold = true;
+    const theirs = app.applyGridCommands([{ kind: 'group', rows: ['desk'] }], 'Python');
+    await settle();
+    menu('A', 'Ascending');
+    await settle();
+    await release();
+    await theirs;
+    assert.deepEqual(app.snapshot.rows, ['desk'], "the other editor's change landed");
+    assert.deepEqual(kinds().filter((k) => k === 'group'), [], "the other editor's command is not told back to it");
+    assert.ok(kinds().length > 0, "the person's own sort is told");
+  });
+
+  it('a change refused because the sign-in expired, run again after signing in: its commands told (G13)', async () => {
+    engine.expired = true;
+    menu('EMEA', 'Ascending');
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, [], 'refused: not on screen');
+    assert.deepEqual(kinds(), [], 'refused: nothing told');
+    engine.expired = false;
+    const form = dom.window.document.querySelector<HTMLFormElement>('.dc-alert-signin');
+    assert.ok(form, 'the cube offers to sign in again');
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'region', direction: 'asc' }], 'run again: the sort landed');
+    assert.deepEqual(told, [{ kind: 'sorts', sorts: [{ column: 'region', direction: 'asc' }] }], 'and its command is told, as the sort it was');
   });
 });

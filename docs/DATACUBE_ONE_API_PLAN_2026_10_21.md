@@ -140,8 +140,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   pins that neither the owner nor the controller is handed out again
 - [ ] **G12** grid undo / redo → N2 restore write — S4, L9 (closed in S4: its L1 entries become item-less N2 entries, held by
   L9's test that a stale restore is refused)
-- [ ] **G13** an edit retried after signing in again → its commands kept and told — S1, L1 (a retry stays a retry: S1 closes
-  it by a behavioural test written first)
+- [x] **G13** an edit retried after signing in again → its commands kept and told — closed S1: a refused change's
+  commands are kept (app.ts `#refusedCommands`) and told when it is run again and lands (cube-transactions.test.ts)
 - [x] **G14** a grid made while the page bar is folded → `showTitleBar` in the `addGrid` document — closed S0: not a gap (the
   `addGrid` document carries the title bar as the grid was made; the gesture "a grid added while the page bar is folded"
   passes told, wire and replays)
@@ -149,10 +149,14 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   rule (cube-document.ts `freshConfiguration`, capped by `gridCapped`); L1 pins no second spelling
 
 ### Telling exactly what landed (audit §2, after the grid table; each a marker until S1 writes its failing behavioural test first)
-- [ ] **T1** a command refused on the committed state but kept on the pending one — S1, L2
-- [ ] **T2** a presentation command told before a running transaction's — S1, L2
-- [ ] **T3** a change made on top of an undo in flight — S1, L2
-- [ ] **T4** Python's commands and the user's mixed during a follow — S1, L2
+- [x] **T1** a command refused on the committed state but kept on the pending one — closed S1: judged on the state on
+  screen; one the committed state cannot take is told after the change in flight lands (cube-transactions.test.ts)
+- [x] **T2** a presentation command told before a running transaction's — closed S1: told at once (the committed
+  state's own transition) and again after the transaction's when it commits, the order that state took them in
+- [x] **T3** a change made on top of an undo in flight — closed S1: the owner's `committed` says `moved`; a transition
+  an undo or a redo is part of tells no command, so the grid is written whole (G12's named exception)
+- [x] **T4** Python's commands and the user's mixed during a follow — closed S1: another editor's commands
+  (applyGridCommands) never enter what is told; the person's are told as they land
 
 ### Commands the host cannot read (audit §4)
 - [x] **C1** window, child-aggregate and explode columns in the `calculate` JSON reader and writer — S1, L3 (closed S1:

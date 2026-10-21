@@ -527,11 +527,14 @@ export class CubeApp {
   #middle: HTMLElement | null = null;
   #newColumns = 0;
   /** The grid commands being applied, while the owner takes their change (#applyCommands): whether an event of the
-   *  owner's took them. */
-  #applying: { readonly commands: readonly GridCommand[]; taken: boolean } | null = null;
+   *  owner's took them, and whether the committed state could (a presentation change laid over it: T1). */
+  #applying: { readonly commands: readonly GridCommand[]; taken: boolean; onCommitted: boolean } | null = null;
   /** Grid commands in the change in flight, not yet in a committed state: told when it commits, dropped when it is
    *  refused or cancelled (#followCommands). */
   #untold: GridCommand[] = [];
+  /** The commands of the change last refused, until another starts: told when it is run again (signed in again: the
+   *  owner's retryRefused) and lands (G13). */
+  #refusedCommands: GridCommand[] = [];
   /** Alerts are many and untitled, so each gets its own window key. */
   #alerts = 0;
   /**
@@ -979,7 +982,7 @@ export class CubeApp {
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
   async applyGridCommands(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, false);
+    const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, 'theirs');
     const why = refused ?? refusal(outcome);
     // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
     // take it back unseen)
@@ -988,12 +991,18 @@ export class CubeApp {
   }
 
   /** #apply's change, `then` its tree (the Properties window's settings move it: #applyDraft), and how it ended: a
-   *  refusal of the commands in their words, or the change's outcome. */
+   *  refusal of the commands in their words, or the change's outcome. `by`: the screen's own edit -- a step of its
+   *  history, its commands told -- or another editor's (Python's: applyGridCommands), which is neither: its commands
+   *  are that editor's own already, never told back to it (T4). */
   async #applyCommands(commands: readonly GridCommand[], label: string,
-    then: (s: CubeState) => CubeState = (s) => s, record = true): Promise<{ refused: string | null; outcome: Outcome }> {
+    then: (s: CubeState) => CubeState = (s) => s, by: 'mine' | 'theirs' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
-    const applying = { commands, taken: false };
+    // judged on the state the person sees (the change in flight's, else the committed one): a presentation change is
+    // laid over the committed state too, and one that state cannot take (a setting of the column the change in flight
+    // adds) is no refusal -- it waits for that change, told after it (T1)
+    const applying = { commands: by === 'mine' ? commands : [], taken: false, onCommitted: true };
     this.#applying = applying;
+    const seen = this.#owner.current;
     let out: Promise<Outcome>;
     try {
       out = this.#change((s) => {
@@ -1002,10 +1011,11 @@ export class CubeApp {
           return then({ snapshot: d.snapshot, configuration: d.config, tree: d.tree });
         } catch (e) {
           if (!(e instanceof CubeRefusal)) throw e;
-          refused = e.message;
+          if (s === seen) refused = e.message;
+          else if (s === this.#owner.committed) applying.onCommitted = false;
           return s;
         }
-      }, { label, record });
+      }, { label, record: by === 'mine' });
     } finally {
       this.#applying = null;
     }
@@ -1022,30 +1032,40 @@ export class CubeApp {
   }
 
   /**
-   * THE COMMANDS A HOST IS TOLD, AS THE CUBE KEEPS THEM (onCommand): the owner's events say what became of a change.
-   * The ones being applied join the change in flight (pending) or are kept at once (a presentation change, laid over the
-   * committed state too; a deferred one, committed with what was in flight); the change in flight's are kept when it
-   * commits, and dropped when it is refused or cancelled (an undo while it runs) -- with every change it carried.
+   * THE COMMANDS A HOST IS TOLD, AS THE CUBE KEEPS THEM (onCommand): the commands of each transition of the committed
+   * state, in the order it took them (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md T1-T4). The ones being applied join the
+   * change in flight (pending) or are kept at once (a presentation change laid over the committed state; a deferred
+   * one, committed with what was in flight). A presentation change laid over a change in flight too is told again after
+   * that change's commands when it commits -- the committed state then takes them in that order -- and one the
+   * committed state could not take is told only then. A change in flight's commands are told when it commits, but for
+   * a transition an undo or a redo is part of (a change made on top of one), which no command says: none is told, and
+   * the grid is written whole. Refused, they are kept for the change run again (signed in again); cancelled, dropped.
    */
   #followCommands(event: OwnerEvent): void {
     const applying = this.#applying;
     if (applying) applying.taken = event.kind === 'pending' || event.kind === 'presentation' || event.kind === 'deferred';
     switch (event.kind) {
       case 'pending':
+        this.#refusedCommands = [];
         if (applying) this.#untold.push(...applying.commands);
         return;
       case 'presentation':
-        if (applying) this.#tell(applying.commands);
+        if (!applying) return;
+        if (applying.onCommitted) this.#tell(applying.commands);
+        if (this.#owner.busy) this.#untold.push(...applying.commands);
         return;
       case 'deferred':
         this.#tell([...this.#untold, ...(applying?.commands ?? [])]);
         this.#untold = [];
         return;
       case 'committed':
-        this.#tell(this.#untold);
+        if (!event.moved) this.#tell(this.#untold);
         this.#untold = [];
         return;
       case 'refused':
+        this.#refusedCommands = this.#untold;
+        this.#untold = [];
+        return;
       case 'cancelled':
         this.#untold = [];
         return;
@@ -3514,7 +3534,11 @@ export class CubeApp {
         this.#status(`signed in again as ${expired.principal}`, 'ok');
         // what failed runs again: the view (going live, or the refused change) and every chart
         if (this.#controller.snaps.isSnapped) this.#planeToggle?.();
-        else void this.#owner.retryRefused();
+        else {
+          // the refused change run again as it was asked for: its commands told when it lands (G13)
+          this.#untold = this.#refusedCommands;
+          void this.#owner.retryRefused();
+        }
         this.#page?.page.refresh();
       },
     };

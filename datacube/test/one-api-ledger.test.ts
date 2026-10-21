@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 10, L1_PLANE: 4, L1_HOST: 12,
-  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 22, UNCHECKED: 7,
+  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 18, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -63,8 +63,9 @@ const L1_GRID: Record<string, Entry> = {
   '#applyCommands:#change': { items: [], why: 'the command path: applyGridCommands, told by onCommand' },
   '#undo:#owner.undo': { items: ['G12'], why: 'N2: undo writes the page whole, as a restore' },
   '#redo:#owner.redo': { items: ['G12'], why: 'N2' },
-  // a retry stays a retry when fixed (its refused change's commands kept and told): S1 closes it by a behavioural test
-  'submit:#owner.retryRefused': { items: ['G13'] },
+  // a retry stays a retry: the refused change run again, its commands kept and told when it lands
+  // (cube-transactions.test.ts G13)
+  'submit:#owner.retryRefused': { items: [], why: "the refused change run again: its commands told (#refusedCommands)" },
 };
 
 /** Every call of the command path, by where it is made: the ones with a change of their own beside the commands. */
@@ -77,7 +78,7 @@ const L1_THEN: Record<string, Entry> = {
 /** The allowed calls' exact text: a change beside the commands added there is a new gap, not a quiet edit. */
 const THEN_TEXT: Record<string, string> = {
   '#apply:#applyCommands': 'const { refused, outcome } = await this.#applyCommands(commands, label);',
-  'applyGridCommands:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, false);",
+  'applyGridCommands:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, 'theirs');",
 };
 
 /** The grid's public ways in that change its state or copies, called from anywhere in the app but the grid itself. */
@@ -355,10 +356,6 @@ interface Marker {
 const MARKERS: readonly Marker[] = [
   // the grid
   // telling exactly what landed: placeholders until S1 writes each one's failing behavioural test first
-  { file: 'src/state-owner.ts', text: 'state: this.#rules.fold(update(pending.state)),', items: ['T1'] },
-  { file: 'src/app.ts', text: "case 'presentation':\n        if (applying) this.#tell(applying.commands);", items: ['T2'] },
-  { file: 'src/state-owner.ts', text: 'const carriedMove = carried?.move ? { ...carried.move, on: carried.move.on ?? carried.state } : undefined;', items: ['T3'] },
-  { file: 'src/app.ts', text: 'if (applying) this.#untold.push(...applying.commands);', items: ['T4'] },
   // the page
   { file: 'src/page/page-app.ts', text: "#move(way: 'undo' | 'redo'): void {", items: ['P5'] },
   { file: 'src/ui/chart-panel.ts', text: 'this.#options.onSpec?.();\n    if (redrawForm) this.#paintForm();\n    this.refresh();', items: ['P6'] },

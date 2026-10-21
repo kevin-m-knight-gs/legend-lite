@@ -64,7 +64,8 @@ export interface ChangeOptions {
 
 export type StateEvent<V> =
   | { readonly kind: 'pending' }
-  | { readonly kind: 'committed'; readonly view: V }
+  /** `moved`: an undo or a redo landed with it (a change made on top of one in flight lands the move too). */
+  | { readonly kind: 'committed'; readonly view: V; readonly moved: boolean }
   /** Committed WITHOUT a query (`StateRules.defer`): the view on screen is the old state's. */
   | { readonly kind: 'deferred' }
   | { readonly kind: 'presentation' }
@@ -458,7 +459,7 @@ export class StateOwner<S, V> {
     this.#land(landed, pending.move, pending.record);
     this.#view = view;
     this.#pending = null;
-    this.#emit({ kind: 'committed', view });
+    this.#emit({ kind: 'committed', view, moved: pending.move !== undefined });
     return { kind: 'applied', view };
   }
 

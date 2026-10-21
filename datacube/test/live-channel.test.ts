@@ -329,7 +329,7 @@ describe('a real page and its keeper', () => {
     keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
 
     // edits on screen: a grid regrouped (as its own edits are applied), a grid added to the page
-    assert.equal(await cubes.get(a)!.applyGridCommands([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+    assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
     const added = page.addGrid(over('more.csv'));
     await settle();
     await written(channel);
