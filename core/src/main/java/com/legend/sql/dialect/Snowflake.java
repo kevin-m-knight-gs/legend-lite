@@ -1783,15 +1783,14 @@ public final class Snowflake extends AnsiSqlRenderer {
      * own cast writes ten significant digits ({@code EXP(1)} '2.718281828'; 22 PCT tests passing at the merge-base
      * failed on the plan route, which has the database print a Float). Measured on the lane, 2026-10-21: the formatter
      * caps a double at sixteen digits and is not correctly rounded at seventeen even from an exact decimal
-     * (1948878528.8944077 as ...078, a tie half up; 29 of 1,837 doubles wrong); its {@code =} and TO_DOUBLE are exact;
-     * and {@code CAST(x AS DECFLOAT)} is the double's exact value to 38 digits at every magnitude. So the digits come
-     * from that exact decimal ({@link #shortestDigits}), and the text is those digits placed by their exponent. NaN and
-     * the infinities are Snowflake's own. A subnormal double's digits are its 15-digit rounding where Java's are fewer
-     * (4.94065645841247e-324 for 4.9E-324): the same value, spelled longer.
+     * (1948878528.8944077 as ...078, a tie half up; 29 of 1,837 doubles wrong); its {@code =} and TO_DOUBLE are exact.
+     * So the digits come from the double's exact decimal ({@link #shortestDigits}), and the text is those digits placed
+     * by their exponent. NaN and the infinities are Snowflake's own. A subnormal double's digits are its 15-digit
+     * rounding where Java's are fewer (4.94065645841247e-324 for 4.9E-324): the same value, spelled longer.
      */
     private SqlWriter floatText(SqlWriter writer, SqlExpr v) {
         return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
-                + " AS VARCHAR) WHEN " + d.digits() + " = '' THEN '0.0' WHEN " + d.exponent() + " BETWEEN -4 AND 15 THEN "
+                + " AS VARCHAR) WHEN " + d.value() + " = 0 THEN '0.0' WHEN " + d.exponent() + " BETWEEN -4 AND 15 THEN "
                 + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH("
                 + d.digits() + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent()
                 + ") END"));
@@ -1806,7 +1805,7 @@ public final class Snowflake extends AnsiSqlRenderer {
      */
     private SqlWriter floatCanon(SqlWriter writer, SqlExpr v) {
         return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
-                + " AS VARCHAR) || '.0' WHEN " + d.digits() + " = '' THEN '0.0' ELSE " + d.sign() + " || " + d.unfolded()
+                + " AS VARCHAR) || '.0' WHEN " + d.value() + " = 0 THEN '0.0' ELSE " + d.sign() + " || " + d.unfolded()
                 + " END"));
     }
 
@@ -1824,22 +1823,34 @@ public final class Snowflake extends AnsiSqlRenderer {
     }
 
     /**
-     * {@code result} over a Float's shortest digits. The value's exact DECFLOAT is taken where the value is written, as
-     * text ({@code 'd'}; cast from 0 for NaN and the infinities): a double carried in an OBJECT and cast to a DECFLOAT
-     * there is not the double's exact value (a 17th digit one off either way, 21 of 1,945 doubles on the lane at
-     * bfc4213e). Each step after is a one-element TRANSFORM whose OBJECT carries what the next reads (a lambda reads no
-     * enclosing lambda's parameter, and Snowflake refuses a correlated subquery): that decimal's exponent, read off its
-     * text, and its mantissa, the decimal times a power of ten, as an exact {@code NUMBER(38, 37)}'s text; the
-     * shortest of that mantissa's 15-, 16- and 17-digit roundings that TRY_TO_DOUBLE reads back as the decimal does (a
-     * double's shortest digits are at most 17, and at 15 or fewer they are its 15-digit rounding, for every normal
-     * double; a tie rounds to the even digit, as Java breaks one); then its digits, and their exponent, one more where
-     * the rounding carried to ten.
+     * {@code result} over a Float's shortest digits, the value written once. Each step is a one-element TRANSFORM whose
+     * OBJECT carries what the next reads (a lambda reads no enclosing lambda's parameter, and Snowflake refuses a
+     * correlated subquery). First the double's exact decimal, as text ({@code 'd'}): a double's cast to a DECFLOAT is
+     * exact only where a constant folds, and at run time an 18-digit rounding (1948878528.89440775 for
+     * 1948878528.894407749176025390625), and its cast to a NUMBER is exact at the NUMBER's scale (measured on the lane
+     * 2026-10-21). So the double is scaled by a power of two (exact) into [2^29, 2^30), where its binary fraction has
+     * at most 25 places, read as an exact NUMBER(38, 28), and multiplied back by that power as a DECFLOAT: exact
+     * wherever the digits can sit on a tie (2^-k has at most 38 digits for k up to 54), correctly rounded to 38 digits
+     * elsewhere. NaN, the infinities and zero are decided on the value (a stand-in of 1 is scaled for them). Then that
+     * decimal's exponent, read off its text, and its mantissa, the decimal times a power of ten, as an exact
+     * {@code NUMBER(38, 37)}'s text; the shortest of that mantissa's 15-, 16- and 17-digit roundings that TRY_TO_DOUBLE
+     * reads back as the decimal does (a double's shortest digits are at most 17, and at 15 or fewer they are its
+     * 15-digit rounding, for every normal double; a tie rounds to the even digit, as Java breaks one); then its digits,
+     * and their exponent, one more where the rounding carried to ten.
      */
     private SqlWriter.Piece shortestDigits(SqlExpr v, java.util.function.Function<Digits, String> result) {
+        String z = delimited(freshName("f"));
         String a = delimited(freshName("f"));
         String b = delimited(freshName("f"));
         String c = delimited(freshName("f"));
         String d = delimited(freshName("f"));
+        String value = fieldOf(z, "v", "DOUBLE");
+        String stand = "IFF(ABS(" + value + ") >= 'inf'::FLOAT OR " + value + " = 0, CAST(1 AS DOUBLE), " + value + ")";
+        String k = "(29 - FLOOR(LOG(2, ABS(" + stand + "))))";
+        String scaled = stand + " * POWER(CAST(2 AS DOUBLE), FLOOR(" + k + " / 2)) * POWER(CAST(2 AS DOUBLE), " + k
+                + " - FLOOR(" + k + " / 2))";
+        String decimal = "TO_VARCHAR(CAST(CAST(" + scaled + " AS NUMBER(38, 28)) AS DECFLOAT) * POWER(CAST(2 AS DECFLOAT), -"
+                + k + "))";
         String exact = fieldOf(a, "d", "VARCHAR");
         String exponent = "CASE WHEN CAST(" + exact + " AS DECFLOAT) = 0 THEN 0 ELSE " + exponentOf("LTRIM(" + exact + ", '-')")
                 + " END";
@@ -1864,9 +1875,9 @@ public final class Snowflake extends AnsiSqlRenderer {
                 last);
         String first = step(b, "'v', " + fieldOf(a, "v", "DOUBLE") + ", 'd', " + exact + ", 'e', " + exponent + ", 'm', "
                 + mantissa, second);
+        String bound = step(a, "'v', " + value + ", 'd', " + decimal, first);
         return w -> w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', ").expr(v, 0)
-                .append(", 'd', TO_VARCHAR(CAST(IFF(ABS(").expr(v, 0).append(") >= 'inf'::FLOAT, 0, ").expr(v, 0)
-                .append(") AS DECFLOAT)))), " + a + " OBJECT -> " + first + "), 0) AS VARCHAR)");
+                .append(")), " + z + " OBJECT -> " + bound + "), 0) AS VARCHAR)");
     }
 
     /** One step of {@link #shortestDigits}: {@code body} over the OBJECT of {@code fields}, bound as {@code param}. */
