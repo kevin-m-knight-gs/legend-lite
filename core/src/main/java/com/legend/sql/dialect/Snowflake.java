@@ -1776,74 +1776,111 @@ public final class Snowflake extends AnsiSqlRenderer {
      * A Float's text as DuckDB's cast writes it: the shortest digits that read back as the same double (Java's rule),
      * plain where the exponent is from -4 to 15 with an integral value's {@code .0}, else with its exponent. Snowflake's
      * own cast writes ten significant digits ({@code EXP(1)} '2.718281828'; 22 PCT tests passing at the merge-base
-     * failed on the plan route, which has the database print a Float). Measured on the lane, 2026-10-21: its formatter
-     * caps a double at sixteen digits ('FM9.9999999999999999EE' wrote -2786082219775324.5 as -2.786082219775325E15),
-     * its {@code =} and TO_DOUBLE are exact, and {@code CAST(x AS DECFLOAT)} is the double's exact value to 38 digits at
-     * every magnitude (4.9e-324 and 1.797...e308 included). So the 15-, 16- and 17-digit spellings of that exact
-     * decimal are each read back and the first that is the value is taken (TRY_TO_DOUBLE: a spelling rounded past the
-     * double range reads as infinity, never the value); the plain form is that text read as an exact NUMBER, its
-     * trailing zeros dropped. NaN and the infinities are Snowflake's own; the DECFLOAT is cast from a finite stand-in
-     * for them, since a CASE's branches may all be evaluated (a 15-digit spelling of 1e16 was cast to a NUMBER that
-     * could not hold it, in a branch its row did not take, measured).
+     * failed on the plan route, which has the database print a Float). Measured on the lane, 2026-10-21: the formatter
+     * caps a double at sixteen digits and is not correctly rounded at seventeen even from an exact decimal
+     * (1948878528.8944077 as ...078, a tie half up; 29 of 1,837 doubles wrong); its {@code =} and TO_DOUBLE are exact;
+     * and {@code CAST(x AS DECFLOAT)} is the double's exact value to 38 digits at every magnitude. So the digits come
+     * from that exact decimal ({@link #shortestDigits}), and the text is those digits placed by their exponent. NaN and
+     * the infinities are Snowflake's own.
      */
     private SqlWriter floatText(SqlWriter writer, SqlExpr v) {
-        SqlWriter.Piece x = w -> w.expr(v, 0);
-        return writer.append("CASE WHEN ").piece(nonFinite(x)).append(" THEN CAST(").piece(x).append(" AS VARCHAR) WHEN ")
-                .piece(plainRange(x)).append(" THEN ").piece(plainFloat(x)).append(" ELSE REPLACE(LOWER(")
-                .piece(shortestFloat(x)).append("), '.e', 'e') END");
+        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
+                + " AS VARCHAR) WHEN " + d.value() + " = 0 THEN '0.0' WHEN ABS(" + d.value() + ") >= 1E-4 AND ABS("
+                + d.value() + ") < 1E16 THEN " + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT("
+                + d.digits() + ", 1) || IFF(LENGTH(" + d.digits() + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || "
+                + "TO_VARCHAR(" + d.exponent() + ") END"));
     }
 
     /**
      * Pure's literal spelling of a Float ({@link SqlFn#FLOAT_CANON}), spelled here: {@link #floatText}'s digits, every
-     * zero {@code 0.0}, fixed point at every exponent (the shortest spelling's digits shifted by its exponent as text).
-     * The portable spelling reads the double's text some fifty times, and this dialect's text is an expression of its
-     * own: channel B's standard suite took 57 minutes on the lane at a76cffee (2026-10-21), as MariaDB's five-element
-     * list was 545 KB of SQL before it spelled the call itself.
+     * zero {@code 0.0}, placed by their exponent at every magnitude. The portable spelling reads the double's text some
+     * fifty times, and this dialect's text is an expression of its own: channel B's standard suite took 57 minutes on
+     * the lane at a76cffee (2026-10-21).
      */
     private SqlWriter floatCanon(SqlWriter writer, SqlExpr v) {
-        SqlWriter.Piece x = w -> w.expr(v, 0);
-        SqlWriter.Piece t = shortestFloat(x);
-        SqlWriter.Piece exponent = w -> w.append("TO_NUMBER(SPLIT_PART(").piece(t).append(", 'E', 2))");
-        SqlWriter.Piece digits = w -> w.append("RTRIM(REPLACE(REPLACE(SPLIT_PART(").piece(t)
-                .append(", 'E', 1), '-', ''), '.', ''), '0')");
-        return writer.append("CASE WHEN ").piece(nonFinite(x)).append(" THEN CAST(").piece(x)
-                .append(" AS VARCHAR) || '.0' WHEN ").piece(x).append(" = 0 THEN '0.0' WHEN ").piece(plainRange(x))
-                .append(" THEN ").piece(plainFloat(x)).append(" ELSE IFF(").piece(x).append(" < 0, '-', '') || IFF(")
-                .piece(exponent).append(" >= 0, RPAD(").piece(digits).append(", ").piece(exponent)
-                .append(" + 1, '0') || '.0', '0.' || REPEAT('0', -").piece(exponent).append(" - 1) || ").piece(digits)
-                .append(") END");
+        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
+                + " AS VARCHAR) || '.0' WHEN " + d.value() + " = 0 THEN '0.0' ELSE " + d.sign() + " || " + d.unfolded()
+                + " END"));
     }
 
-    private static SqlWriter.Piece nonFinite(SqlWriter.Piece x) {
-        return w -> w.piece(x).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT)");
+    /** A Float's shortest digits as {@link #shortestDigits} reads them: the value, its significant digits (no sign, no
+     *  point, no trailing zero) and the exponent of the first. */
+    private record Digits(String value, String digits, String exponent) {
+        String sign() {
+            return "IFF(" + value + " < 0, '-', '')";
+        }
+
+        /** The digits placed by their exponent, unsigned: {@code 123.456}, {@code 1500.0}, {@code 0.00025} (each count
+         *  kept from going negative, since a CASE's branches may all be evaluated). */
+        String unfolded() {
+            return "CASE WHEN " + exponent + " >= 0 THEN RPAD(" + digits + ", " + exponent + " + 1, '0') || '.' || IFF(LENGTH("
+                    + digits + ") > " + exponent + " + 1, SUBSTR(" + digits + ", GREATEST(" + exponent + " + 2, 1)), '0')"
+                    + " ELSE '0.' || REPEAT('0', GREATEST(-" + exponent + " - 1, 0)) || " + digits + " END";
+        }
     }
 
-    /** Where a Float's text is plain: zero, or an exponent from -4 to 15. */
-    private static SqlWriter.Piece plainRange(SqlWriter.Piece x) {
-        return w -> w.piece(x).append(" = 0 OR (ABS(").piece(x).append(") >= 1E-4 AND ABS(").piece(x).append(") < 1E16)");
+    /**
+     * {@code result} over a Float's shortest digits, the value written once. Each step is a one-element TRANSFORM
+     * whose OBJECT carries what the next reads (a lambda reads no enclosing lambda's parameter, and Snowflake refuses a
+     * correlated subquery, the binding SQL otherwise has): the value; that value's exact DECFLOAT's exponent, read off
+     * its text (cast from 0 for NaN and the infinities); its mantissa, the decimal times a power of ten, as an exact
+     * {@code NUMBER(38, 37)}'s text; the shortest of that mantissa's 15-, 16- and 17-digit roundings that TRY_TO_DOUBLE
+     * reads back as the value (a double's shortest digits are at most 17, and at 15 or fewer they are its 15-digit
+     * rounding; a tie rounds to the even digit, as Java breaks one); then its digits, and their exponent, one more
+     * where the rounding carried to ten.
+     */
+    private SqlWriter.Piece shortestDigits(SqlExpr v, java.util.function.Function<Digits, String> result) {
+        String a = delimited(freshName("f"));
+        String b = delimited(freshName("f"));
+        String c = delimited(freshName("f"));
+        String d = delimited(freshName("f"));
+        String e = delimited(freshName("f"));
+        String exact = "CAST(IFF(ABS(" + fieldOf(a, "v", "DOUBLE") + ") < 'inf'::FLOAT, " + fieldOf(a, "v", "DOUBLE")
+                + ", 0) AS DECFLOAT)";
+        String exponent = "CASE WHEN " + exact + " = 0 THEN 0 ELSE " + exponentOf("TO_VARCHAR(ABS(" + exact + "))") + " END";
+        String mantissa = "TO_VARCHAR(CAST(CAST(IFF(ABS(" + fieldOf(b, "v", "DOUBLE") + ") < 'inf'::FLOAT, "
+                + fieldOf(b, "v", "DOUBLE") + ", 0) AS DECFLOAT) * CAST('1e' || TO_VARCHAR(-" + fieldOf(b, "e", "INTEGER")
+                + ") AS DECFLOAT) AS NUMBER(38, 37)))";
+        StringBuilder rounded = new StringBuilder("CASE");
+        for (int places = 14; places <= 15; places++) {
+            String round = "ROUND(CAST(" + fieldOf(c, "m", "VARCHAR") + " AS NUMBER(38, 37)), " + places + ", 'HALF_TO_EVEN')";
+            rounded.append(" WHEN TRY_TO_DOUBLE(TO_VARCHAR(").append(round).append(") || 'e' || TO_VARCHAR(")
+                    .append(fieldOf(c, "e", "INTEGER")).append(")) = ").append(fieldOf(c, "v", "DOUBLE")).append(" THEN ")
+                    .append(round);
+        }
+        rounded.append(" ELSE ROUND(CAST(").append(fieldOf(c, "m", "VARCHAR")).append(" AS NUMBER(38, 37)), 16, 'HALF_TO_EVEN')")
+                .append(" END");
+        String shortest = fieldOf(d, "t", "VARCHAR");
+        String last = step(e, "'v', " + fieldOf(d, "v", "DOUBLE") + ", 'g', RTRIM(REPLACE(" + shortest + ", '.', ''), '0'),"
+                + " 'x', " + fieldOf(d, "e", "INTEGER") + " + LENGTH(SPLIT_PART(" + shortest + ", '.', 1)) - 1",
+                result.apply(new Digits(fieldOf(e, "v", "DOUBLE"), fieldOf(e, "g", "VARCHAR"), fieldOf(e, "x", "INTEGER"))));
+        String third = step(d, "'v', " + fieldOf(c, "v", "DOUBLE") + ", 'e', " + fieldOf(c, "e", "INTEGER") + ", 't', LTRIM("
+                + "TO_VARCHAR(" + rounded + "), '-')", last);
+        String second = step(c, "'v', " + fieldOf(b, "v", "DOUBLE") + ", 'e', " + fieldOf(b, "e", "INTEGER") + ", 'm', "
+                + mantissa, third);
+        String first = step(b, "'v', " + fieldOf(a, "v", "DOUBLE") + ", 'e', " + exponent, second);
+        return w -> w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', ").expr(v, 0)
+                .append(")), " + a + " OBJECT -> " + first + "), 0) AS VARCHAR)");
     }
 
-    /** The shortest spelling read as an exact NUMBER, its trailing zeros dropped, an integral value's {@code .0} kept
-     *  (cast from '0' outside the plain range, since a CASE's branches may all be evaluated). */
-    private SqlWriter.Piece plainFloat(SqlWriter.Piece x) {
-        return w -> w.append("REGEXP_REPLACE(REGEXP_REPLACE(TO_VARCHAR(CAST(IFF(").piece(plainRange(x)).append(", ")
-                .piece(shortestFloat(x)).append(", '0') AS NUMBER(38, 21))), '0+$', ''), '\\\\.$', '.0')");
+    /** One step of {@link #shortestDigits}: {@code body} over the OBJECT of {@code fields}, bound as {@code param}. */
+    private static String step(String param, String fields, String body) {
+        return "GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL(" + fields + ")), " + param + " OBJECT -> " + body
+                + "), 0)";
     }
 
-    /** The first of the exact DECFLOAT's 15-, 16- and 17-digit spellings ({@code 'FM9.99...EE'}, a mantissa and
-     *  {@code E} and its exponent) that TRY_TO_DOUBLE reads back as the value. */
-    private static SqlWriter.Piece shortestFloat(SqlWriter.Piece x) {
-        SqlWriter.Piece exact = w -> w.append("CAST(IFF(ABS(").piece(x).append(") < 'inf'::FLOAT, ").piece(x)
-                .append(", 0) AS DECFLOAT)");
-        return w -> {
-            w.append("CASE");
-            for (int digits = 15; digits <= 16; digits++) {
-                String format = "'FM9." + "9".repeat(digits - 1) + "EE'";
-                w.append(" WHEN TRY_TO_DOUBLE(TO_VARCHAR(").piece(exact).append(", " + format + ")) = ").piece(x)
-                        .append(" THEN TO_VARCHAR(").piece(exact).append(", " + format + ")");
-            }
-            w.append(" ELSE TO_VARCHAR(").piece(exact).append(", 'FM9." + "9".repeat(16) + "EE') END");
-        };
+    /** The decimal exponent of the first digit of a positive DECFLOAT's text: with an exponent
+     *  ({@code '3.0000000000000004440892098500626161695e-1'}), plain ({@code '2786082219775324.5'}), or plain below one
+     *  ({@code '0.5'}). */
+    private static String exponentOf(String text) {
+        return "CASE WHEN CONTAINS(" + text + ", 'e') THEN TO_NUMBER(SPLIT_PART(" + text + ", 'e', 2)) + LENGTH(SPLIT_PART("
+                + "SPLIT_PART(" + text + ", 'e', 1), '.', 1)) - 1 WHEN SPLIT_PART(" + text + ", '.', 1) <> '0' THEN LENGTH("
+                + "SPLIT_PART(" + text + ", '.', 1)) - 1 ELSE -1 - LENGTH(REGEXP_SUBSTR(SPLIT_PART(" + text
+                + ", '.', 2), '^0*')) END";
+    }
+
+    private static String nonFinite(String x) {
+        return x + " IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT)";
     }
 
     /** A projection that IS error() raised in its column's type, as a CASE branch is: a bare raise is text, and a
