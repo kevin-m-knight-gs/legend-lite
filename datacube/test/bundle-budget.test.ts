@@ -244,8 +244,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  308,000 -> 314,500 (2026-10-21, step S3's core, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the board produced by the
  *  commands": the page now applies its own edits, so it carries page-commands.ts -- the page commands' rules, their
  *  reader, followedPage, cubeOpenedAgain -- where it fetched them with another editor's first command; the plan's S3
- *  bullet names this raise). Measured 314,140. */
-const BUDGET = 314_500;
+ *  bullet names this raise). Measured 314,140.
+ *  314,500 -> 315,500 (2026-10-21, step S3's audit round, the plan's F6-F17: a cube alone's board kept as its grid's own
+ *  changes land, its ids held across its lifetimes, a detached chart's Update told and its query read by sync, an editing
+ *  grid drawn in a band of its own, every grid's document said). Measured 314,975. */
+const BUDGET = 315_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -316,8 +319,9 @@ const BUDGET = 314_500;
  *  every path a cube changes, came in under the last raise). Measured 297,661.
  *  298,000 -> 304,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 304,314.
  *  304,500 -> 305,000 (2026-10-21, step S3's G8 and P7: a step's selection put back by its grid's own refilter, each
- *  sheet's layout as the page has it kept apart from the board's drawing). Measured 304,513. */
-const ENGINE_BUDGET = 305_000;
+ *  sheet's layout as the page has it kept apart from the board's drawing). Measured 304,513.
+ *  305,000 -> 305,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 305,177. */
+const ENGINE_BUDGET = 305_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -442,8 +446,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  Measured 315,233.
  *  315,500 -> 316,000 (2026-10-21, step S3's P14 and step S2's audit round: a stack and an arrangement told as their own
  *  commands, a selection judged when its filter moves -- the grid's note of the same date). Measured 315,526.
- *  316,000 -> 322,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 322,107. */
-const WIDGET_BUDGET = 322_500;
+ *  316,000 -> 322,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 322,107.
+ *  322,500 -> 323,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 322,960. */
+const WIDGET_BUDGET = 323_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
