@@ -585,6 +585,7 @@ export class PageApp {
     this.#page.dispose();
     this.#grids.clear();
     this.#gone.clear();
+    this.#unopened.clear();
     this.#filters = [];
     this.#lensKeys.clear();
     this.#page = this.#newBoard();
@@ -632,11 +633,36 @@ export class PageApp {
       if (!cube) return undefined;
       cubes.push({ id, cube });
     }
+    const views = this.views();
     return writePageOf({
-      name, cubes, views: this.views(), filters: this.#filters, copies: this.#copies(ids),
+      name, cubes: this.#withUnopened(cubes, views), views, filters: this.#filters, copies: this.#copies(ids),
       ...(unknown?.model ? { model: unknown.model } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
     });
+  }
+
+  /**
+   * THE CUBES IT COULD NOT OPEN (a saved page's whose source was not opened: P9), each as its page saved it -- written
+   * back while a view reads it, in its grid's place.
+   */
+  readonly #unopened = new Map<string, CubeDocument>();
+
+  /** Why a cube's views are kept unopened, or undefined: it is no cube the page could not open. */
+  #unopenedWhy(cube: string): string | undefined {
+    const doc = this.#unopened.get(cube);
+    return doc === undefined ? undefined
+      : `${doc.source.name} could not be opened: this tile is kept as the page saved it, to open when its source can be.`;
+  }
+
+  /** The page's cubes as it writes them: its grids', then those it could not open that a view still reads, each in
+   *  its grid's reading place (as page-commands.ts writes a page), the rest as they came. */
+  #withUnopened(cubes: readonly { id: string; cube: CubeDocument }[], views: PageViews): { id: string; cube: CubeDocument }[] {
+    if (this.#unopened.size === 0) return [...cubes];
+    const read = new Set(views.views.map((v) => v.cube));
+    const all = [...cubes, ...[...this.#unopened].filter(([id]) => read.has(id)).map(([id, cube]) => ({ id, cube }))];
+    const grids = views.views.filter((v) => v.kind === 'grid').map((v) => v.cube);
+    const place = (id: string): number => (grids.includes(id) ? grids.indexOf(id) : grids.length);
+    return all.map((c, i) => ({ c, i })).sort((x, y) => place(x.c.id) - place(y.c.id) || x.i - y.i).map((x) => x.c);
   }
 
   /** The copy each of `ids`' grids reads, by its cube (§18.8): the page's record of where its snapped grids' rows are. */
@@ -669,6 +695,7 @@ export class PageApp {
     this.#page.dispose();
     this.#grids.clear();
     this.#gone.clear();
+    this.#unopened.clear();
     // its filters first: each grid opens with them (a chart's click, by the views it will have)
     this.#filters = page.filters ?? [];
     this.#lensKeys.clear();
@@ -683,9 +710,15 @@ export class PageApp {
     const at = (id: string): number => (order.includes(id) ? order.indexOf(id) : order.length);
     const grids = page.views.filter((v) => v.kind === 'grid').sort((a, b) => at(a.id) - at(b.id));
     const tileOf = new Map<string, string>();
+    // a cube whose source was not opened is kept as the page saved it, its views in their places (P9)
+    for (const { id, cube } of page.cubes) if (!makers.has(id)) this.#unopened.set(id, cube);
     for (const view of grids) {
       const make = makers.get(view.cube);
-      if (!make || tileOf.has(view.cube)) continue;
+      if (tileOf.has(view.cube)) continue;
+      if (!make) {
+        this.#page.placeUnavailable(view, this.#unopenedWhy(view.cube)!);
+        continue;
+      }
       tileOf.set(view.cube, this.addGrid(make, { id: view.id, ...(view.title ? { title: view.title } : {}) }));
     }
     for (const { id } of page.cubes) {
@@ -693,7 +726,8 @@ export class PageApp {
       if (tileOf.has(id) || !make) continue;
       this.#page.keepGrid(id, this.#maker(make));
     }
-    this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined));
+    this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined),
+      (cube) => this.#unopenedWhy(cube));
     this.#restoring = undefined;
     // a click filter whose chart was left out (its grid's source not opened) goes with it
     this.#filters = filtersFor(this.#filters, this.views().views);
@@ -772,8 +806,9 @@ export class PageApp {
       const cube = this.grid(id)?.cubeDocument(this.#name);
       if (cube) cubes.push({ id, cube });
     }
+    const views = this.views();
     return {
-      page: writePageOf({ name: this.#name, cubes, views: this.views(), filters: this.#filters, copies: this.#copies(this.cubes) }),
+      page: writePageOf({ name: this.#name, cubes: this.#withUnopened(cubes, views), views, filters: this.#filters, copies: this.#copies(this.cubes) }),
       held: this.#page.held,
     };
   }
@@ -839,7 +874,7 @@ export class PageApp {
       this.#page.sync(views(to), views(from), (grid) => {
         const make = makers.get(grid);
         return this.#remake(grid) ?? (make ? this.#maker(make) : undefined);
-      });
+      }, (cube) => this.#unopenedWhy(cube));
     } finally {
       this.#syncing = false;
       this.#restoring = undefined;
@@ -873,7 +908,7 @@ export class PageApp {
     this.#restoring = step.draft.page.views;
     this.#syncing = true;
     try {
-      this.#page.sync(views(step.draft.page), views(from), (grid) => this.#remake(grid));
+      this.#page.sync(views(step.draft.page), views(from), (grid) => this.#remake(grid), (cube) => this.#unopenedWhy(cube));
     } finally {
       this.#syncing = false;
       this.#restoring = undefined;

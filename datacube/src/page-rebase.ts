@@ -71,6 +71,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'addChart':
       return { ...command, near: n(command.near) };
     case 'setChart':
+    case 'setChartCube':
     case 'select':
       return { ...command, chart: n(command.chart) };
     case 'moveTile':

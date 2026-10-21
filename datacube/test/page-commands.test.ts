@@ -136,6 +136,8 @@ describe('each command gives the page the screen\'s rules give it', () => {
     const none = apply({ kind: 'select', chart: 'chart', conditions: [] }, { page: selected, held: idsOf(selected) });
     assert.equal('selection' in view(none.page, 'chart')!, false);
     refused(() => apply({ kind: 'select', chart: 'grid', conditions: [] }), /'grid' is a grid, not a chart/);
+    // a chart's own query (P8): only a detached chart's; the cube it read before let go when nothing reads it
+    refused(() => apply({ kind: 'setChartCube', chart: 'chart', document: trades.cubes[0]!.cube }), /reads its grid/);
   });
 
   it("the page's name is each cube's too (writePageOf's rule), written by no rule of its own", () => {
@@ -227,6 +229,7 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addGrid', id: 'grid-3', document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: 'grid', title: null, columns: 2 },
     { kind: 'addChart', near: 'grid', spec, title: 'T', columns: null },
     { kind: 'setChart', chart: 'chart', spec },
+    { kind: 'setChartCube', chart: 'chart', document: trades.cubes[0]!.cube },
     { kind: 'select', chart: 'chart', conditions: [{ kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }] },
     { kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null },
     { kind: 'stack', tiles: ['grid', 'chart'] },

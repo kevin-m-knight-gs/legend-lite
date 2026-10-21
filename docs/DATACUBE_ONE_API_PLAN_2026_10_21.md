@@ -172,8 +172,13 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **P6** chart options told before the chart re-follows → falls out of S2 — S2, L2 L7
 - [ ] **P7** Open in grid resets the chart's band shares after a resize → an editor tile never touches the saved layout — S3,
   marker (jsdom drags no resize; opening an editing grid on even shares writes nothing, a gesture checks that)
-- [ ] **P8** Update a detached chart from its editing grid → `setChartCube` — S1, L2
-- [ ] **P9** restore drops views it cannot open → kept in the document as unavailable tiles, never dropped — S1, L2
+- [x] **P8** Update a detached chart from its editing grid → `setChartCube` — closed S1: `setChartCube {chart, document}`
+  (the chart reads `<chart>-query`, the cube it read before let go when unread), told with its setChart as one step; the
+  gesture "a detached chart updated from its editing grid" is told, read, replays; Python's is K11 (S6)
+- [x] **P9** restore drops views it cannot open → kept in the document as unavailable tiles, never dropped — closed S1:
+  a cube whose source was not opened is kept as saved (page-app `#unopened`), its views placeholder tiles that say why
+  (cube-page `placeUnavailable`), written back in their places; removed as removeTile removes a view, undone back
+  (one-api-gestures.test.ts P9)
 - [ ] **P10** Open…, in place, Blank Page on a served page → a new page (D1) — S4
 - [ ] **P11** the tab reopens cubes over frames as they are now → `rebuilt {cube, document}` page command made by one
   side (with Y2) — S1, L2 L7

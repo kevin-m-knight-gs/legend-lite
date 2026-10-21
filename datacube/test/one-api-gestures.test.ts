@@ -26,7 +26,7 @@ import { configurationOf, treeOf, writeCube, type FileSource } from '../src/cube
 import { applyGridCommands, GRID_COMMAND_KINDS, readGridCommand } from '../src/grid-commands.ts';
 import { LiveChannel } from '../src/app/live-channel.ts';
 import type { LiveCommand, LivePage } from '../src/app/services.ts';
-import { idsOf, PAGE_COMMAND_KINDS, readPageCommand } from '../src/page-commands.ts';
+import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS, readPageCommand } from '../src/page-commands.ts';
 import { pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
 import { rebaseEdits, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
@@ -643,7 +643,6 @@ interface Gap { readonly items: readonly string[]; readonly words?: RegExp; read
 /** Each gesture's checks that fail today, by the plan's items: the only failures allowed, until each is closed. */
 const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
   'a page edit undone': { told: { items: ['P5'] } },
-  'a detached chart updated from its editing grid': { told: { items: ['P8'] } },
   'a grid with a following chart ungrouped': { replays: { items: ['V1'], paths: ['views.2.spec.split'] } },
 };
 
@@ -722,15 +721,38 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
 });
 
 describe('P9: a saved page opened keeps what it cannot open', () => {
-  it('a view whose grid cannot be opened is dropped from the page -- P9 open', async () => {
-    const { a } = await twoGrids();
+  /** The page of two grids and a chart of the second, saved, opened again with only the first grid's source. */
+  const opened = async (): Promise<{ saved: PageDocument; a: string; b: string; chart: string }> => {
+    const { a, b } = await twoGrids();
+    const chart = await chartOf(b);
     const saved = readPage(pageToJson(onScreen()));
     page!.dispose();
     newPage();
-    // only the first grid's source can be opened: the second's maker is missing
     const kept = saved.views.find((v) => v.id === a) as { readonly cube: string };
     pg().restore(saved, new Map([[kept.cube, over('trades.csv')]]));
     await settle();
-    assert.ok(saved.views.length > onScreen().views.length, 'P9 open: the view it could not open is gone from the page');
+    return { saved, a, b, chart };
+  };
+
+  it('a view whose grid cannot be opened is kept in its place, saying why, and written back as saved', async () => {
+    const { saved, b } = await opened();
+    assert.match(tile(b).querySelector('.dc-tile-unavailable')?.textContent ?? '', /orders\.csv could not be opened/);
+    const now = onScreen();
+    assert.deepEqual([now.views, now.cubes, now.sheets], [saved.views, saved.cubes, saved.sheets],
+      'the page written is the page saved: nothing it could not open dropped');
+  });
+
+  it('a kept tile removed takes its view, its cube and its charts, as removeTile does; undone, it is back', async () => {
+    const { saved, b, chart } = await opened();
+    await removeTile(b);
+    const now = onScreen();
+    const replayed = applyPageCommand({ page: saved, held: idsOf(saved) }, { kind: 'removeTile', tile: b }).draft.page;
+    assert.deepEqual([now.views, now.cubes, now.sheets], [replayed.views, replayed.cubes, replayed.sheets],
+      'the screen and removeTile agree');
+    assert.equal(now.views.some((v) => v.id === chart), false, 'its following chart went with it');
+    pg().undo();
+    await settle();
+    const back = onScreen();
+    assert.deepEqual([back.views, back.cubes], [saved.views, saved.cubes], 'undone: kept again, as saved');
   });
 });

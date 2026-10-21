@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 13, L1_PLANE: 4, L1_HOST: 14,
-  L8_KINDS: 12, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 25, UNCHECKED: 7,
+  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 23, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -225,6 +225,9 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   // selection is K7's (S6), so both kinds come in listed (L8_KINDS 13 -> 15)
   select: { python: { items: ['K7'] } },
   refilter: { python: { items: ['K7'] } },
+  // 2026-10-21, One API S1 P8: a detached chart's Update tells its query as setChartCube -- Python's Open in grid and
+  // Update are K11's (S6), so the kind comes in listed (L8_KINDS 12 -> 13)
+  setChartCube: { python: { items: ['K11'] } },
   removePageFilter: { python: { items: ['K7'] } },
 };
 
@@ -365,8 +368,6 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/page/page-app.ts', text: "#move(way: 'undo' | 'redo'): void {", items: ['P5'] },
   { file: 'src/ui/chart-panel.ts', text: 'this.#options.onSpec?.();\n    if (redrawForm) this.#paintForm();\n    this.refresh();', items: ['P6'] },
   { file: 'src/page/cube-page.ts', text: 'this.#place({ id: tile, title: `Editing ${chartTitle}`, element: host, actions: [update] }, chartId);', items: ['P7'] },
-  { file: 'src/page/cube-page.ts', text: "const own = `${chartId}-query`;", items: ['P8'] },
-  { file: 'src/page/page-app.ts', text: 'if (!make || tileOf.has(view.cube)) continue;', items: ['P9'] },
   { file: 'src/app/sources.ts', text: "if (src._type === 'frame') return openedFrame(src.name, doc, several);", items: ['P11'] },
   // the board a cube alone shows its charts on is given no way to tell its page's edits
   { file: 'src/app.ts', text: 'onPageEdit', items: ['P13'], absent: true, within: '    const page = new CubePage({\n      host,\n      grid: { element: body,' },

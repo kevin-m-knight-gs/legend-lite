@@ -269,6 +269,14 @@ export class CubePage {
   readonly #kept = new Map<string, SpawnedGrid>();
   /** Each grid's title as it was made, so a saved page writes only a title someone gave it. */
   readonly #titles = new Map<string, string>();
+  /**
+   * WHAT A SAVED PAGE HAS THAT THIS ONE COULD NOT OPEN (a grid whose source was not opened, a chart reading one): each
+   * view kept as its page saved it, a tile saying why in its place -- written back, never dropped (P9).
+   */
+  readonly #unavailable = new Map<string, PageView>();
+  /** The order the charts came in, those it could not open among them: views() writes them so. */
+  readonly #came = new Map<string, number>();
+  #cameNext = 0;
   /** Each added grid's first open (its first view), for `opened`. */
   readonly #opening = new Map<string, Promise<void>>();
   /** This page's crosshair group (chart-render.ts setGroup): its own, so two pages on one screen do not share. */
@@ -405,6 +413,47 @@ export class CubePage {
     sheet.board.add(spec, by === sheet ? near : undefined);
   }
 
+  /** A saved view this page cannot open, kept in its place as its page saved it: a tile that says `why`. */
+  placeUnavailable(view: PageView, why: string): void {
+    this.#held.add(view.id);
+    this.#unavailable.set(view.id, view);
+    if (view.kind === 'chart' && !this.#came.has(view.id)) this.#came.set(view.id, this.#cameNext++);
+    const body = this.#doc.createElement('div');
+    body.className = 'dc-tile-unavailable';
+    body.textContent = why;
+    this.#place({ id: view.id, title: view.kind === 'chart' ? view.title : view.title ?? gridTitle(view.id), element: body, actions: [] });
+  }
+
+  /** The charts in the order they came, those it could not open among them. */
+  #chartIds(): string[] {
+    const lost = [...this.#unavailable.values()].filter((v) => v.kind === 'chart').map((v) => v.id);
+    if (lost.length === 0) return [...this.#charts.keys()];
+    const at = (id: string): number => this.#came.get(id) ?? Number.MAX_SAFE_INTEGER;
+    return [...this.#charts.keys(), ...lost].sort((x, y) => at(x) - at(y));
+  }
+
+  /**
+   * A tile it could not open taken off, as removeTile takes its view: a grid's charts it could not open either go with
+   * it, a frozen one staying with no selection of its own (page-commands.ts withoutTile).
+   */
+  #dropUnavailable(id: string): void {
+    const view = this.#unavailable.get(id);
+    if (!view) return;
+    this.#unavailable.delete(id);
+    this.#take(id);
+    if (view.kind !== 'grid') return;
+    for (const other of [...this.#unavailable.values()]) {
+      if (other.kind !== 'chart' || other.cube !== view.cube) continue;
+      if (!other.spec.frozen) {
+        this.#unavailable.delete(other.id);
+        this.#take(other.id);
+      } else if (other.selection) {
+        const { selection: _cleared, ...detached } = other;
+        this.#unavailable.set(other.id, detached);
+      }
+    }
+  }
+
   /** A tile off its sheet (its element detached, not destroyed). */
   #take(id: string): void {
     this.#sheetOf(id)?.board.remove(id);
@@ -448,7 +497,8 @@ export class CubePage {
    * screen does not -- or one a detached chart reads -- is made by `remake` (its host's maker, starting where it was when
    * it went); a chart brought back with a selection puts it back on its grid's filter, by the grid's own change.
    */
-  sync(to: PageViews, from: PageViews, remake: (grid: string) => ((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined): void {
+  sync(to: PageViews, from: PageViews, remake: (grid: string) => ((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined,
+    unopened: (cube: string) => string | undefined = () => undefined): void {
     const wanted = new Map(to.views.map((v) => [v.id, v]));
     const known = new Set(from.views.map((v) => v.id));
     const sheetFor = new Map(to.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
@@ -460,10 +510,23 @@ export class CubePage {
       // tiles the page held and the step does not: charts first (a grid would take its following ones, or detach them)
       for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#removeTile(id);
       for (const id of [...this.#grids.keys()]) if (known.has(id) && !wanted.has(id)) this.#removeGrid(id);
+      for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
+      // what it could not open, back: kept as the step has it, in its place
+      for (const view of to.views) {
+        if (this.#unavailable.has(view.id) || this.#grids.has(view.id) || this.#charts.has(view.id)) {
+          if (this.#unavailable.has(view.id)) this.#unavailable.set(view.id, view);
+          continue;
+        }
+        const why = unopened(view.cube);
+        if (why === undefined) continue;
+        const on = board(sheetFor.get(view.id));
+        if (on) this.#planned.set(view.id, on);
+        this.placeUnavailable(view, why);
+      }
       // grids it has and the screen does not: made again, each on its sheet; one kept off the board for a detached chart
       // is replaced by the one made again, and its detached charts follow it once more
       for (const view of to.views) {
-        if (view.kind !== 'grid' || this.#grids.has(view.id)) continue;
+        if (view.kind !== 'grid' || this.#grids.has(view.id) || this.#unavailable.has(view.id)) continue;
         const make = remake(view.id);
         if (!make) throw new Error(`grid ${view.id} cannot be made again: its maker is gone`);
         const kept = this.#kept.get(view.id);
@@ -482,7 +545,7 @@ export class CubePage {
       // charts it has and the screen does not: opened as a saved page's are, on their sheets -- a detached one's grid
       // kept off the board made again for it -- each selection put back on its grid's filter
       for (const view of to.views) {
-        if (view.kind !== 'chart' || this.#charts.has(view.id)) continue;
+        if (view.kind !== 'chart' || this.#charts.has(view.id) || this.#unavailable.has(view.id)) continue;
         if (!this.#grids.has(view.cube) && !this.#kept.has(view.cube)) {
           const make = remake(view.cube);
           if (!make) throw new Error(`chart ${view.id} cannot be opened again: grid ${view.cube}'s maker is gone`);
@@ -577,6 +640,9 @@ export class CubePage {
       const charts = [...this.#charts].sort(([x], [y]) => order(x) - order(y));
       this.#charts.clear();
       for (const [id, chart] of charts) this.#charts.set(id, chart);
+      const came = this.#chartIds().sort((x, y) => order(x) - order(y));
+      came.forEach((id, i) => this.#came.set(id, i));
+      this.#cameNext = came.length;
       this.#planned.clear();
     });
     // a sheet brought back is shown: where the change is
@@ -1068,6 +1134,7 @@ export class CubePage {
       ], event.clientX, event.clientY);
     });
     paint();
+    if (!this.#came.has(id)) this.#came.set(id, this.#cameNext++);
     this.#charts.set(id, {
       panel,
       link,
@@ -1154,13 +1221,24 @@ export class CubePage {
   views(cubeOf: (grid: string) => string | undefined = (grid) => (grid === GRID ? PAGE_CUBE : undefined)): PageViews {
     const views: PageView[] = [];
     // the grids in the layout's reading order, sheet by sheet: the order a reopened page adds them in
-    for (const id of this.tileIds.filter((t) => this.#grids.has(t))) {
+    for (const id of this.tileIds.filter((t) => this.#grids.has(t) || this.#unavailable.get(t)?.kind === 'grid')) {
+      const lost = this.#unavailable.get(id);
+      if (lost) {
+        views.push(lost);
+        continue;
+      }
       const cube = cubeOf(id);
       if (cube === undefined) continue;
       const title = this.title(id);
       views.push({ id, kind: 'grid', cube, ...(title !== undefined && title !== this.#titles.get(id) ? { title } : {}) });
     }
-    for (const [id, chart] of this.#charts) {
+    for (const id of this.#chartIds()) {
+      const lost = this.#unavailable.get(id);
+      if (lost) {
+        views.push(lost);
+        continue;
+      }
+      const chart = this.#charts.get(id)!;
       const spec = chart.panel.spec;
       const reads = chart.link.grid ?? chart.link.detached?.from;
       const cube = reads === undefined ? undefined : cubeOf(reads);
@@ -1192,7 +1270,8 @@ export class CubePage {
    * cube, or detached when that grid is kept off the board -- and the layout. The grids are on the page already (a
    * cube's own; a page's, added under their saved ids).
    */
-  restore(page: PageViews, gridOf: (cube: string) => string | undefined = (cube) => (cube === PAGE_CUBE ? GRID : undefined)): void {
+  restore(page: PageViews, gridOf: (cube: string) => string | undefined = (cube) => (cube === PAGE_CUBE ? GRID : undefined),
+    unopened: (cube: string) => string | undefined = () => undefined): void {
     // its sheets, if the grids were not put on them as they were added (a cube alone's own grid)
     this.setSheets(page.sheets);
     for (const view of page.views) {
@@ -1202,6 +1281,11 @@ export class CubePage {
     for (const chart of charts) {
       const grid = gridOf(chart.cube);
       if (grid !== undefined && (this.#grids.has(grid) || this.#kept.has(grid))) this.openChart(chart, grid);
+      else {
+        // its grid's source not opened: kept as saved, in its place
+        const why = unopened(chart.cube);
+        if (why !== undefined) this.placeUnavailable(chart, why);
+      }
     }
     for (const saved of page.sheets) {
       const { kind: _kind, ...bands } = saved.layout;
@@ -1313,6 +1397,13 @@ export class CubePage {
     }
     if (this.#grids.get(id)?.added) {
       this.#removeGrid(id);
+      return;
+    }
+    if (this.#unavailable.has(id)) {
+      if (this.#saved(id)) this.#tell(`Remove ${this.title(id) ?? id}`, { kind: 'removeTile', tile: id });
+      this.#dropUnavailable(id);
+      this.#options.onChange();
+      this.#afterRemove();
       return;
     }
     const chart = this.#charts.get(id);
@@ -1429,6 +1520,7 @@ export class CubePage {
       const { frozen: _f, ...following } = current;
       // detached, it takes the editing grid's whole query (its filter too), run by a grid of its own kept off the board
       // -- another chart detached from the same grid keeps the query it had
+      let ownCube: PageCommand | undefined;
       if (chart.link.grid === null && chart.link.detached) {
         const own = `${chartId}-query`;
         // made before the one it replaces goes (an Update again: it is made like the grid it replaces)
@@ -1439,9 +1531,18 @@ export class CubePage {
         void cube.open();
         chart.link.detached = { snapshot: grid.snapshot, from: own };
         this.#releaseKept();
+        // its own query, the page's: the kept grid's cube as it starts (setChartCube)
+        const document = this.#options.documentOf?.(own);
+        if (document) ownCube = { kind: 'setChartCube', chart: chartId, document };
       }
       const updated: ChartSpec = { ...followCube(following, grid.snapshot, carriedBy), frozen: true };
-      this.#tellSpec(chartId, updated, 'Update Chart');
+      if (ownCube) {
+        // one step: the chart's query and its regrouping
+        chart.told = JSON.stringify(updated);
+        if (this.#saved(chartId)) this.#tell('Update Chart', ownCube, { kind: 'setChart', chart: chartId, spec: updated });
+      } else {
+        this.#tellSpec(chartId, updated, 'Update Chart');
+      }
       chart.panel.setSpec(updated);
       this.#closeEditor(chartId);
       this.#options.onChange();

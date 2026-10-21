@@ -52,6 +52,9 @@ export type PageCommand =
   }
   /** A chart's spec, whole (made first by chart-spec.ts editChart, the options form's rule). */
   | { readonly kind: 'setChart'; readonly chart: string; readonly spec: ChartSpec }
+  /** A detached chart given a query of its own (its editing grid's Update): it reads `<chart>-query`, that grid's cube
+   *  as `document` says -- the cube it read before let go when no view reads it any more. */
+  | { readonly kind: 'setChartCube'; readonly chart: string; readonly document: CubeDocument }
   /** A chart's selection, the mark clicked last as its conditions (none: cleared) -- the chart's alone: the conditions
    *  on its grid's filter are that grid's `refilter`, told with it (grid-commands.ts). */
   | { readonly kind: 'select'; readonly chart: string; readonly conditions: readonly FilterNode[] }
@@ -84,7 +87,7 @@ export type PageCommand =
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
+  'setChartCube', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
@@ -348,6 +351,19 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (typeof spec === 'string') throw new CubeRefusal(spec);
       return done({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, spec } : v)) });
     }
+    case 'setChartCube': {
+      const view = viewNamed(page, command.chart);
+      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
+      if (page.views.some((v) => v.kind === 'grid' && v.cube === view.cube)) {
+        throw new CubeRefusal(`'${command.chart}' reads its grid: only a chart detached from it has a query of its own`);
+      }
+      const own = `${view.id}-query`;
+      const views = page.views.map((v) => (v.id === view.id ? { ...view, cube: own } : v));
+      const entry = { id: own, cube: command.document };
+      const cubes = (page.cubes.some((c) => c.id === own) ? page.cubes.map((c) => (c.id === own ? entry : c)) : [...page.cubes, entry])
+        .filter((c) => views.some((v) => v.cube === c.id));
+      return done(rewritten({ ...page, ...(page.model ? { model: keptFor(page.model, cubes) } : {}) }, { views, cubes }));
+    }
     case 'select': {
       const view = viewNamed(page, command.chart);
       if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
@@ -553,6 +569,9 @@ export function readPageCommand(given: unknown): PageCommand {
       fields(o, kind, ['chart', 'spec']);
       if (!isObject(o['spec'])) throw new CubeRefusal("a chart's spec is an object");
       return { kind, chart: text(o['chart'], 'a chart'), spec: o['spec'] as unknown as ChartSpec };
+    case 'setChartCube':
+      fields(o, kind, ['chart', 'document']);
+      return { kind, chart: text(o['chart'], 'a chart'), document: cubeOf(o['document']) };
     case 'select':
       fields(o, kind, ['chart', 'conditions']);
       if (!Array.isArray(o['conditions'])) throw new CubeRefusal("a chart's selection is a list of conditions");
