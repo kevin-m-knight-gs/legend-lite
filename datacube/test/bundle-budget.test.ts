@@ -432,8 +432,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  313,500 -> 314,500 (2026-10-21, step S1's P1-P9 -- the grid's note of the same date). Measured 314,150.
  *  314,500 -> 315,000 (2026-10-21, step S1's P11 -- the grid's note of the same date). Measured 314,514.
  *  315,000 -> 315,500 (2026-10-21, step S1's audit round and step S2's G3 and V5 -- the grid's note of the same date).
- *  Measured 315,233. */
-const WIDGET_BUDGET = 315_500;
+ *  Measured 315,233.
+ *  315,500 -> 316,000 (2026-10-21, step S3's P14 and step S2's audit round: a stack and an arrangement told as their own
+ *  commands, a selection judged when its filter moves -- the grid's note of the same date). Measured 315,526. */
+const WIDGET_BUDGET = 316_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
