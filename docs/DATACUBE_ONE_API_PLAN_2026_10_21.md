@@ -420,4 +420,6 @@ Each turned its ledger red with a message naming it; each was taken out again.
 - Not done: a per-kind parity row (the parity tests are by action, not by kind: no cell can be read from them).
 
 **Gates.** `//datacube/... //python/...`: green (four environment reruns: three tests the disk filled under, `verify_app`
-as the container's unprivileged user).
+as the container's unprivileged user). CI: not run -- the gate runs on a pull request, a push to main or a dispatch; this
+branch has no pull request and the session's GitHub access may not dispatch (403). Waiting on the user: a draft pull
+request (CI on every push) or a dispatch of `gate.yml` on `claude/datacube-query-base`.
