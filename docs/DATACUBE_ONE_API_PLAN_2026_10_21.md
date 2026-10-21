@@ -659,3 +659,53 @@ gained F1-F5, each closed in the commit that fixed it.
 **Gates.** `//datacube/... //python:engine_test //python:model_test` (191 of 191) and `verify_app` as the container's
 unprivileged user green at a147d256c; the keeper's soak at 60 seeds green (196 tests); the audit round's run below. CI:
 not run -- still waiting on the user (a draft pull request, or a dispatch of `gate.yml` on `claude/datacube-query-base`).
+
+## As built (S3, 2026-10-21)
+
+**Built** (ae126e5fe, c328449ba, e47b3dbe5, 3c595311f, 90fb56efc, 6f89fd1be; the audit round 02622bf0d, 85d80333c): every
+gesture on the board tells its commands and changes nothing of the page itself; its owner -- `PageApp`, or a cube
+alone's `CubeApp` -- applies them to its `PageState` by the one step (page-commands.ts `applyToState`) and puts the board
+at the page they make (`CubePage.sync`), which is also what undo, redo and another editor's commands use. A tile a
+gesture makes (a grid's engine, a chart's panel) waits, pending, until its command places it; refused, it is let go.
+Ids come from the state (`takenIds`) and what is on the board. Stack and arrange gestures tell `stack` / `arrange`
+(P14); an editing grid is the board's alone and never touches the page's layout (P7); a cube alone's charts keep a page
+state of their own and tell the same commands (P13); the board heals no selection -- a step that brings back a chart
+with a selection its grid's filter lost has it put back by that grid's own `refilter` (G8). `follow()` keeps the
+commands' page whole, its held ids and cubes. What is looked at survives an edit: the sheet shown, a stack's front tab,
+focus, an open chart panel and its editing grid, Move to Sheet keeping the sheet shown. A guard
+(state-guardrail.test.ts, S3) pins every place the board's structure changes and every place a page's state changes,
+with why and how many times.
+
+**Deviations from the plan's wording, each kept on purpose.** G8 is closed for the board only: the chart panel still
+follows its cube by `followCube` on its own, and the screen still reconciles a selection against its grid's filter, both
+told by no command -- a cube alone over rows its host names no source for has no cube in its page's state to follow
+(the S2 audit's 7). The editing grid opens in a band of its own below its chart's, not beside it, so a gesture made
+while it is open changes the page as it would with it closed (the audit's 4). A cube alone saves one cube: its added
+grids, and the charts that read them, are in its state and its told commands but not in what it saves (F12, declared).
+An undo puts the page at a whole step (N2), so a grid's own change made since is not carried into the steps (F15,
+declared; the proper live-editing model of §8). The bundle budgets were raised with dated notes (the screen carries
+page-commands.ts; the audit round's fixes).
+
+**The independent audit** (15 findings) and what became of each:
+- Fixed, each with a test that fails without it (run against the step's head), registered (rule 9) and closed: (1,
+  high) a cube alone's state went stale as its grid's own changes landed -- F6; (2, high) a cube alone's last chart
+  removed threw -- F7; (3) a cube alone gave an id out again after its board went -- F8; (4) a gesture with an editing
+  grid open moved the page's shares, and an arrangement was told as a layout -- F9; (5) an edit made while `follow()`
+  waited for a snap was lost -- F10; (6) a detached chart's Update was a board-side copy of `setChartCube`'s rule, and
+  undone left the page mixed -- F11; (8) Go Live refused for a grid whose cube the page cannot hold -- F13; (9) a cube
+  alone's added grid renamed to its id's number was put back -- F14; (11) a chart with no spec yet moved at each step,
+  and a drag in progress ended at another editor's step -- F16; (12) a refused grid threw -- F17.
+- Declared, with a test that pins what is true: (7) a cube alone's saved page is its state less its added grids --
+  F12; (10) an undo of an unrelated step puts back a selection a grid's own edit took off -- F15 (not new since S2).
+- Fixed as S3's own: (13) the guard pinned only where, not how many times, and missed the kept grids, the charts'
+  links, the chart and grid maps, renames and spec sets -- now it pins each, with a count; (14) stale or overclaiming
+  docs -- `sync`'s, page-app.ts's header, `onPageEdit`'s, the export (now the page's layout, each stack's front as
+  shown), P7's and P13's register lines; (15) claims with no failing test -- `follow` keeping the ids its commands held
+  and their cubes, a refused gesture letting go, a cube alone's ids, its last tile, P7 under a gesture: each has one.
+
+**Ledgers.** S3 closed P7 P13 P14 G8 and the board's rule copies; L1_ROUTES 5, L8_KINDS 11, MARKERS 14; no ledger grew.
+The register gained F6-F17, each closed in the commit that fixed it (F12 and F15 declared).
+
+**Gates.** `//datacube/... //python:engine_test //python:model_test` (191 of 191) and `verify_app` as the container's
+unprivileged user green at 85d80333c; the screenshot tour green (17 of 17), its editing grid below its chart. CI: not run -- still waiting on the user (a draft
+pull request, or a dispatch of `gate.yml` on `claude/datacube-query-base`).
