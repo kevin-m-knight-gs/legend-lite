@@ -15,10 +15,10 @@ import {
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { operandKind } from './filter-operators.ts';
 import {
-  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, isJsonValue, isPivotTotalColumn,
-  isRelativeDate, pivotTotalColumn,
-  type AggregateFn, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
-  type Measure, type SortDirection, type SortSpec,
+  AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
+  isPivotTotalColumn, isRelativeDate, pivotTotalColumn,
+  type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator,
+  type FilterValue, type Measure, type SortDirection, type SortSpec, type WindowFrame, type WindowFunction, type WindowSpec,
 } from './snapshot.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
@@ -378,21 +378,86 @@ export function readFilterNode(v: unknown): FilterNode {
   }
 }
 
+/** A whole number of 1 or more (a window's offset, buckets, rows), or why not. */
+function countFrom(v: unknown, what: string): number {
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) throw new CubeRefusal(`${what} is a whole number, 1 or more, not ${JSON.stringify(v)}`);
+  return v;
+}
+
+/** A window frame -- 'running', 'partition', or the last so many rows -- or why not. */
+function frameFrom(v: unknown): WindowFrame {
+  if (v === 'running' || v === 'partition') return v;
+  if (isObject(v)) {
+    fields(v, 'frame', ['lastRows'], "a window's frame");
+    if (typeof v['lastRows'] !== 'number' || !Number.isInteger(v['lastRows']) || v['lastRows'] < 1) {
+      throw new CubeRefusal(`a window's lastRows is a whole number of rows, 1 or more, not ${JSON.stringify(v['lastRows'])}`);
+    }
+    return { lastRows: v['lastRows'] };
+  }
+  throw new CubeRefusal(`a window's frame is 'running', 'partition' or {lastRows}, not ${JSON.stringify(v)}`);
+}
+
+/** A window column's spec, field by field: what it names, the column editor's rules judge when it is applied. */
+function windowFrom(v: unknown): WindowSpec {
+  if (!isObject(v)) throw new CubeRefusal(`a window is {fn, column, partition, order, ...}, not ${JSON.stringify(v)}`);
+  fields(v, 'window', ['fn', 'column', 'partition', 'order', 'frame', 'offset', 'buckets'], 'a window');
+  const fn = v['fn'];
+  if (typeof fn !== 'string' || !WINDOW_FUNCTIONS.some((w) => w.fn === fn)) {
+    throw new CubeRefusal(`a window's function is one of ${WINDOW_FUNCTIONS.map((w) => w.fn).join(', ')}, not ${JSON.stringify(fn)}`);
+  }
+  if (!Array.isArray(v['order'])) throw new CubeRefusal(`a window's order is a list of sorts, not ${JSON.stringify(v['order'])}`);
+  const order = v['order'].map((x): SortSpec => {
+    if (!isObject(x)) throw new CubeRefusal(`a sort is {column, direction}, not ${JSON.stringify(x)}`);
+    fields(x, 'sort', ['column', 'direction'], 'a sort');
+    return { column: textFrom(x['column'], 'a sort'), direction: directionFrom(x['direction']) };
+  });
+  return {
+    fn: fn as WindowFunction,
+    ...(v['column'] !== undefined ? { column: textFrom(v['column'], "a window's column") } : {}),
+    partition: namesFrom(v['partition'], "a window's partition"),
+    order,
+    ...(v['frame'] !== undefined ? { frame: frameFrom(v['frame']) } : {}),
+    ...(v['offset'] !== undefined ? { offset: countFrom(v['offset'], "a window's offset") } : {}),
+    ...(v['buckets'] !== undefined ? { buckets: countFrom(v['buckets'], "a window's buckets") } : {}),
+  };
+}
+
+/** A child aggregate -- its function, the group-level column it aggregates -- or why not. */
+function childAggregateFrom(v: unknown): ChildAggregate {
+  if (!isObject(v)) throw new CubeRefusal(`a child aggregate is {fn, of}, not ${JSON.stringify(v)}`);
+  fields(v, 'childAggregate', ['fn', 'of'], 'a child aggregate');
+  const fn = v['fn'];
+  if (typeof fn !== 'string' || !(CHILD_AGGREGATE_FNS as readonly string[]).includes(fn)) {
+    throw new CubeRefusal(`a child aggregate's function is one of ${CHILD_AGGREGATE_FNS.join(', ')}, not ${JSON.stringify(fn)}`);
+  }
+  return { fn: fn as ChildAggregate['fn'], of: textFrom(v['of'], "a child aggregate's column") };
+}
+
 /**
- * A calculated column read from JSON: a formula's -- its name (trimmed, as the editor takes one), its lambda (the
- * protocol's, its body the planner's to judge), its kind -- or why not. A window or child-aggregate column is the
- * screen's column editor's; none is read from JSON yet.
+ * A calculated column read from JSON, as the screen's column editor and its presets make one: a formula (its lambda the
+ * protocol's, its body the planner's to judge; exploded, each row repeated per element), a window column (Show As: a
+ * running total, a rank) or an aggregate of the child groups -- exactly one of them -- with its name (trimmed, as the
+ * editor takes one), its kind and its type; or why not.
  */
 function calculatedFrom(v: unknown): DerivedColumn {
-  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda, kind}, not ${JSON.stringify(v)}`);
-  fields(v, 'column', ['name', 'lambda', 'kind', 'type'], 'a calculated column from JSON');
+  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate, ...}, not ${JSON.stringify(v)}`);
+  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
+  const shapes = (['lambda', 'window', 'childAggregate'] as const).filter((k) => v[k] !== undefined);
+  if (shapes.length !== 1) {
+    throw new CubeRefusal(`a calculated column is one of a lambda, a window or a child aggregate, not ${shapes.join(' and ') || 'none'}`);
+  }
+  if (v['unnest'] !== undefined && typeof v['unnest'] !== 'boolean') throw new CubeRefusal(`unnest is true or false, not ${JSON.stringify(v['unnest'])}`);
+  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window or a child aggregate is not exploded");
   const lambda = v['lambda'];
-  if (!isObject(lambda) || lambda['_type'] !== 'lambda' || !Array.isArray(lambda['body'])) {
+  if (lambda !== undefined && (!isObject(lambda) || lambda['_type'] !== 'lambda' || !Array.isArray(lambda['body']))) {
     throw new CubeRefusal(`a calculated column's lambda is the protocol's {_type: 'lambda', body, parameters}, not ${JSON.stringify(lambda)}`);
   }
   return {
     name: textFrom(v['name'], "a calculated column's name").trim(),
-    lambda: lambda as unknown as Lambda,
+    ...(lambda !== undefined ? { lambda: lambda as unknown as Lambda } : {}),
+    ...(v['window'] !== undefined ? { window: windowFrom(v['window']) } : {}),
+    ...(v['childAggregate'] !== undefined ? { childAggregate: childAggregateFrom(v['childAggregate']) } : {}),
+    ...(v['unnest'] !== undefined ? { unnest: v['unnest'] as boolean } : {}),
     ...(v['kind'] !== undefined ? { kind: kindFrom(v['kind']) } : {}),
     ...(v['type'] !== undefined ? { type: textFrom(v['type'], "a calculated column's type") } : {}),
   };

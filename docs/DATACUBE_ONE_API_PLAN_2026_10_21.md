@@ -138,7 +138,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **T4** Python's commands and the user's mixed during a follow — S1, L2
 
 ### Commands the host cannot read (audit §4)
-- [ ] **C1** window, child-aggregate and explode columns in the `calculate` JSON reader and writer — S1, L3
+- [x] **C1** window, child-aggregate and explode columns in the `calculate` JSON reader and writer — S1, L3 (closed S1:
+  `calculatedFrom` reads every column kind strictly; grid-commands.test.ts round-trips each; the Show As gesture's wire passes)
 
 ### Page edits that are no command (audit §2, page)
 - [ ] **P1** page name box → `renamePage` — S1, L2

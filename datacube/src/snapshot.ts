@@ -330,6 +330,9 @@ export const WINDOW_FUNCTIONS: readonly {
  */
 export type ChildAggregateFn = 'min' | 'max' | 'average' | 'median' | 'sum' | 'count';
 
+/** Every child aggregate, in the editor's order (what a command read from JSON may name). */
+export const CHILD_AGGREGATE_FNS = ['min', 'max', 'average', 'median', 'sum', 'count'] as const satisfies readonly ChildAggregateFn[];
+
 export interface ChildAggregate {
   readonly fn: ChildAggregateFn;
   /** The group-level column whose child figures are aggregated: a measure. */

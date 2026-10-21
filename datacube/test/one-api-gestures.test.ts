@@ -544,7 +544,6 @@ const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
   "a chart's mark clicked": { told: { items: ['G7'] } },
   'a detached chart updated from its editing grid': { told: { items: ['P8'] } },
   'a grid with a following chart ungrouped': { replays: { items: ['V1'], paths: ['views.2.spec.split'] } },
-  'a measure shown as a running total (Show As)': { wire: { items: ['C1'], words: /a calculated column from JSON/ } },
   'a group opened': { told: { items: ['G1'] } },
   'every group collapsed': { told: { items: ['G2'] } },
   "a grid's settings applied by its host (applyConfiguration)": { told: { items: ['G10'] } },

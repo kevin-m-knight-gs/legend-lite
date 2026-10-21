@@ -229,6 +229,15 @@ describe('a command read from JSON is the same command, and what DataCube does n
     ] } },
     { kind: 'addFilter', condition: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } },
     { kind: 'calculate', level: 'row', column: double },
+    // every column kind the screen's editor and its presets make (Show As: a window; a share: a child aggregate; explode)
+    { kind: 'calculate', level: 'row', column: { name: 'running', window: { fn: 'sum', column: 'notional', partition: ['desk'],
+      order: [{ column: 'region', direction: 'asc' }], frame: 'running' } } },
+    { kind: 'calculate', level: 'row', column: { name: 'moving', window: { fn: 'average', column: 'notional', partition: [],
+      order: [{ column: 'region', direction: 'desc' }], frame: { lastRows: 3 } } } },
+    { kind: 'calculate', level: 'row', column: { name: 'previous', window: { fn: 'lag', column: 'qty', partition: [], order: [], offset: 2 } } },
+    { kind: 'calculate', level: 'row', column: { name: 'bucket', window: { fn: 'ntile', partition: [], order: [], buckets: 4 } } },
+    { kind: 'calculate', level: 'group', column: { name: 'smallest', childAggregate: { fn: 'min', of: 'notional' }, kind: 'measure' } },
+    { kind: 'calculate', level: 'row', column: { ...double, name: 'each', unnest: true } },
     { kind: 'measures', measures: [{ name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' }] },
   ];
 
@@ -261,7 +270,23 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand(calc({ name: 'x', lambda: 42 })), /lambda is the protocol's/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, kind: 'bogus' })), /a column's kind is/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, window: {} })),
-      /a calculated column from JSON takes name, lambda, kind, type, not window/);
+      /a calculated column is one of a lambda, a window or a child aggregate, not lambda and window/);
+    refused(() => readGridCommand(calc({ name: 'x' })), /a calculated column is one of a lambda, a window or a child aggregate, not none/);
+    refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, colour: 'red' })),
+      /a calculated column from JSON takes name, lambda, window, childAggregate, unnest, kind, type, not colour/);
+    // a window, field by field
+    const win = (w: Record<string, unknown>): unknown => calc({ name: 'w', window: { partition: [], order: [], ...w } });
+    refused(() => readGridCommand(win({ fn: 'median' })), /a window's function is one of sum, average/);
+    refused(() => readGridCommand(win({ fn: 'sum', column: 'qty', frame: 'rolling' })), /a window's frame is 'running', 'partition' or \{lastRows\}/);
+    refused(() => readGridCommand(win({ fn: 'sum', column: 'qty', frame: { lastRows: 0 } })), /lastRows is a whole number of rows, 1 or more/);
+    refused(() => readGridCommand(win({ fn: 'lag', column: 'qty', offset: 1.5 })), /a window's offset is a whole number, 1 or more/);
+    refused(() => readGridCommand(win({ fn: 'sum', column: 'qty', order: [{ column: 'qty' }] })), /a sort is 'asc' or 'desc'/);
+    refused(() => readGridCommand(win({ fn: 'sum', column: 'qty', ordr: [] })), /a window takes fn, column, partition, order, frame, offset, buckets, not ordr/);
+    // a child aggregate, and explode
+    refused(() => readGridCommand(calc({ name: 'c', childAggregate: { fn: 'mode', of: 'qty' } })), /a child aggregate's function is one of min, max/);
+    refused(() => readGridCommand(calc({ name: 'c', childAggregate: { fn: 'min' } })), /a child aggregate's column is text/);
+    refused(() => readGridCommand(calc({ name: 'e', lambda: double.lambda, unnest: 'yes' })), /unnest is true or false/);
+    refused(() => readGridCommand(calc({ name: 'e', childAggregate: { fn: 'min', of: 'qty' }, unnest: true })), /explode is a formula's/);
     const read = readGridCommand(calc({ name: '  pad  ', lambda: double.lambda }));
     assert.equal(read.kind === 'calculate' ? read.column.name : undefined, 'pad');
     refused(() => readGridCommand(['group']), /a grid's command is \{kind, \.\.\.\}/);

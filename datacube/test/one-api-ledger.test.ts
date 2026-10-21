@@ -22,7 +22,6 @@ import { describe, it } from 'node:test';
 import { Sources } from '../../tools/js/runfiles.mts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { configurationOf, treeOf, writeCube } from '../src/cube-document.ts';
-import { readGridCommand } from '../src/grid-commands.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import {
@@ -44,7 +43,7 @@ interface Entry {
 
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 15, L1_THEN: 3, L1_ROUTES: 10, L1_REACH: 21, L1_PLANE: 9, L1_HOST: 18,
+  L1_GRID: 15, L1_THEN: 3, L1_ROUTES: 10, L1_REACH: 20, L1_PLANE: 9, L1_HOST: 18,
   L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 30, UNCHECKED: 9,
 };
 
@@ -110,10 +109,9 @@ const L1_ROUTES: Record<string, Entry> = {
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
-const GAP_CALLS_APP = /this\.(#setCalc|#deleteCalc|#applyFilter|useDimension|applyConfiguration|#addPreset|#applyDraft)\(/g;
+const GAP_CALLS_APP = /this\.(#setCalc|#deleteCalc|#applyFilter|useDimension|applyConfiguration|#applyDraft)\(/g;
 const GAP_CALLS_HOST = /(?<![\w.#]|function )(renamePage|saveTo|makeClass|landed|inPlace|openSaved|blankPage|openFrame)\(/g;
 const L1_REACH: Record<string, Entry> = {
-  'app.ts:#onMenuAction:#addPreset': { items: ['C1'], count: 2 },
   'app.ts:#onMenuAction:#deleteCalc': { items: ['G5'] },
   'app.ts:onApply:#applyDraft': { items: ['G3'] },
   'app.ts:apply:#setCalc': { items: ['G4'] },
@@ -433,21 +431,7 @@ describe('the gaps no scan reaches, pinned by their code', () => {
   it('their number', () => pinned('MARKERS', MARKERS.length));
 });
 
-// -- C1, V5: behaviour, as it is today --------------------------------------------------------------------------------
-
-describe('C1: the host reads every command the screen sends', () => {
-  const column = (c: Record<string, unknown>): unknown => ({ kind: 'calculate', level: 'row', column: c });
-  const lambda = { _type: 'lambda', parameters: [], body: [{ _type: 'var', name: 'x' }] };
-  for (const [what, c] of [
-    ['a window column (Show As: a running total)', { name: 'running', window: { fn: 'sum', column: 'notional', partition: [], order: [], frame: 'running' } }],
-    ['a child-aggregate column', { name: 'share', childAggregate: { fn: 'sum', column: 'notional' } }],
-    ['an explode column', { name: 'each', lambda, unnest: true }],
-  ] as const) {
-    it(`${what} is refused by the reader the host reads edits with -- C1 open`, () => {
-      assert.throws(() => readGridCommand(column(c)), /a calculated column from JSON/);
-    });
-  }
-});
+// -- V5: behaviour, as it is today --------------------------------------------------------------------------------
 
 /** The derived-state gaps held here by behaviour (asserted as they are: closing one fails its check). */
 const DERIVED: Record<string, readonly string[]> = { 'the saved tree keeps no expand level and no closed groups': ['V5'] };
