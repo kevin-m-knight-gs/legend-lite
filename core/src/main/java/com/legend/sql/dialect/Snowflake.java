@@ -1752,34 +1752,37 @@ public final class Snowflake extends AnsiSqlRenderer {
     /**
      * A Float's text as DuckDB's cast writes it: the shortest digits that read back as the same double (Java's rule),
      * plain where the exponent is from -4 to 15 with an integral value's {@code .0}, else with its exponent. Snowflake's
-     * own cast writes ten significant digits and TM9 sixteen ({@code EXP(1)} '2.718281828', {@code 0.1 + 0.2} '0.3';
-     * measured on the lane 2026-10-21, where 22 PCT tests passing at the merge-base failed on the plan route, which has
-     * the database print a Float). Its formatter rounds a double correctly to a given number of significant digits, so
-     * the 15-, 16- and 17-digit spellings are each read back and the first that is the value is taken: a double's
-     * shortest digits that read back are at most 17, and at 15 or fewer they are its 15-digit rounding. A spelling is
-     * the value when the double it reads back as has the value's 17-digit spelling: compared as text, since Snowflake's
-     * {@code =} on two doubles is not exact (TO_DOUBLE of a 16-digit spelling of 2786082219775324.5, the double
-     * 2786082219775325.0, compared equal to it; the probe's 518 wrong texts of 1,837, measured on the lane). The plain
-     * form is that text read as an exact NUMBER, its trailing zeros dropped. NaN and the infinities are Snowflake's own.
+     * own cast writes ten significant digits ({@code EXP(1)} '2.718281828'; 22 PCT tests passing at the merge-base
+     * failed on the plan route, which has the database print a Float). Measured on the lane, 2026-10-21: its formatter
+     * caps a double at sixteen digits ('FM9.9999999999999999EE' wrote -2786082219775324.5 as -2.786082219775325E15),
+     * its {@code =} and TO_DOUBLE are exact, and {@code CAST(x AS DECFLOAT)} is the double's exact value to 38 digits at
+     * every magnitude (4.9e-324 and 1.797...e308 included). So the 15-, 16- and 17-digit spellings of that exact
+     * decimal are each read back and the first that is the value is taken (TRY_TO_DOUBLE: a spelling rounded past the
+     * double range reads as infinity, never the value); the plain form is that text read as an exact NUMBER, its
+     * trailing zeros dropped. NaN and the infinities are Snowflake's own; the DECFLOAT is cast from a finite stand-in
+     * for them, since a CASE's branches may all be evaluated (a 15-digit spelling of 1e16 was cast to a NUMBER that
+     * could not hold it, in a branch its row did not take, measured).
      */
     private SqlWriter floatText(SqlWriter writer, SqlExpr v) {
         SqlWriter.Piece x = w -> w.expr(v, 0);
-        String exact = "'FM9." + "9".repeat(16) + "EE'";
+        SqlWriter.Piece exact = w -> w.append("CAST(IFF(ABS(").piece(x).append(") < 'inf'::FLOAT, ").piece(x)
+                .append(", 0) AS DECFLOAT)");
         SqlWriter.Piece shortest = w -> {
             w.append("CASE");
             for (int digits = 15; digits <= 16; digits++) {
                 String format = "'FM9." + "9".repeat(digits - 1) + "EE'";
-                w.append(" WHEN TO_VARCHAR(TO_DOUBLE(TO_VARCHAR(").piece(x).append(", " + format + ")), " + exact
-                        + ") = TO_VARCHAR(").piece(x).append(", " + exact + ") THEN TO_VARCHAR(").piece(x)
-                        .append(", " + format + ")");
+                w.append(" WHEN TRY_TO_DOUBLE(TO_VARCHAR(").piece(exact).append(", " + format + ")) = ").piece(x)
+                        .append(" THEN TO_VARCHAR(").piece(exact).append(", " + format + ")");
             }
-            w.append(" ELSE TO_VARCHAR(").piece(x).append(", " + exact + ") END");
+            w.append(" ELSE TO_VARCHAR(").piece(exact).append(", 'FM9." + "9".repeat(16) + "EE') END");
         };
+        SqlWriter.Piece plainRange = w -> w.piece(x).append(" = 0 OR (ABS(").piece(x).append(") >= 1E-4 AND ABS(")
+                .piece(x).append(") < 1E16)");
         return writer.append("CASE WHEN ").piece(x).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CAST(")
-                .piece(x).append(" AS VARCHAR) WHEN ").piece(x).append(" = 0 OR (ABS(").piece(x)
-                .append(") >= 1E-4 AND ABS(").piece(x).append(") < 1E16) THEN REGEXP_REPLACE(REGEXP_REPLACE(TO_VARCHAR(")
-                .append("CAST(").piece(shortest).append(" AS NUMBER(38, 21))), '0+$', ''), '\\\\.$', '.0') ELSE LOWER(")
-                .piece(shortest).append(") END");
+                .piece(x).append(" AS VARCHAR) WHEN ").piece(plainRange).append(" THEN REGEXP_REPLACE(REGEXP_REPLACE(")
+                .append("TO_VARCHAR(CAST(IFF(").piece(plainRange).append(", ").piece(shortest)
+                .append(", '0') AS NUMBER(38, 21))), '0+$', ''), '\\\\.$', '.0') ELSE REPLACE(LOWER(").piece(shortest)
+                .append("), '.e', 'e') END");
     }
 
     /** A projection that IS error() raised in its column's type, as a CASE branch is: a bare raise is text, and a

@@ -31,9 +31,9 @@ class SnowflakeDialectTest {
 
     /**
      * A Float's text is its shortest digits that read back as the same double, as DuckDB's cast writes it (2026-10-21):
-     * Snowflake's own cast writes ten significant digits (EXP(1) '2.718281828'), so the 15-, 16- and 17-digit spellings
-     * are each read back, compared by their 17-digit spellings (Snowflake's = on doubles is not exact), plain from an
-     * exponent of -4 to 15, measured against Java's text on the lane.
+     * Snowflake's own cast writes ten significant digits (EXP(1) '2.718281828') and its formatter caps a double at
+     * sixteen, so the exact DECFLOAT's 15-, 16- and 17-digit spellings are each read back, plain from an exponent of -4
+     * to 15, measured against Java's text on the lane.
      */
     @Test
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
@@ -42,15 +42,15 @@ class SnowflakeDialectTest {
                 new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR), "s", null)), false, new SqlSource.Table("t", "t",
                 List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
+        // the exact decimal's 15-, 16- and 17-digit spellings (the formatter caps a double at sixteen), each read back
+        String exact = "CAST(IFF(ABS(\"t\".\"x\") < 'inf'::FLOAT, \"t\".\"x\", 0) AS DECFLOAT)";
         for (String digits : List.of("'FM9.99999999999999EE'", "'FM9.999999999999999EE'", "'FM9.9999999999999999EE'")) {
-            assertTrue(sql.contains("TO_VARCHAR(\"t\".\"x\", " + digits + ")"), sql);
+            assertTrue(sql.contains("TO_VARCHAR(" + exact + ", " + digits + ")"), sql);
         }
-        // read back and compared by its exact 17-digit spelling, never by Snowflake's inexact = on doubles
-        assertTrue(sql.contains("WHEN TO_VARCHAR(TO_DOUBLE(TO_VARCHAR(\"t\".\"x\", 'FM9.99999999999999EE')),"
-                + " 'FM9.9999999999999999EE') = TO_VARCHAR(\"t\".\"x\", 'FM9.9999999999999999EE') THEN"), sql);
-        assertFalse(sql.contains(")) = \"t\".\"x\""), sql);
+        assertTrue(sql.contains("WHEN TRY_TO_DOUBLE(TO_VARCHAR(" + exact + ", 'FM9.99999999999999EE')) = \"t\".\"x\""
+                + " THEN"), sql);
         assertTrue(sql.contains("ABS(\"t\".\"x\") >= 1E-4 AND ABS(\"t\".\"x\") < 1E16"), sql);
-        assertFalse(sql.contains("CAST(\"t\".\"x\" AS VARCHAR), '^"), sql);
+        assertFalse(sql.contains("TO_VARCHAR(\"t\".\"x\", 'FM"), sql);
     }
 
     /**
