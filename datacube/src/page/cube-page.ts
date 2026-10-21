@@ -46,7 +46,7 @@ import { givenName } from '../page-names.ts';
 import { chartTitle, gridTitle, nextPageId } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument } from '../cube-document.ts';
-import type { GridCopy } from '../page-document.ts';
+import type { GridCopy, PageDocument } from '../page-document.ts';
 import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
@@ -113,6 +113,10 @@ export interface SpawnOptions {
 }
 
 /** A grid on a page (a CubeApp). */
+/** How a step's grid is made again by its owner (its host's maker, starting where it was when it went -- or, `document`
+ *  given, as that document says). Undefined: its maker is gone. */
+export type Remake = (grid: string, document?: CubeDocument) => ((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined;
+
 export interface SpawnedGrid {
   readonly snapshot: CubeSnapshot;
   open(): Promise<void>;
@@ -126,6 +130,8 @@ export interface SpawnedGrid {
   readonly copy?: GridCopy | undefined;
   /** Its part of its tile's header: its source, its Live/Snapped pill, its menu. */
   tileHead(): HTMLElement;
+  /** The grid as a saved cube, named `name`: undefined when it cannot say its source. */
+  cubeDocument?(name: string): CubeDocument | undefined;
 }
 
 export interface CubePageOptions {
@@ -179,7 +185,7 @@ export interface CubePageOptions {
    * removed; a tile added, renamed, moved to another sheet or removed; a chart's spec or selection changed by hand; a
    * sheet's layout changed by hand (a drag, a resize, a stack, an arrangement, a layout undone). THE BOARD IS PRODUCED BY
    * THE COMMANDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S3): the owner applies them to the page's state by the one
-   * rule (page-commands.ts applyPageCommands) -- refused, nothing changes -- and puts the board at the page they make
+   * rule (page-commands.ts applyToState) -- refused, nothing changes -- and puts the board at the page they make
    * (`sync`). A gesture changes nothing of the page itself: what it makes (a grid's engine, a chart's panel) waits until
    * its command places it, and a drag or a rename in place is the board's own drawing until then. True when applied.
    */
@@ -189,7 +195,8 @@ export interface CubePageOptions {
    * after them and after every one on the board now (page-ids.ts nextPageId).
    */
   readonly taken: () => readonly string[];
-  /** A grid's cube document, for the `addGrid` its addition is told as: undefined when it cannot say its source. */
+  /** A grid's cube document, as its page names it, for the commands that carry one (`addGrid`, `setChartCube`):
+   *  undefined when it cannot say its source. Absent, the grid's own (a cube alone's board: named as the cube is). */
   readonly documentOf?: (grid: string) => CubeDocument | undefined;
   /** Ctrl+Z (Ctrl+Shift+Z: `redo`) on a tile's frame: the page's own undo (a page of its own); absent, Undo Layout. */
   readonly onUndo?: (redo: boolean) => void;
@@ -270,6 +277,14 @@ export class CubePage {
   #shown: Sheet;
   /** The tiles a gesture made, waiting for the command that places them (`sync`): a grid's, a chart's. */
   readonly #pending = new Map<string, BandTile>();
+  /** The grid a detached chart's Update made for its query, waiting for the command that has the chart read it. */
+  readonly #pendingKept = new Map<string, SpawnedGrid>();
+  /** The document each grid kept for a detached chart's query was made for (JSON): one a step holds another of (an
+   *  Update again, undone) is made again from the step's. */
+  readonly #keptDocs = new Map<string, string>();
+  /** Inside `sync`: the board emptied by it is said empty once it has done (`#afterRemove`). */
+  #syncing = false;
+  #emptied = false;
   /**
    * EACH SHEET'S LAYOUT AS THE PAGE HAS IT (P7), set only when the board is put at a page (`sync`, `restore`, a new
    * sheet): what `views` writes. The board's own drawing may differ -- a chart's editing grid placed beside it (smart
@@ -431,10 +446,13 @@ export class CubePage {
       this.#tell('Layout Change', { kind: 'stack', tiles: [...move.tiles] });
       return;
     }
-    const was = tiles(before);
-    if (move?.kind === 'arrange' && was.every((t) => saved.has(t))) {
-      // the board's order (BandBoard #order): `first`, then the rest in reading order -- none given, the page's own
-      const order = move.first !== undefined ? [move.first, ...was.filter((t) => t !== move.first)] : null;
+    if (move?.kind === 'arrange') {
+      // the page's tiles arranged as the preset arranges them -- an editing grid open among them is the board's, drawn
+      // after (P7; the S3 audit's 4) -- in the board's order (BandBoard #order): `first`, then the rest in reading
+      // order; none given, the page's own
+      const was = tiles(before).filter((t) => saved.has(t));
+      const first = move.first !== undefined && saved.has(move.first) ? move.first : undefined;
+      const order = first !== undefined ? [first, ...was.filter((t) => t !== first)] : null;
       this.#tell('Layout Change', { kind: 'arrange', sheet: sheet.id, preset: move.preset, order });
       return;
     }
@@ -541,12 +559,28 @@ export class CubePage {
   /**
    * THE PAGE PUT AT A STEP OF ITS HISTORY (page-state.ts; docs/DATACUBE_PAGE_STATE_2026_10_18.md): from `from`, the page
    * as its state last kept it, to `to` -- each change made as the page's own edits make it, and told as none. A tile
-   * neither page holds (a chart with no spec yet, a chart's editing grid) stays where it is. A grid `to` has and the
-   * screen does not -- or one a detached chart reads -- is made by `remake` (its host's maker, starting where it was when
-   * it went); a chart brought back with a selection puts it back on its grid's filter, by the grid's own change.
+   * neither page holds (a chart with no spec yet, a chart's editing grid) is drawn where the board draws it (`#drawn`).
+   * A grid `to` has and the screen does not -- or one a detached chart reads, its query another than the board's (an
+   * Update, or one undone) -- is the one a gesture made for it, else made by `remake` (its host's maker, starting where
+   * it was when it went). A chart's selection is drawn as the step has it; a grid's filter that lost it meanwhile is its
+   * owner's to put back (G8). The board left empty by the step is said so once it has done.
    */
-  sync(to: PageViews, from: PageViews, remake: (grid: string) => ((host: HTMLElement, options: SpawnOptions) => SpawnedGrid) | undefined,
+  sync(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
     unopened: (cube: string) => string | undefined = () => undefined): void {
+    this.#syncing = true;
+    try {
+      this.#synced(to, from, remake, unopened);
+    } finally {
+      this.#syncing = false;
+    }
+    if (this.#emptied) {
+      this.#emptied = false;
+      if (this.#isEmpty()) this.#options.onEmpty();
+    }
+  }
+
+  #synced(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
+    unopened: (cube: string) => string | undefined): void {
     const wanted = new Map(to.views.map((v) => [v.id, v]));
     const known = new Set(from.views.map((v) => v.id));
     const sheetFor = new Map(to.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
@@ -627,6 +661,17 @@ export class CubePage {
             delete chart.link.detached;
             chart.paint();
           }
+          // detached, its query another than the board's (setChartCube: an Update, or one undone or redone): it reads the
+          // grid kept for that query -- the one its Update made, the one kept already, or made again (from the document
+          // the step holds, where the board's was made for another)
+          const wanted = to.cubes?.find((c) => c.id === view.cube)?.cube;
+          const stale = wanted !== undefined && this.#keptDocs.has(view.cube) && this.#keptDocs.get(view.cube) !== keyed(wanted);
+          if (chart.link.grid === null && chart.link.detached
+            && (chart.link.detached.from !== view.cube || this.#pendingKept.has(view.cube) || stale)) {
+            const cube = this.#keptFor(view.cube, remake, stale ? wanted : undefined);
+            chart.link.detached = { snapshot: cube.snapshot, from: view.cube };
+            chart.paint();
+          }
           if (JSON.stringify(chart.panel.spec) !== JSON.stringify(view.spec)) {
             chart.told = JSON.stringify(view.spec);
             chart.panel.setSpec(view.spec);
@@ -679,7 +724,10 @@ export class CubePage {
       for (const s of to.sheets) {
         const { kind: _kind, ...bands } = s.layout;
         const sheet = board(s.id)!;
-        sheet.board.setLayout(this.#drawn(sheet, bands));
+        // drawn again only when it moves: a drag in progress on a sheet the step leaves as it is goes on (the S3 audit's
+        // 11)
+        const drawn = this.#drawn(sheet, bands);
+        if (JSON.stringify(drawn) !== JSON.stringify(sheet.board.layout)) sheet.board.setLayout(drawn);
         // the page's: what the step holds, of the tiles on the board
         this.#pageLayouts.set(s.id, without(bands, (id) => sheet.board.title(id) === undefined));
       }
@@ -696,6 +744,9 @@ export class CubePage {
     // a sheet brought back is shown: where the change is
     const back = this.#sheets.find((s) => !sheetsBefore.has(s.id));
     if (back) this.showSheet(back.id);
+    // a grid an Update made that its command did not give the chart (refused): let go
+    for (const cube of this.#pendingKept.values()) cube.dispose();
+    this.#pendingKept.clear();
     this.#releaseKept();
     this.#options.onSheets?.();
     this.#options.onTiles?.();
@@ -991,7 +1042,8 @@ export class CubePage {
       // where its rows are is the page's too: its copies (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
       // its own snap or going live told as the page's command (the copy it now reads, or none)
       cube.on('moved', () => {
-        if (this.#quiet > 0 || !this.#saved(id)) return;
+        // a grid whose cube the page cannot hold (it cannot say its source) has no copies of the page's
+        if (this.#quiet > 0 || !this.#saved(id) || this.documentOf(id) === undefined) return;
         const copy = cube.copy;
         this.#options.onPageEdit({ label: copy ? 'Snap' : 'Go Live', step: false,
           commands: [copy ? { kind: 'snap', grid: id, copy } : { kind: 'live', grid: id }] });
@@ -999,8 +1051,9 @@ export class CubePage {
       cube.on('plane', () => this.#options.onChange()),
     ];
     this.#grids.set(id, { source: cube.chartSource(), added: { cube, stop: () => stops.forEach((stop) => stop()) } });
-    // the cube's own grid is "Grid", and its page's others counted; a page of its own's are numbered by their ids
-    const made = this.#options.grid ? `Grid ${this.#grids.size}` : gridTitle(id);
+    // numbered by its id, as the page's one rule names a grid with no title of its own (page-commands.ts renameTile,
+    // B2): on a cube alone's board too, whose own grid is "Grid" (the S3 audit's 9)
+    const made = gridTitle(id);
     this.#titles.set(id, made);
     const near = how.near ?? (this.#options.grid ? GRID : undefined);
     const beside = near !== undefined && this.#grids.has(near) ? near : undefined;
@@ -1018,20 +1071,29 @@ export class CubePage {
     const sheet = (beside !== undefined ? this.#sheetOf(beside) : undefined) ?? this.#shown;
     this.#pending.set(id, tile);
     const applied = this.#tell('Add Grid', {
-      kind: 'addGrid', id, document: this.#options.documentOf?.(id) ?? null, sheet: sheet.id, near: beside ?? null,
+      kind: 'addGrid', id, document: this.documentOf(id) ?? null, sheet: sheet.id, near: beside ?? null,
       title: how.title ?? null, columns: sheet.board.columns ?? null,
     });
     if (!applied) {
       this.#pending.delete(id);
-      // refused: never placed, let go
+      // refused (its owner said why): never placed, let go -- its owner told it is gone -- and no tile has its id
       this.#grids.get(id)?.added?.stop();
       this.#grids.delete(id);
+      this.#titles.delete(id);
       this.#opening.delete(id);
       cube.dispose();
-      throw new Error(`the grid was not added: its command was refused`);
+      this.#options.onTiles?.();
+      return id;
     }
     this.#reveal(id);
     return id;
+  }
+
+  /** A grid's cube document as its page names it (CubePageOptions.documentOf) -- absent that, the grid's own: one on
+   *  the board, or one kept off it for a detached chart. Undefined when it cannot say its source. */
+  documentOf(id: string): CubeDocument | undefined {
+    if (this.#options.documentOf) return this.#options.documentOf(id);
+    return (this.#grids.get(id)?.added?.cube ?? this.#kept.get(id) ?? this.#pendingKept.get(id))?.cubeDocument?.('');
   }
 
   /** Once every grid added so far has opened (its first view landed, or its first query refused). */
@@ -1370,8 +1432,10 @@ export class CubePage {
    * grid as its table. The other grids are not in it (an export holds one table); every chart on that sheet is.
    */
   exportPage(table: string = GRID): ExportPage {
-    // a stack exports its tile in front: the grid exported is in front of its own
-    const grid = cells(bringToFront(without(this.#pageLayout(this.#sheetOf(table) ?? this.#shown),
+    // the sheet as the page has it (an editing grid open on it is no tile of the page's: P7), each stack exporting the
+    // tile it shows in front -- the grid exported in front of its own
+    const sheet = this.#sheetOf(table) ?? this.#shown;
+    const grid = cells(bringToFront(without(fronted(this.#layoutOf(sheet), sheet.board.layout),
       (id) => this.#grids.has(id) && id !== table), table));
     const tiles = grid.tiles.map((t): ExportTile => {
       const chart = this.#charts.get(t.id);
@@ -1448,12 +1512,6 @@ export class CubePage {
     };
   }
 
-  /** A sheet's layout without the charts' editing grids (a moment's work, not the page). */
-  #pageLayout(sheet: Sheet): Bands {
-    const editing = new Set([...this.#charts.values()].flatMap((c) => (c.editor ? [c.editor.tile] : [])));
-    return without(sheet.board.layout, (id) => editing.has(id));
-  }
-
   /**
    * A TILE'S REMOVE (its x, its menu's Remove, a grid's Remove from Page): an editing grid is the board's alone, thrown
    * away, its chart left as it was; a tile of the page's is told as its removal, and `sync` takes it off (#drop). A
@@ -1509,6 +1567,32 @@ export class CubePage {
     this.#afterRemove();
   }
 
+  /**
+   * The grid kept off the board for query `id`: made by the gesture that told it (an Update; one made by an Update before
+   * let go), kept already, or made again by its owner (an undo, a redo) -- from `document` when the step holds another
+   * than the one kept was made for.
+   */
+  #keptFor(id: string, remake: Remake, document?: CubeDocument): SpawnedGrid {
+    const made = this.#pendingKept.get(id);
+    if (made) {
+      this.#pendingKept.delete(id);
+      const was = this.#kept.get(id);
+      this.#kept.set(id, made);
+      was?.dispose();
+      return made;
+    }
+    const kept = this.#kept.get(id);
+    if (kept && document === undefined) return kept;
+    const make = remake(id, document);
+    if (!make) throw new Error(`a chart's query ${id} cannot be read again: its maker is gone`);
+    this.#kept.delete(id);
+    kept?.dispose();
+    this.keepGrid(id, make);
+    const doc = document ?? this.documentOf(id);
+    if (doc) this.#keptDocs.set(id, keyed(doc));
+    return this.#kept.get(id)!;
+  }
+
   /** A grid kept off the board that no chart reads any more goes. */
   #releaseKept(): void {
     for (const [id, cube] of [...this.#kept]) {
@@ -1524,7 +1608,15 @@ export class CubePage {
    */
   #afterRemove(): void {
     this.#options.onTiles?.();
-    if (this.charts === 0 && (this.#options.grid !== undefined || this.#grids.size === 0)) this.#options.onEmpty();
+    if (!this.#isEmpty()) return;
+    // inside `sync`, said once it has done: its owner may take the board down (the S3 audit's 2)
+    if (this.#syncing) this.#emptied = true;
+    else this.#options.onEmpty();
+  }
+
+  /** Nothing left of what the board is for: a cube's own with no chart, a page of its own with no tile. */
+  #isEmpty(): boolean {
+    return this.charts === 0 && (this.#options.grid !== undefined || this.#grids.size === 0);
   }
 
   /** Take a grid off the page as its own tile's remove button does: a grid's menu's Remove from Page. */
@@ -1608,21 +1700,21 @@ export class CubePage {
       // then frozen again: its mark and options are its own
       const { frozen: _f, ...following } = current;
       // detached, it takes the editing grid's whole query (its filter too), run by a grid of its own kept off the board
-      // -- another chart detached from the same grid keeps the query it had
+      // -- another chart detached from the same grid keeps the query it had. The grid is made here (a gesture makes
+      // what its command needs); the chart reads it once its command is applied (`sync`: setChartCube)
       let ownCube: PageCommand | undefined;
       if (chart.link.grid === null && chart.link.detached) {
         const own = `${chartId}-query`;
-        // made before the one it replaces goes (an Update again: it is made like the grid it replaces)
         const cube = this.#gridLike(chart.link.detached.from, source, grid.snapshot)(this.#doc.createElement('div'), { id: own });
-        const replaced = this.#kept.get(own);
-        this.#kept.set(own, cube);
-        replaced?.dispose();
+        this.#pendingKept.get(own)?.dispose();
+        this.#pendingKept.set(own, cube);
         void cube.open();
-        chart.link.detached = { snapshot: grid.snapshot, from: own };
-        this.#releaseKept();
-        // its own query, the page's: the kept grid's cube as it starts (setChartCube)
-        const document = this.#options.documentOf?.(own);
-        if (document) ownCube = { kind: 'setChartCube', chart: chartId, document };
+        // its own query, the page's: the kept grid's cube as it starts
+        const document = this.documentOf(own);
+        if (document) {
+          ownCube = { kind: 'setChartCube', chart: chartId, document };
+          this.#keptDocs.set(own, keyed(document));
+        }
       }
       const updated: ChartSpec = { ...followCube(following, grid.snapshot, carriedBy), frozen: true };
       if (ownCube) {
@@ -1636,8 +1728,10 @@ export class CubePage {
       this.#closeEditor(chartId);
     });
     chart.editor = { tile, grid };
-    // beside its chart while that band has room
+    // on its chart's sheet, in a band of its own below the chart's (#drawn: the page's tiles keep their shares, P7)
     this.#place({ id: tile, title: `Editing ${chartTitle}`, element: host, actions: [update] }, chartId);
+    const sheet = this.#sheetOf(tile);
+    if (sheet) sheet.board.setLayout(this.#drawn(sheet, this.#layoutOf(sheet)));
     this.#reveal(tile);
     void grid.open();
   }
@@ -1664,16 +1758,19 @@ export class CubePage {
 
   /**
    * A sheet's layout of the page's as its board draws it: each chart's editing grid on that sheet (which no page holds)
-   * beside its chart, and the tile each stack shows in front as the board shows it (what is looked at, never saved: the
-   * design's §5, 7) -- every tile kept as it is on the board, none made again.
+   * in a band of its own below its chart's -- so the page's tiles keep their shares while it is open, and a gesture made
+   * meanwhile changes the page's layout as it would with it closed (P7; the S3 audit's 4) -- each chart with no spec yet
+   * (no page's tile either) beside its grid, as it was first placed, and the tile each stack shows in front as the board
+   * shows it (what is looked at, never saved: the design's §5, 7) -- every tile kept as it is on the board, none made
+   * again.
    */
   #drawn(sheet: Sheet, layout: Bands): Bands {
     let drawn = layout;
+    const on = new Set(tiles(sheet.board.layout));
     for (const [id, chart] of this.#charts) {
+      if (!tiles(drawn).includes(id) && on.has(id) && !chart.added) drawn = addTile(drawn, id, chart.link.grid ?? undefined, sheet.board.columns);
       const editor = chart.editor;
-      if (editor && this.#sheetOf(editor.tile) === sheet && tiles(layout).includes(id)) {
-        drawn = addTile(drawn, editor.tile, id, sheet.board.columns);
-      }
+      if (editor && this.#sheetOf(editor.tile) === sheet && tiles(drawn).includes(id)) drawn = addTile(drawn, editor.tile, id, 1);
     }
     return fronted(drawn, sheet.board.layout);
   }
@@ -1745,6 +1842,13 @@ function editableInGrid(spec: ChartSpec | null): spec is ChartSpec & { readonly 
  *  what is looked at, never saved (the design's §5, 7), and a step keeps it. */
 function fronted(layout: Bands, shown: Bands): Bands {
   return leaves(shown).reduce((at, leaf) => ('stack' in leaf && leaf.front !== undefined ? bringToFront(at, leaf.front) : at), layout);
+}
+
+/** A document as JSON with its keys in order: two of the same content, written by different writers, alike. */
+function keyed(value: unknown): string {
+  const sorted = (v: unknown): unknown => (Array.isArray(v) ? v.map(sorted)
+    : typeof v === 'object' && v !== null ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted((v as Record<string, unknown>)[k])])) : v);
+  return JSON.stringify(sorted(value));
 }
 
 /** `layout` without the tiles `leave` names: each one's place closed by its neighbours, as a removal closes it. */

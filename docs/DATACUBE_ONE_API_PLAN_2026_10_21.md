@@ -189,7 +189,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   S3: the board keeps each sheet's layout as the page has it apart from its own drawing (cube-page.ts `#pageLayouts`, set
   only when the board is put at a page: `sync`, `restore`, a new sheet), and writes that; the editing grid, placed
   beside its chart, shares its band evenly on the board alone, and closed, the board is put back at the page's shares
-  (cube-page-shell.test.ts: a band shared 0.7/0.3, Open in grid, closed -- fails both ways without it)
+  (cube-page-shell.test.ts: a band shared 0.7/0.3, Open in grid, closed -- fails both ways without it). Corrected by the
+  S3 audit (F9): an editing grid sharing its chart's band gave its share to a neighbour when a gesture was made while it
+  was open; it is drawn in a band of its own below its chart's, and an arrangement made meanwhile is told as `arrange`
+  of the page's tiles
 - [x] **P8** Update a detached chart from its editing grid → `setChartCube` — closed S1: `setChartCube {chart, document}`
   (the chart reads `<chart>-query`, the cube it read before let go when unread), told with its setChart as one step; the
   gesture "a detached chart updated from its editing grid" is told, read, replays; Python's is K11 (S6)
@@ -211,7 +214,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   alone's board keeps a page state (page-state.ts) and applies each edit by the same one step as a page of its own
   (page-commands.ts applyToState), then puts the board at what it makes (CubePage.sync), and tells the commands
   (CubeAppOptions.onPageCommand); the rules come with the board's module, never with a grid alone
-  (cube-page-shell.test.ts: added, clicked, a second, removed -- each replays to the board shown)
+  (cube-page-shell.test.ts: added, clicked, a second, removed -- each replays to the board shown). The S3 audit's F6-F8,
+  F12: its state kept as its grid's own changes leave it, its ids held across its board's lifetimes, its empty board
+  said once the step has done; what it saves is its state less what a cube alone cannot save (its added grids)
 - [x] **P14** stack and arrange gestures told as a whole `layout` → told as `stack` / `arrange` — closed S3: the board
   says what the hand did (band-board.ts `LayoutMove`): a lone tile let go on another's middle is told as `stack {tiles:
   [onto, tile]}` (stackTiles stacks as a drop does; a tab dragged out of its stack is not one), a preset picked as
@@ -336,6 +341,46 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **F5** a tile or sheet Python made inside a call an open page wrote under was handled under the id the write took,
   not the one the page gave it afresh — closed S2 (a147d256c): `Page._apply_page` answers with the ids the commit gave
   (test_page.py, the sheet made while the open page made one) — found by the keeper's soak at 60 seeds
+- [x] **F6** a cube alone's page state went stale as its grid's own changes landed (a view, a selection its filter lost),
+  and the next edit of its board brought back a selection the filter no longer held — closed S3: the board's state kept
+  as each view lands and each presentation change (app.ts `#keepBoard`; cube-page-shell.test.ts F6) — the S3 audit's 1
+- [x] **F7** a cube alone's last chart removed threw (its board taken down while the step that removed the chart was
+  still being drawn) — closed S3: the board says it is empty once `sync` has done (cube-page.ts `#afterRemove`;
+  cube-page-shell.test.ts F7, F8, a listener's error caught) — the S3 audit's 2
+- [x] **F8** a cube alone gave an id out again after its board was emptied — closed S3: the ids its board has held are
+  kept when it goes (app.ts `#boardHeld`; cube-page-shell.test.ts F7, F8) — the S3 audit's 3
+- [x] **F9** a layout gesture made while an editing grid was open gave the editor's share to a neighbour; an
+  arrangement made then was told as a whole `layout` — closed S3: the editing grid is drawn in a band of its own below
+  its chart's (cube-page.ts `#drawn`), and an arrangement is told as `arrange` of the page's tiles
+  (cube-page-shell.test.ts F9, two: the same page with the editor open or not) — the S3 audit's 4
+- [x] **F10** an edit made while `follow()` waited for another editor's snap was lost from the page's state (the state
+  set after the wait) — closed S3: the state is the commands' page before the grids read their rows (page-app.test.ts
+  F10) — the S3 audit's 5
+- [x] **F11** a detached chart's Update changed the board itself (its kept query, the chart's link) before telling,
+  and undone left the page mixed -- the spec back, the query not — closed S3: Update tells `setChartCube` and
+  `setChart`, the grid it made waiting; `sync` has the chart read the query the step holds (the Update's, one kept, or
+  one made again from the step's document: an Update again, undone); a page state's reachable ids hold its cubes
+  (cube-page-shell.test.ts F11) — the S3 audit's 6
+- [x] **F12** a cube alone's told commands replayed to another page than it saves — closed S3, declared: they replay to
+  the board it shows; what it saves is that less what a cube alone cannot save (its added grids and the charts that
+  read them: a cube alone saves one cube) (cube-page-shell.test.ts F12, pinned) — the S3 audit's 7
+- [x] **F13** Go Live refused for a grid whose cube the page cannot hold (its snap applied, its copy dropped) — closed
+  S3: snap and live are told only for a grid whose cube the page holds; a cube alone's grids have their own documents
+  (cube-page.ts `documentOf`; page-app.test.ts F13) — the S3 audit's 8
+- [x] **F14** a cube alone's added grid renamed to its id's number was put back to its count's name — closed S3: one
+  rule names a grid with no title of its own, its id's number (page-ids.ts gridTitle), on a cube alone's board too
+  (cube-page-shell.test.ts F14) — the S3 audit's 9
+- [x] **F15** undoing an edit unrelated to a chart put back a selection its grid's own filter edit had taken off — closed
+  S3, declared under N2: an undo puts the page at a whole step, so a grid's own change made since is not carried into
+  the steps; it goes with the proper live-editing model (§8: undo as inverse commands). Not new since S2 -- the S3
+  audit's 10
+- [x] **F16** a chart with no spec yet moved to the bottom of its sheet at each step; a drag in progress ended at
+  another editor's step that left its sheet as it was — closed S3: drawn beside its grid (`#drawn`); a sheet is drawn
+  again only when it moves (cube-page-shell.test.ts F16, two) — the S3 audit's 11. A chart with no spec yet whose id
+  another editor's step gives a chart of its own is shown as theirs (its id was never told): left, an edge with no
+  path to it in practice
+- [x] **F17** a grid whose addition was refused threw after letting it go — closed S3: let go, its owner told, nothing
+  thrown (cube-page-shell.test.ts F17) — the S3 audit's 12
 
 ## 5. The steps
 

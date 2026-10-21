@@ -64,28 +64,61 @@ describe('one owner of the cube\'s state', () => {
 // where it is put at a page (sync, restore) or draws what no page holds (an editing grid, a tile a gesture made). A
 // gesture that moves a tile or a sheet itself is a second owner coming back: each place is pinned here, with why.
 
-/** Every place the board's structure changes, by function: anything else is a gesture changing the page itself. */
-const BOARD = /(\bboard\.(?:add|remove|setLayout)\(|#newSheet\(|#sheets\.(?:splice|push|sort)\(|#pageLayouts\.(?:set|delete)\(|chart\.conditions = |sheet\.name = |\.name = s\.name)/g;
-const BOARD_SITES: Record<string, string> = {
+/**
+ * Every place the board's structure changes, by function, and how many times there (S3 audit's 13: a second place in a
+ * pinned function is a new place too): its sheets, its tiles' places and names, its charts' specs, selections and the
+ * grids they read, the grids it holds or keeps. Anything else is a gesture changing the page itself.
+ */
+const BOARD = /(\bboard\.(?:add|remove|setLayout|rename)\(|#newSheet\(|#sheets\.(?:splice|push|sort)\(|#pageLayouts\.(?:set|delete)\(|chart\.conditions = |sheet\.name = |\.name = s\.name|#kept\.(?:set|delete)\(|\.link\.(?:grid|detached) = |delete chart\.link\.detached|#charts\.(?:set|delete|clear)\(|#grids\.(?:set|delete)\(|panel\.setSpec\(|#pendingKept\.(?:set|delete|clear)\()/g;
+const SYNC = 'the board put at a page';
+const BOARD_SITES: Record<string, string | readonly [string, number]> = {
   'constructor:#newSheet(': "a page's first sheet",
   'constructor:board.setLayout(': "a cube alone's own grid, the whole board",
   'constructor:#pageLayouts.set(': 'its layout, the page\'s',
+  'constructor:#grids.set(': "a cube alone's own grid",
   '#newSheet:#newSheet(': '(its own header)',
   '#newSheet:board.setLayout(': "a new sheet's board at bands.ts NEW_SHEET",
   '#newSheet:#pageLayouts.set(': "a new sheet's layout (bands.ts NEW_SHEET)",
   '#newSheet:#sheets.push(': 'a sheet made: by sync, setSheets, or the constructor',
   '#place:board.add(': 'a tile on its board: by sync, restore, a placeholder, an editing grid, a chart with no spec yet',
   '#take:board.remove(': 'a tile off its board: by sync (#drop), an editing grid closed, a chart with no spec yet',
-  'sync:#newSheet(': 'the board put at a page',
-  'sync:chart.conditions = ': 'the board put at a page',
-  'sync:board.remove(': 'the board put at a page: a tile onto its sheet',
-  'sync:board.add(': 'the board put at a page: a tile onto its sheet',
-  'sync:#sheets.splice(': 'the board put at a page',
-  'sync:#pageLayouts.delete(': 'the board put at a page',
-  'sync:.name = s.name': 'the board put at a page',
-  'sync:#sheets.sort(': 'the board put at a page',
-  'sync:board.setLayout(': 'the board put at a page',
-  'sync:#pageLayouts.set(': 'the board put at a page',
+  '#synced:#newSheet(': SYNC,
+  '#synced:chart.conditions = ': SYNC,
+  '#synced:board.remove(': `${SYNC}: a tile onto its sheet`,
+  '#synced:board.add(': `${SYNC}: a tile onto its sheet`,
+  '#synced:board.rename(': SYNC,
+  '#synced:panel.setSpec(': SYNC,
+  '#synced:#sheets.splice(': SYNC,
+  '#synced:#pageLayouts.delete(': SYNC,
+  '#synced:.name = s.name': SYNC,
+  '#synced:#sheets.sort(': SYNC,
+  '#synced:board.setLayout(': SYNC,
+  '#synced:#pageLayouts.set(': SYNC,
+  '#synced:#charts.clear(': `${SYNC}: the charts in its order`,
+  '#synced:#charts.set(': `${SYNC}: the charts in its order`,
+  '#synced:#kept.delete(': `${SYNC}: a grid kept for a detached chart, made again as a grid of the page's`,
+  '#synced:.link.grid = ': [`${SYNC}: a detached chart following its grid again`, 2],
+  '#synced:delete chart.link.detached': [`${SYNC}: a detached chart following its grid again`, 2],
+  '#synced:.link.detached = ': `${SYNC}: a detached chart reading the query the step holds (setChartCube)`,
+  '#synced:#pendingKept.clear(': `${SYNC}: an Update's grid its command did not keep, let go`,
+  '#keptFor:#pendingKept.delete(': `${SYNC}: an Update's grid kept for the query the step holds`,
+  '#keptFor:#kept.set(': `${SYNC}: an Update's grid kept for the query the step holds`,
+  '#keptFor:#kept.delete(': `${SYNC}: a kept grid made again from the document the step holds`,
+  'keepGrid:#kept.set(': 'a grid kept off the board for a detached chart: by restore and sync',
+  '#releaseKept:#kept.delete(': 'a kept grid no chart reads any more, let go',
+  '#openEditor:#pendingKept.set(': "an Update's grid, made before its command (setChartCube) has the chart read it",
+  '#openEditor:board.setLayout(': "an editing grid placed in a band of its own: the board's alone (P7)",
+  'addGridOver:#grids.set(': 'a grid made: by a gesture (placed by sync) or by sync',
+  'addGridOver:#grids.delete(': 'a grid whose addition was refused, let go',
+  'openChart:#charts.set(': 'a chart made: by a gesture (placed by sync), by restore, or by sync',
+  '#dropChart:#charts.delete(': 'a chart off the board as sync drops it',
+  '#dropGrid:#grids.delete(': 'a grid off the board as sync drops it',
+  '#dropGrid:#charts.delete(': 'a chart following its grid goes with it as sync takes it off (removeTile\'s rule)',
+  '#dropGrid:#kept.set(': 'a frozen chart left detached as sync takes its grid off',
+  '#dropGrid:.link.grid = ': 'a frozen chart left detached as sync takes its grid off',
+  '#dropGrid:.link.detached = ': 'a frozen chart left detached as sync takes its grid off',
+  '#dropGrid:chart.conditions = ': 'a frozen chart left detached as sync takes its grid off',
+  'dispose:#charts.clear(': 'the board taken down',
   'moveToSheet:board.remove(': "an editing grid moved: no page holds it",
   'moveToSheet:board.add(': "an editing grid moved: no page holds it",
   'setSheets:#newSheet(': 'a saved page put back',
@@ -96,9 +129,9 @@ const BOARD_SITES: Record<string, string> = {
   'setSheets:#pageLayouts.delete(': 'a saved page put back',
   'setSheets:#sheets.sort(': 'a saved page put back',
   'restore:board.setLayout(': 'a saved page put back',
+  'restore:board.rename(': 'a saved page put back',
   'restore:#pageLayouts.set(': 'a saved page put back',
-  '#reconcileGrid:chart.conditions = ': "the screen's reconcile (G8's note): the same rule as the page's, kept by keep",
-  '#dropGrid:chart.conditions = ': 'a frozen chart left detached as sync takes its grid off',
+  '#reconcileGrid:chart.conditions = ': "the screen's reconcile (G8's note): the same rule as the page's, kept by keep (a cube alone's too: F6)",
   '#closeEditor:board.setLayout(': "an editing grid closed: the board back at the page's layout (P7)",
   'undoLayout:board.setLayout(': 'a layout undone by hand, as a drag: told as its layout, applied, synced',
   'redoLayout:board.setLayout(': 'a layout redone by hand, as a drag: told as its layout, applied, synced',
@@ -120,7 +153,7 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     '#applyFilterCommand:this.#state.keep(': 'the page as its owners have it, before the filter command is applied',
   },
   'src/app.ts': {
-    '#pageChanged:state.keep(': "a cube alone's board: what its owners change, no step",
+    '#keepBoard:state.keep(': "a cube alone's board: what its owners change (its grid's own edits, a view: F6), no step",
   },
 };
 
@@ -130,6 +163,9 @@ describe("one owner of a page's state; the board a view of it (S3)", () => {
     assert.deepEqual([...found.keys()].filter((k) => BOARD_SITES[k] === undefined), [],
       'a new place the board changes itself: a gesture tells its commands, the owner applies them, sync puts the board there');
     assert.deepEqual(Object.keys(BOARD_SITES).filter((k) => !found.has(k)), [], 'pinned places that are gone: take them off');
+    const count = (k: string): number => { const pin = BOARD_SITES[k]!; return typeof pin === 'string' ? 1 : pin[1]; };
+    assert.deepEqual([...found].filter(([k, n]) => BOARD_SITES[k] !== undefined && n !== count(k)).map(([k, n]) => `${k} ${n}x`), [],
+      'a pinned place made more (or fewer) times than pinned');
   });
 
   it("a page's state changes by the commands' one step, or is kept as its owners have it", () => {

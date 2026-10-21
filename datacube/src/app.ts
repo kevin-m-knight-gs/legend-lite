@@ -536,6 +536,9 @@ export class CubeApp {
     readonly page: CubePage; readonly host: HTMLElement; readonly state: PageState;
     readonly rules: Pick<typeof import('./page/cube-page.ts'), 'applyToState' | 'idsOf'>; syncing: boolean;
   } | null = null;
+  /** Every id the board has held, kept when it goes (its last chart gone): a board made again gives none of them out
+   *  again (the S3 audit's 3). */
+  #boardHeld: readonly string[] = [];
   /** The grid's part of its tile's header (`tileHead`). */
   readonly #tileHeadEl: HTMLElement;
   /** Where the grid lives when there is no board. */
@@ -1119,6 +1122,7 @@ export class CubeApp {
         return;
       case 'presentation':
         if (this.#view) this.#paintView(this.#view);
+        this.#keepBoard();
         this.#emit('change');
         return;
       case 'refused':
@@ -1328,6 +1332,9 @@ export class CubeApp {
     // Open charts follow the cube: a new filter or calculated column redraws them.
     this.#page?.page.refresh();
     this.#page?.page.reconcile(this.#snapshot.filter);
+    // the board's state as the grid now leaves it: its cube, a chart following it, a selection its filter lost (the S3
+    // audit's 1)
+    this.#keepBoard();
     this.#paintView(view);
     this.#paintReceipts();
     this.#reportSchemaChanges(view);
@@ -2688,15 +2695,18 @@ export class CubeApp {
       onPageEdit: (edit) => this.#pageEdit(edit),
       taken: () => (this.#page ? takenIds(this.#page.state.draft) : []),
       onEmpty: () => {
-        // back where they were, the board gone: the title bar carries the source and pill again
+        // back where they were, the board gone: the title bar carries the source and pill again -- the ids it held kept
         for (const el of parts) root.insertBefore(el, host);
+        if (this.#page) this.#boardHeld = this.#page.state.draft.held;
         page.dispose();
         host.remove();
         this.#page = null;
         this.#renderChrome();
       },
     });
-    this.#page = { page, host, state: new State(this.#boardSeen(page, idsOf)), rules: { applyToState, idsOf }, syncing: false };
+    const seen = this.#boardSeen(page, idsOf);
+    this.#page = { page, host, state: new State({ ...seen, held: [...new Set([...seen.held, ...this.#boardHeld])] }),
+      rules: { applyToState, idsOf }, syncing: false };
     // on the board: the grid's source and pill move into its tile's header
     this.#renderChrome();
     return page;
@@ -2782,18 +2792,28 @@ export class CubeApp {
 
   /** The views and their layout changed: "changed since saved" re-reads the page. */
   #pageChanged(): void {
-    // the board's page as its state holds it: what its owners change (the grid's own edits, a chart following it) kept
-    const held = this.#page;
-    if (held && !held.syncing) held.state.keep(this.#boardSeen(held.page, held.rules.idsOf));
+    this.#keepBoard();
     this.#emit('change');
   }
 
+  /** The board's page as its state holds it: what its owners change (the grid's own edits, a chart following it) kept --
+   *  not while the board is put at the state. */
+  #keepBoard(): void {
+    const held = this.#page;
+    if (held && !held.syncing) held.state.keep(this.#boardSeen(held.page, held.rules.idsOf));
+  }
+
   /** The board's page as it is on screen: the cube's own grid over this cube (when it can say its source), each grid
-   *  added to it under its own id, the charts, the layout. */
+   *  added to it and each query a detached chart reads under its own id, with its cube (when it can say its source),
+   *  the charts, the layout. */
   #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
     const cube = this.cubeDocument('');
-    const seen = writePageOf({ name: '', cubes: cube ? [{ id: PAGE_CUBE, cube }] : [],
-      views: page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid)) });
+    const views = page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid));
+    const others = [...new Set(views.views.map((v) => v.cube))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
+      const doc = page.documentOf(id);
+      return doc ? [{ id, cube: doc }] : [];
+    });
+    const seen = writePageOf({ name: '', cubes: [...(cube ? [{ id: PAGE_CUBE, cube }] : []), ...others], views });
     return { page: seen, held: idsOf(seen) };
   }
 
@@ -2818,7 +2838,7 @@ export class CubeApp {
     const to = held.state.draft.page;
     held.syncing = true;
     try {
-      held.page.sync({ views: to.views, sheets: to.sheets }, { views: from.views, sheets: from.sheets }, () => undefined);
+      held.page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, () => undefined);
     } finally {
       held.syncing = false;
     }

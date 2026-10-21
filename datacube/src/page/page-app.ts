@@ -22,8 +22,10 @@
 // cube with no grid view.
 //
 // ONE PAGE STATE (page-state.ts; docs/DATACUBE_PAGE_STATE_2026_10_18.md): the page as it is saved, held with its
-// history -- kept as the screen is after every change, each structural edit a step -- so Undo and Redo take back a tile
-// removed, a sheet deleted, a tile moved or renamed, a layout, a chart's options, and put the screen at the step.
+// history. THE BOARD IS PRODUCED BY THE COMMANDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S3): each structural edit
+// the board tells is applied to the state by the one rule (page-commands.ts applyToState), a step of its history, and
+// the board put at the page it makes (CubePage.sync); what the grids change of themselves (a view, a chart following
+// it) is kept as they leave it. Undo and Redo put the board at a step the same way.
 
 import { CubePage, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
@@ -41,7 +43,7 @@ import {
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
-import type { CubeDocument, CubeSource } from '../cube-document.ts';
+import { openCube, type CubeDocument, type CubeSource } from '../cube-document.ts';
 import type { GridCopy } from '../page-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
@@ -783,7 +785,8 @@ export class PageApp {
           this.#filters = filtersFor(this.#filters, this.views().views);
           this.#applyLenses();
         }
-        // the page's state is the page on screen: kept after every change, one an edit began a step for or not
+        // what the board's owners change of themselves (a grid's own edits, a chart following it) kept, no step -- not
+        // while the board is put at the state (the commands' changes are the state's already)
         if (!this.#syncing) this.#state.keep(this.#seen());
         // a grid let go that no step can bring back any more is forgotten (its host lets its source go)
         const reachable = this.#state.reachable;
@@ -812,7 +815,8 @@ export class PageApp {
       // it makes; its commands told
       onPageEdit: (edit) => this.#edit(edit),
       taken: () => takenIds(this.#state.draft),
-      documentOf: (grid) => this.grid(grid)?.cubeDocument(this.#name),
+      // any grid it made: one the board waits to place or to keep (a detached chart's Update) too
+      documentOf: (grid) => this.#grids.get(grid)?.grid.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
       onPick: (chart, grid, conditions) => this.#pick(chart, grid, conditions),
     });
@@ -858,14 +862,13 @@ export class PageApp {
    * (another editor's) -- and each grid's lens given it again.
    */
   #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map()): void {
-    const views = (page: PageDocument): PageViews => ({ views: page.views, sheets: page.sheets });
     this.#filters = to.filters ?? [];
     this.#restoring = to.views;
     this.#syncing = true;
     try {
-      this.#page.sync(views(to), views(from), (grid) => {
+      this.#page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, (grid, document) => {
         const make = makers.get(grid);
-        return this.#remake(grid) ?? (make ? this.#maker(make) : undefined);
+        return this.#remake(grid, document) ?? (make ? this.#maker(make) : undefined);
       }, (cube) => this.#unopenedWhy(cube));
     } finally {
       this.#syncing = false;
@@ -931,6 +934,9 @@ export class PageApp {
       this.#paintTitle();
     }
     this.#syncTo(to, from, makers);
+    // the page the commands made, whole -- the ids it has held, its cubes -- the start of its history again: before the
+    // grids read their rows where the commands say, so an edit made meanwhile is a step on top of it (the S3 audit's 5)
+    this.#state = new PageState(made);
     // where each grid's rows are as the commands leave them (§18.8), in their order: a snap made by the other editor
     // read from its host, a live command its live rows again
     for (const command of commands) {
@@ -942,8 +948,6 @@ export class PageApp {
       else await grid.followLive();
       if (this.#disposed) return;
     }
-    // the page the commands made, whole -- the ids it has held, its cubes -- the start of its history again
-    this.#state = new PageState(made);
   }
 
   #move(way: 'undo' | 'redo'): void {
@@ -963,13 +967,16 @@ export class PageApp {
     this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${step.label}.`);
   }
 
-  /** A grid made again, by the maker that made it, starting where it was (on the board, kept, or let go). */
-  #remake(id: string): ((host: HTMLElement, options: SpawnOptions) => PageGrid) | undefined {
+  /** A grid made again, by the maker that made it, starting where it was (on the board, kept, or let go) -- or, a
+   *  `document` given, as it says (a detached chart's query as a step holds it), over the same source. */
+  #remake(id: string, document?: CubeDocument): ((host: HTMLElement, options: SpawnOptions) => PageGrid) | undefined {
     const live = this.#grids.get(id);
     const was = live ? { make: live.make, start: startOf(live.grid) } : this.#gone.get(id);
     if (!was) return undefined;
     this.#gone.delete(id);
-    return this.#maker(was.make, was.start);
+    if (document === undefined) return this.#maker(was.make, was.start);
+    const opened = openCube(document, was.start.snapshot.source, was.start.snapshot.columns);
+    return this.#maker(was.make, { snapshot: opened.snapshot, configuration: opened.configuration, tree: opened.tree });
   }
 
   /** A tile came or went: grids taken off forgotten, a lone grid shown in the bar, the empty page when it is. */

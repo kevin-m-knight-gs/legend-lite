@@ -694,6 +694,68 @@ describe('a page of its own', () => {
     await assert.rejects(page.follow([{ kind: 'snap', grid: 'grid-9', copy }], new Map()));
   });
 
+  /** A grid read through its host's runner, its host keeping copies -- `slow`: another editor's copy taken up only when
+   *  `taken()` lets it -- over `file`, or (none) a source the page cannot write down. */
+  const hostedGrid = (o: { slow?: { taken: () => Promise<void> }; file?: string }): GridMaker => {
+    const runner = new PlanThenRun(new StubPlanner(), engine) as unknown as QueryRunner;
+    return (gridHost, spawned) => new CubeApp(gridHost, SNAPSHOT, {
+      runner, ...(o.file !== undefined ? { cubeSource: file(o.file) } : {}), sourceLabel: o.file ?? 'rows', compact: true,
+      hostSnap: {
+        store: 'Python',
+        snap: async () => ({ rowCount: 3, table: 'snap_2', source: SNAPSHOT.source.query, runner }),
+        release: async () => {},
+        adopt: async (table) => {
+          await o.slow?.taken();
+          return { table, source: SNAPSHOT.source.query, runner };
+        },
+      },
+      ...(page ? { windowHost: page.root } : {}), ...spawned,
+    });
+  };
+
+  it("F10: an edit made while another editor's snap is taken up is a step on top of the page the editor made", async () => {
+    let release: () => void = () => {};
+    newPage();
+    const a = page.addGrid(hostedGrid({ file: 'trades.csv', slow: { taken: () => new Promise<void>((r) => { release = r; }) } }));
+    await settle();
+    const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
+    const following = page.follow([{ kind: 'snap', grid: a, copy }], new Map());
+    await settle();
+    // the person adds a sheet while the follow waits for the copy
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    release();
+    await following;
+    await settle();
+    assert.deepEqual(page.state.page.sheets.map((s) => s.id), page.sheets, 'the state holds the sheet added meanwhile');
+    assert.ok(page.state.held.includes(page.sheets[1]!), 'and its id, held');
+    assert.equal(page.undoLabel, 'Add Sheet', 'a step of its own, on top of the editor\'s page');
+    // the next edit -- the first sheet renamed in its tab -- leaves it where it is
+    host.querySelectorAll<HTMLElement>('.dc-sheet-tab')[0]!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    const field = host.querySelector<HTMLInputElement>('.dc-sheet-tab input')!;
+    field.value = 'First';
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    await settle();
+    assert.equal(page.sheets.length, 2, "the sheet added while the follow waited is the page's");
+  });
+
+  it("F13: a grid whose cube the page cannot hold snaps and goes live with no command of the page's, nothing refused", async () => {
+    const refused: string[] = [];
+    const told: PageCommand[] = [];
+    newPage({ refuse: (text) => refused.push(text), onPageCommand: (c) => told.push(c) });
+    page.addGrid(hostedGrid({}));
+    await settle();
+    const pill = (): HTMLElement => host.querySelector('.dc-titlebar-toggle') as HTMLElement;
+    pill().click();
+    await settle();
+    assert.equal(pill().textContent, 'Snapped');
+    pill().click();
+    await settle();
+    assert.equal(pill().textContent, 'Live');
+    assert.deepEqual(refused, [], 'Go Live refused nothing');
+    assert.deepEqual(told.filter((c) => c.kind === 'snap' || c.kind === 'live'), [], "no copy of the page's: it holds no cube for the grid");
+  });
+
   it("another editor's grid commands: applied as one change, no step of the grid's own history, which starts again from them", async () => {
     // (the phase 3 audit's 7) an undo past Python's change would take it back unseen
     newPage();
