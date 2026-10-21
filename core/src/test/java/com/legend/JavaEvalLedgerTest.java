@@ -1353,6 +1353,9 @@ class JavaEvalLedgerTest {
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
                             "PureV1Api.java",
+                            // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
+                            // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
+                            "ModelInput.java",
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
                             // the rules over a records interface, one implementation for the server, Python and the page)
                             "QueryService.java"),
