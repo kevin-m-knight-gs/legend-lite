@@ -217,8 +217,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   chart ungrouped" replays (page-commands.test.ts, test_page.py)
 - [x] **V2** a chart's selection reconciled with its grid's filter, on every path — closed S2: the same rule takes off a
   selection its cube's filter no longer holds, as the screen's reconcile does (page-commands.test.ts, test_page.py)
-- [ ] **V4** group-level column types written the same by both sides (spike first: type at compile, or stop storing
-  run-derived types) — S2, L7
+- [x] **V4** group-level column types written the same by both sides (spike first: type at compile, or stop storing
+  run-derived types) — closed S2: the spike found typing at compile incomplete (a pivoted level's columns need the
+  pivot's values, which only a query gives), so no side writes the type a run learned: `writeCube` leaves it out, the
+  screen after a run and a host never run write the same cube (cube-document.test.ts); the corpus regenerated
 - [x] **V5** expand level and the groups closed under it saved and read back — closed S2: `treeDocument` writes
   `expandTo` and `closed` (when it has a level), `readTree` reads them in words, `treeOf` and `openCube` open with them
   (`TreeState.saved`; regrouped, the closed paths go and the level stays)

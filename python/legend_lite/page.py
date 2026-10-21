@@ -950,6 +950,8 @@ class Page:
         self._unserved: list[dict[str, Any]] | None = []
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
+        # the ids the last commit gave out afresh, old to new (its edits made again on top of an open page's write)
+        self._given: dict[str, str] = {}
         # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
         self._ids: set[str] = _ids(self._doc)
         # where it is shown (datacube.show_page): told each time it changes
@@ -1045,6 +1047,7 @@ class Page:
     def _renamed(self, renamed: Mapping[str, str]) -> None:
         """Each handle of a tile or a sheet whose id was given out afresh (its change made again on top of the page as it
         was then), under its new one."""
+        self._given = {**self._given, **renamed}
         for old, new in renamed.items():
             for key in [k for k in self._handles if k[1] == old]:
                 handle = self._handles.pop(key)
@@ -1532,8 +1535,11 @@ class Page:
         applied = [_plain(c) for c in said['commands']]
         self._page_commands.extend(applied)
         self._note([{'page': c} for c in applied])
+        self._given = {}
         self._changed()
-        return applied
+        # an id a command made, given out afresh as the write was made again on top of an open page's (_renamed): the
+        # caller's handle is made under the id the page gives it, never the one taken
+        return [{**c, 'id': self._given.get(c['id'], c['id'])} if isinstance(c.get('id'), str) else c for c in applied]
 
     def _note(self, commands: list[dict[str, Any]]) -> None:
         """Commands that changed the page, for a page open on it to apply (``_changed`` serves them)."""

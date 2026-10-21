@@ -248,7 +248,11 @@ export interface WriteOptions {
 
 export function writeCube(o: WriteOptions): CubeDocument {
   const { epoch: _epoch, window: _window, ...withRelation } = o.snapshot;
-  const { source: _relation, ...query } = withRelation as typeof withRelation & { readonly source?: SourceRef };
+  const { source: _relation, ...ran } = withRelation as typeof withRelation & { readonly source?: SourceRef };
+  // a group-level column's type is what a run learned (its level query's plan: cube.ts withGroupStageTypes), never the
+  // cube's: written by no side, so the screen after a run and a host never run write the same cube (V4)
+  const query = ran.groupDerived === undefined ? ran
+    : { ...ran, groupDerived: ran.groupDerived.map(({ type: _learned, ...d }) => d) };
   return {
     kind: CUBE_KIND,
     version: CUBE_VERSION,

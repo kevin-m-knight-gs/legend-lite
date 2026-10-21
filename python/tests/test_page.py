@@ -1399,6 +1399,30 @@ class Live(Paged):
             page._leave(failed=True)
         self.assertEqual(page.grids, [other])
 
+    def test_a_sheet_made_while_the_open_page_made_one_is_handled_under_the_id_the_page_gives_it(self):
+        # (found by the keeper's soak at 60 seeds) the open page wrote a sheet under the id Python's next one takes: made
+        # again on top, Python's is given out afresh -- and its handle is made under that id, not the one taken
+        page, grid, _ = self.built()
+        ll.show(page, browser=False)
+        page._enter()
+        try:
+            theirs = page.to_dict()
+            taken = f"sheet-{1 + max(int(i.split('-')[1]) for i in page._ids if i.startswith('sheet-'))}"
+            theirs['sheets'].append({'id': taken, 'name': 'There', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
+            version = datacube._session.engine().page_versions(page._key)['version']
+            answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
+                                                       _json.dumps({'page': theirs, 'edits': None}))
+            self.assertEqual(answer.status, 200, answer.body.decode('utf-8'))
+            mine = page.sheet('Mine')
+        finally:
+            page._leave(failed=False)
+        sheets = {s['id']: s.get('name') for s in page.to_dict()['sheets']}
+        self.assertEqual(sheets.get(taken), 'There')
+        self.assertNotEqual(mine.id, taken)
+        self.assertEqual(sheets.get(mine.id), 'Mine', 'the handle is the sheet the page gave it')
+        mine.name = 'Mine, renamed'
+        self.assertEqual({s['id']: s.get('name') for s in page.to_dict()['sheets']}[taken], 'There', "the open page's sheet untouched")
+
     def test_a_cube_opened_again_while_the_open_page_wrote_is_its_command_made_again_on_that_write(self):
         # (P11) a cube opened again over a frame whose columns moved is its command, rebuilt: made again on top of the
         # open page's write as any command is -- the page as the open page wrote it, the cube as it opens now

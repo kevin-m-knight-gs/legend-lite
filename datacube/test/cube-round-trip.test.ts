@@ -205,6 +205,11 @@ function reopened(text: string): { state: CubeState; notes: readonly string[]; c
 }
 
 const why = (seed: number, steps: readonly string[]): string => `seed ${seed}: ${steps.join(' -> ')}`;
+/** A state as a document keeps it: a group-level column's type is what a run learned, never written (V4), so it
+ *  comes back with the next run, not with the document. */
+const unlearned = (state: CubeState): CubeState => (state.snapshot.groupDerived === undefined ? state : {
+  ...state, snapshot: { ...state.snapshot, groupDerived: state.snapshot.groupDerived.map(({ type: _learned, ...d }) => d) },
+});
 
 describe('a grid edited at random comes back as it was (written, read, opened again)', () => {
   it(`${SEEDS} seeds of ${STEPS} edits: the same queries, the same settings, the same document`, () => {
@@ -219,9 +224,9 @@ describe('a grid edited at random comes back as it was (written, read, opened ag
       assert.deepEqual(again.notes, [], why(seed, steps));
       assert.equal(again.changed, false, why(seed, steps));
       // it runs the same queries (as content: a key's place in the text is the reader's)
-      assert.deepEqual(JSON.parse(queryKey(again.state)), JSON.parse(queryKey(state)), why(seed, steps));
+      assert.deepEqual(JSON.parse(queryKey(again.state)), JSON.parse(queryKey(unlearned(state))), why(seed, steps));
       // nothing a person set is lost: presentation too (as content: a key's place in the text is the reader's)
-      assert.deepEqual(JSON.parse(stateKey(again.state)), JSON.parse(stateKey(state)), why(seed, steps));
+      assert.deepEqual(JSON.parse(stateKey(again.state)), JSON.parse(stateKey(unlearned(state))), why(seed, steps));
       // and written again it is the same document, character for character
       assert.equal(written(again.state), text, why(seed, steps));
     }

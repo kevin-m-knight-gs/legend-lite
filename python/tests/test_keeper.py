@@ -206,7 +206,9 @@ class Intent:
         self.titles = {}
 
     def said(self, fact):
-        what, *rest = fact
+        # a tile or a sheet Python made says its id when it is said, not when it was made: made inside a call the open
+        # page wrote under, it is given out afresh as the call's edits are made again on top, and its handle follows
+        what, *rest = fact() if callable(fact) else fact
         if what == 'name':
             self.name = rest[0]
         elif what == 'sheet':
@@ -428,6 +430,19 @@ PYTHON_KINDS = ('sheet', 'group', 'name', 'snap', 'live', 'renameSheet', 'sort',
                 'remove', 'title', 'moveTo')
 
 
+def made(fact):
+    """A fact about a tile or a sheet Python made, said with its id when it is said (made inside a call an open page
+    wrote under, its id is given out afresh and its handle follows) -- or, taken off by then, as it was made."""
+    then = fact()
+
+    def said():
+        try:
+            return fact()
+        except ValueError:
+            return then
+    return said
+
+
 def python_edit(page, rng, frame):
     """One edit made in Python: its kind and what it said -- or, refused, its kind and the refusal; (None, None) when
     there was none to make."""
@@ -436,7 +451,8 @@ def python_edit(page, rng, frame):
     try:
         if kind == 'sheet':
             name = f'Python {rng.randrange(100)}'
-            return kind, [('sheet', page.sheet(name).id, name)]
+            sheet = page.sheet(name)
+            return kind, [made(lambda: ('sheet', sheet.id, name))]
         if kind == 'name':
             name = f'Named in Python {rng.randrange(100)}'
             page.name = name
@@ -458,7 +474,7 @@ def python_edit(page, rng, frame):
             rows = [rng.choice(['desk', 'region'])]
             # over a frame the page reads already (its object, as served): no frame served again, no grid opened again
             grid = page.grid(frame[1], name=frame[0], rows=rows)
-            return kind, [('grid', grid.id, grid._view['cube'], rows)]
+            return kind, [made(lambda: ('grid', grid.id, grid._view['cube'], rows))]
         if not grids:
             return None, None
         grid = rng.choice(grids)
@@ -485,7 +501,7 @@ def python_edit(page, rng, frame):
             return kind, []
         if kind == 'chart':
             chart = grid.chart('bar', x=rng.choice(['desk', 'region']), frozen=rng.choice([None, True]))
-            return kind, [('chart', chart.id, chart._view['cube'], bool(chart._view['spec'].get('frozen')))]
+            return kind, [made(lambda: ('chart', chart.id, chart._view['cube'], bool(chart._view['spec'].get('frozen'))))]
         if kind == 'moveTo':
             grid.move_to(rng.choice(sheets))
             return kind, []
@@ -514,10 +530,12 @@ class Converged(unittest.TestCase):
             os.environ['LEGEND_LITE_SITE'] = self._site
 
     def built(self, seed):
-        """A page of two grids, and the frame of its first (its name, its object), for the grids Python adds."""
+        """A page of two grids, the first with a chart following it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S2: every
+        side keeps it following by one rule, followedPage), and the frame of its first (its name, its object), for the
+        grids Python adds."""
         page = ll.Page('Converges')
         frame = (f'trades_{seed}', trades())
-        page.grid(frame[1], name=frame[0], rows=['region'], measures={'notional': 'sum'})
+        page.grid(frame[1], name=frame[0], rows=['region'], measures={'notional': 'sum'}).chart('bar')
         page.grid(trades(), name=f'more_{seed}')
         return page, frame
 

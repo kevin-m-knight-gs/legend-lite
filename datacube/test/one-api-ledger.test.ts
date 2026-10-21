@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
-  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 17, UNCHECKED: 7,
+  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 16, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -365,7 +365,6 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/app/live-channel.ts', text: 'if (this.#told === 0 && this.#seen !== undefined) this.#edits = null;', items: ['H2'] },
   { file: 'src/headless/page.ts', text: 'const read = edits === null ? null : readEdits(edits);', items: ['H2'] },
   // derived state, and what the keeper keeps
-  { file: 'src/headless/grid.ts', text: 'return (await typeColumns(snapshot, runner)).snapshot;', items: ['V4'] },
   { file: 'src/page-rebase.ts', text: 'export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {', items: ['X3'] },
   // the browser's half of the same jobs done by different rules
   { file: 'src/headless/grid.ts', text: 'gridLens(', items: ['B1'], absent: true },

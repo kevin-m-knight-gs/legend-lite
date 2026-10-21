@@ -94,6 +94,16 @@ const doc = () => writeCube({
 });
 
 describe('writing and reading a cube', () => {
+  it("writes no group-level column's type: a run learns it (its level query's plan), so no side writes one (V4)", () => {
+    // the screen's snapshot after a run carries the type its level query's plan gave; a host's, never run, none
+    const ran = { ...EVERY, groupDerived: EVERY.groupDerived.map((d) => ({ ...d, type: 'Integer' })) };
+    const written = (snapshot: CubeSnapshot) => cubeToJson(writeCube({
+      name: 'Q3 review', source: SOURCE, snapshot, configuration: CONFIG, tree: TreeState.fromPaths([]),
+    }));
+    assert.equal(written(ran), written(EVERY), 'the same document, run or not');
+    assert.equal(readCube(written(ran)).query.groupDerived?.[0]?.type, undefined);
+  });
+
   it('reads back every field of the cube, exactly, through JSON text', () => {
     const back = readCube(cubeToJson(doc()));
     const { source: _s, epoch: _e, window: _w, ...query } = EVERY;
