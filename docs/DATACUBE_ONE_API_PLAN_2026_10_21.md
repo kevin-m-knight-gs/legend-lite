@@ -86,16 +86,19 @@ no longer exists (so the list can only shrink, and stays true).
 
 | Ledger | Holds | How it detects |
 |---|---|---|
-| **L1** grid state changes | every call in `datacube/src/app.ts` that changes the cube's state other than `#applyCommands` (`#change`, `#configure`, `#query`, `#owner.change`, public `change`, `applyConfiguration`, retry) | static, as `state-guardrail.test.ts` does |
-| **L2** gestures | a catalogue of every gesture on the real PageApp + CubeApp (jsdom); for each: the commands told, replayed on the page before, give the page after, and no change happens with no command told | behavioural; ledger = gestures failing today |
-| **L3** wire | every command a gesture tells survives its JSON writer and reader (what the host reads) | part of L2's run |
-| **L4** Python whole writes | every `_unnoted()` call in `python/legend_lite/page.py` | static |
-| **L5** Python funnel | every assignment to a Python page's document (`_doc =`, `_doc[...] =`) not taken from a headless answer | static |
+| **L1** grid state changes | every call in `datacube/src/app.ts` that changes the cube's state other than `#applyCommands`; every call of the command path (the allowed ones' text pinned); every caller across the app of the grid's public ways in (`state`, `change`, `refilter`, `applyGridCommands`, `followSnap`, the controller); every caller of each listed gap; Snap's emits and controller calls, and the host's page writes, counted only in a function that tells no command | static, by enclosing function (indentation scope), as `state-guardrail.test.ts` reads sources |
+| **L2** gestures | a catalogue of gestures on the real PageApp + CubeApp (jsdom) and the tab's live channel; each made on a quiet page; the commands told, as the host read them, replayed on the page before by the shared functions (as headless gridApply applies a grid's), give the page the screen wrote; no change written whole; a view-only gesture writes nothing; every command kind told by some gesture or listed | behavioural; ledger = each failing check with how it fails (the host's words, the parts of the page that differ) |
+| **L3** wire | every command a gesture tells is read by headless pageWritten as it was sent | part of L2's run |
+| **L4** Python whole writes | every `_unnoted()` call in `python/legend_lite/page.py`, and every assignment of the write's flags (`_unserved`, `_dirty`) | static, by Python's own parser |
+| **L5** Python funnel | every write into a page's document -- whole, under it, through a handle's part (`_view`, `_cube`, `_query`) or a local name bound to one; deletes, `setattr`, `__dict__` -- each allowed one's right-hand side pinned (a headless answer) | static, by Python's own parser |
 | **L6** Python copies | the Python functions in audit §5, by name; fails when one is gone but still listed | static (a register: new copies are caught by L5 and review) |
-| **L7** convergence | Python, headless and the tab run the same command vocabulary and must hold the same page, charts, selections and tree included; ledger = vocabulary items that diverge today | behavioural (extends `test_keeper.py` Converges and `live-channel.test.ts`) |
-| **L8** capability matrix | every command kind and source kind x {UI producer, Python builder, JSON reader/writer, rebase arm, parity row} | static over the kinds' union types; ledger = missing cells |
-| **L9** host writes | the kinds of write the keeper takes whole | Python test over `keeper.py` / `engine.py` |
+| **L7** convergence | at S0: derived state Python leaves as it was (V1, V2, G3, asserted as today) and every gesture's replay check (the screen against the shared functions); S2 first extends the convergence soak (Python, headless and the tab over one vocabulary, charts, selections and tree included), its divergences listed | behavioural |
+| **L8** capability matrix | every command kind x {its kind list, both readers, the rebase's renaming, a screen producer, a Python builder}; every source kind x {Python reads it, Python adds it}; headless exports Python never asks; the capabilities with no kind of their own (K1, K3-K6, K9-K12) listed as unchecked until S6 agrees their names | static over the kinds' union types (a per-kind parity row is not detectable: the parity tests are by action) |
+| **L9** host writes | what the keeper takes whole, through the engine's own write (H1-H3); who writes the keeper at all (page.py, engine.py, datacube.py) | behavioural, and static by Python's parser |
 | **L10** same rule | one parity test per behaviour difference (audit §6); ledger = rows still differing | behavioural |
+
+Every ledger's size is pinned (`CEILINGS`): a fix lowers it; it grows only with a dated note. The register is pinned too:
+every item it has held is in it, open or closed.
 
 Acceptance of step 0: every ledger green with today's entries, each entry naming an item id from §4; adding a dummy
 `#change` call, a dummy `_unnoted()` and a dummy untold gesture each turns its ledger red (checked once, not committed).
@@ -119,12 +122,16 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **G9** use a dimension → `group` — S1, L1
 - [ ] **G10** `applyConfiguration` → deleted; its tests use `configure` — S1, L1
 - [ ] **G11** public `change()` / `state` → removed or read-only — S1, L1
-- [ ] **G12** grid undo / redo → N2 restore write — S4, L9
-- [ ] **G13** an edit retried after signing in again → its commands kept and told — S1, L1
-- [ ] **G14** a grid made while the page bar is folded → `showTitleBar` in the `addGrid` document — S1, L2
+- [ ] **G12** grid undo / redo → N2 restore write — S4, L9 (closed in S4: its L1 entries become item-less N2 entries, held by
+  L9's test that a stale restore is refused)
+- [ ] **G13** an edit retried after signing in again → its commands kept and told — S1, L1 (a retry stays a retry: S1 closes
+  it by a behavioural test written first)
+- [x] **G14** a grid made while the page bar is folded → `showTitleBar` in the `addGrid` document — closed S0: not a gap (the
+  `addGrid` document carries the title bar as the grid was made; the gesture "a grid added while the page bar is folded"
+  passes told, wire and replays)
 - [ ] **G15** standalone New ▸ Source cap rule (unreachable in the app) → deleted or shared — S1
 
-### Telling exactly what landed (audit §2, after the grid table)
+### Telling exactly what landed (audit §2, after the grid table; each a marker until S1 writes its failing behavioural test first)
 - [ ] **T1** a command refused on the committed state but kept on the pending one — S1, L2
 - [ ] **T2** a presentation command told before a running transaction's — S1, L2
 - [ ] **T3** a change made on top of an undo in flight — S1, L2
@@ -139,9 +146,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **P3** Snap / Go Live in the tab → `snap` / `live` — S1, L2
 - [ ] **P4** Create a Class / Association / Data Space → model page commands (`modelInto`, `modelPin`, `modelKeep`)
   applied by `page-model.ts`'s functions — S1, L2
-- [ ] **P5** page undo / redo → N2 restore write — S4, L9
+- [ ] **P5** page undo / redo → N2 restore write — S4, L9 (closed as G12)
 - [ ] **P6** chart options told before the chart re-follows → falls out of S2 — S2, L2 L7
-- [ ] **P7** Open in grid resets the chart's band shares → an editor tile never touches the saved layout — S3, L2
+- [ ] **P7** Open in grid resets the chart's band shares after a resize → an editor tile never touches the saved layout — S3,
+  marker (jsdom drags no resize; opening an editing grid on even shares writes nothing, a gesture checks that)
 - [ ] **P8** Update a detached chart from its editing grid → `setChartCube` — S1, L2
 - [ ] **P9** restore drops views it cannot open → kept in the document as unavailable tiles, never dropped — S1, L2
 - [ ] **P10** Open…, in place, Blank Page on a served page → a new page (D1) — S4
@@ -369,3 +377,47 @@ largest; S3 the riskiest.
 - Each commit: `One API S<n> <ids>: <what>`; the register updated in the same commit.
 - Each step ends with "As built (S<n>)" here: what was built, what the audit found, the ledger counts before and after.
 - `docs/IN_FLIGHT.md` carries the program's line from S0 to S7.
+
+## As built (S0, 2026-10-21)
+
+**Built** (commits 5eb17fc42, d598bf146, and the audit's round): `datacube/test/one-api-ledger.test.ts` (L1, L8, the
+markers, C1, V5, the register), `datacube/test/one-api/scan.ts`, `datacube/test/one-api-gestures.test.ts` (L2, L3:
+33 gestures and a control), `python/tests/test_one_api.py` (L4-L7, L9, L10), the BUILD wiring (the plan and Python's
+sources copied to the output tree for the JavaScript test), the program's line in `docs/IN_FLIGHT.md`. No product code.
+
+**What the gestures found on the real page.** Every page and grid gesture driven passes told, wire and replays except the
+listed ones: the name box (P1), page undo (P5), a chart's mark (G7), a detached chart's Update (P8, written whole -- worse
+than the audit said), a group opened (G1), Collapse All (G2), `applyConfiguration` (G10), Show As (C1, refused by the
+host's reader), a following chart regrouped (V1: the chart's `split` differs). Opening a frozen chart in a grid writes
+nothing, as a view change should. G14 is no gap (closed above). Every command kind is told by some gesture, but those the
+screen does not make (`renamePage`, `stack`, `arrange`, `snap`, `live`: P1, P2, P14, P3) and two not driven yet (`measures`
+by nature; `filter`, the Filters window being G6).
+
+**Checked red.** Round one: a stray `#change`, a stray `_unnoted()`, a kind nobody makes, an untold gesture. Round two, the
+audit's own escapes: a new caller of `refilter` on the board, a new action reaching a listed gap, a Python write through a
+tile's view, a kind no reader reads, an item taken out of the register unclosed, a ledger entry added past its ceiling.
+Each turned its ledger red with a message naming it; each was taken out again.
+
+**The independent audit** (23 findings) and what became of each:
+- Fixed: the grid's public ways in and their callers across the app (1); every caller of each listed gap (2); more
+  gestures (sheets renamed, moved, deleted; arranging; page filters on a class grid; sorts by menu and click, the tree
+  column's sort; hide; Column Properties; a filter from a cell; groups opened and collapsed; Open in grid) and every
+  command kind told or listed (3); the gaps' names held to the gestures', the gesture list only grows (4); every ledger's
+  size pinned (5); Python's funnel through handles, aliases, deletes, `setattr`, `__dict__`, and the write's flags (6);
+  the kind lists, both readers and the rebase's renaming checked per kind (7); host writes and Snap counted only where no
+  command is told, so the fix is what takes them off, P2 by its own entries (9); replays of the commands as the host read
+  them (13); a quiet page before each gesture, and a control (14); failures pinned by how they fail (12); producers read
+  only in the modules that make commands, Python's docstrings left out, headless functions cut at their brace (16); the
+  source kinds' keys and refusals, `PYTHON_ADDS` pinned (17); each allowed Python assignment's right-hand side pinned (18);
+  every call of the command path, the allowed ones' text pinned (19); Snap's controller calls (20); C1's three column
+  kinds, V5's closed groups, H2's tab halves, H1 through the engine (21); the register pinned whole (23); a comment's code
+  after `*/` read (low).
+- Said rather than faked: the nine capabilities with no kind of their own are listed as unchecked until S6 agrees their
+  names (8); G12/P5 close in S4 by the restore write and a stale-restore test (10); the gesture harness stands in for the
+  host's rename, P1's check on the host's own code being L1's (11); T1-T4, G13, P6 and P7 stay markers until S1/S3 write
+  their failing behavioural tests first (15); L7 at S0 is three Python assertions and the gestures' replays, S2 extends the
+  convergence soak first (22); markers pin wording and L6 names by function: re-pinned when moved (low).
+- Not done: a per-kind parity row (the parity tests are by action, not by kind: no cell can be read from them).
+
+**Gates.** `//datacube/... //python/...`: green (four environment reruns: three tests the disk filled under, `verify_app`
+as the container's unprivileged user).

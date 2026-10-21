@@ -1,12 +1,18 @@
 // THE ONE API LEDGERS' SOURCE SCANNING (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): where in a source a call is made
 // -- the function, method or object property it is made in -- so a ledger names a gap by where it lives, not by a line
-// number that moves with every edit. Plain text over the source: comments left out, as state-guardrail.test.ts reads it.
+// number that moves with every edit; and that function's body, so a ledger can ask whether it also tells a command.
+// Plain text over the source, comments left out, scope read from the indentation (the sources are formatted).
 
-/** A source's lines, a comment line blanked (so a call named in a comment is no call). */
+/** A source's lines, comments blanked: a `//` line, a block comment's lines; code after a block comment kept. */
 export function codeLines(text: string): string[] {
   return text.split('\n').map((line) => {
     const t = line.trim();
-    return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') ? '' : line;
+    if (t.startsWith('//') || t.startsWith('*')) return '';
+    if (t.startsWith('/*')) {
+      const end = line.indexOf('*/');
+      return end < 0 ? '' : ' '.repeat(end + 2) + line.slice(end + 2);
+    }
+    return line;
   });
 }
 
@@ -15,10 +21,11 @@ const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'catch', 'fu
 
 /** A class member's header (two spaces in): `  async #name(`, `  get name(`, `  name<T>(`. */
 const MEMBER = /^ {2}(?:static\s+)?(?:async\s+)?(?:get\s+|set\s+)?(#?[A-Za-z_$][\w$]*)\s*(?:<[^(]*>)?\(/;
-/** An object property that is a function: `name: (`, `name: async (`, `name(...) {` deeper in. */
+/** An object property that is a function: `name: (`, `name: async (`. */
 const PROPERTY = /^\s+(#?[A-Za-z_$][\w$]*)\s*:\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/;
+/** A method deeper in: `name(...) {`. */
 const METHOD = /^\s+(?:async\s+)?(#?[A-Za-z_$][\w$]*)\s*\([^)]*\)\s*(?::[^{]*)?\{\s*$/;
-/** A function inside another: `const name = async (...) =>`, `function name(`. */
+/** A function inside another: `const name = async (...) =>`, `name = (...) =>`, `function name(`. */
 const INNER = /^\s+(?:(?:(?:const|let)\s+)?([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)?|[A-Za-z_$][\w$]*\s*=>)|(?:async\s+)?function\s+([A-Za-z_$][\w$]*))/;
 /** The end of a signature written over several lines: its closing parenthesis, its return type, its body opened. */
 const SIGNATURE_END = /\)\s*:\s*[^=]*\{\s*$/;
@@ -42,13 +49,13 @@ function header(line: string): string | undefined {
 }
 
 /**
- * The name of what the line at `index` is in: the nearest header above it that is less indented than every line
- * between (so a sibling -- a local arrow function defined just before the call -- is not taken for it).
+ * What the line at `index` is in: the nearest header above it that is less indented than every line between (so a
+ * sibling -- a local arrow function defined just before the call -- is not taken for it), by name and line.
  */
-export function enclosing(lines: readonly string[], index: number): string {
+export function enclosingAt(lines: readonly string[], index: number): { name: string; at: number } {
   // a function written on one line, the call in its body: `rename = (name) => page.setTitle(name);`
   const own = header(lines[index]!);
-  if (own !== undefined && /=>|\{\s*$/.test(lines[index]!)) return own;
+  if (own !== undefined && /=>|\{\s*$/.test(lines[index]!)) return { name: own, at: index };
   let least = indent(lines[index]!);
   for (let i = index - 1; i >= 0; i -= 1) {
     const line = lines[i]!;
@@ -56,7 +63,7 @@ export function enclosing(lines: readonly string[], index: number): string {
     const at = indent(line);
     if (at < least) {
       const name = header(line);
-      if (name !== undefined) return name;
+      if (name !== undefined) return { name, at: i };
       // the close of a signature written over several lines (`): R {`): its header is at the same depth, above
       if (line.trim().startsWith(')')) {
         least = at + 1;
@@ -65,16 +72,36 @@ export function enclosing(lines: readonly string[], index: number): string {
     }
     least = Math.min(least, at);
   }
-  return '(top)';
+  return { name: '(top)', at: -1 };
 }
 
-/** Each call of `pattern` (a global regex; its first group, or the match, names the call) as `where:call`, counted. */
-export function sites(text: string, pattern: RegExp): Map<string, number> {
+export function enclosing(lines: readonly string[], index: number): string {
+  return enclosingAt(lines, index).name;
+}
+
+/** The body of the function whose header is at `at`: its lines to the first after it no deeper than the header. */
+export function bodyAt(lines: readonly string[], at: number): string {
+  if (at < 0) return lines.join('\n');
+  const depth = indent(lines[at]!);
+  const out = [lines[at]!];
+  for (let i = at + 1; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    out.push(line);
+    if (line.trim() !== '' && indent(line) <= depth) break;
+  }
+  return out.join('\n');
+}
+
+/** Each call of `pattern` (a global regex; its first group, or the match, names the call) as `where:call`, counted --
+ *  or, with `keep`, only the calls whose enclosing function's body `keep` accepts. */
+export function sites(text: string, pattern: RegExp, keep?: (body: string) => boolean): Map<string, number> {
   const lines = codeLines(text);
   const found = new Map<string, number>();
   lines.forEach((line, i) => {
     for (const m of line.matchAll(pattern)) {
-      const key = `${enclosing(lines, i)}:${m[1] ?? m[0]}`;
+      const where = enclosingAt(lines, i);
+      if (keep && !keep(bodyAt(lines, where.at))) continue;
+      const key = `${where.name}:${m[1] ?? m[0]}`;
       found.set(key, (found.get(key) ?? 0) + 1);
     }
   });
@@ -107,14 +134,49 @@ export function unionTypes(text: string, name: string): string[] {
   });
 }
 
+/** The strings of `export const <name> = [ ... ]`. */
+export function listed(text: string, name: string): string[] {
+  const start = text.indexOf(`export const ${name} = [`);
+  if (start < 0) throw new Error(`no list ${name}`);
+  const body = text.slice(start, text.indexOf(']', start));
+  return [...body.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]!);
+}
+
+/** Each top-level exported function of a module with its body: its lines to the closing brace at the left margin. */
+export function exportedFunctions(text: string): { name: string; body: string }[] {
+  const lines = text.split('\n');
+  const out: { name: string; body: string }[] = [];
+  lines.forEach((line, i) => {
+    const m = /^export (?:async )?function (\w+)/.exec(line);
+    if (!m) return;
+    const end = lines.findIndex((l, j) => j > i && l === '}');
+    out.push({ name: m[1]!, body: lines.slice(i, end < 0 ? undefined : end + 1).join('\n') });
+  });
+  return out;
+}
+
+/** The body of the function `name` in `text` (a top-level function, or a class member). */
+export function functionBody(text: string, name: string): string {
+  const lines = text.split('\n');
+  const at = lines.findIndex((line) => new RegExp(`^(?:export )?(?:async )?function ${name}\\b|^ {2}(?:async )?${name}\\(`).test(line));
+  if (at < 0) throw new Error(`no function ${name}`);
+  return bodyAt(lines, at);
+}
+
+/** Python's code without its docstrings and comments (what a scan for the dicts it builds should read). */
+export function pythonCode(text: string): string {
+  return text.replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .split('\n').filter((line) => !line.trim().startsWith('#')).join('\n');
+}
+
 /** A ledger held to what was found: every site found listed with its count, every one listed found -- in words. */
 export function heldTo(found: ReadonlyMap<string, number>, ledger: Readonly<Record<string, { readonly count?: number }>>,
   what: string): string[] {
   const problems: string[] = [];
   for (const [key, n] of found) {
-    const listed = ledger[key];
-    if (listed === undefined) problems.push(`${what}: ${key} (${n}) is a new gap -- make it a command, or list it with its item`);
-    else if ((listed.count ?? 1) !== n) problems.push(`${what}: ${key} is found ${n} times, listed ${listed.count ?? 1}`);
+    const entry = ledger[key];
+    if (entry === undefined) problems.push(`${what}: ${key} (${n}) is a new gap -- make it a command, or list it with its item`);
+    else if ((entry.count ?? 1) !== n) problems.push(`${what}: ${key} is found ${n} times, listed ${entry.count ?? 1}`);
   }
   for (const key of Object.keys(ledger)) {
     if (!found.has(key)) problems.push(`${what}: ${key} is listed but gone -- close its item and take it off the ledger`);

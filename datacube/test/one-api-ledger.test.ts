@@ -1,13 +1,18 @@
 // THE ONE API LEDGERS, STATIC HALF (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3). Every known place where the tenet --
 // every change to a saved page is a command, applied by one function, and the browser and Python do the same -- does not
 // hold yet is listed here by its item in the plan's register (§4), and only there. A new one fails the build; a listed
-// one that is gone fails it too, until its item is closed and its entry taken off: the lists only shrink, and stay true.
-// The register itself is held to every ledger (the last test): an open item is in some ledger, a closed one in none.
+// one that is gone fails it too, until its item is closed and its entry taken off; and each ledger's size is pinned, so
+// growing one is an edit of its ceiling, made only with a dated note (the plan's §1.1, AGENTS.md's guard-file rule).
+// The register itself is held to every ledger (the last test): an open item is in some ledger, a closed one in none,
+// and no item leaves the register without being closed.
 //
-//   L1  what changes a grid's state, the screen's Snap, the host's own writes of the page -- other than by command
-//   L8  every command kind and source kind against who makes it: the screen, Python, the host's reader
-//   L10 (the browser's half) where the two sides keep different rules, and the other gaps no scan reaches: each pinned
-//       by the code that is the gap (a marker), so fixing it fails here until its item is closed
+//   L1  what changes a grid's state; who reaches the grid's public ways in (its callers across the app); who calls each
+//       listed gap; the screen's Snap; the host's own writes of the page -- a write counted only where its function
+//       tells no command, so the fix (a told command) is what takes it off
+//   L8  every command kind against the screen, Python, the kind lists, both readers, the rebase's renaming; every
+//       source kind against what Python reads and adds; the headless exports Python never asks
+//   L10 (the browser's half) where the two sides keep different rules, and the gaps no scan reaches: each pinned by the
+//       code that is the gap (a marker), so fixing it fails here until its item is closed
 //
 // The behavioural half is one-api-gestures.test.ts (L2, L3); Python's is python/tests/test_one_api.py (L4-L7, L9, L10).
 
@@ -20,7 +25,9 @@ import { configurationOf, treeOf, writeCube } from '../src/cube-document.ts';
 import { readGridCommand } from '../src/grid-commands.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { codeLines, heldTo, sites, unionKinds, unionTypes } from './one-api/scan.ts';
+import {
+  codeLines, exportedFunctions, functionBody, heldTo, listed, pythonCode, sites, unionKinds, unionTypes,
+} from './one-api/scan.ts';
 
 const SOURCES = new Sources('SOURCES', 'datacube');
 
@@ -35,11 +42,23 @@ interface Entry {
   readonly why?: string;
 }
 
+/** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
+const CEILINGS: Record<string, number> = {
+  L1_GRID: 15, L1_THEN: 3, L1_ROUTES: 10, L1_REACH: 21, L1_PLANE: 9, L1_HOST: 18,
+  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 30, UNCHECKED: 9,
+};
+
+function pinned(name: string, size: number): void {
+  assert.equal(size, CEILINGS[name], `${name} holds ${size} entries, its ceiling says ${CEILINGS[name]}: lower the ceiling `
+    + 'with the fix that shrank it; raise it only with a dated note naming the task');
+}
+
 // -- L1 -----------------------------------------------------------------------------------------------------------
+
+const PLUMBING = 'the one way a change reaches the state owner: no gap of its own';
 
 /** Every call in the grid (app.ts) that changes its state, by where it is made. */
 const GRID_CALLS = /this\.(#change|#configure|#query|#owner\.change|#owner\.undo|#owner\.redo|#owner\.retryRefused)\(/g;
-const PLUMBING = 'the one way a change reaches the state owner: no gap of its own';
 const L1_GRID: Record<string, Entry> = {
   '#change:#owner.change': { items: [], why: PLUMBING },
   '#configure:#change': { items: [], why: PLUMBING },
@@ -55,25 +74,87 @@ const L1_GRID: Record<string, Entry> = {
   'change:#change': { items: ['G11'] },
   '#undo:#owner.undo': { items: ['G12'], why: 'N2: undo writes the page whole, as a restore' },
   '#redo:#owner.redo': { items: ['G12'], why: 'N2' },
+  // a retry stays a retry when fixed (its refused change's commands kept and told): S1 closes it by a behavioural test
   'submit:#owner.retryRefused': { items: ['G13'] },
 };
 
-/** The command path given a change of its own beside the commands (`#applyCommands(commands, label, then)`). */
-const GRID_THEN = /this\.(#applyCommands)\([^,()]+,[^,()]+,/g;
+/** Every call of the command path, by where it is made: the ones with a change of their own beside the commands. */
+const GRID_THEN = /this\.(#applyCommands)\(/g;
 const L1_THEN: Record<string, Entry> = {
-  'applyGridCommands:#applyCommands': { items: [], why: "another editor's commands: `then` changes nothing, nothing is recorded" },
+  '#apply:#applyCommands': { items: [], why: 'the screen\'s edits: commands alone' },
+  'applyGridCommands:#applyCommands': { items: [], why: "another editor's commands: `then` changes nothing (pinned below)" },
   '#applyDraft:#applyCommands': { items: ['G3'] },
 };
-
-/** Where the grid says the rows it reads moved (a snap, going live): the page's copies change. */
-const GRID_PLANE = /this\.(#emit)\('plane'\)/g;
-const L1_PLANE: Record<string, Entry> = {
-  'snapRows:#emit': { items: ['P3'] },
-  'done:#emit': { items: ['P3'] },
-  '#planeMoved:#emit': { items: [], why: "following another editor's snap or going live" },
+/** The allowed calls' exact text: a change beside the commands added there is a new gap, not a quiet edit. */
+const THEN_TEXT: Record<string, string> = {
+  '#apply:#applyCommands': 'const { refused, outcome } = await this.#applyCommands(commands, label);',
+  'applyGridCommands:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, false);",
 };
 
-/** The host's own writes of the page (app/datacube-app.ts): its name, its model, the page replaced, cleared, restored. */
+/** The grid's public ways in that change its state or copies, called from anywhere in the app but the grid itself. */
+const ROUTES = /\.((?:state\.(?:change|undo|redo|retryRefused|refresh))|change|applyConfiguration|refilter|useDimension|applyGridCommands|followSnap|followLive|controller\.\w+)\(/g;
+const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('.ts') && f !== 'src/app.ts'
+  && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
+const L1_ROUTES: Record<string, Entry> = {
+  'src/page/cube-page.ts:sync:refilter': { items: ['G8'], count: 2 },
+  'src/page/cube-page.ts:#select:refilter': { items: ['G7'] },
+  'src/page/page-app.ts:follow:followSnap': { items: [], why: "following another editor's snap" },
+  'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
+  'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
+  'src/app/datacube-app.ts:applyGrid:applyGridCommands': { items: [], why: "another editor's commands, applied" },
+  'src/app/datacube-app.ts:followed:state.refresh': { items: [], why: 'a run again, the state as it was' },
+  'src/app/datacube-app.ts:onView:controller.print': { items: [], why: 'a debug print: reads, changes nothing' },
+  // the owner itself, handed out: every caller of `state` above is one of these
+  'src/app.ts:get state()': { items: ['G11'] },
+  'src/app.ts:get controller()': { items: ['G11'] },
+};
+
+/** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
+const GAP_CALLS_APP = /this\.(#setCalc|#deleteCalc|#applyFilter|useDimension|applyConfiguration|#addPreset|#applyDraft)\(/g;
+const GAP_CALLS_HOST = /(?<![\w.#]|function )(renamePage|saveTo|makeClass|landed|inPlace|openSaved|blankPage|openFrame)\(/g;
+const L1_REACH: Record<string, Entry> = {
+  'app.ts:#onMenuAction:#addPreset': { items: ['C1'], count: 2 },
+  'app.ts:#onMenuAction:#deleteCalc': { items: ['G5'] },
+  'app.ts:onApply:#applyDraft': { items: ['G3'] },
+  'app.ts:apply:#setCalc': { items: ['G4'] },
+  'app.ts:#deleteCalc:#setCalc': { items: ['G5'] },
+  'app.ts:onApply:#applyFilter': { items: ['G6'] },
+  'app.ts:#onHostAction:useDimension': { items: ['G9'] },
+  'datacube-app.ts:onRename:renamePage': { items: ['P1'] },
+  'datacube-app.ts:save:saveTo': { items: ['P2'] },
+  'datacube-app.ts:createClass:makeClass': { items: ['P4'] },
+  'datacube-app.ts:createAssociation:landed': { items: ['P4'] },
+  'datacube-app.ts:createDataSpace:landed': { items: ['P4'] },
+  'datacube-app.ts:openInPlace:inPlace': { items: ['P10'] },
+  'datacube-app.ts:openFrame:inPlace': { items: ['P10', 'P12'] },
+  'datacube-app.ts:open:openSaved': { items: ['P10'], count: 2 },
+  'datacube-app.ts:openText:openSaved': { items: ['P10'] },
+  'datacube-app.ts:examplesList:openSaved': { items: ['P10'] },
+  'datacube-app.ts:openDataCube:openSaved': { items: ['P10'] },
+  'datacube-app.ts:openDataCube:blankPage': { items: ['P10', 'B9'], count: 2 },
+  'datacube-app.ts:openDataCube:openFrame': { items: ['P12'] },
+  'datacube-app.ts:followed:openFrame': { items: ['P12', 'B10'], count: 2 },
+};
+
+/** What a function tells: any command, by any way the app tells one. A write in a function that tells one is no gap. */
+const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebuilt|setChartCube|select)'|channel\??\.edit\(|onPageCommand\??\.\(|#tell\(|#apply\(/;
+const quiet = (body: string): boolean => !TELLS.test(body);
+
+/** Where the grid says the rows it reads moved, or moves them (a snap, going live): the page's copies change. */
+const GRID_PLANE = /this\.(#emit\('plane'\)|#controller\.(?:snapAndRun|goLive|adopt|forget|handOver)\()/g;
+const L1_PLANE: Record<string, Entry> = {
+  "snapRows:#emit('plane')": { items: ['P3'] },
+  'snapRows:#controller.snapAndRun(': { items: ['P3'] },
+  "done:#emit('plane')": { items: ['P3'] },
+  '#snapPill:#controller.snapAndRun(': { items: ['P3'] },
+  '#snapPill:#controller.goLive(': { items: ['P3'] },
+  "#planeMoved:#emit('plane')": { items: [], why: "following another editor's snap or going live" },
+  'followSnap:#controller.adopt(': { items: [], why: "following another editor's snap" },
+  'followLive:#controller.forget(': { items: [], why: "following another editor's going live" },
+  'handOver:#controller.handOver(': { items: ['Z17'] },
+};
+
+/** The host's own writes of the page (app/datacube-app.ts) in a function that tells no command. */
 const HOST_CALLS = /(current\s*=\s*\{|page\.setTitle\(|page\.clear\(\)|page\.restore\()/g;
 const L1_HOST: Record<string, Entry> = {
   'renamePage:page.setTitle(': { items: ['P1'], count: 2 },
@@ -98,15 +179,49 @@ const L1_HOST: Record<string, Entry> = {
 
 describe('L1: every change of a grid, a copy or the page made other than by command is listed', () => {
   const app = SOURCES.read('src/app.ts');
+  const host = SOURCES.read('src/app/datacube-app.ts');
+
   it('the grid', () => {
     assert.deepEqual(heldTo(sites(app, GRID_CALLS), L1_GRID, 'app.ts'), []);
+    pinned('L1_GRID', Object.keys(L1_GRID).length);
+  });
+
+  it('the command path, and the allowed calls of it as they are written', () => {
     assert.deepEqual(heldTo(sites(app, GRID_THEN), L1_THEN, 'app.ts'), []);
+    for (const [key, text] of Object.entries(THEN_TEXT)) {
+      assert.ok(app.includes(text), `${key} is no longer written "${text}": a change beside the commands is a new gap`);
+    }
+    pinned('L1_THEN', Object.keys(L1_THEN).length);
   });
-  it('the rows a grid reads (Snap, Go Live)', () => {
-    assert.deepEqual(heldTo(sites(app, GRID_PLANE), L1_PLANE, 'app.ts'), []);
+
+  it("the grid's public ways in, and who calls them", () => {
+    const found = new Map<string, number>();
+    for (const f of SOURCES.under('src', '.ts').filter(ROUTE_FILES)) {
+      for (const [key, n] of sites(SOURCES.read(f), ROUTES)) found.set(`${f}:${key}`, n);
+    }
+    // the owner and the controller handed out at all (each a way to change the state with no command)
+    if (app.includes('get state(): CubeStateOwner {')) found.set('src/app.ts:get state()', 1);
+    if (app.includes('get controller(): CubeController {')) found.set('src/app.ts:get controller()', 1);
+    assert.deepEqual(heldTo(found, L1_ROUTES, 'routes'), []);
+    pinned('L1_ROUTES', Object.keys(L1_ROUTES).length);
   });
-  it("the host's own writes of the page", () => {
-    assert.deepEqual(heldTo(sites(SOURCES.read('src/app/datacube-app.ts'), HOST_CALLS), L1_HOST, 'datacube-app.ts'), []);
+
+  it('who calls each listed gap', () => {
+    const found = new Map<string, number>();
+    for (const [key, n] of sites(app, GAP_CALLS_APP)) found.set(`app.ts:${key}`, n);
+    for (const [key, n] of sites(host, GAP_CALLS_HOST)) found.set(`datacube-app.ts:${key}`, n);
+    assert.deepEqual(heldTo(found, L1_REACH, 'callers'), []);
+    pinned('L1_REACH', Object.keys(L1_REACH).length);
+  });
+
+  it('the rows a grid reads (Snap, Go Live), where no command is told', () => {
+    assert.deepEqual(heldTo(sites(app, GRID_PLANE, quiet), L1_PLANE, 'app.ts'), []);
+    pinned('L1_PLANE', Object.keys(L1_PLANE).length);
+  });
+
+  it("the host's own writes of the page, where no command is told", () => {
+    assert.deepEqual(heldTo(sites(host, HOST_CALLS, quiet), L1_HOST, 'datacube-app.ts'), []);
+    pinned('L1_HOST', Object.keys(L1_HOST).length);
   });
 });
 
@@ -139,12 +254,22 @@ const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }
   savedQuery: { read: { items: ['X1', 'X5'] }, add: { items: ['X4'] } },
   class: { read: { items: ['X1', 'X5'] }, add: { items: ['X4'] } },
 };
-/** The headless functions by which Python adds a grid over a source kind today. */
+/** The headless functions by which Python adds a grid over a source kind today -- pinned: a new entry is S5/S6's,
+ *  with a test that adds such a grid from Python. */
 const PYTHON_ADDS: Record<string, string> = { frame: 'gridCube', join: 'joinCube' };
 
-/** What the screen can do to a page that Python's API cannot yet: no kind of its own (the commands exist), so held as
- *  a list here and closed by S6's methods, each with its test. */
-const L8_CAPABILITIES: Record<string, string> = {
+/** Headless exports Python never asks (`call('<name>'`): each one Python should. */
+const L8_UNASKED: Record<string, Entry> = {
+  pageFilter: { items: ['Z19'] },
+  joinQuestions: { items: ['Z19'] },
+};
+
+/**
+ * WHAT IS NOT CHECKED YET, SAID: what the screen does that Python's API cannot, with no command kind of its own to
+ * hold it by (the commands exist). S6 agrees each method's name with the user and writes its test first; until then
+ * these are register entries no test holds -- listed so, and pinned, never mistaken for checked.
+ */
+const UNCHECKED_UNTIL_S6: Record<string, string> = {
   K1: 'sorts replaced, one cleared, all cleared, after a grid is made',
   K3: 'a calculated column edited, renamed, removed',
   K4: 'group-level, window, child-aggregate and explode columns; the Show As and period presets',
@@ -156,60 +281,71 @@ const L8_CAPABILITIES: Record<string, string> = {
   K12: 'a saved page opened by its id',
 };
 
-/** Headless exports Python never asks (`call('<name>'`): each one Python should. */
-const L8_UNASKED: Record<string, Entry> = {
-  pageFilter: { items: ['Z19'] },
-  joinQuestions: { items: ['Z19'] },
-};
-
-describe("L8: every command kind and source kind, against who makes it", () => {
-  const read = (f: string): string => codeLines(SOURCES.read(f)).join('\n');
-  // Python's own comments left out (a line of code may start with `*`: a list spread)
-  const python = SOURCES.under(PY, '.py')
-    .map((f) => SOURCES.read(f).split('\n').filter((line) => !line.trim().startsWith('#')).join('\n')).join('\n');
-  const headless = SOURCES.under('src/headless', '.ts');
-  /** The exported functions of the headless modules, each with its body. */
-  const exported = headless.flatMap((f) => SOURCES.read(f).split(/\n(?=export (?:async )?function )/)
-    .map((body) => ({ name: /^export (?:async )?function (\w+)/.exec(body)?.[1], body })))
-    .filter((e): e is { name: string; body: string } => e.name !== undefined);
-  const asked = (name: string): boolean => python.includes(`'${name}'`);
+describe('L8: every command kind and source kind, against who makes and reads it', () => {
   const grid = SOURCES.read('src/grid-commands.ts');
-  const screen = SOURCES.under('src', '.ts')
+  const page = SOURCES.read('src/page-commands.ts');
+  const gridKinds = unionKinds(grid, 'GridCommand');
+  const pageKinds = unionKinds(page, 'PageCommand');
+  const python = SOURCES.under(PY, '.py').map((f) => pythonCode(SOURCES.read(f))).join('\n');
+  const exported = SOURCES.under('src/headless', '.ts').flatMap((f) => exportedFunctions(SOURCES.read(f)));
+  const asked = (name: string): boolean => python.includes(`'${name}'`);
+  /** The modules that make commands: each one naming the command types or telling page edits (a new one is read too). */
+  const producers = SOURCES.under('src', '.ts')
     .filter((f) => !f.startsWith('src/headless/') && !['src/grid-commands.ts', 'src/page-commands.ts', 'src/page-rebase.ts'].includes(f))
-    .map(read).join('\n')
+    .filter((f) => /\b(?:GridCommand|PageCommand)\b|#tell\(/.test(SOURCES.read(f)));
+  // a trailing comment is no producer
+  const screen = producers.map((f) => codeLines(SOURCES.read(f)).map((l) => l.replace(/\s\/\/\s.*$/, '')).join('\n')).join('\n')
     // the Properties window's commands are built by draftCommands, the screen's
     + grid.slice(grid.indexOf('export function draftCommands'), grid.indexOf('function settingsPatch'));
   const made = (text: string, kind: string): boolean => new RegExp(`(?<!readonly )kind: '${kind}'`).test(text);
 
+  it('each command kind is in its list, read by its reader, renamed by the rebase', () => {
+    assert.deepEqual(listed(grid, 'GRID_COMMAND_KINDS'), gridKinds, 'GRID_COMMAND_KINDS is every grid command kind');
+    assert.deepEqual(listed(page, 'PAGE_COMMAND_KINDS'), pageKinds, 'PAGE_COMMAND_KINDS is every page command kind');
+    const gridReader = functionBody(grid, 'readGridCommand');
+    const pageReader = functionBody(page, 'readPageCommand');
+    const renaming = functionBody(SOURCES.read('src/page-rebase.ts'), 'renamedCommand');
+    assert.deepEqual(gridKinds.filter((k) => !gridReader.includes(`case '${k}'`)), [], 'grid kinds readGridCommand cannot read');
+    assert.deepEqual(pageKinds.filter((k) => !pageReader.includes(`case '${k}'`)), [], 'page kinds readPageCommand cannot read');
+    assert.deepEqual(pageKinds.filter((k) => !renaming.includes(`case '${k}'`)), [], 'page kinds the rebase does not rename');
+  });
+
   it('each command kind is made by the screen and by Python, or listed', () => {
-    const kinds = [...unionKinds(grid, 'GridCommand'), ...unionKinds(SOURCES.read('src/page-commands.ts'), 'PageCommand')];
     const problems: string[] = [];
-    for (const kind of kinds) {
+    for (const kind of [...gridKinds, ...pageKinds]) {
       const has: Record<Cell, boolean> = {
         screen: made(screen, kind),
         python: new RegExp(`'kind': '${kind}'`).test(python) || exported.some((e) => made(e.body, kind) && asked(e.name)),
       };
       for (const cell of ['screen', 'python'] as const) {
-        const listed = L8_KINDS[kind]?.[cell];
-        if (!has[cell] && !listed) problems.push(`${kind}: no ${cell} makes it -- make one, or list it with its item`);
-        if (has[cell] && listed) problems.push(`${kind}: the ${cell} makes it now -- close its item, take it off`);
+        const entry = L8_KINDS[kind]?.[cell];
+        if (!has[cell] && !entry) problems.push(`${kind}: no ${cell} makes it -- make one, or list it with its item`);
+        if (has[cell] && entry) problems.push(`${kind}: the ${cell} makes it now -- close its item, take it off`);
       }
     }
-    for (const kind of Object.keys(L8_KINDS)) if (!kinds.includes(kind)) problems.push(`${kind}: no such kind`);
+    for (const kind of Object.keys(L8_KINDS)) if (![...gridKinds, ...pageKinds].includes(kind)) problems.push(`${kind}: no such kind`);
     assert.deepEqual(problems, []);
+    pinned('L8_KINDS', Object.keys(L8_KINDS).length);
   });
 
   it('each source kind is read and added by Python, or listed', () => {
-    const base = exported.find((e) => e.name === 'gridBase')!.body;
+    const kinds = unionTypes(SOURCES.read('src/cube-document.ts'), 'CubeSource');
+    const base = exported.find((e) => e.name === 'gridBase')!.body.split('\n');
+    /** A kind gridBase reads: its own branch (no refusal on its line), or the one a refusal of every other lets by. */
+    const reads = (kind: string): boolean => base.some((line) => line.includes(`_type === '${kind}'`) && !line.includes('throw'))
+      || base.some((line) => line.includes(`_type !== '${kind}'`) && line.includes('throw'));
     const problems: string[] = [];
-    for (const kind of unionTypes(SOURCES.read('src/cube-document.ts'), 'CubeSource')) {
-      const read = kind === 'frame' || new RegExp(`_type (?:===|!==) '${kind}'`).test(base);
+    for (const kind of kinds) {
+      const read = reads(kind);
       const add = PYTHON_ADDS[kind] !== undefined && asked(PYTHON_ADDS[kind]);
-      const listed = L8_SOURCES[kind];
-      if (read === (listed?.read !== undefined)) problems.push(`${kind}: Python ${read ? 'reads it now -- close' : 'cannot read it -- list'} its item`);
-      if (add === (listed?.add !== undefined)) problems.push(`${kind}: Python ${add ? 'adds it now -- close' : 'cannot add it -- list'} its item`);
+      const entry = L8_SOURCES[kind];
+      if (read === (entry?.read !== undefined)) problems.push(`${kind}: Python ${read ? 'reads it now -- close' : 'cannot read it -- list'} its item`);
+      if (add === (entry?.add !== undefined)) problems.push(`${kind}: Python ${add ? 'adds it now -- close' : 'cannot add it -- list'} its item`);
     }
+    for (const kind of Object.keys(L8_SOURCES)) if (!kinds.includes(kind)) problems.push(`${kind}: no such source kind`);
     assert.deepEqual(problems, []);
+    assert.deepEqual(PYTHON_ADDS, { frame: 'gridCube', join: 'joinCube' }, 'a new way for Python to add a grid comes with its test');
+    pinned('L8_SOURCES', Object.keys(L8_SOURCES).length);
   });
 
   it("each headless export Python never asks is listed", () => {
@@ -218,27 +354,33 @@ describe("L8: every command kind and source kind, against who makes it", () => {
       .filter((n) => n.length > 0 && n !== 'REQUEST_KINDS' && !n.startsWith('host'));
     const unasked = new Map(names.filter((n) => !asked(n)).map((n) => [`${n}`, 1]));
     assert.deepEqual(heldTo(unasked, L8_UNASKED, 'headless'), []);
+    pinned('L8_UNASKED', Object.keys(L8_UNASKED).length);
+  });
+
+  it('what is not checked yet is said, and only shrinks', () => {
+    pinned('UNCHECKED', Object.keys(UNCHECKED_UNTIL_S6).length);
   });
 });
 
 // -- markers: the gaps no scan reaches, each pinned by the code that is it ------------------------------------------
 
 /** `text` in `file` (`count` times) while its items are open: the fix takes it away, and this fails until they close.
- *  `absent`: the gap is that the text is NOT there. */
+ *  `absent`: the gap is that the text is NOT there. `within`: only the block that starts with it is read. */
 interface Marker {
   readonly file: string;
   readonly text: string;
   readonly items: readonly string[];
   readonly count?: number;
   readonly absent?: true;
+  readonly within?: string;
 }
 const MARKERS: readonly Marker[] = [
   // the grid
   { file: 'src/page/cube-page.ts', text: "source.refilter([], view.selection, 'filter to chart mark')", items: ['G8'] },
   { file: 'src/page/cube-page.ts', text: "source.refilter([], selection, 'filter to chart mark')", items: ['G8'] },
-  { file: 'src/app.ts', text: 'options.titleBarHidden ? { ...given, showTitleBar: false } : given', items: ['G14'] },
+  { file: 'src/app.ts', text: 'get state(): CubeStateOwner {', items: ['G11'] },
   { file: 'src/app.ts', text: '{ ...DEFAULT_CONFIGURATION, reportTitle: source.label, maxRows: DEFAULT_MAX_ROWS }', items: ['G15'] },
-  // telling exactly what landed
+  // telling exactly what landed: placeholders until S1 writes each one's failing behavioural test first
   { file: 'src/state-owner.ts', text: 'state: this.#rules.fold(update(pending.state)),', items: ['T1'] },
   { file: 'src/app.ts', text: "case 'presentation':\n        if (applying) this.#tell(applying.commands);", items: ['T2'] },
   { file: 'src/state-owner.ts', text: 'const carriedMove = carried?.move ? { ...carried.move, on: carried.move.on ?? carried.state } : undefined;', items: ['T3'] },
@@ -247,11 +389,19 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/page/page-app.ts', text: "#move(way: 'undo' | 'redo'): void {", items: ['P5'] },
   { file: 'src/ui/chart-panel.ts', text: 'this.#options.onSpec?.();\n    if (redrawForm) this.#paintForm();\n    this.refresh();', items: ['P6'] },
   { file: 'src/page/cube-page.ts', text: 'this.#place({ id: tile, title: `Editing ${chartTitle}`, element: host, actions: [update] }, chartId);', items: ['P7'] },
+  { file: 'src/page/cube-page.ts', text: "const own = `${chartId}-query`;", items: ['P8'] },
   { file: 'src/page/page-app.ts', text: 'if (!make || tileOf.has(view.cube)) continue;', items: ['P9'] },
   { file: 'src/app/sources.ts', text: "if (src._type === 'frame') return openedFrame(src.name, doc, several);", items: ['P11'] },
-  { file: 'src/page/cube-page.ts', text: 'if (this.#quiet > 0 || !this.#options.onPageEdit) return;', items: ['P13'] },
+  // the board a cube alone shows its charts on is given no way to tell its page's edits
+  { file: 'src/app.ts', text: 'onPageEdit', items: ['P13'], absent: true, within: '    const page = new CubePage({\n      host,\n      grid: { element: body,' },
+  // the no-command write, on the tab's side and the host reader's
+  { file: 'src/app/live-channel.ts', text: 'if (this.#told === 0 && this.#seen !== undefined) this.#edits = null;', items: ['H2'] },
+  { file: 'src/headless/page.ts', text: 'const read = edits === null ? null : readEdits(edits);', items: ['H2'] },
+  // derived state, and what the keeper keeps
+  { file: 'src/headless/grid.ts', text: 'return (await typeColumns(snapshot, runner)).snapshot;', items: ['V4'] },
+  { file: 'src/page-rebase.ts', text: 'export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {', items: ['X3'] },
   // the browser's half of the same jobs done by different rules
-  { file: 'src/headless/grid.ts', text: 'gridLens', items: ['B1'], absent: true },
+  { file: 'src/headless/grid.ts', text: 'gridLens(', items: ['B1'], absent: true },
   { file: 'src/page/cube-page.ts', text: 'title === this.#titles.get(tile) ? null : title', items: ['B2'] },
   { file: 'src/app/datacube-app.ts', text: "current.name ?? (page.suggestedName || 'page')", items: ['B3'], count: 5 },
   { file: 'src/app/datacube-app.ts', text: 'a page file cannot carry them yet.', items: ['B5'] },
@@ -260,52 +410,62 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
   { file: 'src/app/datacube-app.ts', text: 'current.cubeId : crypto.randomUUID()', items: ['B13'] },
   { file: 'src/page/page-app.ts', text: 'There is nothing on this page to save: add a data source first.', items: ['B14'] },
-  // the page's other gaps
-  { file: 'src/page/cube-page.ts', text: "const own = `${chartId}-query`;", items: ['P8'] },
-  // derived state, and what the keeper keeps
-  { file: 'src/headless/grid.ts', text: 'return (await typeColumns(snapshot, runner)).snapshot;', items: ['V4'] },
-  { file: 'src/page-rebase.ts', text: 'export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {', items: ['X3'] },
+  // the tab's other half of H1: it sends the page whole beside its edits, and the host reads that page
+  { file: 'src/app/live-channel.ts', text: 'said = await this.#editor.report(at, page, edits);', items: ['H1'] },
+  { file: 'src/headless/page.ts', text: 'const page = readPage(text, { empty: true });', items: ['H1'] },
 ];
 
 describe('the gaps no scan reaches, pinned by their code', () => {
   for (const m of MARKERS) {
     it(`${m.items.join(' ')}: ${m.file}`, () => {
-      const found = SOURCES.read(m.file).split(m.text).length - 1;
+      let text = SOURCES.read(m.file);
+      if (m.within !== undefined) {
+        const at = text.indexOf(m.within);
+        assert.ok(at >= 0, `${m.file} no longer holds the block "${m.within}": pin it again`);
+        text = text.slice(at, text.indexOf('\n    });', at));
+      }
+      const found = text.split(m.text).length - 1;
       if (m.absent) assert.equal(found, 0, `${m.text} is in ${m.file} now: close ${m.items.join(', ')} and take this off`);
       else assert.equal(found, m.count ?? 1, `${m.file} holds "${m.text}" ${found} times, not ${m.count ?? 1}: fixed? close `
         + `${m.items.join(', ')} and take this off; moved? pin it again`);
     });
   }
+  it('their number', () => pinned('MARKERS', MARKERS.length));
 });
 
-// -- C1: what the host reads ----------------------------------------------------------------------------------------
+// -- C1, V5: behaviour, as it is today --------------------------------------------------------------------------------
 
 describe('C1: the host reads every command the screen sends', () => {
-  it('a window column (Show As: a running total) is refused by the reader the host reads edits with -- C1 open', () => {
-    assert.throws(() => readGridCommand({
-      kind: 'calculate', level: 'row',
-      column: { name: 'running', window: { fn: 'sum', column: 'notional', partition: [], order: [], frame: 'running' } },
-    }), /a calculated column from JSON/);
-  });
+  const column = (c: Record<string, unknown>): unknown => ({ kind: 'calculate', level: 'row', column: c });
+  const lambda = { _type: 'lambda', parameters: [], body: [{ _type: 'var', name: 'x' }] };
+  for (const [what, c] of [
+    ['a window column (Show As: a running total)', { name: 'running', window: { fn: 'sum', column: 'notional', partition: [], order: [], frame: 'running' } }],
+    ['a child-aggregate column', { name: 'share', childAggregate: { fn: 'sum', column: 'notional' } }],
+    ['an explode column', { name: 'each', lambda, unnest: true }],
+  ] as const) {
+    it(`${what} is refused by the reader the host reads edits with -- C1 open`, () => {
+      assert.throws(() => readGridCommand(column(c)), /a calculated column from JSON/);
+    });
+  }
 });
 
-// -- V5: what a saved grid keeps of its open rows -----------------------------------------------------------------
-
 /** The derived-state gaps held here by behaviour (asserted as they are: closing one fails its check). */
-const DERIVED: Record<string, readonly string[]> = { 'the saved tree forgets the expand level': ['V5'] };
+const DERIVED: Record<string, readonly string[]> = { 'the saved tree keeps no expand level and no closed groups': ['V5'] };
 
 describe('V5: a grid saved and opened again opens its rows as it was told to', () => {
-  it(`its expand level is the configuration's, but ${Object.keys(DERIVED)[0]} -- V5 open`, () => {
+  it(`${Object.keys(DERIVED)[0]} -- V5 open`, () => {
+    const tree = TreeState.empty(false).withExpandTo(1).setOpen(['EMEA'], false);
     const doc = writeCube({
       name: 'trades', source: { _type: 'frame', name: 't', columns: [{ name: 'region', type: 'String' }] },
       snapshot: { source: { query: { _type: 'var', name: 'x' } }, columns: [{ name: 'region', type: 'String' }], derived: [],
         rows: ['region'], pivotOn: [], sorts: [], epoch: 0 } as unknown as CubeSnapshot,
       configuration: { ...DEFAULT_CONFIGURATION, initialExpandToLevel: 1 },
-      tree: TreeState.empty(false).withExpandTo(1),
+      tree,
     });
     assert.equal(configurationOf(doc).initialExpandToLevel, 1);
+    assert.deepEqual(Object.keys(doc.tree).sort(), ['open', 'showTotals'], 'V5 open: the saved tree keeps only open rows and totals');
     // the screen opens a saved grid with the tree the document keeps (app.ts: options.tree, as given)
-    assert.equal(treeOf(doc).expandTo, 0, 'V5 open: the saved tree forgets the expand level');
+    assert.equal(treeOf(doc).expandTo, 0, 'V5 open: opened again, the expand level is gone');
   });
 });
 
@@ -314,15 +474,19 @@ describe('V5: a grid saved and opened again opens its rows as it was told to', (
 /** The files that hold the ledgers, each naming items as string literals ('G1'). */
 const LEDGERS = ['test/one-api-ledger.test.ts', 'test/one-api-gestures.test.ts', '../python/tests/test_one_api.py'];
 const ITEM = /'([GTCPYVHZBXK]\d{1,2})'/g;
+/** Every item the register has ever held: none leaves it but closed. */
+const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P12 '
+  + 'P13 P14 Y1 Y2 Y3 Y6 V1 V2 V4 V5 H1 H2 H3 Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8 Z9 Z10 Z11 Z12 Z13 Z14 Z15 Z16 Z17 Z18 Z19 B1 B2 '
+  + 'B3 B4 B5 B6 B7 B8 B9 B10 B11 B12 B13 B14 X1 X2 X3 X4 X5 K1 K2 K3 K4 K5 K6 K7 K8 K9 K10 K11 K12').split(' ');
 
 describe("the plan's register and the ledgers say the same", () => {
-  it('every open item is in a ledger, and every item a ledger names is open', () => {
+  it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {
     const plan = SOURCES.read(PLAN);
     const open = new Set([...plan.matchAll(/^- \[ \] \*\*([A-Z]\d{1,2})\*\*/gm)].map((m) => m[1]!));
     const closed = new Set([...plan.matchAll(/^- \[x\] \*\*([A-Z]\d{1,2})\*\*/gm)].map((m) => m[1]!));
     const named = new Set(LEDGERS.flatMap((f) => [...SOURCES.read(f).matchAll(ITEM)].map((m) => m[1]!)));
-    for (const k of Object.keys(L8_CAPABILITIES)) named.add(k);
-    assert.ok(open.size > 80, `the register lists its items (${open.size} found)`);
+    for (const k of Object.keys(UNCHECKED_UNTIL_S6)) named.add(k);
+    assert.deepEqual([...open, ...closed].sort(), [...ALL].sort(), 'the register holds every item it ever held, each open or closed');
     assert.deepEqual([...open].filter((i) => !named.has(i)).sort(), [], 'open items no ledger holds');
     assert.deepEqual([...named].filter((i) => !open.has(i)).sort(), [], 'items a ledger holds that are not open');
     assert.deepEqual([...closed].filter((i) => named.has(i)).sort(), [], 'closed items still in a ledger');
