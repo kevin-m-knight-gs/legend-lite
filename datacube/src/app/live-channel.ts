@@ -45,9 +45,11 @@ export class LiveChannel {
     this.#after = after;
   }
 
-  /** An edit made on screen (a grid's command, a page's), as applied there: written with the page. */
+  /** An edit made on screen (a grid's command, a page's), as applied there: written with the page. While following the
+   *  other editor, a page's command told is that editor's (the page put at its commands); a grid's is the person's own
+   *  -- a grid tells none of another editor's (CubeApp.applyGridCommands) -- and is kept (the S1 audit's 2). */
   edit(command: LiveCommand): void {
-    if (this.#following > 0) return;
+    if (this.#following > 0 && 'page' in command) return;
     this.#edits?.push(command);
     this.#told += 1;
   }

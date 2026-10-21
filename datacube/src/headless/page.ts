@@ -9,7 +9,7 @@ import {
   type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
-import { applyPageCommands, readPageCommand, type PageCommand } from '../page-commands.ts';
+import { applyPageCommands, EXACT_FIELD, readPageCommand, type PageCommand } from '../page-commands.ts';
 import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, type PageEdit } from '../page-rebase.ts';
 import { CubeRefusal } from '../snapshot.ts';
@@ -72,8 +72,7 @@ export function pageApply(page: string, held: string, commands: string): string 
     const doc = heldPage(page);
     // a grid's cube read from the commands' exact numbers (a calculated column's 1.10 kept), as the page's cubes are
     const exact = fromJson(commands) as unknown[];
-    read = (JSON.parse(commands) as unknown[]).map((c, i) => readPageCommand(carriesCube((c as { kind?: unknown } | null)?.kind)
-      ? { ...(c as object), document: (exact[i] as Record<string, unknown>)['document'] } : c));
+    read = (JSON.parse(commands) as unknown[]).map((c, i) => readPageCommand(exactly(c, exact[i])));
     const done = applyPageCommands({ page: doc, held: JSON.parse(held) as string[] }, read);
     return `{"page":${JSON.stringify(pageToJson(done.draft.page))},"held":${JSON.stringify(done.draft.held)},`
       + `"commands":[${done.applied.map((c) => toJson(c)).join(',')}]}`;
@@ -117,8 +116,13 @@ export function pageFilter(page: string, given: string): string {
  * by its own reader (readCube: a calculated column's numbers exact, every other number plain, as DataCube holds a
  * cube), and the fields a newer writer added kept aside, as the page's own reader keeps them (`unknown`).
  */
-/** Whether a page command of `kind` carries a cube's document (read with its exact numbers, as the page's cubes are). */
-const carriesCube = (kind: unknown): boolean => kind === 'addGrid' || kind === 'setChartCube' || kind === 'rebuilt';
+/** A page command as read plainly, the field it carries a cube's document or source in taken from its exact reading
+ *  (its numbers as the protocol's, as the page's cubes are read: page-commands.ts EXACT_FIELD). */
+function exactly(plainly: unknown, exact: unknown): unknown {
+  const c = plainly as { kind?: unknown } | null;
+  const field = typeof c?.kind === 'string' ? EXACT_FIELD[c.kind as keyof typeof EXACT_FIELD] : undefined;
+  return field === undefined ? plainly : { ...(plainly as object), [field]: (exact as Record<string, unknown>)[field] };
+}
 
 function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
@@ -178,8 +182,7 @@ function readEdits(text: string): PageEdit[] {
     const edit = e as { page?: unknown; grid?: unknown; command?: unknown } | null;
     if (edit !== null && typeof edit === 'object' && 'page' in edit) {
       const c = edit.page as { kind?: unknown } | null;
-      const command: PageCommand = readPageCommand(carriesCube(c?.kind)
-        ? { ...(c as object), document: ((exact[i] as { page: Record<string, unknown> }).page)['document'] } : c);
+      const command: PageCommand = readPageCommand(exactly(c, (exact[i] as { page: unknown }).page));
       return { page: command };
     }
     if (edit !== null && typeof edit === 'object' && typeof edit.grid === 'string') {

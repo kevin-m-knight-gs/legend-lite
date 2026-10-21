@@ -1621,14 +1621,14 @@ class Page:
             return False
         held = next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
         label = held['source']['name']
-        cube, notes, taken = self._opened_cube(held)
+        notes, taken, opened = self._opened_cube(held)
         # whether it is taken is DataCube's rule (headless gridOpened `taken`): not, the cube stands as it is
         if not taken:
             return False
         for note in notes:
             warnings.warn(f'{label}: {note}', stacklevel=stacklevel)
         # taken by the page command that says so, applied as DataCube applies it: a page open on it opens it again
-        self._apply_page([{'kind': 'rebuilt', 'cube': id, 'document': cube}])
+        self._apply_page([{'kind': 'rebuilt', 'cube': id, 'source': opened}])
         return True
 
     def _current(self, cube: str, stacklevel: int) -> None:
@@ -1637,15 +1637,16 @@ class Page:
         calculated column that read it left out) is the cube DataCube checks, never the one held before."""
         self._reopened(cube, stacklevel + 1)
 
-    def _opened_cube(self, saved: dict[str, Any]) -> tuple[dict[str, Any], list[str], bool]:
+    def _opened_cube(self, saved: dict[str, Any]) -> tuple[list[str], bool, dict[str, Any]]:
         """A saved cube as DataCube opens it over the frames as they are now -- a frame's, a join's of frames (headless
-        gridOpened: cube-document.ts rebuilt, a join opened as the tab opens one) -- what DataCube says of what changed,
-        and whether it left a part out."""
+        gridOpened, by the rule of the page's ``rebuilt`` command: cube-document.ts cubeOpenedAgain) -- what DataCube
+        says of what changed, whether the page takes it (cubeTaken), and the source as it is now, which the page's
+        ``rebuilt`` command carries."""
         engine, frames = self._session.headless(), self._session.frames
         with frames.serving():
             made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
                                           len(self._doc['cubes'])))
-        return _plain(_json.loads(made['cube'])), list(made['notes']), made['taken']
+        return list(made['notes']), made['taken'], _plain(_json.loads(made['opened']))
 
     def _frame_cube(self, frame: str, grids_on_page: int,
                     saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], bool]:

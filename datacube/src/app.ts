@@ -532,9 +532,10 @@ export class CubeApp {
   /** Grid commands in the change in flight, not yet in a committed state: told when it commits, dropped when it is
    *  refused or cancelled (#followCommands). */
   #untold: GridCommand[] = [];
-  /** The commands of the change last refused, until another starts: told when it is run again (signed in again: the
-   *  owner's retryRefused) and lands (G13). */
-  #refusedCommands: GridCommand[] = [];
+  /** The change last refused, until another starts: its commands, applied again to the grid as it is then when the
+   *  person signs in again, and told as they land (G13; the S1 audit's 8, 9) -- or, an undo or a redo part of it, which
+   *  no command says, `moved`: run again as it was asked for (the owner's retryRefused). */
+  #refused: { readonly commands: readonly GridCommand[]; readonly moved: boolean } | null = null;
   /** Alerts are many and untitled, so each gets its own window key. */
   #alerts = 0;
   /**
@@ -829,7 +830,9 @@ export class CubeApp {
   /** The cube's state as it is read from outside: whether a change is running, how deep its history is. It is changed
    *  only by command (edit). */
   get state(): CubeStateView {
-    return this.#owner;
+    // what it reads alone, never the owner itself (whose change() a caller could reach: the S1 audit's 13)
+    const owner = this.#owner;
+    return { get busy() { return owner.busy; }, get historyDepth() { return owner.historyDepth; } };
   }
 
   /** The cube run again as it is (its rows read again: a frame served anew), no change and no step. */
@@ -1024,9 +1027,10 @@ export class CubeApp {
       return { refused, outcome: await out };
     }
     // no event took them: they changed nothing -- told now, or after the change in flight they were laid on
+    // (another editor's never: applying.commands is empty for them -- the S1 audit's 3)
     if (!applying.taken) {
-      if (this.#owner.busy) this.#untold.push(...commands);
-      else this.#tell(commands);
+      if (this.#owner.busy) this.#untold.push(...applying.commands);
+      else this.#tell(applying.commands);
     }
     return { refused, outcome: await out };
   }
@@ -1046,7 +1050,7 @@ export class CubeApp {
     if (applying) applying.taken = event.kind === 'pending' || event.kind === 'presentation' || event.kind === 'deferred';
     switch (event.kind) {
       case 'pending':
-        this.#refusedCommands = [];
+        this.#refused = null;
         if (applying) this.#untold.push(...applying.commands);
         return;
       case 'presentation':
@@ -1063,7 +1067,7 @@ export class CubeApp {
         this.#untold = [];
         return;
       case 'refused':
-        this.#refusedCommands = this.#untold;
+        this.#refused = { commands: this.#untold, moved: event.moved };
         this.#untold = [];
         return;
       case 'cancelled':
@@ -3524,9 +3528,12 @@ export class CubeApp {
         // what failed runs again: the view (going live, or the refused change) and every chart
         if (this.#controller.snaps.isSnapped) this.#planeToggle?.();
         else {
-          // the refused change run again as it was asked for: its commands told when it lands (G13)
-          this.#untold = this.#refusedCommands;
-          void this.#owner.retryRefused();
+          // the refused change run again: its commands on the grid as it is now (what was made since kept), told as they
+          // land; one an undo was part of, as it was asked for -- no command says the undo (G13; the S1 audit's 8, 9)
+          const refused = this.#refused;
+          this.#refused = null;
+          if (refused !== null && !refused.moved && refused.commands.length > 0) void this.#apply(refused.commands, 'retried');
+          else void this.#owner.retryRefused();
         }
         this.#page?.page.refresh();
       },

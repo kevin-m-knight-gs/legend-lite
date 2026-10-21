@@ -1408,9 +1408,16 @@ export class CubePage {
     }
     const chart = this.#charts.get(id);
     if (!chart) return;
-    if (this.#saved(id)) this.#tell(`Remove ${this.title(id) ?? id}`, { kind: 'removeTile', tile: id });
-    // its selection goes with it (removeTile takes it off its grid's filter): the grid's change told, the page's in removeTile
-    if (chart.conditions.length) this.#quietly(() => this.#select(id, null));
+    // its selection goes first, in the same edit: cleared (the page's select) and taken off its grid's filter (the grid's
+    // refilter, told by the grid), so removeTile's own rule has none left to take off -- one removal, by one command
+    // each (the S1 audit's 5); Python's removeTile alone takes it off by the rule (page-commands.ts unselected)
+    const selected = chart.conditions.length > 0;
+    if (this.#saved(id)) {
+      this.#tell(`Remove ${this.title(id) ?? id}`, ...(selected ? [{ kind: 'select', chart: id, conditions: [] } as const] : []),
+        { kind: 'removeTile', tile: id });
+    }
+    // (said once, below, with the removal: a change said between would be one no command was told for)
+    if (selected) this.#quietly(() => this.#select(id, null, false));
     this.#closeEditor(id);
     chart.panel.dispose();
     this.#charts.delete(id);
@@ -1573,7 +1580,7 @@ export class CubePage {
    * or the chip naming it in the chart's title bar, takes them off. Each is ONE change -- one undo
    * step, refused as a whole.
    */
-  #select(id: string, conditions: readonly FilterNode[] | null): void {
+  #select(id: string, conditions: readonly FilterNode[] | null, said = true): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
     // the page's part taken (a page filter on a class): what is left is the chart's own grid's, as any click's
@@ -1591,7 +1598,7 @@ export class CubePage {
     chart.conditions = add;
     chart.key = add.length === 0 ? '' : key;
     this.#paintSelection(id);
-    this.#options.onChange();
+    if (said) this.#options.onChange();
   }
 
   #paintSelection(id: string): void {

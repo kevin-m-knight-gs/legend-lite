@@ -69,7 +69,8 @@ export type StateEvent<V> =
   /** Committed WITHOUT a query (`StateRules.defer`): the view on screen is the old state's. */
   | { readonly kind: 'deferred' }
   | { readonly kind: 'presentation' }
-  | { readonly kind: 'refused'; readonly error: unknown; readonly reverted: readonly string[] }
+  /** `moved`: an undo or a redo was part of the change refused (a change made on top of one in flight). */
+  | { readonly kind: 'refused'; readonly error: unknown; readonly reverted: readonly string[]; readonly moved: boolean }
   | { readonly kind: 'cancelled'; readonly reverted: readonly string[] };
 
 export interface OwnerOptions {
@@ -445,7 +446,7 @@ export class StateOwner<S, V> {
       if (pending?.id !== id) return { kind: 'superseded' };
       this.#pending = null;
       this.#refused = pending;
-      this.#emit({ kind: 'refused', error, reverted: pending.labels });
+      this.#emit({ kind: 'refused', error, reverted: pending.labels, moved: pending.move !== undefined });
       return { kind: 'refused', error, reverted: pending.labels };
     }
     const pending = this.#pending;

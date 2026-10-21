@@ -9,8 +9,6 @@ import { suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { PAGE_WORKSPACE, PageModel, pageProject, type PageModelRef } from '../page-model.ts';
 import { duplicateLambda } from '../query.ts';
 
-/** A page's model as the windows name it before its first class: its package, its data space, its project to make
- *  (page-model.ts `pageProject`) and DataCube's workspace in it. JSON. */
 /**
  * WHERE A PAGE'S NEXT MODEL ACTION WRITES (page-model.ts PageModel.into, the screen's rule): the page's project, or one
  * to make (named `project`, else after the page: in DataCube's group) -- its workspace, the package its classes go in
@@ -22,6 +20,8 @@ export function pageModelInto(page: string, pkg: string, project: string | null)
   return JSON.stringify({ project: into.project, workspace: into.workspace, package: into.package });
 }
 
+/** A page's model as the windows name it before its first class: its package, its data space, its project to make
+ *  (page-model.ts `pageProject`) and DataCube's workspace in it. JSON. */
 export function pageModelNames(pageName: string): string {
   return JSON.stringify({
     package: suggestedPackage(pageName), dataSpace: suggestedDataSpaceName(pageName), project: pageProject(pageName),

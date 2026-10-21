@@ -190,8 +190,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **P11** the tab reopens cubes over frames as they are now → `rebuilt {cube, document}` page command made by one
   side (with Y2) — closed S1: whichever side opens a cube again over its frames tells it, once, by one rule
   (cube-document.ts `cubeTaken`): the tab opening a host's page tells `rebuilt` for each cube it opened as another
-  (datacube-app `openLive`; test/python-engine: a frame changed in place), Python for each it opens (Y2); the tab
-  follows a `rebuilt` from Python by opening the page again (live-follow.ts)
+  (page-commands.ts `rebuiltCommands`, a snapped one not; test/python-engine: a frame changed in place, and nothing
+  told when nothing changed), Python for each it opens (Y2); the tab follows a `rebuilt` from Python by opening the
+  page again (live-follow.ts). After the S1 audit, `rebuilt` carries the source as it is now (`{cube, source}`, not the
+  document) and is applied by one rule to the cube the page holds then (cube-document.ts `cubeOpenedAgain`), so made
+  again on top of another writer's edit of the grid it keeps that edit
 - [ ] **P12** `ll.show(df)` page unkept; a frame's column change loses grid edits → a kept page of one grid — S5, L10
 - [ ] **P13** charts on a cube alone (embedded CubeApp) tell nothing → the same state and commands — S3, L2
 - [ ] **P14** stack and arrange gestures told as a whole `layout` → told as `stack` / `arrange` — S3, L2
@@ -469,3 +472,52 @@ Each turned its ledger red with a message naming it; each was taken out again.
 as the container's unprivileged user). CI: not run -- the gate runs on a pull request, a push to main or a dispatch; this
 branch has no pull request and the session's GitHub access may not dispatch (403). Waiting on the user: a draft pull
 request (CI on every push) or a dispatch of `gate.yml` on `claude/datacube-query-base`.
+
+## As built (S1, 2026-10-21)
+
+**Built** (commits 6ef92b374 through this step's audit round): every S1 item closed in the register above, G8 moved to
+S3 (a page step does not restore the grids' documents, so the restore heal waits for the board produced by the
+commands). New grid commands `refilter`, `editCalculated`, `removeCalculated`, `open`, `collapseAll`; new page commands
+`select`, `setChartCube`, `modelInto`, `modelPin`, `modelKeep`, `rebuilt`; `calculate` reads every column kind (C1);
+the grid's draft carries its tree; CubeApp tells the commands of each transition of its committed state in the order
+it took them (T1-T4), a retry by the refused change's commands (G13); `applyConfiguration`, public `change()`, the
+`controller` getter gone and `state` a view of what it reads (G10, G11); restore keeps what it cannot open (P9);
+Python's model actions and reopened cubes are commands (Y1-Y3); the page's model rules live in page-commands.ts, so the
+page does not load page-model.ts at start (P4).
+
+**Deviations from the plan's wording, each kept on purpose.** `removeCalculated` has no level (a calculated column's name
+is one across both levels: `nameProblem`). `gridReopened` became `gridOpened`'s `taken` and `opened`. "With who made them"
+(T4) is another editor's commands never entering what CubeApp tells, rather than a label on each. `GridDraft.tree` is
+optional (an editor's draft holds no open groups; `configure` moves a tree only where there is one). `rebuilt` carries
+a source, not a document (the audit's 1, below).
+
+**The independent audit** (15 findings) and what became of each:
+- Fixed, each with a test that fails without it: (1, high) a `rebuilt` made again on top of another writer's grid
+  edit overwrote it -- now applied by one rule over the source (`cubeOpenedAgain`; page-commands.test.ts, test_page.py
+  with the open page's regroup); (2, high) the person's grid edits told while the tab followed the other editor were
+  dropped -- the channel keeps a grid's (live-channel.test.ts); (3) another editor's commands that changed nothing were
+  told back (cube-transactions.test.ts); (4) Python's edit of a calculated column reset its kind and level -- it starts
+  from the column as it is, the editor's own rule moved to column-draft.ts `existingDraft` (test_page.py); (5) removing
+  a chart with a selection took its condition off twice on the host, and was written whole -- the screen tells the
+  selection cleared and the removal as one edit, said once (a gesture with the condition on the grid by hand, which
+  fails both ways without the fix); (6) a snapped cube told as `rebuilt` -- `rebuiltCommands` leaves it out
+  (page-commands.test.ts); (8, 9) a retry replaced the commands of a change in flight and ran the refused state, losing
+  what was made since -- it applies the refused change's commands to the grid as it is then, or, an undo part of it,
+  runs it again as asked (the owner's `refused` says `moved`; cube-transactions.test.ts); (11) a kept cube's snap record
+  dropped on write (one-api-gestures.test.ts P9); (13) `state` handed out the owner itself (cube-transactions.test.ts);
+  (14) no guard against a cube told back and forth -- a page loaded over frames as they were tells no `rebuilt`
+  (test_page.py), and the browser reopened with nothing changed writes nothing (test/python-engine); (15) two stale
+  comments.
+- Said rather than fixed, waiting on the user: (7) `L8_KINDS` was raised twice in S1 (13 -> 15 for `select` and
+  `refilter`, 12 -> 13 for `setChartCube`) with dated notes but without the user's sign-off that rule 1 asks for; those
+  kinds have no Python builder yet (K7, K11: S6, whose names the user agrees first). (10) The tab's model actions still
+  change the model and then tell what changed (`modelCommands` of before and after) rather than applying commands first;
+  Python applies `modelPin` and `modelKeep` always, the tab only when they changed -- the same page either way. Not yet a
+  register item: registering it grows a ledger, which also needs the user's sign-off.
+- Noted: (12) a presentation command told twice (T2) is right because every presentation command today sets values
+  (`configure`); nothing pins that. G9 and G15 are held by static pins, no behavioural test.
+
+**Gates.** `//datacube/... //python:engine_test //python:model_test`: green at P11 and at G13/T1-T4 (191 of 191 the
+second time), `verify_app` as the container's unprivileged user green; the audit round's targeted tests green, its
+full run below. CI: not run -- still waiting on the user (a draft pull request, or a dispatch of `gate.yml` on
+`claude/datacube-query-base`).

@@ -33,7 +33,9 @@ import {
   toJson as protocolJson,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, REQUIRED_SETTINGS, type CubeConfiguration } from './config.ts';
+import {
+  applyToSnapshot, DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, fromSnapshot, REQUIRED_SETTINGS, type CubeConfiguration,
+} from './config.ts';
 import {
   CubeRefusal,
   type AggregateFn,
@@ -236,7 +238,8 @@ const KNOWN = new Set(['kind', 'version', 'name', 'source', 'query', 'configurat
 export interface WriteOptions {
   readonly name: string;
   readonly source: CubeSource;
-  readonly snapshot: CubeSnapshot;
+  /** The cube's query; its relation, if it has one, is no part of the document. */
+  readonly snapshot: Omit<CubeSnapshot, 'source'>;
   readonly configuration: CubeConfiguration;
   readonly tree: TreeState;
   /** Fields carried from the document this cube was opened from. */
@@ -244,7 +247,8 @@ export interface WriteOptions {
 }
 
 export function writeCube(o: WriteOptions): CubeDocument {
-  const { source: _relation, epoch: _epoch, window: _window, ...query } = o.snapshot;
+  const { epoch: _epoch, window: _window, ...withRelation } = o.snapshot;
+  const { source: _relation, ...query } = withRelation as typeof withRelation & { readonly source?: SourceRef };
   return {
     kind: CUBE_KIND,
     version: CUBE_VERSION,
@@ -335,6 +339,11 @@ export function readCube(input: string | unknown): CubeDocument {
     tree: readTree(raw['tree']),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   };
+}
+
+/** A cube's source, read as a cube document reads it (a page command carrying one: `rebuilt`). */
+export function readCubeSource(raw: unknown): CubeSource {
+  return readSource(raw);
 }
 
 function readSource(raw: unknown): CubeSource {
@@ -535,6 +544,38 @@ export function openCube(
   relation: SourceRef,
   columns: readonly ColumnSpec[],
 ): OpenedCube {
+  const { query, ...rest } = reopened(doc, columns);
+  return { snapshot: { ...query, source: relation }, ...rest };
+}
+
+/**
+ * A SAVED CUBE OPENED AGAIN OVER ITS SOURCE AS IT IS NOW, as a document (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11): the
+ * page command `rebuilt`'s rule. `source` is the source written as it is now -- a frame's or a join's of the host's
+ * frames, its columns as the compiler types them -- and the cube is opened over its columns by openCube's own rule (a
+ * new column hidden, a gone one's parts left out, a retyped one said), whatever the cube is now: a grid regrouped by
+ * another writer meanwhile keeps its grouping. The notes said, and whether a part was left out.
+ */
+export function cubeOpenedAgain(doc: CubeDocument, source: CubeSource): {
+  readonly document: CubeDocument; readonly notes: readonly string[]; readonly changed: boolean;
+} {
+  if (source._type !== 'frame' && source._type !== 'join') {
+    throw new CubeRefusal(`${source.name} is a ${source._type}: its host opens again a frame's cube or a join's of frames`);
+  }
+  const { query, configuration, tree, notes, changed } = reopened(doc, source.columns);
+  // as the screen holds a cube it opens (cube-state.ts openedState): what only its query carries read back into its
+  // configuration, then folded into its query
+  const read = fromSnapshot(query, configuration);
+  const document = writeCube({
+    name: doc.name, source, snapshot: applyToSnapshot(query, read), configuration: read, tree,
+    ...(doc.unknown ? { unknown: doc.unknown } : {}),
+  });
+  return { document, notes, changed };
+}
+
+/** openCube's work, its relation aside: what a document of the cube writes (writeCube writes no relation). */
+function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<OpenedCube, 'snapshot'> & {
+  readonly query: Omit<CubeSnapshot, 'source'>;
+} {
   const notes: string[] = [];
   const q = doc.query;
   const saved = new Map(q.columns.map((c) => [c.name, c]));
@@ -618,9 +659,8 @@ export function openCube(
     columns: _c, derived: _d, groupDerived: _g, rows: _r, pivotOn: _p, sorts: _s,
     filter: _f, pivotValues, ...rest
   } = q;
-  const snapshot: CubeSnapshot = {
+  const snapshot: Omit<CubeSnapshot, 'source'> = {
     ...rest,
-    source: relation,
     columns: specs,
     derived,
     ...(groupDerived !== undefined ? { groupDerived } : {}),
@@ -637,7 +677,7 @@ export function openCube(
     shapeChanged ? [] : doc.tree.closed ?? []);
   // changed: a part left out -- the cube held is not the one saved
   const changed = notes.some((n) => n.startsWith('left out'));
-  return { snapshot, configuration, tree, notes, changed };
+  return { query: snapshot, configuration, tree, notes, changed };
 }
 
 /**

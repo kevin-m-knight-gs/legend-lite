@@ -592,11 +592,12 @@ export function livePage(link: PythonLink, key: string): LivePage {
       const plain = JSON.parse(text) as { version: number; commands?: unknown[] };
       if (plain.commands === undefined) return read(text);
       const exact = (fromJson(text) as { commands: Record<string, Record<string, unknown>>[] }).commands;
-      const { readPageCommand } = await import('../page-commands.ts');
+      const { EXACT_FIELD, readPageCommand } = await import('../page-commands.ts');
       const commands = plain.commands.map((c, i): LiveCommand => {
         const o = c as { page?: Record<string, unknown>; grid?: unknown; command?: unknown };
         if (o.page !== undefined) {
-          return { page: readPageCommand(o.page['kind'] === 'addGrid' ? { ...o.page, document: exact[i]!['page']!['document'] } : o.page) };
+          const field = EXACT_FIELD[o.page['kind'] as keyof typeof EXACT_FIELD];
+          return { page: readPageCommand(field === undefined ? o.page : { ...o.page, [field]: exact[i]!['page']![field] }) };
         }
         if (typeof o.grid !== 'string') throw new Error(`the engine said a command of no page and no grid: ${JSON.stringify(c)}`);
         const command = o.command as Record<string, unknown> | null;

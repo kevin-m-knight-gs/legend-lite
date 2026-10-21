@@ -273,7 +273,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
   // a trailing comment is no producer
   const screen = producers.map((f) => codeLines(SOURCES.read(f)).map((l) => l.replace(/\s\/\/\s.*$/, '')).join('\n')).join('\n')
     // the Properties window's commands are built by draftCommands, the screen's
-    + grid.slice(grid.indexOf('export function draftCommands'), grid.indexOf('function settingsPatch'));
+    + grid.slice(grid.indexOf('export function draftCommands'), grid.indexOf('function settingsPatch'))
+    // and what a page opened again tells of its cubes opened over their frames (rebuiltCommands, the screen's)
+    + functionBody(page, 'rebuiltCommands');
   const made = (text: string, kind: string): boolean => new RegExp(`(?<!readonly )kind: '${kind}'`).test(text);
 
   it('each command kind is in its list, read by its reader, renamed by the rebase', () => {

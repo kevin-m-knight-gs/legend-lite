@@ -6,7 +6,7 @@
 // command is built, as a grid command's calculated column is parsed first (grid-commands.ts).
 
 import { readChart, type ChartSpec } from './chart-spec.ts';
-import { CubeDocumentError, readCube, type CubeDocument } from './cube-document.ts';
+import { CubeDocumentError, cubeOpenedAgain, readCube, readCubeSource, type CubeDocument, type CubeSource } from './cube-document.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
@@ -117,9 +117,10 @@ export type PageCommand =
   | { readonly kind: 'snap'; readonly grid: string; readonly copy: GridCopy }
   /** Grid `grid` reads its live base again (Go Live): its copy, which its host lets go, off the page. */
   | { readonly kind: 'live'; readonly grid: string }
-  /** A grid's cube opened again over its source as it is now (a frame whose columns moved: cube-document.ts rebuilt) --
-   *  made by the host whose frames they are, its document as that rebuild left it. */
-  | { readonly kind: 'rebuilt'; readonly cube: string; readonly document: CubeDocument }
+  /** A grid's cube opened again over its source as it is now: `source` written as it is now (a frame's columns moved),
+   *  the cube opened over it by one rule whatever it is now (cube-document.ts cubeOpenedAgain) -- made by whichever
+   *  side opened it again (the frames' host, or a tab opening its page). */
+  | { readonly kind: 'rebuilt'; readonly cube: string; readonly source: CubeSource }
   /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
    *  in it, the package its classes go in (modelMade, above). */
   | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
@@ -498,11 +499,13 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
         throw new CubeRefusal(`'${command.cube}' reads its snap: its source does not move it until it goes live`);
       }
       const was = held.cube.source;
-      const now = command.document.source;
+      const now = command.source;
       if (was._type !== now._type || was.name !== now.name) {
         throw new CubeRefusal(`'${command.cube}' reads ${was.name}: a cube rebuilt reads the same source, not ${now.name}`);
       }
-      return done(rewritten(page, { cubes: page.cubes.map((c) => (c.id === command.cube ? { id: c.id, cube: command.document } : c)) }));
+      // opened over the source as it is now, the cube as the page holds it now (another writer's edits kept)
+      const { document } = cubeOpenedAgain(held.cube, now);
+      return done(rewritten(page, { cubes: page.cubes.map((c) => (c.id === command.cube ? { id: c.id, cube: document } : c)) }));
     }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
@@ -568,6 +571,36 @@ const optionalId = (v: unknown, what: string): { id?: string } => (v === undefin
  * from JSON: a grid whose source the page cannot write down is the screen's own, and a page holding one does not read
  * back (Python's page is always written down).
  */
+/**
+ * WHAT A PAGE OPENED AGAIN TELLS OF ITS CUBES OPENED OVER THEIR FRAMES AS THEY ARE NOW (P11): `opened`, the page as the
+ * screen writes it once open; `taken`, the cubes opened as another than the page held (cube-document.ts cubeTaken). Each
+ * its `rebuilt`, with its source as it opened -- but a snapped grid's, which reads its copy and is not opened over its
+ * frames (`held`'s copies: the page as it was given; the S1 audit's 6).
+ */
+export function rebuiltCommands(held: PageDocument, opened: PageDocument, taken: readonly string[]): PageCommand[] {
+  return taken.flatMap((cube) => {
+    const now = opened.cubes.find((c) => c.id === cube);
+    if (now === undefined || held.copies?.[cube] !== undefined) return [];
+    return [{ kind: 'rebuilt', cube, source: now.cube.source }];
+  });
+}
+
+/** A cube's source, read by the cube document's own reader: what it refuses, refused in its words. */
+function sourceOf(v: unknown): CubeSource {
+  try {
+    return readCubeSource(v);
+  } catch (e) {
+    if (e instanceof CubeDocumentError) throw new CubeRefusal(e.message);
+    throw e;
+  }
+}
+
+/** The field of a page command a host reads with its exact numbers (a calculated column's 1.10, a join condition's
+ *  decimal), as the page's cubes are read: a cube's document, or a source. */
+export const EXACT_FIELD: Partial<Record<PageCommand['kind'], 'document' | 'source'>> = {
+  addGrid: 'document', setChartCube: 'document', rebuilt: 'source',
+};
+
 function cubeOf(v: unknown): CubeDocument {
   if (!isObject(v)) throw new CubeRefusal("a grid's cube is its document");
   try {
@@ -686,8 +719,8 @@ export function readPageCommand(given: unknown): PageCommand {
       fields(o, kind, ['grid']);
       return { kind, grid: text(o['grid'], 'a grid') };
     case 'rebuilt':
-      fields(o, kind, ['cube', 'document']);
-      return { kind, cube: text(o['cube'], "a grid's cube"), document: cubeOf(o['document']) };
+      fields(o, kind, ['cube', 'source']);
+      return { kind, cube: text(o['cube'], "a grid's cube"), source: sourceOf(o['source']) };
     case 'modelInto':
       fields(o, kind, ['project', 'workspace', 'package']);
       return { kind, project: text(o['project'], "a page model's project"), workspace: text(o['workspace'], "a page model's workspace"),

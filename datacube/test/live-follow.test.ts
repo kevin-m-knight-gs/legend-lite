@@ -89,7 +89,7 @@ describe('the commands applied, or refused so the page opens again', () => {
   it("a cube its host opened again over its frames (rebuilt): refused before anything is applied, so the page opens again", async () => {
     const { t, asked } = target({ grids: ['grid-1'] });
     await assert.rejects(applyLive([
-      page({ kind: 'rebuilt', cube: 'cube-1', document: frameCube('trades') }), grid('grid-1', { kind: 'group', rows: ['desk'] }),
+      page({ kind: 'rebuilt', cube: 'cube-1', source: frameCube('trades').source }), grid('grid-1', { kind: 'group', rows: ['desk'] }),
     ], t), /grid cube-1 was opened again over its source/);
     assert.deepEqual(asked, [], 'nothing followed');
   });

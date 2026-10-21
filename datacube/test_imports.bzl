@@ -3076,6 +3076,7 @@ TEST_IMPORTS = {
         "src/page-ids.ts",
         "src/page-model.ts",
         "src/page-names.ts",
+        "src/page-rebase.ts",
         "src/page-state.ts",
         "src/plan.ts",
         "src/query.ts",

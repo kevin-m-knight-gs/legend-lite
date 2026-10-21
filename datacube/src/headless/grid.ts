@@ -15,12 +15,12 @@ import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
-import { draftColumn, draftStage, newDraft } from '../column-draft.ts';
+import { draftColumn, draftStage, existingDraft, newDraft } from '../column-draft.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
-  cubeTaken, cubeToJson, frameSource, gridCapped, leavesOf, openCube, readCube, rebuilt, writeCube,
-  type JoinSource, type OpenedCube,
+  cubeOpenedAgain, cubeTaken, cubeToJson, frameSource, gridCapped, leavesOf, openCube, readCube, rebuilt, writeCube,
+  type CubeDocument, type CubeSource, type JoinSource, type OpenedCube,
 } from '../cube-document.ts';
 import {
   OPERATORS, isCompatible, newCondition, newGroup, toFilterNode, type DraftCondition, type DraftNode,
@@ -197,7 +197,8 @@ export async function gridBase(cube: string, frames: Readonly<Record<string, Hos
  * it has no compiler of its own there).
  */
 // `taken`: whether the cube opened is not the one held -- its frames' columns moved, a part left out, its source written
-// otherwise -- the rule a host takes it by (its `rebuilt` page command: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z10)
+// otherwise -- by the rule a page takes it by (cube-document.ts cubeTaken); `opened`, the source as it is now, which the
+// page's `rebuilt` command carries (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11, Z10)
 export async function gridOpened(cube: string, frames: Readonly<Record<string, HostFrame>>, name: string,
   gridsOnPage: number): Promise<string> {
   const was = readCube(fromJson(cube));
@@ -205,25 +206,27 @@ export async function gridOpened(cube: string, frames: Readonly<Record<string, H
   if (source._type === 'frame') {
     const frame = frames[source.name];
     if (frame === undefined) throw new CubeRefusal(`the frame ${source.name} is not served`);
+    // the frame's columns as the compiler types them now (gridCube): the source as it is now
     const made = JSON.parse(await gridCube({ model: frame.model, runtime: frame.runtime, source: frame.accessor, frame: source.name },
-      cube, name, source.name, gridsOnPage)) as Record<string, unknown>;
-    const taken = cubeTaken(made['changed'] === true, source, readCube(fromJson(made['cube'] as string)).source);
-    return JSON.stringify({ ...made, taken, model: frame.model, runtime: frame.runtime, source: frame.accessor });
+      cube, name, source.name, gridsOnPage)) as { cube: string };
+    return openedAgain(was, readCube(fromJson(made.cube)).source, [],
+      `"model":${JSON.stringify(frame.model)},"runtime":${JSON.stringify(frame.runtime)},"source":${JSON.stringify(frame.accessor)}`);
   }
   if (source._type !== 'join') throw new CubeRefusal(`${source.name} is no frame and no join of frames: a page on Python reads frames`);
   const opened = await joinOpenedOn(source, frameTables(source, frames));
-  const made = rebuilt(was, opened.relation, opened.columns, source.name, gridCapped(gridsOnPage));
-  const state = openedState(made.snapshot, made.configuration, made.tree ?? TreeState.empty());
-  const written = writeCube({
-    name, source: { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
-    snapshot: state.snapshot, configuration: state.configuration, tree: state.tree, ...(was.unknown ? { unknown: was.unknown } : {}),
-  });
-  const changed = made.changed || opened.notes.length > 0;
-  return `{"cube":${JSON.stringify(cubeToJson(written))},"notes":${JSON.stringify([...opened.notes, ...made.notes])},`
-    + `"changed":${JSON.stringify(changed)},"taken":${JSON.stringify(cubeTaken(changed, source, written.source))},`
-    + `"model":${JSON.stringify(opened.model)},`
-    + `"runtime":${JSON.stringify(opened.runtime)},`
-    + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
+  const now: JoinSource = { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
+  return openedAgain(was, now, opened.notes, `"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
+    + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}`);
+}
+
+/** A saved cube opened again over its source as it is now (`now`), by the page's own rule (cube-document.ts
+ *  cubeOpenedAgain), as gridOpened answers it: what opening said (`said` first), and `base`, where its rows are read. */
+function openedAgain(was: CubeDocument, now: CubeSource, said: readonly string[], base: string): string {
+  const again = cubeOpenedAgain(was, now);
+  const changed = again.changed || said.length > 0;
+  return `{"cube":${JSON.stringify(cubeToJson(again.document))},"notes":${JSON.stringify([...said, ...again.notes])},`
+    + `"changed":${JSON.stringify(changed)},"taken":${JSON.stringify(cubeTaken(changed, was.source, now))},`
+    + `"opened":${JSON.stringify(toJson(now))},${base}}`;
 }
 
 async function using<T>(spec: GridSpec, use: (o: Opened) => Promise<T>): Promise<T> {
@@ -284,7 +287,13 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
       const kinds = COLUMN_KINDS.map((k) => `'${k}'`).join(' or ');
       return JSON.stringify({ problems: [`a column's kind is ${kinds}, not '${String(kind)}'`] });
     }
-    const draft = newDraft(name, expression, kind ?? undefined);
+    // an edit starts from the column as it is (Edit Column opens on it: its level, its explode), as told otherwise
+    const was = replacing === null ? undefined : existingDraft(state.snapshot, replacing)?.draft;
+    if (replacing !== null && was === undefined) {
+      return JSON.stringify({ problems: [`'${replacing}' is not a calculated column of the grid`] });
+    }
+    const draft = was === undefined ? newDraft(name, expression, kind ?? undefined)
+      : { ...was, name, expression, mode: 'expression' as const, ...(kind !== null ? { level: kind } : {}) };
     const problem = nameProblem(state.snapshot, draftStage(draft), draft.name, replacing ?? undefined);
     if (problem !== null) return JSON.stringify({ problems: [problem] });
     let lambda: Lambda;

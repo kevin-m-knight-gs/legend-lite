@@ -37,6 +37,7 @@ import {
   draftCandidate,
   draftColumn,
   draftStage,
+  existingDraft,
   newDraft,
   type ColumnDraft,
   type ColumnLevel,
@@ -50,7 +51,7 @@ import {
   type WindowFrame,
   type WindowFunction,
 } from '../snapshot.ts';
-import { defaultKind, isVariant } from '../../../engine-client/src/types.ts';
+import { isVariant } from '../../../engine-client/src/types.ts';
 
 export type { ColumnLevel };
 
@@ -211,7 +212,7 @@ export class ColumnEditor {
     const start = options.start;
     let printing: Lambda | undefined;
     if ('edit' in start) {
-      const found = findColumn(options.snapshot(), start.edit);
+      const found = existingDraft(options.snapshot(), start.edit);
       this.#original = start.edit;
       printing = found?.lambda;
       this.#initial = found?.draft ?? {
@@ -1254,41 +1255,6 @@ function freshName(s: CubeSnapshot): string {
   let n = s.columns.length + s.derived.length + (s.groupDerived ?? []).length + 1;
   while (nameProblem(s, 'row', `col_${n}`) !== null) n += 1;
   return `col_${n}`;
-}
-
-/**
- * An existing calculated column as a draft, and its lambda to print into it
- * (the draft's text waits for the compiler's print), or undefined if it has gone.
- */
-function findColumn(s: CubeSnapshot, name: string): { readonly draft: Draft; readonly lambda?: Lambda } | undefined {
-  const row = s.derived.find((d) => d.name === name);
-  if (row) {
-    return {
-      draft: {
-        name,
-        // A column saved before kinds were declared behaves as its type.
-        level: row.kind ?? defaultKind(row.type),
-        mode: row.window ? 'window' : 'expression',
-        expression: '',
-        unnest: row.unnest === true,
-        window: row.window ?? NEW_WINDOW,
-        child: NEW_CHILD,
-      },
-      ...(row.lambda ? { lambda: row.lambda } : {}),
-    };
-  }
-  const group = (s.groupDerived ?? []).find((d) => d.name === name);
-  return group
-    ? {
-      draft: {
-        name, level: 'group',
-        mode: group.childAggregate ? 'children' : group.window ? 'window' : 'expression',
-        expression: '', unnest: false, window: group.window ?? NEW_WINDOW,
-        child: group.childAggregate ?? NEW_CHILD,
-      },
-      ...(group.lambda ? { lambda: group.lambda } : {}),
-    }
-    : undefined;
 }
 
 /**

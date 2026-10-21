@@ -653,6 +653,22 @@ try {
   console.log(`${widened ? 'ok  ' : 'FAIL'} the cube the open page opened again over the changed frame is the page's in Python`
     + `${widened ? ` (${widened.join(', ')})` : ''}`);
   if (!widened) failed = true;
+  // opened again with nothing changed since: no cube is another, so the page writes nothing (the S1 audit's 14: never a
+  // cube told back and forth between the tab and Python)
+  const versionOf = async () => {
+    engine.stdin.write('py-page-version\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-version ')) throw new Error(`the engine did not say the version: ${line}`);
+    return JSON.parse(line.slice('done py-page-version '.length));
+  };
+  const steady = await versionOf();
+  await tabbed.reload();
+  await seen('the page opened again, nothing changed since',
+    `(${String(sheetNames)})() === 'pytrades|Renamed in DataCube|Added in Python'`);
+  await new Promise((done) => { setTimeout(done, 2000); });
+  const after = await versionOf();
+  console.log(`${after === steady ? 'ok  ' : 'FAIL'} opened again with nothing changed, the page writes nothing (version ${steady} -> ${after})`);
+  if (after !== steady) failed = true;
 
   // SAVED FROM PYTHON (D, B6): page.save() keeps the page in this user's saved pages by the rules the tab's own Save
   // keeps it by; DataCube's Open… lists it, and it opens -- its sheets as Python saved them, its grid over its frame

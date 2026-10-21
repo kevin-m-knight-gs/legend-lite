@@ -32,7 +32,6 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
-import type { PageCommand } from '../page-commands.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
@@ -702,8 +701,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     /**
      * OPEN A SAVED PAGE (from the store, a file someone handed over, a share link): each of its cubes through its own
      * source, in turn, then the page laid out as it was saved -- its grids under their saved ids, its charts, its
-     * layout. A cube whose source was not opened is left out, and said; saving over the page would lose it. The cubes
-     * opened again as another than the page held (a host's frame whose columns moved: Opened.taken), by their ids.
+     * layout. A cube whose source was not opened is kept as the page saved it, its views placeholders that say why
+     * (P9), and said. The cubes opened again as another than the page held (a host's frame whose columns moved:
+     * Opened.taken), by their ids.
      */
     async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false): Promise<readonly string[]> {
       const given = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
@@ -1330,11 +1330,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
       // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
       const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
-      for (const cube of taken) {
-        const now = opened?.cubes.find((c) => c.id === cube);
-        const told: PageCommand | undefined = now && { kind: 'rebuilt', cube, document: now.cube };
-        if (told) channel?.edit({ page: told });
-      }
+      const { rebuiltCommands } = await import('../page-commands.ts');
+      for (const command of opened ? rebuiltCommands(said.page, opened, taken) : []) channel?.edit({ page: command });
       // the page as it opened, written once it settles (restoring is a change): Python's page is what is on screen
       liveChanged();
       return undefined;

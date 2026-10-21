@@ -120,6 +120,26 @@ describe('the channel', () => {
     assert.deepEqual(editor.writes.map((w) => w.edits), [[{ page: { kind: 'renamePage', name: 'Mine' } }]]);
   });
 
+  it("keeps the person's own grid edit told while following the other editor, and writes it (the S1 audit's 2)", async () => {
+    const editor = new Editor();
+    const s = screen(trades);
+    const channel = new LiveChannel(editor, s, 0);
+    channel.opened(1);
+    const grid = trades.views.find((v) => v.kind === 'grid')!.id;
+    await channel.following(async () => {
+      channel.shown = undefined;
+      // the person's own change, landing while the other editor's commands are followed (a grid tells none of the
+      // other editor's: CubeApp.applyGridCommands)
+      channel.edit({ grid, command: { kind: 'group', rows: ['desk'] } });
+      s.now = renamed(trades, 'regrouped on screen');
+      channel.changed();
+    });
+    channel.shown = 2;
+    channel.changed();
+    await written(channel);
+    assert.deepEqual(editor.writes.map((w) => w.edits), [[{ grid, command: { kind: 'group', rows: ['desk'] } }]]);
+  });
+
   // (the browser harness: such a write, made behind a page Python had moved, had the page opened again in place of
   // following Python's command)
   it('writes nothing when nothing was made on screen since it opened', async () => {

@@ -14,6 +14,7 @@ live again), `py-page-copies` (answered `done py-page-copies <each grid's snappe
 `widget-page-sheet` (a sheet added to the notebook's page),
 `py-page-desks-wider` (the page's desks frame, read Live, a column more in place, where Python does not look) and
 `py-page-desks-columns` (answered `done py-page-desks-columns <its desks grid's columns, as the page has them, as JSON>`),
+`py-page-version` (answered `done py-page-version <the version its keeper has, as JSON>`),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
 the page has them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
@@ -231,6 +232,8 @@ def main() -> None:
             elif command == 'py-page-desks-columns':
                 held = next(c['cube'] for c in pypage.to_dict()['cubes'] if c['cube']['source']['name'] == 'pydesks')
                 command = f"py-page-desks-columns {json.dumps([c['name'] for c in held['source']['columns']])}"
+            elif command == 'py-page-version':
+                command = f'py-page-version {json.dumps(datacube._session.keeper.current(pypage._key)[0])}'
             elif command == 'py-page-read':
                 # the page as it is open now: one copy, a write from the open page Python's at once
                 command = f'py-page-read {json.dumps([s.name for s in pypage.sheets])}'

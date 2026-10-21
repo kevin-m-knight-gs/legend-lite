@@ -235,8 +235,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  could not open kept as placeholders). Measured 306,226.
  *  306,500 -> 307,000 (2026-10-21, step S1's P11: a cube opened again over a host's frames told as the page's
  *  `rebuilt` -- its rule (page-commands.ts), whether it is another (cube-document.ts cubeTaken), told as a host's page
- *  opens (datacube-app.ts openLive)). Measured 306,571. */
-const BUDGET = 307_000;
+ *  opens (datacube-app.ts openLive)). Measured 306,571.
+ *  307,000 -> 307,500 (2026-10-21, step S1's audit round and step S2's G3 and V5: `rebuilt` applied by one rule over the
+ *  source as it is now (cube-document.ts cubeOpenedAgain), what a reopened page tells (rebuiltCommands), a retry by its
+ *  commands, a saved tree's expand level). Measured 307,284. */
+const BUDGET = 307_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -423,8 +426,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  312,500 -> 313,500 (2026-10-21, the one API program's step S1 -- the engine page's note of the same date). Measured
  *  313,083.
  *  313,500 -> 314,500 (2026-10-21, step S1's P1-P9 -- the grid's note of the same date). Measured 314,150.
- *  314,500 -> 315,000 (2026-10-21, step S1's P11 -- the grid's note of the same date). Measured 314,514. */
-const WIDGET_BUDGET = 315_000;
+ *  314,500 -> 315,000 (2026-10-21, step S1's P11 -- the grid's note of the same date). Measured 314,514.
+ *  315,000 -> 315,500 (2026-10-21, step S1's audit round and step S2's G3 and V5 -- the grid's note of the same date).
+ *  Measured 315,233. */
+const WIDGET_BUDGET = 315_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

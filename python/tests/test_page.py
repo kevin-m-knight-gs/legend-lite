@@ -813,6 +813,11 @@ class Document(Paged):
         self.assertEqual(page._commands[-1]['kind'], 'editCalculated')
         with self.assertRaisesRegex(ValueError, "'desk' is not a calculated column of the grid"):
             grid.edit_calculated('desk', '$x.notional->toOne()')
+        # an edit starts from the column as it is, as Edit Column opens on it: a dimension stays one (the S1 audit's 4)
+        grid.calculate('label', "$x.desk->toOne() + '!'", kind='dimension')
+        grid.edit_calculated('label', "$x.desk->toOne() + '?'")
+        self.assertEqual(next(c for c in grid._query['derived'] if c['name'] == 'label').get('kind'), 'dimension')
+        grid.remove_calculated('label')
         grid.remove_calculated('triple')
         self.assertEqual([c['name'] for c in grid._query['derived']], ['twice'])
         with self.assertRaisesRegex(ValueError, "'triple' is not a calculated column of the grid"):
@@ -1161,8 +1166,8 @@ class Live(Paged):
         grid.update(trades().drop(columns=['pnl']))
         moved = since(before + 1)['commands']
         self.assertEqual([(c['page']['kind'], c['page']['cube']) for c in moved], [('rebuilt', grid._view['cube'])])
-        self.assertEqual(moved[0]['page']['document'], page.to_dict()['cubes'][0]['cube'])
-        self.assertNotIn('pnl', [c['name'] for c in moved[0]['page']['document']['source']['columns']])
+        self.assertEqual(moved[0]['page']['source'], page.to_dict()['cubes'][0]['cube']['source'])
+        self.assertNotIn('pnl', [c['name'] for c in moved[0]['page']['source']['columns']])
         tab.close()
 
     def test_what_is_written_whole_rather_than_as_commands(self):
@@ -1196,7 +1201,7 @@ class Live(Paged):
         live.group('desk')
         moved = since(at)['commands']
         self.assertEqual([c.get('page', c.get('command'))['kind'] for c in moved], ['rebuilt', 'group'])
-        self.assertIn('extra', [c['name'] for c in moved[0]['page']['document']['source']['columns']])
+        self.assertIn('extra', [c['name'] for c in moved[0]['page']['source']['columns']])
         self.assertEqual(moved[1], {'grid': live.id, 'command': {'kind': 'group', 'rows': ['desk']}})
         tab.close()
 
@@ -1379,6 +1384,10 @@ class Live(Paged):
         ll.show(page, browser=False)
         theirs = page.to_dict()
         theirs['name'] = 'Renamed in DataCube'
+        # the open page regrouped the grid too: the cube opened again over the frame is that cube, its grouping kept
+        held = next(c['cube'] for c in theirs['cubes'] if c['id'] == grid._view['cube'])
+        held['query']['rows'] = ['desk']
+        held['tree']['open'] = []
         page._enter()
         try:
             self.assertEqual(self.said(page, theirs), 200)
@@ -1388,6 +1397,7 @@ class Live(Paged):
         self.assertEqual(page.name, 'Renamed in DataCube')
         cube = next(c['cube'] for c in page.to_dict()['cubes'] if c['id'] == grid._view['cube'])
         self.assertIn('extra', [c['name'] for c in cube['source']['columns']])
+        self.assertEqual(cube['query']['rows'], ['desk'], "the open page's grouping kept (the S1 audit's 1)")
 
     def test_a_call_that_raised_writes_nothing_it_half_did(self):
         page, _, _ = self.built()
@@ -1458,6 +1468,16 @@ class Live(Paged):
             asked.append(calls)
         self.assertEqual(asked[0], asked[1], 'as many calls for twelve grids as for one')
         self.assertLessEqual(len(asked[1]), 3, f'a rename: its command, what the page reads, its name: {asked[1]}')
+
+    def test_a_page_loaded_over_frames_as_they_were_tells_no_cube_opened_again(self):
+        # (the S1 audit's 14) a cube opened over its frame as it was saved is the cube held: no rebuilt, so a page and the
+        # tab that opens it never tell each other the same cube back and forth
+        page = ll.Page('Unchanged')
+        page.grid(trades(), name='same_trades', rows=['region'])
+        page.grid(trades(), name='same_desks', rows=['desk'])
+        again = ll.Page.load(page.to_dict(), frames={'same_trades': trades(), 'same_desks': trades()})
+        self.assertEqual([c['kind'] for c in again._page_commands if c['kind'] == 'rebuilt'], [])
+        self.assertEqual(again.to_dict()['cubes'], page.to_dict()['cubes'])
 
     def test_a_page_loaded_over_frames_that_changed_is_written_once_whole(self):
         # each cube opened again over its frame as it is now (a column gone, one new): the page written once, loaded

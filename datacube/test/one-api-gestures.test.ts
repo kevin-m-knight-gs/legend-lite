@@ -513,6 +513,24 @@ const GESTURES: readonly Gesture[] = [
     make: ({ chart }) => clickMark(chart!, 0, 0),
   },
   {
+    // its selection on its grid's filter, the same condition put there by hand too: removeTile's rule takes the
+    // selection off once, as the screen does -- the grid's change no second command (the S1 audit's 5)
+    name: 'a chart with a mark removed, its condition also on its grid by hand',
+    setUp: async () => {
+      const ids = await withChart();
+      await drawn();
+      clickMark(ids['chart']!, 0, 0);
+      await settle();
+      const chart = onScreen().views.find((v) => v.id === ids['chart']);
+      const mark = chart?.kind === 'chart' ? chart.selection?.[0] : undefined;
+      assert.ok(mark, 'the mark is the chart\'s selection');
+      await (pg().grid(ids['a']!) as unknown as CubeApp).edit([{ kind: 'addFilter', condition: mark }], 'filter');
+      await settle();
+      return ids;
+    },
+    make: ({ chart }) => removeTile(chart!),
+  },
+  {
     // its editing grid is the view's, never saved (P7, its band shares reset after a resize, is a marker: jsdom drags none)
     name: 'a frozen chart opened in a grid',
     quiet: true,
@@ -747,6 +765,19 @@ describe('P9: a saved page opened keeps what it cannot open', () => {
     const now = onScreen();
     assert.deepEqual([now.views, now.cubes, now.sheets], [saved.views, saved.cubes, saved.sheets],
       'the page written is the page saved: nothing it could not open dropped');
+  });
+
+  it("a kept grid's snap is written back with it, as saved (the S1 audit's 11)", async () => {
+    const { a, b } = await twoGrids();
+    const doc = readPage(pageToJson(onScreen()));
+    const cubeOf = (grid: string): string => (doc.views.find((v) => v.id === grid) as { readonly cube: string }).cube;
+    const copy = { table: 'snap_orders', rowCount: 2, takenAt: '2026-10-21T10:00:00.000Z', label: 'Snap 10:00' };
+    const saved = readPage(pageToJson({ ...doc, copies: { [cubeOf(b)]: copy } }));
+    page!.dispose();
+    newPage();
+    pg().restore(saved, new Map([[cubeOf(a), over('trades.csv')]]));
+    await settle();
+    assert.deepEqual(onScreen().copies, saved.copies, 'the copy the kept grid read, kept with it');
   });
 
   it('a kept tile removed takes its view, its cube and its charts, as removeTile does; undone, it is back', async () => {

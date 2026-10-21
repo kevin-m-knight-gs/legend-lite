@@ -428,6 +428,19 @@ describe('the commands told are the ones that landed, in the order they landed (
     assert.ok(kinds().length > 0, "the person's own sort is told");
   });
 
+  it('the state a grid hands out is what it reads, no way to change it (G11; the S1 audit\'s 13)', () => {
+    const state = app.state as unknown as Record<string, unknown>;
+    assert.deepEqual([state['busy'], state['historyDepth']], [false, { past: 0, future: 0 }]);
+    for (const way of ['change', 'undo', 'redo', 'retryRefused', 'refresh', 'cancel']) assert.equal(state[way], undefined, way);
+  });
+
+  it("another editor's commands that change nothing are not told back either (the S1 audit's 3)", async () => {
+    // the grid grouped by region and desk already: grouping it so again changes nothing
+    assert.equal(await app.applyGridCommands([{ kind: 'group', rows: ['region', 'desk'] }], 'Python'), null);
+    await settle();
+    assert.deepEqual(kinds(), []);
+  });
+
   it('a change refused because the sign-in expired, run again after signing in: its commands told (G13)', async () => {
     engine.expired = true;
     menu('EMEA', 'Ascending');
@@ -441,5 +454,23 @@ describe('the commands told are the ones that landed, in the order they landed (
     await settle();
     assert.deepEqual(app.snapshot.sorts, [{ column: 'region', direction: 'asc' }], 'run again: the sort landed');
     assert.deepEqual(told, [{ kind: 'sorts', sorts: [{ column: 'region', direction: 'asc' }] }], 'and its command is told, as the sort it was');
+  });
+
+  it('run again after signing in, the refused change lands on the grid as it is now, what was made since kept (the S1 audit\'s 8, 9)', async () => {
+    engine.expired = true;
+    menu('EMEA', 'Ascending');
+    await settle();
+    engine.expired = false;
+    // a setting made after the refusal: the grid as it is now carries it
+    const pin: GridCommand = { kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } };
+    await app.edit([pin], 'settings');
+    await settle();
+    const form = dom.window.document.querySelector<HTMLFormElement>('.dc-alert-signin');
+    assert.ok(form, 'the cube offers to sign in again');
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'region', direction: 'asc' }], 'the sort landed');
+    assert.equal(app.configuration.columns['desk']?.pinned, 'left', 'and the setting made since is kept');
+    assert.deepEqual(kinds(), ['configure', 'sorts'], 'each told as it landed');
   });
 });

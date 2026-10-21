@@ -586,6 +586,7 @@ export class PageApp {
     this.#grids.clear();
     this.#gone.clear();
     this.#unopened.clear();
+    this.#unopenedCopies.clear();
     this.#filters = [];
     this.#lensKeys.clear();
     this.#page = this.#newBoard();
@@ -634,8 +635,9 @@ export class PageApp {
       cubes.push({ id, cube });
     }
     const views = this.views();
+    const written = this.#withUnopened(cubes, views);
     return writePageOf({
-      name, cubes: this.#withUnopened(cubes, views), views, filters: this.#filters, copies: this.#copies(ids),
+      name, cubes: written, views, filters: this.#filters, copies: this.#copies(ids, written),
       ...(unknown?.model ? { model: unknown.model } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
     });
@@ -646,6 +648,8 @@ export class PageApp {
    * back while a view reads it, in its grid's place.
    */
   readonly #unopened = new Map<string, CubeDocument>();
+  /** The copy each of them read as its page saved it (a snapped grid's): written back with it (the S1 audit's 11). */
+  readonly #unopenedCopies = new Map<string, GridCopy>();
 
   /** Why a cube's views are kept unopened, or undefined: it is no cube the page could not open. */
   #unopenedWhy(cube: string): string | undefined {
@@ -665,12 +669,17 @@ export class PageApp {
     return all.map((c, i) => ({ c, i })).sort((x, y) => place(x.c.id) - place(y.c.id) || x.i - y.i).map((x) => x.c);
   }
 
-  /** The copy each of `ids`' grids reads, by its cube (§18.8): the page's record of where its snapped grids' rows are. */
-  #copies(ids: readonly string[]): Readonly<Record<string, GridCopy>> {
-    return Object.fromEntries(ids.flatMap((id) => {
+  /** The copy each of `ids`' grids reads, by its cube (§18.8): the page's record of where its snapped grids' rows are --
+   *  and of `written`'s cubes the page could not open, each as its page saved it. */
+  #copies(ids: readonly string[], written: readonly { id: string }[]): Readonly<Record<string, GridCopy>> {
+    const kept = written.flatMap(({ id }) => {
+      const copy = ids.includes(id) ? undefined : this.#unopenedCopies.get(id);
+      return copy ? [[id, copy] as const] : [];
+    });
+    return Object.fromEntries([...ids.flatMap((id) => {
       const copy = this.grid(id)?.copy;
       return copy ? [[id, copy] as const] : [];
-    }));
+    }), ...kept]);
   }
 
   /** Why the page cannot be saved now, if it cannot: nothing on it, or a grid's own reason, named. */
@@ -696,6 +705,7 @@ export class PageApp {
     this.#grids.clear();
     this.#gone.clear();
     this.#unopened.clear();
+    this.#unopenedCopies.clear();
     // its filters first: each grid opens with them (a chart's click, by the views it will have)
     this.#filters = page.filters ?? [];
     this.#lensKeys.clear();
@@ -711,7 +721,12 @@ export class PageApp {
     const grids = page.views.filter((v) => v.kind === 'grid').sort((a, b) => at(a.id) - at(b.id));
     const tileOf = new Map<string, string>();
     // a cube whose source was not opened is kept as the page saved it, its views in their places (P9)
-    for (const { id, cube } of page.cubes) if (!makers.has(id)) this.#unopened.set(id, cube);
+    for (const { id, cube } of page.cubes) {
+      if (makers.has(id)) continue;
+      this.#unopened.set(id, cube);
+      const copy = page.copies?.[id];
+      if (copy) this.#unopenedCopies.set(id, copy);
+    }
     for (const view of grids) {
       const make = makers.get(view.cube);
       if (tileOf.has(view.cube)) continue;
@@ -807,8 +822,9 @@ export class PageApp {
       if (cube) cubes.push({ id, cube });
     }
     const views = this.views();
+    const written = this.#withUnopened(cubes, views);
     return {
-      page: writePageOf({ name: this.#name, cubes: this.#withUnopened(cubes, views), views, filters: this.#filters, copies: this.#copies(this.cubes) }),
+      page: writePageOf({ name: this.#name, cubes: written, views, filters: this.#filters, copies: this.#copies(this.cubes, written) }),
       held: this.#page.held,
     };
   }

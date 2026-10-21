@@ -3,6 +3,7 @@
 // docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). Plain functions of the cube as it is now, the column's name when
 // editing began (undefined when adding), the draft, and its lambda as the compiler parsed what was typed.
 
+import { defaultKind } from '../../engine-client/src/types.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { CalcStage } from './calc.ts';
 import {
@@ -43,6 +44,42 @@ export const NEW_CHILD: ChildAggregate = { fn: 'min', of: '' };
  *  (DataCubeNewColumnState). */
 export function newDraft(name: string, expression: string, level: ColumnLevel = 'measure'): ColumnDraft {
   return { name, level, mode: 'expression', expression, unnest: false, window: NEW_WINDOW, child: NEW_CHILD };
+}
+
+/**
+ * An existing calculated column as a draft -- what Edit Column opens on, and what a host's edit of it starts from (the
+ * S1 audit's 4: its kind, its level, its explode kept unless told otherwise) -- and its lambda to print into it (the
+ * draft's text waits for the compiler's print), or undefined if it has gone.
+ */
+export function existingDraft(s: CubeSnapshot, name: string): { readonly draft: ColumnDraft; readonly lambda?: Lambda } | undefined {
+  const row = s.derived.find((d) => d.name === name);
+  if (row) {
+    return {
+      draft: {
+        name,
+        // A column saved before kinds were declared behaves as its type.
+        level: row.kind ?? defaultKind(row.type),
+        mode: row.window ? 'window' : 'expression',
+        expression: '',
+        unnest: row.unnest === true,
+        window: row.window ?? NEW_WINDOW,
+        child: NEW_CHILD,
+      },
+      ...(row.lambda ? { lambda: row.lambda } : {}),
+    };
+  }
+  const group = (s.groupDerived ?? []).find((d) => d.name === name);
+  return group
+    ? {
+      draft: {
+        name, level: 'group',
+        mode: group.childAggregate ? 'children' : group.window ? 'window' : 'expression',
+        expression: '', unnest: false, window: group.window ?? NEW_WINDOW,
+        child: group.childAggregate ?? NEW_CHILD,
+      },
+      ...(group.lambda ? { lambda: group.lambda } : {}),
+    }
+    : undefined;
 }
 
 /** Where the draft's column is computed: before the grouping, or after it (a group-level column). */
