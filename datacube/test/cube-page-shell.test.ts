@@ -1254,6 +1254,81 @@ describe('Open in grid on a detached chart of a cube alone: its kept query made 
   });
 });
 
+describe('what is looked at survives an edit: the board put at the page keeps it (S3)', () => {
+  beforeEach(setUpPage);
+  afterEach(tearDownPage);
+
+  /** An edit made by hand: the first sheet renamed in its tab (the page's state applies it, the board is put at it). */
+  async function anEdit(name: string): Promise<void> {
+    host.querySelectorAll<HTMLElement>('.dc-sheet-tab')[0]!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    const field = host.querySelector<HTMLInputElement>('.dc-sheet-tab input')!;
+    field.value = name;
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    await settle();
+  }
+  async function aPage(): Promise<{ a: string; chart: string }> {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    return { a, chart: await chartOf(a) };
+  }
+
+  it('the sheet shown: another renamed, or a tile moved onto a new one', async () => {
+    const { chart } = await aPage();
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(pg().shownSheet, 'sheet-2', 'a sheet added is shown');
+    await anEdit('First');
+    assert.equal(pg().shownSheet, 'sheet-2', 'the first renamed: the second still shown');
+    clickTab('First');
+    chartMenu(chart).find((i) => label(i) === 'New Sheet')!.click();
+    await settle();
+    assert.deepEqual([pg().shownSheet, sheetOf(chart)], ['sheet-1', 'sheet-3'], 'moved onto a new sheet: the sheet shown stays');
+  });
+
+  it("a chart's open options, and its editing grid beside it", async () => {
+    const { chart } = await aPage();
+    chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
+    await settle();
+    const form = (): HTMLElement => tile(chart).querySelector<HTMLElement>('.dc-chartpanel-form')!;
+    assert.equal(form().hidden, false);
+    await togglePill(chart);
+    await openInGrid(chart);
+    await anEdit('Renamed');
+    assert.equal(form().hidden, false, 'its options still open');
+    assert.ok(tile(`edit-${chart}`), 'its editing grid still open');
+    assert.equal(sheetOf(`edit-${chart}`), sheetOf(chart), 'beside it');
+  });
+
+  it("a maximised tile, the board's scroll and the tile with focus", async () => {
+    const { a, chart } = await aPage();
+    const board = host.querySelector<HTMLElement>('.dc-sheet')!;
+    board.scrollTop = 120;
+    await anEdit('Scrolled');
+    assert.equal(board.scrollTop, 120, 'scrolled where it was');
+    tile(chart).focus();
+    await pg().follow([{ kind: 'renameSheet', sheet: pg().sheets[0]!, name: 'Followed' }], new Map());
+    assert.equal(dom.window.document.activeElement, tile(chart), "another editor's edit: focus where it was");
+    tile(a).querySelector<HTMLButtonElement>('.dc-tile-maximise')!.click();
+    assert.ok(board.classList.contains('dc-bands-maximised'));
+    await anEdit('Maximised');
+    assert.ok(board.classList.contains('dc-bands-maximised'), 'still maximised');
+  });
+
+  it("the tile a stack shows in front: its tab's, never the saved page's first", async () => {
+    const { a, chart } = await aPage();
+    await pg().follow([{ kind: 'stack', tiles: [a, chart] }], new Map());
+    const shows = (id: string): boolean => !tile(id).hidden;
+    assert.ok(shows(a) && !shows(chart), 'stacked: the first in front');
+    const tab = [...host.querySelectorAll<HTMLElement>('.dc-tile-tab')].find((t) => t.dataset['tab'] === chart && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
+    tab.dispatchEvent(new dom.window.PointerEvent('pointerdown', { pointerId: 1, button: 0, bubbles: true }));
+    tab.dispatchEvent(new dom.window.PointerEvent('pointerup', { pointerId: 1, button: 0, bubbles: true }));
+    assert.ok(shows(chart) && !shows(a), 'its tab pressed: the chart in front');
+    await anEdit('Stacked');
+    assert.ok(shows(chart) && !shows(a), 'still in front after an edit');
+  });
+});
+
 describe("an editing grid is the board's, never the page's (P7)", () => {
   beforeEach(setUpPage);
   afterEach(tearDownPage);

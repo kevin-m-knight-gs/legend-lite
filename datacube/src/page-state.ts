@@ -2,13 +2,14 @@
 // commands edit it (page-commands.ts PageDraft), held in one place, with one history. A page edit is a step of that
 // history -- undone and redone as a whole -- as a grid's edit is a step of its own owner's (state-owner.ts).
 //
-// A step is begun from the page as it is (`begin`), and `keep` brings the draft to what the edit made: an edit its owner
-// made itself (the screen moves a tile, then says so), or commands applied by the one function (page-commands.ts
-// applyToState: what a host editing the page by commands does -- a live channel, a test). The function is not imported
-// here: the screen's page, which only begins and keeps, does not download it.
+// THE BOARD IS PRODUCED BY THE COMMANDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S3): every edit of the page's structure
+// is commands, applied here by the one step every owner shares (page-commands.ts applyToState: `begin`, then `keep` the
+// page they make) -- a page of its own's (page/page-app.ts) and a cube alone's board (app.ts) alike -- and the screen is
+// then put at what they make (page/cube-page.ts sync). The screen changes nothing of the page itself: a guard holds it
+// (test/state-guardrail.test.ts).
 //
-// `keep` is also how what the page's own owners change reaches it with no step: a grid's own edits (its cube: the grid's
-// own owner undoes them), a chart's spec as it follows its grid, the page's name (its host's).
+// `keep` alone is how what the page's own owners change reaches it with no step: a grid's own edits (its cube: the
+// grid's own owner undoes them), a chart's spec as it follows its grid, the page's name (its host's).
 //
 // The ids a page has held only grow: a step undone gives its ids back to no one (page-commands.ts nextPageId), so a
 // handle a host kept never meets another tile under its old one's id; a step redone brings its own tiles back.

@@ -11,6 +11,13 @@
 // first chart opens, its own grid the first tile and not removable (`grid`). A PAGE OF ITS OWN (page/page-app.ts,
 // DataCube's app) has no such grid: every grid is added alike (`addGridOver`), the first one removable as the fifth.
 //
+// THE BOARD IS PRODUCED BY THE COMMANDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S3). Both owners keep the page's
+// state (page-state.ts); every gesture here tells its page commands (onPageEdit), the owner applies them by the one step
+// (page-commands.ts applyToState) and puts the board at the page they make (`sync`). The board keeps the gestures, the
+// previews and the drawing -- what a gesture makes (a grid's engine, a chart's panel) waits until its command places
+// it, and what no page holds (a chart's editing grid, the tile a stack shows in front) is its own -- and changes nothing
+// of the page itself (test/state-guardrail.test.ts).
+//
 // Moved out of CubeApp so a grid and a chart are the same kind of thing -- a tile on a board --
 // and a page can come to hold several grids (the user, 2026-09-30: "the grid is the source").
 // A chart reaches its grid only through `ChartSource`: the grid's query as it is now, a way to
@@ -26,7 +33,7 @@ import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
-import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
+import { type Bands, NEW_SHEET, add as addTile, asSaved, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { chartValuesAsColumns, followCube, GRID_MARKS, MAP_MARKS, type ChartSpec } from '../chart-spec.ts';
 import { applyToSnapshot, type CubeConfiguration } from '../config.ts';
@@ -666,16 +673,16 @@ export class CubePage {
       // the sheets' names and order, and each one's layout
       for (const s of to.sheets) board(s.id)!.name = s.name;
       this.#sheets.sort((a, b) => to.sheets.findIndex((s) => s.id === a.id) - to.sheets.findIndex((s) => s.id === b.id));
-      this.#options.host.append(...this.#sheets.map((s) => s.host));
+      // the boards' elements in the sheets' order -- moved only when it changed: a moved element loses its focus
+      const shown = [...this.#options.host.children].filter((el) => this.#sheets.some((s) => s.host === el));
+      if (shown.some((el, i) => el !== this.#sheets[i]!.host)) this.#options.host.append(...this.#sheets.map((s) => s.host));
       for (const s of to.sheets) {
         const { kind: _kind, ...bands } = s.layout;
-        // which of a stack's tiles is in front is what is looked at, never saved (the design's §5, 7): kept
-        const drawn = board(s.id)!.board;
-        drawn.setLayout(fronted(bands, drawn.layout));
-        // the page's: what the step holds, of the tiles on the board (an editing grid, which no step holds, put below)
-        this.#pageLayouts.set(s.id, without(bands, (id) => drawn.title(id) === undefined));
+        const sheet = board(s.id)!;
+        sheet.board.setLayout(this.#drawn(sheet, bands));
+        // the page's: what the step holds, of the tiles on the board
+        this.#pageLayouts.set(s.id, without(bands, (id) => sheet.board.title(id) === undefined));
       }
-      this.#editorsBeside();
       // the charts in its order (views() writes them in the order they came: one opened again comes where it was)
       const order = (id: string): number => (wanted.has(id) ? to.views.findIndex((v) => v.id === id) : to.views.length);
       const charts = [...this.#charts].sort(([x], [y]) => order(x) - order(y));
@@ -1645,10 +1652,7 @@ export class CubePage {
     editor.grid.dispose();
     this.#take(editor.tile);
     // its band shared as the page has it again: placing the editing grid shared it evenly, for the moment it was open (P7)
-    if (sheet && this.#quiet === 0) {
-      sheet.board.setLayout(fronted(this.#layoutOf(sheet), sheet.board.layout));
-      this.#editorsBeside();
-    }
+    if (sheet && this.#quiet === 0) sheet.board.setLayout(this.#drawn(sheet, this.#layoutOf(sheet)));
   }
 
   /** A sheet's layout as the page has it (P7): set whenever the board is put at a page. */
@@ -1658,17 +1662,20 @@ export class CubePage {
     return layout;
   }
 
-  /** Each chart's editing grid, which no page holds, beside its chart (a layout puts what it does not name below). */
-  #editorsBeside(): void {
+  /**
+   * A sheet's layout of the page's as its board draws it: each chart's editing grid on that sheet (which no page holds)
+   * beside its chart, and the tile each stack shows in front as the board shows it (what is looked at, never saved: the
+   * design's §5, 7) -- every tile kept as it is on the board, none made again.
+   */
+  #drawn(sheet: Sheet, layout: Bands): Bands {
+    let drawn = layout;
     for (const [id, chart] of this.#charts) {
       const editor = chart.editor;
-      const spec = editor ? this.#specs.get(editor.tile) : undefined;
-      const sheet = editor ? this.#sheetOf(editor.tile) : undefined;
-      if (!editor || !spec || !sheet || sheet !== this.#sheetOf(id)) continue;
-      const title = sheet.board.title(editor.tile) ?? spec.title;
-      sheet.board.remove(editor.tile);
-      sheet.board.add({ ...spec, title }, id);
+      if (editor && this.#sheetOf(editor.tile) === sheet && tiles(layout).includes(id)) {
+        drawn = addTile(drawn, editor.tile, id, sheet.board.columns);
+      }
     }
+    return fronted(drawn, sheet.board.layout);
   }
 
   // -- selections: click-to-filter ----------------------------------------------
