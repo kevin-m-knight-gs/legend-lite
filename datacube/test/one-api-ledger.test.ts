@@ -21,7 +21,7 @@ import { describe, it } from 'node:test';
 
 import { Sources } from '../../tools/js/runfiles.mts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { configurationOf, treeOf, writeCube } from '../src/cube-document.ts';
+import { configurationOf, cubeToJson, readCube, treeOf, writeCube } from '../src/cube-document.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import {
@@ -43,7 +43,7 @@ interface Entry {
 
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 10, L1_PLANE: 4, L1_HOST: 12,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
   L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 18, UNCHECKED: 7,
 };
 
@@ -72,13 +72,14 @@ const L1_GRID: Record<string, Entry> = {
 const GRID_THEN = /this\.(#applyCommands)\(/g;
 const L1_THEN: Record<string, Entry> = {
   '#apply:#applyCommands': { items: [], why: 'the screen\'s edits: commands alone' },
-  'applyGridCommands:#applyCommands': { items: [], why: "another editor's commands: `then` changes nothing (pinned below)" },
-  '#applyDraft:#applyCommands': { items: ['G3'] },
+  'applyGridCommands:#applyCommands': { items: [], why: "another editor's commands: never told back (pinned below)" },
+  '#applyDraft:#applyCommands': { items: [], why: "Properties Apply: the draft's commands alone, the tree moved by configure's rule" },
 };
 /** The allowed calls' exact text: a change beside the commands added there is a new gap, not a quiet edit. */
 const THEN_TEXT: Record<string, string> = {
   '#apply:#applyCommands': 'const { refused, outcome } = await this.#applyCommands(commands, label);',
-  'applyGridCommands:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, 'theirs');",
+  'applyGridCommands:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, 'theirs');",
+  '#applyDraft:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, 'Properties');",
 };
 
 /** The grid's public ways in that change its state or copies, called from anywhere in the app but the grid itself. */
@@ -97,10 +98,8 @@ const L1_ROUTES: Record<string, Entry> = {
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
-const GAP_CALLS_APP = /this\.(#applyDraft)\(/g;
 const GAP_CALLS_HOST = /(?<![\w.#]|function )(inPlace|openSaved|blankPage|openFrame)\(/g;
 const L1_REACH: Record<string, Entry> = {
-  'app.ts:onApply:#applyDraft': { items: ['G3'] },
   'datacube-app.ts:openInPlace:inPlace': { items: ['P10'] },
   'datacube-app.ts:openFrame:inPlace': { items: ['P10', 'P12'] },
   'datacube-app.ts:open:openSaved': { items: ['P10'], count: 2 },
@@ -185,7 +184,6 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
 
   it('who calls each listed gap', () => {
     const found = new Map<string, number>();
-    for (const [key, n] of sites(app, GAP_CALLS_APP)) found.set(`app.ts:${key}`, n);
     for (const [key, n] of sites(host, GAP_CALLS_HOST)) found.set(`datacube-app.ts:${key}`, n);
     assert.deepEqual(heldTo(found, L1_REACH, 'callers'), []);
     pinned('L1_REACH', Object.keys(L1_REACH).length);
@@ -400,13 +398,10 @@ describe('the gaps no scan reaches, pinned by their code', () => {
   it('their number', () => pinned('MARKERS', MARKERS.length));
 });
 
-// -- V5: behaviour, as it is today --------------------------------------------------------------------------------
+// -- a grid saved and opened again opens its rows as it was told to (closed S2: V5) --------------------------------
 
-/** The derived-state gaps held here by behaviour (asserted as they are: closing one fails its check). */
-const DERIVED: Record<string, readonly string[]> = { 'the saved tree keeps no expand level and no closed groups': ['V5'] };
-
-describe('V5: a grid saved and opened again opens its rows as it was told to', () => {
-  it(`${Object.keys(DERIVED)[0]} -- V5 open`, () => {
+describe('a grid saved and opened again opens its rows as it was told to', () => {
+  it('the saved tree keeps its expand level and the groups closed under it, and opens with them', () => {
     const tree = TreeState.empty(false).withExpandTo(1).setOpen(['EMEA'], false);
     const doc = writeCube({
       name: 'trades', source: { _type: 'frame', name: 't', columns: [{ name: 'region', type: 'String' }] },
@@ -416,9 +411,12 @@ describe('V5: a grid saved and opened again opens its rows as it was told to', (
       tree,
     });
     assert.equal(configurationOf(doc).initialExpandToLevel, 1);
-    assert.deepEqual(Object.keys(doc.tree).sort(), ['open', 'showTotals'], 'V5 open: the saved tree keeps only open rows and totals');
+    assert.deepEqual(doc.tree, { open: [], showTotals: false, expandTo: 1, closed: [['EMEA']] });
     // the screen opens a saved grid with the tree the document keeps (app.ts: options.tree, as given)
-    assert.equal(treeOf(doc).expandTo, 0, 'V5 open: opened again, the expand level is gone');
+    const back = treeOf(readCube(JSON.parse(cubeToJson(doc))));
+    assert.equal(back.key, tree.key, 'opened again: the expand level, and EMEA closed under it');
+    assert.equal(back.isOpen(['AMER'], 2), true);
+    assert.equal(back.isOpen(['EMEA'], 2), false);
   });
 });
 

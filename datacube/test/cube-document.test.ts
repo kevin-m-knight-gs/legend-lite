@@ -320,6 +320,27 @@ describe('opening a cube over its file as it is now', () => {
     assert.equal(opened.snapshot.columns.find((c) => c.name === 'notional')?.type, 'Decimal');
   });
 
+  it('keeps the expand level and the groups closed under it, the grouping as it was (V5)', () => {
+    const levelled = writeCube({
+      name: 'Q3 review', source: SOURCE, snapshot: EVERY, configuration: CONFIG,
+      tree: TreeState.empty(true).withExpandTo(1).setOpen(['EMEA'], false),
+    });
+    const opened = openCube(readCube(cubeToJson(levelled)), RELATION,
+      now([['region', 'String'], ['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
+    assert.equal(opened.tree.expandTo, 1);
+    assert.equal(opened.tree.isOpen(['AMER'], 2), true, 'a group the level opens is open');
+    assert.equal(opened.tree.isOpen(['EMEA'], 2), false, 'the one closed under it stays closed');
+    // regrouped, the closed paths are of the old grouping: the level stays, they go
+    const regrouped = openCube(readCube(cubeToJson(levelled)), RELATION, now([['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
+    assert.deepEqual([regrouped.tree.expandTo, regrouped.tree.closedPaths], [1, []]);
+  });
+
+  it('refuses a saved expand level or closed groups it cannot read, in words', () => {
+    const text = (tree: unknown): string => JSON.stringify({ ...JSON.parse(cubeToJson(doc())), tree });
+    assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: -1 })), /expand level is a whole number/);
+    assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: 1, closed: 'EMEA' })), /closed groups are row paths/);
+  });
+
   it('closes the open rows when the grouping changed', () => {
     const opened = openCube(doc(), RELATION, now([['desk', 'String'], ['notional', 'Float'], ['qty', 'Integer']]));
     assert.deepEqual(opened.snapshot.rows, []);

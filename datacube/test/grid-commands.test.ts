@@ -76,6 +76,21 @@ describe('each command gives what the screen\'s own edit gives', () => {
       setColumn(d, 'qty', { aggregate: 'max' }));
   });
 
+  it('configure moves the tree with the settings that decide it: the grand total and the expand level (G3)', () => {
+    const open = { ...d, tree: TreeState.fromPaths([['EMEA']]).collapse(['EMEA']).expand(['AMER']) };
+    const totals = applyGridCommand(open, { kind: 'configure', patch: { showRootAggregation: true } });
+    assert.equal(totals.tree!.showTotals, true, 'the grand total shown');
+    assert.equal(totals.tree!.isOpen(['AMER']), true, 'the open groups kept');
+    const levelled = applyGridCommand(totals, { kind: 'configure', patch: { initialExpandToLevel: 2 } });
+    assert.equal(levelled.tree!.expandTo, 2);
+    assert.equal(levelled.tree!.isOpen(['EMEA'], 3), true, 'the level opens what it reaches');
+    // cleared, the level opens nothing; a patch of neither leaves the tree as it is
+    assert.equal(applyGridCommand(levelled, { kind: 'configure', patch: { initialExpandToLevel: null } }).tree!.expandTo, 0);
+    assert.equal(applyGridCommand(levelled, { kind: 'configure', patch: { reportTitle: 'T' } }).tree, levelled.tree);
+    // an editor's draft holds no open groups: the settings are set, nothing more
+    assert.equal(applyGridCommand(d, { kind: 'configure', patch: { showRootAggregation: true } }).config.showRootAggregation, true);
+  });
+
   it('configure refuses a setting DataCube has not, a column the grid has not, and a total\'s own Aggregation', () => {
     refused(() => applyGridCommand(d, { kind: 'configure', patch: { maxRow: 5 } }), /'maxRow' is not a grid's setting/);
     refused(() => applyGridCommand(d, { kind: 'configure', patch: { columns: { nope: { hidden: true } } } }),

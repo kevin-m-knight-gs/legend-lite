@@ -114,7 +114,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   gesture "a group opened" is told, read and replays
 - [x] **G2** Collapse All → `collapseAll` — closed S1: the menu builds it, Python `grid.collapse_all`; the gesture "every
   group collapsed" is told, read and replays
-- [ ] **G3** Properties' tree effect (totals, expand level) → the tree rule inside `configure` — S2, L1 L7
+- [x] **G3** Properties' tree effect (totals, expand level) → the tree rule inside `configure` — closed S2: `configure`
+  moves the tree by the settings it sets (grid-commands.ts `treed`); Properties Apply is its commands alone, and
+  Python's configure moves the tree as Properties does (grid-commands.test.ts, test_one_api.py)
 - [x] **G4** calculated-columns editor: edit and rename, references carried → `editCalculated`; the rename rule moved
   into `grid-commands.ts` from `snapshot.ts:803` + `config.ts:886-899` — closed S1: `{kind:'editCalculated', name, level,
   column}`; the two lists by one rule (snapshot.ts `withCalculated`, the editor's candidate and the commands alike), the
@@ -208,7 +210,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **V2** a chart's selection reconciled with its grid's filter, on every path — S2, L7
 - [ ] **V4** group-level column types written the same by both sides (spike first: type at compile, or stop storing
   run-derived types) — S2, L7
-- [ ] **V5** expand level and the groups closed under it saved and read back — S2, L7
+- [x] **V5** expand level and the groups closed under it saved and read back — closed S2: `treeDocument` writes
+  `expandTo` and `closed` (when it has a level), `readTree` reads them in words, `treeOf` and `openCube` open with them
+  (`TreeState.saved`; regrouped, the closed paths go and the level stays)
 
 ### The host (audit root cause R2)
 - [ ] **H1** the keeper applies a write's commands and keeps what they make — S4, L9

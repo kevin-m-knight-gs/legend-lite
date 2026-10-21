@@ -145,6 +145,12 @@ export class TreeState {
     return new TreeState(new Set(paths.map(pathKey)), showTotals);
   }
 
+  /** A tree as a saved cube keeps it (cube-document.ts treeDocument): its open groups, its grand total, its expand
+   *  level and the groups closed under that level. */
+  static saved(open: readonly RowPath[], showTotals: boolean, expandTo: number, closed: readonly RowPath[]): TreeState {
+    return new TreeState(new Set(open.map(pathKey)), showTotals, Math.max(0, expandTo), new Set(closed.map(pathKey)));
+  }
+
   get showTotals(): boolean {
     return this.#showTotals;
   }

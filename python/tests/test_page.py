@@ -706,6 +706,12 @@ class Document(Paged):
             grid.configure({'columns': {'desk': {'kind': None}}})
         with self.assertRaisesRegex(ValueError, "desk's excludedFromPivot is true or false"):
             grid.configure({'columns': {'desk': {'excludedFromPivot': None}}})
+        # the settings that decide the tree move it, by configure's own rule, as Properties does on the screen (the
+        # grand total shown, the groups opened to the level; saved and read back with the cube)
+        grid.configure({'showRootAggregation': True, 'initialExpandToLevel': 1})
+        cube = next(c['cube'] for c in page.to_dict()['cubes'] if c['id'] == grid._view['cube'])
+        self.assertEqual((cube['tree']['showTotals'], cube['tree'].get('expandTo')), (True, 1))
+        grid.configure({'showRootAggregation': False, 'initialExpandToLevel': None})
         # a setting DataCube has not, a column the grid has not, a setting's name misspelt: refused, never kept
         with self.assertRaisesRegex(ValueError, "'maxRow' is not a grid's setting"):
             grid.configure({'maxRow': 5})

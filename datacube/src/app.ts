@@ -982,7 +982,7 @@ export class CubeApp {
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
   async applyGridCommands(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    const { refused, outcome } = await this.#applyCommands(commands, label, (s) => s, 'theirs');
+    const { refused, outcome } = await this.#applyCommands(commands, label, 'theirs');
     const why = refused ?? refusal(outcome);
     // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
     // take it back unseen)
@@ -990,12 +990,12 @@ export class CubeApp {
     return why;
   }
 
-  /** #apply's change, `then` its tree (the Properties window's settings move it: #applyDraft), and how it ended: a
-   *  refusal of the commands in their words, or the change's outcome. `by`: the screen's own edit -- a step of its
+  /** #apply's change, and how it ended: a refusal of the commands in their words, or the change's outcome. `by`: the
+   *  screen's own edit -- a step of its
    *  history, its commands told -- or another editor's (Python's: applyGridCommands), which is neither: its commands
    *  are that editor's own already, never told back to it (T4). */
   async #applyCommands(commands: readonly GridCommand[], label: string,
-    then: (s: CubeState) => CubeState = (s) => s, by: 'mine' | 'theirs' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
+    by: 'mine' | 'theirs' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
     // judged on the state the person sees (the change in flight's, else the committed one): a presentation change is
     // laid over the committed state too, and one that state cannot take (a setting of the column the change in flight
@@ -1008,7 +1008,7 @@ export class CubeApp {
       out = this.#change((s) => {
         try {
           const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration, tree: s.tree }, commands);
-          return then({ snapshot: d.snapshot, configuration: d.config, tree: d.tree });
+          return { snapshot: d.snapshot, configuration: d.config, tree: d.tree };
         } catch (e) {
           if (!(e instanceof CubeRefusal)) throw e;
           if (s === seen) refused = e.message;
@@ -3421,22 +3421,11 @@ export class CubeApp {
       this.#status(e.message, 'warn');
       return false;
     }
-    // "Show root aggregation" is a SETTING in their General Properties,
-    // and it decides whether the level-0 query is issued at all;
-    // "Initially expand to level" decides which groups open as they
-    // load (upstream's isServerSideGroupOpenByDefault). Both reach the
-    // TREE in the same transaction as the rest of the draft: they used
-    // to be a refresh of their own before the draft's, which lost the
-    // draft's rows, pivots and sorts on a refusal (P2-169).
-    const tree = (s: CubeState): CubeState => ({
-      ...s,
-      tree: s.tree
-        .withTotals(s.configuration.showRootAggregation)
-        .withExpandTo(s.configuration.initialExpandToLevel ?? 0),
-    });
+    // "Show root aggregation" and "Initially expand to level" reach the TREE in the same transaction as the rest of
+    // the draft (P2-169), by configure's own rule (grid-commands.ts treed: G3), as a host's configure does
     const merge = (s: CubeState): CubeState => {
-      const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration }, commands);
-      return tree({ snapshot: d.snapshot, configuration: d.config, tree: s.tree });
+      const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration, tree: s.tree }, commands);
+      return { snapshot: d.snapshot, configuration: d.config, tree: d.tree };
     };
     // COMPILED FIRST, as upstream's editor does: the whole query the
     // draft makes, planned and not run. A refusal applies nothing,
@@ -3479,7 +3468,7 @@ export class CubeApp {
     // snapshot, configuration, tree, chrome -- repaints from what was on
     // screen. The commands apply again to the cube as it is when they are
     // sent, not as it was before the compile.
-    const { refused, outcome } = await this.#applyCommands(commands, 'Properties', tree);
+    const { refused, outcome } = await this.#applyCommands(commands, 'Properties');
     return refused === null && (outcome.kind === 'applied' || outcome.kind === 'nothing');
   }
 

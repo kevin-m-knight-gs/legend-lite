@@ -287,7 +287,8 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
     throw new CubeRefusal("a grid's appearance is its settings by name, each cleared by null, not cleared whole");
   }
   if (isObject(appearance)) known(Object.keys(appearance), APPEARANCE_SETTINGS, 'an appearance setting');
-  let d = patched(draft, { ...cleared(settings), ...(isObject(appearance) ? { appearance: cleared(appearance) } : {}) });
+  let d = treed(patched(draft, { ...cleared(settings), ...(isObject(appearance) ? { appearance: cleared(appearance) } : {}) }),
+    settings);
   if (columns === undefined) return d;
   if (!isObject(columns)) throw new CubeRefusal("a grid's columns' settings are by name: {name: {setting: value}}");
   for (const [name, c] of Object.entries(columns)) {
@@ -333,6 +334,20 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
     d = patched(d, { columns: { [name]: { ...cleared(presentation), ...(excludedFromPivot !== undefined ? { excludedFromPivot } : {}) } } });
   }
   return d;
+}
+
+/**
+ * The tree moved by the settings that decide it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md G3): "Show root aggregation"
+ * shows the grand total or not, "Initially expand to level" opens the groups to that depth as they load (upstream's
+ * isServerSideGroupOpenByDefault) -- in the same change as the settings, so the screen's Properties and a host's
+ * configure move it alike. A draft of no open groups (an editor's) has no tree to move.
+ */
+function treed<D extends GridDraft>(draft: D, settings: Readonly<Record<string, unknown>>): D {
+  if (draft.tree === undefined) return draft;
+  let tree = draft.tree;
+  if (Object.hasOwn(settings, 'showRootAggregation')) tree = tree.withTotals(draft.config.showRootAggregation);
+  if (Object.hasOwn(settings, 'initialExpandToLevel')) tree = tree.withExpandTo(draft.config.initialExpandToLevel ?? 0);
+  return tree === draft.tree ? draft : { ...draft, tree };
 }
 
 // ---------------------------------------------------------------- reading a command from JSON

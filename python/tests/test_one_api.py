@@ -39,7 +39,7 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 
 # each ledger's size, pinned: lower it with the fix that shrank it; raise it only with a dated note here
 CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 9, 'MARKERS': 15, 'L9_KEEPER': 6,
-            'BEHAVIOUR': 7}
+            'BEHAVIOUR': 6}
 
 
 def trades():
@@ -271,7 +271,6 @@ L9_KEEPER = {
 BEHAVIOUR = {
     'test_v1_a_following_chart_keeps_its_old_grouping_when_its_grid_is_regrouped': ('V1',),
     'test_v2_a_charts_selection_stays_when_its_grids_filter_no_longer_holds_it': ('V2',),
-    'test_g3_root_totals_set_by_configure_do_not_reach_the_grids_tree': ('G3',),
     'test_h1_an_open_pages_write_is_kept_as_sent_not_as_its_commands_make_it': ('H1',),
     'test_h2_an_open_pages_write_by_no_command_is_taken_at_the_version_now': ('H2',),
     'test_h3_an_id_given_and_taken_off_within_one_write_is_not_held': ('H3', 'B12'),
@@ -337,15 +336,6 @@ class Derived(Session):
         self.assertEqual(loaded.to_dict()['views'][-1].get('selection'), [mark],
                          "V2 open: Python's page keeps a selection its grid's filter no longer holds")
 
-    def test_g3_root_totals_set_by_configure_do_not_reach_the_grids_tree(self):
-        page = ll.Page('G3')
-        grid = page.grid(trades(), name='t', rows=['region'], measures={'notional': 'sum'})
-        grid.configure({'showRootAggregation': True})
-        cube = page.to_dict()['cubes'][0]['cube']
-        self.assertTrue(cube['configuration']['showRootAggregation'])
-        # the screen's Properties moves the tree with the setting; headless keeps the tree, so no total row shows
-        # (the expand level, the setting's other half, the saved tree keeps not at all: V5)
-        self.assertFalse(cube['tree']['showTotals'], "G3 open: Python's configure leaves the tree's totals off")
 
 
 class HostWrites(Session):

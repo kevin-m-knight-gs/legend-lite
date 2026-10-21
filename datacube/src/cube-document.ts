@@ -211,7 +211,13 @@ export interface CubeDocument {
   readonly query: SavedQuery;
   /** Differences from the product defaults; `null` means "unset" where a default is set. */
   readonly configuration: Readonly<Record<string, unknown>>;
-  readonly tree: { readonly open: readonly RowPath[]; readonly showTotals: boolean };
+  /** Its open groups and grand total; its expand level and the groups closed under it, when it has a level. */
+  readonly tree: {
+    readonly open: readonly RowPath[];
+    readonly showTotals: boolean;
+    readonly expandTo?: number;
+    readonly closed?: readonly RowPath[];
+  };
   /** Top-level fields a newer writer added, kept verbatim. */
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
@@ -253,7 +259,12 @@ export function writeCube(o: WriteOptions): CubeDocument {
 
 /** The open rows as a cube document holds them: typed paths, and whether totals show. */
 export function treeDocument(tree: TreeState): CubeDocument['tree'] {
-  return { open: tree.openPaths.map(parsePathKey), showTotals: tree.showTotals };
+  const closed = tree.closedPaths.map(parsePathKey);
+  return {
+    open: tree.openPaths.map(parsePathKey), showTotals: tree.showTotals,
+    // the expand level, and the groups closed under it (a grid opened again opens its rows as it was told to: V5)
+    ...(tree.expandTo > 0 ? { expandTo: tree.expandTo, ...(closed.length > 0 ? { closed } : {}) } : {}),
+  };
 }
 
 /**
@@ -481,13 +492,25 @@ function calculated(raw: unknown, field: string): DerivedColumn[] {
 function readTree(raw: unknown): CubeDocument['tree'] {
   const t = plain(raw ?? { open: [], showTotals: false });
   if (!isObject(t) || !Array.isArray(t['open'])) throw new CubeDocumentError("'tree' has no open paths");
-  const open = t['open'].map((p) => {
+  const path = (p: unknown): RowPath => {
     if (!Array.isArray(p) || !p.every((k) => k === null || typeof k === 'string')) {
       throw new CubeDocumentError(`not a row path: ${JSON.stringify(p)}`);
     }
     return p as RowPath;
-  });
-  return { open, showTotals: t['showTotals'] === true };
+  };
+  const open = t['open'].map(path);
+  const expandTo = t['expandTo'];
+  if (expandTo !== undefined && (typeof expandTo !== 'number' || !Number.isInteger(expandTo) || expandTo < 0)) {
+    throw new CubeDocumentError(`the tree's expand level is a whole number, not ${JSON.stringify(expandTo)}`);
+  }
+  const closed = t['closed'];
+  if (closed !== undefined && !Array.isArray(closed)) {
+    throw new CubeDocumentError(`the tree's closed groups are row paths, not ${JSON.stringify(closed)}`);
+  }
+  return {
+    open, showTotals: t['showTotals'] === true,
+    ...(expandTo ? { expandTo, ...(closed && closed.length > 0 ? { closed: closed.map(path) } : {}) } : {}),
+  };
 }
 
 // ---------------------------------------------------------------- opening
@@ -610,7 +633,8 @@ export function openCube(
     epoch: 0,
   };
   // The open rows are paths through the saved grouping; a different grouping has none.
-  const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
+  const tree = TreeState.saved(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals, doc.tree.expandTo ?? 0,
+    shapeChanged ? [] : doc.tree.closed ?? []);
   // changed: a part left out -- the cube held is not the one saved
   const changed = notes.some((n) => n.startsWith('left out'));
   return { snapshot, configuration, tree, notes, changed };
@@ -783,7 +807,7 @@ export function configurationOf(doc: CubeDocument): CubeConfiguration {
 
 /** The open rows a document describes. */
 export function treeOf(doc: CubeDocument): TreeState {
-  return TreeState.fromPaths(doc.tree.open, doc.tree.showTotals);
+  return TreeState.saved(doc.tree.open, doc.tree.showTotals, doc.tree.expandTo ?? 0, doc.tree.closed ?? []);
 }
 
 // ---------------------------------------------------------------- differences
