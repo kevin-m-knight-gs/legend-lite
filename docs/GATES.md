@@ -10727,7 +10727,7 @@ merge-base's in brackets:
 | Postgres | 330, 132, 467, 205, 92 = 1,226 [1,221] | 0 | 5 | 5 of 5 | postgres-sqlite-mongodb lane session |
 | SQLite | 333, 134, 458, 205, 92 = 1,222 [1,212] | 0 | 10 | 5 of 5 | the same |
 | MongoDB | no channel B lane | | | 5 of 5 | the same |
-| Databricks | 334, 137, 459, 205, 93 = 1,228 [1,226] | 0 | 2 | 5 of 5 | its lane session, at 076607d0 |
+| Databricks | 334, 137, 459, 205, 93 = 1,228 [1,226] | 0 | 2 | 5 of 5 | its lane session (076607d0 too) |
 | Snowflake, BigQuery | not measurable: the environment has no credentials (setup-cloud-pct.sh) | | | | |
 
 Here at 286e5afa and b37af2b9: `//core:core_tests` (25 targets), `//spec:corpus_duckdb` and `//spec:corpus_h2` exact,
