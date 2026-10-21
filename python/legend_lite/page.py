@@ -84,11 +84,6 @@ def _operations(cls: Any) -> Any:
     return cls
 
 
-def _with_cube(doc: dict[str, Any], cube: str, document: dict[str, Any]) -> dict[str, Any]:
-    """``doc`` with its cube ``cube`` (its id) replaced by ``document``: a new page document, ``doc`` as it was."""
-    return {**doc, 'cubes': [{**c, 'cube': document} if c['id'] == cube else c for c in doc['cubes']]}
-
-
 def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
     """A name a page, a tile or a sheet is given, by DataCube's one rule (page-names.ts givenName, asked headless:
     nameGiven, as the screen's renames ask it): its text trimmed, a page's or a tile's blank refused in DataCube's words,
@@ -276,10 +271,14 @@ class Grid(Tile):
         return self._kept(said, 4)
 
     def _kept(self, said: dict[str, Any], stacklevel: int) -> Grid:
-        """The cube document DataCube wrote for an edit, kept whole -- never a part of it Python sets itself -- and what
-        opening it over its frame changed, said in DataCube's words, as a load says it."""
+        """The cube document DataCube wrote for an edit, kept whole -- never a part of it Python sets itself -- in the page
+        as DataCube keeps a grid's edit (headless pageWithCube: its charts following it, each selection its filter no
+        longer holds taken off), and what opening it over its frame changed, said in DataCube's words, as a load says
+        it."""
         cube = _plain(_json.loads(said['cube']))
-        self._page._doc = _with_cube(self._page._doc, self._view['cube'], cube)
+        kept = json.loads(self._page._session.headless().call(
+            'pageWithCube', _json.dumps(self._page._doc), self._view['cube'], said['cube']))
+        self._page._doc = _plain(_json.loads(kept['page']))
         # the commands DataCube applied, as the screen would have built them: the page's record of its edits, and what a
         # page open on it applies to this grid. The cube was opened again over its frames before the edit (``_current``:
         # a frame that changed is its own ``rebuilt`` page command), so what changed of it here is these commands

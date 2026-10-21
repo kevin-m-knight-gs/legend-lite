@@ -10,13 +10,13 @@ import { cubeOpenedAgain, type CubeDocument, type CubeSource, type FrameSource }
 import { tiles } from '../src/layout/bands.ts';
 import {
   PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, gridTitle, idsOf, nextPageId, readPageCommand,
-  rebuiltCommands,
+  followedPage, rebuiltCommands,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
 import { gridCopyOf, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { modelCommands, type PageModelRef } from '../src/page-model.ts';
-import { rebaseEdits } from '../src/page-rebase.ts';
+import { rebaseEdits, withCube } from '../src/page-rebase.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) stacked with chart-2 (frozen, of
@@ -296,6 +296,39 @@ describe("the page's model, by its commands (page-model.ts: P4)", () => {
     refused(() => applyPageCommand(with1, { kind: 'modelInto', project: 'q', workspace: 'w', package: 'k' }), /a page has one model/);
     refused(() => applyPageCommand(draftOf(start), { kind: 'modelPin', revision: 'r' }), /the page has no model yet/);
     refused(() => applyPageCommand(with1, { kind: 'modelKeep', cube: 'nope', tables: [], class: null }), /'nope' is no grid's cube/);
+  });
+});
+
+describe("a page's charts following their cubes, by one rule wherever a cube changes (followedPage: S2)", () => {
+  const draftOf = (p: PageDocument): PageDraft => ({ page: p, held: idsOf(p) });
+  const chartOf = (p: PageDocument, id: string): ChartView => p.views.find((v) => v.id === id) as ChartView;
+  const cube = trades.cubes[0]!;
+
+  it('a live chart told a spec of another grouping is kept regrouped as its grid is, as the panel keeps it (P6)', () => {
+    const live = chartOf(trades, 'chart');
+    // told across desk (the panel tells before it follows): kept across region, the grid's first row group
+    const told = { ...live.spec, x: 'desk' };
+    const after = applyPageCommand(draftOf(trades), { kind: 'setChart', chart: 'chart', spec: told }).draft.page;
+    assert.equal(chartOf(after, 'chart').spec.x, 'region');
+    // a frozen chart keeps what it was told
+    const frozen = applyPageCommand(draftOf(trades), { kind: 'setChart', chart: 'chart-2', spec: { ...chartOf(trades, 'chart-2').spec, x: 'desk' } }).draft.page;
+    assert.equal(chartOf(frozen, 'chart-2').spec.x, 'desk');
+  });
+
+  it("a grid's edit regroups its live charts and takes off a selection its filter no longer holds (V1, V2)", () => {
+    const mark: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' };
+    const selected: PageDocument = {
+      ...trades,
+      views: trades.views.map((v) => (v.id === 'chart' ? { ...v, selection: [mark] } : v)),
+      cubes: trades.cubes.map((c) => (c.id === cube.id ? { ...c, cube: { ...c.cube, query: { ...c.cube.query, filter: mark } } } : c)),
+    };
+    assert.deepEqual(followedPage(selected, cube.id), selected, 'nothing moved: the same page');
+    // regrouped by desk alone and the filter cleared, as a grid's edit leaves its cube
+    const edited = withCube(selected, cube.id, { ...cube.cube, query: { ...cube.cube.query, rows: ['desk'] } });
+    const after = followedPage(edited, cube.id);
+    assert.equal(chartOf(after, 'chart').spec.x, 'desk', 'the live chart regrouped');
+    assert.equal(chartOf(after, 'chart').selection, undefined, 'its selection gone with the filter that held it');
+    assert.equal(chartOf(after, 'chart-2').spec.x, 'region', 'the frozen one as it was');
   });
 });
 

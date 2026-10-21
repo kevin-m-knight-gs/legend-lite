@@ -288,7 +288,7 @@ class OpenPage:
         return _json.loads(said['page']), said['commands'][0]
 
     def grid_applied(self, doc, grid, command):
-        from legend_lite.page import _copy_base_of, _cube_spec, _with_cube
+        from legend_lite.page import _copy_base_of, _cube_spec
         session = datacube._session
         view = next((v for v in doc['views'] if v['id'] == grid and v['kind'] == 'grid'), None)
         if view is None:
@@ -299,7 +299,9 @@ class OpenPage:
             said = json.loads(self.headless.call('gridApply', spec, _json.dumps([command])))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        return _with_cube(doc, view['cube'], _json.loads(said['cube']))
+        # the page as DataCube keeps a grid's edit (headless pageWithCube: its charts following it)
+        kept = json.loads(self.headless.call('pageWithCube', _json.dumps(doc), view['cube'], said['cube']))
+        return _json.loads(kept['page'])
 
     def made(self, doc, entry):
         """``entry`` applied to ``doc``: the page it makes, what it said (its facts, read from what it made only where an

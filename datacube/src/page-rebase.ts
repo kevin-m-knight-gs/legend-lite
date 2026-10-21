@@ -8,7 +8,7 @@ import type { CubeDocument } from './cube-document.ts';
 import { leavesOf } from './cube-document.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
-import { applyPageCommand, idsOf, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
+import { applyPageCommand, followedPage, idsOf, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { PageDocument, PageLayout } from './page-document.ts';
 import { CubeRefusal } from './snapshot.ts';
 
@@ -149,7 +149,8 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
       if (view === undefined || view.kind !== 'grid') throw new CubeRefusal(`${grid} is no longer on the page`);
       const held = d.page.cubes.find((c) => c.id === view.cube);
       if (held === undefined) throw new CubeRefusal(`${grid} shows no cube the page holds`);
-      d = { ...d, page: withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, [edit.command])) };
+      // the cube as the grid's edit leaves it, its charts following it (page-commands.ts followedPage: V1, V2)
+      d = { ...d, page: followedPage(withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, [edit.command])), view.cube) };
       applied.push({ grid, command: edit.command });
       continue;
     }

@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
-  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 18, UNCHECKED: 7,
+  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 17, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -358,7 +358,6 @@ const MARKERS: readonly Marker[] = [
   // telling exactly what landed: placeholders until S1 writes each one's failing behavioural test first
   // the page
   { file: 'src/page/page-app.ts', text: "#move(way: 'undo' | 'redo'): void {", items: ['P5'] },
-  { file: 'src/ui/chart-panel.ts', text: 'this.#options.onSpec?.();\n    if (redrawForm) this.#paintForm();\n    this.refresh();', items: ['P6'] },
   { file: 'src/page/cube-page.ts', text: 'this.#place({ id: tile, title: `Editing ${chartTitle}`, element: host, actions: [update] }, chartId);', items: ['P7'] },
   // the board a cube alone shows its charts on is given no way to tell its page's edits
   { file: 'src/app.ts', text: 'onPageEdit', items: ['P13'], absent: true, within: '    const page = new CubePage({\n      host,\n      grid: { element: body,' },

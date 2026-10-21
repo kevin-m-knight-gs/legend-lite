@@ -38,8 +38,8 @@ MODEL = PAGE.with_name('model.py')
 ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 
 # each ledger's size, pinned: lower it with the fix that shrank it; raise it only with a dated note here
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 9, 'MARKERS': 15, 'L9_KEEPER': 6,
-            'BEHAVIOUR': 6}
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 15, 'L9_KEEPER': 6,
+            'BEHAVIOUR': 4}
 
 
 def trades():
@@ -110,7 +110,7 @@ L5_DOCUMENT = {
     'Page.grid': (ALLOWED, 1, '(was[0], was[1])'),  # a refused call puts back the page as it was
     'Page.join': (ALLOWED, 1, '(was[0], was[1])'),
     'Page.load': (ALLOWED, 1, 'doc'),  # N1: headless pageRead's page
-    'Grid._kept': (('Z1',), 1, None),
+    'Grid._kept': (ALLOWED, 1, "_plain(_json.loads(kept['page']))"),  # headless pageWithCube's page
 }
 
 ROOTS = {'_doc', '_document', '_view', '_cube', '_query'}
@@ -222,7 +222,6 @@ class Static(unittest.TestCase):
 # -- L6 ------------------------------------------------------------------------------------------------------------
 
 L6_FUNCTIONS = {
-    '_with_cube': ('Z1',),
     '_ids': ('Z2',),
     '_class': ('Z4',),
     '_facts': ('Z5',),
@@ -269,8 +268,6 @@ L9_KEEPER = {
 
 # each behavioural gap by its items: the test that holds it, which asserts the gap as it is (closing it fails the test)
 BEHAVIOUR = {
-    'test_v1_a_following_chart_keeps_its_old_grouping_when_its_grid_is_regrouped': ('V1',),
-    'test_v2_a_charts_selection_stays_when_its_grids_filter_no_longer_holds_it': ('V2',),
     'test_h1_an_open_pages_write_is_kept_as_sent_not_as_its_commands_make_it': ('H1',),
     'test_h2_an_open_pages_write_by_no_command_is_taken_at_the_version_now': ('H2',),
     'test_h3_an_id_given_and_taken_off_within_one_write_is_not_held': ('H3', 'B12'),
@@ -307,35 +304,6 @@ class Session(unittest.TestCase):
         """An open page's write (what the tab sends: its page and its edits) at the version the keeper has now."""
         version = datacube._session.keeper.current(page._key)[0]
         return engine._page_said(f'page={page._key}&version={version}', json.dumps({'page': doc, 'edits': edits}))
-
-
-class Derived(Session):
-    """L7: derived state the screen derives again on every change, and Python leaves as it was."""
-
-    def test_v1_a_following_chart_keeps_its_old_grouping_when_its_grid_is_regrouped(self):
-        page = ll.Page('V1')
-        grid = page.grid(trades(), name='t', rows=['region'], measures={'notional': 'sum'})
-        grid.chart('bar')
-        grid.group('desk')
-        spec = page.to_dict()['views'][-1]['spec']
-        self.assertNotIn('frozen', spec, 'the chart follows its grid')
-        # the screen's chart follows the grid's new rows (followCube); Python's keeps the old
-        self.assertEqual(spec['x'], 'region', "V1 open: Python's page keeps a following chart's grouping as it was")
-
-    def test_v2_a_charts_selection_stays_when_its_grids_filter_no_longer_holds_it(self):
-        page = ll.Page('V2')
-        grid = page.grid(trades(), name='t', rows=['region'], measures={'notional': 'sum'})
-        grid.chart('bar')
-        doc = page.to_dict()
-        mark = {'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': 'EMEA'}
-        doc['views'][-1]['selection'] = [mark]
-        doc['cubes'][0]['cube']['query']['filter'] = mark
-        loaded = ll.Page.load(doc, frames={'t': trades()})
-        loaded.grids[0].filter(None)
-        # the screen takes a selection off with the filter that held it (cube-page.ts reconcile); Python keeps it
-        self.assertEqual(loaded.to_dict()['views'][-1].get('selection'), [mark],
-                         "V2 open: Python's page keeps a selection its grid's filter no longer holds")
-
 
 
 class HostWrites(Session):
@@ -384,7 +352,7 @@ class SameJob(Session):
 
 class Ledger(unittest.TestCase):
     def test_each_behavioural_gap_names_a_test_that_holds_it(self):
-        tests = {name for case in (Derived, HostWrites, SameJob) for name in dir(case) if name.startswith('test_')}
+        tests = {name for case in (HostWrites, SameJob) for name in dir(case) if name.startswith('test_')}
         self.assertEqual(sorted(set(BEHAVIOUR) - tests), [], 'listed, but no such test')
         self.assertEqual(sorted(tests - set(BEHAVIOUR)), [], 'a behavioural test that names no item')
         self.assertEqual(len(BEHAVIOUR), CEILINGS['BEHAVIOUR'])

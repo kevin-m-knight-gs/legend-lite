@@ -20,6 +20,7 @@ import {
   AGGREGATE_FNS,
   rowColumns,
   type AggregateFn,
+  type CubeShape,
   type CubeSnapshot,
   type DerivedColumn,
   type FilterNode,
@@ -887,7 +888,7 @@ function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
  * as a converted measures list or Open in Grid makes one) at that aggregate -- so a saved page's min and max of one
  * column, converted into the column and a copy, stay two values.
  */
-function carryingColumn(m: ChartMeasure, s: CubeSnapshot): string | undefined {
+function carryingColumn(m: ChartMeasure, s: CubeShape): string | undefined {
   if (m.fn === 'value') return m.column;
   const specs = columnSpecs(s);
   const carries = (name: string): boolean => defaultMeasure(name, specs.get(name)).fn === m.fn;
@@ -903,7 +904,7 @@ function carryingColumn(m: ChartMeasure, s: CubeSnapshot): string | undefined {
  * of the chart's values plots already (the grid carries one of two values of a column: followed, the chart would plot
  * it twice, and lose the other for good, as a following chart keeps what it follows) keep the chart's own.
  */
-function followedValue(m: ChartMeasure, s: CubeSnapshot, column: string | undefined,
+function followedValue(m: ChartMeasure, s: CubeShape, column: string | undefined,
   plotted: readonly ChartMeasure[]): ChartMeasure {
   if (m.fn === 'value' || column === undefined) return m;
   if (rowColumns(s).find((c) => c.name === column)?.kind !== 'measure') return m;
@@ -919,13 +920,13 @@ function sameValue(a: ChartMeasure, b: ChartMeasure): boolean {
 }
 
 /** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
-function optionsAcross(x: string | undefined, s: CubeSnapshot): ChartOptions {
+function optionsAcross(x: string | undefined, s: CubeShape): ChartOptions {
   const temporal = isTemporalAcross(x, s);
   return { ...DEFAULT_OPTIONS, ...(temporal ? { sort: { by: 'x', direction: 'asc' }, limit: TIME_LIMIT } : {}) };
 }
 
 /** Whether `x` is a date or a time the cube has (its rows' columns). */
-function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
+function isTemporalAcross(x: string | undefined, s: CubeShape): boolean {
   return x !== undefined && isTemporal(rowColumns(s).find((c) => c.name === x)?.type);
 }
 
@@ -937,7 +938,7 @@ function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
  * for a date, a category's default for anything else. A chart of rows (a scatter's X) asks no order and no such limit
  * (chartQuery): its options stay as they are.
  */
-function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot): ChartSpec {
+function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeShape): ChartSpec {
   const { x: _x, grain: _g, bins: _b, drill: _d, ...rest } = spec;
   const across = { ...rest, ...(x !== undefined ? { x } : {}) };
   if (plotsRows(spec)) return across;
@@ -1121,7 +1122,7 @@ export function followRefusal(told: readonly string[], made: ChartSpec, followed
  * aggregate, and one it does not following its own column's). The mark and the options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
  * values, not groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */
-export function followCube(spec: ChartSpec, s: CubeSnapshot,
+export function followCube(spec: ChartSpec, s: CubeShape,
   carriedBy: (m: ChartMeasure) => string | undefined = (m) => carryingColumn(m, s) ?? m.column): ChartSpec {
   // a drilled chart stays where it was taken until it is taken back up
   if (!live(spec) || (spec.drill?.path.length ?? 0) > 0) return spec;

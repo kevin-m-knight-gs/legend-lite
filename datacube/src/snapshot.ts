@@ -151,7 +151,11 @@ export interface RowColumn {
  * default applies only to a snapshot saved before kinds were
  * declared, exactly as `kindOf` does for a source column.
  */
-export function rowColumns(s: CubeSnapshot): RowColumn[] {
+/** A cube's query without its relation: what a saved document holds of it (cube-document.ts), and all a rule that
+ *  reads the cube's shape alone needs (chart-spec.ts followCube). */
+export type CubeShape = Omit<CubeSnapshot, 'source'>;
+
+export function rowColumns(s: CubeShape): RowColumn[] {
   return [
     ...s.columns.map((c): RowColumn => ({
       name: c.name,

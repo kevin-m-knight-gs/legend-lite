@@ -9,9 +9,9 @@ import {
   type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
-import { applyPageCommands, EXACT_FIELD, readPageCommand, type PageCommand } from '../page-commands.ts';
+import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
 import { readGridCommand, type GridCommand } from '../grid-commands.ts';
-import { pageReads as readsOf, rebaseEdits, type PageEdit } from '../page-rebase.ts';
+import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
 import { draftFrom, gridApply, gridBase, type GivenFilter, type HostFrame } from './grid.ts';
@@ -67,6 +67,22 @@ export function nameGiven(part: string, text: string): string {
  * command left out allocated, so Python names its new tile by DataCube's rule) -- or `{problems}`, in DataCube's words.
  */
 export function pageApply(page: string, held: string, commands: string): string {
+  return applied(page, held, commands);
+}
+
+/**
+ * A PAGE WITH ITS CUBE `cube` AS A GRID'S EDIT LEFT IT (`document`, gridApply's), and its charts following it -- each live
+ * chart regrouped, each selection its filter no longer holds taken off -- by the page's own rule (page-commands.ts
+ * followedPage: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md V1, V2): what Python's grid edits keep. JSON: `{page}`, the
+ * page as DataCube writes it.
+ */
+export function pageWithCube(page: string, cube: string, document: string): string {
+  const doc = heldPage(page);
+  if (!doc.cubes.some((c) => c.id === cube)) throw new CubeRefusal(`'${cube}' is no grid's cube of the page`);
+  return JSON.stringify({ page: pageToJson(followedPage(withCube(doc, cube, readCube(fromJson(document))), cube)) });
+}
+
+function applied(page: string, held: string, commands: string): string {
   let read;
   try {
     const doc = heldPage(page);

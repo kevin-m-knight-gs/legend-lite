@@ -176,7 +176,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   applied by `page-model.ts`'s functions — closed S1: `modelMade`, `modelPinned`, `modelKept` are the rules, in page-commands.ts
   beside the commands they apply (PageModel uses them; kept there, a lazy chunk, so the page loads none of them at start); the tab tells `modelCommands(before, after)` after each model action (page-commands.test.ts)
 - [ ] **P5** page undo / redo → N2 restore write — S4, L9 (closed as G12)
-- [ ] **P6** chart options told before the chart re-follows → falls out of S2 — S2, L2 L7
+- [x] **P6** chart options told before the chart re-follows → falls out of S2 — closed S2: `setChart`'s rule keeps a live
+  chart followed (followedPage), so the spec told before the panel follows replays to the one it keeps
+  (page-commands.test.ts)
 - [ ] **P7** Open in grid resets the chart's band shares after a resize → an editor tile never touches the saved layout — S3,
   marker (jsdom drags no resize; opening an editing grid on even shares writes nothing, a gesture checks that)
 - [x] **P8** Update a detached chart from its editing grid → `setChartCube` — closed S1: `setChartCube {chart, document}`
@@ -209,8 +211,12 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **Y6** `serve_page` works out reads in Python → `pageReads`, or deleted — S5, L5
 
 ### Derived state (audit §3)
-- [ ] **V1** a following chart re-followed when its grid changes, by one rule on every path — S2, L7
-- [ ] **V2** a chart's selection reconciled with its grid's filter, on every path — S2, L7
+- [x] **V1** a following chart re-followed when its grid changes, by one rule on every path — closed S2: page-commands.ts
+  `followedPage` (followCube over the cube as its document holds it), applied by `rebuilt`, `setChartCube`, `setChart`,
+  the rebase after a grid's edit and headless `pageWithCube` (Python's grid edits); the gesture "a grid with a following
+  chart ungrouped" replays (page-commands.test.ts, test_page.py)
+- [x] **V2** a chart's selection reconciled with its grid's filter, on every path — closed S2: the same rule takes off a
+  selection its cube's filter no longer holds, as the screen's reconcile does (page-commands.test.ts, test_page.py)
 - [ ] **V4** group-level column types written the same by both sides (spike first: type at compile, or stop storing
   run-derived types) — S2, L7
 - [x] **V5** expand level and the groups closed under it saved and read back — closed S2: `treeDocument` writes
@@ -225,7 +231,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   given again) — S4, L9
 
 ### Python's copies of TypeScript rules (audit §5)
-- [ ] **Z1** `_with_cube` — S5, L6
+- [x] **Z1** `_with_cube` — closed S2 (early): a grid's edit is kept by headless `pageWithCube` (the cube spliced and
+  its charts following it by DataCube's rule: V1, V2); `_with_cube` deleted
 - [ ] **Z2** `_ids` — S5, L6
 - [x] **Z3** `_into` / `_keep` (with Y1) — closed S1: where a model action writes is TS's (headless `pageModelInto`:
   PageModel.into); `_keep` is gone, `_into` is `_model_action`, glue that asks and applies

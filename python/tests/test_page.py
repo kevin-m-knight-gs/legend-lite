@@ -800,6 +800,26 @@ class Document(Paged):
         grid.group('desk')
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], opened)
 
+    def test_a_following_chart_follows_its_grid_and_a_selection_goes_with_the_filter_that_held_it(self):
+        # (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S2: V1, V2) a grid's edit kept by DataCube's one rule (page-commands.ts
+        # followedPage, headless pageWithCube), as the screen keeps it: its live chart regrouped as the grid is
+        page = ll.Page('Following')
+        grid = page.grid(trades(), name='following_trades', rows=['region'], measures={'notional': 'sum'})
+        grid.chart('bar')
+        grid.group('desk')
+        spec = page.to_dict()['views'][-1]['spec']
+        self.assertNotIn('frozen', spec, 'the chart follows its grid')
+        self.assertEqual(spec['x'], 'desk', 'regrouped as its grid is')
+        # a chart's selection its grid's filter no longer holds goes with it (the screen's reconcile)
+        doc = page.to_dict()
+        mark = {'kind': 'condition', 'column': 'desk', 'operator': 'equal', 'value': 'FX'}
+        doc['views'][-1]['selection'] = [mark]
+        doc['cubes'][0]['cube']['query']['filter'] = mark
+        loaded = ll.Page.load(doc, frames={'following_trades': trades()})
+        self.assertEqual(loaded.to_dict()['views'][-1].get('selection'), [mark], 'held while the filter holds it')
+        loaded.grids[0].filter(None)
+        self.assertNotIn('selection', loaded.to_dict()['views'][-1])
+
     def test_a_calculated_column_is_edited_in_its_place_renamed_with_what_reads_it_and_removed(self):
         # the Edit Column window's OK and Delete, as the commands they build (grid-commands.ts editCalculated,
         # removeCalculated; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md G4, G5)
@@ -1001,6 +1021,8 @@ class Document(Paged):
         doc['cubes'][0]['cube']['configuration'] = {'reportTitle': 'Trades', 'showRootAggregation': True}
         chart_view = next(v for v in doc['views'] if v['kind'] == 'chart')
         chart_view['selection'] = [{'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': 'EMEA'}]
+        # its grid's filter holds it, as a chart's click leaves it (a selection no filter holds goes: followedPage)
+        doc['cubes'][0]['cube']['query']['filter'] = chart_view['selection'][0]
         chart_view['spec']['options'] = {'orientation': 'vertical', 'stack': 'none', 'sort': {'by': 'x', 'direction': 'asc'},
                                          'limit': 25, 'labels': False, 'legend': 'bottom'}
         doc['sheets'][0]['layout'] = {'kind': 'bands', 'fit': True, 'bands': [

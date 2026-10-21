@@ -1015,7 +1015,7 @@ export interface SpecLike {
   readonly aggregateWeight?: string;
 }
 
-export function columnSpecs(s: QuerySnapshot): Map<string, SpecLike> {
+export function columnSpecs(s: Omit<QuerySnapshot, 'source'>): Map<string, SpecLike> {
   const out = new Map<string, SpecLike>();
   for (const d of [...s.derived, ...(s.groupDerived ?? [])]) {
     // The DECLARED kind wins over the type, exactly as it does for a

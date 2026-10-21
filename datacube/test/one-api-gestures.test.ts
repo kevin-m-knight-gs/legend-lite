@@ -661,7 +661,6 @@ interface Gap { readonly items: readonly string[]; readonly words?: RegExp; read
 /** Each gesture's checks that fail today, by the plan's items: the only failures allowed, until each is closed. */
 const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
   'a page edit undone': { told: { items: ['P5'] } },
-  'a grid with a following chart ungrouped': { replays: { items: ['V1'], paths: ['views.2.spec.split'] } },
 };
 
 /** The command kinds no gesture here tells, each by its item or why: the screen makes none, or none is driven yet. */
