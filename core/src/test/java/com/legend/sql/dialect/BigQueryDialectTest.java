@@ -45,13 +45,16 @@ class BigQueryDialectTest {
         assertFalse(sql.contains("`t`.`x` AS STRING"), sql);
     }
 
-    /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError). */
+    /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError); a DATETIME
+     *  through text, since an IF of a DATETIME with an ERROR branch fails before it raises. */
     @Test
     void aProjectedRaiseIsTypedAsItsColumn() {
         SqlExpr raise = new SqlExpr.Call(SqlFn.ERROR, List.of(new SqlExpr.StringLit("Invalid month: 13")));
         String sql = render(raise, new OutputCol("v", SqlType.Scalar.TIMESTAMP, false));
-        assertTrue(sql.contains("IF(TRUE, ERROR(chr(31) || ('Invalid month: 13') || chr(31)), CAST(NULL AS DATETIME))"),
-                sql);
+        assertTrue(sql.contains("CAST(IF(TRUE, ERROR(chr(31) || ('Invalid month: 13') || chr(31)), CAST(NULL AS STRING))"
+                + " AS DATETIME)"), sql);
+        String date = render(raise, new OutputCol("v", SqlType.Scalar.DATE, false));
+        assertTrue(date.contains("IF(TRUE, ERROR(chr(31) || ('Invalid month: 13') || chr(31)), CAST(NULL AS DATE))"), date);
     }
 
     /** An element of the NULL list is a NULL, never a subscript of a bare NULL, which is INT64 ([]->head()). */

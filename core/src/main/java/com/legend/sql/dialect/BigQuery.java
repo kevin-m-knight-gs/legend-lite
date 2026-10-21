@@ -812,13 +812,18 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** A projection that IS error() is raised in its column's type: a bare ERROR is typed INT64 here, and a read of
      *  the column as its type is refused before the statement runs (testNewDateError's date(2016, 13), "Invalid cast
-     *  from INT64 to DATETIME", on the lane 2026-10-21, where every other lane raised the test's own message). */
+     *  from INT64 to DATETIME", on the lane 2026-10-21, where every other lane raised the test's own message). A
+     *  DATETIME is the raise typed as text and cast: an IF or a CASE of a DATETIME with an ERROR branch fails before it
+     *  raises ("Function is not implemented. id: cast_datetime_to_datetime", with or without a cast around it), where
+     *  one of a STRING, a DATE or a TIMESTAMP raises the message (measured on the lane the same day). */
     @Override
     protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
         if (p.out() != null && p.expr() instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR) {
-            writer.append("IF(TRUE, ");
+            String type = bqType(p.out().type());
+            boolean datetime = type.equals("DATETIME");
+            writer.append(datetime ? "CAST(IF(TRUE, " : "IF(TRUE, ");
             raiseEnvelope(writer, call.args(), "ERROR");
-            return writer.append(", CAST(NULL AS ").append(bqType(p.out().type())).append("))");
+            return writer.append(datetime ? ", CAST(NULL AS STRING)) AS DATETIME)" : ", CAST(NULL AS " + type + "))");
         }
         return super.projectionValue(writer, p);
     }
