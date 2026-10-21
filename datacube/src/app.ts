@@ -19,6 +19,7 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
 import type { WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { sessionExpired } from '../../engine-client/src/warehouse-session.ts';
+import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { isQueryFailure, type QueryLens, type QueryRunner } from './runner.ts';
 import {
   CubeController,
@@ -34,13 +35,9 @@ import {
   labelFor,
   toColumnAppearance,
   renderFormats,
-  DEFAULT_CONFIGURATION,
   DEFAULT_MAX_ROWS,
-  renameColumnConfig,
   withColumn,
-  withConfiguration,
   type CubeConfiguration,
-  type Patch,
 } from './config.ts';
 import type { Dimension } from './dimensions.ts';
 import { availableDimensions, useDimension } from './dimensions.ts';
@@ -84,12 +81,11 @@ import {
   type LeafColumn,
 } from './grid/columns.ts';
 import { shownColumns } from './shown-columns.ts';
-import { writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import { freshConfiguration, gridCapped, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
 import {
-  renameColumnReferences,
   rowColumns,
   type ColumnKind,
   type CubeSnapshot,
@@ -100,6 +96,9 @@ import {
 import type { HeatmapSpec } from './style.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
+
+/** What of the cube's state a host reads: never a way to change it (that is a command's: CubeApp.edit). */
+export type CubeStateView = Pick<CubeStateOwner, 'busy' | 'historyDepth'>;
 import { ColumnEditor, type ColumnEditorStart, type ColumnPreview } from './ui/column-editor.ts';
 import {
   booleanSetting,
@@ -746,8 +745,7 @@ export class CubeApp {
       // SET, never toggled: the grid says which way the person asked, and
       // asking for what already is changes nothing (P2-127).
       onToggleExpand: (key, expanded) => {
-        void this.#change((s) => ({ ...s, tree: s.tree.setOpen(parsePathKey(key), expanded) }),
-          { label: expanded ? 'expand' : 'collapse' });
+        void this.#apply([{ kind: 'open', path: parsePathKey(key), open: expanded }], expanded ? 'expand' : 'collapse');
       },
       onSelectionChange: (range) => this.#onSelectionChange(range),
       onActivateCell: (row, column) => {
@@ -822,12 +820,20 @@ export class CubeApp {
     this.#adoptHostStatus();
   }
 
-  get controller(): CubeController {
-    return this.#controller;
-  }
-  /** The cube's state and its history: read it, or change it through `change`. */
-  get state(): CubeStateOwner {
+  /** The cube's state as it is read from outside: whether a change is running, how deep its history is. It is changed
+   *  only by command (edit). */
+  get state(): CubeStateView {
     return this.#owner;
+  }
+
+  /** The cube run again as it is (its rows read again: a frame served anew), no change and no step. */
+  async refresh(): Promise<void> {
+    await this.#owner.refresh();
+  }
+
+  /** A query as the compiler prints it (the debug window's): reads, changes nothing. */
+  printQuery(query: Lambda, style: PrintStyle): Promise<string> {
+    return this.#controller.print(query, style);
   }
   get configuration(): CubeConfiguration {
     return this.#config;
@@ -910,14 +916,12 @@ export class CubeApp {
   }
 
   /**
-   * Change the cube: `update` derives the next state from the current one.
-   * Presentation (a colour, a width) commits at once and runs no query; a
-   * change to the query is one transaction -- it commits as the engine
-   * returned it, or is refused and everything repaints from what was on
-   * screen, the refusal said where the user reads it. Never throws.
+   * EDITS BY COMMAND (grid-commands.ts), as the screen's own controls make them: one change, a step of the grid's history,
+   * told to its host (onCommand). The refusal, in the commands' words or the planner's, or null. What a host or a test
+   * edits the grid by: no change reaches its state but by a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, G11).
    */
-  change(update: (state: CubeState) => CubeState, options?: ChangeOptions): Promise<Outcome> {
-    return this.#change(update, options);
+  edit(commands: readonly GridCommand[], label: string): Promise<string | null> {
+    return this.#apply(commands, label);
   }
 
   // -- the cube's state, read ----------------------------------------------
@@ -954,11 +958,6 @@ export class CubeApp {
 
   #change(update: (state: CubeState) => CubeState, options?: ChangeOptions): Promise<Outcome> {
     return this.#owner.change(update, options);
-  }
-
-  /** A change of the configuration alone. */
-  #configure(update: (config: CubeConfiguration) => CubeConfiguration, label: string): Promise<Outcome> {
-    return this.#change((s) => ({ ...s, configuration: update(s.configuration) }), { label });
   }
 
   /** A change of the snapshot alone. */
@@ -1001,8 +1000,8 @@ export class CubeApp {
     try {
       out = this.#change((s) => {
         try {
-          const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration }, commands);
-          return then({ ...s, snapshot: d.snapshot, configuration: d.config });
+          const d = applyGridCommands({ snapshot: s.snapshot, config: s.configuration, tree: s.tree }, commands);
+          return then({ snapshot: d.snapshot, configuration: d.config, tree: d.tree });
         } catch (e) {
           if (!(e instanceof CubeRefusal)) throw e;
           refused = e.message;
@@ -1854,34 +1853,6 @@ export class CubeApp {
   }
 
   /**
-   * Take the editor's two lists, as one transaction: if the planner
-   * refuses, the cube is put back whole and the refusal is RETURNED to the
-   * editor, which keeps the form open and shows it there -- the error the
-   * user sees is the planner's own rather than a paraphrase.
-   */
-  async #setCalc(
-    row: readonly DerivedColumn[],
-    group: readonly DerivedColumn[],
-    rename?: { readonly from: string; readonly to: string },
-  ): Promise<string | null> {
-    const out = await this.#change((s) => {
-      const next: CubeSnapshot = { ...s.snapshot, derived: [...row], groupDerived: [...group] };
-      // A RENAME carries through: grouped, pivoted, sorted or filtered
-      // by the old name, and its settings (format, width, display name)
-      // follow it. Before, the rename left those naming a column that
-      // no longer existed, and the planner refused it.
-      return rename
-        ? {
-            ...s,
-            snapshot: renameColumnReferences(next, rename.from, rename.to),
-            configuration: renameColumnConfig(s.configuration, rename.from, rename.to),
-          }
-        : { ...s, snapshot: next };
-    }, { label: 'calculated columns' });
-    return refusal(out);
-  }
-
-  /**
    * A preset's calculated columns added to the cube (the grid's Extended Columns menu), in one step: `make` builds them
    * under the name it is given -- the one the person asked for, the last column -- and names any it reads after it. A
    * name the cube already has gets a number, so a preset never replaces a column. Each is added by the command the
@@ -2052,7 +2023,7 @@ export class CubeApp {
     const column = item.column;
     switch (item.id) {
       case 'tree.collapseAll':
-        void this.#change((s) => ({ ...s, tree: s.tree.collapseAll() }), { label: 'collapse all' });
+        void this.#apply([{ kind: 'collapseAll' }], 'collapse all');
         return;
       case 'column.autoSize':
         if (column) this.#autoSize([column]);
@@ -2164,7 +2135,7 @@ export class CubeApp {
         if (column) this.openColumnEditor({ edit: column });
         return;
       case 'calc.delete':
-        if (column) this.#deleteCalc(column);
+        if (column) void this.#apply([{ kind: 'removeCalculated', name: column }], 'calculated columns');
         return;
       case 'heatmap.add':
         if (column) this.#setHeatmap(column, true);
@@ -2369,21 +2340,6 @@ export class CubeApp {
       ...settings,
       ...(named.length > 0 ? { columns: Object.fromEntries(named) } : {}),
     } }], label);
-  }
-
-  /**
-   * Change the configuration and re-run, as one step.
-   *
-   * The single funnel for presentation changes, so every one of them
-   * lands on the undo stack. Config used to be assigned in four
-   * places, each followed by its own refresh, which is how half of
-   * them ended up outside the history.
-   */
-  async applyConfiguration(
-    patch: Patch<CubeConfiguration>,
-  ): Promise<void> {
-    // the one rule a host's patch is applied by: Python's Grid.configure too (headless gridApply, a configure command)
-    await this.#configure((c) => withConfiguration(c, patch), 'settings');
   }
 
   // -- selection -------------------------------------------------------
@@ -2641,7 +2597,7 @@ export class CubeApp {
       sourceLabel: source.label,
       // a new source starts as its rows, up to the row limit (the user, 2026-10-01: "showing the max
       // rows configured (1000 default)"); Properties changes it
-      configuration: source.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: source.label, maxRows: DEFAULT_MAX_ROWS },
+      configuration: source.configuration ?? freshConfiguration(source.label, gridCapped((this.#page?.page.grids.size ?? 1) + 1)),
       windowHost: this.#options.windowHost ?? this.#els.root,
       compact: true,
       // its drop zones are this grid's: Column Labels too, where this one shows it
@@ -3179,9 +3135,11 @@ export class CubeApp {
 
   // -- dimensions ----------------------------------------------------------
 
-  useDimension(dimension: Dimension): void {
+  /** A named dimension used (the Dimensions tab, a host's): the grid grouped by its first level, by the command the Rows
+   *  zone builds. */
+  #useDimension(dimension: Dimension): void {
     if (this.#cubeOnly()) return;
-    void this.#query((s) => useDimension(s, dimension), `dimension ${dimension.name}`);
+    void this.#apply([{ kind: 'group', rows: useDimension(this.#snapshot, dimension).rows }], `dimension ${dimension.name}`);
   }
 
   // -- the dialogs ----------------------------------------------------------
@@ -3259,9 +3217,11 @@ export class CubeApp {
         print: (query) => this.#controller.print(query),
         compile: (candidate, signal) => this.#check(this.#controller.compile(
           { snapshot: candidate, tree: this.#owner.current.tree }, this.#view, signal)),
-        apply: (row, group, rename) => this.#setCalc(row, group, rename),
-        // a new column: added by the command Python's calculate builds
+        // a new column added, an edited one replaced or taken out: the commands Python's calculate, edit_calculated and
+        // remove_calculated build
         add: (level, column) => this.#apply([{ kind: 'calculate', level, column }], 'calculated columns'),
+        edit: (name, level, column) => this.#apply([{ kind: 'editCalculated', name, level, column }], 'calculated columns'),
+        remove: (name) => this.#apply([{ kind: 'removeCalculated', name }], 'calculated columns'),
         readJson: (column) => this.#jsonReader(column),
         // the rail's choice: another calculated column, in this window's place
         openOther: (next) => {
@@ -3359,14 +3319,6 @@ export class CubeApp {
     };
   }
 
-  /** Take one calculated column out, whichever stage it is in. */
-  #deleteCalc(name: string): void {
-    void this.#setCalc(
-      this.#snapshot.derived.filter((d) => d.name !== name),
-      (this.#snapshot.groupDerived ?? []).filter((d) => d.name !== name),
-    );
-  }
-
   openFilters(): void {
     if (this.#cubeOnly()) return;
     this.#showOverlay('Filters', (host, close) => {
@@ -3417,7 +3369,8 @@ export class CubeApp {
       this.#status(message, 'error');
       return message;
     }
-    return refusal(await this.#query(withFilter, 'filter'));
+    // the window's filter, whole, by the command Python's filter builds
+    return this.#apply([{ kind: 'filter', filter: filter ?? null }], 'filter');
   }
 
   async #applyDraft(edited: CubeDraft, base: CubeDraft): Promise<boolean> {
@@ -4303,7 +4256,7 @@ export class CubeApp {
         return true;
       case 'view.dimension': {
         const found = this.#dimensions().find((d) => d.name === item.column);
-        if (found) this.useDimension(found);
+        if (found) this.#useDimension(found);
         return true;
       }
       default: {

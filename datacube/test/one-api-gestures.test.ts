@@ -268,7 +268,8 @@ function clickMark(chart: string, series: number, index: number): void {
 async function headerMenu(id: string, column: string): Promise<void> {
   escape();
   const th = tile(id).querySelector<HTMLElement>(`.dc-th[data-column="${column}"]`);
-  assert.ok(th, `${id} shows a ${column} header`);
+  assert.ok(th, `${id} shows a ${column} header (it shows ${[...tile(id).querySelectorAll<HTMLElement>('.dc-th')]
+    .map((h) => h.dataset['column']).join(', ')})`);
   contextMenu(th);
   await settle();
 }
@@ -301,8 +302,8 @@ async function setAggregation(at: string, column: string, fn: string): Promise<v
  *  what a run alone adds (column types) is no command's. */
 const applyGrid: GridApplier = async (_page, cube, _id, commands) => {
   const snapshot = { ...cube.query, source: SNAPSHOT.source, epoch: 0 } as CubeSnapshot;
-  const d = applyGridCommands({ snapshot, config: configurationOf(cube) }, commands);
-  const landed = fold({ snapshot: applyToSnapshot(d.snapshot, d.config), configuration: d.config, tree: treeOf(cube) });
+  const d = applyGridCommands({ snapshot, config: configurationOf(cube), tree: treeOf(cube) }, commands);
+  const landed = fold({ snapshot: applyToSnapshot(d.snapshot, d.config), configuration: d.config, tree: d.tree });
   return writeCube({
     name: cube.name, source: cube.source, snapshot: landed.snapshot, configuration: landed.configuration, tree: landed.tree,
     ...(cube.unknown ? { unknown: cube.unknown } : {}),
@@ -380,6 +381,26 @@ const flat = async (): Promise<Record<string, string>> => {
   const g = await twoGrids();
   await ungroup(g.a, 'desk');
   await ungroup(g.a, 'region');
+  await settle();
+  return g;
+};
+/** Two grids, the first with a calculated column: notional shown as a running total (Show As). */
+const shownAs = async (): Promise<Record<string, string>> => {
+  const g = await twoGrids();
+  await headerMenu(g.a, 'notional');
+  nested('Show notional As', 'Running total').click();
+  await drawn();
+  return g;
+};
+/** The calculated column shownAs made. */
+const RUNNING = 'notional_runningTotal';
+/** A flat grid filtered from a cell: desk = its first value. */
+const filtered = async (): Promise<Record<string, string>> => {
+  const g = await flat();
+  escape();
+  contextMenu(tile(g.a!).querySelector('.dc-row .dc-cell[data-column="desk"]') as HTMLElement);
+  await settle();
+  nested('Filter').click();
   await settle();
   return g;
 };
@@ -513,6 +534,47 @@ const GESTURES: readonly Gesture[] = [
     setUp: twoGrids,
     make: async ({ a }) => { await headerMenu(a!, 'notional'); nested('Show notional As', 'Running total').click(); },
   },
+  {
+    name: 'a calculated column renamed in its Edit Column window',
+    setUp: shownAs,
+    make: async ({ a }) => {
+      // the menu's Edit Column (the fixture's engine answers its own columns only: no header shows the new one)
+      cubes.get(a!)!.openColumnEditor({ edit: RUNNING });
+      await settle();
+      const name = host.ownerDocument.querySelector<HTMLInputElement>('.dc-calc-input-name');
+      assert.ok(name, 'the Edit Column window');
+      name.value = 'running';
+      name.dispatchEvent(new dom.window.Event('input'));
+      // the editor compiles what is typed after its pause (upstream's 500 ms), and offers OK once it has
+      await new Promise((r) => setTimeout(r, 700));
+      await settle();
+      const ok = host.ownerDocument.querySelector<HTMLButtonElement>('.dc-calc-ok');
+      assert.ok(ok && !ok.disabled, `OK offered (${host.ownerDocument.querySelector('.dc-calc-problem')?.textContent ?? ''})`);
+      ok.click();
+    },
+  },
+  {
+    name: 'a calculated column deleted in its Edit Column window',
+    setUp: shownAs,
+    make: async ({ a }) => {
+      cubes.get(a!)!.openColumnEditor({ edit: RUNNING });
+      await settle();
+      const remove = host.ownerDocument.querySelector<HTMLButtonElement>('.dc-calc-delete');
+      assert.ok(remove, 'the Edit Column window, its Delete');
+      remove.click();
+    },
+  },
+  {
+    name: 'a filter changed in the Filters window',
+    setUp: filtered,
+    make: async ({ a }) => {
+      cubes.get(a!)!.openFilters();
+      await settle();
+      host.ownerDocument.querySelector<HTMLButtonElement>('.dc-filter-not')!.click();
+      await settle();
+      host.ownerDocument.querySelector<HTMLButtonElement>('.dc-filter-ok')!.click();
+    },
+  },
   { name: 'a group opened', setUp: twoGrids, make: ({ a }) => chevron(a!) },
   {
     name: 'every group collapsed',
@@ -529,9 +591,9 @@ const GESTURES: readonly Gesture[] = [
     make: ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); },
   },
   {
-    name: "a grid's settings applied by its host (applyConfiguration)",
+    name: "a grid's settings set by its host (edit: configure)",
     setUp: twoGrids,
-    make: async ({ a }) => { await cubes.get(a!)!.applyConfiguration({ maxRows: 7 }); },
+    make: async ({ a }) => { await cubes.get(a!)!.edit([{ kind: 'configure', patch: { maxRows: 7 } }], 'settings'); },
   },
 ];
 
@@ -544,9 +606,6 @@ const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
   "a chart's mark clicked": { told: { items: ['G7'] } },
   'a detached chart updated from its editing grid': { told: { items: ['P8'] } },
   'a grid with a following chart ungrouped': { replays: { items: ['V1'], paths: ['views.2.spec.split'] } },
-  'a group opened': { told: { items: ['G1'] } },
-  'every group collapsed': { told: { items: ['G2'] } },
-  "a grid's settings applied by its host (applyConfiguration)": { told: { items: ['G10'] } },
 };
 
 /** The command kinds no gesture here tells, each by its item or why: the screen makes none, or none is driven yet. */
@@ -557,10 +616,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   snap: { items: ['P3'] },
   live: { items: ['P3'] },
   measures: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" },
-  filter: { items: [], why: 'not driven yet: the Filters window is G6 (no command); the menu clears a filter by it' },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). */
-const GESTURES_AT_LEAST = 33;
+const GESTURES_AT_LEAST = 36;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

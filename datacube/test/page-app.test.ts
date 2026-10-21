@@ -684,7 +684,7 @@ describe('a page of its own', () => {
     await settle();
     const grid = page.grid(a) as unknown as CubeApp;
     // an edit of the grid's own (a change as its screen makes one): a step
-    await grid.change((st) => ({ ...st, snapshot: { ...st.snapshot, rows: ['desk'] } }), { label: 'group' });
+    await grid.edit([{ kind: 'group', rows: ['desk'] }], 'group');
     await settle();
     assert.equal(grid.canUndo, true, "the grid's own edit: a step");
     assert.equal(await grid.applyGridCommands([{ kind: 'group', rows: ['region'] }], 'Python'), null);

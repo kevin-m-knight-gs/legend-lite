@@ -109,19 +109,31 @@ No product change. Also: the program's line in `docs/IN_FLIGHT.md`.
 Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Evidence: the audit, by section.
 
 ### Grid edits that are no command (audit §2, grid)
-- [ ] **G1** expand / collapse a row → `open` command — S1, L1
-- [ ] **G2** Collapse All → `collapseAll` — S1, L1
+- [x] **G1** expand / collapse a row → `open` command — closed S1: `{kind:'open', path, open}` (set, never toggled; a path
+  deeper than the row groups opens nothing), the chevron's handler builds it, Python `grid.expand` / `grid.collapse`; the
+  gesture "a group opened" is told, read and replays
+- [x] **G2** Collapse All → `collapseAll` — closed S1: the menu builds it, Python `grid.collapse_all`; the gesture "every
+  group collapsed" is told, read and replays
 - [ ] **G3** Properties' tree effect (totals, expand level) → the tree rule inside `configure` — S2, L1 L7
-- [ ] **G4** calculated-columns editor: edit and rename, references carried → `editCalculated`; the rename rule moved
-  into `grid-commands.ts` from `snapshot.ts:803` + `config.ts:886-899` — S1, L1
-- [ ] **G5** delete a calculated column (written twice today) → `removeCalculated` — S1, L1
-- [ ] **G6** Filters window → `filter` — S1, L1
+- [x] **G4** calculated-columns editor: edit and rename, references carried → `editCalculated`; the rename rule moved
+  into `grid-commands.ts` from `snapshot.ts:803` + `config.ts:886-899` — closed S1: `{kind:'editCalculated', name, level,
+  column}`; the two lists by one rule (snapshot.ts `withCalculated`, the editor's candidate and the commands alike), the
+  settings carried by the command alone; Edit Column's OK builds it, Python `grid.edit_calculated` (headless
+  gridCalculate, `replacing`); the gesture "a calculated column renamed in its Edit Column window" is told, read, replays
+- [x] **G5** delete a calculated column (written twice today) → `removeCalculated` — closed S1: the editor's Delete and
+  the header menu's both build it, Python `grid.remove_calculated`; the gesture "a calculated column deleted in its Edit
+  Column window" passes
+- [x] **G6** Filters window → `filter` — closed S1: its OK and Apply build `filter` after the compile check; the gesture
+  "a filter changed in the Filters window" passes (and `filter` is told by a gesture now)
 - [ ] **G7** chart click on a grid's chart → grid `refilter {remove, add}` + page `select {chart, conditions}`; the
   rule moved out of `app.ts:2741` and `cube-page.ts:1462` — S1, L1 L2
 - [ ] **G8** restore heals a filter missing a chart's selection → the document kept consistent by G7's rule — S1, L2
-- [ ] **G9** use a dimension → `group` — S1, L1
-- [ ] **G10** `applyConfiguration` → deleted; its tests use `configure` — S1, L1
-- [ ] **G11** public `change()` / `state` → removed or read-only — S1, L1
+- [x] **G9** use a dimension → `group` — closed S1: `#useDimension` (no longer public) builds `group`
+- [x] **G10** `applyConfiguration` → deleted; its tests use `configure` — closed S1: a host edits a grid by
+  `CubeApp.edit(commands, label)` (the screen's own path, told); the gesture "a grid's settings set by its host" passes
+- [x] **G11** public `change()` / `state` → removed or read-only — closed S1: `change()` and the `controller` getter gone;
+  `state` is `CubeStateView` (busy, historyDepth); a refresh and a debug print are `refresh()` and `printQuery()`; L1
+  pins that neither the owner nor the controller is handed out again
 - [ ] **G12** grid undo / redo → N2 restore write — S4, L9 (closed in S4: its L1 entries become item-less N2 entries, held by
   L9's test that a stale restore is refused)
 - [ ] **G13** an edit retried after signing in again → its commands kept and told — S1, L1 (a retry stays a retry: S1 closes
@@ -129,7 +141,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **G14** a grid made while the page bar is folded → `showTitleBar` in the `addGrid` document — closed S0: not a gap (the
   `addGrid` document carries the title bar as the grid was made; the gesture "a grid added while the page bar is folded"
   passes told, wire and replays)
-- [ ] **G15** standalone New ▸ Source cap rule (unreachable in the app) → deleted or shared — S1
+- [x] **G15** standalone New ▸ Source cap rule (unreachable in the app) → deleted or shared — closed S1: shared, one
+  rule (cube-document.ts `freshConfiguration`, capped by `gridCapped`); L1 pins no second spelling
 
 ### Telling exactly what landed (audit §2, after the grid table; each a marker until S1 writes its failing behavioural test first)
 - [ ] **T1** a command refused on the committed state but kept on the pending one — S1, L2

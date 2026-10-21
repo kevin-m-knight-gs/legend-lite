@@ -43,8 +43,8 @@ interface Entry {
 
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 15, L1_THEN: 3, L1_ROUTES: 10, L1_REACH: 20, L1_PLANE: 9, L1_HOST: 18,
-  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 30, UNCHECKED: 9,
+  L1_GRID: 7, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 15, L1_PLANE: 9, L1_HOST: 18,
+  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 28, UNCHECKED: 9,
 };
 
 function pinned(name: string, size: number): void {
@@ -57,20 +57,12 @@ function pinned(name: string, size: number): void {
 const PLUMBING = 'the one way a change reaches the state owner: no gap of its own';
 
 /** Every call in the grid (app.ts) that changes its state, by where it is made. */
-const GRID_CALLS = /this\.(#change|#configure|#query|#owner\.change|#owner\.undo|#owner\.redo|#owner\.retryRefused)\(/g;
+const GRID_CALLS = /this\.(#change|#query|#owner\.change|#owner\.undo|#owner\.redo|#owner\.retryRefused)\(/g;
 const L1_GRID: Record<string, Entry> = {
   '#change:#owner.change': { items: [], why: PLUMBING },
-  '#configure:#change': { items: [], why: PLUMBING },
   '#query:#change': { items: [], why: PLUMBING },
   '#applyCommands:#change': { items: [], why: 'the command path: applyGridCommands, told by onCommand' },
-  'onToggleExpand:#change': { items: ['G1'] },
-  '#onMenuAction:#change': { items: ['G2'] },
-  '#setCalc:#change': { items: ['G4', 'G5'] },
-  '#applyFilter:#query': { items: ['G6'] },
   'refilter:#query': { items: ['G7'] },
-  'useDimension:#query': { items: ['G9'] },
-  'applyConfiguration:#configure': { items: ['G10'] },
-  'change:#change': { items: ['G11'] },
   '#undo:#owner.undo': { items: ['G12'], why: 'N2: undo writes the page whole, as a restore' },
   '#redo:#owner.redo': { items: ['G12'], why: 'N2' },
   // a retry stays a retry when fixed (its refused change's commands kept and told): S1 closes it by a behavioural test
@@ -91,7 +83,7 @@ const THEN_TEXT: Record<string, string> = {
 };
 
 /** The grid's public ways in that change its state or copies, called from anywhere in the app but the grid itself. */
-const ROUTES = /\.((?:state\.(?:change|undo|redo|retryRefused|refresh))|change|applyConfiguration|refilter|useDimension|applyGridCommands|followSnap|followLive|controller\.\w+)\(/g;
+const ROUTES = /\.((?:state\.(?:change|undo|redo|retryRefused|refresh))|change|refilter|applyGridCommands|followSnap|followLive|controller\.\w+)\(/g;
 const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('.ts') && f !== 'src/app.ts'
   && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
 const L1_ROUTES: Record<string, Entry> = {
@@ -101,23 +93,13 @@ const L1_ROUTES: Record<string, Entry> = {
   'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
   'src/app/datacube-app.ts:applyGrid:applyGridCommands': { items: [], why: "another editor's commands, applied" },
-  'src/app/datacube-app.ts:followed:state.refresh': { items: [], why: 'a run again, the state as it was' },
-  'src/app/datacube-app.ts:onView:controller.print': { items: [], why: 'a debug print: reads, changes nothing' },
-  // the owner itself, handed out: every caller of `state` above is one of these
-  'src/app.ts:get state()': { items: ['G11'] },
-  'src/app.ts:get controller()': { items: ['G11'] },
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
-const GAP_CALLS_APP = /this\.(#setCalc|#deleteCalc|#applyFilter|useDimension|applyConfiguration|#applyDraft)\(/g;
+const GAP_CALLS_APP = /this\.(#applyDraft)\(/g;
 const GAP_CALLS_HOST = /(?<![\w.#]|function )(renamePage|saveTo|makeClass|landed|inPlace|openSaved|blankPage|openFrame)\(/g;
 const L1_REACH: Record<string, Entry> = {
-  'app.ts:#onMenuAction:#deleteCalc': { items: ['G5'] },
   'app.ts:onApply:#applyDraft': { items: ['G3'] },
-  'app.ts:apply:#setCalc': { items: ['G4'] },
-  'app.ts:#deleteCalc:#setCalc': { items: ['G5'] },
-  'app.ts:onApply:#applyFilter': { items: ['G6'] },
-  'app.ts:#onHostAction:useDimension': { items: ['G9'] },
   'datacube-app.ts:onRename:renamePage': { items: ['P1'] },
   'datacube-app.ts:save:saveTo': { items: ['P2'] },
   'datacube-app.ts:createClass:makeClass': { items: ['P4'] },
@@ -197,11 +179,22 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
     for (const f of SOURCES.under('src', '.ts').filter(ROUTE_FILES)) {
       for (const [key, n] of sites(SOURCES.read(f), ROUTES)) found.set(`${f}:${key}`, n);
     }
-    // the owner and the controller handed out at all (each a way to change the state with no command)
-    if (app.includes('get state(): CubeStateOwner {')) found.set('src/app.ts:get state()', 1);
-    if (app.includes('get controller(): CubeController {')) found.set('src/app.ts:get controller()', 1);
+    // the owner and the controller handed out at all (each a way to change the state with no command): G11 closed
+    // them, the state shown only as what it reads -- handing either out again is a new gap
+    if (/get state\(\): CubeStateOwner\b/.test(app)) found.set('src/app.ts:get state()', 1);
+    if (/get controller\(\)/.test(app)) found.set('src/app.ts:get controller()', 1);
+    assert.ok(app.includes("export type CubeStateView = Pick<CubeStateOwner, 'busy' | 'historyDepth'>;"),
+      'the state a grid shows is what it reads (busy, historyDepth): a way to change it there is a new gap (G11)');
     assert.deepEqual(heldTo(found, L1_ROUTES, 'routes'), []);
     pinned('L1_ROUTES', Object.keys(L1_ROUTES).length);
+  });
+
+  it("a new grid's configuration, made by one rule (G15 closed)", () => {
+    // cube-document.ts freshConfiguration: titled by its source, capped by gridCapped -- a second spelling (a grid's
+    // configuration titled by a source's label) is a new rule; an example's own configured grid is none
+    const spelled = SOURCES.under('src', '.ts').filter((f) => f !== 'src/cube-document.ts'
+      && /reportTitle:\s*[\w.]*\blabel\b/.test(SOURCES.read(f)));
+    assert.deepEqual(spelled, [], "a new grid's configuration spelled outside freshConfiguration (cube-document.ts)");
   });
 
   it('who calls each listed gap', () => {
@@ -376,8 +369,6 @@ const MARKERS: readonly Marker[] = [
   // the grid
   { file: 'src/page/cube-page.ts', text: "source.refilter([], view.selection, 'filter to chart mark')", items: ['G8'] },
   { file: 'src/page/cube-page.ts', text: "source.refilter([], selection, 'filter to chart mark')", items: ['G8'] },
-  { file: 'src/app.ts', text: 'get state(): CubeStateOwner {', items: ['G11'] },
-  { file: 'src/app.ts', text: '{ ...DEFAULT_CONFIGURATION, reportTitle: source.label, maxRows: DEFAULT_MAX_ROWS }', items: ['G15'] },
   // telling exactly what landed: placeholders until S1 writes each one's failing behavioural test first
   { file: 'src/state-owner.ts', text: 'state: this.#rules.fold(update(pending.state)),', items: ['T1'] },
   { file: 'src/app.ts', text: "case 'presentation':\n        if (applying) this.#tell(applying.commands);", items: ['T2'] },
@@ -455,7 +446,7 @@ describe('V5: a grid saved and opened again opens its rows as it was told to', (
 
 // -- the register, held to every ledger ------------------------------------------------------------------------------
 
-/** The files that hold the ledgers, each naming items as string literals ('G1'). */
+/** The files that hold the ledgers, each naming items as string literals (a letter and a number, quoted). */
 const LEDGERS = ['test/one-api-ledger.test.ts', 'test/one-api-gestures.test.ts', '../python/tests/test_one_api.py'];
 const ITEM = /'([GTCPYVHZBXK]\d{1,2})'/g;
 /** Every item the register has ever held: none leaves it but closed. */

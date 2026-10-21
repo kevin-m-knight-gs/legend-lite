@@ -1265,10 +1265,7 @@ describe('a chart\'s selection, on a cube alone: its chip, cleared by it or by t
     cube.app.pageViews().views.find((v): v is ChartView => v.kind === 'chart' && v.id === id)?.selection;
   /** The cube's filter set to `filter`, as one change. */
   async function filterTo(filter: FilterNode | undefined): Promise<void> {
-    await cube.app.change((s) => {
-      const { filter: _drop, ...rest } = s.snapshot;
-      return { ...s, snapshot: filter === undefined ? rest : { ...rest, filter } };
-    });
+    await cube.app.edit([{ kind: 'filter', filter: filter ?? null }], 'filter');
     await settle();
   }
   /** A cube whose filter holds `conditions`, and a saved chart that put them there, put back. */
@@ -1328,7 +1325,7 @@ describe('a chart\'s selection, on a cube alone: its chip, cleared by it or by t
   });
 
   it('a restored selection is said in its chip, by the columns\' names; the chip takes it off the grid\'s filter', async () => {
-    await cube.app.applyConfiguration({ columns: { region: { displayName: 'Region' } } });
+    await cube.app.edit([{ kind: 'configure', patch: { columns: { region: { displayName: 'Region' } } } }], 'settings');
     const chart = await restoredWith([EMEA, LARGE, NO_DESK]);
     assert.equal(chip(chart).hidden, false);
     assert.equal(chip(chart).textContent, 'Region: EMEA, notional ≥ 500, desk: (empty) ×');

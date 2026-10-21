@@ -36,8 +36,6 @@ import {
   NEW_WINDOW,
   draftCandidate,
   draftColumn,
-  draftLists,
-  draftRename,
   draftStage,
   newDraft,
   type ColumnDraft,
@@ -84,12 +82,13 @@ export interface ColumnEditorOptions {
     candidate: CubeSnapshot,
     signal: AbortSignal,
   ) => Promise<CompileOutcome | undefined>;
-  /** Offer both lists to the cube (an edit, a rename, a delete): its refusal, or null when it took them. */
-  readonly apply: (
-    row: readonly DerivedColumn[],
-    group: readonly DerivedColumn[],
-    rename?: { readonly from: string; readonly to: string },
-  ) => Promise<string | null>;
+  /**
+   * The column being edited replaced by the draft's, at its level (Edit Column's OK: the grid command Python's
+   * edit_calculated builds, grid-commands.ts editCalculated): its refusal, or null when it took it.
+   */
+  readonly edit: (name: string, level: CalcStage, column: DerivedColumn) => Promise<string | null>;
+  /** The column being edited taken out (Delete: removeCalculated): refused too while another column reads it. */
+  readonly remove: (name: string) => Promise<string | null>;
   /**
    * Offer a new column to the cube, at its level (the grid command Python's calculate builds, grid-commands.ts): its
    * refusal, or null when it took it.
@@ -285,15 +284,6 @@ export class ColumnEditor {
     }
   }
 
-  /** The cube's two lists with this draft (its lambda parsed) in place of the original (column-draft.ts). */
-  #lists(lambda?: Lambda): { row: DerivedColumn[]; group: DerivedColumn[] } {
-    return draftLists(this.#options.snapshot(), this.#original, this.#draft, lambda);
-  }
-
-  #rename(): { from: string; to: string } | undefined {
-    return draftRename(this.#original, this.#draft);
-  }
-
   #candidate(lambda?: Lambda): CubeSnapshot {
     return draftCandidate(this.#options.snapshot(), this.#original, this.#draft, lambda);
   }
@@ -425,13 +415,11 @@ export class ColumnEditor {
       if ('refusal' in parsed) {
         this.#refusal = parsed.refusal;
       } else {
-        // a new column is added as one (its level's list, last); an edit offers both lists, the column in its place
-        if (this.#original === undefined) {
-          this.#refusal = await this.#options.add(this.#stage(), draftColumn(this.#draft, parsed.lambda));
-        } else {
-          const { row, group } = this.#lists(parsed.lambda);
-          this.#refusal = await this.#options.apply(row, group, this.#rename());
-        }
+        // a new column is added (last of its level), an edited one replaced (in its place): each one command
+        const column = draftColumn(this.#draft, parsed.lambda);
+        this.#refusal = this.#original === undefined
+          ? await this.#options.add(this.#stage(), column)
+          : await this.#options.edit(this.#original, this.#stage(), column);
       }
     } finally {
       this.#busy = false;
@@ -446,14 +434,12 @@ export class ColumnEditor {
 
   async #delete(): Promise<void> {
     if (this.#busy || this.#original === undefined) return;
-    const s = this.#options.snapshot();
-    const row = s.derived.filter((d) => d.name !== this.#original);
-    const group = (s.groupDerived ?? []).filter((d) => d.name !== this.#original);
+    const original = this.#original;
     this.#busy = true;
     this.#paint();
     try {
       // Refused too, when another column refers to this one.
-      this.#refusal = await this.#options.apply(row, group);
+      this.#refusal = await this.#options.remove(original);
     } finally {
       this.#busy = false;
     }

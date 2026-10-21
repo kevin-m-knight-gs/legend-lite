@@ -293,7 +293,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           // The print is asked for; a later view's print wins.
           const printing = (printed += 1);
           harnessSignal.printing += 1;
-          void created.controller.print(view.query, 'STANDARD').then(
+          void created.printQuery(view.query, 'STANDARD').then(
             (text) => { if (printing === printed) windows.pure.textContent = text; },
             (error: unknown) => { if (printing === printed) windows.pure.textContent = String(error); },
           ).finally(() => {
@@ -1449,7 +1449,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           }
           for (const id of page.cubes) {
             if (disposed) return undefined;
-            if (sources.framesOf(id).includes(frame)) await madeCubes.get(id)?.state.refresh();
+            if (sources.framesOf(id).includes(frame)) await madeCubes.get(id)?.refresh();
           }
         }
         return undefined;

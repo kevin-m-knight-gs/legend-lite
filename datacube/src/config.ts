@@ -414,7 +414,7 @@ export function withSettings(
 }
 
 /**
- * A configuration patch as a host applies one (CubeApp.applyConfiguration, Python's Grid.configure): its settings by
+ * A configuration patch as a host applies one (a configure command: CubeApp.edit, Python's Grid.configure): its settings by
  * withSettings, the grid-wide appearance by withAppearance and each column's by withColumn, each merged into what it
  * has. `columns` and `appearance` are split out rather than passed through: withSettings prunes undefined keys and
  * replaces the rest, so `columns: undefined` would delete the column map, and a part of the appearance would replace

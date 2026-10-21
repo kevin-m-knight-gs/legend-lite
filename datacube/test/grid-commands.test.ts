@@ -18,6 +18,7 @@ import {
 } from '../src/grid-edits.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type DerivedColumn } from '../src/snapshot.ts';
 import { TREE_COLUMN } from '../src/treeview.ts';
+import { DETAIL_ROW, TreeState, parsePathKey } from '../src/tree.ts';
 import { stand } from './fake-planner.ts';
 
 const CUBE: CubeSnapshot = {
@@ -140,6 +141,52 @@ describe('each command gives what the screen\'s own edit gives', () => {
     refused(() => applyGridCommand(d, { kind: 'calculate', level: 'row', column: { ...double, name: 'qty' } }), /qty/);
   });
 
+  it('a group opened and closed is the tree the chevron leaves; Collapse All the menu\'s (G1, G2)', () => {
+    const shown = { ...draft({ rows: ['region', 'desk'] }), tree: TreeState.empty().withExpandTo(1) };
+    const opened = applyGridCommand(shown, { kind: 'open', path: ['EMEA', 'FX'], open: true });
+    assert.deepEqual(opened.tree.openPaths.map(parsePathKey), [['EMEA'], ['EMEA', 'FX']], 'its parents open with it');
+    // SET, never toggled: asked twice, the same tree (P2-127)
+    assert.equal(applyGridCommand(opened, { kind: 'open', path: ['EMEA', 'FX'], open: true }).tree, opened.tree);
+    const closed = applyGridCommand(opened, { kind: 'open', path: ['EMEA'], open: false });
+    assert.deepEqual(closed.tree.openPaths, [], 'the groups under it close with it');
+    assert.equal(closed.tree.isOpen(['APAC']), true, 'the expand level opens the others');
+    const all = applyGridCommand(closed, { kind: 'collapseAll' });
+    assert.equal(all.tree.isOpen(['APAC']), false, "Collapse All closes the expand level's groups too");
+    // a path deeper than the groups (another editor regrouped since the click) opens nothing, and is no refusal
+    assert.equal(applyGridCommand(shown, { kind: 'open', path: ['EMEA', 'FX', 'x'], open: true }), shown);
+    refused(() => applyGridCommand(shown, { kind: 'open', path: [], open: true }), /the grand total is no group/);
+    refused(() => applyGridCommand(shown, { kind: 'open', path: ['EMEA', `${DETAIL_ROW}0`], open: true }), /a detail row/);
+    // an editor's draft holds no open groups: a bug, not a person's edit
+    assert.throws(() => applyGridCommand(draft(), { kind: 'collapseAll' }), (e: unknown) => !(e instanceof CubeRefusal));
+  });
+
+  it('a calculated column edited in its place, renamed with what reads it, and taken out (G4, G5)', () => {
+    const withTwo = applyGridCommands(d, [
+      { kind: 'calculate', level: 'row', column: double },
+      { kind: 'calculate', level: 'row', column: { ...double, name: 'triple', lambda: stand('$x.qty * 3') } },
+      { kind: 'sorts', sorts: [{ column: 'double', direction: 'desc' }] },
+      { kind: 'configure', patch: { columns: { double: { displayName: 'Twice qty' } } } },
+    ]);
+    const edited = applyGridCommand(withTwo, { kind: 'editCalculated', name: 'double', level: 'row',
+      column: { ...double, name: 'twice', lambda: stand('$x.qty + $x.qty') } });
+    assert.deepEqual(edited.snapshot.derived.map((c) => c.name), ['twice', 'triple'], 'in its place');
+    assert.deepEqual(edited.snapshot.sorts, [{ column: 'twice', direction: 'desc' }], 'its sort follows it');
+    assert.equal(edited.config.columns['twice']?.displayName, 'Twice qty', 'its settings follow it');
+    assert.equal(edited.config.columns['double'], undefined);
+    // another level: last of it
+    const moved = applyGridCommand(withTwo, { kind: 'editCalculated', name: 'double', level: 'group',
+      column: { name: 'double', childAggregate: { fn: 'min', of: 'qty' } } });
+    assert.deepEqual([moved.snapshot.derived.map((c) => c.name), moved.snapshot.groupDerived?.map((c) => c.name)],
+      [['triple'], ['double']]);
+    refused(() => applyGridCommand(withTwo, { kind: 'editCalculated', name: 'qty', level: 'row', column: double }),
+      /'qty' is not a calculated column of the grid \(double, triple\)/);
+    refused(() => applyGridCommand(withTwo, { kind: 'editCalculated', name: 'double', level: 'row',
+      column: { ...double, name: 'triple' } }), /'triple' is already a column/);
+    const removed = applyGridCommand(withTwo, { kind: 'removeCalculated', name: 'triple' });
+    assert.deepEqual(removed.snapshot.derived.map((c) => c.name), ['double']);
+    refused(() => applyGridCommand(d, { kind: 'removeCalculated', name: 'region' }), /'region' is not a calculated column/);
+  });
+
   it('a list applies in order and stops at the first refusal', () => {
     const done = applyGridCommands(d, [{ kind: 'pivot', columns: ['desk'] }, { kind: 'addSort', column: 'qty', direction: 'asc' }]);
     assert.deepEqual(done.snapshot.pivotOn, ['desk']);
@@ -239,6 +286,10 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'calculate', level: 'group', column: { name: 'smallest', childAggregate: { fn: 'min', of: 'notional' }, kind: 'measure' } },
     { kind: 'calculate', level: 'row', column: { ...double, name: 'each', unnest: true } },
     { kind: 'measures', measures: [{ name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' }] },
+    { kind: 'editCalculated', name: 'double', level: 'group', column: { ...double, name: 'twice' } },
+    { kind: 'removeCalculated', name: 'double' },
+    { kind: 'open', path: ['EMEA', null], open: true },
+    { kind: 'collapseAll' },
   ];
 
   it('every kind, through JSON and back', () => {
@@ -248,6 +299,12 @@ describe('a command read from JSON is the same command, and what DataCube does n
 
   it('an unknown kind, a misspelt field and a field of the wrong type, each in words', () => {
     refused(() => readGridCommand({ kind: 'regroup', rows: [] }), /'regroup' is not a grid's command/);
+    refused(() => readGridCommand({ kind: 'open', path: ['EMEA', 2021], open: true }), /each text or null, not \["EMEA",2021\]/);
+    refused(() => readGridCommand({ kind: 'open', path: 'EMEA', open: true }), /a group's path is its keys/);
+    refused(() => readGridCommand({ kind: 'open', path: ['EMEA'] }), /open is true or false/);
+    refused(() => readGridCommand({ kind: 'collapseAll', path: [] }), /a 'collapseAll' command takes nothing more, not path/);
+    refused(() => readGridCommand({ kind: 'editCalculated', name: 'double', level: 'cell', column: double }), /'row' or 'group'/);
+    refused(() => readGridCommand({ kind: 'removeCalculated', name: 7 }), /the calculated column's name is text/);
     refused(() => readGridCommand({ kind: 'group', row: ['region'] }), /a 'group' command takes rows, not row/);
     refused(() => readGridCommand({ kind: 'addSort', column: 'qty', direction: 'up' }), /a sort is 'asc' or 'desc'/);
     refused(() => readGridCommand({ kind: 'clickSort', column: 'qty', first: 'desc' }), /chained or not/);

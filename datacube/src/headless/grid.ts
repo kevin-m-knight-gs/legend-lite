@@ -259,19 +259,20 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
 }
 
 /**
- * A CALCULATED COLUMN ADDED as DataCube's column editor adds one (ui/column-editor.ts), by its own steps
+ * A CALCULATED COLUMN ADDED -- or, `replacing` one, EDITED -- as DataCube's column editor adds or edits one
+ * (ui/column-editor.ts), by its own steps
  * (column-draft.ts): a new row-stage column's draft, of the `kind` declared -- a measure unless told (null), as the
  * editor starts one (newDraft) -- named as calc.ts nameProblem allows, its expression (the whole lambda,
  * `x|$x.qty * 2`) parsed by the planner, the cube with it (draftCandidate) compiled as a refresh would send it
  * (CubeController.compile: its columns typed, then every query, window and child columns too) -- so Python checks no
  * calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{cube, notes}`, the
- * cube document with it as the screen writes the editor's Apply (app.ts #setCalc: the editor's two lists set, the
- * columns typed as the run that lands types them, the state folded), and what opening it over its source changed; or
- * `{problems}`, why it was refused, in DataCube's words; the `calculate` command it applied among `commands`. Python
+ * cube document with it as the screen writes the editor's OK (the command it builds applied, the columns typed as the
+ * run that lands types them, the state folded), and what opening it over its source changed; or `{problems}`, why it
+ * was refused, in DataCube's words; the `calculate` (or `editCalculated`) command it applied among `commands`. Python
  * keeps the document, never a column it adds itself (parity.json's "a calculated column").
  */
 export async function gridCalculate(spec: GridSpec, name: string, expression: string,
-  kind: ColumnKind | null): Promise<string> {
+  kind: ColumnKind | null, replacing: string | null = null): Promise<string> {
   return using(spec, async (o) => {
     const { planner, state } = o;
     if (kind !== null && !COLUMN_KINDS.includes(kind)) {
@@ -279,7 +280,7 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
       return JSON.stringify({ problems: [`a column's kind is ${kinds}, not '${String(kind)}'`] });
     }
     const draft = newDraft(name, expression, kind ?? undefined);
-    const problem = nameProblem(state.snapshot, draftStage(draft), draft.name);
+    const problem = nameProblem(state.snapshot, draftStage(draft), draft.name, replacing ?? undefined);
     if (problem !== null) return JSON.stringify({ problems: [problem] });
     let lambda: Lambda;
     try {
@@ -290,8 +291,11 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
       if (!(e instanceof PlanError)) throw e;
       return JSON.stringify({ problems: [e.message] });
     }
-    // the column as the editor makes it (column-draft.ts draftColumn), added by the command the editor's Apply builds
-    return applied(spec, o, [{ kind: 'calculate', level: draftStage(draft), column: draftColumn(draft, lambda) }]);
+    // the column as the editor makes it (column-draft.ts draftColumn), by the command the editor's OK builds
+    const column = draftColumn(draft, lambda);
+    return applied(spec, o, [replacing === null
+      ? { kind: 'calculate', level: draftStage(draft), column }
+      : { kind: 'editCalculated', name: replacing, level: draftStage(draft), column }]);
   });
 }
 
@@ -439,14 +443,15 @@ export async function gridFilter(spec: GridSpec, given: string): Promise<string>
  */
 async function applied(spec: GridSpec, o: Opened, commands: readonly GridCommand[]): Promise<string> {
   const { planner, cube } = o;
-  let d: GridDraft;
+  let d: Required<GridDraft>;
   try {
-    d = applyGridCommands({ snapshot: await typedColumns(planner, cube.snapshot), config: cube.configuration }, commands);
+    d = applyGridCommands({ snapshot: await typedColumns(planner, cube.snapshot), config: cube.configuration, tree: cube.tree },
+      commands);
   } catch (e) {
     if (!(e instanceof CubeRefusal)) throw e;
     return JSON.stringify({ problems: [e.message] });
   }
-  const tree = cube.tree;
+  const tree = d.tree;
   const snapshot = applyToSnapshot(d.snapshot, d.config);
   const outcome = await compiled(planner, { snapshot, tree });
   if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });

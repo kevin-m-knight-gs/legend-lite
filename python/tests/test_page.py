@@ -786,11 +786,54 @@ class Document(Paged):
         grid.group('region')
         # its open groups, as DataCube keeps them: the screen's edits leave them, a regrouping too (app.ts #edit) -- a
         # path the new grouping has not is shown closed
-        page._doc['cubes'][0]['cube']['tree'] = {'open': [['EMEA']], 'showTotals': True}
+        grid.expand('EMEA')
+        opened = page.to_dict()['cubes'][0]['cube']['tree']
+        self.assertEqual(opened['open'], [['EMEA']])
         grid.sort('region', 'desc')
-        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], {'open': [['EMEA']], 'showTotals': True})
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], opened)
         grid.group('desk')
-        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], {'open': [['EMEA']], 'showTotals': True})
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'], opened)
+
+    def test_a_calculated_column_is_edited_in_its_place_renamed_with_what_reads_it_and_removed(self):
+        # the Edit Column window's OK and Delete, as the commands they build (grid-commands.ts editCalculated,
+        # removeCalculated; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md G4, G5)
+        page = ll.Page('Calculated')
+        grid = page.grid(trades(), name='calculated_trades', rows=['region'])
+        grid.calculate('double', '$x.notional * 2').calculate('triple', '$x.notional * 3').sort('double', 'desc')
+        grid.edit_calculated('double', '$x.notional + $x.notional', rename='twice')
+        self.assertEqual([c['name'] for c in grid._query['derived']], ['twice', 'triple'], 'in its place')
+        self.assertEqual(grid._query['sorts'], [{'column': 'twice', 'direction': 'desc'}], 'its sort follows it')
+        self.assertEqual(page._commands[-1]['kind'], 'editCalculated')
+        with self.assertRaisesRegex(ValueError, "'desk' is not a calculated column of the grid"):
+            grid.edit_calculated('desk', '$x.notional')
+        grid.remove_calculated('triple')
+        self.assertEqual([c['name'] for c in grid._query['derived']], ['twice'])
+        with self.assertRaisesRegex(ValueError, "'triple' is not a calculated column of the grid"):
+            grid.remove_calculated('triple')
+
+    def test_groups_open_and_close_as_the_chevron_and_collapse_all_do_and_are_saved_with_the_page(self):
+        # an open command, as the chevron builds one (grid-commands.ts): the page saves the groups its maker opened, so a
+        # page shared or reopened shows them open (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md G1, G2)
+        page = ll.Page('Opened')
+        grid = page.grid(trades(), name='opened_trades', rows=['region', 'desk'])
+
+        def open_paths():
+            return page.to_dict()['cubes'][0]['cube']['tree']['open']
+
+        grid.expand('EMEA', 'FX')
+        self.assertEqual(open_paths(), [['EMEA'], ['EMEA', 'FX']], 'its parents open with it')
+        self.assertEqual(page._commands[-1], {'kind': 'open', 'path': ['EMEA', 'FX'], 'open': True})
+        grid.collapse('EMEA')
+        self.assertEqual(open_paths(), [], 'the groups under it close with it')
+        grid.expand('AMER').expand('EMEA').collapse_all()
+        self.assertEqual(open_paths(), [])
+        self.assertEqual(page._commands[-1], {'kind': 'collapseAll'})
+        grid.expand('EMEA', 'FX', 'deeper')
+        self.assertEqual(open_paths(), [], 'a path deeper than the groups opens nothing')
+        with self.assertRaisesRegex(ValueError, 'each text or null'):
+            grid.expand('EMEA', 2021)
+        with self.assertRaisesRegex(ValueError, 'the grand total is no group'):
+            grid.expand()
 
     def test_names_and_values_outside_datacubes_words_are_refused_where_they_are_written(self):
         page, grid, _ = self.built()

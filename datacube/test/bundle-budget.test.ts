@@ -284,8 +284,12 @@ const BUDGET = 305_500;
  *  292,000 -> 292,500 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 292,296.
  *  292,500 -> 294,000 (2026-10-20, design §18.8 step B -- the grid's note of the same date; this page also asks Python
  *  for a copy it holds, held). Measured 293,533.
- *  294,000 -> 294,500 (2026-10-20, the page keeper's step 2.3 -- the grid's note of the same date). Measured 294,287. */
-const ENGINE_BUDGET = 294_500;
+ *  294,000 -> 294,500 (2026-10-20, the page keeper's step 2.3 -- the grid's note of the same date). Measured 294,287.
+ *  294,500 -> 295,500 (2026-10-21, the one API program's step S1, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md: every edit
+ *  of a grid a command -- each calculated column the screen makes read whole (C1), a group opened and Collapse All (G1,
+ *  G2), a calculated column edited and taken out (G4, G5) -- read, applied and told by grid-commands.ts, which the page
+ *  loads at start). Measured 295,261. */
+const ENGINE_BUDGET = 295_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -401,8 +405,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  309,429.
  *  309,800 -> 310,300 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 310,121.
  *  310,300 -> 311,800 (2026-10-20, design §18.8 step B -- the engine page's note of the same date). Measured 311,364.
- *  311,800 -> 312,500 (2026-10-20, the page keeper's step 2.3 -- the grid's note of the same date). Measured 312,118. */
-const WIDGET_BUDGET = 312_500;
+ *  311,800 -> 312,500 (2026-10-20, the page keeper's step 2.3 -- the grid's note of the same date). Measured 312,118.
+ *  312,500 -> 313,500 (2026-10-21, the one API program's step S1 -- the engine page's note of the same date). Measured
+ *  313,083. */
+const WIDGET_BUDGET = 313_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -803,6 +803,25 @@ function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedCol
   };
 }
 
+/**
+ * THE CALCULATED COLUMN `name` REPLACED BY `column`, computed at `level` -- or, with no `name`, `column` added last of
+ * its level: the one rule for the cube's two lists, the column editor's candidate and the commands its OK and Add build
+ * (grid-commands.ts calculate, editCalculated). In its place when it stays at its level, so an edit does not reorder the
+ * cube's columns, else last of its new one; renamed, what read it reads it by its new name (renameColumnReferences).
+ */
+export function withCalculated(s: CubeSnapshot, name: string | undefined, level: 'row' | 'group', column: DerivedColumn):
+  CubeSnapshot {
+  const without = (list: readonly DerivedColumn[]): DerivedColumn[] => list.filter((d) => name === undefined || d.name !== name);
+  const row = without(s.derived);
+  const group = without(s.groupDerived ?? []);
+  const target = level === 'group' ? group : row;
+  const was = name === undefined ? -1 : (level === 'group' ? s.groupDerived ?? [] : s.derived).findIndex((d) => d.name === name);
+  if (was >= 0) target.splice(was, 0, column);
+  else target.push(column);
+  const next: CubeSnapshot = { ...s, derived: row, groupDerived: group };
+  return name !== undefined && name !== column.name ? renameColumnReferences(next, name, column.name) : next;
+}
+
 export function renameColumnReferences(
   s: CubeSnapshot,
   from: string,

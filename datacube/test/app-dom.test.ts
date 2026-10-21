@@ -813,7 +813,7 @@ describe('the app', () => {
       download: (n, m, t) => downloads.push([n, m, t]),
     });
     await withSource.open();
-    await withSource.applyConfiguration({ maxRows: 123 });
+    await withSource.edit([{ kind: 'configure', patch: { maxRows: 123 } }], 'settings');
     const doc = withSource.cubeDocument('mine');
     assert.ok(doc);
     assert.equal(doc.kind, 'datacube.cube');
@@ -851,7 +851,7 @@ describe('the app', () => {
 
     const moved = [before[before.length - 1], ...before.slice(0, -1)]
       .filter((n): n is string => n !== undefined);
-    await app.applyConfiguration({ columnOrder: moved });
+    await app.edit([{ kind: 'configure', patch: { columnOrder: moved } }], 'settings');
 
     assert.deepEqual(named(), moved,
       'the panel must read in the order the grid does');
@@ -1369,7 +1369,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     await flush();
     assert.equal(engine.sql.length, before, 'a click ran nothing');
     assert.equal(toggle.textContent, 'Snapped');
-    assert.equal(app.controller.snaps.isSnapped, false);
+    assert.equal(app.copy, undefined, 'it reads its rows live');
   });
 
   it('shows the receipt of what answered, and an open Receipts window follows the plane', async () => {

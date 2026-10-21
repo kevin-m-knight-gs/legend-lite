@@ -642,6 +642,12 @@ export function gridCapped(gridsOnPage: number): boolean {
   return gridsOnPage > 1;
 }
 
+/** A NEW GRID'S CONFIGURATION (the one rule): titled by its source, its rows capped at the row limit when it shares its
+ *  page (gridCapped). A source added from the picker, a host's grid made headless, a grid added to a cube's own board. */
+export function freshConfiguration(label: string, capped: boolean): CubeConfiguration {
+  return { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) };
+}
+
 /**
  * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
  * configuration, the groups it had open, what it had that the source no longer has (`changed`: a part left out, as
@@ -657,7 +663,7 @@ export function rebuilt(saved: CubeDocument | undefined, relation: ValueSpecific
   if (!saved) {
     return {
       snapshot: rawRows(relation, columns),
-      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) },
+      configuration: freshConfiguration(label, capped),
       notes: [],
       changed: false,
     };

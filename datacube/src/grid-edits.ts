@@ -16,11 +16,15 @@ import {
   AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, rowColumns, totalOrderSorts, type AggregateFn,
   type ColumnKind, type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
+import type { TreeState } from './tree.ts';
 
 /** What an edit changes: the grid's query and its configuration (the editor's draft carries both). */
 export interface GridDraft {
   readonly snapshot: CubeSnapshot;
   readonly config: CubeConfiguration;
+  /** Which groups are open, where the edit is of a grid as it shows (the screen, headless gridApply): an editor's
+   *  draft (the Properties window's) holds none, and opens none. */
+  readonly tree?: TreeState;
 }
 
 const listed = (names: readonly string[]): string => (names.length === 0 ? 'none' : [...names].sort().join(', '));

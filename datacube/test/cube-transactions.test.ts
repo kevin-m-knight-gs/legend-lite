@@ -48,7 +48,7 @@ describe('a refused change is not a change (B1b)', () => {
   it('a presentation change runs no query, so nothing can refuse it (P2-114)', async () => {
     const ran = engine.queries;
     engine.gate.fail = 'the engine said no';
-    await app.applyConfiguration({ columns: { desk: { pinned: 'left' } } });
+    await app.edit([{ kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } }], 'settings');
     await settle();
     assert.equal(engine.queries, ran, 'no query');
     assert.equal(app.configuration.columns['desk']?.pinned, 'left');
@@ -108,7 +108,7 @@ describe('undo puts back everything it covers (B1b)', () => {
     menu('EMEA', 'Remove Vertical Pivot on region');
     await settle();
     assert.notDeepEqual(zoneChips(), zones);
-    await app.applyConfiguration({ showTitleBar: false });
+    await app.edit([{ kind: 'configure', patch: { showTitleBar: false } }], 'settings');
     await settle();
     assert.equal(root.querySelector('.dc-titlebar')?.classList.contains('dc-collapsed'), true, 'the title bar folds');
     await app.undo();
@@ -128,7 +128,7 @@ describe('the title bar is rebuilt only when what it shows changes', () => {
     menu('EMEA', 'Ascending');
     await settle();
     assert.equal(root.querySelector('.dc-titlebar-menu'), bar, 'the same button: not rebuilt');
-    await app.applyConfiguration({ reportTitle: 'renamed' });
+    await app.edit([{ kind: 'configure', patch: { reportTitle: 'renamed' } }], 'settings');
     assert.notEqual(root.querySelector('.dc-titlebar-menu'), bar, 'rebuilt when its title changed');
   });
 });
@@ -141,7 +141,7 @@ describe('the shortcuts are registered once (B1b)', () => {
     await settle();
     // each fold rebuilds the title bar
     for (const hidden of [true, false, true, false]) {
-      await app.applyConfiguration({ showDragZones: !hidden });
+      await app.edit([{ kind: 'configure', patch: { showDragZones: !hidden } }], 'settings');
       await settle();
     }
     dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
@@ -178,7 +178,9 @@ describe('a whole gesture is one change (B1c)', () => {
 describe('what is read off the rows on screen reads the state ON SCREEN (B1c)', () => {
   it('a right-click while a KIND change runs reads the kinds of the rows on screen (P2-110, the menu\'s column facts)', async () => {
     engine.gate.hold = true;
-    void app.applyConfiguration({ columns: { region: { kind: 'measure' } } });
+    // a grouped column's kind is locked (grid-edits.ts setColumn): the kind change comes with the regroup that frees it,
+    // as one edit -- the way a person makes it (Row Groups, then Column Properties > Column Kind)
+    void app.edit([{ kind: 'group', rows: ['desk'] }, { kind: 'column', name: 'region', change: { kind: 'measure' } }], 'kind');
     await settle();
     assert.equal(app.state.busy, true, 'the kind change is running');
     const cell = [...root.querySelectorAll<HTMLElement>('.dc-cell')]
@@ -322,7 +324,7 @@ describe('history through the app (B2)', () => {
     input.dispatchEvent(new dom.window.Event('change'));
     ([...root.querySelectorAll('button')].find((b) => b.textContent === 'OK') ?? assert.fail('no OK')).click();
     for (let i = 0; i < 12; i += 1) {
-      await app.applyConfiguration({ reportTitle: `title ${i}` });
+      await app.edit([{ kind: 'configure', patch: { reportTitle: `title ${i}` } }], 'settings');
     }
     assert.equal(app.state.historyDepth.past, 10);
   });

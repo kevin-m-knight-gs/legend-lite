@@ -6,7 +6,8 @@
 
 import { nameProblem } from './calc.ts';
 import {
-  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, withConfiguration, type CubeConfiguration, type Patch,
+  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, renameColumnConfig, withConfiguration,
+  type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
   addSort, allColumns, clickSort, clickTreeSort, measureAsColumn, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
@@ -16,11 +17,12 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { operandKind } from './filter-operators.ts';
 import {
   AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
-  isPivotTotalColumn, isRelativeDate, pivotTotalColumn,
+  isPivotTotalColumn, isRelativeDate, pivotTotalColumn, withCalculated,
   type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator,
   type FilterValue, type Measure, type SortDirection, type SortSpec, type WindowFrame, type WindowFunction, type WindowSpec,
 } from './snapshot.ts';
 import { TREE_COLUMN } from './treeview.ts';
+import { isDetailPath, type RowPath, type TreeState } from './tree.ts';
 
 /** Settings by their document's own keys, each cleared by null (a value JSON can carry, as undefined is not). */
 export type SettingsPatch = Readonly<Record<string, unknown>>;
@@ -54,11 +56,23 @@ export type GridCommand =
   /** A calculated column added at its level, its lambda already parsed (the column editor, Python's calculate). */
   | { readonly kind: 'calculate'; readonly level: 'row' | 'group'; readonly column: DerivedColumn }
   /** Measures as columns (Python's measure and grid(measures=...)): an Aggregation, or a copy under its own name. */
-  | { readonly kind: 'measures'; readonly measures: readonly Measure[] };
+  | { readonly kind: 'measures'; readonly measures: readonly Measure[] }
+  /** A calculated column edited (Edit Column's OK): the column `name` replaced by `column`, computed at `level` -- in its
+   *  place when it stays at its level, else last of its new one; renamed, what read it (the groups, the pivot, the sorts,
+   *  the filter, the columns computed from it, its settings) reads it by its new name. */
+  | { readonly kind: 'editCalculated'; readonly name: string; readonly level: 'row' | 'group'; readonly column: DerivedColumn }
+  /** A calculated column taken out, whichever level it is at (Edit Column's Delete, the header menu's). */
+  | { readonly kind: 'removeCalculated'; readonly name: string }
+  /** A group opened or closed (its chevron): its path, the group keys from the top down -- SET, never toggled, so a
+   *  click repeated while a query runs asks the same thing twice (P2-127). Saved with the page, so a page shared or
+   *  reopened shows the groups its maker had open. */
+  | { readonly kind: 'open'; readonly path: RowPath; readonly open: boolean }
+  /** Every group closed, the expand level's too (the menu's Collapse All). */
+  | { readonly kind: 'collapseAll' };
 
 export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
-  'calculate', 'measures',
+  'calculate', 'measures', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** A command applied: the grid as the screen's rules leave it, or a refusal in their words (CubeRefusal). */
@@ -97,10 +111,26 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     case 'calculate': {
       const problem = nameProblem(draft.snapshot, command.level, command.column.name);
       if (problem !== null) throw new CubeRefusal(problem);
-      // as the column editor's Apply sets the cube's two lists (app.ts #setCalc): both written, each whole
-      const row = [...draft.snapshot.derived, ...(command.level === 'row' ? [command.column] : [])];
-      const group = [...(draft.snapshot.groupDerived ?? []), ...(command.level === 'group' ? [command.column] : [])];
-      return { ...draft, snapshot: { ...draft.snapshot, derived: row, groupDerived: group } };
+      return { ...draft, snapshot: withCalculated(draft.snapshot, undefined, command.level, command.column) };
+    }
+    case 'editCalculated': {
+      calculatedNamed(draft, command.name);
+      const problem = nameProblem(draft.snapshot, command.level, command.column.name, command.name);
+      if (problem !== null) throw new CubeRefusal(problem);
+      const renamed = command.column.name !== command.name;
+      return {
+        ...draft,
+        snapshot: withCalculated(draft.snapshot, command.name, command.level, command.column),
+        // its settings (a format, a width, a display name) follow it
+        ...(renamed ? { config: renameColumnConfig(draft.config, command.name, command.column.name) } : {}),
+      };
+    }
+    case 'removeCalculated': {
+      calculatedNamed(draft, command.name);
+      const s = draft.snapshot;
+      // another column reading it: the compiler refuses the grid, in its words, when the change is planned
+      return { ...draft, snapshot: { ...s, derived: s.derived.filter((d) => d.name !== command.name),
+        groupDerived: (s.groupDerived ?? []).filter((d) => d.name !== command.name) } };
     }
     case 'measures': {
       // each as Python's measure() asks it, refused in words (a converting open is lenient; a command is not): a column
@@ -114,7 +144,32 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
       }
       return d;
     }
+    case 'open': {
+      if (command.path.length === 0) throw new CubeRefusal('the grand total is no group to open: it is shown or not (Show Root Aggregation)');
+      if (isDetailPath(command.path)) throw new CubeRefusal('a detail row is a source row, not a group: it does not open');
+      // a path deeper than the row groups names no group of the grid now (another editor regrouped it since the click):
+      // nothing to open, and no refusal of an edit that was right when it was made
+      if (command.path.length > draft.snapshot.rows.length) return draft;
+      return { ...draft, tree: shownTree(draft).setOpen(command.path, command.open) };
+    }
+    case 'collapseAll':
+      return { ...draft, tree: shownTree(draft).collapseAll() };
   }
+}
+
+/** Refused, in words, when `name` is no calculated column of the grid (a source's column is edited in Column
+ *  Properties, not in the column editor). */
+function calculatedNamed(draft: GridDraft, name: string): void {
+  const calculated = [...draft.snapshot.derived, ...(draft.snapshot.groupDerived ?? [])].map((d) => d.name);
+  if (!calculated.includes(name)) {
+    throw new CubeRefusal(`'${name}' is not a calculated column of the grid (${calculated.join(', ') || 'it has none'})`);
+  }
+}
+
+/** The open groups of a grid as it shows: an editor's draft has none to open (no screen builds it such a command). */
+function shownTree(draft: GridDraft): TreeState {
+  if (draft.tree === undefined) throw new Error("a group opened in an editor's draft, which holds no open groups");
+  return draft.tree;
 }
 
 /** Commands applied in order: the first refusal stops them, in its words. */
@@ -200,7 +255,7 @@ function settingsPatch(from: CubeConfiguration, to: CubeConfiguration): Settings
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
- * Settings patched as a host patches them (config.ts withConfiguration, CubeApp.applyConfiguration's rule), in the
+ * Settings patched as a host patches them (config.ts withConfiguration), in the
  * saved document's own keys: null clears a setting, among the settings, in the appearance and in a column's. A column's
  * kind, Aggregation and weight go by Column Properties' own rules (setColumn), so what the panel refuses is refused here
  * too: a kind is set, never cleared, and whether a measure is kept out of the pivot is true or false. A name DataCube
@@ -532,6 +587,25 @@ export function readGridCommand(given: unknown): GridCommand {
       fields(o, kind, ['level', 'column']);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);
       return { kind, level: o['level'], column: calculatedFrom(o['column']) };
+    case 'editCalculated':
+      fields(o, kind, ['name', 'level', 'column']);
+      if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);
+      return { kind, name: textFrom(o['name'], "the calculated column's name"), level: o['level'], column: calculatedFrom(o['column']) };
+    case 'removeCalculated':
+      fields(o, kind, ['name']);
+      return { kind, name: textFrom(o['name'], "the calculated column's name") };
+    case 'open': {
+      fields(o, kind, ['path', 'open']);
+      const path = o['path'];
+      if (!Array.isArray(path) || !path.every((k) => k === null || typeof k === 'string')) {
+        throw new CubeRefusal(`a group's path is its keys from the top down, each text or null, not ${JSON.stringify(path)}`);
+      }
+      if (typeof o['open'] !== 'boolean') throw new CubeRefusal('a group is opened or closed: open is true or false');
+      return { kind, path: path as RowPath, open: o['open'] };
+    }
+    case 'collapseAll':
+      fields(o, kind, []);
+      return { kind };
     case 'measures': {
       fields(o, kind, ['measures']);
       if (!Array.isArray(o['measures'])) throw new CubeRefusal('the measures are a list');

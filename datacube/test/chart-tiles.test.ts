@@ -147,7 +147,7 @@ describe('Open in grid: a grid of its own, beside the chart', () => {
     await togglePill(a);
     assert.deepEqual(chart(a).spec.y, [{ column: 'notional', fn: 'sum' }]);
     // the grid's Aggregation moves on; the frozen chart keeps its own
-    await app.applyConfiguration({ columns: { notional: { aggregateFn: 'average' } } });
+    await app.edit([{ kind: 'configure', patch: { columns: { notional: { aggregateFn: 'average' } } } }], 'settings');
     await settle();
     assert.deepEqual(chart(a).spec.y, [{ column: 'notional', fn: 'sum' }]);
     await openInGrid(a);

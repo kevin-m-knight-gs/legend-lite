@@ -469,6 +469,20 @@ class Grid(Tile):
         grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
         return self._apply([{'kind': 'addSort', 'column': column, 'direction': direction}])
 
+    def expand(self, *path: str | None) -> Grid:
+        """The group at ``path`` open, as its chevron opens it (an ``open`` command): its keys from the top group down,
+        each the text the grid shows (None, an empty group) -- its parents open with it. Saved with the page, so a page
+        shared or reopened shows it open. A path deeper than the row groups opens nothing."""
+        return self._apply([{'kind': 'open', 'path': list(path), 'open': True}])
+
+    def collapse(self, *path: str | None) -> Grid:
+        """The group at ``path`` closed, as its chevron closes it, the groups under it with it (an ``open`` command)."""
+        return self._apply([{'kind': 'open', 'path': list(path), 'open': False}])
+
+    def collapse_all(self) -> Grid:
+        """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
+        return self._apply([{'kind': 'collapseAll'}])
+
     def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
         empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one
@@ -477,21 +491,39 @@ class Grid(Tile):
         is a number, its unique value if not), and the grid with it compiled as DataCube would run it -- reading any of
         the grid's columns before it, a window column's too.
         A mistake fails at this line, in DataCube's and the compiler's words."""
+        return self._calculated(name, expression, kind, None)
+
+    def edit_calculated(self, name: str, expression: str, *, rename: str | None = None, kind: str | None = None) -> Grid:
+        """The calculated column ``name`` computed per row by ``expression`` instead, as its Edit Column window's OK
+        changes it (an ``editCalculated`` command, built headless as the editor builds it: gridCalculate): ``rename`` its
+        new name -- what read it (the groups, the pivot, the sorts, the filter, the columns computed from it, its
+        settings) reads it by that -- and ``kind`` as for ``calculate``. In its place among the grid's columns."""
+        if not isinstance(name, str):
+            raise ValueError(f'a calculated column is edited by its name, not {name!r}')
+        return self._calculated(name if rename is None else rename, expression, kind, name)
+
+    def remove_calculated(self, name: str) -> Grid:
+        """The calculated column ``name`` taken out, as Edit Column's Delete takes it (a ``removeCalculated`` command):
+        refused, in the compiler's words, while another column reads it."""
+        return self._apply([{'kind': 'removeCalculated', 'name': name}])
+
+    def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None) -> Grid:
         if not isinstance(name, str) or not isinstance(expression, str):
             raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
-        self._page._current(self._view['cube'], 4)
+        self._page._current(self._view['cube'], 5)
         engine, frames = self._headless()
         with frames.serving():
-            said = json.loads(engine.call('gridCalculate', self._spec(engine, frames), name, f'x|{expression}', kind))
+            said = json.loads(engine.call('gridCalculate', self._spec(engine, frames), name, f'x|{expression}', kind,
+                                          replacing))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        # the cube with it, as DataCube writes the editor's Apply: the column typed, the state folded
-        return self._kept(said, 3)
+        # the cube with it, as DataCube writes the editor's OK: the column typed, the state folded
+        return self._kept(said, 4)
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,
-        ``maxRows``, ``appearance``, ``columns``: each column's formats and colours, ...), set as DataCube sets a host's
-        (its ``applyConfiguration``: the appearance and each column's merged into what they have; None clears a
+        ``maxRows``, ``appearance``, ``columns``: each column's formats and colours, ...), set as the screen's Properties
+        set them (a ``configure`` command: the appearance and each column's merged into what they have; None clears a
         setting) and folded into its query as the screen folds it, by a configure command (headless gridApply). A
         column's ``kind``, ``aggregateFn`` and ``aggregationParameters`` go by Column Properties' rules, as ``column()``
         does: a kind is set, never cleared; ``excludedFromPivot`` is True or False."""
