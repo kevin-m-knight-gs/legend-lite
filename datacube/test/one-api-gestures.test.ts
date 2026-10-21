@@ -656,6 +656,8 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   modelInto: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
   modelPin: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
   modelKeep: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
+  // a cube opened again over its frames as they are now: told as a host's page opens (test/python-engine), and by Python
+  rebuilt: { items: [], why: "opening a host's page whose frame changed in place: test/python-engine, python/tests/test_page.py" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). */
 const GESTURES_AT_LEAST = 38;

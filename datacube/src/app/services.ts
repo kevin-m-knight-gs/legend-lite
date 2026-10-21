@@ -189,6 +189,8 @@ export interface HostOpened {
   readonly cube: string;
   /** What opening it said: what drifted, what was left out. */
   readonly notes: readonly string[];
+  /** Whether the cube opened is another than the one asked about (cube-document.ts cubeTaken). */
+  readonly taken: boolean;
   readonly model: string;
   readonly runtime: string;
   /** The relation its rows are read over (a join's, of the host's frames). */

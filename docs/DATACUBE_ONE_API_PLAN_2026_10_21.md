@@ -181,8 +181,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   (cube-page `placeUnavailable`), written back in their places; removed as removeTile removes a view, undone back
   (one-api-gestures.test.ts P9)
 - [ ] **P10** Open…, in place, Blank Page on a served page → a new page (D1) — S4
-- [ ] **P11** the tab reopens cubes over frames as they are now → `rebuilt {cube, document}` page command made by one
-  side (with Y2) — S1, L2 L7
+- [x] **P11** the tab reopens cubes over frames as they are now → `rebuilt {cube, document}` page command made by one
+  side (with Y2) — closed S1: whichever side opens a cube again over its frames tells it, once, by one rule
+  (cube-document.ts `cubeTaken`): the tab opening a host's page tells `rebuilt` for each cube it opened as another
+  (datacube-app `openLive`; test/python-engine: a frame changed in place), Python for each it opens (Y2); the tab
+  follows a `rebuilt` from Python by opening the page again (live-follow.ts)
 - [ ] **P12** `ll.show(df)` page unkept; a frame's column change loses grid edits → a kept page of one grid — S5, L10
 - [ ] **P13** charts on a cube alone (embedded CubeApp) tell nothing → the same state and commands — S3, L2
 - [ ] **P14** stack and arrange gestures told as a whole `layout` → told as `stack` / `arrange` — S3, L2
@@ -190,8 +193,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 ### Python writes that are no command (audit §2, Python)
 - [x] **Y1** `_into` / `_keep` → P4's model commands — closed S1: Python's model actions apply `modelInto`, `modelPin`,
   `modelKeep` through pageApply (test_model.py)
-- [ ] **Y2** `_reopened` → `rebuilt`; the take-or-not rule moved to TypeScript — S1, L4
-- [ ] **Y3** `_kept` with notes → `rebuilt` — S1, L4
+- [x] **Y2** `_reopened` → `rebuilt`; the take-or-not rule moved to TypeScript — closed S1: headless gridOpened says
+  `taken` (cubeTaken) and `_reopened` applies `rebuilt` through pageApply (test_page.py)
+- [x] **Y3** `_kept` with notes → `rebuilt` — closed S1: a grid edit opens its cube again first (`_current`: its
+  `rebuilt`), so `_kept` notes the edit's commands alone (test_page.py, a Live frame changed in place)
 - [ ] **Y6** `serve_page` works out reads in Python → `pageReads`, or deleted — S5, L5
 
 ### Derived state (audit §3)
@@ -219,8 +224,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **Z7** `model.py` (D4) — S5, L6
 - [ ] **Z8** `Page.grid`'s command order → TypeScript builds a grid's commands — S5, L6
 - [ ] **Z9** join input names and placement → `inputOf`, placed near its first input — S5, L6 L10
-- [ ] **Z10** take-a-reopened-cube rule (with Y2) — S1, L6
-- [ ] **Z11** command-or-whole rule in `_kept` (with Y3) — S1, L6
+- [x] **Z10** take-a-reopened-cube rule (with Y2) — closed S1: cube-document.ts `cubeTaken`
+- [x] **Z11** command-or-whole rule in `_kept` (with Y3) — closed S1: gone; an edit is its commands
 - [ ] **Z12** filter value conversion and pre-checks → the TypeScript reader — S5, L6
 - [ ] **Z13** stack needs two tiles (duplicate check) — S5, L6
 - [ ] **Z14** frames-only rule (D3) — S5, L6

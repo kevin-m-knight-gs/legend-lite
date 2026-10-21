@@ -19,7 +19,7 @@ import { draftColumn, draftStage, newDraft } from '../column-draft.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
-  cubeToJson, frameSource, gridCapped, leavesOf, openCube, readCube, rebuilt, writeCube,
+  cubeTaken, cubeToJson, frameSource, gridCapped, leavesOf, openCube, readCube, rebuilt, writeCube,
   type JoinSource, type OpenedCube,
 } from '../cube-document.ts';
 import {
@@ -196,6 +196,8 @@ export async function gridBase(cube: string, frames: Readonly<Record<string, Hos
  * (a join's, a lambda), as gridBase says it -- which a tab on the host's page reads its rows over (the host's runner:
  * it has no compiler of its own there).
  */
+// `taken`: whether the cube opened is not the one held -- its frames' columns moved, a part left out, its source written
+// otherwise -- the rule a host takes it by (its `rebuilt` page command: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z10)
 export async function gridOpened(cube: string, frames: Readonly<Record<string, HostFrame>>, name: string,
   gridsOnPage: number): Promise<string> {
   const was = readCube(fromJson(cube));
@@ -205,7 +207,8 @@ export async function gridOpened(cube: string, frames: Readonly<Record<string, H
     if (frame === undefined) throw new CubeRefusal(`the frame ${source.name} is not served`);
     const made = JSON.parse(await gridCube({ model: frame.model, runtime: frame.runtime, source: frame.accessor, frame: source.name },
       cube, name, source.name, gridsOnPage)) as Record<string, unknown>;
-    return JSON.stringify({ ...made, model: frame.model, runtime: frame.runtime, source: frame.accessor });
+    const taken = cubeTaken(made['changed'] === true, source, readCube(fromJson(made['cube'] as string)).source);
+    return JSON.stringify({ ...made, taken, model: frame.model, runtime: frame.runtime, source: frame.accessor });
   }
   if (source._type !== 'join') throw new CubeRefusal(`${source.name} is no frame and no join of frames: a page on Python reads frames`);
   const opened = await joinOpenedOn(source, frameTables(source, frames));
@@ -215,8 +218,10 @@ export async function gridOpened(cube: string, frames: Readonly<Record<string, H
     name, source: { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
     snapshot: state.snapshot, configuration: state.configuration, tree: state.tree, ...(was.unknown ? { unknown: was.unknown } : {}),
   });
+  const changed = made.changed || opened.notes.length > 0;
   return `{"cube":${JSON.stringify(cubeToJson(written))},"notes":${JSON.stringify([...opened.notes, ...made.notes])},`
-    + `"changed":${JSON.stringify(made.changed || opened.notes.length > 0)},"model":${JSON.stringify(opened.model)},`
+    + `"changed":${JSON.stringify(changed)},"taken":${JSON.stringify(cubeTaken(changed, source, written.source))},`
+    + `"model":${JSON.stringify(opened.model)},`
     + `"runtime":${JSON.stringify(opened.runtime)},`
     + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
 }

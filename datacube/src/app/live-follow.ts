@@ -61,6 +61,9 @@ export async function applyLive(commands: readonly LiveCommand[], target: LiveTa
 
 /** A run of page commands: each grid they add made by the host's maker for its cube, then the page put at them. */
 async function followPage(run: readonly PageCommand[], target: LiveTarget): Promise<void> {
+  // a cube its host opened again over its source as it is now: the page reads that source again, opened again whole
+  const rebuilt = run.find((c) => c.kind === 'rebuilt');
+  if (rebuilt) throw new Error(`its grid ${rebuilt.cube} was opened again over its source as it is now`);
   const makers = new Map<string, GridMaker>();
   const discards: (() => Promise<void>)[] = [];
   try {

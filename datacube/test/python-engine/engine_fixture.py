@@ -12,6 +12,8 @@ live again), `py-page-copies` (answered `done py-page-copies <each grid's snappe
 `show-snapped` (a frame shown with snap=True; answered `done show-snapped <its link as JSON>`), `copies-held`
 (answered `done copies-held <the copies Python's engine holds, as JSON>`),
 `widget-page-sheet` (a sheet added to the notebook's page),
+`py-page-desks-wider` (the page's desks frame, read Live, a column more in place, where Python does not look) and
+`py-page-desks-columns` (answered `done py-page-desks-columns <its desks grid's columns, as the page has them, as JSON>`),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
 the page has them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
@@ -196,7 +198,9 @@ def main() -> None:
                 pypage = ll.Page('Built in Python')
                 pygrid = pypage.grid(frame, name='pytrades', rows=['region'], measures={'notional': 'sum'})
                 pygrid.chart('bar', x='region', y=[('notional', 'sum')], title='By region')
-                pypage.sheet('Desks').add(pypage.grid(lambda: desks['now'], name='pydesks'))
+                # its desks grid reads a frame of its own, Live: changed in place by py-page-desks-wider alone
+                pydesks = {'now': desks['now']}
+                pypage.sheet('Desks').add(pypage.grid(lambda: pydesks['now'], name='pydesks'))
                 # (show() says its link to a person, on standard output: here the test's line is the answer)
                 with contextlib.redirect_stdout(io.StringIO()):
                     shown_page = ll.show(pypage, browser=False)
@@ -219,6 +223,14 @@ def main() -> None:
                 closing.close()
             elif command == 'py-documents':
                 command = f'py-documents {json.dumps(python_documents(frame, served_page, desks))}'
+            elif command == 'py-page-desks-wider':
+                # (P11) a column more, in place: nothing in Python looks at the frame, so the page in Python holds the
+                # cube as it was until the open page, opened again, tells it the cube as it opens now
+                pydesks['now'] = pydesks['now'].append_column('floor', pa.array(
+                    [f'f{i}' for i in range(pydesks['now'].num_rows)]))
+            elif command == 'py-page-desks-columns':
+                held = next(c['cube'] for c in pypage.to_dict()['cubes'] if c['cube']['source']['name'] == 'pydesks')
+                command = f"py-page-desks-columns {json.dumps([c['name'] for c in held['source']['columns']])}"
             elif command == 'py-page-read':
                 # the page as it is open now: one copy, a write from the open page Python's at once
                 command = f'py-page-read {json.dumps([s.name for s in pypage.sheets])}'

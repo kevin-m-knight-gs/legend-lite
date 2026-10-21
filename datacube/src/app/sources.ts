@@ -20,6 +20,7 @@ import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
 import {
+  cubeTaken,
   cubeToJson,
   fileSource,
   frameSource,
@@ -105,6 +106,9 @@ export type Opened = {
   readonly make: GridMaker;
   readonly label: string;
   readonly notes: readonly string[];
+  /** A saved cube of a host's page opened again over the host's frames: whether it is another now (cube-document.ts
+   *  cubeTaken), which the page is told as its `rebuilt` (P11). */
+  readonly taken?: boolean;
   /** An overtaken open (a newer one went ahead): what it read into the host's database, let go. */
   readonly discard?: () => Promise<void>;
 };
@@ -864,6 +868,7 @@ export function pageSources(d: SourcesOf): PageSources {
     return {
       label: name,
       notes: r.notes,
+      ...(saved ? { taken: cubeTaken(r.changed, saved.source, cubeSource) } : {}),
       make: gridMaker(r.snapshot, r.configuration, [], {
         ...rowsPlace(rows), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
         // a frame is read afresh by every query: its grid snaps into a copy of its own, the host's (§18.3)
@@ -894,6 +899,7 @@ export function pageSources(d: SourcesOf): PageSources {
       return {
         label: src.name,
         notes: [...new Set([...opened.notes, ...r.notes])],
+        taken: opened.taken,
         make: gridMaker(r.snapshot, r.configuration, [], {
           ...rowsPlace(rows), cubeSource: was.source, label: src.name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
           // its rows read afresh from the host's frames by every query: it snaps into a copy of its own, the host's

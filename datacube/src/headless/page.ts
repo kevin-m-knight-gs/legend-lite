@@ -118,7 +118,7 @@ export function pageFilter(page: string, given: string): string {
  * cube), and the fields a newer writer added kept aside, as the page's own reader keeps them (`unknown`).
  */
 /** Whether a page command of `kind` carries a cube's document (read with its exact numbers, as the page's cubes are). */
-const carriesCube = (kind: unknown): boolean => kind === 'addGrid' || kind === 'setChartCube';
+const carriesCube = (kind: unknown): boolean => kind === 'addGrid' || kind === 'setChartCube' || kind === 'rebuilt';
 
 function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };

@@ -32,6 +32,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
+import type { PageCommand } from '../page-commands.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
@@ -701,9 +702,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     /**
      * OPEN A SAVED PAGE (from the store, a file someone handed over, a share link): each of its cubes through its own
      * source, in turn, then the page laid out as it was saved -- its grids under their saved ids, its charts, its
-     * layout. A cube whose source was not opened is left out, and said; saving over the page would lose it.
+     * layout. A cube whose source was not opened is left out, and said; saving over the page would lose it. The cubes
+     * opened again as another than the page held (a host's frame whose columns moved: Opened.taken), by their ids.
      */
-    async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false): Promise<void> {
+    async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false): Promise<readonly string[]> {
       const given = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
       // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
       // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). The page its other editor serves (`replacing`) keeps them: its
@@ -711,12 +713,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const opened = replacing ? { page: given, notes: [] } : openedLive(given);
       const doc = opened.page;
       // `replacing`: the page's other editor replaced it -- nothing of the person's is asked about
-      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return;
+      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return [];
       // LATEST WINS (P2-330), as an open in place: each source is a wait (a file asked for, a sign-in), and an open
       // overtaken meanwhile lands nothing -- what it read is dropped
       const newest = opens.start();
       const makers = new Map<string, GridMaker>();
       const read: Opened[] = [];
+      const taken: string[] = [];
       const notes: string[] = [...opened.notes];
       sources.reserve(Object.values(doc.model?.tables ?? {}).flat());
       try {
@@ -736,12 +739,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           if (o) read.push(o);
           if (!newest()) {
             for (const r of read) await r.discard?.();
-            return;
+            return [];
           }
           if (!o) {
             notes.push(`left out: ${cube.source.name} (${why})`);
             continue;
           }
+          if (o.taken) taken.push(cubeId);
           makers.set(cubeId, o.make);
           notes.push(...o.notes);
         }
@@ -754,7 +758,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       if (makers.size === 0) {
         library?.say(`not opened: "${doc.name}" -- none of its sources was opened`, 'warn');
-        return;
+        return [];
       }
       // the page on screen is this one from now: Save writes over it, never over the page it replaced
       const onScreen = place();
@@ -772,7 +776,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       page.setTitle(doc.name);
       await page.ready();
       // another page put on screen while this one landed: that page is the one to keep
-      if (!onScreen()) return;
+      if (!onScreen()) return [];
       // each snapped grid of the page its other editor serves reads that editor's copy (§18.8); one its host no longer
       // holds reads its rows live, said
       for (const [cube, copy] of Object.entries(doc.copies ?? {})) {
@@ -784,7 +788,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           notes.push(`${doc.cubes.find((c) => c.id === cube)?.cube.source.name ?? cube} reads its rows live: its snap `
             + `(${copy.label}) was not read: ${e instanceof Error ? e.message : String(e)}`);
         }
-        if (!onScreen()) return;
+        if (!onScreen()) return [];
       }
       // each file the page reads, where it was picked: kept for the next time it is opened
       if (id !== undefined) await keepHandles(id);
@@ -800,6 +804,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       notes.length === 0 ? 'ok' : 'warn');
       // opened cleanly: the window goes, the page is what the person wanted to see
       if (notes.length === 0) closeCubes?.();
+      return taken;
     }
 
     /**
@@ -839,8 +844,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (pages) library = new CubeLibrary(windows.library, pages.store, {
       currentId: () => current.cubeId,
       dirty,
-      open: async (id) => openSaved(readSaved((await pages.store.get(id)).content), id),
-      openText: async (text) => openSaved(readSaved(text), undefined),
+      open: async (id) => { await openSaved(readSaved((await pages.store.get(id)).content), id); },
+      openText: async (text) => { await openSaved(readSaved(text), undefined); },
       forget: async (id) => {
         // every handle the page kept, whichever page is on screen
         await pages.handles?.removePage(id);
@@ -1315,12 +1320,21 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if (channel) channel.shown = undefined;
       const shown = page.shownSheet;
       // opened as the keeper has it: nothing the screen does meanwhile is an edit of its own
+      let taken: readonly string[] = [];
       const open = async (): Promise<void> => {
-        await openSaved({ kind: 'page', page: said.page }, undefined, true);
+        taken = await openSaved({ kind: 'page', page: said.page }, undefined, true);
         if (page.sheets.includes(shown)) page.showSheet(shown);
       };
       await (channel ? channel.following(open) : open());
       channel?.opened(said.version);
+      // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
+      // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
+      const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
+      for (const cube of taken) {
+        const now = opened?.cubes.find((c) => c.id === cube);
+        const told: PageCommand | undefined = now && { kind: 'rebuilt', cube, document: now.cube };
+        if (told) channel?.edit({ page: told });
+      }
       // the page as it opened, written once it settles (restoring is a change): Python's page is what is on screen
       liveChanged();
       return undefined;

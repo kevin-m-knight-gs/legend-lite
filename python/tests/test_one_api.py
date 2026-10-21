@@ -38,7 +38,7 @@ MODEL = PAGE.with_name('model.py')
 ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 
 # each ledger's size, pinned: lower it with the fix that shrank it; raise it only with a dated note here
-CEILINGS = {'L4_WHOLE': 3, 'L4_FLAGS': 13, 'L5_DOCUMENT': 9, 'L6_FUNCTIONS': 9, 'MARKERS': 17, 'L9_KEEPER': 6,
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 9, 'MARKERS': 15, 'L9_KEEPER': 6,
             'BEHAVIOUR': 7}
 
 
@@ -79,8 +79,6 @@ def _held_to(test, found, ledger, what, ceiling):
 # -- L4 ------------------------------------------------------------------------------------------------------------
 
 L4_WHOLE = {
-    'Grid._kept': (('Y3',), 1),
-    'Page._reopened': (('Y2',), 1),
     'Page.load': (ALLOWED, 1),  # N1: a page born whole
 }
 
@@ -112,8 +110,7 @@ L5_DOCUMENT = {
     'Page.grid': (ALLOWED, 1, '(was[0], was[1])'),  # a refused call puts back the page as it was
     'Page.join': (ALLOWED, 1, '(was[0], was[1])'),
     'Page.load': (ALLOWED, 1, 'doc'),  # N1: headless pageRead's page
-    'Grid._kept': (('Y3', 'Z1'), 1, None),
-    'Page._reopened': (('Y2', 'Z1', 'Z10'), 1, None),
+    'Grid._kept': (('Z1',), 1, None),
 }
 
 ROOTS = {'_doc', '_document', '_view', '_cube', '_query'}
@@ -241,8 +238,6 @@ MARKERS = [
     (PAGE, "path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)", ('Z6',), 1),
     (PAGE, "*({'kind': 'column', 'name': d, 'change': {'kind': 'dimension'}} for d in dimensions),", ('Z8',), 1),
     (PAGE, "'near': None, 'title': title, 'columns': None}], 'a title')", ('Z9',), 1),
-    (PAGE, "if not changed and cube['source'] == held['source']:", ('Z10',), 1),
-    (PAGE, "if applied and not said['notes'] and cube.get('source') == source:", ('Z11',), 1),
     (PAGE, "raise ValueError('a stack is two tiles or more')", ('Z13',), 1),
     (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
     (ENGINE, 'row snap limit. Narrow the filter, ', ('Z16',), 2),

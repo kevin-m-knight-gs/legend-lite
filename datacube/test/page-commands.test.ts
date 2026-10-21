@@ -245,6 +245,7 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'modelInto', project: 'datacube:q3', workspace: 'datacube', package: 'q3' },
     { kind: 'modelPin', revision: 'r2' },
     { kind: 'modelKeep', cube: 'grid', tables: ['t_trades'], class: null },
+    { kind: 'rebuilt', cube: 'grid', document: trades.cubes[0]!.cube },
   ];
 
   it('every kind, through JSON and back', () => {
@@ -292,5 +293,28 @@ describe("the page's model, by its commands (page-model.ts: P4)", () => {
     refused(() => applyPageCommand(with1, { kind: 'modelInto', project: 'q', workspace: 'w', package: 'k' }), /a page has one model/);
     refused(() => applyPageCommand(draftOf(start), { kind: 'modelPin', revision: 'r' }), /the page has no model yet/);
     refused(() => applyPageCommand(with1, { kind: 'modelKeep', cube: 'nope', tables: [], class: null }), /'nope' is no grid's cube/);
+  });
+});
+
+describe("a grid's cube opened again over its source as it is now, by its command (rebuilt: P11)", () => {
+  const draftOf = (p: PageDocument): PageDraft => ({ page: p, held: idsOf(p) });
+  const cube = trades.cubes[0]!;
+  const view = trades.views.find((v) => v.kind === 'grid' && v.cube === cube.id)!;
+
+  it('the cube document its host opened takes the place of the one held, nothing else of the page moved', () => {
+    // its frame a column more, as a host opens it again over the frame as it is now
+    const columns = (cube.cube.source as { readonly columns: readonly unknown[] }).columns;
+    const now = { ...cube.cube, source: { ...cube.cube.source, columns: [...columns, { name: 'book', type: 'String' }] } } as typeof cube.cube;
+    const after = applyPageCommand(draftOf(trades), { kind: 'rebuilt', cube: cube.id, document: now }).draft.page;
+    assert.deepEqual(after.cubes.find((c) => c.id === cube.id)!.cube, now);
+    assert.deepEqual({ ...after, cubes: trades.cubes }, trades);
+  });
+
+  it('refused in words: no such cube, a snapped grid (its copy does not move), another source', () => {
+    refused(() => applyPageCommand(draftOf(trades), { kind: 'rebuilt', cube: 'nope', document: cube.cube }), /'nope' is no grid's cube/);
+    const snapped = applyPageCommand(draftOf(trades), { kind: 'snap', grid: view.id, copy: SNAP }).draft;
+    refused(() => applyPageCommand(snapped, { kind: 'rebuilt', cube: cube.id, document: cube.cube }), /reads its snap/);
+    const other = { ...cube.cube, source: { ...cube.cube.source, name: 'elsewhere' } } as typeof cube.cube;
+    refused(() => applyPageCommand(draftOf(trades), { kind: 'rebuilt', cube: cube.id, document: other }), /a cube rebuilt reads the same source/);
   });
 });

@@ -1150,15 +1150,19 @@ class Live(Paged):
         with self.assertRaises(ValueError):
             page.name = '   '
         self.assertEqual(since(before + 1), {'version': before + 1, 'commands': []})
-        # a frame whose columns changed reopens its cubes: no command, the page opened again
+        # a frame whose columns changed reopens its cubes: each cube opened again is its page command (rebuilt: P11),
+        # DataCube's document of it as it is now
         grid.update(trades().drop(columns=['pnl']))
-        self.assertIn('page', since(before + 1))
+        moved = since(before + 1)['commands']
+        self.assertEqual([(c['page']['kind'], c['page']['cube']) for c in moved], [('rebuilt', grid._view['cube'])])
+        self.assertEqual(moved[0]['page']['document'], page.to_dict()['cubes'][0]['cube'])
+        self.assertNotIn('pnl', [c['name'] for c in moved[0]['page']['document']['source']['columns']])
         tab.close()
 
     def test_what_is_written_whole_rather_than_as_commands(self):
         # (the phase 3 audit's 5, 8 and test gaps) a refused grid writes nothing, and none of it later; the open page's
         # own write is no command (it is opened again by another view), and Python's next change, on top of it, is its
-        # commands; a grid's edit over a Live frame that changed in place, whole
+        # commands; a grid's edit over a Live frame that changed in place, its cube opened again first (rebuilt: P11)
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
         since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
@@ -1178,13 +1182,16 @@ class Live(Paged):
                          "Python's change on top of it, its commands")
         self.assertEqual(page.sheets[0].name, 'Renamed in a view')
         # a grid over a Live frame (a function) whose rows gained a column in place: its edit opens the cube again over
-        # the frame as it is, which is no command
+        # the frame as it is -- its own command, rebuilt -- and then is its commands
         holder = {'df': trades()}
         live = page.grid(lambda: holder['df'], name='livef')
         at = self.version(page)
         holder['df'] = trades().assign(extra=1)
         live.group('desk')
-        self.assertIn('page', since(at))
+        moved = since(at)['commands']
+        self.assertEqual([c.get('page', c.get('command'))['kind'] for c in moved], ['rebuilt', 'group'])
+        self.assertIn('extra', [c['name'] for c in moved[0]['page']['document']['source']['columns']])
+        self.assertEqual(moved[1], {'grid': live.id, 'command': {'kind': 'group', 'rows': ['desk']}})
         tab.close()
 
     def test_an_empty_page_is_not_shown(self):
@@ -1359,9 +1366,9 @@ class Live(Paged):
             page._leave(failed=True)
         self.assertEqual(page.grids, [other])
 
-    def test_a_change_by_no_command_made_while_the_open_page_wrote_is_refused(self):
-        # a cube opened again over a frame whose columns moved is no command: nothing to make again on top of the open
-        # page's write, so it is refused in words, the page as the open page wrote it
+    def test_a_cube_opened_again_while_the_open_page_wrote_is_its_command_made_again_on_that_write(self):
+        # (P11) a cube opened again over a frame whose columns moved is its command, rebuilt: made again on top of the
+        # open page's write as any command is -- the page as the open page wrote it, the cube as it opens now
         page, grid, _ = self.built()
         ll.show(page, browser=False)
         theirs = page.to_dict()
@@ -1369,11 +1376,12 @@ class Live(Paged):
         page._enter()
         try:
             self.assertEqual(self.said(page, theirs), 200)
-            with self.assertRaisesRegex(ValueError, 'which is no command to make again on it'):
-                grid.update(trades().assign(extra=1))
+            grid.update(trades().assign(extra=1))
         finally:
-            page._leave(failed=True)
+            page._leave(failed=False)
         self.assertEqual(page.name, 'Renamed in DataCube')
+        cube = next(c['cube'] for c in page.to_dict()['cubes'] if c['id'] == grid._view['cube'])
+        self.assertIn('extra', [c['name'] for c in cube['source']['columns']])
 
     def test_a_call_that_raised_writes_nothing_it_half_did(self):
         page, _, _ = self.built()

@@ -631,6 +631,29 @@ try {
       && document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') === null
       && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
 
+  // A FRAME CHANGED IN PLACE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11): the desks grid's Live frame a column more,
+  // which nothing in Python looks at; the tab opened again reads the frame as it is now, and tells the page in Python
+  // so by its command (rebuilt) -- before, the cube it opened was its own, and Python's page kept the old one
+  await python('py-page-desks-wider');
+  await tabbed.reload();
+  await seen('the page opened again after its desks frame changed in place',
+    `(${String(sheetNames)})() === 'pytrades|Renamed in DataCube|Added in Python'`);
+  const widened = await (async () => {
+    // the page writes its command once it settles (half a second): asked until it has, or ten seconds
+    for (let tries = 0; tries < 20; tries += 1) {
+      await new Promise((done) => { setTimeout(done, 500); });
+      engine.stdin.write('py-page-desks-columns\n');
+      const line = await nextLine();
+      if (!line.startsWith('done py-page-desks-columns ')) throw new Error(`the engine did not read the page: ${line}`);
+      const names = JSON.parse(line.slice('done py-page-desks-columns '.length));
+      if (names.includes('floor')) return names;
+    }
+    return undefined;
+  })();
+  console.log(`${widened ? 'ok  ' : 'FAIL'} the cube the open page opened again over the changed frame is the page's in Python`
+    + `${widened ? ` (${widened.join(', ')})` : ''}`);
+  if (!widened) failed = true;
+
   // SAVED FROM PYTHON (D, B6): page.save() keeps the page in this user's saved pages by the rules the tab's own Save
   // keeps it by; DataCube's Open… lists it, and it opens -- its sheets as Python saved them, its grid over its frame
   engine.stdin.write('py-page-save\n');

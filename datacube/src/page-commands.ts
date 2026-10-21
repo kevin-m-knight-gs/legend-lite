@@ -117,6 +117,9 @@ export type PageCommand =
   | { readonly kind: 'snap'; readonly grid: string; readonly copy: GridCopy }
   /** Grid `grid` reads its live base again (Go Live): its copy, which its host lets go, off the page. */
   | { readonly kind: 'live'; readonly grid: string }
+  /** A grid's cube opened again over its source as it is now (a frame whose columns moved: cube-document.ts rebuilt) --
+   *  made by the host whose frames they are, its document as that rebuild left it. */
+  | { readonly kind: 'rebuilt'; readonly cube: string; readonly document: CubeDocument }
   /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
    *  in it, the package its classes go in (modelMade, above). */
   | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
@@ -128,7 +131,7 @@ export type PageCommand =
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
   'setChartCube', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
-  'modelInto', 'modelPin', 'modelKeep',
+  'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
@@ -488,6 +491,19 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const { copies: _all, ...rest } = page;
       return done(rewritten(Object.keys(left).length > 0 ? { ...rest, copies: left } : rest, {}));
     }
+    case 'rebuilt': {
+      const held = page.cubes.find((c) => c.id === command.cube);
+      if (held === undefined) throw new CubeRefusal(`'${command.cube}' is no grid's cube of the page`);
+      if (page.copies?.[command.cube] !== undefined) {
+        throw new CubeRefusal(`'${command.cube}' reads its snap: its source does not move it until it goes live`);
+      }
+      const was = held.cube.source;
+      const now = command.document.source;
+      if (was._type !== now._type || was.name !== now.name) {
+        throw new CubeRefusal(`'${command.cube}' reads ${was.name}: a cube rebuilt reads the same source, not ${now.name}`);
+      }
+      return done(rewritten(page, { cubes: page.cubes.map((c) => (c.id === command.cube ? { id: c.id, cube: command.document } : c)) }));
+    }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
     case 'modelPin':
@@ -669,6 +685,9 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'live':
       fields(o, kind, ['grid']);
       return { kind, grid: text(o['grid'], 'a grid') };
+    case 'rebuilt':
+      fields(o, kind, ['cube', 'document']);
+      return { kind, cube: text(o['cube'], "a grid's cube"), document: cubeOf(o['document']) };
     case 'modelInto':
       fields(o, kind, ['project', 'workspace', 'package']);
       return { kind, project: text(o['project'], "a page model's project"), workspace: text(o['workspace'], "a page model's workspace"),

@@ -649,6 +649,19 @@ export function freshConfiguration(label: string, capped: boolean): CubeConfigur
 }
 
 /**
+ * WHETHER A SAVED CUBE OPENED AGAIN IS ANOTHER (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11, Z10): opening it left a
+ * part out (`changed`: rebuilt's), or its source is written otherwise now (a frame's columns moved). The one rule its
+ * page takes the cube by, as its `rebuilt` command -- the tab opening a host's page, the host (headless gridOpened).
+ */
+export function cubeTaken(changed: boolean, was: CubeSource, now: CubeSource): boolean {
+  const canonical = (v: unknown): unknown => (Array.isArray(v) ? v.map(canonical)
+    : v !== null && typeof v === 'object'
+      ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canonical((v as Record<string, unknown>)[k])]))
+      : v);
+  return changed || JSON.stringify(canonical(was)) !== JSON.stringify(canonical(now));
+}
+
+/**
  * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
  * configuration, the groups it had open, what it had that the source no longer has (`changed`: a part left out, as
  * openCube says) -- or a fresh one: its rows as they are, grouped by nothing; `capped` (gridCapped: a grid beside

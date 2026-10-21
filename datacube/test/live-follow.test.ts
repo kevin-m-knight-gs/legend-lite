@@ -86,6 +86,14 @@ describe('the commands applied, or refused so the page opens again', () => {
     assert.deepEqual(moved.asked, ['open grid-5', 'open grid-6', 'discard grid-5', 'discard grid-6'], 'nothing followed; both let go');
   });
 
+  it("a cube its host opened again over its frames (rebuilt): refused before anything is applied, so the page opens again", async () => {
+    const { t, asked } = target({ grids: ['grid-1'] });
+    await assert.rejects(applyLive([
+      page({ kind: 'rebuilt', cube: 'cube-1', document: frameCube('trades') }), grid('grid-1', { kind: 'group', rows: ['desk'] }),
+    ], t), /grid cube-1 was opened again over its source/);
+    assert.deepEqual(asked, [], 'nothing followed');
+  });
+
   it('a join of frames reads each: one of them moving while it was opened refuses it (§18.3, leavesOf)', async () => {
     const add = (id: string, document: CubeDocument): LiveCommand => page({
       kind: 'addGrid', id, document, sheet: 'sheet-1', near: null, title: null, columns: null,

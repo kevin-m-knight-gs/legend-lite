@@ -461,13 +461,14 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
       opened: async (cube: string, page: string, gridsOnPage: number): Promise<HostOpened> => {
         // read exactly: the relation's numbers as their digits (a join condition's decimal)
         const said = fromJson(await posted(link, 'opened.json', { cube, page, gridsOnPage })) as {
-          cube: string; notes: string[]; model: string; runtime: string; relation?: unknown; frames: Record<string, ExactNumber>;
+          cube: string; notes: string[]; taken: boolean; model: string; runtime: string; relation?: unknown;
+          frames: Record<string, ExactNumber>;
         };
         if (said.relation === undefined) throw new Error('Python opened no join of its frames: it said no relation');
         const relation = readValueSpecification(said.relation);
         if (relation._type !== 'lambda' || relation.body.length !== 1) throw new Error('Python said a relation that is no query');
         return {
-          cube: said.cube, notes: said.notes, model: said.model, runtime: said.runtime, relation: relation.body[0]!,
+          cube: said.cube, notes: said.notes, taken: said.taken, model: said.model, runtime: said.runtime, relation: relation.body[0]!,
           frames: Object.fromEntries(Object.entries(said.frames).map(([name, v]) => [name, Number(v.text)])),
         };
       },

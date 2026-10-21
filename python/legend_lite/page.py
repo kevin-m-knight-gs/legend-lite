@@ -267,6 +267,7 @@ class Grid(Tile):
         ...}``, ``{'kind': 'configure', 'patch': {...}}`` and the rest -- applied by DataCube's own function in order
         (headless gridApply), the grid then compiled as Apply compiles it: refused in DataCube's words, nothing set; else
         the cube document DataCube writes, its open groups kept as the screen keeps them."""
+        self._page._current(self._view['cube'], 5)
         engine, frames = self._headless()
         with frames.serving():
             said = json.loads(engine.call('gridApply', self._spec(engine, frames), _json.dumps(commands)))
@@ -277,19 +278,14 @@ class Grid(Tile):
     def _kept(self, said: dict[str, Any], stacklevel: int) -> Grid:
         """The cube document DataCube wrote for an edit, kept whole -- never a part of it Python sets itself -- and what
         opening it over its frame changed, said in DataCube's words, as a load says it."""
-        source = _copied(self._cube.get('source', {}))
         cube = _plain(_json.loads(said['cube']))
         self._page._doc = _with_cube(self._page._doc, self._view['cube'], cube)
         # the commands DataCube applied, as the screen would have built them: the page's record of its edits, and what a
-        # page open on it applies to this grid -- unless the cube was opened again over a frame that changed (its source
-        # is another, or opening it left something out): a change by no command, which it follows by opening the page
-        # again (the phase 3 audit's 8)
+        # page open on it applies to this grid. The cube was opened again over its frames before the edit (``_current``:
+        # a frame that changed is its own ``rebuilt`` page command), so what changed of it here is these commands
         applied = [_plain(c) for c in said['commands']]
         self._page._commands.extend(applied)
-        if applied and not said['notes'] and cube.get('source') == source:
-            self._page._note([{'grid': self._id, 'command': c} for c in applied])
-        else:
-            self._page._unnoted()
+        self._page._note([{'grid': self._id, 'command': c} for c in applied])
         for note in said['notes']:
             warnings.warn(f"{cube['source']['name']}: {note}", stacklevel=stacklevel)
         self._page._changed()
@@ -1460,9 +1456,10 @@ class Page:
             page._doc = doc
             page._ids |= _ids(doc)
             # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out
-            # here too and said once, so no later call on the grid sends it
-            for c in doc['cubes']:
-                page._reopened(c['id'], 3)
+            # here too and said once, so no later call on the grid sends it -- each its command, none written alone
+            with page._batch(tell=False):
+                for c in doc['cubes']:
+                    page._reopened(c['id'], 3)
             # a page loaded is a page made whole, by no command
             page._unnoted()
         return page
@@ -1604,11 +1601,11 @@ class Page:
         types it now (``_reopened``); the page served again when one changed."""
         session = self._session
         session.register(frame, name)
-        # every cube reading the frame reopened (a join of it among them), whichever changed
+        # every cube reading the frame reopened (a join of it among them), whichever changed: their commands written once
         reading = [c['id'] for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'])]
-        reopened = [self._reopened(id, 4) for id in reading]
-        if any(reopened):
-            self._changed()
+        with self._batch():
+            for id in reading:
+                self._reopened(id, 4)
 
     def _reopened(self, id: str, stacklevel: int) -> bool:
         """The page's cube ``id`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
@@ -1624,15 +1621,14 @@ class Page:
             return False
         held = next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
         label = held['source']['name']
-        cube, notes, changed = self._opened_cube(held)
-        # its frames' columns as they were, nothing left out: the cube stands as it is (opened again, the same)
-        if not changed and cube['source'] == held['source']:
+        cube, notes, taken = self._opened_cube(held)
+        # whether it is taken is DataCube's rule (headless gridOpened `taken`): not, the cube stands as it is
+        if not taken:
             return False
         for note in notes:
             warnings.warn(f'{label}: {note}', stacklevel=stacklevel)
-        self._doc = _with_cube(self._doc, id, cube)
-        # a change by no command: a page open on it opens it again
-        self._unnoted()
+        # taken by the page command that says so, applied as DataCube applies it: a page open on it opens it again
+        self._apply_page([{'kind': 'rebuilt', 'cube': id, 'document': cube}])
         return True
 
     def _current(self, cube: str, stacklevel: int) -> None:
@@ -1649,7 +1645,7 @@ class Page:
         with frames.serving():
             made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
                                           len(self._doc['cubes'])))
-        return _plain(_json.loads(made['cube'])), list(made['notes']), made['changed']
+        return _plain(_json.loads(made['cube'])), list(made['notes']), made['taken']
 
     def _frame_cube(self, frame: str, grids_on_page: int,
                     saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str], bool]:
