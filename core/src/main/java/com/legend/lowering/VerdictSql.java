@@ -1336,10 +1336,15 @@ public final class VerdictSql {
         List<SqlSelect.SortKey> order = s.byCanonText() ? List.of() : ws.orderBy();
         SqlSelect trimmed = new SqlSelect(kept, ws.distinct(), ws.from(), ws.where(), ws.groupBy(),
                 ws.having(), ws.qualify(), order, ws.limit(), ws.offset(), keptOuts);
-        SqlExpr canon = asText(SqlExpr.Column.of("w", keptOuts, s.canonColumn()));
-        SqlExpr valueRef = SqlExpr.Column.of("w", keptOuts, java.util.Objects.requireNonNull(value.alias()));
-        SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                List.of(), List.of(), null);
+        // an ordered side's rows numbered by its own order, inside it (SideOrdinal), never by their arrival through
+        // the derived table: a database need not keep a derived table's order (Snowflake's numbering of the arrival,
+        // ORDER BY NULL, and Trino's lost sort's testSimpleSortShared and testSimpleSort_MultipleExpressions, measured
+        // 2026-10-21; the grid sides' own fix of 2026-10-20)
+        SqlQuery read = order.isEmpty() ? trimmed : SideOrdinal.withOrdinal(trimmed);
+        List<OutputCol> readOuts = read.outputs();
+        SqlExpr canon = asText(SqlExpr.Column.of("w", readOuts, s.canonColumn()));
+        SqlExpr valueRef = SqlExpr.Column.of("w", readOuts, java.util.Objects.requireNonNull(value.alias()));
+        SqlExpr rn = rowNumber(readOuts);
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -1351,7 +1356,7 @@ public final class VerdictSql {
             ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
             outs.add(vOut);
         }
-        return new SqlSelect(ps, false, new SqlSource.Subselect(trimmed, "w", null),
+        return new SqlSelect(ps, false, new SqlSource.Subselect(read, "w", null),
                 SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), List.of(), null, null, List.of(),
                 null, null, List.copyOf(outs));
     }
