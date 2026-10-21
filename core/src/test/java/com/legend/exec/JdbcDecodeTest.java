@@ -44,7 +44,14 @@ class JdbcDecodeTest {
     private static List<List<Object>> rows(Connection c, String sql, List<ExecutionPlan.Column> columns)
             throws Exception {
         List<List<Object>> out = new ArrayList<>();
-        new JdbcStatements(c).rows(sql, List.of(), List.of(), columns, out::add);
+        // checked against its database first, as the runner checks every session (the timestamp re-read is its fact)
+        JdbcStatements st = new JdbcStatements(c);
+        st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                c.getMetaData().getDatabaseProductName().equals("DuckDB")
+                        ? com.legend.model.ConnectionDefinition.DatabaseType.DuckDB
+                        : com.legend.model.ConnectionDefinition.DatabaseType.H2),
+                new ExecutionPlan.Servers.Every(), List.of(), List.of()));
+        st.rows(sql, List.of(), List.of(), columns, out::add);
         return out;
     }
 
@@ -110,6 +117,23 @@ class JdbcDecodeTest {
             assertEquals("{\"k\":1}", r.get(9));
             // H2's LEGACY mode hands a DOUBLE aggregate back as a BigDecimal: the slot says the double
             assertEquals(4.0d, r.get(10));
+        }
+    }
+
+    /** A database whose driver re-reads no timestamp as java.time keeps the driver's Timestamp, the same date-time
+     *  for an AD year (2026-10-21: Snowflake's driver refuses the re-read, and the typed seam re-read every timestamp
+     *  regardless; the legacy executor's rule, {@code SqlDialect.refetchesTimestampAsJavaTime}). */
+    @Test
+    void aTimestampTheDriverDoesNotReReadIsTheDriversOwn() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_keep" + H2Settings.SETTINGS);
+                java.sql.Statement st = c.createStatement();
+                java.sql.ResultSet rs = st.executeQuery("SELECT TIMESTAMP '2024-01-02 10:30:00.123456' AS TS")) {
+            rs.next();
+            assertTrue(rs.getObject(1) instanceof java.sql.Timestamp, "H2 hands a TIMESTAMP back as a Timestamp");
+            List<ExecutionPlan.Column> cols = List.of(col("TS", "DateTime", "TIMESTAMP"));
+            assertEquals(List.of(PureDateLiteral.parse("2024-01-02T10:30:00.123456000")),
+                    JdbcDecode.row(rs, cols, false));
+            assertEquals(JdbcDecode.row(rs, cols, true), JdbcDecode.row(rs, cols, false));
         }
     }
 

@@ -245,6 +245,14 @@ public final class Snowflake extends AnsiSqlRenderer {
         return delimited(name);
     }
 
+    /** A CTE's name quoted as every identifier is: written bare it folds to upper case, and a reference written as a
+     *  table is quoted -- the database judge's verdict read its CTEs so and was refused "Object '"__se"' does not
+     *  exist" on every channel B test (measured on the lane, 2026-10-21). */
+    @Override
+    protected String cteName(String name) {
+        return ident(name);
+    }
+
     /** Alias-less projections label EXPLICITLY from the declared output: Snowflake labels an expression by its
      *  upper-cased text. */
     @Override

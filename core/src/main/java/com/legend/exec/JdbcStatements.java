@@ -25,6 +25,10 @@ final class JdbcStatements implements Statements {
 
     private final Connection c;
 
+    /** Whether the session's driver re-reads a timestamp cell as {@code java.time}: its database's fact, known once
+     *  {@link #check} has checked the session against the plan's target; null before. */
+    private @com.legend.base.Nullable Boolean javaTime;
+
     JdbcStatements(Connection c) {
         this.c = c;
     }
@@ -32,6 +36,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void check(ExecutionPlan.Target target) {
         Sessions.check(c, target.database().type());
+        javaTime = com.legend.database.Databases.dialect(target.database().type()).refetchesTimestampAsJavaTime();
         switch (target.servers()) {
             case ExecutionPlan.Servers.Every every -> {
                 // the spelling depends on no version
@@ -90,8 +95,13 @@ final class JdbcStatements implements Statements {
                             + " declares " + columns.size() + " " + columns.stream().map(ExecutionPlan.Column::name)
                             .toList() + ": a typed-rows statement answers the plan's columns in their order");
                 }
+                Boolean javaTime = this.javaTime;
+                if (javaTime == null) {
+                    throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                            + " the driver's timestamp re-read is its database's fact");
+                }
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, columns));
+                    cells.row(JdbcDecode.row(rs, columns, javaTime));
                 }
             }
         } catch (SQLException e) {

@@ -189,7 +189,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     if (i > 0) {
                         writer.append(", ");
                     }
-                    writer.append(w.ctes().get(i).name()).append(cteAs(w.ctes().get(i)));
+                    writer.append(cteName(w.ctes().get(i).name())).append(cteAs(w.ctes().get(i)));
                     query(writer, w.ctes().get(i).query(), depth + 1);
                     writer.append(')');
                 }
@@ -425,7 +425,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 }
                 yield writer;
             }
-            case SqlSource.Cte c -> writer.append(c.name()).append(" AS ").append(aliasIdent(c.alias()));
+            case SqlSource.Cte c -> writer.append(cteName(c.name())).append(" AS ").append(aliasIdent(c.alias()));
             case SqlSource.Subselect sub -> subselectSource(writer, sub, depth);
             // cross-store plan variable: freemarker splice at execution
             // (engine VarSetPlaceHolder — plan text only; a DuckDB
@@ -457,6 +457,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 yield writer;
             }
         };
+    }
+
+    /** A CTE's name, at its head and wherever a {@link SqlSource.Cte} reads it: as written. A dialect whose unquoted
+     *  names fold spells it as it spells a table's, so a reference written as a table ({@code VerdictSql}'s) is the
+     *  same name (Snowflake, 2026-10-21). */
+    protected String cteName(String name) {
+        return name;
     }
 
     /** ANSI row-constructor VALUES with column aliases; SQLite overrides (UNION ALL). */

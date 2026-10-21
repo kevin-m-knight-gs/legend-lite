@@ -51,17 +51,20 @@ final class JdbcDecode {
     }
 
     /** The cells of the row {@code rs} stands on, one per column of {@code columns}, the i-th column read from the
-     *  i-th result column: a typed-rows statement answers the plan's columns in their order. */
-    static List<Object> row(ResultSet rs, List<ExecutionPlan.Column> columns) throws SQLException {
+     *  i-th result column: a typed-rows statement answers the plan's columns in their order. {@code javaTime}: the
+     *  driver re-reads a timestamp cell as {@code java.time} (its database's fact,
+     *  {@link com.legend.sql.dialect.SqlDialect#refetchesTimestampAsJavaTime}). */
+    static List<Object> row(ResultSet rs, List<ExecutionPlan.Column> columns, boolean javaTime) throws SQLException {
         List<Object> out = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
-            out.add(cell(rs, i + 1, columns.get(i)));
+            out.add(cell(rs, i + 1, columns.get(i), javaTime));
         }
         return out;
     }
 
     /** Result column {@code i} as the cell of {@code c}. */
-    static @com.legend.base.Nullable Object cell(ResultSet rs, int i, ExecutionPlan.Column c) throws SQLException {
+    static @com.legend.base.Nullable Object cell(ResultSet rs, int i, ExecutionPlan.Column c, boolean javaTime)
+            throws SQLException {
         Object v;
         switch (RowDecode.slotWord(c.slot())) {
             // the texts: a label whose text carries its own kind, and a text slot (a number the database holds
@@ -71,8 +74,11 @@ final class JdbcDecode {
                 v = rs.getObject(i);
                 // a timestamp or a time re-read as java.time: BC-faithful, and a time with the microseconds its
                 // column holds (the legacy executor's fetch); a driver that answers the re-read with nothing is
-                // refused, never kept
-                if (v instanceof java.sql.Timestamp) {
+                // refused, never kept. A database whose driver re-reads no timestamp keeps the driver's Timestamp,
+                // as the legacy executor did (Snowflake's refuses the re-read and Databricks' answers it with text,
+                // both measured 2026-10-11; on the typed seam Snowflake's refusal failed 48 channel B tests,
+                // measured on its lane 2026-10-21)
+                if (v instanceof java.sql.Timestamp && javaTime) {
                     v = reread(rs, i, LocalDateTime.class, c);
                 } else if (v instanceof java.sql.Time) {
                     v = reread(rs, i, LocalTime.class, c);
