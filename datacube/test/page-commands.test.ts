@@ -322,13 +322,80 @@ describe("a page's charts following their cubes, by one rule wherever a cube cha
       views: trades.views.map((v) => (v.id === 'chart' ? { ...v, selection: [mark] } : v)),
       cubes: trades.cubes.map((c) => (c.id === cube.id ? { ...c, cube: { ...c.cube, query: { ...c.cube.query, filter: mark } } } : c)),
     };
-    assert.deepEqual(followedPage(selected, cube.id), selected, 'nothing moved: the same page');
+    assert.deepEqual(followedPage(selected, cube.id, selected), selected, 'nothing moved: the same page');
     // regrouped by desk alone and the filter cleared, as a grid's edit leaves its cube
     const edited = withCube(selected, cube.id, { ...cube.cube, query: { ...cube.cube.query, rows: ['desk'] } });
-    const after = followedPage(edited, cube.id);
+    const after = followedPage(edited, cube.id, selected);
     assert.equal(chartOf(after, 'chart').spec.x, 'desk', 'the live chart regrouped');
     assert.equal(chartOf(after, 'chart').selection, undefined, 'its selection gone with the filter that held it');
     assert.equal(chartOf(after, 'chart-2').spec.x, 'region', 'the frozen one as it was');
+  });
+});
+
+describe("a chart's selection judged only when its cube's filter moves (the S2 audit's 1 and 5: F1, F2)", () => {
+  const draftOf = (p: PageDocument): PageDraft => ({ page: p, held: idsOf(p) });
+  const chartOf = (p: PageDocument, id: string): ChartView => p.views.find((v) => v.id === id) as ChartView;
+  const cube = trades.cubes[0]!;
+  const mark: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' };
+  const filtered = (p: PageDocument, filter: FilterNode | undefined): PageDocument => withCube(p, cube.id,
+    { ...cube.cube, query: { ...(({ filter: _f, ...q }) => q)(cube.cube.query), ...(filter ? { filter } : {}) } });
+  const selecting = (p: PageDocument, ...charts: string[]): PageDocument =>
+    ({ ...p, views: p.views.map((v) => (charts.includes(v.id) ? { ...v, selection: [mark] } : v)) });
+
+  it("a click's select told before its grid's refilter lands keeps its selection through edits that leave the filter", async () => {
+    // the tab tells [select EMEA, addSort, refilter +EMEA]: the select at once, the grid's two when each commits
+    const before = filtered(trades, undefined);
+    const told = applyPageCommand(draftOf(before), { kind: 'select', chart: 'chart', conditions: [mark] }).draft.page;
+    // made again on top of another writer's page (rebaseEdits), each grid edit following the page by the one rule
+    const sorted = { ...cube.cube, query: { ...cube.cube.query, sorts: [{ column: 'desk', direction: 'asc' as const }] } };
+    const done = await rebaseEdits(draftOf(before), [
+      { page: { kind: 'select', chart: 'chart', conditions: [mark] } },
+      { grid: 'grid', command: { kind: 'addSort', column: 'desk', direction: 'asc' } },
+      { grid: 'grid', command: { kind: 'refilter', remove: [], add: [mark] } },
+    ], async (_page, held, _id, commands) => (commands[0]!.kind === 'addSort'
+      ? { ...held, query: { ...held.query, sorts: sorted.query.sorts } } : { ...held, query: { ...held.query, filter: mark } }));
+    assert.deepEqual(chartOf(done.page, 'chart').selection, [mark], 'the selection kept: the filter caught up');
+    // Python's options() on the chart while the refilter is in flight: setChart judges nothing of the filter
+    const options = applyPageCommand(draftOf(told), { kind: 'setChart', chart: 'chart', spec: { ...chartOf(told, 'chart').spec, mark: 'line' } }).draft.page;
+    assert.deepEqual(chartOf(options, 'chart').selection, [mark]);
+  });
+
+  it("a chart removed takes its selection off its cube's filter, and the cube's other charts are judged by it", () => {
+    // two charts of one grid, both selecting EMEA, the filter holding it once (an edit in its Filters window)
+    const two = applyPageCommand(draftOf(trades), { kind: 'addChart', near: 'grid', spec: chartOf(trades, 'chart').spec, title: null, columns: null });
+    const both = selecting(filtered(two.draft.page, mark), 'chart', 'chart-3');
+    const after = applyPageCommand(draftOf(both), { kind: 'removeTile', tile: 'chart' }).draft.page;
+    assert.equal(after.cubes.find((c) => c.id === cube.id)!.cube.query.filter, undefined, "its selection off the grid's filter");
+    assert.equal(chartOf(after, 'chart-3').selection, undefined, 'the other chart no longer holds a selection its filter lacks');
+  });
+});
+
+describe("a cube changed by a page command, its live charts following it (followedPage: the S2 audit's 3)", () => {
+  const draftOf = (p: PageDocument): PageDraft => ({ page: p, held: idsOf(p) });
+  const chartOf = (p: PageDocument, id: string): ChartView => p.views.find((v) => v.id === id) as ChartView;
+  const cube = trades.cubes[0]!;
+
+  it("rebuilt over a frame that lost the live chart's column across: the chart regrouped as the cube opens", () => {
+    assert.equal(chartOf(trades, 'chart').spec.x, 'region');
+    const frame = cube.cube.source as FrameSource;
+    const now: FrameSource = { ...frame, columns: frame.columns.filter((c) => c.name !== 'region') };
+    const after = applyPageCommand(draftOf(trades), { kind: 'rebuilt', cube: cube.id, source: now }).draft.page;
+    assert.deepEqual(after.cubes.find((c) => c.id === cube.id)!.cube.query.rows, ['desk']);
+    assert.equal(chartOf(after, 'chart').spec.x, 'desk');
+  });
+
+  it("setChartCube gives a detached chart following its own query a cube of another grouping: it follows it", () => {
+    // grid-2 removed: its frozen chart-2 stays, detached; made to follow (Python's setChart), then given its own query
+    const grid2 = trades.views.find((v) => v.kind === 'grid' && v.id === 'grid-2')!;
+    let d = applyPageCommand(draftOf(trades), { kind: 'removeTile', tile: grid2.id }).draft;
+    const { frozen: _f, ...live } = chartOf(d.page, 'chart-2').spec;
+    d = applyPageCommand(d, { kind: 'setChart', chart: 'chart-2', spec: live }).draft;
+    const kept = d.page.cubes.find((c) => c.id === grid2.cube)!.cube;
+    assert.equal(chartOf(d.page, 'chart-2').spec.x, 'region', 'following its grid as it was: across region');
+    const own = { ...kept, query: { ...kept.query, rows: ['desk'], pivotOn: [] } };
+    const after = applyPageCommand(d, { kind: 'setChartCube', chart: 'chart-2', document: own }).draft.page;
+    assert.equal(chartOf(after, 'chart-2').cube, 'chart-2-query');
+    assert.equal(chartOf(after, 'chart-2').spec.x, 'desk', 'following its own query: across desk');
   });
 });
 

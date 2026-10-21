@@ -278,6 +278,8 @@ class Grid(Tile):
         cube = _plain(_json.loads(said['cube']))
         kept = json.loads(self._page._session.headless().call(
             'pageWithCube', _json.dumps(self._page._doc), self._view['cube'], said['cube']))
+        if 'problems' in kept:
+            raise ValueError('; '.join(kept['problems']))
         self._page._doc = _plain(_json.loads(kept['page']))
         # the commands DataCube applied, as the screen would have built them: the page's record of its edits, and what a
         # page open on it applies to this grid. The cube was opened again over its frames before the edit (``_current``:
@@ -951,7 +953,7 @@ class Page:
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
         # the ids the last commit gave out afresh, old to new (its edits made again on top of an open page's write)
-        self._given: dict[str, str] = {}
+        self._regiven: dict[str, str] = {}
         # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
         self._ids: set[str] = _ids(self._doc)
         # where it is shown (datacube.show_page): told each time it changes
@@ -1047,13 +1049,14 @@ class Page:
     def _renamed(self, renamed: Mapping[str, str]) -> None:
         """Each handle of a tile or a sheet whose id was given out afresh (its change made again on top of the page as it
         was then), under its new one."""
-        self._given = {**self._given, **renamed}
-        for old, new in renamed.items():
-            for key in [k for k in self._handles if k[1] == old]:
-                handle = self._handles.pop(key)
-                handle._id = new
-                self._handles[(key[0], new)] = handle
-            self._ids.add(new)
+        self._regiven = {**self._regiven, **renamed}
+        # every handle that moves taken off first: in a chain (sheet-2 -> sheet-3, sheet-3 -> sheet-4) each goes where its
+        # own new id says, never onto another's place (the S2 audit's 6, F4)
+        moving = [(key, self._handles.pop(key)) for key in [k for k in self._handles if k[1] in renamed]]
+        for (kind, old), handle in moving:
+            handle._id = renamed[old]
+            self._handles[(kind, renamed[old])] = handle
+        self._ids.update(renamed.values())
 
     # -- the page's model (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): its classes, into a project ----------------------
 
@@ -1535,11 +1538,11 @@ class Page:
         applied = [_plain(c) for c in said['commands']]
         self._page_commands.extend(applied)
         self._note([{'page': c} for c in applied])
-        self._given = {}
+        self._regiven = {}
         self._changed()
         # an id a command made, given out afresh as the write was made again on top of an open page's (_renamed): the
         # caller's handle is made under the id the page gives it, never the one taken
-        return [{**c, 'id': self._given.get(c['id'], c['id'])} if isinstance(c.get('id'), str) else c for c in applied]
+        return [{**c, 'id': self._regiven.get(c['id'], c['id'])} if isinstance(c.get('id'), str) else c for c in applied]
 
     def _note(self, commands: list[dict[str, Any]]) -> None:
         """Commands that changed the page, for a page open on it to apply (``_changed`` serves them)."""

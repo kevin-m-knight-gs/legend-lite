@@ -183,7 +183,14 @@ function editedGrid(seed: number): { draft: GridDraft; steps: string[]; tree: Tr
   }
   // some groups open, as a person leaves a grid: a value of each grouping level, or none
   const open = d.snapshot.rows.length > 0 && rand() < 0.5 ? [['EMEA'], ...(d.snapshot.rows.length > 1 ? [['EMEA', 'Rates']] : [])] : [];
-  return { draft: d, steps, tree: TreeState.fromPaths(open, rand() < 0.5) };
+  let tree = TreeState.fromPaths(open, rand() < 0.5);
+  // and the level the groups open to, a group closed by hand under it (V5; the S2 audit's 10)
+  if (d.snapshot.rows.length > 0 && rand() < 0.5) {
+    tree = tree.withExpandTo(1 + Math.floor(rand() * 2));
+    if (rand() < 0.5) tree = tree.collapse(['AMER']);
+    steps.push(`expanded to ${tree.expandTo}${tree.closedPaths.length > 0 ? ', AMER closed' : ''}`);
+  }
+  return { draft: d, steps, tree };
 }
 
 /** The grid as the screen's state owner holds it: its configuration folded into its query (cube-state.ts fold). */

@@ -91,6 +91,16 @@ describe('each command gives what the screen\'s own edit gives', () => {
     assert.equal(applyGridCommand(d, { kind: 'configure', patch: { showRootAggregation: true } }).config.showRootAggregation, true);
   });
 
+  it("configure giving a tree's setting again as it is moves nothing: a group closed under the level stays closed (F3)", () => {
+    const levelled = applyGridCommand({ ...d, tree: TreeState.fromPaths([]) }, { kind: 'configure', patch: { initialExpandToLevel: 1 } });
+    const closed = { ...levelled, tree: levelled.tree!.collapse(['EMEA']) };
+    assert.equal(closed.tree.isOpen(['EMEA'], 2), false, 'closed by hand under the level');
+    // Python's configure names every setting it is given; the screen's Properties sends only what changed
+    const again = applyGridCommand(closed, { kind: 'configure', patch: { initialExpandToLevel: 1, showRootAggregation: closed.config.showRootAggregation } });
+    assert.equal(again.tree, closed.tree, 'the tree as it was');
+    assert.equal(again.tree!.isOpen(['EMEA'], 2), false);
+  });
+
   it('configure refuses a setting DataCube has not, a column the grid has not, and a total\'s own Aggregation', () => {
     refused(() => applyGridCommand(d, { kind: 'configure', patch: { maxRow: 5 } }), /'maxRow' is not a grid's setting/);
     refused(() => applyGridCommand(d, { kind: 'configure', patch: { columns: { nope: { hidden: true } } } }),

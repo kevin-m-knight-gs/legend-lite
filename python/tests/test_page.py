@@ -1423,6 +1423,17 @@ class Live(Paged):
         mine.name = 'Mine, renamed'
         self.assertEqual({s['id']: s.get('name') for s in page.to_dict()['sheets']}[taken], 'There', "the open page's sheet untouched")
 
+    def test_handles_given_out_afresh_in_a_chain_each_follow_their_own_new_id(self):
+        # (the S2 audit's 6, F4) a write that made two sheets, made again on top of a page that took the first one's id:
+        # the first moves to the second's id and the second to the next -- each handle under its own, none lost
+        page, _, _ = self.built()
+        first, second = page.sheet('First'), page.sheet('Second')
+        was = (first.id, second.id)
+        page._renamed({was[0]: was[1], was[1]: 'sheet-90'})
+        self.assertEqual((first.id, second.id), (was[1], 'sheet-90'))
+        self.assertIs(page._handles[(type(first), was[1])], first)
+        self.assertIs(page._handles[(type(second), 'sheet-90')], second)
+
     def test_a_cube_opened_again_while_the_open_page_wrote_is_its_command_made_again_on_that_write(self):
         # (P11) a cube opened again over a frame whose columns moved is its command, rebuilt: made again on top of the
         # open page's write as any command is -- the page as the open page wrote it, the cube as it opens now

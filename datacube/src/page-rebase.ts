@@ -150,7 +150,7 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
       const held = d.page.cubes.find((c) => c.id === view.cube);
       if (held === undefined) throw new CubeRefusal(`${grid} shows no cube the page holds`);
       // the cube as the grid's edit leaves it, its charts following it (page-commands.ts followedPage: V1, V2)
-      d = { ...d, page: followedPage(withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, [edit.command])), view.cube) };
+      d = { ...d, page: followedPage(withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, [edit.command])), view.cube, d.page) };
       applied.push({ grid, command: edit.command });
       continue;
     }

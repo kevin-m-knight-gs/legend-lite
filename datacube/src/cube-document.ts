@@ -520,6 +520,10 @@ function readTree(raw: unknown): CubeDocument['tree'] {
   if (closed !== undefined && !Array.isArray(closed)) {
     throw new CubeDocumentError(`the tree's closed groups are row paths, not ${JSON.stringify(closed)}`);
   }
+  // a group is closed under the level the groups open to: a tree of none has nothing to close (the S2 audit's 10)
+  if (closed !== undefined && closed.length > 0 && !expandTo) {
+    throw new CubeDocumentError("the tree's closed groups are closed under its expand level: it has none");
+  }
   return {
     open, showTotals: t['showTotals'] === true,
     ...(expandTo ? { expandTo, ...(closed && closed.length > 0 ? { closed: closed.map(path) } : {}) } : {}),
@@ -676,9 +680,8 @@ function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<Opene
     ...(filter !== undefined ? { filter } : {}),
     epoch: 0,
   };
-  // The open rows are paths through the saved grouping; a different grouping has none.
-  const tree = TreeState.saved(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals, doc.tree.expandTo ?? 0,
-    shapeChanged ? [] : doc.tree.closed ?? []);
+  // The open rows are paths through the saved grouping; a different grouping has none (its level stays)
+  const tree = shapeChanged ? TreeState.saved([], doc.tree.showTotals, doc.tree.expandTo ?? 0, []) : treeOf(doc);
   // changed: a part left out -- the cube held is not the one saved
   const changed = notes.some((n) => n.startsWith('left out'));
   return { query: snapshot, configuration, tree, notes, changed };

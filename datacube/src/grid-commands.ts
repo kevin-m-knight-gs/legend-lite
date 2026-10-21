@@ -288,7 +288,7 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
   }
   if (isObject(appearance)) known(Object.keys(appearance), APPEARANCE_SETTINGS, 'an appearance setting');
   let d = treed(patched(draft, { ...cleared(settings), ...(isObject(appearance) ? { appearance: cleared(appearance) } : {}) }),
-    settings);
+    draft.config);
   if (columns === undefined) return d;
   if (!isObject(columns)) throw new CubeRefusal("a grid's columns' settings are by name: {name: {setting: value}}");
   for (const [name, c] of Object.entries(columns)) {
@@ -337,16 +337,19 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
 }
 
 /**
- * The tree moved by the settings that decide it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md G3): "Show root aggregation"
- * shows the grand total or not, "Initially expand to level" opens the groups to that depth as they load (upstream's
- * isServerSideGroupOpenByDefault) -- in the same change as the settings, so the screen's Properties and a host's
- * configure move it alike. A draft of no open groups (an editor's) has no tree to move.
+ * The tree moved by the settings that decide it, as they change from `was` (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+ * G3): "Show root aggregation" shows the grand total or not, "Initially expand to level" opens the groups to that depth
+ * as they load (upstream's isServerSideGroupOpenByDefault) -- in the same change as the settings, so the screen's
+ * Properties (which sends only what changed) and a host's configure move it alike: a setting given again as it is moves
+ * nothing, the groups closed under its level staying closed (the S2 audit's 4, F3). A draft of no open groups (an
+ * editor's) has no tree to move.
  */
-function treed<D extends GridDraft>(draft: D, settings: Readonly<Record<string, unknown>>): D {
+function treed<D extends GridDraft>(draft: D, was: CubeConfiguration): D {
   if (draft.tree === undefined) return draft;
   let tree = draft.tree;
-  if (Object.hasOwn(settings, 'showRootAggregation')) tree = tree.withTotals(draft.config.showRootAggregation);
-  if (Object.hasOwn(settings, 'initialExpandToLevel')) tree = tree.withExpandTo(draft.config.initialExpandToLevel ?? 0);
+  if (draft.config.showRootAggregation !== was.showRootAggregation) tree = tree.withTotals(draft.config.showRootAggregation);
+  const level = draft.config.initialExpandToLevel ?? 0;
+  if (level !== (was.initialExpandToLevel ?? 0)) tree = tree.withExpandTo(level);
   return tree === draft.tree ? draft : { ...draft, tree };
 }
 

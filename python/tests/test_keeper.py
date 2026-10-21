@@ -383,17 +383,44 @@ class OpenPage:
                 'kind': 'addSort', 'column': rng.choice(['desk', 'region']), 'direction': rng.choice(['asc', 'desc'])}},
             'pivot': lambda: grids and {'grid': rng.choice(grids),
                                         'command': {'kind': 'pivot', 'columns': rng.choice([[], ['region'], ['desk']])}},
+            # a chart's mark clicked: its select and its grid's refilter, written together, as the tab tells them
+            'click': lambda: self.click(doc, rng),
+            # the tree: a group opened or closed, every group closed, the level the groups open to
+            'open': lambda: grids and {'grid': rng.choice(grids), 'command': {
+                'kind': 'open', 'path': [rng.choice(['EMEA', 'AMER', 'APAC', 'FX', 'Rates'])], 'open': rng.choice([True, False])}},
+            'collapseAll': lambda: grids and {'grid': rng.choice(grids), 'command': {'kind': 'collapseAll'}},
+            'level': lambda: grids and {'grid': rng.choice(grids), 'command': {
+                'kind': 'configure', 'patch': {'initialExpandToLevel': rng.choice([0, 1, 2])}}},
         }
         kind = rng.choice(sorted(choices))
-        entry = choices[kind]()
-        if not entry:
+        entries = choices[kind]()
+        if not entries:
             return None
+        made = []
         try:
-            self.doc, facts, entry = self.made(self.doc, entry)
+            doc = self.doc
+            for entry in entries if isinstance(entries, list) else [entries]:
+                doc, facts, entry = self.made(doc, entry)
+                made.append((entry, kind, facts))
         except ValueError:
             return None
-        self.pending.append((entry, kind, facts))
+        self.doc = doc
+        self.pending.extend(made)
         return kind
+
+    def click(self, doc, rng):
+        """A chart's mark clicked, as the tab tells it (cube-page.ts #select): its page's select -- the mark's condition,
+        or none when it is the mark selected already -- and its grid's refilter, the old selection off, the new one on."""
+        grid_of = {v['cube']: v['id'] for v in doc['views'] if v['kind'] == 'grid'}
+        charts = [v for v in doc['views'] if v['kind'] == 'chart' and v['cube'] in grid_of]
+        if not charts:
+            return None
+        chart = rng.choice(charts)
+        mark = {'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': rng.choice(['EMEA', 'AMER', 'APAC'])}
+        old = chart.get('selection', [])
+        add = [] if old == [mark] else [mark]
+        return [{'page': {'kind': 'select', 'chart': chart['id'], 'conditions': add}},
+                {'grid': grid_of[chart['cube']], 'command': {'kind': 'refilter', 'remove': old, 'add': add}}]
 
     def write(self):
         """Its edits written as the app writes them: the page as it shows it and the edits that made it, against the
@@ -427,7 +454,7 @@ class OpenPage:
 
 
 PYTHON_KINDS = ('sheet', 'group', 'name', 'snap', 'live', 'renameSheet', 'sort', 'pivot', 'measure', 'chart', 'grid',
-                'remove', 'title', 'moveTo')
+                'remove', 'title', 'moveTo', 'expand', 'collapseAll', 'level')
 
 
 def made(fact):
@@ -505,6 +532,15 @@ def python_edit(page, rng, frame):
         if kind == 'moveTo':
             grid.move_to(rng.choice(sheets))
             return kind, []
+        if kind == 'expand':
+            grid.expand(rng.choice(['EMEA', 'AMER', 'APAC', 'FX', 'Rates']))
+            return kind, []
+        if kind == 'collapseAll':
+            grid.collapse_all()
+            return kind, []
+        if kind == 'level':
+            grid.configure({'initialExpandToLevel': rng.choice([0, 1, 2])})
+            return kind, []
         return None, None
     except ValueError as refused:
         # refused in DataCube's words, or made against a page that moved on and no longer applying: nothing changed
@@ -556,7 +592,29 @@ class Converged(unittest.TestCase):
         self.assertEqual(_json.dumps(open_page.doc), _json.dumps(kept[1]), f'{where}: the open page holds the keeper\'s')
         self.assertEqual(_json.dumps(page.to_dict()), _json.dumps(kept[1]), f'{where}: Python holds the keeper\'s')
         intent.check(self, kept[1], where)
+        self.followed(kept[1], where)
         self.copies_read(where)
+
+    def followed(self, doc, where):
+        """A settled page's charts are as its cubes make them, whoever wrote it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+        S2; the S2 audit's 2): each cube's page is a fixed point of DataCube's following (headless pageWithCube, its cube
+        as it is), and each chart's selection is on its grid's filter -- a side that followed nothing, or another way,
+        fails here even when all three agree."""
+        headless = datacube._session.headless()
+        for c in doc['cubes']:
+            kept = _json.loads(headless.call('pageWithCube', _json.dumps(doc), c['id'], _json.dumps(c['cube'])))
+            self.assertNotIn('problems', kept, where)
+            self.assertEqual(_json.dumps(_json.loads(kept['page'])), _json.dumps(doc), f'{where}: {c["id"]} followed')
+        filters = {c['id']: c['cube']['query'].get('filter') for c in doc['cubes']}
+
+        def conditions(node):
+            if node is None:
+                return []
+            return [n for child in node.get('children', []) for n in conditions(child)] if node['kind'] == 'and' else [node]
+        for v in doc['views']:
+            if v['kind'] == 'chart' and v.get('selection'):
+                on = conditions(filters.get(v['cube']))
+                self.assertEqual([c for c in v['selection'] if c not in on], [], f'{where}: {v["id"]}\'s selection on its filter')
 
 
 class EmptyPage(Converged):
@@ -655,7 +713,8 @@ class Converges(Converged):
             tab.close()
         # every kind of edit went through somewhere, on each side: none of them is never tried
         self.assertEqual([k for k, n in made.items() if n == 0], [], f'Python edits made: {made}')
-        there = ('renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'renameTile', 'removeTile', 'group', 'addSort', 'pivot')
+        there = ('renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'renameTile', 'removeTile', 'group', 'addSort', 'pivot',
+                 'click', 'open', 'collapseAll', 'level')
         self.assertEqual([k for k in there if not made_there.get(k)], [], f'open page edits made: {made_there}')
 
 

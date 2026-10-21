@@ -116,7 +116,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   group collapsed" is told, read and replays
 - [x] **G3** Properties' tree effect (totals, expand level) → the tree rule inside `configure` — closed S2: `configure`
   moves the tree by the settings it sets (grid-commands.ts `treed`); Properties Apply is its commands alone, and
-  Python's configure moves the tree as Properties does (grid-commands.test.ts, test_one_api.py)
+  Python's configure moves the tree as Properties does (grid-commands.test.ts, test_page.py); a setting given again
+  as it is moves nothing (F3)
 - [x] **G4** calculated-columns editor: edit and rename, references carried → `editCalculated`; the rename rule moved
   into `grid-commands.ts` from `snapshot.ts:803` + `config.ts:886-899` — closed S1: `{kind:'editCalculated', name, level,
   column}`; the two lists by one rule (snapshot.ts `withCalculated`, the editor's candidate and the commands alike), the
@@ -133,7 +134,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   page part); the gesture "a chart's mark clicked" is told, read, replays; Python's chart selection is K7 (S6)
 - [ ] **G8** restore heals a filter missing a chart's selection → the document kept consistent by G7's rule — S3, L1 (moved
   from S1: a page step restores views and sheets, not the grids' documents, so the heal stays until S3 restores the
-  board by commands; since S1 it goes through G7's rule, the grid's `refilter`, told)
+  board by commands; since S1 it goes through G7's rule, the grid's `refilter`, told); with it, the chart panel's own
+  following and the screen's reconcile, against the grid's state on screen and told by no command: the panel draws the
+  spec and the selection the page gives (the S2 audit's 7)
 - [x] **G9** use a dimension → `group` — closed S1: `#useDimension` (no longer public) builds `group`
 - [x] **G10** `applyConfiguration` → deleted; its tests use `configure` — closed S1: a host edits a grid by
   `CubeApp.edit(commands, label)` (the screen's own path, told); the gesture "a grid's settings set by its host" passes
@@ -219,9 +222,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **V1** a following chart re-followed when its grid changes, by one rule on every path — closed S2: page-commands.ts
   `followedPage` (followCube over the cube as its document holds it), applied by `rebuilt`, `setChartCube`, `setChart`,
   the rebase after a grid's edit and headless `pageWithCube` (Python's grid edits); the gesture "a grid with a following
-  chart ungrouped" replays (page-commands.test.ts, test_page.py)
+  chart ungrouped" replays (page-commands.test.ts, test_page.py). The screen's chart panel still follows by the same
+  `followCube` on its own, against the grid's state on screen: drawn from the page in S3 (G8; the S2 audit's 7)
 - [x] **V2** a chart's selection reconciled with its grid's filter, on every path — closed S2: the same rule takes off a
-  selection its cube's filter no longer holds, as the screen's reconcile does (page-commands.test.ts, test_page.py)
+  selection its cube's filter no longer holds, as the screen's reconcile does (page-commands.test.ts, test_page.py),
+  judged when that filter moves (F1), a chart's removal among what moves it (F2)
 - [x] **V4** group-level column types written the same by both sides (spike first: type at compile, or stop storing
   run-derived types) — closed S2: the spike found typing at compile incomplete (a pivoted level's columns need the
   pivot's values, which only a query gives), so no side writes the type a run learned: `writeCube` leaves it out, the
@@ -235,7 +240,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **H2** the no-command path deleted: the tab's `#told/#seen` guess and `edits: null`, the keeper's refusal for
   it, `pageWritten`'s null — S4, L9
 - [ ] **H3** the ids a page has held come from the applied commands (an id given and removed within one write is never
-  given again) — S4, L9
+  given again) — S4, L9; and a page filter two writers made under one id: the rebase does not know a write's base, so
+  the second replaces the first rather than being given a fresh id (the S2 audit, outside S2: with H1's base version)
 
 ### Python's copies of TypeScript rules (audit §5)
 - [x] **Z1** `_with_cube` — closed S2 (early): a grid's edit is kept by headless `pageWithCube` (the cube spliced and
@@ -303,6 +309,23 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **K10** Copy of Grid — S6, L8
 - [ ] **K11** a chart's Open in grid and Update — S6, L8
 - [ ] **K12** open a saved page by id — S6, L8
+
+### Found by the audits (rule 9: each added here, fixed with a test that fails without it, closed in that commit)
+- [x] **F1** a chart's selection taken off by a grid edit made while its click's refilter was in flight (the page's
+  `select` is told at once, the grid's `refilter` when it commits): made again on top (`rebaseEdits`), or a host's
+  `setChart` meanwhile, dropped it, the filter then holding a condition no chart owns — closed S2: `followedPage` judges
+  a selection only when its cube's filter moved (page-commands.test.ts) — the S2 audit's 1
+- [x] **F2** a chart removed (or its sheet) took its selection off its cube's filter without judging that cube's other
+  charts by it — closed S2: `withoutTile` follows the cube after (page-commands.test.ts) — the S2 audit's 5
+- [x] **F3** `configure` giving `initialExpandToLevel` again as it is reopened the groups closed under it (Python's
+  configure names every setting it is given; the screen's Properties sends only what changed) — closed S2: the tree
+  moves only when a setting that decides it changes (grid-commands.test.ts) — the S2 audit's 4
+- [x] **F4** Python's handles given out afresh in a chain (sheet-2 -> sheet-3, sheet-3 -> sheet-4) swapped ids and one
+  left the page's handles — closed S2: every moving handle taken off before any is put back (test_page.py) — the S2
+  audit's 6
+- [x] **F5** a tile or sheet Python made inside a call an open page wrote under was handled under the id the write took,
+  not the one the page gave it afresh — closed S2 (a147d256c): `Page._apply_page` answers with the ids the commit gave
+  (test_page.py, the sheet made while the open page made one) — found by the keeper's soak at 60 seeds
 
 ## 5. The steps
 
@@ -535,3 +558,49 @@ a source, not a document (the audit's 1, below).
 second time), `verify_app` as the container's unprivileged user green; the audit round's targeted tests green, its
 full run below. CI: not run -- still waiting on the user (a draft pull request, or a dispatch of `gate.yml` on
 `claude/datacube-query-base`).
+
+## As built (S2, 2026-10-21)
+
+**Built** (a9ec10e7f, b659ca010, a147d256c, and this step's audit round): every S2 item closed in the register --
+`configure` moves the grid's tree by the settings that decide it (G3); a page's charts follow their cube by one rule,
+`followedPage`, wherever a cube changes -- `setChart`, `setChartCube`, `rebuilt`, a writer's grid edits made again on
+top, Python's grid edits (headless `pageWithCube`) -- live charts regrouped, a selection its filter no longer holds
+taken off (V1, V2, P6); the tree's expand level and the groups closed under it saved and read back (V5); no side writes
+the type a run learned for a group-level column (V4). Z1 closed with V1 (Python's `_with_cube` deleted). The keeper's
+soak now builds a page with a following chart; at 60 seeds it found F5, fixed with its test.
+
+**Deviations from the plan's wording, each kept on purpose.** `pageGridApplied` became `pageWithCube` (the grid's edit
+is applied first by `gridApply`, as before; the page part is one call). V4's spike chose "stop storing run-derived
+types": typing at compile cannot type a pivoted level's columns (they need the pivot's values, which only a query
+gives). The screen's chart panel still follows by the same `followCube` on its own, and the screen's reconcile still
+judges a selection, both against the grid's state on screen and told by no command -- the S2 bullet "a chart panel
+draws the followed spec from the page" is carried to S3 inside G8 (the board produced by the commands).
+
+**The independent audit** (10 findings, and one outside S2) and what became of each:
+- Fixed, each with a test that fails without it, each registered (rule 9) and closed: (1, medium) a selection told
+  before its click's refilter lands was dropped by an edit in between -- F1; (4) a configure giving the expand level
+  again reopened closed groups -- F3; (5) a chart's removal took its selection off the filter without judging the
+  cube's other charts -- F2; (6) Python's chained renames of handles -- F4; (8) the soak's handle bug fixed with no
+  register item -- F5.
+- Fixed as S2's own: (2, medium) the soak did not hold S2's claims -- it now makes chart clicks (a `select` and its
+  grid's `refilter`, written together) and tree edits on both sides (`open`, `collapseAll`, the expand level), and
+  checks each settled page against an oracle: every cube's page a fixed point of following (headless `pageWithCube`),
+  every chart's selection on its grid's filter; (3) `rebuilt` and `setChartCube` following had no test -- now each has
+  one that fails without it (page-commands.test.ts); (10) nits: G3's note named the wrong test file, `followedPage`'s
+  doc comment had orphaned `cubeOf`'s, `treeOf` had no product caller (`openCube` now opens a saved tree through it),
+  `readTree` dropped closed groups under no level (now refused in words), `pageWithCube` threw where its siblings
+  answer `{problems}`, `Page._given` shared a name with a module function (`_regiven`), the round-trip seeds never set
+  an expand level (they do, and fail without the writer's `closed`).
+- Registered rather than fixed: (7) the screen's own following and reconcile -- folded into G8 (S3); the outside
+  finding (a page filter both writers make under one id is replaced, not given afresh: the rebase has no write's base)
+  -- folded into H3 (S4, with H1's base version).
+- Noted: (9) pages saved before V5 open at level 0 whatever their `initialExpandToLevel` (no reader of older pages: the
+  user's standing rule), and before G3 a Properties Apply re-synced the tree whatever changed; Python's copy of an old
+  cube keeps a learned `groupDerived[].type` until that cube's next edit -- harmless, every reader learns it again.
+
+**Ledgers.** S2 closed G3 V1 V2 V4 V5 P6 Z1 and shrank MARKERS 17 -> 16 (V4's marker); no ledger grew. The register
+gained F1-F5, each closed in the commit that fixed it.
+
+**Gates.** `//datacube/... //python:engine_test //python:model_test` (191 of 191) and `verify_app` as the container's
+unprivileged user green at a147d256c; the keeper's soak at 60 seeds green (196 tests); the audit round's run below. CI:
+not run -- still waiting on the user (a draft pull request, or a dispatch of `gate.yml` on `claude/datacube-query-base`).

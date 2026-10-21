@@ -288,7 +288,9 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
     for (const id of gone) if (tiles(layout).includes(id)) layout = remove(layout, id);
     return layout === s.layout ? s : { ...s, layout: saved(layout) };
   });
-  return rewritten({ ...next, ...(next.model ? { model: keptFor(next.model, cubes) } : {}) }, { views, cubes, sheets });
+  const left = rewritten({ ...next, ...(next.model ? { model: keptFor(next.model, cubes) } : {}) }, { views, cubes, sheets });
+  // a chart's selection off its cube's filter: that cube's other charts judged by the filter now (the S2 audit's 5, F2)
+  return view.kind === 'chart' ? followedPage(left, view.cube, page) : left;
 }
 
 /**
@@ -395,7 +397,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const spec = readChart(JSON.parse(JSON.stringify(command.spec)));
       if (typeof spec === 'string') throw new CubeRefusal(spec);
       // kept as the panel keeps it: a live chart regrouped as its grid is (P6)
-      return done(followedPage({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, spec } : v)) }, view.cube));
+      return done(followedPage({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, spec } : v)) }, view.cube, page));
     }
     case 'setChartCube': {
       const view = viewNamed(page, command.chart);
@@ -408,7 +410,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const entry = { id: own, cube: command.document };
       const cubes = (page.cubes.some((c) => c.id === own) ? page.cubes.map((c) => (c.id === own ? entry : c)) : [...page.cubes, entry])
         .filter((c) => views.some((v) => v.cube === c.id));
-      return done(followedPage(rewritten({ ...page, ...(page.model ? { model: keptFor(page.model, cubes) } : {}) }, { views, cubes }), own));
+      return done(followedPage(rewritten({ ...page, ...(page.model ? { model: keptFor(page.model, cubes) } : {}) }, { views, cubes }), own, page));
     }
     case 'select': {
       const view = viewNamed(page, command.chart);
@@ -507,7 +509,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       // opened over the source as it is now, the cube as the page holds it now (another writer's edits kept)
       const { document } = cubeOpenedAgain(held.cube, now);
       return done(followedPage(rewritten(page, { cubes: page.cubes.map((c) => (c.id === command.cube ? { id: c.id, cube: document } : c)) }),
-        command.cube));
+        command.cube, page));
     }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
@@ -569,30 +571,31 @@ const textOrNull = (v: unknown, what: string): string | null => (v === null ? nu
 const optionalId = (v: unknown, what: string): { id?: string } => (v === undefined ? {} : { id: text(v, what) });
 
 /**
- * A grid's cube, read by its own reader (cube-document.ts readCube): what it refuses, refused in its words. Never null
- * from JSON: a grid whose source the page cannot write down is the screen's own, and a page holding one does not read
- * back (Python's page is always written down).
+ * A PAGE AFTER ITS CUBE `cube` CHANGED (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S2: V1, V2, P6), from the page
+ * `before` the change, by one rule wherever a cube changes -- a page command's rule, a writer's grid edits made again on
+ * top (page-rebase.ts), a host's grid edit (headless pageWithCube) -- and the screen's own following, which is this
+ * rule's two halves: each live chart of the cube regrouped as the cube is now (chart-spec.ts followCube: ui/chart-panel.ts
+ * refresh), and, when the cube's filter moved, each chart's selection the filter no longer holds taken off (cube-page.ts
+ * reconcile). A selection is judged only then: one told before its click's refilter has landed (that grid's change, told
+ * when it commits) is still the chart's while the filter catches up (the S2 audit's 1, F1). The cube read as its
+ * document holds it: its query.
  */
-/**
- * A PAGE AFTER ITS CUBE `cube` CHANGED (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S2: V1, V2, P6), by one rule wherever a
- * cube changes -- a page command's rule, a writer's grid edits made again on top (page-rebase.ts), a host's grid edit
- * (headless pageWithCube), and the screen's own following, which is this rule's two halves: each live chart of the cube
- * regrouped as the cube is now (chart-spec.ts followCube: ui/chart-panel.ts refresh), and each chart's selection its
- * cube's filter no longer holds taken off (cube-page.ts reconcile). The cube read as its document holds it: its query.
- */
-export function followedPage(page: PageDocument, cube: string): PageDocument {
+export function followedPage(page: PageDocument, cube: string, before: PageDocument): PageDocument {
   const held = page.cubes.find((c) => c.id === cube);
   if (held === undefined) return page;
   const shape: CubeShape = { ...held.cube.query, epoch: 0 };
+  const was = before.cubes.find((c) => c.id === cube)?.cube.query.filter;
+  const judged = JSON.stringify(was ?? null) !== JSON.stringify(shape.filter ?? null);
   let moved = false;
   const views = page.views.map((v) => {
     if (v.kind !== 'chart' || v.cube !== cube) return v;
     const spec = followCube(v.spec, shape);
-    const held = v.selection === undefined || v.selection.length === 0 || withoutConditions(shape.filter, v.selection, true) !== null;
-    if (spec === v.spec && held) return v;
+    const kept = !judged || v.selection === undefined || v.selection.length === 0
+      || withoutConditions(shape.filter, v.selection, true) !== null;
+    if (spec === v.spec && kept) return v;
     moved = true;
     const { selection: _gone, ...unselected } = v;
-    return { ...(held ? v : unselected), spec };
+    return { ...(kept ? v : unselected), spec };
   });
   return moved ? { ...page, views } : page;
 }
@@ -627,6 +630,11 @@ export const EXACT_FIELD: Partial<Record<PageCommand['kind'], 'document' | 'sour
   addGrid: 'document', setChartCube: 'document', rebuilt: 'source',
 };
 
+/**
+ * A grid's cube, read by its own reader (cube-document.ts readCube): what it refuses, refused in its words. Never null
+ * from JSON: a grid whose source the page cannot write down is the screen's own, and a page holding one does not read
+ * back (Python's page is always written down).
+ */
 function cubeOf(v: unknown): CubeDocument {
   if (!isObject(v)) throw new CubeRefusal("a grid's cube is its document");
   try {

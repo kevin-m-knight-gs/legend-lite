@@ -74,12 +74,17 @@ export function pageApply(page: string, held: string, commands: string): string 
  * A PAGE WITH ITS CUBE `cube` AS A GRID'S EDIT LEFT IT (`document`, gridApply's), and its charts following it -- each live
  * chart regrouped, each selection its filter no longer holds taken off -- by the page's own rule (page-commands.ts
  * followedPage: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md V1, V2): what Python's grid edits keep. JSON: `{page}`, the
- * page as DataCube writes it.
+ * page as DataCube writes it, or `{problems}`, in DataCube's words.
  */
 export function pageWithCube(page: string, cube: string, document: string): string {
-  const doc = heldPage(page);
-  if (!doc.cubes.some((c) => c.id === cube)) throw new CubeRefusal(`'${cube}' is no grid's cube of the page`);
-  return JSON.stringify({ page: pageToJson(followedPage(withCube(doc, cube, readCube(fromJson(document))), cube)) });
+  try {
+    const doc = heldPage(page);
+    if (!doc.cubes.some((c) => c.id === cube)) throw new CubeRefusal(`'${cube}' is no grid's cube of the page`);
+    return JSON.stringify({ page: pageToJson(followedPage(withCube(doc, cube, readCube(fromJson(document))), cube, doc)) });
+  } catch (e) {
+    if (!(e instanceof CubeRefusal) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
 }
 
 function applied(page: string, held: string, commands: string): string {

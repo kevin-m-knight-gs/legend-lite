@@ -349,6 +349,9 @@ describe('opening a cube over its file as it is now', () => {
     const text = (tree: unknown): string => JSON.stringify({ ...JSON.parse(cubeToJson(doc())), tree });
     assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: -1 })), /expand level is a whole number/);
     assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: 1, closed: 'EMEA' })), /closed groups are row paths/);
+    // closed under a level it has not: refused, never dropped (the S2 audit's 10)
+    assert.throws(() => readCube(text({ open: [], showTotals: false, closed: [['EMEA']] })), /closed under its expand level: it has none/);
+    assert.throws(() => readCube(text({ open: [], showTotals: false, expandTo: 0, closed: [['EMEA']] })), /it has none/);
   });
 
   it('closes the open rows when the grouping changed', () => {
