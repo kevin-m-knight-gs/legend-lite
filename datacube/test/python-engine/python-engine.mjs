@@ -753,20 +753,31 @@ try {
   };
   const leftAt = await servedVersion();
   const leftSheets = await sheetsInPython();
+  // the tab follows Python's page by asking its versions (version.json, about once a second: demo/engine.ts ASK_EVERY)
+  // while it is that page: counted, so leaving it is seen as the asking stopping -- what following needs -- not inferred
+  // from nothing having changed yet
+  let asked = 0;
+  tabbed.on('request', (r) => { if (r.url().includes('/version.json')) asked += 1; });
+  for (let i = 0; i < 50 && asked === 0; i += 1) await tabbed.waitForTimeout(100);
+  const asking = asked > 0;
   tabbed.on('dialog', (d) => { void d.accept(); });
   await tabbed.click('.dc-page-bar .dc-titlebar-menu');
   await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
   await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await seen('Blank Page on the page Python serves: a page of the tab\'s own, said',
     () => document.querySelector('[data-tile="grid-1"]') === null && /a page of this tab's own/.test(document.body.innerText));
+  const askedThen = asked;
   await python('py-page-sheet');
-  await new Promise((done) => { setTimeout(done, 3_000); });
+  // two of its asking periods: a tab still following would ask in each
+  await tabbed.waitForTimeout(2_500);
   const leftNow = await servedVersion();
   const sheetsNow = await sheetsInPython();
-  const leftAlone = leftNow === leftAt + 1 && JSON.stringify(sheetsNow) === JSON.stringify([...leftSheets, 'Added in Python'])
+  const leftAlone = asking && asked === askedThen && leftNow === leftAt + 1
+    && JSON.stringify(sheetsNow) === JSON.stringify([...leftSheets, 'Added in Python'])
     && (await tabbed.evaluate(() => document.querySelector('[data-tile="grid-1"]') === null
       && ![...document.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].some((t) => t.textContent === 'Added in Python')));
-  console.log(`${leftAlone ? 'ok  ' : 'FAIL'} Python's page left as it was: moved by Python's change alone (${leftAt} -> ${leftNow}), not followed here`);
+  console.log(`${leftAlone ? 'ok  ' : 'FAIL'} Python's page left as it was: moved by Python's change alone (${leftAt} -> ${leftNow}), `
+    + `its versions asked no more (${askedThen} -> ${asked}, asking before: ${String(asking)}), not followed here`);
   if (!leftAlone) failed = true;
   engine.stdin.write('show-snapped\n');
   const snappedLine = await nextLine();

@@ -372,8 +372,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let dropUnread: (() => void) | undefined;
   /** The source picker, once the page can open sources: New ▸ Data Source… adds a grid over one; a blank page opens one. */
   let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridMaker | undefined>) | undefined;
-  /** New ▸ Blank Page: everything goes, for a first data source. */
-  let blankPage: ((reason?: string) => void) | undefined;
+  /** A blank page, everything gone, for a first data source: as asked (New ▸ Blank Page: `asked`, leaving a page another
+   *  editor serves, D1), or where a start opened nothing (`reason`: why). */
+  let blankPage: ((o: { readonly reason: string | undefined } | { readonly asked: true }) => void) | undefined;
   /** Why the page's start opened nothing (a link that failed, a key refused): the empty page says it. */
   let startProblem: string | undefined;
   /** The empty page's card: hidden until the start has settled -- a page still signing in, or opening a link, is not blank. */
@@ -483,7 +484,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // New ▸ Data Source…: a grid over another source, through the picker, beside the others -- where the host offers one
     ...(picks ? { openSource: () => picker?.('add') ?? Promise.resolve(undefined) } : {}),
     // where the page can start again from a blank one: a data source, or a saved page
-    ...(picks || services.pages ? { onBlankPage: () => blankPage?.() } : {}),
+    ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
     onChange: () => {
       harnessSignal.changes += 1;
       // a grid gone from the page is followed no more
@@ -624,9 +625,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
     // THE PAGE ANOTHER EDITOR SERVES (services.live: Python's `ll.Page`, §5), kept by its keeper
     // (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) and written and followed through its one channel (live-channel.ts): written
-    // once a change settles, against the version on screen, with the edits made here -- kept as written, or made again on
-    // top of what moved the page meanwhile and the page then opened as the keeper made it -- and followed as its other
-    // editor changes it (below). A page of no grid is a page written too.
+    // once a change settles, against the version on screen, as the edits made here -- which the keeper has DataCube apply
+    // to the page as it has it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4), the page then opened as the keeper made it
+    // when it made another, refused in words when one does not apply -- or, undone or redone, whole (a restore, kept only
+    // at the version it was made at); and followed as its other editor changes it (below). A page of no grid is a page too.
     const live = services.live;
     if (live?.page) {
       channel = new LiveChannel(live.page, {
@@ -1267,16 +1269,19 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // A BLANK PAGE (New ▸ Blank Page; the user, 2026-10-01): every grid and chart goes, and the page
     // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
     // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
-    blankPage = (reason?: string) => {
+    blankPage = (how) => {
       if (dirty() && !window.confirm('The page has unsaved changes. Start a blank page anyway?')) return;
+      // an open on its way (a source, a saved page, the other editor's page) lands nothing over it
+      opens.start();
       place();
-      // a page of this tab's own, in place of the one its other editor serves (D1): said on the card, the page having no
-      // grid whose status line would say it
-      const servedLeft = leaveServed();
+      // asked for, on a page its other editor serves: a page of this tab's own in its place (D1), said on the card -- the
+      // page has no grid whose status line would say it. A start that opened nothing leaves nothing: an empty page Python
+      // serves is followed, and a first read that failed is tried again at its next move (the S4 audit's 1)
+      const servedLeft = 'asked' in how ? leaveServed() : undefined;
       page.clear();
       current = {};
       page.setTitle('');
-      sayWhyBlank(reason ?? servedLeft);
+      sayWhyBlank('reason' in how ? how.reason : servedLeft);
       if (blankCard) blankCard.hidden = false;
       services.browser.title?.set('New page');
       (host.querySelector('.dc-blank-actions .dc-primary') as HTMLElement | null)?.focus();
@@ -1333,7 +1338,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             ? `${asked} is not a table you may read here`
             : `${asked} is in ${found.length} catalogs (${found.map((o) => o.catalog).join(', ')}): choose one`));
         }
-        blankPage(startProblem);
+        blankPage({ reason: startProblem });
         void picker('open', 'database');
       }
     }
@@ -1351,6 +1356,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
       }
+      // left while it was read (New ▸ Blank Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
+      if (left) return undefined;
       if (channel) channel.shown = undefined;
       const shown = page.shownSheet;
       // opened as the keeper has it: nothing the screen does meanwhile is an edit of its own
@@ -1380,20 +1387,24 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      */
     async function followLive(): Promise<string | undefined> {
       const editor = live?.page;
-      if (!editor || !channel || channel.shown === undefined) return openLive();
-      const at = channel.shown;
+      // the channel this follow writes through: none once the page is left (D1)
+      const through = channel;
+      if (!editor || !through || through.shown === undefined) return openLive();
+      const at = through.shown;
       let moved: Awaited<ReturnType<typeof editor.changes>>;
       try {
         moved = await editor.changes(at);
       } catch {
         return openLive();
       }
+      // left while it was asked (New ▸ Blank Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
+      if (left) return undefined;
       if (!('commands' in moved)) return openLive();
       // nothing written while they apply: what the page says is of the version they move it to
-      channel.shown = undefined;
+      through.shown = undefined;
       const wasChanged = dirty();
       // the other editor's commands: nothing the screen does meanwhile is an edit of its own
-      const applied = await channel.following(async () => {
+      const applied = await through.following(async () => {
         try {
           await applyLive(moved.commands, {
             grids: page.grids,
@@ -1420,7 +1431,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return true;
       });
       if (!applied) return openLive();
-      channel.shown = moved.version;
+      through.shown = moved.version;
       // the page as it is now, written once it settles: Python's page is what is on screen
       liveChanged();
       return undefined;
@@ -1520,7 +1531,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
     // A START THAT OPENED NOTHING (a link that failed, a key refused) leaves the blank page, saying
     // why: never an empty page without a word
-    if (page.empty) blankPage(startProblem);
+    if (page.empty) blankPage({ reason: startProblem });
   }
   // the start has settled: from now on an empty page is a blank one
   if (blankCard) blankCard.hidden = false;

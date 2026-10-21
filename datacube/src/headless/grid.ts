@@ -169,6 +169,24 @@ function frameTables(source: JoinSource, frames: Readonly<Record<string, HostFra
 }
 
 /**
+ * WHAT A PAGE ON THE HOST CAN HOLD, the one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B7, until S5 gives it every
+ * source): a cube over a frame the host serves (that frame), or over a join of such frames (the join, and the tables of
+ * the host's database its leaves read, in order) -- else refused in words. Every grid call's base asks it (gridBase,
+ * gridOpened), and so does the keeper of each cube a write adds or moves to another source (headless page.ts
+ * pageRebase: the S4 audit's 2).
+ */
+export function onHost(source: CubeSource, frames: Readonly<Record<string, HostFrame>>):
+  { readonly frame: HostFrame } | { readonly join: JoinSource; readonly tables: string[] } {
+  if (source._type === 'frame') {
+    const frame = frames[source.name];
+    if (frame === undefined) throw new CubeRefusal(`the frame ${source.name} is not served`);
+    return { frame };
+  }
+  if (source._type !== 'join') throw new CubeRefusal(`${source.name} is no frame and no join of frames: a page on Python reads frames`);
+  return { join: source, tables: frameTables(source, frames) };
+}
+
+/**
  * A CUBE'S BASE OVER THE HOST'S FRAMES (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): what every grid call is given
  * (GridSpec) -- a frame's, its own model and accessor (`frames`: the frames the host serves, by name); a join's of the
  * host's frames, one model of its leaves' tables and the join over them (headless join.ts joinOpenedOn). A host asks
@@ -176,14 +194,9 @@ function frameTables(source: JoinSource, frames: Readonly<Record<string, HostFra
  * relation}` (a lambda as the protocol writes it).
  */
 export async function gridBase(cube: string, frames: Readonly<Record<string, HostFrame>>): Promise<string> {
-  const source = readCube(fromJson(cube)).source;
-  if (source._type === 'frame') {
-    const frame = frames[source.name];
-    if (frame === undefined) throw new CubeRefusal(`the frame ${source.name} is not served`);
-    return JSON.stringify({ model: frame.model, runtime: frame.runtime, source: frame.accessor });
-  }
-  if (source._type !== 'join') throw new CubeRefusal(`${source.name} is no frame and no join of frames: a page on Python reads frames`);
-  const opened = await joinOpenedOn(source, frameTables(source, frames));
+  const on = onHost(readCube(fromJson(cube)).source, frames);
+  if ('frame' in on) return JSON.stringify({ model: on.frame.model, runtime: on.frame.runtime, source: on.frame.accessor });
+  const opened = await joinOpenedOn(on.join, on.tables);
   return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
     + `"relation":${JSON.stringify(toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }))}}`;
 }
@@ -202,19 +215,17 @@ export async function gridBase(cube: string, frames: Readonly<Record<string, Hos
 export async function gridOpened(cube: string, frames: Readonly<Record<string, HostFrame>>, name: string,
   gridsOnPage: number): Promise<string> {
   const was = readCube(fromJson(cube));
-  const source = was.source;
-  if (source._type === 'frame') {
-    const frame = frames[source.name];
-    if (frame === undefined) throw new CubeRefusal(`the frame ${source.name} is not served`);
+  const on = onHost(was.source, frames);
+  if ('frame' in on) {
+    const { frame } = on;
     // the frame's columns as the compiler types them now (gridCube): the source as it is now
-    const made = JSON.parse(await gridCube({ model: frame.model, runtime: frame.runtime, source: frame.accessor, frame: source.name },
-      cube, name, source.name, gridsOnPage)) as { cube: string };
+    const made = JSON.parse(await gridCube({ model: frame.model, runtime: frame.runtime, source: frame.accessor, frame: was.source.name },
+      cube, name, was.source.name, gridsOnPage)) as { cube: string };
     return openedAgain(was, readCube(fromJson(made.cube)).source, [],
       `"model":${JSON.stringify(frame.model)},"runtime":${JSON.stringify(frame.runtime)},"source":${JSON.stringify(frame.accessor)}`);
   }
-  if (source._type !== 'join') throw new CubeRefusal(`${source.name} is no frame and no join of frames: a page on Python reads frames`);
-  const opened = await joinOpenedOn(source, frameTables(source, frames));
-  const now: JoinSource = { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
+  const opened = await joinOpenedOn(on.join, on.tables);
+  const now: JoinSource = { ...on.join, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
   return openedAgain(was, now, opened.notes, `"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
     + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}`);
 }

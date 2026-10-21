@@ -218,6 +218,22 @@ describe('a page of its own', () => {
     assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
   });
 
+  it("restored with the ids its keeper has held: none is given out again (B12, the S4 audit's 5)", async () => {
+    newPage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    const back = readPage(pageToJson(page.document('Q3')!));
+    page.dispose();
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    // the page as its keeper has it, sheet-9 among the ids it has held (made and taken off by its other editor)
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])), ['sheet-9']);
+    await settle();
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.deepEqual(told.flatMap((c) => (c.kind === 'addSheet' ? [c.id] : [])), ['sheet-10']);
+  });
+
   it('a frozen chart whose grid is removed keeps reading that grid, kept off the board; saved, and reopened detached', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));

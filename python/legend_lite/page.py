@@ -1004,8 +1004,12 @@ class Page:
         self._leave(failed=False)
 
     def _enter(self) -> None:
-        if self._depth == 0 and not self._dirty:
-            self._pull()
+        if self._depth == 0:
+            if not self._dirty:
+                self._pull()
+            # every id the page has held, as its keeper has it -- at the version this page is at too: a write that left
+            # the page as it was holds the ids it gave out with no new version (B12, the S4 audit's 5)
+            self._ids |= set(self._session.keeper.held(self._key_name))
         self._depth += 1
 
     def _leave(self, failed: bool) -> None:

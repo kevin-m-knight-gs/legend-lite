@@ -12,9 +12,9 @@ import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
 import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
-import { CubeRefusal } from '../snapshot.ts';
+import { CubeRefusal, sameValue } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
-import { draftFrom, gridApply, gridBase, type GivenFilter, type HostFrame } from './grid.ts';
+import { draftFrom, gridApply, gridBase, onHost, type GivenFilter, type HostFrame } from './grid.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -252,8 +252,8 @@ export function pageWritten(text: string): string {
  * HostFrame, by name) and `copies` the copies it holds (by table), over which a grid's edit is applied as gridApply
  * applies one -- a snapped grid's over its copy, as the writer applied it. JSON: `{page, held, edits, renamed, reads}`
  * -- the page they make (as DataCube writes it), the ids it has held, the edits as applied there, each id given out
- * afresh (the writer's name -> the page's), and what the page reads -- or `{problems}`: one does not apply, in
- * DataCube's words, and nothing was applied.
+ * afresh (the writer's name -> the page's), and what the page reads -- or `{problems}`: one does not apply, or a cube
+ * they add is over a source the host cannot hold (grid.ts onHost), in DataCube's words, and nothing was applied.
  */
 export async function pageRebase(page: string, held: string, edits: string, known: string,
   frames: Readonly<Record<string, HostFrame>>, copies: Readonly<Record<string, HeldCopy>>): Promise<string> {
@@ -277,6 +277,14 @@ export async function pageRebase(page: string, held: string, edits: string, know
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));
         return readCube(fromJson(said.cube!));
       }, JSON.parse(known) as string[]);
+    // what the host holds its cubes over (grid.ts onHost): a cube the write adds, or moves to another source, over one the
+    // host cannot base its grid's edits on is refused now, in words -- never kept to refuse its first edit (the S4 audit's
+    // 2). A snapped grid reads its copy.
+    const was = new Map(now.cubes.map((c) => [c.id, c.cube.source]));
+    for (const c of done.page.cubes) {
+      if ((done.page.copies ?? {})[c.id] !== undefined) continue;
+      if (!sameValue(was.get(c.id), c.cube.source)) onHost(c.cube.source, frames);
+    }
     return `{"page":${JSON.stringify(pageToJson(done.page))},"held":${JSON.stringify(done.held)},`
       + `"edits":[${done.edits.map((e) => toJson(e)).join(',')}],"renamed":${JSON.stringify(done.renamed)},`
       + `"reads":${readsJson(done.page)}}`;

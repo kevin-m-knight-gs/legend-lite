@@ -206,7 +206,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **P10** Open…, in place, Blank Page on a served page → a new page (D1) — closed S4: on a page another editor serves,
   each puts a page of the tab's own on screen and leaves the served one as it is -- its channel stopped, its moves no
   longer followed, said once, a blank page on its card (datacube-app.ts `leaveServed`; the browser harness: Blank Page
-  says so, then Python's change to its page is Python's alone and not followed)
+  says so, the tab asks Python's versions no more, and Python's change to its page is Python's alone; jsdom,
+  datacube-app-live.test.ts: only Blank Page leaves it, and a follow on its way lands nothing). Open… and open in place
+  call the same `leaveServed`; neither has a test of its own
 - [x] **P11** the tab reopens cubes over frames as they are now → `rebuilt {cube, document}` page command made by one
   side (with Y2) — closed S1: whichever side opens a cube again over its frames tells it, once, by one rule
   (cube-document.ts `cubeTaken`): the tab opening a host's page tells `rebuilt` for each cube it opened as another
@@ -310,8 +312,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **B10** a frame's column change keeps grid edits everywhere (with P12) — S5, L10
 - [ ] **B11** Join on both sides over every source kind — S5, L10
 - [x] **B12** ids held (with H3) — closed S4: one held set -- the keeper's, from the applied commands, which the tab
-  reads with the page and its state holds (`PageApp.restore`'s `held`) -- so neither side gives out an id the other
-  has held (test_one_api.py)
+  reads with the page and its state holds (`PageApp.restore`'s `held`) and Python takes with it -- so neither side gives
+  out an id the keeper has said it held (test_one_api.py, page-app.test.ts, datacube-app-live.test.ts: F23). A write
+  that leaves the page as it was holds its ids with no new version; an editor that then gives one out has it given out
+  afresh by the keeper
 - [ ] **B13** one saved record per page: the record's id kept in the page document, so both sides save to it — S5, L10
 - [ ] **B14** one "nothing to save" wording — S5, L10
 
@@ -399,7 +403,36 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **F18** a chart's selection was dropped when its grid's filter, read back from another writer, held the
   selection's condition with its keys in another order (and a refilter could not take that condition off): two filter
   nodes alike but for the order of their keys were told apart — closed S4: nodes are compared with their keys in order
-  (snapshot.ts `nodeKey`; page-commands.test.ts F18) — found by S4's keeper soak
+  (snapshot.ts `sameValue`; page-commands.test.ts F18) — found by S4's keeper soak
+- [x] **F19** the tab left the page Python serves when its start opened nothing -- an empty page (`ll.Page` shown before
+  its first grid), a first read that failed -- and so followed it no more — closed S4: only New ▸ Blank Page leaves it
+  (datacube-app.ts `blankPage`'s `asked`; datacube-app-live.test.ts) — the S4 audit's 1
+- [x] **F20** a grid over a source the host cannot base its edits on (a file, a warehouse table, a saved query, a class)
+  was taken onto a page Python serves, and its every edit then refused — closed S4: one rule of what a page on the host
+  holds (headless grid.ts `onHost`), which the keeper asks of each cube a write adds or moves, refusing it as it is added
+  (page-rebase.test.ts, test_one_api.py) — the S4 audit's 2. Such grids come to a page on Python with S5 (B7, X1-X5)
+- [x] **F21** a page filter no command made under its keeper (a page loaded or served whole), set again by a writer,
+  became a second filter — closed S4: what a page reads names its page filters' ids too (page-rebase.ts `pageReads`), so
+  the ids a write knew carry them (page-rebase.test.ts) — the S4 audit's 3
+- [x] **F22** a follow on its way when the page was left threw, or put Python's page back over the tab's own with no
+  channel — closed S4: the follow writes through the channel it began with and lands nothing once the page is left, and
+  Blank Page overtakes an open on its way (datacube-app-live.test.ts, three) — the S4 audit's 4
+- [x] **F23** B12's tab half had no test, and its Python test could not fail — closed S4: each has one that fails without
+  it (page-app.test.ts, datacube-app-live.test.ts, test_one_api.py); a write that leaves the page as it was holds its
+  ids with no new version, which neither editor hears of -- one either gives out is given out afresh by the keeper (said,
+  in As built) — the S4 audit's 5
+- [x] **F24** a write made more than STEPS_KEPT versions behind is refused, where before S4 it was made again on top —
+  closed S4, declared: the keeper keeps the ids each version held only as far back as it keeps its steps, and a write
+  from further back cannot be told what it knew (test_keeper.py, pinned) — the S4 audit's 6
+- [x] **F25** an undo or a redo that lands while the tab follows the other editor is not written; edits made while a
+  write is on its way are dropped when the keeper makes another page of it — closed S4: the dropped edits are said
+  (live-channel.ts; live-channel.test.ts); the undo while following declared (the channel takes nothing done while
+  following for its own; pinned) — the S4 audit's 7, not new since the keeper's step 2
+- [x] **F26** comments and docs stale since S4 (the app's, python-host.ts's, the headless entry's, the keeper's As
+  built) — closed S4 — the S4 audit's 8
+- [x] **F27** a failure of the engine's while it took an open page's write was said as no such page (a KeyError) or as a
+  refusal (any other) — closed S4: said as a failure, 500, naming it (engine.py `_page_said`; test_one_api.py) — found
+  reviewing S4's own code
 
 ## 5. The steps
 

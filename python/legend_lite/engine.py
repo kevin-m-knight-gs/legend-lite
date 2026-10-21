@@ -1456,10 +1456,9 @@ class Engine:
                 settled = self.keeper.settle(name, int(version), written['edits'], unserved)
         except Refused as refused:
             return _said(409, str(refused))
-        except KeyError:
-            return _said(404, f'this engine serves no page named {name!r}')
-        except Exception as refused:
-            return _said(422, f'{type(refused).__name__}: {refused}')
+        except Exception as failure:
+            # a failure of the library's, said as one (as the API's are) -- never taken for a refusal or a page not served
+            return _said(500, f'{type(failure).__name__}: {failure}')
         self.sweep()
         return Answer(200, 'application/json', json.dumps({'version': settled.version, 'combined': settled.combined,
                                                            'renamed': settled.renamed}).encode('utf-8'))

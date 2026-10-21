@@ -214,6 +214,25 @@ describe('the channel', () => {
     assert.equal(channel.shown, undefined, 'at no version until the page is opened again');
   });
 
+  it("says what it drops: a change made while a write the keeper made again on top was on its way (the S4 audit's 7)", async () => {
+    const editor = new Editor();
+    const answer = held<Answer>();
+    editor.answers.push(() => answer.promise);
+    const s = screen(trades);
+    const channel = new LiveChannel(editor, s, 0);
+    channel.opened(1);
+    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
+    s.now = renamed(trades, 'Here');
+    channel.changed();
+    await new Promise((r) => setTimeout(r, 5));
+    // made while the write is on its way
+    channel.edit({ page: { kind: 'renamePage', name: 'Meanwhile' } });
+    answer.resolve({ version: 3, combined: true });
+    await channel.idle();
+    assert.equal(s.reopened, 1);
+    assert.deepEqual(s.refused, ['a change made while the page was written was made on a page its keeper no longer has']);
+  });
+
   it('opens the page as the keeper has it after a refused write, its words said -- never writing the screen\'s whole', async () => {
     const editor = new Editor();
     editor.answers.push(async () => { throw new Error('409: chart-9 is no longer on the page'); });

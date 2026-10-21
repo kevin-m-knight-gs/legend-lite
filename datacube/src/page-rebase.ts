@@ -183,11 +183,13 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
 
 /**
  * WHAT A PAGE READS, as its keeper needs it and never reads it itself: the frames its cubes read (their leaves', each
- * once, in order), the copies its snapped grids read (their tables), and every id it holds.
+ * once, in order), the copies its snapped grids read (their tables), and every id it holds -- its tiles', cubes' and
+ * sheets', and its page filters' (a writer's edit of a filter the page held then is told from one it made: H3, the S4
+ * audit's 3).
  */
 export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {
   const frames = [...new Set(page.cubes.flatMap((c) => leavesOf(c.cube.source)
     .filter((leaf) => leaf._type === 'frame').map((leaf) => leaf.name)))].sort();
   const copies = [...new Set(Object.values(page.copies ?? {}).map((c) => c.table))].sort();
-  return { frames, copies, ids: idsOf(page) };
+  return { frames, copies, ids: [...idsOf(page), ...(page.filters ?? []).map((f) => f.id)] };
 }

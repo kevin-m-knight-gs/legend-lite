@@ -224,3 +224,14 @@ Still open: known limit 6 (a replaced copy dropped before every open page follow
 edits that are no commands yet stay whole-page writes, refused when they collide (step (c): proposed to drop, for its
 cost against a rare case -- the user's decision pending); on a combined write the tab reopens the page (its view state
 lost then).
+
+## 9. Superseded in part by the one API program's S4 (2026-10-21)
+
+The writes described in §6 and §8 changed with docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4 ("the host applies the
+commands"): a write is the version it was made at and the edits made there, never the page; the keeper has DataCube
+apply them to the page as it is (headless pageRebase) at every version, its own included, and keeps what they make. A
+change no command explains no longer makes a write whole: the one write of a page whole is a restore (an undo or a redo,
+the plan's N2; a page loaded, N1), kept only at the version it was made at. Each version keeps the ids the page held then,
+which the rebase is told (a page filter the writer made is told from one it set). What a page on Python can hold is one
+rule (headless grid.ts onHost: frames, and joins of them, until the plan's S5): a write that adds a grid over any other
+source is refused as it is made. That plan's As built (S4) section is the current account.

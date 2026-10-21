@@ -304,8 +304,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
 
   it('each source kind is read and added by Python, or listed', () => {
     const kinds = unionTypes(SOURCES.read('src/cube-document.ts'), 'CubeSource');
-    const base = exported.find((e) => e.name === 'gridBase')!.body.split('\n');
-    /** A kind gridBase reads: its own branch (no refusal on its line), or the one a refusal of every other lets by. */
+    // what a page on the host holds is one rule, which gridBase, gridOpened and the keeper ask (headless grid.ts onHost)
+    const base = exported.find((e) => e.name === 'onHost')!.body.split('\n');
+    /** A kind the host holds: its own branch (no refusal on its line), or the one a refusal of every other lets by. */
     const reads = (kind: string): boolean => base.some((line) => line.includes(`_type === '${kind}'`) && !line.includes('throw'))
       || base.some((line) => line.includes(`_type !== '${kind}'`) && line.includes('throw'));
     const problems: string[] = [];
@@ -359,7 +360,7 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/headless/grid.ts', text: 'gridLens(', items: ['B1'], absent: true },
   { file: 'src/app/datacube-app.ts', text: "current.name ?? (page.suggestedName || 'page')", items: ['B3'], count: 5 },
   { file: 'src/app/datacube-app.ts', text: 'a page file cannot carry them yet.', items: ['B5'] },
-  { file: 'src/headless/grid.ts', text: 'a page on Python reads frames', items: ['B7'], count: 3 },
+  { file: 'src/headless/grid.ts', text: 'a page on Python reads frames', items: ['B7'], count: 2 },
   { file: 'src/page/cube-page.ts', text: 'pill.disabled = detached;', items: ['B8'] },
   { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
   { file: 'src/app/datacube-app.ts', text: 'current.cubeId : crypto.randomUUID()', items: ['B13'] },
@@ -415,9 +416,9 @@ const ITEM = /'([GTCPYVHZBXK]\d{1,2})'/g;
 const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P12 '
   + 'P13 P14 Y1 Y2 Y3 Y6 V1 V2 V4 V5 H1 H2 H3 Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8 Z9 Z10 Z11 Z12 Z13 Z14 Z15 Z16 Z17 Z18 Z19 B1 B2 '
   + 'B3 B4 B5 B6 B7 B8 B9 B10 B11 B12 B13 B14 X1 X2 X3 X4 X5 K1 K2 K3 K4 K5 K6 K7 K8 K9 K10 K11 K12 '
-  // 2026-10-21, One API S2's and S3's audit rounds and S4's soak: what each found, added by rule 9 and closed with each
-  // fix (no ledger grows)
-  + 'F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15 F16 F17 F18').split(' ');
+  // 2026-10-21, One API S2's, S3's and S4's audit rounds and S4's soak: what each found, added by rule 9 and closed with
+  // each fix (no ledger grows)
+  + 'F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15 F16 F17 F18 F19 F20 F21 F22 F23 F24 F25 F26 F27').split(' ');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

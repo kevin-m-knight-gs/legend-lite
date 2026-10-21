@@ -129,9 +129,11 @@ export class LiveChannel {
     if (this.shown !== at || this.#stopped) return;
     if (said.combined) {
       // the keeper made another page than the screen's (made again on top of what moved it meanwhile, an id given out
-      // afresh): the page as the keeper made it
+      // afresh): the page as the keeper made it -- what was made here while the write was on its way, made on the
+      // screen's page and not the keeper's, is not kept, and is said (the S4 audit's 7)
+      const dropped = this.#edits.length > 0 || this.#restore;
       this.shown = undefined;
-      await this.#screen.reopen();
+      await this.#screen.reopen(dropped ? 'a change made while the page was written was made on a page its keeper no longer has' : undefined);
       return;
     }
     this.shown = said.version;

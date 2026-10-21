@@ -13,6 +13,9 @@ import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../s
 import { gridCopyOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { pageReads, rebaseEdits, renamedCommand, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
+import { pageRebase } from '../src/headless/page.ts';
+import { pageToJson } from '../src/page-document.ts';
+import { toJson } from '../../pure-protocol/src/index.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) and chart-2 (frozen, of grid-2);
@@ -135,6 +138,21 @@ describe('edits made again on top of a page that moved on', () => {
     assert.deepEqual((known.page.filters ?? []).map((f) => (f.condition as { value: string }).value), ['LATAM']);
   });
 
+  it('a page filter no command made under its keeper (a page loaded or served whole), set again: set where it is (the S4 audit\'s 3)', async () => {
+    const over = (c: PageDocument['cubes'][number]) => ({ ...c, cube: { ...c.cube, source: { _type: 'class' as const, name: 'Trade',
+      class: 'trades::domain::Trade', project: 'datacube:trades', workspace: 'datacube', revision: '3', mapping: 'trades::mapping::Model',
+      runtime: 'trades::runtime::Browser', columns: (c.cube.source as { readonly columns: readonly { readonly name: string; readonly type: string }[] }).columns } } });
+    const filter = (value: string, id?: string): PageCommand => ({ kind: 'setPageFilter', ...(id ? { id } : {}),
+      class: 'trades::domain::Trade', condition: { kind: 'condition', column: 'region', operator: 'equal', value }, from: null });
+    // the page as its keeper took it whole: its filter in the document, the ids it held what the page reads says
+    const loaded = applyPageCommands(draft({ ...trades, cubes: trades.cubes.map(over) }), [filter('EMEA')]).draft.page;
+    const known = pageReads(loaded).ids;
+    // the tab sets that filter again (a chart click on another mark), at the keeper's own version
+    const done = await rebaseEdits({ page: loaded, held: known }, [{ page: filter('AMER', 'filter-1') }], applier().apply, known);
+    assert.deepEqual((done.page.filters ?? []).map((f) => [f.id, (f.condition as { value: string }).value]), [['filter-1', 'AMER']]);
+    assert.deepEqual(done.renamed, {});
+  });
+
   it('a grid\'s edit is applied over the page as the edits before it left it: snapped, or live again', async () => {
     const { apply, asked } = applier();
     await rebaseEdits(draft(), [
@@ -176,12 +194,28 @@ describe('edits made again on top of a page that moved on', () => {
   });
 });
 
+describe("what a page on its host holds (headless pageRebase: the S4 audit's 2)", () => {
+  it('a grid over a source the host cannot base its edits on is refused as the write adds it, in DataCube\'s words', async () => {
+    // the trades page over the host's frames; the dashboard page's grids read a file
+    const files = (await corpus())['charts-dashboard.page.json']!;
+    const frames = Object.fromEntries(pageReads(trades).frames.map((f) => [f, { model: '', runtime: '', accessor: '' }]));
+    const ids = JSON.stringify(pageReads(trades).ids);
+    const adding = (document: PageDocument['cubes'][number]['cube']): string =>
+      `[${toJson({ page: { kind: 'addGrid', document, sheet: 'sheet-1', near: null, title: null, columns: null } })}]`;
+    const refused = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(files.cubes[0]!.cube), ids, frames, {})) as { problems?: string[] };
+    assert.match((refused.problems ?? []).join('; '), /is no frame and no join of frames: a page on Python reads frames/);
+    // one over a frame the host serves is kept
+    const kept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(trades.cubes[0]!.cube), ids, frames, {})) as { problems?: string[] };
+    assert.equal(kept.problems, undefined);
+  });
+});
+
 describe('what a page reads, for its keeper', () => {
   it('its frames, its copies and its ids', () => {
     const snapped = made(trades, [{ kind: 'snap', grid: 'grid-2', copy: SNAP }]).page;
     const reads = pageReads(snapped);
     assert.deepEqual(reads.copies, ['snap']);
-    assert.deepEqual(reads.ids.sort(), idsOf(snapped).sort());
+    assert.deepEqual(reads.ids.sort(), idsOf(snapped).sort(), 'no page filter here: its tiles\', cubes\' and sheets\'');
     assert.ok(reads.frames.length > 0 && reads.frames.every((f) => typeof f === 'string'));
   });
 });

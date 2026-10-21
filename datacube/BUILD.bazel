@@ -281,6 +281,8 @@ _EXTRA_DATA = {
     # the tab's channel to the page's keeper, over a real page's grids (the page app's fixtures)
     "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts"],
     "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts"],
+    # DataCube's app on a page Python serves, over a stand-in editor (the S4 audit's 1, 4 and 5)
+    "datacube-app-live": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts"],
     "one-api-ledger": ["test/one-api/scan.ts"],
     # S3's guardrail reads the board's and the page state's changes by the ledgers' scanner
     "state-guardrail": ["test/one-api/scan.ts"],

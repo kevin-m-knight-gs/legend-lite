@@ -864,10 +864,21 @@ export function renameColumnReferences(
   };
 }
 
-/** A filter node as text, each object's keys in order: two nodes alike whatever order their writers put their keys in. */
-function nodeKey(node: FilterNode): string {
-  return JSON.stringify(node, (_key, value: unknown) => (typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? Object.fromEntries(Object.keys(value).sort().map((k) => [k, (value as Record<string, unknown>)[k]])) : value));
+/**
+ * TWO VALUES OF A DOCUMENT ALIKE AS DATA, whatever order their writers put an object's keys in: the protocol's writer
+ * (toJson) puts them in order, each reader in its own, so one filter node, chart spec or layout comes in either (F18,
+ * F19). A key whose value is undefined is no key, as JSON writes it; a list's order is its own.
+ */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => sameValue(x, b[i]));
+  }
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  const keys = Object.keys(x).filter((k) => x[k] !== undefined);
+  return keys.length === Object.keys(y).filter((k) => y[k] !== undefined).length && keys.every((k) => sameValue(x[k], y[k]));
 }
 
 /**
@@ -881,8 +892,7 @@ export function withoutConditions(
   const children = filter === undefined ? [] : filter.kind === 'and' ? [...filter.children] : [filter];
   for (const c of conditions) {
     // one condition however its writer ordered its keys (a document read back, a command read: F18)
-    const key = nodeKey(c);
-    const at = children.findIndex((n) => nodeKey(n) === key);
+    const at = children.findIndex((n) => sameValue(n, c));
     if (at < 0) {
       if (strict) return null;
       continue;

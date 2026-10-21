@@ -18,6 +18,7 @@ datacube/test/one-api-ledger.test.ts, which reads this file.)
 A behavioural entry asserts the gap as it is today: closing it makes the assertion fail, and its entry comes off."""
 
 import ast
+import copy
 import json
 import os
 import tempfile
@@ -345,7 +346,36 @@ class HostApplies(Session):
         # and an open page reads them with the page: it gives none out again
         answer = engine.answer('GET', '/page.json', f'page={page._key}', None)
         self.assertIn('sheet-9', json.loads(answer.body)['held'])
-        self.assertNotEqual(page.sheet('Mine').id, 'sheet-9')
+        # and Python, which takes the keeper's held ids with the page: its next sheet is past every one held (the S4 audit's
+        # 5: a sheet given out from what the page shows alone would be sheet-2)
+        self.assertEqual(page.sheet('Mine').id, 'sheet-10')
+
+    def test_a_grid_the_host_cannot_hold_is_refused_as_the_write_adds_it(self):
+        # (the S4 audit's 2) a page on Python holds grids over its frames and joins of them (headless grid.ts onHost, until
+        # S5): one over any other source is refused as the write adds it, in DataCube's words, and nothing is kept
+        page, engine = self.served('holds')
+        at = datacube._session.keeper.current(page._key)[0]
+        cube = copy.deepcopy(page.to_dict()['cubes'][0]['cube'])
+        cube['source'] = {'_type': 'class', 'name': 'Trade', 'class': 'trades::domain::Trade', 'project': 'datacube:trades',
+                          'workspace': 'datacube', 'revision': '3', 'mapping': 'trades::mapping::Model',
+                          'runtime': 'trades::runtime::Browser', 'columns': cube['source']['columns']}
+        said = self.written(engine, page, {'edits': [{'page': {'kind': 'addGrid', 'document': cube, 'sheet': 'sheet-1',
+                                                                'near': None, 'title': None, 'columns': None}}]})
+        self.assertEqual(said.status, 409, said)
+        self.assertIn('is no frame and no join of frames: a page on Python reads frames', said.body.decode('utf-8'))
+        self.assertEqual(datacube._session.keeper.current(page._key)[0], at, 'nothing kept')
+
+    def test_a_failure_of_the_librarys_is_said_as_one_never_as_a_refusal(self):
+        # a write the keeper failed on -- a bug, not a refusal -- is a 500 that names it: never "no such page" (a KeyError)
+        # nor a refusal the open page reopens on
+        page, engine = self.served('failed')
+
+        def broken(*_):
+            raise KeyError('a bug of the keeper\'s')
+        datacube._session.keeper.combine = broken
+        said = self.written(engine, page, {'edits': [{'page': {'kind': 'renamePage', 'name': 'never'}}]})
+        self.assertEqual(said.status, 500, said)
+        self.assertIn('KeyError', said.body.decode('utf-8'))
 
 
 class SameJob(Session):
