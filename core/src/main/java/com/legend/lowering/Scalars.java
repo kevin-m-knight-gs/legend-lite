@@ -1251,7 +1251,7 @@ final class Scalars {
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
-                        : new SqlExpr.Call(SqlFn.LIST_MIN, args);
+                        : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
             });
         }
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_DATE_MAX, Pure.AT_MATH_MAX, Pure.AT_COLLECTION_MAX)) {
@@ -1274,7 +1274,7 @@ final class Scalars {
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
-                        : new SqlExpr.Call(SqlFn.LIST_MAX, args);
+                        : SqlExpr.Call.of(SqlFn.LIST_MAX, emptyConformed(args.get(0), n.args().get(0)));
             });
         }
         // THE SINGLETON-LIST-LITERAL RULE (burn slice 2 closed the CLASS,
@@ -1308,7 +1308,7 @@ final class Scalars {
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
-                        : new SqlExpr.Call(SqlFn.LIST_MAX, args);
+                        : SqlExpr.Call.of(SqlFn.LIST_MAX, emptyConformed(args.get(0), n.args().get(0)));
             });
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_LEAST) {
@@ -1319,7 +1319,7 @@ final class Scalars {
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
-                        : new SqlExpr.Call(SqlFn.LIST_MIN, args);
+                        : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
             });
         }
         for (com.legend.model.FunctionId f : Pure.AT_MATH_MODE) {
@@ -3472,6 +3472,17 @@ final class Scalars {
 
     static boolean isToOne(TypedSpec arg) {
         return Stamps.toOne(arg);
+    }
+
+    /** The empty list -- the NULL value, bottom -- conformed to its pure element's array (the typedList door,
+     *  §4bZ-U), so its min or max is a NULL of the element's type: over Nil's text carrier it is text, which a typed
+     *  database's print of a Number or a Date refuses (BigQuery: []->cast(@Number)->max() compared a STRING with a
+     *  FLOAT64, []->cast(@Date)->max() was a FORMAT_DATETIME of a STRING; on the lane 2026-10-21). A typed list passes
+     *  untouched. */
+    private static SqlExpr emptyConformed(SqlExpr list, TypedSpec arg) {
+        return list.type() instanceof com.legend.sql.TypeFact.Bottom
+                ? PureSql.typedList(list, arg.info().type())
+                : list;
     }
 
 
