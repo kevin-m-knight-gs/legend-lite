@@ -490,20 +490,22 @@ public final class VerdictSql {
             cells.add(gridCell(grid, i));
             Type k = i < kinds.size() ? kinds.get(i) : null;
             String alias = i < values.size() ? values.get(i).alias() : null;
-            SqlExpr raw = alias != null
-                    ? SqlExpr.Column.of("w", alias, SqlType.Scalar.VARCHAR, true,
-                            OutputCol.Origin.DERIVED)
-                    : null;
             boolean numeric = k == Type.Primitive.INTEGER || k == Type.Primitive.FLOAT
                     || k == Type.Primitive.DECIMAL || k == Type.Primitive.NUMBER
                     || k instanceof Type.PrecisionDecimal;
             boolean temporal = k == Type.Primitive.DATE_TIME || k == Type.Primitive.STRICT_DATE
                     || k == Type.Primitive.DATE;
+            // a cell the side carries as a temporal value is read as one (a literal grid's timestamp: a text cast of
+            // it is no timestamp's on Trino), any other as the text it arrives as
+            SqlExpr raw = alias == null ? null
+                    : temporal && carriedTemporal(grid.wrapped().outputs(), alias)
+                            ? SqlExpr.Column.of("w", grid.wrapped().outputs(), alias)
+                            : SqlExpr.Column.of("w", alias, SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED);
             ns.add(raw != null && numeric ? new SqlExpr.Cast(raw, SqlType.Scalar.DOUBLE)
                     : new SqlExpr.NullLit());
-            // the grid's cells arrive DECODED as text (the fetch conformance:
-            // nine-digit temporals) — a temporal cell casts back to a
-            // timestamp for its epoch
+            // a temporal cell casts to a timestamp for its epoch: a computed
+            // one arrives DECODED as text (the fetch conformance: nine-digit
+            // temporals)
             secs.add(raw != null && temporal
                     ? new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.EPOCH_SECONDS,
                             new SqlExpr.Cast(raw, SqlType.Scalar.TIMESTAMP)), SqlType.Scalar.DOUBLE)
@@ -516,6 +518,13 @@ public final class VerdictSql {
                         new SqlSelect.Projection(pick(secs), "__s", sOut)),
                 false, unpivot(grid, named), null,
                 List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, nOut, sOut));
+    }
+
+    /** Whether {@code name} among {@code outs} is a date or a timestamp value (not its text). */
+    private static boolean carriedTemporal(List<OutputCol> outs, String name) {
+        return outs.stream().anyMatch(o -> o.name().equals(name)
+                && (o.type() == SqlType.Scalar.TIMESTAMP || o.type() == SqlType.Scalar.TIMESTAMPTZ
+                        || o.type() == SqlType.Scalar.DATE));
     }
 
     /** The JSON verdict (bucket 3): the document the database built (its
