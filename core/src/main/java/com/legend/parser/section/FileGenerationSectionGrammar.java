@@ -38,11 +38,6 @@ public final class FileGenerationSectionGrammar
     }
 
     @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
-    @Override
     public Protocol.Element parseOne(TokenStreamCursor c) {
         int declStart = c.pos();
         if (!c.isIdentifierToken(c.peek())) {

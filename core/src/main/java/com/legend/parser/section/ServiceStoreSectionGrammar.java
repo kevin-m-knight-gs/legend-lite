@@ -39,11 +39,6 @@ public final class ServiceStoreSectionGrammar
     }
 
     @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
-    @Override
     public Protocol.Element parseOne(TokenStreamCursor c) {
         SectionParse.Head h = SectionParse.head(c, "ServiceStore");
         c.expect(TokenType.PAREN_OPEN);

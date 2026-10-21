@@ -18,7 +18,7 @@ import java.util.List;
  * load walls: {@code Runtime} and {@code Mapping} not found in the
  * service's {@code from} and the router's {@code routeFunction}).
  *
- * <p>Returned by {@link ElementParser#parseLegendLite(String)} and the other
+ * <p>Returned by {@code door.ModelFromText.parse} and the other
  * named-level entries.
  *
  * <p>Renamed from engine's {@code ParseResult}. {@code ParsedModel} is more

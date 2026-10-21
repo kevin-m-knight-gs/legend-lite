@@ -2940,7 +2940,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             throw error("AggregationAware needs the section start line"
                     + " (span-shift emulation)");
         }
-        String outerId = com.legend.model.SetId.of(id, target);
+        String outerId = com.legend.protocol.SetIds.of(id, target);
         int braceOpenTok = pos;
         expect(TokenType.BRACE_OPEN);
         List<boolean[]> canAggs = new ArrayList<>();

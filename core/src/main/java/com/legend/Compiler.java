@@ -9,7 +9,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.normalizer.ModelNormalizer;
 import com.legend.model.NormalizedModel;
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import com.legend.model.ParsedModel;
 
 import java.util.List;
@@ -32,7 +32,7 @@ public final class Compiler {
      *  parser package directly. The Compiler is the product's provenance
      *  router: which level users get is decided HERE. */
     public static ParsedModel parseModel(String source) {
-        return com.legend.parser.ElementParser.parse(source,
+        return ModelFromText.parse(source,
                 com.legend.parser.Dialect.LEGEND_LITE);
     }
 
@@ -50,7 +50,7 @@ public final class Compiler {
      * <p>Drives steps 1&ndash;6 (the steps implemented in {@code core/} today;
      * the query/spec and backend steps land later):
      * <ol>
-     *   <li><b>parse</b> &mdash; {@link ElementParser#parse} (lex + parse-element).</li>
+     *   <li><b>parse</b> &mdash; {@link com.legend.door.ModelFromText#parse} (the one parser's records, through the compiler's door).</li>
      *   <li><b>resolve-names</b> &mdash; {@link NameResolver#resolve(ParsedModel)}
      *       rewrites simple names to FQNs against the user imports + platform
      *       prelude (the prelude is owned by the resolver, not this driver).</li>
@@ -71,7 +71,7 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        return buildPositioned(ElementParser.parse(model,
+        return buildPositioned(ModelFromText.parse(model,
                 com.legend.parser.Dialect.LEGEND_LITE));
     }
 
@@ -178,7 +178,7 @@ public final class Compiler {
             sourceTexts.put(src.name(), src.text());
             ParsedModel unit;
             try {
-                unit = ElementParser.parse(src.text(), dialect);
+                unit = ModelFromText.parse(src.text(), dialect);
             } catch (com.legend.error.LegendCompileException e) {
                 if (parseWallSink == null) {
                     throw e;

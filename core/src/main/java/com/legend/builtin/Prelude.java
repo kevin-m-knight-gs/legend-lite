@@ -52,7 +52,7 @@ public final class Prelude {
     /** Parsed once at class load — fails loudly if the source rots (the
      * {@link Pure} native-catalog discipline; the same bootstrap-loader
      * regime as {@link SystemMetamodel}). */
-    private static final ParsedModel PARSED = com.legend.parser.ElementParser.parse(
+    private static final ParsedModel PARSED = com.legend.door.ModelFromText.parse(
             SOURCE, com.legend.parser.Dialect.LEGEND_PLATFORM);
 
     // ORDERED, in module order (PRELUDE_MODULE_HOMEWORK §9.12): the

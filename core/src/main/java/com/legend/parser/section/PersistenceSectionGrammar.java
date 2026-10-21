@@ -53,11 +53,6 @@ public final class PersistenceSectionGrammar
         return parseElement(c);
     }
 
-    @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
     /** One element: {@code Persistence} or {@code PersistenceContext}. */
     public static Protocol.Element parseElement(TokenStreamCursor c) {
         if (!c.isIdentifierToken(c.peek())) {

@@ -243,7 +243,7 @@ class FixtureAdjudicationTest {
             // parsers refuse and never asked legend-lite at all.
             boolean liteAccepts;
             try {
-                com.legend.parser.ElementParser.parse(f.source(),
+                com.legend.door.ModelFromText.parse(f.source(),
                         com.legend.parser.Dialect.LEGEND_LITE);
                 liteAccepts = true;
             } catch (com.legend.parser.ParseException e) {

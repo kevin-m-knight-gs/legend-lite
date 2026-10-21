@@ -16,17 +16,17 @@ public final class Surfaces {
     }
 
     public static ParsedModel platform(String source) {
-        return com.legend.parser.ElementParser.parse(source,
+        return com.legend.door.ModelFromText.parse(source,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
     }
 
     public static ParsedModel platform(com.legend.lexer.TokenStream tokens) {
-        return com.legend.parser.ElementParser.parse(tokens,
+        return com.legend.door.ModelFromText.parse(tokens.source(),
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
     }
 
     public static ParsedModel lite(String source) {
-        return com.legend.parser.ElementParser.parse(source,
+        return com.legend.door.ModelFromText.parse(source,
                 com.legend.parser.Dialect.LEGEND_LITE);
     }
 
@@ -54,7 +54,7 @@ public final class Surfaces {
     }
 
     public static ParsedModel engine(String source) {
-        return com.legend.parser.ElementParser.parse(source,
+        return com.legend.door.ModelFromText.parse(source,
                 com.legend.parser.Dialect.LEGEND_ENGINE);
     }
 }

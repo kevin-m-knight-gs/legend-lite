@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.model.ParsedModel;
 import com.legend.parser.Dialect;
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -49,7 +49,7 @@ class PreludeGeneratorTest {
         Map<String, String> decls = PreludeGenerator.m3Declarations(Files.readString(m3, StandardCharsets.UTF_8));
         for (Map.Entry<String, String> e : decls.entrySet()) {
             // every printed declaration parses through the platform's own door
-            ParsedModel parsed = ElementParser.parse(e.getValue(), Dialect.LEGEND_PLATFORM);
+            ParsedModel parsed = ModelFromText.parse(e.getValue(), Dialect.LEGEND_PLATFORM);
             assertEquals(1, parsed.elements().size(), e.getKey());
         }
         assertTrue(decls.size() >= 85, "m3.pure declares 85 classes; read " + decls.size());

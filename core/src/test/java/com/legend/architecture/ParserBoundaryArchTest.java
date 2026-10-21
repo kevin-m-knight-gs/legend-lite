@@ -45,6 +45,9 @@ class ParserBoundaryArchTest {
      *  runner's provenance, and the parity harness's surface fixture. */
     private static final Set<String> DIALECT_CLASSES = Set.of(
             "com/legend/Compiler.java",
+            // the text's door (leg 8's last step, 2026-10-21): it passes the dialect its caller names to the one
+            // parser, and names none itself
+            "com/legend/door/ModelFromText.java",
             "com/legend/builtin/Pure.java",
             // metamodel-store leg (2026-08-28): the system store/mapping
             // are fixed Pure SOURCE parsed once at class load — the same
