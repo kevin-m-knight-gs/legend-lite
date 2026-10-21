@@ -54,9 +54,31 @@ class SnowflakeDialectTest {
     }
 
     /**
+     * Pure's literal spelling of a Float is spelled here, its shortest text read once per branch (2026-10-21): the
+     * portable spelling reads the double's text some fifty times, and channel B's standard suite took 57 minutes on the
+     * lane. A coalesce of a JSON value and a text parses the text and reads the JSON as a VARIANT (the zips).
+     */
+    @Test
+    void aFloatsCanonIsSpelledHere_andACoalesceOfJsonAndTextIsOneType() {
+        SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+        SqlExpr j = SqlExpr.Column.of("t", "j", SqlType.Scalar.JSON, true, OutputCol.Origin.PHYSICAL);
+        String sql = new Snowflake().render(new SqlSelect(List.of(
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.FLOAT_CANON, x), "c", null),
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, j, new SqlExpr.StringLit("[]")), "z", null)),
+                false, new SqlSource.Table("t", "t", List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true),
+                        new OutputCol("j", SqlType.Scalar.JSON, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
+                null, List.of(), null, null, List.of(), null, null, List.of()));
+        assertTrue(sql.contains("WHEN \"t\".\"x\" = 0 THEN '0.0'"), sql);
+        assertTrue(sql.contains("RPAD("), sql);
+        assertTrue(sql.length() < 12_000, sql.length() + " characters: " + sql);
+        assertTrue(sql.contains("coalesce(TO_VARIANT(\"t\".\"j\"), PARSE_JSON('[]'))"), sql);
+    }
+
+    /**
      * A ranking window with no order is ordered by a constant (2026-10-21): Snowflake refuses ROW_NUMBER() OVER ()
      * ("requires ORDER BY in window specification"), which the judges' verdict numbers a side with -- 261 channel B
-     * tests on the lane at 08ac296d. A value's type is SYSTEM$TYPEOF's base name, a DATE's 'DATE'.
+     * tests on the lane at 08ac296d. A value's type is its VARIANT's TYPEOF, a DATE's 'DATE' (SYSTEM$TYPEOF aborted
+     * the judges' statement with an internal error, measured at a76cffee).
      */
     @Test
     void aRankingWindowWithNoOrderIsOrderedByAConstant_andAValuesTypeIsItsBaseName() {
@@ -70,7 +92,7 @@ class SnowflakeDialectTest {
                 List.of(new OutputCol("d", SqlType.Scalar.DATE, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
         assertTrue(sql.contains("ROW_NUMBER() OVER (ORDER BY NULL)"), sql);
-        assertTrue(sql.contains("REGEXP_SUBSTR(SYSTEM$TYPEOF(\"t\".\"d\"), '^[A-Z_]+') = 'DATE'"), sql);
+        assertTrue(sql.contains("TYPEOF(TO_VARIANT(\"t\".\"d\")) = 'DATE'"), sql);
     }
 
     /**

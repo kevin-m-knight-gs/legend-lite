@@ -168,6 +168,13 @@ public final class Snowflake extends AnsiSqlRenderer {
                 + " MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE");
     }
 
+    /** {@inheritDoc} Spelled here ({@link #floatCanon}): the portable spelling reads this dialect's long double text some
+     *  fifty times. */
+    @Override
+    protected boolean spellsFloatCanon() {
+        return true;
+    }
+
     /** A dynamic pivot is discovered first: the static form is emulated (PivotAsGroupBy). */
     // the probe plan's facts (2026-10-20): Snowflake: READ COMMITTED only, each statement its own snapshot; no result column limit documented
     @Override
@@ -879,10 +886,12 @@ public final class Snowflake extends AnsiSqlRenderer {
                                 new Param(l.params().get(1), t)), Map.of(),
                                 w -> w.append("CAST(").expr(l.body(), 0).append(" AS " + t + ")"))).append(")");
             }
-            // the value's SQL type by its base name (SYSTEM$TYPEOF writes 'DATE[SB4]', 'FLOAT[DOUBLE]'), compared only
-            // with typeofName's: the judges' grid sides read a declared timestamp's DATE cells by it (channel B's
-            // testExtendLeadAdjustDerivedOffset and testProjectExtendNestedIfLeadAdjust, on the lane 2026-10-21)
-            case TYPEOF -> writer.append("REGEXP_SUBSTR(SYSTEM$TYPEOF(").expr(a.get(0), 0).append("), '^[A-Z_]+')");
+            // the value's type, compared only with typeofName's: the judges' grid sides read a declared timestamp's
+            // DATE cells by it (channel B's testExtendLeadAdjustDerivedOffset and testProjectExtendNestedIfLeadAdjust)
+            // TYPEOF of the value as a VARIANT ('DATE', 'TIMESTAMP_NTZ'): SYSTEM$TYPEOF in the judges' grid decode
+            // aborted the statement with an internal error ("Processing aborted due to error 300010:558931247", on
+            // the lane at a76cffee, 2026-10-21)
+            case TYPEOF -> writer.append("TYPEOF(TO_VARIANT(").expr(a.get(0), 0).append("))");
             default -> throw new IllegalStateException("not a list call: " + fn);
         };
     }
@@ -1346,7 +1355,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_CANON -> floatCanon(writer, a.get(0));
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1367,7 +1376,21 @@ public final class Snowflake extends AnsiSqlRenderer {
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
             case CHR -> writer.function("chr", c.args());
-            case COALESCE -> writer.function("coalesce", c.args());
+            // a text operand beside a JSON one is parsed, and each JSON one read as a VARIANT: Snowflake coerces to
+            // the first operand's type ("Can not convert parameter ''[]'' of type [VARCHAR(2)] into expected type
+            // [OBJECT]": an instance canon's empty key '[]' beside a nested instance's canon object, the zips of Pairs
+            // of Pairs, measured on the lane 2026-10-21; Trino's json_parse and BigQuery's PARSE_JSON likewise)
+            case COALESCE -> a.stream().anyMatch(Snowflake::isJson) && a.stream().anyMatch(Snowflake::isText)
+                    ? writer.append("coalesce(").join(a, ", ", (w, e) -> {
+                        if (isText(e)) {
+                            w.append("PARSE_JSON(").expr(e, 0).append(")");
+                        } else if (isJson(e)) {
+                            w.append("TO_VARIANT(").expr(e, 0).append(")");
+                        } else {
+                            w.expr(e, 0);
+                        }
+                    }).append(")")
+                    : writer.function("coalesce", c.args());
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
             case COT -> writer.function("cot", c.args());
@@ -1765,9 +1788,54 @@ public final class Snowflake extends AnsiSqlRenderer {
      */
     private SqlWriter floatText(SqlWriter writer, SqlExpr v) {
         SqlWriter.Piece x = w -> w.expr(v, 0);
+        return writer.append("CASE WHEN ").piece(nonFinite(x)).append(" THEN CAST(").piece(x).append(" AS VARCHAR) WHEN ")
+                .piece(plainRange(x)).append(" THEN ").piece(plainFloat(x)).append(" ELSE REPLACE(LOWER(")
+                .piece(shortestFloat(x)).append("), '.e', 'e') END");
+    }
+
+    /**
+     * Pure's literal spelling of a Float ({@link SqlFn#FLOAT_CANON}), spelled here: {@link #floatText}'s digits, every
+     * zero {@code 0.0}, fixed point at every exponent (the shortest spelling's digits shifted by its exponent as text).
+     * The portable spelling reads the double's text some fifty times, and this dialect's text is an expression of its
+     * own: channel B's standard suite took 57 minutes on the lane at a76cffee (2026-10-21), as MariaDB's five-element
+     * list was 545 KB of SQL before it spelled the call itself.
+     */
+    private SqlWriter floatCanon(SqlWriter writer, SqlExpr v) {
+        SqlWriter.Piece x = w -> w.expr(v, 0);
+        SqlWriter.Piece t = shortestFloat(x);
+        SqlWriter.Piece exponent = w -> w.append("TO_NUMBER(SPLIT_PART(").piece(t).append(", 'E', 2))");
+        SqlWriter.Piece digits = w -> w.append("RTRIM(REPLACE(REPLACE(SPLIT_PART(").piece(t)
+                .append(", 'E', 1), '-', ''), '.', ''), '0')");
+        return writer.append("CASE WHEN ").piece(nonFinite(x)).append(" THEN CAST(").piece(x)
+                .append(" AS VARCHAR) || '.0' WHEN ").piece(x).append(" = 0 THEN '0.0' WHEN ").piece(plainRange(x))
+                .append(" THEN ").piece(plainFloat(x)).append(" ELSE IFF(").piece(x).append(" < 0, '-', '') || IFF(")
+                .piece(exponent).append(" >= 0, RPAD(").piece(digits).append(", ").piece(exponent)
+                .append(" + 1, '0') || '.0', '0.' || REPEAT('0', -").piece(exponent).append(" - 1) || ").piece(digits)
+                .append(") END");
+    }
+
+    private static SqlWriter.Piece nonFinite(SqlWriter.Piece x) {
+        return w -> w.piece(x).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT)");
+    }
+
+    /** Where a Float's text is plain: zero, or an exponent from -4 to 15. */
+    private static SqlWriter.Piece plainRange(SqlWriter.Piece x) {
+        return w -> w.piece(x).append(" = 0 OR (ABS(").piece(x).append(") >= 1E-4 AND ABS(").piece(x).append(") < 1E16)");
+    }
+
+    /** The shortest spelling read as an exact NUMBER, its trailing zeros dropped, an integral value's {@code .0} kept
+     *  (cast from '0' outside the plain range, since a CASE's branches may all be evaluated). */
+    private SqlWriter.Piece plainFloat(SqlWriter.Piece x) {
+        return w -> w.append("REGEXP_REPLACE(REGEXP_REPLACE(TO_VARCHAR(CAST(IFF(").piece(plainRange(x)).append(", ")
+                .piece(shortestFloat(x)).append(", '0') AS NUMBER(38, 21))), '0+$', ''), '\\\\.$', '.0')");
+    }
+
+    /** The first of the exact DECFLOAT's 15-, 16- and 17-digit spellings ({@code 'FM9.99...EE'}, a mantissa and
+     *  {@code E} and its exponent) that TRY_TO_DOUBLE reads back as the value. */
+    private static SqlWriter.Piece shortestFloat(SqlWriter.Piece x) {
         SqlWriter.Piece exact = w -> w.append("CAST(IFF(ABS(").piece(x).append(") < 'inf'::FLOAT, ").piece(x)
                 .append(", 0) AS DECFLOAT)");
-        SqlWriter.Piece shortest = w -> {
+        return w -> {
             w.append("CASE");
             for (int digits = 15; digits <= 16; digits++) {
                 String format = "'FM9." + "9".repeat(digits - 1) + "EE'";
@@ -1776,13 +1844,6 @@ public final class Snowflake extends AnsiSqlRenderer {
             }
             w.append(" ELSE TO_VARCHAR(").piece(exact).append(", 'FM9." + "9".repeat(16) + "EE') END");
         };
-        SqlWriter.Piece plainRange = w -> w.piece(x).append(" = 0 OR (ABS(").piece(x).append(") >= 1E-4 AND ABS(")
-                .piece(x).append(") < 1E16)");
-        return writer.append("CASE WHEN ").piece(x).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CAST(")
-                .piece(x).append(" AS VARCHAR) WHEN ").piece(plainRange).append(" THEN REGEXP_REPLACE(REGEXP_REPLACE(")
-                .append("TO_VARCHAR(CAST(IFF(").piece(plainRange).append(", ").piece(shortest)
-                .append(", '0') AS NUMBER(38, 21))), '0+$', ''), '\\\\.$', '.0') ELSE REPLACE(LOWER(").piece(shortest)
-                .append("), '.e', 'e') END");
     }
 
     /** A projection that IS error() raised in its column's type, as a CASE branch is: a bare raise is text, and a
@@ -3100,7 +3161,7 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} A DATE is {@code DATE} (SYSTEM$TYPEOF's base name); no other type's name is compared here. */
+    /** {@inheritDoc} A DATE is {@code DATE} (TYPEOF of its VARIANT); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         if (type == com.legend.sql.SqlType.Scalar.DATE) {
