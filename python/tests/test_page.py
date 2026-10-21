@@ -799,13 +799,14 @@ class Document(Paged):
         # removeCalculated; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md G4, G5)
         page = ll.Page('Calculated')
         grid = page.grid(trades(), name='calculated_trades', rows=['region'])
-        grid.calculate('double', '$x.notional * 2').calculate('triple', '$x.notional * 3').sort('double', 'desc')
-        grid.edit_calculated('double', '$x.notional + $x.notional', rename='twice')
+        grid.calculate('double', '$x.notional->toOne() * 2').calculate('triple', '$x.notional->toOne() * 3')
+        grid.sort('double', 'desc')
+        grid.edit_calculated('double', '$x.notional->toOne() + $x.notional->toOne()', rename='twice')
         self.assertEqual([c['name'] for c in grid._query['derived']], ['twice', 'triple'], 'in its place')
         self.assertEqual(grid._query['sorts'], [{'column': 'twice', 'direction': 'desc'}], 'its sort follows it')
         self.assertEqual(page._commands[-1]['kind'], 'editCalculated')
         with self.assertRaisesRegex(ValueError, "'desk' is not a calculated column of the grid"):
-            grid.edit_calculated('desk', '$x.notional')
+            grid.edit_calculated('desk', '$x.notional->toOne()')
         grid.remove_calculated('triple')
         self.assertEqual([c['name'] for c in grid._query['derived']], ['twice'])
         with self.assertRaisesRegex(ValueError, "'triple' is not a calculated column of the grid"):

@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 7, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 15, L1_PLANE: 9, L1_HOST: 18,
-  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 28, UNCHECKED: 9,
+  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 28, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -262,9 +262,7 @@ const L8_UNASKED: Record<string, Entry> = {
  */
 const UNCHECKED_UNTIL_S6: Record<string, string> = {
   K1: 'sorts replaced, one cleared, all cleared, after a grid is made',
-  K3: 'a calculated column edited, renamed, removed',
   K4: 'group-level, window, child-aggregate and explode columns; the Show As and period presets',
-  K5: 'rows expanded, collapsed, all collapsed',
   K6: 'a dimension used',
   K9: 'a chart drilled, and back up',
   K10: 'Copy of Grid',

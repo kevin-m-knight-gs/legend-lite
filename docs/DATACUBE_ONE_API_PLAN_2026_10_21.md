@@ -244,9 +244,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 ### Capability parity (audit §7; Python's API, names reviewed with the user before S6)
 - [ ] **K1** sorts: replace, clear one, clear all — S6, L8
 - [ ] **K2** add one condition to a filter — S6, L8
-- [ ] **K3** calculated columns: edit, rename, remove — S6, L8
+- [x] **K3** calculated columns: edit, rename, remove — closed S1 with G4/G5: Python `grid.edit_calculated` (rename=) and
+  `grid.remove_calculated`, test_page.py
 - [ ] **K4** group-level, window, child-aggregate, explode columns; the Show As and period presets — S6, L8
-- [ ] **K5** expand, collapse, collapse all — S6, L8
+- [x] **K5** expand, collapse, collapse all — closed S1 with G1/G2: Python `grid.expand`, `grid.collapse`,
+  `grid.collapse_all`, test_page.py
 - [ ] **K6** dimensions — S6, L8
 - [ ] **K7** a chart's selection; page filters — S6, L8
 - [ ] **K8** sheets: reorder, remove — S6, L8
