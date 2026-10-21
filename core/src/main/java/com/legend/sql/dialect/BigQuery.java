@@ -1362,27 +1362,37 @@ public final class BigQuery extends AnsiSqlRenderer {
      * A Float's text as DuckDB's cast writes it: the shortest digits that read back as the same double (Java's rule),
      * plain where the exponent is from -4 to 15 with an integral value's {@code .0}, else with its exponent. BigQuery's
      * own cast writes seventeen significant digits (pi() '3.1415926535897931', 1.1 / 2.1 '0.52380952380952384': three
-     * PCT tests passing at the merge-base failed on the plan route, which has the database print a Float; measured on
-     * the lane 2026-10-21). FORMAT's %g rounds to a given number of significant digits, so the 15-, 16- and 17-digit
-     * spellings are each read back and the first that is the value is taken (SAFE_CAST: a spelling that rounds past
-     * the double range is none); the plain form is that text read as an exact BIGNUMERIC. NaN and the infinities are
-     * BigQuery's own ('nan', 'inf', '-inf').
+     * PCT tests passing at the merge-base failed on the plan route, which has the database print a Float), and FORMAT's
+     * %.16g and %.17g are not correctly rounded (185.46332835263038 as '185.46332835263039'; 630 of 1,837 doubles wrong,
+     * measured on the lane 2026-10-21). The plain range's digits come from the double's exact decimal instead: its
+     * BIGNUMERIC (38 decimals), rounded to 15, 16 and 17 significant digits, the first whose text reads back as the value
+     * taken (a double's shortest digits are at most 17, and at 15 or fewer they are its 15-digit rounding). Elsewhere
+     * the text is the cast's, which reads back as the value. The value is bound once, in a one-row derived table under a
+     * scalar subquery (the form the Float canon's binding takes here, {@link #bindsFloatText}).
      */
     private SqlWriter.Piece floatText(SqlWriter.Piece x) {
-        SqlWriter.Piece shortest = w -> {
-            w.append("(CASE");
+        String v = param("__fv");
+        String n = param("__fn");
+        String e = param("__fe");
+        String r = param("__fr");
+        SqlWriter.Piece rounded = w -> {
+            w.append("CASE");
             for (int digits = 15; digits <= 16; digits++) {
-                String format = stringLit("%." + digits + "g");
-                w.append(" WHEN SAFE_CAST(FORMAT(" + format + ", ").piece(x).append(") AS FLOAT64) = ").piece(x)
-                        .append(" THEN FORMAT(" + format + ", ").piece(x).append(")");
+                String round = "ROUND(" + n + ", " + (digits - 1) + " - " + e + ")";
+                w.append(" WHEN SAFE_CAST(CAST(" + round + " AS STRING) AS FLOAT64) = " + v + " THEN " + round);
             }
-            w.append(" ELSE FORMAT(" + stringLit("%.17g") + ", ").piece(x).append(") END)");
+            w.append(" ELSE ROUND(" + n + ", 16 - " + e + ") END");
         };
-        SqlWriter.Piece plain = w -> w.append("CAST(SAFE_CAST(").piece(shortest).append(" AS BIGNUMERIC) AS STRING)");
-        return w -> w.append("(CASE WHEN IS_NAN(").piece(x).append(") OR IS_INF(").piece(x).append(") THEN CAST(")
-                .piece(x).append(" AS STRING) WHEN ").piece(x).append(" = 0 OR (ABS(").piece(x).append(") >= 1e-4 AND ABS(")
-                .piece(x).append(") < 1e16) THEN (CASE WHEN STRPOS(").piece(plain).append(", '.') = 0 THEN CONCAT(")
-                .piece(plain).append(", '.0') ELSE ").piece(plain).append(" END) ELSE ").piece(shortest).append(" END)");
+        return w -> w.append("(SELECT CASE WHEN IS_NAN(" + v + ") OR IS_INF(" + v + ") THEN CAST(" + v + " AS STRING)"
+                + " WHEN " + v + " = 0 OR (ABS(" + v + ") >= 1e-4 AND ABS(" + v + ") < 1e16) THEN (CASE WHEN STRPOS(" + r
+                + ", '.') = 0 THEN CONCAT(" + r + ", '.0') ELSE " + r + " END) ELSE CAST(" + v + " AS STRING) END"
+                + " FROM (SELECT " + v + ", CAST(").piece(rounded).append(" AS STRING) AS " + r
+                + " FROM (SELECT " + v + ", " + n + ", CASE WHEN " + n + " IS NULL OR " + n + " = 0 THEN 0"
+                + " WHEN ABS(" + n + ") >= 1 THEN LENGTH(CAST(TRUNC(ABS(" + n + ")) AS STRING)) - 1"
+                + " ELSE -1 - LENGTH(REGEXP_EXTRACT(CAST(ABS(" + n + ") AS STRING), ")
+                .append(stringLit("^0\\.(0*)")).append(")) END AS " + e
+                + " FROM (SELECT " + v + ", SAFE_CAST(" + v + " AS BIGNUMERIC) AS " + n + " FROM (SELECT ").piece(x)
+                .append(" AS " + v + ")))))");
     }
 
     private SqlWriter.Piece textOf(SqlWriter.Piece value, @com.legend.base.Nullable SqlType type) {

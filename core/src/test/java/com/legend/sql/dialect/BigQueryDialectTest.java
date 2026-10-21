@@ -32,15 +32,17 @@ class BigQueryDialectTest {
     }
 
     /** A Float's text is its shortest digits that read back as the same double, as DuckDB's cast writes it: BigQuery's
-     *  own cast writes seventeen (pi() '3.1415926535897931'). */
+     *  own cast writes seventeen (pi() '3.1415926535897931') and FORMAT's %.17g is not correctly rounded. */
     @Test
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
         String sql = render(new SqlExpr.Cast(X, SqlType.Scalar.VARCHAR), null);
-        assertTrue(sql.contains("WHEN SAFE_CAST(FORMAT('%.15g', `t`.`x`) AS FLOAT64) = `t`.`x` THEN FORMAT('%.15g'"), sql);
-        assertTrue(sql.contains("WHEN SAFE_CAST(FORMAT('%.16g', `t`.`x`) AS FLOAT64) = `t`.`x` THEN FORMAT('%.16g'"), sql);
-        assertTrue(sql.contains("ELSE FORMAT('%.17g', `t`.`x`) END"), sql);
-        assertTrue(sql.contains("AS BIGNUMERIC) AS STRING)"), sql);
-        assertFalse(sql.contains("REGEXP_CONTAINS(CAST(`t`.`x` AS STRING)"), sql);
+        // the value bound once; its exact BIGNUMERIC rounded to 15, 16 and 17 significant digits, each read back
+        assertTrue(sql.contains("FROM (SELECT `t`.`x` AS `__fv`)"), sql);
+        assertTrue(sql.contains("SAFE_CAST(`__fv` AS BIGNUMERIC) AS `__fn`"), sql);
+        assertTrue(sql.contains("WHEN SAFE_CAST(CAST(ROUND(`__fn`, 14 - `__fe`) AS STRING) AS FLOAT64) = `__fv`"), sql);
+        assertTrue(sql.contains("ELSE ROUND(`__fn`, 16 - `__fe`) END"), sql);
+        assertFalse(sql.contains("FORMAT('%.1"), sql);
+        assertFalse(sql.contains("`t`.`x` AS STRING"), sql);
     }
 
     /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError). */
