@@ -33,8 +33,9 @@ class SnowflakeDialectTest {
      * A Float's text is its shortest digits that read back as the same double, as DuckDB's cast writes it (2026-10-21):
      * Snowflake's own cast writes ten significant digits (EXP(1) '2.718281828') and its formatter caps a double at
      * sixteen, and is not correctly rounded at seventeen, so the exact DECFLOAT's mantissa is rounded to 15, 16 and 17
-     * digits, a tie to the even digit, each read back; the value is written once, bound by one-element TRANSFORMs
-     * (Snowflake refuses a correlated subquery). Measured against Java's text on the lane.
+     * digits, a tie to the even digit, each read back; the exact decimal is taken where the value is written, as
+     * text, and carried by one-element TRANSFORMs (Snowflake refuses a correlated subquery; a double carried in an
+     * OBJECT is not exact there). Measured against Java's text on the lane.
      */
     @Test
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
@@ -43,13 +44,15 @@ class SnowflakeDialectTest {
                 new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR), "s", null)), false, new SqlSource.Table("t", "t",
                 List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
-        assertTrue(sql.contains("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', \"t\".\"x\")), "), sql);
-        assertTrue(sql.indexOf("\"t\".\"x\"") == sql.lastIndexOf("\"t\".\"x\""), sql);
+        // the exact decimal taken where the value is written, as text: a double carried in an OBJECT is not exact there
+        assertTrue(sql.contains("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', \"t\".\"x\", 'd',"
+                + " TO_VARCHAR(CAST(IFF(ABS(\"t\".\"x\") >= 'inf'::FLOAT, 0, \"t\".\"x\") AS DECFLOAT)))), "), sql);
+        assertTrue(sql.split("\"t\"\\.\"x\"", -1).length - 1 == 3, sql);
         assertTrue(sql.contains("AS DECFLOAT) AS NUMBER(38, 37)))"), sql);
         for (int places = 14; places <= 16; places++) {
             assertTrue(sql.contains("AS NUMBER(38, 37)), " + places + ", 'HALF_TO_EVEN')"), sql);
         }
-        assertTrue(sql.contains("ABS(CAST(GET("), sql);
+        assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
         assertFalse(sql.contains("'FM"), sql);
         assertFalse(sql.contains("(SELECT"), sql);
     }
@@ -69,8 +72,8 @@ class SnowflakeDialectTest {
                 false, new SqlSource.Table("t", "t", List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true),
                         new OutputCol("j", SqlType.Scalar.JSON, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
-        assertTrue(sql.contains(" AS DOUBLE) = 0 THEN '0.0'"), sql);
-        assertTrue(sql.indexOf("\"t\".\"x\"") == sql.lastIndexOf("\"t\".\"x\""), sql);
+        assertTrue(sql.contains(" AS VARCHAR) = '' THEN '0.0'"), sql);
+        assertTrue(sql.split("\"t\"\\.\"x\"", -1).length - 1 == 3, sql);
         assertTrue(sql.contains("RPAD("), sql);
         assertTrue(sql.length() < 12_000, sql.length() + " characters: " + sql);
         assertTrue(sql.contains("coalesce(TO_VARIANT(\"t\".\"j\"), PARSE_JSON('[]'))"), sql);
