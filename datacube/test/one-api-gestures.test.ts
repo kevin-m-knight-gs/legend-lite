@@ -316,6 +316,30 @@ function chevron(id: string): void {
   el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 }
 
+/** The sheets' boards given a size (jsdom lays nothing out) and drawn at it, so a tile can be dragged on them. */
+function sizedBoards(): void {
+  for (const sheet of host.querySelectorAll<HTMLElement>('.dc-sheet')) {
+    Object.defineProperty(sheet, 'clientWidth', { configurable: true, get: () => 1000 });
+    Object.defineProperty(sheet, 'clientHeight', { configurable: true, get: () => 600 });
+  }
+  pg().setLayoutEditing(true);
+}
+
+/** Tile `id` dragged by its header and let go on tile `onto` -- its middle, or just inside its left edge (the board's
+ *  canvas at the page's top left). */
+function dragOnto(id: string, onto: string, where: 'middle' | 'left' = 'middle'): void {
+  const head = tile(id).querySelector<HTMLElement>('.dc-tile-head')!;
+  const at = tile(onto).style;
+  const x = parseFloat(at.left) + (where === 'middle' ? parseFloat(at.width) / 2 : 4);
+  const y = parseFloat(at.top) + parseFloat(at.height) / 2;
+  const press = (type: string, clientX: number, clientY: number): void => {
+    head.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, clientX, clientY, button: 0, bubbles: true }));
+  };
+  const from = tile(id).style;
+  press('pointerdown', parseFloat(from.left) + 10, parseFloat(from.top) + 10);
+  press('pointerup', x, y);
+}
+
 /** A grid's Column Properties for `column`, its Aggregation set to `fn`, and OK. */
 async function setAggregation(at: string, column: string, fn: string): Promise<void> {
   await headerMenu(at, column);
@@ -479,6 +503,18 @@ const GESTURES: readonly Gesture[] = [
       await settle();
       host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
     },
+  },
+  {
+    // a lone tile let go on another's middle: told as stack (P14), not as the sheet's layout whole
+    name: 'a chart stacked on its grid by dragging',
+    setUp: async () => { const ids = await withChart(); sizedBoards(); return ids; },
+    make: ({ a, chart }) => dragOnto(chart!, a!),
+  },
+  {
+    // a drop beside a tile is no command of its own: the sheet's layout, whole
+    name: 'a grid dragged to the left of another',
+    setUp: async () => { const ids = await twoGrids(); sizedBoards(); return ids; },
+    make: ({ a, b }) => dragOnto(b!, a!, 'left'),
   },
   { name: 'a page filter set', setUp: classGrid, make: async () => { await pg().setFilter({ class: TRADE, condition: EMEA }); } },
   {
@@ -665,8 +701,6 @@ const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
 
 /** The command kinds no gesture here tells, each by its item or why: the screen makes none, or none is driven yet. */
 const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?: string }> = {
-  stack: { items: ['P14'] },
-  arrange: { items: ['P14'] },
   measures: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" },
   // the model home is not in this harness: page-commands.test.ts holds what the screen tells (modelCommands), and
   // python/tests/test_model.py the commands Python's model actions apply
@@ -677,7 +711,7 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   rebuilt: { items: [], why: "opening a host's page whose frame changed in place: test/python-engine, python/tests/test_page.py" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). */
-const GESTURES_AT_LEAST = 38;
+const GESTURES_AT_LEAST = 40;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

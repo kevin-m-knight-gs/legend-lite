@@ -199,7 +199,12 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   again on top of another writer's edit of the grid it keeps that edit
 - [ ] **P12** `ll.show(df)` page unkept; a frame's column change loses grid edits → a kept page of one grid — S5, L10
 - [ ] **P13** charts on a cube alone (embedded CubeApp) tell nothing → the same state and commands — S3, L2
-- [ ] **P14** stack and arrange gestures told as a whole `layout` → told as `stack` / `arrange` — S3, L2
+- [x] **P14** stack and arrange gestures told as a whole `layout` → told as `stack` / `arrange` — closed S3: the board
+  says what the hand did (band-board.ts `LayoutMove`): a lone tile let go on another's middle is told as `stack {tiles:
+  [onto, tile]}` (stackTiles stacks as a drop does; a tab dragged out of its stack is not one), a preset picked as
+  `arrange {sheet, preset, order}`; any other change, or one moving an editing grid, is the sheet's layout
+  (band-board.test.ts; the gestures "a chart stacked on its grid by dragging", "a sheet arranged", and "a grid dragged
+  to the left of another", which still tells `layout`)
 
 ### Python writes that are no command (audit §2, Python)
 - [x] **Y1** `_into` / `_keep` → P4's model commands — closed S1: Python's model actions apply `modelInto`, `modelPin`,

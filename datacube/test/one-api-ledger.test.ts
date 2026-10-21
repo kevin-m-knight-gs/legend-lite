@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
-  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 16, UNCHECKED: 7,
+  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 16, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -212,8 +212,6 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   measures: { screen: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" } },
   moveSheet: { python: { items: ['K8'] } },
   removeSheet: { python: { items: ['K8'] } },
-  stack: { screen: { items: ['P14'] } },
-  arrange: { screen: { items: ['P14'] } },
   setPageFilter: { python: { items: ['K7'] } },
   // 2026-10-21, One API S1 G7: a chart's selection became the page's select and its grid's refilter -- Python's chart
   // selection is K7's (S6), so both kinds come in listed (L8_KINDS 13 -> 15)

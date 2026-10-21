@@ -25,7 +25,7 @@
 import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
-import { BandBoard, type BandTile } from '../layout/band-board.ts';
+import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { chartValuesAsColumns, followCube, GRID_MARKS, MAP_MARKS, type ChartSpec } from '../chart-spec.ts';
@@ -327,10 +327,10 @@ export class CubePage {
     };
     const board = new BandBoard(host, {
       onRemove: (tileId) => this.#removeTile(tileId),
-      onChange: (_layout, before) => {
+      onChange: (_layout, before, move) => {
         steps.undone = [...steps.undone, before].slice(-LAYOUT_STEPS);
         steps.redone = [];
-        this.#tellLayout(sheet);
+        this.#tellMove(sheet, before, move);
         this.#options.onChange();
       },
       onRename: (tile, title) => {
@@ -385,6 +385,28 @@ export class CubePage {
     if (this.#quiet > 0 || !this.#options.onPageEdit) return;
     const saved = new Set(this.views((g) => g).views.map((v) => v.id));
     this.#tell('Layout Change', { kind: 'layout', sheet: sheet.id, layout: { kind: 'bands', ...asSaved(without(sheet.board.layout, (id) => !saved.has(id))) } });
+  }
+
+  /**
+   * A sheet's layout changed by hand, told as what the hand did (P14): a lone tile stacked on another, or a preset
+   * picked, is its own command -- when every tile it moves is one the page saves (an editing grid's place is no
+   * command's); any other change is the sheet's layout whole. `before`: the layout the hand changed.
+   */
+  #tellMove(sheet: Sheet, before: Bands, move: LayoutMove | undefined): void {
+    if (this.#quiet > 0 || !this.#options.onPageEdit) return;
+    const saved = new Set(this.views((g) => g).views.map((v) => v.id));
+    if (move?.kind === 'stack' && move.tiles.every((t) => saved.has(t))) {
+      this.#tell('Layout Change', { kind: 'stack', tiles: [...move.tiles] });
+      return;
+    }
+    const was = tiles(before);
+    if (move?.kind === 'arrange' && was.every((t) => saved.has(t))) {
+      // the board's order (BandBoard #order): `first`, then the rest in reading order -- none given, the page's own
+      const order = move.first !== undefined ? [move.first, ...was.filter((t) => t !== move.first)] : null;
+      this.#tell('Layout Change', { kind: 'arrange', sheet: sheet.id, preset: move.preset, order });
+      return;
+    }
+    this.#tellLayout(sheet);
   }
 
   /** Commands told by `edit` are left untold: the edit tells its own. */

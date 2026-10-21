@@ -238,8 +238,10 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  opens (datacube-app.ts openLive)). Measured 306,571.
  *  307,000 -> 307,500 (2026-10-21, step S1's audit round and step S2's G3 and V5: `rebuilt` applied by one rule over the
  *  source as it is now (cube-document.ts cubeOpenedAgain), what a reopened page tells (rebuiltCommands), a retry by its
- *  commands, a saved tree's expand level). Measured 307,284. */
-const BUDGET = 307_500;
+ *  commands, a saved tree's expand level). Measured 307,284.
+ *  307,500 -> 308,000 (2026-10-21, step S3's P14: the board says what the hand did, a stack and an arrangement told as
+ *  their own commands -- band-board.ts LayoutMove, cube-page.ts #tellMove). Measured 307,520. */
+const BUDGET = 308_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -305,8 +307,10 @@ const BUDGET = 307_500;
  *  open kept as placeholders -- the grid's note of the same date). Measured 296,329.
  *  296,500 -> 297,000 (2026-10-21, step S1's P11 -- the grid's note of the same date). Measured 296,697.
  *  297,000 -> 297,500 (2026-10-21, step S2's G3 and V5: configure's tree rule, a saved tree's expand level and closed
- *  groups written and read). Measured 297,040. */
-const ENGINE_BUDGET = 297_500;
+ *  groups written and read). Measured 297,040.
+ *  297,500 -> 298,000 (2026-10-21, step S3's P14 -- the grid's note of the same date; step S2's V1 V2, followedPage on
+ *  every path a cube changes, came in under the last raise). Measured 297,661. */
+const ENGINE_BUDGET = 298_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
