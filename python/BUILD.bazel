@@ -8,6 +8,7 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
 load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -334,6 +335,7 @@ py_test(
         "tests/main.py",
         "tests/test_engine.py",
         "tests/test_keeper.py",
+        "tests/test_one_api.py",
         "tests/test_page.py",
         "tests/test_show.py",
         "tests/test_warehouse.py",
@@ -341,6 +343,7 @@ py_test(
     args = [
         "test_engine",
         "test_keeper",
+        "test_one_api",
         "test_page",
         "test_show",
         "test_warehouse",
@@ -705,3 +708,18 @@ build_test(
 )
 
 guards_package()
+
+# THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): //datacube:one_api_ledger_test reads Python's
+# sources (which command kinds Python makes) and this package's ledger file (the register is held to every ledger),
+# each copied to the output tree, where a JavaScript test reads its data (rules_js)
+copy_to_bin(
+    name = "legend_lite_sources",
+    srcs = glob(["legend_lite/*.py"]),
+    visibility = ["//datacube:__pkg__"],
+)
+
+copy_to_bin(
+    name = "one_api_ledger",
+    srcs = ["tests/test_one_api.py"],
+    visibility = ["//datacube:__pkg__"],
+)

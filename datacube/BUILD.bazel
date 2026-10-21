@@ -136,6 +136,16 @@ _SCANNED = {
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],
+    # THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): the grid's, the page's and the host's sources,
+    # Python's (a command each kind is made by), the plan's register, and the ledger files it is held to
+    "one-api-ledger": [
+        ":src",
+        "test/one-api-gestures.test.ts",
+        "test/one-api-ledger.test.ts",
+        "//docs:one_api_plan",
+        "//python:legend_lite_sources",
+        "//python:one_api_ledger",
+    ],
     # the WASM list against the files that load the planner (A28)
     "wasm-flag": ["BUILD.bazel", ":scanned_tests"],
     # the headless lane's roster against the test files and the helpers they import
@@ -270,6 +280,8 @@ _EXTRA_DATA = {
     "page-rebase": ["test/fixtures/pages/make.ts"],
     # the tab's channel to the page's keeper, over a real page's grids (the page app's fixtures)
     "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts"],
+    "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts"],
+    "one-api-ledger": ["test/one-api/scan.ts"],
     # the in-memory source the Ad Hoc Analysis tests query
     "adhoc-session": ["test/adhoc-fixture.ts"],
     "adhoc-mode": ["test/adhoc-fixture.ts"],
