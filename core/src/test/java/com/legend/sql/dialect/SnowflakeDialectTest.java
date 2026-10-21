@@ -54,6 +54,26 @@ class SnowflakeDialectTest {
     }
 
     /**
+     * A ranking window with no order is ordered by a constant (2026-10-21): Snowflake refuses ROW_NUMBER() OVER ()
+     * ("requires ORDER BY in window specification"), which the judges' verdict numbers a side with -- 261 channel B
+     * tests on the lane at 08ac296d. A value's type is SYSTEM$TYPEOF's base name, a DATE's 'DATE'.
+     */
+    @Test
+    void aRankingWindowWithNoOrderIsOrderedByAConstant_andAValuesTypeIsItsBaseName() {
+        SqlExpr rn = new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.RankingFn(com.legend.sql.SqlAgg.Fn.ROW_NUMBER,
+                List.of()), List.of(), List.of(), null, com.legend.sql.SqlTyping.UNKNOWN);
+        SqlExpr x = SqlExpr.Column.of("t", "d", SqlType.Scalar.DATE, true, OutputCol.Origin.PHYSICAL);
+        SqlExpr isDate = new SqlExpr.Call(SqlFn.EQUAL, List.of(new SqlExpr.Call(SqlFn.TYPEOF, List.of(x)),
+                new SqlExpr.TypeNameLit(SqlType.Scalar.DATE)));
+        String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(rn, "n", null),
+                new SqlSelect.Projection(isDate, "b", null)), false, new SqlSource.Table("t", "t",
+                List.of(new OutputCol("d", SqlType.Scalar.DATE, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
+                null, List.of(), null, null, List.of(), null, null, List.of()));
+        assertTrue(sql.contains("ROW_NUMBER() OVER (ORDER BY NULL)"), sql);
+        assertTrue(sql.contains("REGEXP_SUBSTR(SYSTEM$TYPEOF(\"t\".\"d\"), '^[A-Z_]+') = 'DATE'"), sql);
+    }
+
+    /**
      * A projection that IS error() is raised in its column's type, as a CASE branch is (2026-10-21): a bare raise is
      * text, and the TDS text's date print of the column, TO_CHAR with a format, was refused before the statement ran
      * (testNewDateError's {@code date(2016, 13)}, on the lane at 6c8de4e).

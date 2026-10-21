@@ -879,7 +879,10 @@ public final class Snowflake extends AnsiSqlRenderer {
                                 new Param(l.params().get(1), t)), Map.of(),
                                 w -> w.append("CAST(").expr(l.body(), 0).append(" AS " + t + ")"))).append(")");
             }
-            case TYPEOF -> throw wall(fn, "TYPEOF names Snowflake's variant types, not DuckDB's");
+            // the value's SQL type by its base name (SYSTEM$TYPEOF writes 'DATE[SB4]', 'FLOAT[DOUBLE]'), compared only
+            // with typeofName's: the judges' grid sides read a declared timestamp's DATE cells by it (channel B's
+            // testExtendLeadAdjustDerivedOffset and testProjectExtendNestedIfLeadAdjust, on the lane 2026-10-21)
+            case TYPEOF -> writer.append("REGEXP_SUBSTR(SYSTEM$TYPEOF(").expr(a.get(0), 0).append("), '^[A-Z_]+')");
             default -> throw new IllegalStateException("not a list call: " + fn);
         };
     }
@@ -2495,6 +2498,17 @@ public final class Snowflake extends AnsiSqlRenderer {
             // a ranking function takes no frame (ANSI ignores one; Snowflake refuses it, measured)
             case SqlAgg.RankingFn r -> {
                 writer.append(aggregateName(r.fn())).append("(").list(r.args()).append(")");
+                if (win.orderBy().isEmpty()) {
+                    // Snowflake refuses a ranking window with no order ("Window function type [ROW_NUMBER] requires
+                    // ORDER BY in window specification"): a constant order numbers the rows as they come, as
+                    // Databricks' ORDER BY 1 does. The judges' verdict numbers a side so (VerdictSql, SideOrdinal);
+                    // 261 channel B tests were refused it on the lane at 08ac296d, 2026-10-21
+                    writer.append(" OVER (");
+                    if (!win.partitionBy().isEmpty()) {
+                        writer.append("PARTITION BY ").list(win.partitionBy()).append(" ");
+                    }
+                    return writer.append("ORDER BY NULL)");
+                }
                 return over(writer, win.withFrame(null));
             }
             case SqlAgg.ValueFn v -> {
@@ -3083,10 +3097,13 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (TYPEOF names Snowflake's variant types, not DuckDB's). */
+    /** {@inheritDoc} A DATE is {@code DATE} (SYSTEM$TYPEOF's base name); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached Snowflake: TYPEOF names Snowflake's variant types, not DuckDB's");
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "DATE";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Snowflake");
     }
 
     /** {@inheritDoc} Its driver names every fixed-point number NUMBER, its precision and scale the column's. */
