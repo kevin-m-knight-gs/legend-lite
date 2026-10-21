@@ -10653,6 +10653,95 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-21 — Channel B against the merge-base on every lane: what the branch broke, fixed at its causes
+
+The user, 2026-10-20: "if we have broken Channel B we have coupled this to fixing all of Channel B before we can merge".
+Each lane session measured its channel B test by test against the merge-base 59b547a5e4 (main identical to it on every
+lane), with a local outcome probe, and bisected each loss. Every first bad commit but ClickHouse's decode was the plan
+path program's step 6 (c04590ef), whose agreement gate made the database judge's verdict statement decide channel B's
+outcome: statements no lane had run before.
+
+**Landed:**
+- **ClickHouse** (92352d6c, 8bf9980c): the typed seam decodes a list inside a Tuple (the driver hands a
+  `java.util.List`: channel B's find, head, first, filter, map and zip over a struct's list field); `TYPEOF` is
+  `toTypeName` with the `Nullable` wrapper dropped, a DATE named `Date32` (the judges' grid decode dispatches on it:
+  testExtendLeadAdjustDerivedOffset, testProjectExtendNestedIfLeadAdjust).
+- **The judges' timestamp text** (8bf9980c, 5b9ba57a): a TIMESTAMP-typed verdict side with a time of day is Pure's
+  DateTime text (`LiteralSpelling.dateTimeText`, the fraction's trailing zeros trimmed), never the database's own cast
+  (ClickHouse prints a `DateTime64(6)` with six digits); a cell whose cast has no time of day (a DATE under a
+  timestamp's label) is its day (8bf9980c spelled it with a time and lost the corpus's columnValueDifferenceTest and
+  rowValueDifferenceTest in DuckDB's database pass; 5b9ba57a).
+- **Databricks** (78540b63): `TYPEOF` is Spark's `typeof()`, a DATE `'date'` (Trino's likewise); `format_string`'s
+  `%f` takes no Spark Decimal, so a Float literal is handed over as a DOUBLE; nineteen stale pins removed.
+- **MySQL** (90a91f6e): MySQL 8.4 re-serializes a CTE body another CTE reads with backslash escapes and re-parses it
+  under `NO_BACKSLASH_ESCAPES`; a literal holding `'` or `\` is `CONCAT` of its pieces with `CHAR(39 USING utf8mb4)`
+  and `CHAR(92 USING utf8mb4)`.
+- **The grid ordinal** (fb10ecf5, fcfd614f; `lowering/SideOrdinal`, new): the verdict numbered a grid side's rows by
+  `ROW_NUMBER() OVER ()` over its CTE, their arrival there, and MariaDB and Trino return a sorted CTE, and a literal's
+  `UNION ALL`, in another order (reduce's window tests, pivot). A side carries its rows' ordinal `__ord` where its plan
+  defines the order (a VALUES literal's index; `ROW_NUMBER() OVER (ORDER BY <its keys>)`, outside a side whose keys
+  are outputs, inside one whose keys are not; a source's ordinal through a select that keeps its rows in order; any
+  other side numbered by arrival, the host judge's order); the canon frame carries it after the row canon
+  (`CanonRider.canonColumns` = 2 + width) and every grid numbering of the verdict orders by it.
+- **Trino**: a cast of text to a timestamp takes ISO 8601's `T`, as DuckDB's does (314c53d5:
+  `CAST(replace(x, 'T', ' ') AS TIMESTAMP(6))`, MariaDB's form), and the tolerance verdict reads a cell a grid carries
+  as a date or a timestamp typed as one, a computed cell as the grid decode's text (096ec5ae: a literal grid's
+  timestamp read as text sent `replace` a `timestamp(3)`); a coalesce's text operand beside a JSON one is
+  `json_parse(<text>)`, DuckDB's coercion (076607d0: an instance canon's empty key `'[]'` beside a nested instance's
+  canon object, the zips of Pairs of Pairs).
+- **Reverted at its cause** (076607d0): 48a44e32 had typed that empty key `CAST('[]' AS JSON)` for Trino, which
+  Postgres writes as `jsonb` beside the `json` its `json_build_object` builds ('COALESCE could not convert type jsonb
+  to json': the three zips lost on Postgres at 096ec5ae, found by its lane session); the key is the untyped literal
+  of the merge-base again, which every other database coerces to the canon's own type.
+- **The ordinal inside the side** (286e5afa, b37af2b9): fb10ecf5 numbered a sorted side whose keys are outputs, and a
+  side whose order the plan does not define, by a select wrapped around it, and H2 re-parses a derived table's text
+  for each plan it weighs: H2's corpus database pass (`//spec:judge_database_h2`) ran out of its 4,096 MB heap in two
+  combined runs (an OutOfMemoryError in H2's tokenizer, in the pass's log; the action failed with no test result) and
+  passed alone at a live peak of 4,095 MB; columnValueDifferenceTest alone took 3,593 MB against the merge-base's
+  2,164 (3,450 MB with every side numbered by arrival in a wrapper: the wrapper, not the order, was the cost). A side
+  is numbered among its own projections, `ROW_NUMBER() OVER (ORDER BY <its own sort expressions>)` or an unsorted
+  one's `OVER ()`; the wrapper is left for a DISTINCT select, a window-valued sort key and a union. Measured alone
+  through `//spec:corpus_one`, head against the merge-base: columnValueDifferenceTest 2,133 / 2,164 MB,
+  rowValueDifferenceTest 2,216 / 2,207, columnValueDifferenceWithoutPrevalTest 2,044 / 2,158,
+  tesIsToOneDataTypeFunctionExpressionSequenceWithQualifiers 1,380 / 1,381. The whole pass's printed live peak
+  varies with the collector's timing from run to run (alone: 3,058 MB at the head, 2,877 and 2,902 at the merge-base;
+  inside a combined run 3,778), its peak before a collection 3,232 MB at both; a per-test probe (local, reverted)
+  found no growth across tests.
+- **One count per statement** (4fd4f15e): a plan's statement was counted, and printed by the SQL dump, twice,
+  by `PlanRunner.send` and again by `JdbcStatements` (since MongoDB v0, 2d2c3f04, on this branch: the corpus's
+  statement-origins census counted each plan statement twice, `body=16` against the merge-base's 15 for
+  columnValueDifferenceTest); the runner counts it alone, for every session kind.
+
+**Measured** at b37af2b9 (the final commit), channel B test by test against 59b547a5e4 with each lane session's
+local outcome probe (1,249 outcomes a lane; H2 469), every target green, channel A exact on every lane (no stale pin,
+no moved message, no new failure). Pass per suite: Essential, Grammar, Relation, Standard, Unclassified; the
+merge-base's in brackets:
+| Lane | Channel B pass | Lost | Gained | Channel A | Who |
+|---|---|---|---|---|---|
+| DuckDB | 336, 137, 469, 205, 93 = 1,240 [1,240] | 0 | 0 | 5 of 5 | here, at 286e5afa |
+| Trino | 336, 136, 466, 205, 93 = 1,236 [1,223] | 0 | 13 | 5 of 5 | trino-h2 lane session |
+| H2 (Relation) | 431 [429] | 0 | 2 | green | the same |
+| MariaDB | 334, 137, 456, 205, 93 = 1,225 [1,200] | 0 | 25 | 5 of 5 | mariadb-mysql-clickhouse lane session |
+| MySQL | 333, 137, 436, 204, 93 = 1,203 [1,184] | 0 | 19 | 5 of 5 | the same |
+| ClickHouse | 333, 137, 464, 202, 93 = 1,229 [1,226] | 0 | 3 | 5 of 5 | the same; here too |
+| Postgres | 330, 132, 467, 205, 92 = 1,226 [1,221] | 0 | 5 | 5 of 5 | postgres-sqlite-mongodb lane session |
+| SQLite | 333, 134, 458, 205, 92 = 1,222 [1,212] | 0 | 10 | 5 of 5 | the same |
+| MongoDB | no channel B lane | | | 5 of 5 | the same |
+| Databricks | 334, 137, 459, 205, 93 = 1,228 [1,226] | 0 | 2 | 5 of 5 | its lane session, at 076607d0 |
+| Snowflake, BigQuery | not measurable: the environment has no credentials (setup-cloud-pct.sh) | | | | |
+
+Here at 286e5afa and b37af2b9: `//core:core_tests` (25 targets), `//spec:corpus_duckdb` and `//spec:corpus_h2` exact,
+`//pct:pct_channel_b` five of five, `//pct:pct_channel_b_clickhouse` five of five, `//pct:pct_channel_b_mariadb_relation`,
+`//pct:pct_channel_b_trino_relation`; at 076607d0 `//pct:pct_trino` and `//pct:pct_channel_b_trino` ten of ten; at
+4fd4f15e (its only change the statement count) `//core:core_tests`, `//spec:corpus_duckdb` and `//spec:corpus_h2`
+exact (H2's database pass at a live peak of 2,865 MB), `//pct:pct_duckdb` and `//pct:pct_channel_b` five of five.
+
+Not landed, found on the way (each older than the branch, or outside its change): Trino's database judge reads a
+sorted relation's values into a list in arrival order (sort's testSimpleSortShared and
+testSimpleSort_MultipleExpressions: a value side's rows are numbered by arrival, as a grid's were before fb10ecf5);
+Trino's planner refuses testProjectNumbersPlusTimesMinus (`SignatureBinder.iterativeSolve does not converge`); a fold
+the database runs whose accumulator is a list of objects built from other elements does not lower on DuckDB.
+
 ## 2026-10-20 — Object identity: the audit's fixes (no silent identity, typed reads, a map flattens by multiplicity)
 
 The user, 2026-10-20, on the branch's audit ("Yes fix all those"), and the merge gate: channel B green on every lane.

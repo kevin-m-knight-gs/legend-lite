@@ -2187,4 +2187,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `LambdaBodies.java`, `UserCallInliner.java`, `lowering/Lowerer.java`, `CanonicalRenderSql.java`,
   `InstanceEquality.java`, `Scalars.java` (an untracked object's identity is refused by name, §4); the register
   (S81, S82 removed; S85). **Merge gate (the user, 2026-10-20):** channel B green on every lane; the lane sessions
-  measure it test by test against the merge-base.
+  measure it test by test against the merge-base. **Met at b37af2b9, landed 2026-10-21** (GATES "channel B against
+  the merge-base on every lane"): 0 lost on every lane measured, channel A exact on each; Snowflake and BigQuery
+  unmeasured (the environment has no credentials). Its files: `sql/dialect/{ClickHouse,Databricks,Trino,MySql}.java`,
+  `lowering/{SideOrdinal (new),VerdictSql,CanonicalRenderSql,LiteralSpelling}.java`,
+  `exec/{JdbcDecode,CanonRider,JdbcStatements,PlanRunner}.java`, `SideOrdinalTest` (new), the Databricks ledgers.
