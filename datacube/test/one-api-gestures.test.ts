@@ -19,7 +19,7 @@ import { getInstanceByDom } from 'echarts/core';
 
 import { CubeApp } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { configurationOf, treeOf, writeCube, type CubeDocument, type FileSource } from '../src/cube-document.ts';
+import { configurationOf, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
 import { applyGridCommands } from '../src/grid-commands.ts';
 import { LiveChannel } from '../src/app/live-channel.ts';
 import type { LiveCommand, LivePage } from '../src/app/services.ts';
