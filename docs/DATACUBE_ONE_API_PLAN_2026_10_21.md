@@ -786,16 +786,43 @@ for CI's slower runners.
 **Deviations from the plan's wording, each kept on purpose.** Python's page applies its own commands as its call runs
 (its handles read the page they make) and the keeper applies them again as it settles: one rule run twice, no rule
 copied -- the measured cost is that; left for the final audit to judge. The engine's `serve_page` -- a page the host
-replaces whole, which only the engine's own tests serve -- is still a write of a page whole; it is Y6, open, S5's.
-`L9_KEEPER` grew 6 -> 8 with a dated note: its two new entries are the restore writes S4's own bullet names (N1, N2),
-both allowed, but rule 1 counts any growth as a ledger growing, so it waits on the user's sign-off as S1's finding 7
-does. The engine page's bundle budget was raised 500 bytes with a dated note.
+replaces whole, which only tests serve (the engine's, and the browser harness's) -- is still a write of a page whole; it
+is Y6, open, S5's. `L9_KEEPER` grew 6 -> 8 with a dated note: its two new entries are the restore writes S4's own bullet
+names (N1, N2), both allowed, but rule 1 counts any growth as a ledger growing, so it waits on the user's sign-off as
+S1's finding 7 does. The engine page's bundle budget was raised 500 bytes with a dated note.
 
-**Ledgers.** S4 closed G12 P5 P10 H1 H2 H3 B12; MARKERS 9; the register gained F18, closed in its fix.
+**The independent audit** (8 findings; one more found reviewing S4's own code) and what became of each:
+- Fixed, each with a test that fails without it (run against the step's head), registered (rule 9) and closed: (1, high)
+  the tab left the page Python serves when its start opened nothing -- an empty page, a failed first read -- and
+  followed it no more -- F19; (2, high) a grid over a source the host cannot base its edits on was taken onto a page
+  Python serves and its every edit then refused -- F20: one rule of what a page on the host holds (headless `onHost`),
+  asked by `gridBase`, `gridOpened` and the keeper of each cube a write adds or moves, which refuses it as it is added.
+  The tab still offers New ▸ Data Source… on such a page; the grid it adds is shown and then taken off, the refusal
+  said, until S5 brings every source to a page on Python (B7, X1-X5) -- a copy of the rule in the tab would be a twin;
+  (3) a page filter no command made under its keeper, set again, became a second -- F21; (4) a follow on its way when
+  the page was left threw, or put Python's page back with no channel -- F22; (5) B12 untested on the tab, its Python
+  test unable to fail -- F23; (7) edits made while a write was on its way dropped silently when the keeper made another
+  page of it -- now said -- F25; and the engine said a failure of its own while taking a write as no such page or as a
+  refusal -- F27, found reviewing S4's own code.
+- Declared, with a test that pins what is true: (6) a write from further back than the keeper keeps (64 versions) is
+  refused -- F24; (7) an undo or a redo that lands while the tab follows the other editor is not written -- F25.
+- Fixed as S4's own: (8) stale comments and docs -- F26; As built's claims made exact (B12's, P10's: Open… and open in
+  place call the same `leaveServed` and have no test of their own).
+- Checked and left: F18 changed `withoutConditions` to compare data, not text (`sameValue`). The other places that
+  compare document data as text (the chart click's toggle, draftCommands and settingsPatch, the board's spec, selection
+  and layout checks, band-board's layout, chart-spec's showAs) each compare values written in one key order -- one
+  reader's, or the same code's (a chart's mark conditions are built in the order the filter reader writes them) -- so
+  key order does not differ there; a cube document's filter, kept as read, against a command's, read by the filter
+  reader, is the case F18 was.
 
-**Gates.** `//datacube/... //python:engine_test //python:model_test` (191 of 191: the full run found live-follow's page
-answer still said without the ids held, fixed in the step) and `verify_app` as the container's unprivileged user green;
-the keeper's soak at 60 seeds and the screenshot tour (17 of 17) green. CI: not run -- still waiting on the user (a draft
-pull request, or a dispatch of `gate.yml` on `claude/datacube-query-base`).
+**Ledgers.** S4 closed G12 P5 P10 H1 H2 H3 B12; MARKERS 9; the B7 marker's count 3 -> 2 (the rule in one place,
+`onHost`). The register gained F18-F27, each closed in its fix (F24 declared, F25 in part).
 
-**Next.** S4's independent audit, then S5.
+**Gates.** `//datacube/... //python:engine_test //python:model_test` (191 of 191 at the step: the full run found
+live-follow's page answer still said without the ids held, fixed in the step; 192 of 192 after the audit round, its
+jsdom test of the app on a served page added) and `verify_app` as the container's unprivileged user green, each time;
+the keeper's soak at 60 seeds and the screenshot tour (17 of 17) green at the step. Each audit fix's test was run
+against the code without it and failed. CI: not run -- still waiting on the user (a draft pull request, or a dispatch of
+`gate.yml` on `claude/datacube-query-base`).
+
+**Next.** S5.
