@@ -1366,7 +1366,9 @@ public final class BigQuery extends AnsiSqlRenderer {
      * %.16g and %.17g are not correctly rounded (185.46332835263038 as '185.46332835263039'; 630 of 1,837 doubles wrong,
      * measured on the lane 2026-10-21). The plain range's digits come from the double's exact decimal instead: its
      * BIGNUMERIC (38 decimals), rounded to 15, 16 and 17 significant digits, the first whose text reads back as the value
-     * taken (a double's shortest digits are at most 17, and at 15 or fewer they are its 15-digit rounding). Elsewhere
+     * taken (a double's shortest digits are at most 17, and at 15 or fewer they are its 15-digit rounding); a tie is
+     * rounded to the even digit, as Java breaks one (-754686444319231.25 is -754686444319231.2; ROUND's own half away
+     * from zero wrote .3 for six of 1,171 plain-range doubles, measured on the lane against 441f207a). Elsewhere
      * the text is the cast's, which reads back as the value. The value is bound once, in a one-row derived table under a
      * scalar subquery (the form the Float canon's binding takes here, {@link #bindsFloatText}).
      */
@@ -1378,10 +1380,10 @@ public final class BigQuery extends AnsiSqlRenderer {
         SqlWriter.Piece rounded = w -> {
             w.append("CASE");
             for (int digits = 15; digits <= 16; digits++) {
-                String round = "ROUND(" + n + ", " + (digits - 1) + " - " + e + ")";
+                String round = "ROUND(" + n + ", " + (digits - 1) + " - " + e + ", 'ROUND_HALF_EVEN')";
                 w.append(" WHEN SAFE_CAST(CAST(" + round + " AS STRING) AS FLOAT64) = " + v + " THEN " + round);
             }
-            w.append(" ELSE ROUND(" + n + ", 16 - " + e + ") END");
+            w.append(" ELSE ROUND(" + n + ", 16 - " + e + ", 'ROUND_HALF_EVEN') END");
         };
         return w -> w.append("(SELECT CASE WHEN IS_NAN(" + v + ") OR IS_INF(" + v + ") THEN CAST(" + v + " AS STRING)"
                 + " WHEN " + v + " = 0 OR (ABS(" + v + ") >= 1e-4 AND ABS(" + v + ") < 1e16) THEN (CASE WHEN STRPOS(" + r

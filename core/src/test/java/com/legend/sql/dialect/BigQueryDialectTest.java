@@ -39,8 +39,8 @@ class BigQueryDialectTest {
         // the value bound once; its exact BIGNUMERIC rounded to 15, 16 and 17 significant digits, each read back
         assertTrue(sql.contains("FROM (SELECT `t`.`x` AS `__fv`)"), sql);
         assertTrue(sql.contains("SAFE_CAST(`__fv` AS BIGNUMERIC) AS `__fn`"), sql);
-        assertTrue(sql.contains("WHEN SAFE_CAST(CAST(ROUND(`__fn`, 14 - `__fe`) AS STRING) AS FLOAT64) = `__fv`"), sql);
-        assertTrue(sql.contains("ELSE ROUND(`__fn`, 16 - `__fe`) END"), sql);
+        assertTrue(sql.contains("WHEN SAFE_CAST(CAST(ROUND(`__fn`, 14 - `__fe`, 'ROUND_HALF_EVEN') AS STRING) AS FLOAT64) = `__fv`"), sql);
+        assertTrue(sql.contains("ELSE ROUND(`__fn`, 16 - `__fe`, 'ROUND_HALF_EVEN') END"), sql);
         assertFalse(sql.contains("FORMAT('%.1"), sql);
         assertFalse(sql.contains("`t`.`x` AS STRING"), sql);
     }
