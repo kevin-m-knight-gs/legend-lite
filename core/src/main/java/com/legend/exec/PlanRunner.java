@@ -438,6 +438,8 @@ public final class PlanRunner {
                 }
             }
             String statement = statement(sql, checked);
+            // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
+            // each statement a second time, 2026-10-21)
             StatementOrigin.sent(statement);
             ask.of(st, statement, values);
         }

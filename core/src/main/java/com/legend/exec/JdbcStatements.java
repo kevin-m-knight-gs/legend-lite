@@ -50,7 +50,6 @@ final class JdbcStatements implements Statements {
     @Override
     public void execute(String statement) {
         try (Statement st = c.createStatement()) {
-            StatementOrigin.sent(statement);
             st.execute(statement);
         } catch (SQLException e) {
             throw PlanSessions.dataError(e, c);
@@ -64,7 +63,6 @@ final class JdbcStatements implements Statements {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
-            StatementOrigin.sent(statement);
             try (ResultSet rs = st.executeQuery()) {
                 while (rs.next()) {
                     rows.row(rs.getString(1));
@@ -85,7 +83,6 @@ final class JdbcStatements implements Statements {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
-            StatementOrigin.sent(statement);
             try (ResultSet rs = st.executeQuery()) {
                 int answered = rs.getMetaData().getColumnCount();
                 if (answered != columns.size()) {
