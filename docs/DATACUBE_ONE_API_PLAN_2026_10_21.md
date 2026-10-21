@@ -728,3 +728,41 @@ The register gained F6-F17, each closed in the commit that fixed it (F12 and F15
 **Gates.** `//datacube/... //python:engine_test //python:model_test` (191 of 191) and `verify_app` as the container's
 unprivileged user green at 85d80333c; the screenshot tour green (17 of 17), its editing grid below its chart. CI: not run -- still waiting on the user (a draft
 pull request, or a dispatch of `gate.yml` on `claude/datacube-query-base`).
+
+## As built (S4, 2026-10-21)
+
+**Built** (the step's commits after 68ce957dc): a write to a page Python keeps is the version it was made at and the
+edits it made there, each a command; the keeper (keeper.py `settle`) has DataCube apply them to the page as it is now --
+headless `pageRebase`, nothing to combine at the writer's version, made again on top past it -- and keeps what they
+make, or refuses them in DataCube's words, nothing kept (H1). Python's own page writes the same way (page.py `_commit`),
+so the two editors' writes meet one rule. The one write that is no commands is a restore -- a page loaded (N1), an open
+page's undo or redo (N2: `onRestore`, told by the owner's `moved`) -- kept only at the version it was made at (keeper.py
+`restore`, headless `pageWritten(text)`); the tab's `#told/#seen` guess, `edits: null`, the keeper's refusal of a
+no-command write and `pageWritten`'s null are deleted (H2, G12, P5). The keeper keeps the ids each version held and
+tells the rebase the ones a write knew (`rebaseEdits` `known`): a page filter two writers made under one id is given out
+afresh, never put in the other's place (H3). One held set: the keeper's, read by the tab with the page (`page.json`
+`held`; `PageApp.restore`'s `held`), so neither side gives out an id the other has held (B12). On a page Python serves,
+Open…, open in place and Blank Page put a page of the tab's own on screen and leave Python's as it is, said once -- a
+blank page on its card (D1, P10). The keeper's soak (60 seeds) found F18, fixed with its test.
+
+**Measured** (the step's last bullet: one write on a page of 60 grids, in the container, `LEGEND_LITE_WRITE_COST=1`): a
+page edit 0.13s, a grid edit (its grid planned again) 0.36s -- each Python's call applied twice over (its own, then the
+keeper's `settle`), growing with the page. The budget (test_keeper.py `WriteCost`): 1.5s and 3s, about ten times that,
+for CI's slower runners.
+
+**Deviations from the plan's wording, each kept on purpose.** Python's page applies its own commands as its call runs
+(its handles read the page they make) and the keeper applies them again as it settles: one rule run twice, no rule
+copied -- the measured cost is that; left for the final audit to judge. The engine's `serve_page` -- a page the host
+replaces whole, which only the engine's own tests serve -- is still a write of a page whole; it is Y6, open, S5's.
+`L9_KEEPER` grew 6 -> 8 with a dated note: its two new entries are the restore writes S4's own bullet names (N1, N2),
+both allowed, but rule 1 counts any growth as a ledger growing, so it waits on the user's sign-off as S1's finding 7
+does. The engine page's bundle budget was raised 500 bytes with a dated note.
+
+**Ledgers.** S4 closed G12 P5 P10 H1 H2 H3 B12; MARKERS 9; the register gained F18, closed in its fix.
+
+**Gates.** `//datacube/... //python:engine_test //python:model_test` (191 of 191: the full run found live-follow's page
+answer still said without the ids held, fixed in the step) and `verify_app` as the container's unprivileged user green;
+the keeper's soak at 60 seeds and the screenshot tour (17 of 17) green. CI: not run -- still waiting on the user (a draft
+pull request, or a dispatch of `gate.yml` on `claude/datacube-query-base`).
+
+**Next.** S4's independent audit, then S5.
