@@ -381,6 +381,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   path to it in practice
 - [x] **F17** a grid whose addition was refused threw after letting it go — closed S3: let go, its owner told, nothing
   thrown (cube-page-shell.test.ts F17) — the S3 audit's 12
+- [x] **F18** a chart's selection was dropped when its grid's filter, read back from another writer, held the
+  selection's condition with its keys in another order (and a refilter could not take that condition off): two filter
+  nodes alike but for the order of their keys were told apart — closed S4: nodes are compared with their keys in order
+  (snapshot.ts `nodeKey`; page-commands.test.ts F18) — found by S4's keeper soak
 
 ## 5. The steps
 

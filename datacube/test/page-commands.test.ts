@@ -14,7 +14,7 @@ import {
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
 import { gridCopyOf, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
-import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
+import { CubeRefusal, withoutConditions, type FilterNode } from '../src/snapshot.ts';
 import { modelCommands, type PageModelRef } from '../src/page-model.ts';
 import { rebaseEdits, withCube } from '../src/page-rebase.ts';
 import { corpus } from './fixtures/pages/make.ts';
@@ -358,6 +358,19 @@ describe("a chart's selection judged only when its cube's filter moves (the S2 a
     // Python's options() on the chart while the refilter is in flight: setChart judges nothing of the filter
     const options = applyPageCommand(draftOf(told), { kind: 'setChart', chart: 'chart', spec: { ...chartOf(told, 'chart').spec, mark: 'line' } }).draft.page;
     assert.deepEqual(chartOf(options, 'chart').selection, [mark]);
+  });
+
+  it("a filter holds a selection's condition whatever order its writer put its keys in (F18, found by S4's soak)", () => {
+    // the select's condition as its reader writes one; the grid's filter as a document read back from another writer
+    const read: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' };
+    const written = JSON.parse('{"column":"region","kind":"condition","operator":"equal","value":"EMEA"}') as FilterNode;
+    const before = filtered(trades, undefined);
+    const told = applyPageCommand(draftOf(before), { kind: 'select', chart: 'chart', conditions: [read] }).draft.page;
+    const after = followedPage(filtered(told, written), cube.id, told);
+    assert.deepEqual(chartOf(after, 'chart').selection, [read], 'the filter holds it: the selection stays');
+    // and a refilter (or a chart's selection let go) takes it off the filter by its content too
+    assert.equal(withoutConditions(written, [read]), undefined);
+    assert.equal(withoutConditions({ kind: 'and', children: [written, read] }, [read, read], true), undefined);
   });
 
   it("a chart removed takes its selection off its cube's filter, and the cube's other charts are judged by it", () => {
