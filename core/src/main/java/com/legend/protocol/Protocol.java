@@ -3047,6 +3047,9 @@ public final class Protocol {
                             com.legend.protocol.Multiplicity returnMultiplicity,
                             List<com.legend.protocol.spec.ValueSpecification> body,
                             List<com.legend.protocol.ConstraintDefinition> preConstraints,
+                            /** the constraints that read {@code $return} (legend-pure's split,
+                             * {@code ConstraintDefinition.mentionsReturn}); the rest are {@link #preConstraints} */
+                            List<com.legend.protocol.ConstraintDefinition> postConstraints,
                             List<PTestSuite> testSuites,
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
@@ -3057,6 +3060,7 @@ public final class Protocol {
             parameters = List.copyOf(parameters);
             body = List.copyOf(body);
             preConstraints = List.copyOf(preConstraints);
+            postConstraints = List.copyOf(postConstraints);
             testSuites = List.copyOf(testSuites);
             stereotypes = List.copyOf(stereotypes);
             taggedValues = List.copyOf(taggedValues);
@@ -3220,7 +3224,26 @@ public final class Protocol {
                          /** older JSON's milestoned properties written out (the engine's Pure-side serializer), which
                           * the engine's compiler reads and merges and its writer writes back; the grammar writes none
                           * (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 2 step 2) */
-                         List<PProperty> originalMilestonedProperties) implements Element {
+                         List<PProperty> originalMilestonedProperties,
+                         /** {@code Class X<T|m>} -- the MULTIPLICITY parameters after the pipe (legend-pure's
+                          * {@code M_MultiplicityHolder<|m>}, {@code Property<U,V|m>}), apart from the type parameters:
+                          * a reference's type arguments and multiplicity arguments are counted against each (lite's
+                          * dialects only; the engine's grammar has neither) */
+                         List<String> multiplicityParams) implements Element {
+        /** The arity before the multiplicity parameters: none. */
+        public PClass(String pkg, String name, List<String> typeParams,
+                      List<com.legend.protocol.ParameterDefinition> typeVariables,
+                      List<PSuperType> superTypes, List<PProperty> properties,
+                      List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
+                      List<com.legend.protocol.ConstraintDefinition> constraints,
+                      List<PStereotype> stereotypes, List<PTaggedValue> taggedValues,
+                      boolean isNative, @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                      List<PProperty> originalMilestonedProperties) {
+            this(pkg, name, typeParams, typeVariables, superTypes, properties, derivedProperties,
+                    constraints, stereotypes, taggedValues, isNative, sourceInformation, originalMilestonedProperties,
+                    List.of());
+        }
+
         /** The arity before the milestoned properties: none written out. */
         public PClass(String pkg, String name, List<String> typeParams,
                       List<com.legend.protocol.ParameterDefinition> typeVariables,
@@ -3247,6 +3270,7 @@ public final class Protocol {
         public PClass {
             originalMilestonedProperties = List.copyOf(originalMilestonedProperties);
             typeParams = List.copyOf(typeParams);
+            multiplicityParams = List.copyOf(multiplicityParams);
             typeVariables = List.copyOf(typeVariables);
             superTypes = List.copyOf(superTypes);
             properties = List.copyOf(properties);
@@ -3348,6 +3372,11 @@ public final class Protocol {
     public record PStereotype(String profile, String value,
                               @com.legend.base.Nullable com.legend.protocol.SourceInfo profileSourceInformation,
                               @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+        /** This stereotype with its profile named {@code resolved} (the name resolver's qualification). */
+        public PStereotype withProfile(String resolved) {
+            return resolved.equals(profile) ? this
+                    : new PStereotype(resolved, value, profileSourceInformation, sourceInformation);
+        }
     }
 
     /**
@@ -3370,6 +3399,12 @@ public final class Protocol {
      *  one stays the bare string it always was. */
     public record PTaggedValue(PTag tag, String value, boolean multiLine,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+        /** This tagged value with its tag's profile named {@code resolved} (the name resolver's qualification). */
+        public PTaggedValue withProfile(String resolved) {
+            return resolved.equals(tag.profile()) ? this
+                    : new PTaggedValue(new PTag(resolved, tag.value(), tag.profileSourceInformation(),
+                            tag.sourceInformation()), value, multiLine, sourceInformation);
+        }
     }
 
     /**
