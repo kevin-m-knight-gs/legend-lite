@@ -66,6 +66,12 @@ class ParserBoundaryArchTest {
             // the parser ledger harvester parses every fixture under BOTH
             // dialects to classify each divergence (LEGEND vs LEGEND_LITE)
             "com/legend/equivalence/FixtureAdjudicationTest.java",
+            // the JSON door's oracle (leg 8, rule A, docs/SEMANTICS_REGISTER.md S89, 2026-10-21): where the engine's
+            // records and lite's text door differ, it reads the text at lite's dialect too, to show the difference is
+            // only what the engine's parser drops -- the two dialects' readings are its subject
+            "com/legend/equivalence/JsonModelDoorTest.java",
+            // and rule A's cases, one of each kind (the same date and row): each reads one text at both dialects
+            "com/legend/protocol/EngineDropsTest.java",
             "com/legend/rcorpus/LibraryPlatformNamespaceGuardTest.java",
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)

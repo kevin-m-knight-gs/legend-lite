@@ -139,7 +139,7 @@ class IdentityGuardrailTest {
             // Retired when the surface is a declaration fact (step 3, Bindings).
             Map.entry("NAME_COMPARE", 203),   // 202 -> 203 (2026-10-19, the Cypher translator's let, the parity lanes' exponential temporal SQL: protocol/cypher/Shares.named reads back the Pure the translator itself wrote -- its marks, a projection's shape, the constructs the database evaluates lazily -- before any resolution, so there is no declaration to dispatch on; one site, every read through it); 205 -> 202 (2026-10-10, L7 "resolve once" steps 3-4: readers read the record)
             // 208 -> 205 (2026-10-06, build rebuild Phase 3: measured when the table became the one authority)
-            Map.entry("NAME_COMPARE_REVERSED", 79), // 81 -> 79 (2026-10-10, L7 "resolve once" steps 3-4: readers read the record)
+            Map.entry("NAME_COMPARE_REVERSED", 78), // 79 -> 78 (2026-10-21, leg 8 step 2, rule A: a model store's negative number is the parser's one literal, so the emitter's negation fold and its "minus" test are gone); 81 -> 79 (2026-10-10, L7 "resolve once" steps 3-4: readers read the record)
             Map.entry("LITERAL_NAME_COMPARE", 65),   // 64 -> 65 (2026-09-27, T4a): protocol/ProtocolUpgrade, upstream's protocol converter for a Result variable ("meta::pure::mapping::Result" on the WIRE, before any resolution)
             Map.entry("NAME_AFFIX_TEST", 52),
             // 51 -> 52 (2026-10-11, the ~func descriptor refusal: MappingFromProtocol.refuseDescriptorTypes tests a

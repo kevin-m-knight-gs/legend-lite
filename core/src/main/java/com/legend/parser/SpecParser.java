@@ -227,11 +227,21 @@ public final class SpecParser implements TokenStreamCursor {
      *  {@link IslandScan}); shares this parser's tokens and error anchor. */
     private final IslandScan islandScan;
 
+    /** A model store's instances ({@link #parseInstanceData}), which legend-engine reads with its model-data
+     *  walker, not its expression walker. */
+    private final boolean instanceData;
+
     private SpecParser(TokenStream tokens, String spanSourceId,
             Dialect dialect) {
+        this(tokens, spanSourceId, dialect, false);
+    }
+
+    private SpecParser(TokenStream tokens, String spanSourceId,
+            Dialect dialect, boolean instanceData) {
         this.tokens = Objects.requireNonNull(tokens, "tokens");
         this.spanSourceId = spanSourceId;
         this.dialect = dialect;
+        this.instanceData = instanceData;
         this.islandScan = new IslandScan(this);
         constStrings.push(new java.util.HashMap<>());
     }
@@ -361,7 +371,20 @@ public final class SpecParser implements TokenStreamCursor {
     /** As above with a span source id (mapping test-suite lambdas). */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
             String spanSourceId, Dialect dialect) {
-        SpecParser parser = new SpecParser(tokens, spanSourceId, dialect);
+        return parseCodeBlock(new SpecParser(tokens, spanSourceId, dialect));
+    }
+
+    /**
+     * A model store's instances ({@code ModelStore #{ my::T: [^my::T(...)] }#}): parsed as a code block, but read
+     * as legend-engine's model-data walker reads them ({@code ModelStoreDataParseTreeWalker}), not its expression
+     * walker -- a binding's value is never cut to its first expression here ({@link #engineKeyValue}).
+     */
+    public static List<ValueSpecification> parseInstanceData(TokenStream tokens,
+            String spanSourceId, Dialect dialect) {
+        return parseCodeBlock(new SpecParser(tokens, spanSourceId, dialect, true));
+    }
+
+    private static List<ValueSpecification> parseCodeBlock(SpecParser parser) {
         List<ValueSpecification> stmts = parser.parseCodeBlockUntil(null);
         if (!parser.atEnd()) {
             throw parser.error("trailing tokens after code block: "
@@ -666,6 +689,15 @@ public final class SpecParser implements TokenStreamCursor {
             if (t == TokenType.MINUS) {
                 int opTok = pos;
                 pos++;
+                if (instanceData && (peek() == TokenType.INTEGER || peek() == TokenType.FLOAT
+                        || peek() == TokenType.DECIMAL)) {
+                    // a model store's -1: legend-engine's model-data walker reads a signed number as ONE literal, its
+                    // span the sign and the digits (ModelStoreDataParseTreeWalker.visitInstanceLiteral; probe
+                    // neg-literals); the ###Pure walker keeps a minus call
+                    ValueSpecification n = peek() == TokenType.INTEGER ? parseInteger()
+                            : peek() == TokenType.FLOAT ? parseFloat() : parseDecimal();
+                    return negativeLiteral(n, spanOf(opTok, pos - 1));
+                }
                 // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
                 // func (no collection) spanning just the operator token.
                 // -5 RomanLength~Pes: the sign belongs to the NUMBER of a unit
@@ -688,6 +720,19 @@ public final class SpecParser implements TokenStreamCursor {
             }
         }
         return parsePrimary();
+    }
+
+    /** A number literal negated, as one literal at {@code span} (a model store's {@code -1}). */
+    private static ValueSpecification negativeLiteral(ValueSpecification n,
+            com.legend.protocol.SourceInfo span) {
+        return switch (n) {
+            case com.legend.protocol.spec.CInteger c -> new com.legend.protocol.spec.CInteger(
+                    c.value() instanceof java.math.BigInteger big ? big.negate() : (Number) (-c.value().longValue()),
+                    span);
+            case com.legend.protocol.spec.CFloat c -> new com.legend.protocol.spec.CFloat(-c.value(), span);
+            case com.legend.protocol.spec.CDecimal c -> new com.legend.protocol.spec.CDecimal(c.value().negate(), span);
+            default -> throw new IllegalStateException("a number literal is an integer, a float or a decimal: " + n);
+        };
     }
 
     /**
@@ -1752,7 +1797,7 @@ public final class SpecParser implements TokenStreamCursor {
                 && tokens.type(pos + 1) == TokenType.EQUAL) {
             String key = text();
             pos += 2;                               // name + '='
-            ValueSpecification value = parseCombinedExpression();
+            ValueSpecification value = engineKeyValue(parseCombinedExpression());
             properties.add(new com.legend.protocol.spec.NewInstance
                     .KeyBinding(key, new KeyExpression(value, false, false)));
             return;
@@ -1787,10 +1832,48 @@ public final class SpecParser implements TokenStreamCursor {
                 "expected '" + (isAdd ? "+=" : "=")
                 + "' after property name '" + key
                 + "' in ^NewInstance binding");
-        ValueSpecification value = parseCombinedExpression();
+        ValueSpecification value = engineKeyValue(parseCombinedExpression());
+        if (dialect.refusesLiteExtensions() && !instanceData) {
+            // the engine's walker keys a binding by its FIRST identifier (`val.identifier(0)`: addr.city = .. keys
+            // addr) and never sets KeyExpression.add (`+=` reads as `=`); lite's dialect keeps both
+            // (docs/SEMANTICS_REGISTER.md S89, the user's rule A, 2026-10-21)
+            int dot = key.indexOf(".");
+            if (dot >= 0) {
+                key.setLength(dot);
+            }
+            isAdd = false;
+        }
         properties.add(new com.legend.protocol.spec.NewInstance
                 .KeyBinding(key.toString(),
                         new KeyExpression(value, isAdd, false)));
+    }
+
+    /**
+     * A binding's value as the dialect reads it. The engine's walker keeps only the FIRST expression of an
+     * unparenthesised operator chain ({@code processRightSide}: {@code combinedExpression().expression()}), so at its
+     * dialect {@code s = 'a' + 'b' + $v} binds {@code 'a'} and {@code h = $a || $b} binds {@code $a} (ProbeWireShapes
+     * "burn zoo 2" keyChain); lite's dialect binds what was written (S89, rule A). Only an operator-spelled chain is
+     * cut: a call that merely names an operator ({@code plus(1, 2)}, {@code (1)->plus(2)}) is one expression.
+     */
+    private ValueSpecification engineKeyValue(ValueSpecification value) {
+        if (!dialect.refusesLiteExtensions() || instanceData) {
+            return value;
+        }
+        ValueSpecification kv = value;
+        // two spellings of a chain: pairwise parameters (divide, comparisons, equal/and/or) cut to the first
+        // parameter; the n-ary carrier (plus/minus/times) to the first element of its run
+        while (kv instanceof AppliedFunction chain && chain.infix() && !chain.grouped()) {
+            if (chain.parameters().size() == 2) {
+                kv = chain.parameters().get(0);
+            } else if (chain.parameters().size() == 1
+                    && chain.parameters().get(0) instanceof PureCollection run
+                    && run.values().size() >= 2) {
+                kv = run.values().get(0);
+            } else {
+                break;
+            }
+        }
+        return kv;
     }
 
     /**
@@ -2845,6 +2928,16 @@ public final class SpecParser implements TokenStreamCursor {
             boolean isDatedSeg = open > 0 && seg.endsWith(")")
                     && isWord(seg.substring(0, open))
                     && seg.indexOf(')') == seg.length() - 1;
+            if (isDatedSeg && seg.substring(open + 1, seg.length() - 1).strip().isEmpty()
+                    && dialect().refusesPlatformDialect()) {
+                // prop(): no argument -- at the engine's and lite's dialects the property itself, as $x.f() is $x.f
+                // (leg 8 step 2); a segment's JSON carries no parentheses (PropertyPathElement's parameters empty)
+                String name = seg.substring(0, open);
+                pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
+                        name, cursor, cursor + lead + seg.length() - 1, List.of(), false));
+                body = new AppliedProperty(body, name);
+                continue;
+            }
             if (isDatedSeg) {
                 String datedName = seg.substring(0, open);
                 String datedArgs = seg.substring(open + 1, seg.length() - 1);
