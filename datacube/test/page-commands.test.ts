@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 
 import { tiles } from '../src/layout/bands.ts';
 import {
-  PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, idsOf, nextPageId, readPageCommand,
+  PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, gridTitle, idsOf, nextPageId, readPageCommand,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
 import { gridCopyOf, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
@@ -124,6 +124,18 @@ describe('each command gives the page the screen\'s rules give it', () => {
     assert.equal('title' in view(apply({ kind: 'renameTile', tile: 'grid', title: null }).page, 'grid')!, false);
     refused(() => apply({ kind: 'renameTile', tile: 'chart', title: null }), /a chart has a title/);
     refused(() => apply({ kind: 'renameTile', tile: 'grid', title: '  ' }), /a tile's name is not blank/);
+    // a grid given back the title it was made with keeps none of its own (B2): the screen sends what was typed
+    const titled = apply({ kind: 'renameTile', tile: 'grid', title: 'Mine' }).page;
+    assert.equal(view(titled, 'grid')?.title, 'Mine');
+    const back = apply({ kind: 'renameTile', tile: 'grid', title: ` ${gridTitle('grid')} ` }, { page: titled, held: idsOf(titled) });
+    assert.equal('title' in view(back.page, 'grid')!, false);
+    // a chart's selection: set, and cleared by none
+    const emea = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    const selected = apply({ kind: 'select', chart: 'chart', conditions: [emea] }).page;
+    assert.deepEqual((view(selected, 'chart') as ChartView).selection, [emea]);
+    const none = apply({ kind: 'select', chart: 'chart', conditions: [] }, { page: selected, held: idsOf(selected) });
+    assert.equal('selection' in view(none.page, 'chart')!, false);
+    refused(() => apply({ kind: 'select', chart: 'grid', conditions: [] }), /'grid' is a grid, not a chart/);
   });
 
   it("the page's name is each cube's too (writePageOf's rule), written by no rule of its own", () => {
@@ -215,6 +227,7 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addGrid', id: 'grid-3', document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: 'grid', title: null, columns: 2 },
     { kind: 'addChart', near: 'grid', spec, title: 'T', columns: null },
     { kind: 'setChart', chart: 'chart', spec },
+    { kind: 'select', chart: 'chart', conditions: [{ kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }] },
     { kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null },
     { kind: 'stack', tiles: ['grid', 'chart'] },
     { kind: 'removeTile', tile: 'chart' },

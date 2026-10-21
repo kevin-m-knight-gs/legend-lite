@@ -17,7 +17,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { operandKind } from './filter-operators.ts';
 import {
   AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
-  isPivotTotalColumn, isRelativeDate, pivotTotalColumn, withCalculated,
+  isPivotTotalColumn, isRelativeDate, pivotTotalColumn, withCalculated, withoutConditions,
   type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator,
   type FilterValue, type Measure, type SortDirection, type SortSpec, type WindowFrame, type WindowFunction, type WindowSpec,
 } from './snapshot.ts';
@@ -54,6 +54,9 @@ export type GridCommand =
   /** One condition added to the filter (a cell's menu): and-ed with what it had. */
   | { readonly kind: 'addFilter'; readonly condition: FilterNode }
   /** A calculated column added at its level, its lambda already parsed (the column editor, Python's calculate). */
+  /** Conditions taken off the filter and others ANDed on, as one change (a chart's mark clicked: the selection it had
+   *  for the one it has now) -- each condition taken off where it stands, the rest of the filter kept as it is. */
+  | { readonly kind: 'refilter'; readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] }
   | { readonly kind: 'calculate'; readonly level: 'row' | 'group'; readonly column: DerivedColumn }
   /** Measures as columns (Python's measure and grid(measures=...)): an Aggregation, or a copy under its own name. */
   | { readonly kind: 'measures'; readonly measures: readonly Measure[] }
@@ -72,7 +75,7 @@ export type GridCommand =
 
 export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
-  'calculate', 'measures', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
+  'refilter', 'calculate', 'measures', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** A command applied: the grid as the screen's rules leave it, or a refusal in their words (CubeRefusal). */
@@ -107,6 +110,13 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
           : { kind: 'and', children: [was, command.condition] }
         : command.condition;
       return { ...draft, snapshot: { ...draft.snapshot, filter } };
+    }
+    case 'refilter': {
+      const kept = withoutConditions(draft.snapshot.filter, command.remove) ?? undefined;
+      const children = [...(kept === undefined ? [] : kept.kind === 'and' ? kept.children : [kept]), ...command.add];
+      const { filter: _was, ...rest } = draft.snapshot;
+      return { ...draft, snapshot: children.length === 0 ? rest
+        : { ...rest, filter: children.length === 1 ? children[0]! : { kind: 'and', children } } };
     }
     case 'calculate': {
       const problem = nameProblem(draft.snapshot, command.level, command.column.name);
@@ -583,6 +593,14 @@ export function readGridCommand(given: unknown): GridCommand {
         throw new CubeRefusal(`a filter added is one condition, not ${JSON.stringify(o['condition'])}`);
       }
       return { kind, condition: readFilterNode(o['condition']) };
+    case 'refilter': {
+      fields(o, kind, ['remove', 'add']);
+      const conditions = (v: unknown, what: string): FilterNode[] => {
+        if (!Array.isArray(v)) throw new CubeRefusal(`${what} is a list of conditions, not ${JSON.stringify(v)}`);
+        return v.map(readFilterNode);
+      };
+      return { kind, remove: conditions(o['remove'], 'what a refilter takes off'), add: conditions(o['add'], 'what a refilter adds') };
+    }
     case 'calculate':
       fields(o, kind, ['level', 'column']);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);

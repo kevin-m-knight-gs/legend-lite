@@ -187,6 +187,18 @@ describe('each command gives what the screen\'s own edit gives', () => {
     refused(() => applyGridCommand(d, { kind: 'removeCalculated', name: 'region' }), /'region' is not a calculated column/);
   });
 
+  it("a chart's mark: its old conditions taken off where they stand, the new ANDed on (G7)", () => {
+    const desk = { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } as const;
+    const emea = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    const apac = { kind: 'condition', column: 'region', operator: 'equal', value: 'APAC' } as const;
+    const filtered = applyGridCommand(d, { kind: 'filter', filter: { kind: 'and', children: [desk, emea] } });
+    const moved = applyGridCommand(filtered, { kind: 'refilter', remove: [emea], add: [apac] });
+    assert.deepEqual(moved.snapshot.filter, { kind: 'and', children: [desk, apac] }, 'the rest of the filter kept');
+    const cleared = applyGridCommand(applyGridCommand(d, { kind: 'refilter', remove: [], add: [emea] }),
+      { kind: 'refilter', remove: [emea], add: [] });
+    assert.equal(cleared.snapshot.filter, undefined, 'a selection cleared leaves no filter of its own');
+  });
+
   it('a list applies in order and stops at the first refusal', () => {
     const done = applyGridCommands(d, [{ kind: 'pivot', columns: ['desk'] }, { kind: 'addSort', column: 'qty', direction: 'asc' }]);
     assert.deepEqual(done.snapshot.pivotOn, ['desk']);
@@ -275,6 +287,8 @@ describe('a command read from JSON is the same command, and what DataCube does n
       { kind: 'condition', column: 'desk', operator: 'isEmpty' },
     ] } },
     { kind: 'addFilter', condition: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } },
+    { kind: 'refilter', remove: [{ kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }],
+      add: [{ kind: 'condition', column: 'region', operator: 'equal', value: 'APAC' }] },
     { kind: 'calculate', level: 'row', column: double },
     // every column kind the screen's editor and its presets make (Show As: a window; a share: a child aggregate; explode)
     { kind: 'calculate', level: 'row', column: { name: 'running', window: { fn: 'sum', column: 'notional', partition: ['desk'],

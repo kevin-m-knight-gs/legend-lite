@@ -1177,7 +1177,8 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     await settle();
     assert.equal(sheetOf(`edit-${chart}`), second, 'the editing grid moved');
     assert.equal(pg().shownSheet, first);
-    assert.deepEqual(told, [{ kind: 'renameTile', tile: b, title: 'Sales' }, { kind: 'renameTile', tile: b, title: null }]);
+    // the titles as typed: the made one back keeps none, by renameTile's rule (the replay below)
+    assert.deepEqual(told, [{ kind: 'renameTile', tile: b, title: 'Sales' }, { kind: 'renameTile', tile: b, title: 'Grid 2' }]);
     const replayed = applyPageCommands({ page: start, held: idsOf(start) }, told).draft.page;
     assert.deepEqual({ views: replayed.views, sheets: replayed.sheets }, pg().views());
   });

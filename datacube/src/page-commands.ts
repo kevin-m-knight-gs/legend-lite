@@ -15,7 +15,7 @@ import {
   type PageLayout, type PageSheet, type PageView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
-import { chartTitle, nextPageId } from './page-ids.ts';
+import { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
@@ -52,6 +52,9 @@ export type PageCommand =
   }
   /** A chart's spec, whole (made first by chart-spec.ts editChart, the options form's rule). */
   | { readonly kind: 'setChart'; readonly chart: string; readonly spec: ChartSpec }
+  /** A chart's selection, the mark clicked last as its conditions (none: cleared) -- the chart's alone: the conditions
+   *  on its grid's filter are that grid's `refilter`, told with it (grid-commands.ts). */
+  | { readonly kind: 'select'; readonly chart: string; readonly conditions: readonly FilterNode[] }
   /** A tile onto another sheet, at its bottom; onto its own, nothing. `columns`: how many fit side by side there. */
   | { readonly kind: 'moveTile'; readonly tile: string; readonly sheet: string; readonly columns: number | null }
   | { readonly kind: 'stack'; readonly tiles: readonly string[] }
@@ -81,7 +84,7 @@ export type PageCommand =
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
+  'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
@@ -303,7 +306,9 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
     case 'renameTile': {
       const view = viewNamed(page, command.tile);
       if (command.title === null && view.kind === 'chart') throw new CubeRefusal('a chart has a title');
-      const title = command.title === null ? undefined : named('tile', command.title);
+      const given = command.title === null ? undefined : named('tile', command.title);
+      // a grid named what it was made named keeps no title of its own: it is numbered by its id, as it was
+      const title = view.kind === 'grid' && given === gridTitle(view.id) ? undefined : given;
       const views = page.views.map((v) => {
         if (v.id !== view.id) return v;
         if (title !== undefined) return { ...v, title };
@@ -342,6 +347,13 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const spec = readChart(JSON.parse(JSON.stringify(command.spec)));
       if (typeof spec === 'string') throw new CubeRefusal(spec);
       return done({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, spec } : v)) });
+    }
+    case 'select': {
+      const view = viewNamed(page, command.chart);
+      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
+      const { selection: _was, ...rest } = view;
+      const chart: ChartView = command.conditions.length === 0 ? rest : { ...rest, selection: [...command.conditions] };
+      return done({ ...page, views: page.views.map((v) => (v.id === view.id ? chart : v)) });
     }
     case 'moveTile': {
       viewNamed(page, command.tile);
@@ -541,6 +553,10 @@ export function readPageCommand(given: unknown): PageCommand {
       fields(o, kind, ['chart', 'spec']);
       if (!isObject(o['spec'])) throw new CubeRefusal("a chart's spec is an object");
       return { kind, chart: text(o['chart'], 'a chart'), spec: o['spec'] as unknown as ChartSpec };
+    case 'select':
+      fields(o, kind, ['chart', 'conditions']);
+      if (!Array.isArray(o['conditions'])) throw new CubeRefusal("a chart's selection is a list of conditions");
+      return { kind, chart: text(o['chart'], 'a chart'), conditions: o['conditions'].map(readFilterNode) };
     case 'moveTile':
       fields(o, kind, ['tile', 'sheet', 'columns']);
       return { kind, tile: text(o['tile'], 'a tile'), sheet: text(o['sheet'], 'a sheet'), columns: columnsFrom(o['columns']) };

@@ -125,9 +125,13 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   Column window" passes
 - [x] **G6** Filters window → `filter` — closed S1: its OK and Apply build `filter` after the compile check; the gesture
   "a filter changed in the Filters window" passes (and `filter` is told by a gesture now)
-- [ ] **G7** chart click on a grid's chart → grid `refilter {remove, add}` + page `select {chart, conditions}`; the
-  rule moved out of `app.ts:2741` and `cube-page.ts:1462` — S1, L1 L2
-- [ ] **G8** restore heals a filter missing a chart's selection → the document kept consistent by G7's rule — S1, L2
+- [x] **G7** chart click on a grid's chart → grid `refilter {remove, add}` + page `select {chart, conditions}`; the
+  rule moved out of `app.ts:2741` and `cube-page.ts:1462` — closed S1: the refilter rule is grid-commands.ts's, the
+  chart's selection page-commands.ts's; a click tells both (a chart removed tells its grid's refilter, removeTile its
+  page part); the gesture "a chart's mark clicked" is told, read, replays; Python's chart selection is K7 (S6)
+- [ ] **G8** restore heals a filter missing a chart's selection → the document kept consistent by G7's rule — S3, L1 (moved
+  from S1: a page step restores views and sheets, not the grids' documents, so the heal stays until S3 restores the
+  board by commands; since S1 it goes through G7's rule, the grid's `refilter`, told)
 - [x] **G9** use a dimension → `group` — closed S1: `#useDimension` (no longer public) builds `group`
 - [x] **G10** `applyConfiguration` → deleted; its tests use `configure` — closed S1: a host edits a grid by
   `CubeApp.edit(commands, label)` (the screen's own path, told); the gesture "a grid's settings set by its host" passes
@@ -218,7 +222,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 
 ### Same job, different rule (audit §6)
 - [ ] **B1** page filters reach Python's `view()`, `to_pandas()`, `export()` (headless through `gridLens`) — S5, L10
-- [ ] **B2** a tile renamed to its made title stores no title: the rule inside `renameTile` — S1, L10
+- [x] **B2** a tile renamed to its made title stores no title: the rule inside `renameTile` — closed S1: renameTile drops a
+  grid's title equal to `gridTitle(id)`; the screen sends what was typed (page-commands.test.ts)
 - [ ] **B3** one default page name — S5, L10
 - [ ] **B4** saving under a name renames the page, on both sides — S5, L10
 - [ ] **B5** one page-file rule — S5, L10

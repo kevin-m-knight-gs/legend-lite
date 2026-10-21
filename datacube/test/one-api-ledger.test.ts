@@ -43,8 +43,8 @@ interface Entry {
 
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 7, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 15, L1_PLANE: 9, L1_HOST: 18,
-  L8_KINDS: 13, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 28, UNCHECKED: 7,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 15, L1_PLANE: 9, L1_HOST: 18,
+  L8_KINDS: 15, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 25, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -57,12 +57,10 @@ function pinned(name: string, size: number): void {
 const PLUMBING = 'the one way a change reaches the state owner: no gap of its own';
 
 /** Every call in the grid (app.ts) that changes its state, by where it is made. */
-const GRID_CALLS = /this\.(#change|#query|#owner\.change|#owner\.undo|#owner\.redo|#owner\.retryRefused)\(/g;
+const GRID_CALLS = /this\.(#change|#owner\.change|#owner\.undo|#owner\.redo|#owner\.retryRefused)\(/g;
 const L1_GRID: Record<string, Entry> = {
   '#change:#owner.change': { items: [], why: PLUMBING },
-  '#query:#change': { items: [], why: PLUMBING },
   '#applyCommands:#change': { items: [], why: 'the command path: applyGridCommands, told by onCommand' },
-  'refilter:#query': { items: ['G7'] },
   '#undo:#owner.undo': { items: ['G12'], why: 'N2: undo writes the page whole, as a restore' },
   '#redo:#owner.redo': { items: ['G12'], why: 'N2' },
   // a retry stays a retry when fixed (its refused change's commands kept and told): S1 closes it by a behavioural test
@@ -87,8 +85,10 @@ const ROUTES = /\.((?:state\.(?:change|undo|redo|retryRefused|refresh))|change|r
 const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('.ts') && f !== 'src/app.ts'
   && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
 const L1_ROUTES: Record<string, Entry> = {
+  // a page step restores views, not the grids' documents (S3): the selection put back on its grid's filter, by the
+  // grid's refilter command, told
   'src/page/cube-page.ts:sync:refilter': { items: ['G8'], count: 2 },
-  'src/page/cube-page.ts:#select:refilter': { items: ['G7'] },
+  'src/page/cube-page.ts:#select:refilter': { items: [], why: "a chart's mark on its grid's filter: the grid's refilter command, told beside the page's select" },
   'src/page/page-app.ts:follow:followSnap': { items: [], why: "following another editor's snap" },
   'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
@@ -232,6 +232,10 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   stack: { screen: { items: ['P14'] } },
   arrange: { screen: { items: ['P14'] } },
   setPageFilter: { python: { items: ['K7'] } },
+  // 2026-10-21, One API S1 G7: a chart's selection became the page's select and its grid's refilter -- Python's chart
+  // selection is K7's (S6), so both kinds come in listed (L8_KINDS 13 -> 15)
+  select: { python: { items: ['K7'] } },
+  refilter: { python: { items: ['K7'] } },
   removePageFilter: { python: { items: ['K7'] } },
   snap: { screen: { items: ['P3'] } },
   live: { screen: { items: ['P3'] } },
@@ -365,8 +369,6 @@ interface Marker {
 }
 const MARKERS: readonly Marker[] = [
   // the grid
-  { file: 'src/page/cube-page.ts', text: "source.refilter([], view.selection, 'filter to chart mark')", items: ['G8'] },
-  { file: 'src/page/cube-page.ts', text: "source.refilter([], selection, 'filter to chart mark')", items: ['G8'] },
   // telling exactly what landed: placeholders until S1 writes each one's failing behavioural test first
   { file: 'src/state-owner.ts', text: 'state: this.#rules.fold(update(pending.state)),', items: ['T1'] },
   { file: 'src/app.ts', text: "case 'presentation':\n        if (applying) this.#tell(applying.commands);", items: ['T2'] },
@@ -389,7 +391,6 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/page-rebase.ts', text: 'export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {', items: ['X3'] },
   // the browser's half of the same jobs done by different rules
   { file: 'src/headless/grid.ts', text: 'gridLens(', items: ['B1'], absent: true },
-  { file: 'src/page/cube-page.ts', text: 'title === this.#titles.get(tile) ? null : title', items: ['B2'] },
   { file: 'src/app/datacube-app.ts', text: "current.name ?? (page.suggestedName || 'page')", items: ['B3'], count: 5 },
   { file: 'src/app/datacube-app.ts', text: 'a page file cannot carry them yet.', items: ['B5'] },
   { file: 'src/headless/grid.ts', text: 'a page on Python reads frames', items: ['B7'], count: 3 },

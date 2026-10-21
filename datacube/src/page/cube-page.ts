@@ -321,9 +321,9 @@ export class CubePage {
         this.#options.onChange();
       },
       onRename: (tile, title) => {
-        // a grid given its made title back has none of its own again (views() writes none); an editing grid, which a
-        // page does not save, is no tile of the page's to tell
-        if (this.#saved(tile)) this.#tell('Rename Tile', { kind: 'renameTile', tile, title: title === this.#titles.get(tile) ? null : title });
+        // the title as typed: a grid given its made title back keeps none of its own, by renameTile's rule (views()
+        // writes none either); an editing grid, which a page does not save, is no tile of the page's to tell
+        if (this.#saved(tile)) this.#tell('Rename Tile', { kind: 'renameTile', tile, title });
         this.#options.onChange();
       },
       onLayout: (tileId, anchor) => this.showLayouts(anchor, tileId),
@@ -1306,7 +1306,8 @@ export class CubePage {
     const chart = this.#charts.get(id);
     if (!chart) return;
     if (this.#saved(id)) this.#tell(`Remove ${this.title(id) ?? id}`, { kind: 'removeTile', tile: id });
-    if (chart.conditions.length) this.#select(id, null);
+    // its selection goes with it (removeTile takes it off its grid's filter): the grid's change told, the page's in removeTile
+    if (chart.conditions.length) this.#quietly(() => this.#select(id, null));
     this.#closeEditor(id);
     chart.panel.dispose();
     this.#charts.delete(id);
@@ -1470,7 +1471,10 @@ export class CubePage {
     const add = key === chart.key ? [] : next;
     const old = chart.conditions;
     if (old.length === 0 && add.length === 0) return;
-    this.#sourceOf(chart.link).refilter(old, add, add.length === 0 ? 'clear chart selection' : 'filter to chart mark');
+    const label = add.length === 0 ? 'clear chart selection' : 'filter to chart mark';
+    // the chart's selection, the page's edit; its conditions on its grid's filter, that grid's -- each told as its command
+    this.#tell(label, { kind: 'select', chart: id, conditions: add });
+    this.#sourceOf(chart.link).refilter(old, add, label);
     chart.conditions = add;
     chart.key = add.length === 0 ? '' : key;
     this.#paintSelection(id);

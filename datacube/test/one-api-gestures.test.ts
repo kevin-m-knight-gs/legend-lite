@@ -603,7 +603,6 @@ interface Gap { readonly items: readonly string[]; readonly words?: RegExp; read
 const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
   'the page renamed in its name box': { told: { items: ['P1'] } },
   'a page edit undone': { told: { items: ['P5'] } },
-  "a chart's mark clicked": { told: { items: ['G7'] } },
   'a detached chart updated from its editing grid': { told: { items: ['P8'] } },
   'a grid with a following chart ungrouped': { replays: { items: ['V1'], paths: ['views.2.spec.split'] } },
 };

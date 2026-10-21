@@ -46,7 +46,7 @@ import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
+import { CubeRefusal, isPivotTotalColumn, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, firstSortDirection, headerSorts, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand, type SettingsPatch } from './grid-commands.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
@@ -958,11 +958,6 @@ export class CubeApp {
 
   #change(update: (state: CubeState) => CubeState, options?: ChangeOptions): Promise<Outcome> {
     return this.#owner.change(update, options);
-  }
-
-  /** A change of the snapshot alone. */
-  #query(update: (snapshot: CubeSnapshot) => CubeSnapshot, label: string): Promise<Outcome> {
-    return this.#change((s) => ({ ...s, snapshot: update(s.snapshot) }), { label });
   }
 
   /**
@@ -2694,14 +2689,9 @@ export class CubeApp {
           levels: view.snapshot.rows,
         } : null;
       },
+      // a chart's mark on this grid's filter: the command Python's would build (grid-commands.ts refilter)
       refilter: (old, add, label) => {
-        void this.#query((s) => {
-          const kept = withoutConditions(s.filter, old) ?? undefined;
-          const children = [...(kept === undefined ? [] : kept.kind === 'and' ? kept.children : [kept]), ...add];
-          const { filter: _drop, ...rest } = s;
-          return children.length === 0 ? rest
-            : { ...rest, filter: children.length === 1 ? children[0]! : { kind: 'and', children } };
-        }, label);
+        void this.#apply([{ kind: 'refilter', remove: [...old], add: [...add] }], label);
       },
       spawn: (host, snapshot, spawned) => {
         const o = this.#options;
