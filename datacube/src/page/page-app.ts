@@ -374,6 +374,16 @@ export class PageApp {
     this.#state.keep(this.#seen());
   }
 
+  /**
+   * THE PAGE RENAMED BY ITS EDITOR (the name box, Save under a name): its title, and its renamePage command told -- no
+   * step of its history (the host's to name), but an edit another editor follows. A name it has already tells nothing.
+   */
+  rename(name: string): void {
+    const was = this.#name;
+    this.setTitle(name);
+    if (name !== was) this.#options.onPageCommand?.({ kind: 'renamePage', name });
+  }
+
   /** Changed since it was saved, or not (the host knows): the name box says so. */
   setChanged(changed: boolean): void {
     if (changed === this.#changed) return;
@@ -746,7 +756,7 @@ export class PageApp {
       sheetTabs: { at: (x, y) => this.#sheetTabs.at(x, y), hover: (id) => this.#sheetTabs.hover(id) },
       // each structural edit a step of the page's history, begun before its change is kept; its commands told
       onPageEdit: (edit) => {
-        this.#state.begin(edit.label);
+        if (edit.step !== false) this.#state.begin(edit.label);
         for (const command of edit.commands) this.#options.onPageCommand?.(command);
       },
       documentOf: (grid) => this.grid(grid)?.cubeDocument(this.#name),

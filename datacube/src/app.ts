@@ -405,6 +405,9 @@ export interface CubeEvents {
   readonly status: readonly [text: string, kind: 'ok' | 'warn' | 'error'];
   /** The snap state changed. */
   readonly plane: readonly [];
+  /** Its rows moved by its own act -- its toggle, a snap asked of it -- not by following another editor's: its page
+   *  tells it, as its snap or live command. Told before `plane`. */
+  readonly moved: readonly [];
 }
 
 /** The z-index windows start from, above the cube's own layers. */
@@ -2919,12 +2922,27 @@ export class CubeApp {
 
   // -- where its rows are: Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) ---------------
 
-  /** The copy it reads, as its page writes it down (page-document.ts gridCopyOf); undefined: it reads its rows live. */
+  /**
+   * The copy it reads, as its page writes it down (page-document.ts gridCopyOf); undefined: it reads its rows live. As
+   * of its last move that held -- a snap is the page's once its re-run has answered (and been told: 'moved'), not
+   * while it runs, so the page never writes a copy no command says.
+   */
   get copy(): GridCopy | undefined {
+    return this.#settledCopy;
+  }
+
+  /** Where its rows are as its page writes it (`copy`): set each time a move settles. */
+  #settledCopy: GridCopy | undefined = undefined;
+
+  /** The move settled: `copy` says where its rows now are. */
+  #settlePlane(): void {
     const state = this.#controller.snaps.state;
-    if (state.mode !== 'snapped') return undefined;
+    if (state.mode !== 'snapped') {
+      this.#settledCopy = undefined;
+      return;
+    }
     const { table, rowCount, takenAt, label, pulledBy } = state.snap;
-    return gridCopyOf({ table, rowCount, takenAt, label, ...(pulledBy ? { pulledBy } : {}) });
+    this.#settledCopy = gridCopyOf({ table, rowCount, takenAt, label, ...(pulledBy ? { pulledBy } : {}) });
   }
 
   /**
@@ -2963,9 +2981,12 @@ export class CubeApp {
     if (this.#controller.snaps.isSnapped) return;
     try {
       await this.#check(this.#controller.snapAndRun(this.#owner.committed.snapshot, () => this.#owner.refresh()));
+      this.#settlePlane();
+      this.#emit('moved');
     } catch (e) {
       this.#status(e instanceof Error ? e.message : String(e), 'error');
     }
+    this.#settlePlane();
     this.#paintSnap?.();
     this.#emit('plane');
   }
@@ -2978,6 +2999,7 @@ export class CubeApp {
   /** The plane moved by its page: the grid run again where its rows now are, its toggle saying so, its page told. */
   async #planeMoved(): Promise<void> {
     await this.#owner.refresh();
+    this.#settlePlane();
     this.#paintSnap?.();
     this.#emit('plane');
   }
@@ -3892,9 +3914,12 @@ export class CubeApp {
       this.#planeToggle = () => snap.click();
       snap.addEventListener('click', () => {
         snap.disabled = true;
-        const done = (): void => {
+        // moved (its page tells it), or refused (nothing moved)
+        const done = (moved: boolean): void => {
           snap.disabled = false;
+          this.#settlePlane();
           paint();
+          if (moved) this.#emit('moved');
           this.#emit('plane');
         };
         // The PLANE changes, the cube's state does not: freeze (or release)
@@ -3907,9 +3932,9 @@ export class CubeApp {
         const work = this.#check(this.#controller.snaps.isSnapped
           ? this.#controller.goLive(rerun)
           : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun));
-        work.then(done, (e: unknown) => {
+        work.then(() => done(true), (e: unknown) => {
           this.#status(e instanceof Error ? e.message : String(e), 'error');
-          done();
+          done(false);
         });
       });
       paint();

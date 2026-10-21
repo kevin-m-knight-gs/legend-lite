@@ -43,8 +43,8 @@ interface Entry {
 
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 15, L1_PLANE: 9, L1_HOST: 18,
-  L8_KINDS: 15, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 25, UNCHECKED: 7,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 13, L1_PLANE: 4, L1_HOST: 14,
+  L8_KINDS: 12, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 25, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -97,11 +97,9 @@ const L1_ROUTES: Record<string, Entry> = {
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
 const GAP_CALLS_APP = /this\.(#applyDraft)\(/g;
-const GAP_CALLS_HOST = /(?<![\w.#]|function )(renamePage|saveTo|makeClass|landed|inPlace|openSaved|blankPage|openFrame)\(/g;
+const GAP_CALLS_HOST = /(?<![\w.#]|function )(makeClass|landed|inPlace|openSaved|blankPage|openFrame)\(/g;
 const L1_REACH: Record<string, Entry> = {
   'app.ts:onApply:#applyDraft': { items: ['G3'] },
-  'datacube-app.ts:onRename:renamePage': { items: ['P1'] },
-  'datacube-app.ts:save:saveTo': { items: ['P2'] },
   'datacube-app.ts:createClass:makeClass': { items: ['P4'] },
   'datacube-app.ts:createAssociation:landed': { items: ['P4'] },
   'datacube-app.ts:createDataSpace:landed': { items: ['P4'] },
@@ -117,17 +115,13 @@ const L1_REACH: Record<string, Entry> = {
 };
 
 /** What a function tells: any command, by any way the app tells one. A write in a function that tells one is no gap. */
-const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebuilt|setChartCube|select)'|channel\??\.edit\(|onPageCommand\??\.\(|#tell\(|#apply\(/;
+// (the page's rename and a grid's own move of its rows are told by the page: page-app.ts rename, cube-page.ts on 'moved')
+const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebuilt|setChartCube|select)'|channel\??\.edit\(|onPageCommand\??\.\(|#tell\(|#apply\(|page\.rename\(|#emit\('moved'\)/;
 const quiet = (body: string): boolean => !TELLS.test(body);
 
 /** Where the grid says the rows it reads moved, or moves them (a snap, going live): the page's copies change. */
 const GRID_PLANE = /this\.(#emit\('plane'\)|#controller\.(?:snapAndRun|goLive|adopt|forget|handOver)\()/g;
 const L1_PLANE: Record<string, Entry> = {
-  "snapRows:#emit('plane')": { items: ['P3'] },
-  'snapRows:#controller.snapAndRun(': { items: ['P3'] },
-  "done:#emit('plane')": { items: ['P3'] },
-  '#snapPill:#controller.snapAndRun(': { items: ['P3'] },
-  '#snapPill:#controller.goLive(': { items: ['P3'] },
   "#planeMoved:#emit('plane')": { items: [], why: "following another editor's snap or going live" },
   'followSnap:#controller.adopt(': { items: [], why: "following another editor's snap" },
   'followLive:#controller.forget(': { items: [], why: "following another editor's going live" },
@@ -137,10 +131,6 @@ const L1_PLANE: Record<string, Entry> = {
 /** The host's own writes of the page (app/datacube-app.ts) in a function that tells no command. */
 const HOST_CALLS = /(current\s*=\s*\{|page\.setTitle\(|page\.clear\(\)|page\.restore\()/g;
 const L1_HOST: Record<string, Entry> = {
-  'renamePage:page.setTitle(': { items: ['P1'], count: 2 },
-  'renamePage:current = {': { items: ['P1'] },
-  'saveTo:current = {': { items: ['P2', 'B4'] },
-  'saveTo:page.setTitle(': { items: ['P2', 'B4'] },
   'makeClass:current = {': { items: ['P4'] },
   'landed:current = {': { items: ['P4'] },
   'inPlace:page.clear()': { items: ['P10'] },
@@ -226,7 +216,6 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   clickTreeSort: { python: { items: [], why: "nature: the tree column's click is the screen's" } },
   addFilter: { python: { items: ['K2'] } },
   measures: { screen: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" } },
-  renamePage: { screen: { items: ['P1', 'P2'] } },
   moveSheet: { python: { items: ['K8'] } },
   removeSheet: { python: { items: ['K8'] } },
   stack: { screen: { items: ['P14'] } },
@@ -237,8 +226,6 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   select: { python: { items: ['K7'] } },
   refilter: { python: { items: ['K7'] } },
   removePageFilter: { python: { items: ['K7'] } },
-  snap: { screen: { items: ['P3'] } },
-  live: { screen: { items: ['P3'] } },
 };
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */

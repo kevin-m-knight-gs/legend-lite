@@ -363,7 +363,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page renamed in its name box: its name from now (once the page can be saved, a change until it is). */
-  let renamePage = (name: string): void => page.setTitle(name);
+  let renamePage = (name: string): void => page.rename(name);
   /** Told when a grid is made on the page, by its tile's id: what the page keeps of it (its file). */
   let madeGrid: ((id: string, place: GridPlace) => void) | undefined;
   /** Told of every change on the page: the tables no grid reads any more are dropped. */
@@ -553,7 +553,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     } = {};
     renamePage = (name) => {
       current = { ...current, name };
-      page.setTitle(name);
+      page.rename(name);
       onCubeView?.();
     };
     madeGrid = (id, place) => sources.madeGrid(id, place);
@@ -829,7 +829,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       else await store.create(record);
       await keepHandles(id);
       current = { ...current, cubeId: id, name, savedName: name, baseline: form.definition, lost: [] };
-      page.setTitle(name);
+      // saved under a name: the page renamed, told as the name box tells it
+      page.rename(name);
       onCubeView?.();
       await persist();
       library?.sync();

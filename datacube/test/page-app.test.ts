@@ -564,6 +564,23 @@ describe('a page of its own', () => {
     assert.equal(last.getAttribute('aria-disabled'), 'true', 'the last sheet stays');
   });
 
+  it("renamed by its editor, it tells renamePage -- no step of its history; a name it has tells nothing (P1, P2)", async () => {
+    const told: PageCommand[] = [];
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    told.length = 0;
+    const step = page.undoLabel;
+    page.rename('Q4 review');
+    page.rename('Q4 review');
+    assert.deepEqual(told, [{ kind: 'renamePage', name: 'Q4 review' }]);
+    assert.equal(page.title, 'Q4 review');
+    assert.equal(page.undoLabel, step, "the host's to name: no step of its own to undo");
+    // a host setting the name it follows (a page opened, another editor's) tells nothing
+    page.setTitle('Q5');
+    assert.equal(told.length, 1);
+  });
+
   it('tells each edit of its structure as its page command: applyPageCommand gives for them the page it saves', async () => {
     // (docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md) the screen and the one function cannot drift before stage 2 makes the
     // function the screen's: what the screen told, applied to the page it started as, is the page it writes

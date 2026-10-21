@@ -34,6 +34,7 @@ import { pageWritten } from '../src/headless/page.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 // -- the page, as DataCube's app wires one another editor serves ----------------------------------------------------
 
@@ -108,6 +109,40 @@ const over = (name: string): GridMaker => (gridHost, spawned, start) => {
   return made;
 };
 
+/** The statement a snap counts its rows by, here: the fixture's engine answers it with the fixture's two rows. */
+const COUNT = 'count the rows';
+class CountingGate extends GateEngine {
+  override async answer(sql: string, epoch: number): Promise<ResultTable> {
+    if (sql === COUNT) return { columns: [{ name: 'n', type: 'Integer', values: [2] }], rowCount: 1, epoch, elapsedMs: 1 };
+    return super.answer(sql, epoch);
+  }
+}
+/** A grid over `name` that can snap its rows into the tab (its toggle a toggle): a copy whose statements run nowhere
+ *  but its count. */
+const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
+  const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+    engine: new CountingGate(), planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+    snapTarget: {
+      host: { hostOperations: async (_type, operations) => operations.map((o) => (o.op === 'count' ? [COUNT] : [])) },
+      copy: () => ({ table: `snap_${name}`, landed: async () => ({ source: SNAPSHOT.source.query, planner: new StubPlanner() }), dispose: () => {} }),
+    },
+    configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+    onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+  });
+  if (spawned.id !== undefined) cubes.set(spawned.id, made);
+  return made;
+};
+/** A page of a grid that can snap, `a`, beside one that cannot (so each pill is in its tile's header). */
+const snapGrid = async (): Promise<Record<string, string>> => {
+  newPage();
+  const a = pg().addGrid(snappable('trades.csv'));
+  const b = pg().addGrid(over('orders.csv'), { near: a });
+  await settle();
+  return { a, b };
+};
+const toggle = (id: string): void => tile(id).querySelector<HTMLButtonElement>('.dc-titlebar-toggle')!.click();
+
 /** A grid over the class Trade (a page filter is on a class a grid reads): its source a class, its rows the fixture's. */
 const TRADE = 'trades::domain::Trade';
 const overClass = (): GridMaker => (gridHost, spawned, start) => {
@@ -140,7 +175,7 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
     onChange: () => channel?.changed(),
     onPageCommand: (command) => channel?.edit({ page: command }),
     onRename: (name) => {
-      pg().setTitle(name);
+      pg().rename(name);
       channel?.changed();
     },
     ...extra,
@@ -575,6 +610,12 @@ const GESTURES: readonly Gesture[] = [
       host.ownerDocument.querySelector<HTMLButtonElement>('.dc-filter-ok')!.click();
     },
   },
+  { name: 'a grid snapped by its toggle', setUp: snapGrid, make: ({ a }) => toggle(a!) },
+  {
+    name: 'a snapped grid made live again by its toggle',
+    setUp: async () => { const g = await snapGrid(); toggle(g.a!); await drawn(); return g; },
+    make: ({ a }) => toggle(a!),
+  },
   { name: 'a group opened', setUp: twoGrids, make: ({ a }) => chevron(a!) },
   {
     name: 'every group collapsed',
@@ -601,7 +642,6 @@ const GESTURES: readonly Gesture[] = [
 interface Gap { readonly items: readonly string[]; readonly words?: RegExp; readonly paths?: readonly string[] }
 /** Each gesture's checks that fail today, by the plan's items: the only failures allowed, until each is closed. */
 const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
-  'the page renamed in its name box': { told: { items: ['P1'] } },
   'a page edit undone': { told: { items: ['P5'] } },
   'a detached chart updated from its editing grid': { told: { items: ['P8'] } },
   'a grid with a following chart ungrouped': { replays: { items: ['V1'], paths: ['views.2.spec.split'] } },
@@ -609,15 +649,12 @@ const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {
 
 /** The command kinds no gesture here tells, each by its item or why: the screen makes none, or none is driven yet. */
 const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?: string }> = {
-  renamePage: { items: ['P1', 'P2'] },
   stack: { items: ['P14'] },
   arrange: { items: ['P14'] },
-  snap: { items: ['P3'] },
-  live: { items: ['P3'] },
   measures: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). */
-const GESTURES_AT_LEAST = 36;
+const GESTURES_AT_LEAST = 38;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

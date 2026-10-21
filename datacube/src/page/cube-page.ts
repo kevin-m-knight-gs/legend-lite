@@ -39,6 +39,7 @@ import { givenName } from '../page-names.ts';
 import { chartTitle, gridTitle, nextPageId } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument } from '../cube-document.ts';
+import type { GridCopy } from '../page-document.ts';
 import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
@@ -111,9 +112,11 @@ export interface SpawnedGrid {
   dispose(): void;
   /** What its charts need from it. */
   chartSource(): ChartSource;
-  /** Told each time a view lands ('view'), each time its state changes, a view or a width ('change'), and each time
-   *  where its rows are changes, a snap or going live ('plane'). */
-  on(event: 'view' | 'change' | 'plane', fn: () => void): () => void;
+  /** Told each time a view lands ('view'), each time its state changes, a view or a width ('change'), each time where
+   *  its rows are changes, a snap or going live ('plane'), and -- before that -- when it moved them itself ('moved'). */
+  on(event: 'view' | 'change' | 'plane' | 'moved', fn: () => void): () => void;
+  /** The copy it reads (a snap), as its page writes it down; undefined: it reads its rows live. */
+  readonly copy?: GridCopy | undefined;
   /** Its part of its tile's header: its source, its Live/Snapped pill, its menu. */
   tileHead(): HTMLElement;
 }
@@ -188,6 +191,8 @@ export interface CubePageOptions {
 export interface PageEdit {
   readonly label: string;
   readonly commands: readonly PageCommand[];
+  /** False: no step of the page's history (a snap or going live: where the rows are, not what the page is). */
+  readonly step?: false;
 }
 
 /** A sheet as the page has it: its id, its name when someone gave it one, and its tiles in reading order. */
@@ -888,6 +893,13 @@ export class CubePage {
       // its own changes are the page's: "changed since saved" re-reads the page
       cube.on('change', () => this.#options.onChange()),
       // where its rows are is the page's too: its copies (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
+      // its own snap or going live told as the page's command (the copy it now reads, or none)
+      cube.on('moved', () => {
+        if (this.#quiet > 0 || !this.#saved(id)) return;
+        const copy = cube.copy;
+        this.#options.onPageEdit?.({ label: copy ? 'Snap' : 'Go Live', step: false,
+          commands: [copy ? { kind: 'snap', grid: id, copy } : { kind: 'live', grid: id }] });
+      }),
       cube.on('plane', () => this.#options.onChange()),
     ];
     this.#grids.set(id, { source: cube.chartSource(), added: { cube, stop: () => stops.forEach((stop) => stop()) } });

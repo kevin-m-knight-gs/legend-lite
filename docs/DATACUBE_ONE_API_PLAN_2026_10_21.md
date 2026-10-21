@@ -159,9 +159,13 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   `calculatedFrom` reads every column kind strictly; grid-commands.test.ts round-trips each; the Show As gesture's wire passes)
 
 ### Page edits that are no command (audit §2, page)
-- [ ] **P1** page name box → `renamePage` — S1, L2
-- [ ] **P2** Save / Save As under a name → `renamePage` — S1, L2
-- [ ] **P3** Snap / Go Live in the tab → `snap` / `live` — S1, L2
+- [x] **P1** page name box → `renamePage` — closed S1: page-app.ts `rename` tells it (no step of the history); the host's
+  renamePage calls it; the gesture "the page renamed in its name box" is told, read, replays
+- [x] **P2** Save / Save As under a name → `renamePage` — closed S1: saveTo renames by `page.rename` (L1 holds the host's
+  code: no host write of the name outside a function that tells)
+- [x] **P3** Snap / Go Live in the tab → `snap` / `live` — closed S1: a grid that moves its rows itself (its toggle,
+  snapRows) says so (`moved`); its page tells `snap {grid, copy}` or `live {grid}`, no step of its history; two gestures
+  (snapped, live again) are told, read, replay
 - [ ] **P4** Create a Class / Association / Data Space → model page commands (`modelInto`, `modelPin`, `modelKeep`)
   applied by `page-model.ts`'s functions — S1, L2
 - [ ] **P5** page undo / redo → N2 restore write — S4, L9 (closed as G12)
