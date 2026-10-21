@@ -567,7 +567,7 @@ const GESTURES: readonly Gesture[] = [
     make: ({ chart }) => removeTile(chart!),
   },
   {
-    // its editing grid is the view's, never saved (P7, its band shares reset after a resize, is a marker: jsdom drags none)
+    // its editing grid is the view's, never saved (P7: cube-page-shell.test.ts, its band's shares kept)
     name: 'a frozen chart opened in a grid',
     quiet: true,
     setUp: async () => { const ids = await withChart(); await togglePill(ids['chart']!); return ids; },

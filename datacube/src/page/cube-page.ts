@@ -263,6 +263,12 @@ export class CubePage {
   #shown: Sheet;
   /** The tiles a gesture made, waiting for the command that places them (`sync`): a grid's, a chart's. */
   readonly #pending = new Map<string, BandTile>();
+  /**
+   * EACH SHEET'S LAYOUT AS THE PAGE HAS IT (P7), set only when the board is put at a page (`sync`, `restore`, a new
+   * sheet): what `views` writes. The board's own drawing may differ -- a chart's editing grid placed beside it (smart
+   * placement shares its band evenly), the tile a stack shows in front -- and never reaches the page.
+   */
+  readonly #pageLayouts = new Map<string, Bands>();
   /** While an edit tells the command it is, the edits it is made of tell none (a sheet removed with its tiles). */
   #quiet = 0;
   /** A saved page's tiles, each to go on the sheet it was saved on as it is added (`setSheets`, `restore`). */
@@ -318,6 +324,7 @@ export class CubePage {
     });
     // a screenful: the grid had the whole page until now
     this.#shown.board.setLayout({ fit: true, bands: [{ height: 1, node: { tile: GRID } }] });
+    this.#pageLayouts.set(FIRST_SHEET, this.#shown.board.layout);
   }
 
   /** A sheet, after the others, not shown: a board of its own in an element of its own. */
@@ -372,6 +379,7 @@ export class CubePage {
     });
     // a new sheet's board (bands.ts NEW_SHEET): it fits its window, and scrolls once its bands are too many to fit
     board.setLayout(NEW_SHEET);
+    this.#pageLayouts.set(id, NEW_SHEET);
     board.setEditing(this.#editing);
     const sheet: Sheet = { id, name, host, board, steps };
     this.#sheets.push(sheet);
@@ -651,6 +659,7 @@ export class CubePage {
           this.#shown.host.hidden = false;
         }
         this.#sheets.splice(this.#sheets.indexOf(sheet), 1);
+        this.#pageLayouts.delete(sheet.id);
         sheet.board.dispose();
         sheet.host.remove();
       }
@@ -663,17 +672,10 @@ export class CubePage {
         // which of a stack's tiles is in front is what is looked at, never saved (the design's §5, 7): kept
         const drawn = board(s.id)!.board;
         drawn.setLayout(fronted(bands, drawn.layout));
+        // the page's: what the step holds, of the tiles on the board (an editing grid, which no step holds, put below)
+        this.#pageLayouts.set(s.id, without(bands, (id) => drawn.title(id) === undefined));
       }
-      // a chart's editing grid, which no step holds, back beside its chart (a layout puts what it does not name below)
-      for (const [id, chart] of this.#charts) {
-        const editor = chart.editor;
-        const spec = editor ? this.#specs.get(editor.tile) : undefined;
-        const sheet = editor ? this.#sheetOf(editor.tile) : undefined;
-        if (!editor || !spec || !sheet || sheet !== this.#sheetOf(id)) continue;
-        const title = sheet.board.title(editor.tile) ?? spec.title;
-        sheet.board.remove(editor.tile);
-        sheet.board.add({ ...spec, title }, id);
-      }
+      this.#editorsBeside();
       // the charts in its order (views() writes them in the order they came: one opened again comes where it was)
       const order = (id: string): number => (wanted.has(id) ? to.views.findIndex((v) => v.id === id) : to.views.length);
       const charts = [...this.#charts].sort(([x], [y]) => order(x) - order(y));
@@ -806,6 +808,7 @@ export class CubePage {
         this.#shown.host.hidden = false;
       }
       this.#sheets.splice(this.#sheets.indexOf(sheet), 1);
+      this.#pageLayouts.delete(sheet.id);
       sheet.board.dispose();
       sheet.host.remove();
     }
@@ -1313,8 +1316,9 @@ export class CubePage {
       sheets: this.#sheets.map((s) => ({
         id: s.id,
         ...(s.name !== undefined ? { name: s.name } : {}),
-        // a stack as it is saved: it reopens on its first tab (the design's §5, 7)
-        layout: { kind: 'bands' as const, ...asSaved(without(s.board.layout, (id) => !saved.has(id))) },
+        // as the page has it (an editing grid never touches it: P7); a stack as it is saved, reopening on its first tab
+        // (the design's §5, 7)
+        layout: { kind: 'bands' as const, ...asSaved(without(this.#layoutOf(s), (id) => !saved.has(id))) },
       })),
     };
   }
@@ -1343,7 +1347,9 @@ export class CubePage {
     }
     for (const saved of page.sheets) {
       const { kind: _kind, ...bands } = saved.layout;
-      this.#sheets.find((s) => s.id === saved.id)?.board.setLayout(bands);
+      const sheet = this.#sheets.find((s) => s.id === saved.id);
+      sheet?.board.setLayout(bands);
+      if (sheet) this.#pageLayouts.set(sheet.id, sheet.board.layout);
     }
     this.#planned.clear();
     // a page reopens on its first sheet (what is looked at is not saved: the design's §5, 7)
@@ -1634,9 +1640,35 @@ export class CubePage {
     const chart = this.#charts.get(chartId);
     const editor = chart?.editor;
     if (!chart || !editor) return;
+    const sheet = this.#sheetOf(editor.tile);
     delete chart.editor;
     editor.grid.dispose();
     this.#take(editor.tile);
+    // its band shared as the page has it again: placing the editing grid shared it evenly, for the moment it was open (P7)
+    if (sheet && this.#quiet === 0) {
+      sheet.board.setLayout(fronted(this.#layoutOf(sheet), sheet.board.layout));
+      this.#editorsBeside();
+    }
+  }
+
+  /** A sheet's layout as the page has it (P7): set whenever the board is put at a page. */
+  #layoutOf(sheet: Sheet): Bands {
+    const layout = this.#pageLayouts.get(sheet.id);
+    if (layout === undefined) throw new Error(`sheet ${sheet.id} has no layout of the page's`);
+    return layout;
+  }
+
+  /** Each chart's editing grid, which no page holds, beside its chart (a layout puts what it does not name below). */
+  #editorsBeside(): void {
+    for (const [id, chart] of this.#charts) {
+      const editor = chart.editor;
+      const spec = editor ? this.#specs.get(editor.tile) : undefined;
+      const sheet = editor ? this.#sheetOf(editor.tile) : undefined;
+      if (!editor || !spec || !sheet || sheet !== this.#sheetOf(id)) continue;
+      const title = sheet.board.title(editor.tile) ?? spec.title;
+      sheet.board.remove(editor.tile);
+      sheet.board.add({ ...spec, title }, id);
+    }
   }
 
   // -- selections: click-to-filter ----------------------------------------------

@@ -185,8 +185,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **P6** chart options told before the chart re-follows → falls out of S2 — closed S2: `setChart`'s rule keeps a live
   chart followed (followedPage), so the spec told before the panel follows replays to the one it keeps
   (page-commands.test.ts)
-- [ ] **P7** Open in grid resets the chart's band shares after a resize → an editor tile never touches the saved layout — S3,
-  marker (jsdom drags no resize; opening an editing grid on even shares writes nothing, a gesture checks that)
+- [x] **P7** Open in grid resets the chart's band shares after a resize → an editor tile never touches the saved layout — closed
+  S3: the board keeps each sheet's layout as the page has it apart from its own drawing (cube-page.ts `#pageLayouts`, set
+  only when the board is put at a page: `sync`, `restore`, a new sheet), and writes that; the editing grid, placed
+  beside its chart, shares its band evenly on the board alone, and closed, the board is put back at the page's shares
+  (cube-page-shell.test.ts: a band shared 0.7/0.3, Open in grid, closed -- fails both ways without it)
 - [x] **P8** Update a detached chart from its editing grid → `setChartCube` — closed S1: `setChartCube {chart, document}`
   (the chart reads `<chart>-query`, the cube it read before let go when unread), told with its setChart as one step; the
   gesture "a detached chart updated from its editing grid" is told, read, replays; Python's is K11 (S6)

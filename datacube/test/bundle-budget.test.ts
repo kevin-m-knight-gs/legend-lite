@@ -314,8 +314,10 @@ const BUDGET = 314_500;
  *  groups written and read). Measured 297,040.
  *  297,500 -> 298,000 (2026-10-21, step S3's P14 -- the grid's note of the same date; step S2's V1 V2, followedPage on
  *  every path a cube changes, came in under the last raise). Measured 297,661.
- *  298,000 -> 304,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 304,314. */
-const ENGINE_BUDGET = 304_500;
+ *  298,000 -> 304,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 304,314.
+ *  304,500 -> 305,000 (2026-10-21, step S3's G8 and P7: a step's selection put back by its grid's own refilter, each
+ *  sheet's layout as the page has it kept apart from the board's drawing). Measured 304,513. */
+const ENGINE_BUDGET = 305_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

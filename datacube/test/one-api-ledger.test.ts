@@ -44,7 +44,7 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
-  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 15, UNCHECKED: 7,
+  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 14, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -353,7 +353,6 @@ const MARKERS: readonly Marker[] = [
   // telling exactly what landed: placeholders until S1 writes each one's failing behavioural test first
   // the page
   { file: 'src/page/page-app.ts', text: "#move(way: 'undo' | 'redo'): void {", items: ['P5'] },
-  { file: 'src/page/cube-page.ts', text: 'this.#place({ id: tile, title: `Editing ${chartTitle}`, element: host, actions: [update] }, chartId);', items: ['P7'] },
   // the board a cube alone shows its charts on is given no way to tell its page's edits
   // the no-command write, on the tab's side and the host reader's
   { file: 'src/app/live-channel.ts', text: 'if (this.#told === 0 && this.#seen !== undefined) this.#edits = null;', items: ['H2'] },

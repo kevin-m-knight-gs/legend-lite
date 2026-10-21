@@ -1254,6 +1254,43 @@ describe('Open in grid on a detached chart of a cube alone: its kept query made 
   });
 });
 
+describe("an editing grid is the board's, never the page's (P7)", () => {
+  beforeEach(setUpPage);
+  afterEach(tearDownPage);
+
+  it("Open in grid leaves the saved layout as it is, and closed, the chart's band is shared as the page has it again", async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await togglePill(chart);
+    // the chart's band shared unevenly (a divider dragged: here, its command)
+    const sheet = pg().sheets[0]!;
+    await pg().follow([{ kind: 'layout', sheet, layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { split: 'row',
+      parts: [{ node: { tile: a }, size: 0.7 }, { node: { tile: chart }, size: 0.3 }] } }] } }], new Map());
+    const saved = (): string => JSON.stringify(pg().views().sheets[0]!.layout);
+    const was = saved();
+    assert.match(was, /"size":0\.7/);
+    // the board given a width (jsdom lays nothing out) where three tiles fit side by side, so the tiles' boxes say the
+    // shares and the editing grid joins the chart's band
+    for (const s of host.querySelectorAll<HTMLElement>('.dc-sheet')) {
+      Object.defineProperty(s, 'clientWidth', { configurable: true, get: () => 1200 });
+      Object.defineProperty(s, 'clientHeight', { configurable: true, get: () => 600 });
+    }
+    pg().setLayoutEditing(true);
+    const share = (): number => parseFloat(tile(a).style.width) / (parseFloat(tile(a).style.width) + parseFloat(tile(chart).style.width));
+    assert.ok(Math.abs(share() - 0.7) < 0.02, `the grid has its share: ${share()}`);
+    await openInGrid(chart);
+    assert.ok(tile(`edit-${chart}`), 'the editing grid, beside its chart');
+    assert.equal(tile(`edit-${chart}`).style.top, tile(chart).style.top, "in the chart's band");
+    assert.equal(saved(), was, "the page's layout as it was, the editing grid on the board");
+    await removeTile(`edit-${chart}`);
+    assert.equal(tile(`edit-${chart}`), null);
+    assert.equal(saved(), was, "closed: the page's layout as it was");
+    assert.ok(Math.abs(share() - 0.7) < 0.02, `the board at the page's shares again: ${share()}`);
+  });
+});
+
 describe("a cube alone's board: the same state and commands as a page of its own's (P13)", () => {
   beforeEach(setUpCube);
   afterEach(cube.tearDown);
