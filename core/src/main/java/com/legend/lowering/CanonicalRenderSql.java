@@ -749,7 +749,8 @@ public final class CanonicalRenderSql {
                 }
                 // an empty [0..1] key value is the EMPTY collection —
                 // renderSide '[]' (engine: empty equals empty)
-                c = SqlExpr.Call.of(SqlFn.COALESCE, c, emptyBeside(c));
+                c = SqlExpr.Call.of(SqlFn.COALESCE, c,
+                        new SqlExpr.StringLit("[]"));
             }
             kv.add(new SqlExpr.StringLit(k.name()));
             kv.add(c);
@@ -835,17 +836,6 @@ public final class CanonicalRenderSql {
                 SqlExpr.Call.of(SqlFn.IS_NULL, field), new SqlExpr.NullLit())), lit);
     }
 
-    /** The empty [0..1] key value ({@code '[]'}) beside a key's canon {@code c}, of {@code c}'s own kind: JSON where
-     *  {@code c} is (a nested instance's object, a JSON slot's canon), text otherwise. A coalesce's operands share a
-     *  type: Trino unifies no JSON with a varchar ("All COALESCE operands must be the same type or coercible to a
-     *  common type ... json and varchar(2)", channel B's zip-of-pairs tests since the plan path program's step 6, found
-     *  by the Trino lane session, 2026-10-20); both sides of a verdict spell an empty key alike. */
-    private static SqlExpr emptyBeside(SqlExpr c) {
-        return c.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == SqlType.Scalar.JSON
-                ? new SqlExpr.Cast(new SqlExpr.StringLit("[]"), SqlType.Scalar.JSON)
-                : new SqlExpr.StringLit("[]");
-    }
-
     /** The EMPTY key collection (NULL and empty both normalize to it). */
     private static SqlExpr emptyArray() {
         return new SqlExpr.ArrayLit(List.of());
@@ -914,8 +904,9 @@ public final class CanonicalRenderSql {
                                                             elem, k))),
                                     emptyArray());
                 } else {
-                    SqlExpr canon = valueCanon(f.value(), ft, k);
-                    c = SqlExpr.Call.of(SqlFn.COALESCE, canon, emptyBeside(canon));
+                    c = SqlExpr.Call.of(SqlFn.COALESCE,
+                            valueCanon(f.value(), ft, k),
+                            new SqlExpr.StringLit("[]"));
                 }
             }
             kv.add(new SqlExpr.StringLit(k.name()));

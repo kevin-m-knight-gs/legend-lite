@@ -896,7 +896,19 @@ public final class Trino extends AnsiSqlRenderer {
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
             case CHR -> writer.function("chr", c.args());
-            case COALESCE -> writer.function("coalesce", c.args());
+            // DuckDB's coalesce casts a text operand beside a JSON one to JSON (an instance canon's empty key '[]'
+            // beside a nested instance's canon object); Trino unifies no JSON with a varchar ('All COALESCE operands
+            // must be the same type or coercible to a common type ... json and varchar(2)', channel B's zips of Pairs
+            // of Pairs, measured 2026-10-20)
+            case COALESCE -> a.stream().anyMatch(Trino::isJson) && a.stream().anyMatch(Trino::isText)
+                    ? writer.append("coalesce(").join(a, ", ", (w, e) -> {
+                        if (isText(e)) {
+                            w.append("json_parse(").expr(e, 0).append(")");
+                        } else {
+                            w.expr(e, 0);
+                        }
+                    }).append(")")
+                    : writer.function("coalesce", c.args());
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
             case DEGREES -> writer.function("degrees", c.args());
