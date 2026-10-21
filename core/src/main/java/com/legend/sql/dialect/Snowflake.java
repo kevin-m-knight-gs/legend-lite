@@ -2703,6 +2703,9 @@ public final class Snowflake extends AnsiSqlRenderer {
         if (UNORDERED_ONLY.contains(r.fn()) && (ordered || win.frame() != null)) {
             throw new DialectCapability(r.fn() + " over an ordered or framed window reached Snowflake");
         }
+        if (r.fn() == SqlAgg.Fn.QUANTILE_CONT) {
+            return writer.piece(windowQuantile(r, win));
+        }
         if ((r.fn() == SqlAgg.Fn.STRING_AGG || r.fn() == SqlAgg.Fn.LIST) && ordered) {
             if (!r.orderBy().isEmpty() && !r.orderBy().equals(win.orderBy())) {
                 throw new DialectCapability("an ordered " + r.fn() + " over a window of another order reached"
@@ -2742,6 +2745,35 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         reducer(writer, r);
         return over(writer, win);
+    }
+
+    /**
+     * A continuous quantile over a window's partition, as DuckDB and the engine interpolate it: the partition's
+     * non-NULL values sorted in the quantile's order, {@code rn = (n - 1) * q}, {@code lo + (hi - lo) * (rn -
+     * floor(rn))}; NULL over none. Snowflake's own window PERCENTILE_CONT interpolates as {@code (1 - f) * lo + f *
+     * hi}, another last bit: 0.6 of (1, 2, 3) descending is 1.7999999999999998 there, 1.8 in its aggregate form and in
+     * the reference (testPercentile_Relation_Window, measured on the lane 2026-10-21; the merge-base passed it by
+     * printing ten digits). The values and q are bound once, in a one-element TRANSFORM.
+     */
+    private SqlWriter.Piece windowQuantile(SqlAgg.Reducer r, Window win) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        boolean ascending = r.orderBy().isEmpty() || r.orderBy().get(0).ascending();
+        String o = delimited(freshName("q"));
+        String sorted = "CAST(GET(" + o + ", 's') AS ARRAY)";
+        String n = "ARRAY_SIZE(" + sorted + ")";
+        String rn = "(CAST(" + n + " - 1 AS DOUBLE) * " + fieldOf(o, "q", "DOUBLE") + ")";
+        String lo = "CAST(GET(" + sorted + ", CAST(FLOOR(" + rn + ") AS INTEGER)) AS DOUBLE)";
+        String hi = "CAST(GET(" + sorted + ", CAST(CEIL(" + rn + ") AS INTEGER)) AS DOUBLE)";
+        return w -> {
+            w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('s', ARRAY_SORT(ARRAY_COMPACT("
+                    + "ARRAY_AGG(").expr(r.args().get(0), 0).append(")");
+            over(w, win);
+            w.append("), " + (ascending ? "TRUE" : "FALSE") + "), 'q', CAST(").expr(r.args().get(1), 0)
+                    .append(" AS DOUBLE))), " + o + " OBJECT -> CASE WHEN " + n + " = 0 THEN NULL ELSE " + lo + " + ("
+                            + hi + " - " + lo + ") * (" + rn + " - FLOOR(" + rn + ")) END), 0) AS DOUBLE)");
+        };
     }
 
     /**

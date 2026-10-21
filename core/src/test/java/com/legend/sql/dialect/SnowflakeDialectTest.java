@@ -131,4 +131,26 @@ class SnowflakeDialectTest {
         assertTrue(sql.contains("\"__se\" AS \"a\""), sql);
         assertFalse(sql.matches("(?s).*[^\"]__se[^\"].*"), sql);
     }
+
+    /**
+     * A continuous quantile over a window is interpolated as DuckDB and the engine do, over the partition's values
+     * sorted in the quantile's order (2026-10-21): Snowflake's own window PERCENTILE_CONT computes another last bit
+     * (testPercentile_Relation_Window: 1.7999999999999998 for 1.8, measured on the lane).
+     */
+    @Test
+    void aWindowsContinuousQuantileIsTheReferencesInterpolation() {
+        SqlExpr v = SqlExpr.Column.of("t", "v", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+        SqlExpr k = SqlExpr.Column.of("t", "k", SqlType.Scalar.BIGINT, true, OutputCol.Origin.PHYSICAL);
+        SqlExpr q = new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.QUANTILE_CONT,
+                List.of(v, new SqlExpr.FloatLit(0.6)), false, List.of(new SqlSelect.SortKey(v, false, null, null))),
+                List.of(k), List.of(), null, com.legend.sql.SqlTyping.UNKNOWN);
+        String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(q, "p", null)), false,
+                new SqlSource.Table("t", "t", List.of(new OutputCol("v", SqlType.Scalar.DOUBLE, true),
+                        new OutputCol("k", SqlType.Scalar.BIGINT, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
+                null, List.of(), null, null, List.of(), null, null, List.of()));
+        assertTrue(sql.contains("ARRAY_SORT(ARRAY_COMPACT(ARRAY_AGG(\"t\".\"v\") OVER (PARTITION BY \"t\".\"k\")), FALSE)"),
+                sql);
+        assertTrue(sql.contains(" - FLOOR("), sql);
+        assertFalse(sql.contains("PERCENTILE_CONT"), sql);
+    }
 }
