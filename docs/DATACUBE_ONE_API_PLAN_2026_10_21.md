@@ -62,6 +62,16 @@ item below has its `file:line` there.
 - **D16** (the user, 2026-10-22, after S5) One rows path: a grid's rows planned and run one way, whatever its base and
   whoever asks (the tab, a widget, Python's `view` and `to_pandas`), not a frame's path and an engine leaf's chosen by
   the base's `runs`. Built after S5, before S6.
+- **D17** (the user, 2026-10-22, after D15/D16) S6 generates Python's command layer from DataCube's TypeScript command
+  types (grid-commands.ts, page-commands.ts), with a thin hand-written layer for Pythonic names on top: Python has
+  nowhere to write a rule. The method names are put to the user for approval before S6 builds them (D6).
+- **D18** (the user, 2026-10-22) An independent review of S5, D15 and D16 before S6: a reviewer that has not seen this
+  line's reasoning, looking for tests made to pass, items closed too early, and the stand-ins; what it finds goes into the
+  register (rule 9) and is fixed or said.
+- **D19** (the user, 2026-10-22) The client side of the single writer (the tab's pending edits kept and re-applied, undo
+  as inverse commands, whole-page writes gone) is its own step after S7, as §8 has it.
+- **D20** (the user, 2026-10-22) This line answers the Deephaven streaming line once: it stacks its branch on this one
+  (at D16's commit), this line reviews; what is stable and what is still moving said.
 
 ## 0. Why the nine attempts before this one did not finish
 
