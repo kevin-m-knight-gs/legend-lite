@@ -11634,7 +11634,15 @@ passed on its own: the eight Postgres-backed targets and `//datacube:verify_app_
 - `//parser-equivalence:update_generated` and `update_ratchets` (own corpus 2,993 matched).
 
 `//spec:update_reference_lane_test` was not re-blessed: it is red on main already. The lanes re-measure channels A and
-B on the merged head next: Snowflake, BigQuery, Databricks, MongoDB and the warehouse.
+B on the merged head next: Snowflake, BigQuery, Databricks and the warehouse.
+
+MongoDB, measured here on 78bd5da3:
+- `//core:mongodb_plan_test` passed, the differential included. Its reference and subject are now their test backends'.
+- `//pct:pct_mongodb`: all five suites passed (essential 345, grammar 137, relation 469, standard 205,
+  unclassified 93).
+- The suites' tests passed on the first run. Only main's census gate refused: it had no ceilings row for the lane.
+  Every count was measured zero on every suite, and the row (`ALL_ZERO`) landed with that date.
+- The standard suite was killed once by the container when two 4 GB JVMs ran beside each other. It passed alone.
 
 ## 2026-10-22 — Snowflake and BigQuery: the Float's print forms read once
 
