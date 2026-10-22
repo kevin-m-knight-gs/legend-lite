@@ -11,6 +11,7 @@
 // page keeps it, and nothing here holds a grid between calls.
 
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
+import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
@@ -533,6 +534,14 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
  */
 export async function gridSnapPull(spec: GridSpec): Promise<string> {
   return using(spec, async ({ state }) => toJson(snapPull(state.snapshot)));
+}
+
+/**
+ * WHY A SNAP OF `rows` ROWS IS REFUSED past its host's `limit` (each a whole number, as text): the tab's own sentence
+ * (snap.ts snapRefusal), which Python's engine says when a copy it counted is past its machine's limit (Z16).
+ */
+export function snapRefused(rows: string, limit: string): string {
+  return snapRefusal(Number(rows), Number(limit));
 }
 
 /**

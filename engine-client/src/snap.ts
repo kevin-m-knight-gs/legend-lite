@@ -69,6 +69,15 @@ interface ArrowLoader {
  */
 export const MAX_SNAP_ROWS = 10_000_000;
 
+/**
+ * Why a snap of `rows` rows is refused past a host's `limit` -- each host its own limit (this tab's MAX_SNAP_ROWS, a
+ * Python engine's its machine's), one sentence for both: the preflight's, and Python's engine's (headless snapRefusal).
+ */
+export function snapRefusal(rows: number, limit: number): string {
+  return `${rows.toLocaleString(UI_LOCALE)} rows exceeds the ${limit.toLocaleString(UI_LOCALE)} row snap limit. `
+    + 'Narrow the filter, or stay live.';
+}
+
 export interface SnapInfo {
   readonly label: string;
   readonly takenAt: Date;
@@ -228,10 +237,7 @@ export class SnapManager implements Snaps {
       return {
         rowCount,
         withinLimit: false,
-        refusal:
-          `${rowCount.toLocaleString(UI_LOCALE)} rows exceeds the ` +
-          `${MAX_SNAP_ROWS.toLocaleString(UI_LOCALE)} row snap limit. ` +
-          `Narrow the filter, or stay live.`,
+        refusal: snapRefusal(rowCount, MAX_SNAP_ROWS),
       };
     }
     return { rowCount, withinLimit: true };

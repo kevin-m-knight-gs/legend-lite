@@ -323,7 +323,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   own words (page-commands.ts `stack`; test_page.py)
 - [ ] **Z14** frames-only rule (D3) — S5, L6
 - [ ] **Z15** a snapped grid's base and refusal → exported from headless — S5, L6
-- [ ] **Z16** snap refusal sentence from one TypeScript function (N3 keeps the values) — S5, L6
+- [x] **Z16** snap refusal sentence from one TypeScript function (N3 keeps the values) — closed S5: snap.ts
+  `snapRefusal(rows, limit)`, the preflight's, which Python's engine says through headless `snapRefused` with its own
+  limit (snap.test.ts; test_engine.py `test_the_snap_limit_in_the_tabs_words`)
 - [ ] **Z17** copy ownership: one model (the keeper's), `HostSnaps` adopt / handOver and `_claimed` gone; keeper
   known limit 6 closed — S5, L6
 - [ ] **Z18** the saved-page record — S5, L6

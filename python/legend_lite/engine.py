@@ -159,6 +159,12 @@ def _said(status: int, message: str) -> Answer:
     return Answer(status, 'text/plain; charset=utf-8', message.encode('utf-8'))
 
 
+def _snap_refused(headless: Any, rows: int) -> Answer:
+    """A copy of ``rows`` rows past this machine's limit (N3: each host its own), refused in the tab's own sentence
+    (headless snapRefused: snap.ts snapRefusal)."""
+    return _said(422, headless.call('snapRefused', str(rows), str(_MAX_SNAP_ROWS)))
+
+
 def _arrow_of(chunks: Iterable[bytes]) -> pa.Table:
     """A result's Arrow IPC streams, one per chunk, as one table: the first chunk's schema (every chunk carries it;
     the warehouse's DuckDB writes one at least, its schema alone for no rows)."""
@@ -1095,6 +1101,11 @@ class Engine:
         except LegendError as refused:
             return _said(422, f'the snap could not be planned: {refused}')
         try:
+            # DataCube's own code: what says a count past the limit, and what models the copy
+            headless = self._headless()
+        except Exception as failure:
+            return _said(422, f'{type(failure).__name__}: {failure}')
+        try:
             # counted where the rows are, before anything is copied (the tab's preflight), by the catalog's own
             # database's statement (a Postgres catalog's, Postgres's: D5)
             (counting,) = _host.statements({'op': 'count', 'from': {'query': plan.sql}},
@@ -1102,8 +1113,7 @@ class Engine:
             counted = _arrow_of(table.warehouse.arrow_chunks(counting))
             rows = int(counted.column(0)[0].as_py()) if counted.num_rows else 0
             if rows > _MAX_SNAP_ROWS:
-                return _said(422, f'{rows:,} rows exceeds the {_MAX_SNAP_ROWS:,} row snap limit. Narrow the filter, '
-                                  'or stay live.')
+                return _snap_refused(headless, rows)
             receipt: dict[str, Any] = {}
             pulled = _arrow_of(table.warehouse.arrow_chunks(plan.sql, receipt.update))
         except warehouse.SessionExpired:
@@ -1121,10 +1131,6 @@ class Engine:
             finally:
                 connection.unregister(landing)
 
-        try:
-            headless = self._headless()
-        except Exception as failure:
-            return _said(422, f'{type(failure).__name__}: {failure}')
         return self._landed(headless, land, rows, {
             'plane': 'warehouse', 'where': receipt.get('where', ''), 'as': receipt.get('as', ''),
             **({'statementId': receipt['statementId']} if 'statementId' in receipt else {}),
@@ -1156,8 +1162,7 @@ class Engine:
             except duckdb.Error as refused:
                 return _said(422, f'the snap could not be counted: {refused}')
             if rows > _MAX_SNAP_ROWS:
-                return _said(422, f'{rows:,} rows exceeds the {_MAX_SNAP_ROWS:,} row snap limit. Narrow the filter, '
-                                  'or stay live.')
+                return _snap_refused(headless, rows)
 
             def land(connection: Any, target: dict[str, Any]) -> None:
                 _host.run(connection, {'op': 'relation', 'kind': 'table', 'replace': True, 'target': target,

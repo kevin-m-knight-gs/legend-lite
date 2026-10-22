@@ -15,8 +15,10 @@ import { element } from '../../pure-protocol/src/index.ts';
 const LIVE = element('trades');
 const target = (table: string) => ({ table, landed: async () => element(table) });
 import {
+  MAX_SNAP_ROWS,
   SnapManager,
   SnapRefusal,
+  snapRefusal,
 } from '../src/snap.ts';
 
 let engine: DuckDbEngine;
@@ -102,7 +104,10 @@ describe('SnapManager', () => {
       1,
     );
     assert.equal(estimate.withinLimit, false);
-    assert.match(estimate.refusal ?? '', /exceeds the .* row snap limit/);
+    // the one sentence (snapRefusal), which Python's engine says too with its machine's limit (headless snapRefused)
+    assert.equal(estimate.refusal, snapRefusal(20_000_000, MAX_SNAP_ROWS));
+    assert.equal(snapRefusal(20_000_000, 10_000_000),
+      '20,000,000 rows exceeds the 10,000,000 row snap limit. Narrow the filter, or stay live.');
 
     await assert.rejects(
       () => s.snap('SELECT * FROM range(20000000)', 2, { target: target('snap_huge') }),
