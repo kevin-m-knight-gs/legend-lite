@@ -125,7 +125,8 @@ this machine as their Host; it sends no cross-origin header. Design: `docs/DATAC
 
 `Engine(frames, site=...)` also answers a site's files (DataCube's built pages, `//datacube:dist`), and
 `cube.json?table=<name>` (over HTTP, with the token): a frame's model, runtime and source as they are now, which
-DataCube's `engine.html` opens a cube over (`<url>/engine.html?table=<name>#token=<token>`).
+DataCube's `engine.html` opens a page's grid over (`<url>/engine.html?page=<key>#token=<token>`: `ll.show(df)` shows a
+page of one grid over the frame, kept as every Python page is).
 
 Frames and the engine are DataCube's (the `datacube` extra); the compiler itself needs none of its packages, and
 `import legend_lite` loads them only when `Frames` or `Engine` is first used.

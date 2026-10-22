@@ -243,7 +243,12 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   page again (live-follow.ts). After the S1 audit, `rebuilt` carries the source as it is now (`{cube, source}`, not the
   document) and is applied by one rule to the cube the page holds then (cube-document.ts `cubeOpenedAgain`), so made
   again on top of another writer's edit of the grid it keeps that edit
-- [ ] **P12** `ll.show(df)` page unkept; a frame's column change loses grid edits → a kept page of one grid — S5, L10
+- [x] **P12** `ll.show(df)` page unkept; a frame's column change loses grid edits → a kept page of one grid — closed S5:
+  `ll.show(df)` (a tab's `Cube`, a notebook's `DataCube`, marimo's) is a page of one grid over the frame, kept as every
+  Python page is (datacube.py `frame_page`: its name's page when it shows already, its frame replaced; snapped in
+  Python when `snap=True`) and served as one (`engine.html?page=`, the widget's `page_key`); the tab's frame start
+  (`AppStart` 'frame', `openFrame`, `CubeApp.snapRows`, `?table=`/`&snap=1`), the widget's `table`/`version`/`snap`
+  and `version.json?table=` are deleted (test_show.py, test_notebook.py, the browser harness)
 - [ ] **P15** a model action's page record (`modelInto`, `modelKeep`, `modelPin`) is set outside the tab's page state and
   told by its difference, not applied as commands by the one function -- S1's audit finding 10, registered 2026-10-22
   (D10) → applied as commands, no undo step (D5) — S5, with Z4-Z7, MARKERS
@@ -368,7 +373,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   (no grid shows its cube) told to follow, in its words, for Python as for the screen, whose pill is off for it
   (page-commands.ts; page-commands.test.ts, test_one_api.py `OneRule`)
 - [ ] **B9** one new-page skeleton (`pageNew` for the tab's Blank Page too) — S5, L10
-- [ ] **B10** a frame's column change keeps grid edits everywhere (with P12) — S5, L10
+- [x] **B10** a frame's column change keeps grid edits everywhere (with P12) — closed S5: every view of a frame is a
+  kept page, opened again over the frame's new columns as the page has it -- in Python by the page, in a tab or a
+  widget by `followed` opening the page (datacube-app.ts) -- the grid's edits kept (test_show.py
+  `test_a_frame_s_new_columns_keep_the_grid_s_edits`)
 - [ ] **B11** Join on both sides over every source kind — S5, L10
 - [x] **B12** ids held (with H3) — closed S4: one held set -- the keeper's, from the applied commands, which the tab
   reads with the page and its state holds (`PageApp.restore`'s `held`) and Python takes with it -- so neither side gives

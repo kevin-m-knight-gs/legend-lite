@@ -45,7 +45,7 @@ interface Entry {
 // 2026-10-22 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D10, the user's sign-off): MARKERS 9 -> 10 -- S1's audit finding
 // 10 registered as P15, pinned by its code
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 9, L1_PLANE: 3, L1_HOST: 12,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 10,
   L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 6, UNCHECKED: 7,
 };
 
@@ -97,17 +97,14 @@ const L1_ROUTES: Record<string, Entry> = {
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
-const GAP_CALLS_HOST = /(?<![\w.#]|function )(inPlace|openSaved|blankPage|openFrame)\(/g;
+const GAP_CALLS_HOST = /(?<![\w.#]|function )(inPlace|openSaved|blankPage)\(/g;
 const L1_REACH: Record<string, Entry> = {
   'datacube-app.ts:openInPlace:inPlace': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'datacube-app.ts:openFrame:inPlace': { items: ['P12'] },
   'datacube-app.ts:open:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
   'datacube-app.ts:openText:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:examplesList:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:openDataCube:blankPage': { items: ['B9'], count: 2 },
-  'datacube-app.ts:openDataCube:openFrame': { items: ['P12'] },
-  'datacube-app.ts:followed:openFrame': { items: ['P12', 'B10'], count: 2 },
 };
 
 /** What a function tells: any command, by any way the app tells one. A write in a function that tells one is no gap. */
@@ -135,8 +132,6 @@ const L1_HOST: Record<string, Entry> = {
   'blankPage:page.clear()': { items: ['B9'] },
   'blankPage:current = {': { items: ['B9'] },
   'blankPage:page.setTitle(': { items: ['B9'] },
-  'openFrame:current = {': { items: ['P12', 'B10'] },
-  'openFrame:page.setTitle(': { items: ['P12', 'B10'] },
   'followLive:current = {': { items: [], why: "following another editor's page: its name as it now is", count: 2 },
 };
 

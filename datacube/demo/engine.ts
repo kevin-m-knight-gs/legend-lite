@@ -7,8 +7,7 @@
 //   - the engine: this page's own origin (one origin, no cross-origin call);
 //   - the engine's token: the link's fragment (`#token=...`), which a browser never sends to a server, as the
 //     warehouse's launch key is given; every call carries it;
-//   - what to show: a page (`?page=<key>`, Python's `ll.Page`) or one frame (`?table=<name>`, `ll.show(df)`: a page of
-//     one grid);
+//   - what to show: a page (`?page=<key>`: Python's `ll.Page`, or `ll.show(df)`'s page of one grid over the frame);
 //   - what Python's host offers beside its frames (`services.json`: whether it reads a page's file), asked once;
 //   - that Python changed it: its versions (`version.json`), asked about once a second while the tab is shown.
 
@@ -78,7 +77,8 @@ async function start(): Promise<void> {
   if (!token) refuse(host, 'this page opens from the link the engine gave (it carries the engine\'s token)');
   const params = new URLSearchParams(location.search);
   const page = params.get('page');
-  const shows: PythonShows = page !== null ? { page } : { frame: params.get('table') ?? '' };
+  if (page === null) refuse(host, 'this page opens from the link the engine gave (it names the page to show)');
+  const shows: PythonShows = { page };
   const link: PythonLink = { baseUrl: location.origin, fetch: (input, init) => fetch(input, init), authorization: `Bearer ${token}` };
   const status = document.createElement('span');
   status.textContent = 'asking Python…';
@@ -95,9 +95,7 @@ async function start(): Promise<void> {
       host,
       status,
       windows: document.body,
-      // `snap=1`: the frame read once (ll.show(df, snap=True))
-      start: 'page' in shows ? { kind: 'live' }
-        : { kind: 'frame', name: shows.frame, ...(params.get('snap') === '1' ? { snap: () => true } : {}) },
+      start: { kind: 'live' },
       taken: [],
       settled,
     });

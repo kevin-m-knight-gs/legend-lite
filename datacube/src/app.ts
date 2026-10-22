@@ -3079,25 +3079,6 @@ export class CubeApp {
     await this.#planeMoved();
   }
 
-  /**
-   * ITS ROWS READ ONCE: Snap, as its toggle snaps them -- a frame shown by Python's `ll.show(df, snap=True)`, read once
-   * as its page opens it (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). Refused in its status bar, in words (a copy
-   * past the snap limit: it stays live); snapped already, nothing.
-   */
-  async snapRows(): Promise<void> {
-    if (this.#controller.snaps.isSnapped) return;
-    try {
-      await this.#check(this.#controller.snapAndRun(this.#owner.committed.snapshot, () => this.#owner.refresh()));
-      this.#settlePlane();
-      this.#emit('moved');
-    } catch (e) {
-      this.#status(e instanceof Error ? e.message : String(e), 'error');
-    }
-    this.#settlePlane();
-    this.#paintSnap?.();
-    this.#emit('plane');
-  }
-
   /** Its page is going (its tab closed): a copy its host keeps for it asked to be let go, not waited on (§18.8). */
   leaving(): void {
     this.#controller.leaving();

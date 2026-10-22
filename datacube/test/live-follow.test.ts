@@ -158,14 +158,12 @@ describe('a page open on Python\'s says who it is and the version it shows (docs
     await askedVersions(link, { page: 'q 3' }, follower);
     shown = undefined;
     await askedVersions(link, { page: 'q 3' }, follower);
-    await askedVersions(link, { frame: 'trades' }, follower);
     const page = livePage(link, 'q 3', 'f00d');
     await page.changes(3);
     await page.report(3, { edits: [] });
     assert.deepEqual(urls, [
       'version.json?page=q%203&follower=f00d&at=3',
       'version.json?page=q%203&follower=f00d',
-      'version.json?table=trades',
       'page.json?page=q%203&since=3&follower=f00d',
       'page.json?page=q%203&version=3&follower=f00d',
     ]);

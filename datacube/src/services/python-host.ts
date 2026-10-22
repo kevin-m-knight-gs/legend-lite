@@ -70,8 +70,10 @@ export interface PythonLink {
   readonly authorization?: string;
 }
 
-/** What Python shows: a page of its own (`ll.Page`, by its key), or one frame (`ll.show(df)`: a page of one grid). */
-export type PythonShows = { readonly page: string } | { readonly frame: string };
+/** What Python shows: a page of its own, by its key (`ll.Page`; `ll.show(df)`, a page of one grid over the frame: P12). */
+export interface PythonShows {
+  readonly page: string;
+}
 
 /** A plane as Python names it: its word, and what the planner menu says of it. */
 export interface PythonPlane {
@@ -651,20 +653,20 @@ export function livePage(link: PythonLink, key: string, follower?: string): Live
 }
 
 /**
- * The versions Python says now (`version.json`) of what it shows -- a page's own and each of its frames', or one
- * frame's -- or why it does not say (the page or the frame closed, the engine gone). A page open here says, asking,
- * who it is and the version it shows (`follower`, Z17).
+ * The versions Python says now (`version.json`) of the page it shows -- its own and each of its frames' -- or why it does
+ * not say (the page closed, the engine gone). A page open here says, asking, who it is and the version it shows
+ * (`follower`, Z17).
  */
 export async function askedVersions(link: PythonLink, shows: PythonShows, follower?: PageFollower): Promise<Versions | string> {
   const shown = follower?.shown();
   const where = follower === undefined ? '' : `&follower=${follower.id}${shown === undefined ? '' : `&at=${shown}`}`;
-  const query = 'page' in shows ? `page=${encodeURIComponent(shows.page)}${where}` : `table=${encodeURIComponent(shows.frame)}`;
+  const query = `page=${encodeURIComponent(shows.page)}${where}`;
   const answer = await link.fetch(`${link.baseUrl}/version.json?${query}`, { headers: headers(link) }).catch(() => undefined);
   if (answer === undefined) return 'the engine stopped';
-  if (answer.status === 404) return 'page' in shows ? 'the page was closed' : 'the frame was closed';
+  if (answer.status === 404) return 'the page was closed';
   if (!answer.ok) return `the engine answered ${answer.status}`;
   const said = (await answer.json()) as { version: number; frames?: Record<string, number> };
-  return 'page' in shows ? { version: said.version, frames: said.frames ?? {} } : { frames: { [shows.frame]: said.version } };
+  return { version: said.version, frames: said.frames ?? {} };
 }
 
 /** Python's services, over its link. */
@@ -705,7 +707,7 @@ export function pythonServices(o: PythonServicesOptions): Services {
     ...(o.offers.warehouse ? { warehouse: pythonWarehouse(link) } : {}),
     live: {
       watch: (moved, shown) => o.watch(moved, { id: follower, shown: shown ?? (() => undefined) }),
-      ...('page' in o.shows ? { page: livePage(link, o.shows.page, follower) } : {}),
+      page: livePage(link, o.shows.page, follower),
     },
     browser: pythonBrowser(link, o.browser, o.settings),
   };

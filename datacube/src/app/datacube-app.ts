@@ -73,13 +73,8 @@ export type AppStart =
   | { readonly kind: 'link'; readonly hash: string; readonly forget: () => void }
   /** The single-user app's launch key (docs/DATACUBE_APP_PLAN_2026_10_02.md, A3), and the table it asks for. */
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
-  /**
-   * One frame of the host's (Python's `ll.show(df)`): a page of one grid over it, following the frame as it changes --
-   * read once as it opens when `snap` says so then (`ll.show(df, snap=True)`: its grid's Snap, which it reads whatever
-   * the frame does after, until its Go Live: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8).
-   */
-  | { readonly kind: 'frame'; readonly name: string; readonly snap?: () => boolean }
-  /** The page another editor serves (`services.live.page`: Python's `ll.Page`), followed and reported back to it. */
+  /** The page another editor serves (`services.live.page`: Python's `ll.Page`, and `ll.show(df)`'s page of one grid:
+   *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12), followed and reported back to it. */
   | { readonly kind: 'live' };
 
 
@@ -1457,39 +1452,21 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       return undefined;
     }
 
-    /** One frame in place of the page, the page named by it as Python named it (`ll.show(df, name)`): not a change. */
-    async function openFrame(name: string, replacing: boolean): Promise<void> {
-      await inPlace(() => sources.openedFrame(name), name, replacing);
-      current = { ...current, name, savedName: name };
-      page.setTitle(name);
-      onCubeView?.();
-      // read once, as Python asked (`ll.show(df, snap=True)`): its grid's Snap, the copy Python's
-      if (start.kind === 'frame' && start.snap?.()) {
-        for (const id of page.grids) await madeCubes.get(id)?.snapRows();
-      }
-    }
-
-    // PYTHON'S START: one frame, a page of one grid over it (`ll.show(df)`); or the page Python serves (`ll.Page`)
-    if (start.kind === 'frame') {
-      try {
-        await openFrame(start.name, false);
-      } catch (e) {
-        failedStart(e);
-      }
-    }
+    // PYTHON'S START: the page Python serves (`ll.Page`; `ll.show(df)`, a page of one grid over the frame: P12)
     if (start.kind === 'live') {
       const why = await openLive().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
       if (why !== undefined) failedStart(new Error(why));
     }
 
     // FOLLOWING THE OTHER EDITOR (services.live, §5): Python moves what the page shows -- the page itself (its version:
-    // opened again, on the sheet shown) or a frame (its version: the grids over it query again, their views as they
-    // stand; a frame whose model changed, its columns, opens again over the new model) -- one move at a time, in order.
-    // A move that fails to be followed (a frame not read, a page not opened) is said, and tried again at the next move:
-    // a success says nothing more of it. Told that Python no longer says (the page or the frame closed, Python gone),
-    // the page keeps what it shows, says it no longer follows, and reports nothing more.
+    // followed by its commands, or opened again, on the sheet shown) or a frame (its version: the grids over it query
+    // again, their views as they stand; a frame whose model changed, its columns, opens the page again as Python has it,
+    // each grid's edits kept: B10) -- one move at a time, in order. A move that fails to be followed (a frame not read, a
+    // page not opened) is said, and tried again at the next move: a success says nothing more of it. Told that Python no
+    // longer says (the page or the frame closed, Python gone), the page keeps what it shows, says it no longer follows,
+    // and reports nothing more.
     if (live) {
-      const what = live.page ? 'the page' : 'the frame';
+      const what = 'the page';
       const stop = (why: string): void => {
         if (notFollowed !== undefined) return;
         notFollowed = why;
@@ -1508,12 +1485,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       /** What Python says now, followed: undefined, or why it was not. */
       const followed = async (now: Versions): Promise<string | undefined> => {
         // a start that did not open (a page not read, a frame not there yet) is tried again
-        if (live.page && channel?.shown === undefined) return openLive();
+        if (channel?.shown === undefined) return openLive();
         // each step below waits: the app taken down meanwhile (a notebook's cell run again) goes no further
-        if (start.kind === 'frame' && sources.frameVersion(start.name) === undefined) {
-          await openFrame(start.name, true);
-          return undefined;
-        }
         // a page moved: by its commands, or -- a frame moved with it -- opened again, every grid reading its frame now
         const shown = channel?.shown;
         if (shown !== undefined && now.version !== undefined && now.version !== shown) {
@@ -1527,11 +1500,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           if (read === undefined || read === version) continue;
           const again = await sources.frameAgain(frame);
           if (disposed) return undefined;
-          if (again === 'changed') {
-            if (live.page) return openLive();
-            await openFrame(frame, true);
-            continue;
-          }
+          // its columns changed: the page as Python has it, opened over the frame as it is now, each grid's edits kept
+          if (again === 'changed') return openLive();
           for (const id of page.cubes) {
             if (disposed) return undefined;
             if (sources.framesOf(id).includes(frame)) await madeCubes.get(id)?.refresh();

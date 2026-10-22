@@ -67,53 +67,6 @@ def _kernel() -> bool:
     return isinstance(ipython.get_ipython(), zmqshell.ZMQInteractiveShell)
 
 
-class Cube:
-    """A frame shown in DataCube in a browser tab: its link, and what changes it."""
-
-    def __init__(self, session: _Session, name: str) -> None:
-        self._session = session
-        self.name = name
-        self._closed = False
-        # read once as its page opens it (show(..., snap=True)): its grid's Snap
-        self._snap = False
-
-    @property
-    def url(self) -> str:
-        """The cube's link: the page, the frame, whether it is read once (``snap``), and the engine's token (in the
-        fragment, never sent to a server)."""
-        self._open()
-        web = self._session.web()
-        return f'{web.url}/engine.html?table={self.name}{"&snap=1" if self._snap else ""}#token={web.token}'
-
-    def update(self, frame: Any) -> None:
-        """Shows another frame in this cube: the page opens it, over its new columns if they changed. It returns
-        nothing, as a notebook's cube's does."""
-        self._open()
-        self._session.register(frame, self.name)
-
-    def refresh(self) -> None:
-        """Tells the page to query again: a change the next click would show, shown now."""
-        self._open()
-        self._session.engine().changed(self.name)
-
-    def close(self) -> None:
-        """Takes the frame out of the engine; the page keeps what it shows. The last tab's cube closed stops the web
-        server. A cube its name has since moved to another (shown under a notebook's cell) takes only itself away."""
-        if not self._closed:
-            self._closed = True
-            self._session.close(self.name, self)
-
-    def _after_cell(self) -> None:
-        pass
-
-    def _open(self) -> None:
-        if self._closed:
-            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
-
-    def __repr__(self) -> str:
-        return f'<DataCube {self.name!r}: {self.url}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
-
-
 class PageTab:
     """A page (``ll.Page``) shown in DataCube in a browser tab: its link, and what closes it. The tab follows the page:
     a change made to it in Python opens it again there, a frame updated queries again."""
@@ -153,6 +106,42 @@ class PageTab:
 
     def __repr__(self) -> str:
         return f'<DataCube page {self.page.name!r}: {self.url}>' if not self._closed else f'<DataCube page {self.page.name!r}: closed>'
+
+
+class Cube(PageTab):
+    """A frame shown in DataCube in a browser tab (``ll.show(df)``): a page of one grid over it, kept as every Python page
+    is (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12) -- so a column changed in the frame keeps the grid's edits, made in
+    Python or in the tab -- its link, and what changes it."""
+
+    def __init__(self, session: _Session, name: str, page: Page) -> None:
+        super().__init__(session, page)
+        self.name = name
+
+    def update(self, frame: Any) -> None:
+        """Shows another frame in this cube: the page opens it, over its new columns if they changed, the grid's edits
+        kept (its page's own update: B10). It returns nothing, as a notebook's cube's does."""
+        self._open()
+        self._page._update(self.name, frame)
+
+    def refresh(self) -> None:
+        """Tells the page to query again: a change the next click would show, shown now."""
+        self._open()
+        self._session.engine().changed(self.name)
+
+    def close(self) -> None:
+        """Takes the frame out of the engine; the tab keeps what it shows. The last tab closed stops the web server. A
+        cube its name has since moved to another (shown under a notebook's cell) takes only itself away."""
+        if not self._closed:
+            self._closed = True
+            self._session.close_page(self)
+            self._session.close(self.name, self)
+
+    def _open(self) -> None:
+        if self._closed:
+            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
+
+    def __repr__(self) -> str:
+        return f'<DataCube {self.name!r}: {self.url}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
 
 
 class _Session:
@@ -273,15 +262,38 @@ class _Session:
             if name in self.frames and name.lower() not in self.cubes:
                 self.frames.unregister(name)
 
-    def show(self, frame: Any, name: str | None, snap: bool = False) -> Cube:
-        """The frame registered, and its name's cube in a tab: the one it has, else a new one -- read once as its page
-        opens it when ``snap``."""
+    def frame_page(self, frame: Any, name: str | None, snap: bool) -> tuple[str, Page]:
+        """THE PAGE A FRAME IS SHOWN AS (``ll.show(df)``: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12): a page of one grid
+        over it, kept as every Python page is, and its name -- its name's page when it shows already, its frame replaced
+        (each place it is shown follows), else a new page named by it; its grid read once by its Snap when ``snap`` (and
+        not snapped already). Built outside the session's lock, as any page is: a snap's copy is made on the engine's own
+        threads, which ask for DataCube's code (the session's lock first, then the frames')."""
+        from .page import Page
         with self._lock:
-            name = self.register(frame, name)
+            shown = self.cubes.get(name.lower()) if name is not None else None
+            if shown is not None and shown._closed:
+                shown = None
+            named = name if name is not None else self._next_name()
+        if shown is not None:
+            page = shown._page
+            # its frame replaced as a grid's update replaces it: each cube over it opened again, its edits kept (B10)
+            page._update(shown.name, frame)
+            if snap and page.grids and page.grids[0].snapped is None:
+                page.grids[0].snap()
+            return shown.name, page
+        page = Page(named)
+        page.grid(frame, name=named, snap=snap)
+        return named, page
+
+    def show(self, frame: Any, name: str | None, snap: bool = False) -> Cube:
+        """The frame shown in a tab (frame_page): its name's cube there, the one it has, else a new one."""
+        name, page = self.frame_page(frame, name, snap)
+        with self._lock:
             cube = self.cubes.get(name.lower())
-            if not isinstance(cube, Cube):
-                cube = self.adopt(Cube(self, name))
-            cube._snap = snap
+            if not isinstance(cube, Cube) or cube._closed:
+                cube = Cube(self, name, page)
+                self.adopt(cube)
+                self.serve(page, cube)
             return cube
 
     def adopt(self, cube: Any) -> Any:
@@ -304,10 +316,7 @@ class _Session:
         with self._lock:
             # the pages collected meanwhile (a cell made its page again), and the copies no page reads any more: let go
             self.sweep()
-            for key, cube in list(self.cubes.items()):
-                cube._after_cell()
-                if self._engine is not None and key in self.frames and self.frames[key].live:
-                    self._engine.changed(cube.name)
+            # (each frame's cube is a page shown: P12)
             for view in self.pages:
                 view._after_cell()
             frames = {f for shown in self.pages for f in shown._page._frames()}
@@ -365,8 +374,8 @@ class _Session:
             self._stop_web_if_unused()
 
     def _stop_web_if_unused(self) -> None:
-        if self._web is not None and not self.apps and not any(isinstance(c, Cube) for c in self.cubes.values()) \
-                and not any(isinstance(p, PageTab) for p in self.pages):
+        # a frame's cube in a tab is a page shown there (P12)
+        if self._web is not None and not self.apps and not any(isinstance(p, PageTab) for p in self.pages):
             self._web.close()
             self._web = None
 
@@ -391,7 +400,8 @@ class _Session:
         """A plain script ending with a cube open in a browser waits, saying so, until Ctrl-C (an IDE's Stop): the
         cube is this process's."""
         with self._lock:
-            open_cubes = [c for c in self.cubes.values() if isinstance(c, Cube)] + [p for p in self.pages if isinstance(p, PageTab)]
+            # a frame's cube in a tab is a page shown there (P12)
+            open_cubes = [p for p in self.pages if isinstance(p, PageTab)]
             apps = dict(self.apps)
         if not (open_cubes or apps) or _stays():
             return

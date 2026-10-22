@@ -57,6 +57,11 @@ class Widget(unittest.TestCase):
             self.sent.append((cube, content, buffers))
             self.answered.notify_all()
 
+    @staticmethod
+    def version(cube):
+        """Its frame's version, as its page's widget is told it (``versions``: a frame's cube is a page of one grid, P12)."""
+        return cube.versions['frames'][cube.name]
+
     def call(self, cube, method, path, query='', body=None, call_id='v:0'):
         """A call as the cube's page sends it, answered as the widget answers: its status, type, headers and body."""
         cube._answer({'kind': 'call', 'id': call_id, 'method': method, 'path': path, 'query': query, 'body': body})
@@ -72,7 +77,10 @@ class Calls(Widget):
         self.assertLess(len(cube._esm), 20_000, 'the loader alone: DataCube comes once per page, over the channel')
         self.assertRegex(cube._module, '^[0-9a-f]{64}$')
         self.assertEqual(self.cube()._module, cube._module, 'one module, one hash')
-        self.assertEqual((cube.table, cube.name, cube.version), ('frame', 'frame', 0))
+        # a page of one grid over its frame, kept as every Python page is, named by it (P12)
+        self.assertEqual((cube.name, cube.page.name, [g.frame for g in cube.page.grids], self.version(cube)),
+                         ('frame', 'frame', ['frame'], 0))
+        self.assertEqual(cube.page_key, cube.page._key)
 
     def test_the_page_s_calls_are_answered_as_a_tab_s_are(self):
         cube = self.cube(name='trades')
@@ -119,10 +127,11 @@ class Calls(Widget):
     def test_a_message_is_answered_on_a_thread_of_its_own(self):
         cube = self.cube()
         cube._received(cube, {'kind': 'call', 'id': 'v:7', 'method': 'GET', 'path': '/version.json',
-                              'query': 'table=frame', 'body': None}, [])
+                              'query': f'page={cube.page_key}', 'body': None}, [])
         with self.answered:
             self.assertTrue(self.answered.wait_for(lambda: self.sent, timeout=30))
-        self.assertEqual((self.sent[0][1]['id'], json.loads(bytes(self.sent[0][2][0]))), ('v:7', {'version': 0}))
+        said = json.loads(bytes(self.sent[0][2][0]))
+        self.assertEqual((self.sent[0][1]['id'], said['frames']), ('v:7', {'frame': 0}))
         cube._received(cube, {'kind': 'something else'}, [])
         cube._received(cube, 'not a message', [])
 
@@ -133,27 +142,27 @@ class Follows(Widget):
         cube = self.cube(df)
         # nothing returned: a cell ending in cube.update(df) shows no second copy of the cube
         self.assertIsNone(cube.update(trades(4)))
-        self.assertEqual(cube.version, 1)
+        self.assertEqual(self.version(cube), 1)
         cube.refresh()
-        self.assertEqual(cube.version, 2)
+        self.assertEqual(self.version(cube), 2)
         live = trades()
         cube.update(live)
         self.call(cube, 'GET', '/cube.json', 'table=frame')
         live['book'] = 'x'
         self.assertIn('book', json.loads(self.call(cube, 'GET', '/cube.json', 'table=frame')[3])['model'])
-        self.assertEqual(cube.version, 4, 'the new column noticed at the read, and its cube told')
+        self.assertEqual(self.version(cube), 4, 'the new column noticed at the read, and its cube told')
 
     def test_another_frame_s_change_is_not_its(self):
         first, second = self.cube(), self.cube()
         second.refresh()
-        self.assertEqual((first.version, second.version), (0, 1))
+        self.assertEqual((self.version(first), self.version(second)), (0, 1))
 
     def test_a_version_told_late_never_moves_it_back(self):
         cube = self.cube()
         cube.refresh()
         cube.refresh()
-        cube._moved('frame', 1)
-        self.assertEqual(cube.version, 2)
+        cube._frame_moved('frame', 1)
+        self.assertEqual(self.version(cube), 2)
 
     def test_a_cube_made_again_under_its_name_leaves_the_frame_to_the_new_one_when_the_old_closes(self):
         old, new = self.cube(name='t'), self.cube(name='t')
@@ -161,7 +170,8 @@ class Follows(Widget):
         self.assertIn('t', datacube._session.frames)
         self.assertIs(datacube._session.cubes['t'], new)
         new.refresh()
-        self.assertEqual(new.version, 2)
+        self.assertEqual(self.version(new), 2)
+        self.assertIs(new.page, old.page, 'one page for its name, shown in both')
 
     def test_a_frame_a_cube_cannot_be_made_over_fails_once_and_cleanly(self):
         unraised = []
@@ -237,14 +247,14 @@ class InAKernel(Widget):
         first = ll.show(trades(), name='trades')
         again = ll.show(trades(2), name='trades')
         self.assertIs(again, first)
-        self.assertEqual((first.version, len(self.displayed)), (1, 2))
+        self.assertEqual((self.version(first), len(self.displayed)), (1, 2))
 
-    def test_snap_true_tells_the_cubes_page_to_read_the_frame_once_each_time_it_opens(self):
-        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8: the widget's page snaps its grid as it opens it, while it says so
+    def test_snap_true_reads_the_frame_once_by_its_page_s_grid(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8, P12: its page's grid snapped in Python, read once until its Go Live
         cube = ll.show(trades(), name='once', snap=True)
-        self.assertTrue(cube.snap)
+        self.assertIsNotNone(cube.page.grids[0].snapped)
         self.assertIs(ll.show(trades(2), name='once'), cube)
-        self.assertFalse(cube.snap, 'shown again without it: opened live from then on')
+        self.assertIsNotNone(cube.page.grids[0].snapped, 'shown again: still read once, its copy as it was')
 
     def test_after_each_cell_its_cubes_read_at_each_query_query_again(self):
         # a stream, read once into a table of its own: nothing of it changes after a cell
@@ -252,7 +262,7 @@ class InAKernel(Widget):
         table = pa.Table.from_pandas(trades(), preserve_index=False)
         live, once = ll.show(trades()), ll.show(pa.RecordBatchReader.from_batches(table.schema, table.to_batches()))
         self.cell_ends()
-        self.assertEqual((live.version, once.version), (1, 0))
+        self.assertEqual((self.version(live), self.version(once)), (1, 0))
 
     def test_a_name_moved_to_a_tab_keeps_its_frame_when_its_notebook_cube_closes(self):
         notebook = ll.show(trades(), name='t')
@@ -415,7 +425,7 @@ class InMarimo(Widget):
         self.assertEqual((first.name, second.name), ('t', 't'))
         self.assertIsNot(datacube._current(), datacube._session)
         self.assertEqual(len(datacube._marimo_sessions), 2)
-        self.assertEqual(first.version, 0, 'one viewer showing a name never changes another viewer\'s cube')
+        self.assertEqual(first.versions['frames']['t'], 0, 'one viewer showing a name never changes another viewer\'s cube')
 
     def test_a_session_let_go_lets_its_cubes_and_frames_go(self):
         cube = ll.show(trades())

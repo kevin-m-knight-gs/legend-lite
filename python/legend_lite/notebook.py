@@ -117,73 +117,6 @@ class _EngineWidget(anywidget.AnyWidget):
         self._shown_here = False
 
 
-class DataCube(_EngineWidget):
-    """DataCube on a frame, under a notebook's cell: what ``ll.show(df)`` shows in a notebook, and a widget object an
-    ipywidgets layout takes. ``name``: as ``show``'s. ``height``: the cube's, in pixels (``cube.height = 700``
-    resizes it). Its handle is a tab's: ``update``, ``refresh``, ``close`` (which takes it out of the output)."""
-
-    table = traitlets.Unicode().tag(sync=True)
-    version = traitlets.Int(0).tag(sync=True)
-    # read once as its page opens it (show(df, snap=True)): its grid's Snap
-    snap = traitlets.Bool(False).tag(sync=True)
-
-    def __init__(self, frame: Any, name: str | None = None, *, height: int = 480, snap: bool = False) -> None:
-        # closed until it is made: ipywidgets closes a widget when it is collected, one whose making failed too, and
-        # that close must find nothing to undo (the audit of step 7, S1: a bad frame printed a second traceback)
-        self._closed = True
-        session = datacube._current()
-        engine = session.engine()
-        assert engine.site is not None  # the session's engine always has DataCube's site
-        loader, module = _loader(engine.site)
-        name = session.register(frame, name)
-        self._session = session
-        # show() displayed it in this cell: the cell's own result (the handle show() returned) shows no second copy
-        self._shown_here = False
-        super().__init__(_esm=loader, _module=module, table=name, version=engine.version(name), height=height, snap=snap)
-        self._closed = False
-        self.on_msg(self._received)
-        self._unwatch = engine.watch(self._moved)
-        session.adopt(self)
-
-    @property
-    def name(self) -> str:
-        return self.table
-
-    def update(self, frame: Any) -> None:
-        """Shows another frame in this cube: the cube opens it, over its new columns if they changed. It returns
-        nothing: a cell ending in ``cube.update(df)`` changes the cube in place and shows no second copy."""
-        self._open()
-        self._session.register(frame, self.name)
-
-    def refresh(self) -> None:
-        """Tells the cube to query again: a change the next click would show, shown now."""
-        self._open()
-        self._session.engine().changed(self.name)
-
-    def close(self) -> None:
-        """Takes the frame out of the engine and the cube out of the output. A cube its name has since moved to another
-        (shown again in a tab, or made again) takes only itself away: the frame is that other cube's."""
-        if not self._closed:
-            self._closed = True
-            self._unwatch()
-            self._session.close(self.name, self)
-        super().close()
-
-    def _open(self) -> None:
-        if self._closed:
-            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
-
-    def _moved(self, name: str, version: int) -> None:
-        """The engine says a frame changed (from the thread that changed it): this cube's moves its version, which its
-        page follows."""
-        # the newest only: two changes on two threads can be told out of order
-        if name.lower() == self.table.lower() and not self._closed and version > self.version:
-            self.version = version
-
-    def __repr__(self) -> str:
-        return f'<DataCube {self.name!r}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
-
-
 class PageCube(_EngineWidget):
     """A page (``ll.Page``) under a notebook's cell: what ``ll.show(page)`` shows in a notebook -- its sheets, grids and
     charts over the session's frames -- live: a change made to the page in Python opens it again there, a frame updated
@@ -242,6 +175,53 @@ class PageCube(_EngineWidget):
 
     def __repr__(self) -> str:
         return f'<DataCube page {self._page.name!r}>' if not self._closed else f'<DataCube page {self._page.name!r}: closed>'
+
+
+class DataCube(PageCube):
+    """DataCube on a frame, under a notebook's cell: what ``ll.show(df)`` shows in a notebook -- a page of one grid over
+    it, kept as every Python page is (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12: a column changed in the frame keeps
+    the grid's edits) -- and a widget object an ipywidgets layout takes. ``name``: as ``show``'s. ``height``: the
+    cube's, in pixels (``cube.height = 700`` resizes it). ``snap``: its grid read once, by its Snap. Its handle is a
+    tab's: ``update``, ``refresh``, ``close`` (which takes it out of the output)."""
+
+    def __init__(self, frame: Any, name: str | None = None, *, height: int = 480, snap: bool = False) -> None:
+        # closed until it is made: ipywidgets closes a widget when it is collected, one whose making failed too, and
+        # that close must find nothing to undo (the audit of step 7, S1: a bad frame printed a second traceback)
+        self._closed = True
+        session = datacube._current()
+        self._name, page = session.frame_page(frame, name, snap)
+        super().__init__(page, height=height)
+        session.adopt(self)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def update(self, frame: Any) -> None:
+        """Shows another frame in this cube: the cube opens it, over its new columns if they changed, the grid's edits
+        kept. It returns nothing: a cell ending in ``cube.update(df)`` changes the cube in place and shows no second copy."""
+        self._open()
+        # its page's own update: each cube over the frame opened again, its edits kept (B10)
+        self._page._update(self.name, frame)
+
+    def refresh(self) -> None:
+        """Tells the cube to query again: a change the next click would show, shown now."""
+        self._open()
+        self._session.engine().changed(self.name)
+
+    def close(self) -> None:
+        """Takes the frame out of the engine and the cube out of the output. A cube its name has since moved to another
+        (shown again in a tab, or made again) takes only itself away: the frame is that other cube's."""
+        if not self._closed:
+            super().close()
+            self._session.close(self.name, self)
+
+    def _open(self) -> None:
+        if self._closed:
+            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
+
+    def __repr__(self) -> str:
+        return f'<DataCube {self.name!r}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
 
 
 def for_marimo(frame: Any, name: str | None, snap: bool = False) -> DataCube:
@@ -303,13 +283,13 @@ def _warn_once(message: str) -> None:
 
 
 def shown(frame: Any, name: str | None, snap: bool = False) -> DataCube:
-    """``show()`` in a notebook: the frame registered, its name's cube -- the one it has, else a new one -- shown
-    under this cell, read once as its page opens it when ``snap``."""
+    """``show()`` in a notebook: the frame's page (datacube.py ``frame_page``), its name's cube -- the one it has, else a
+    new one -- shown under this cell."""
     session = datacube._current()
     cube = session.cubes.get(name.lower()) if name is not None else None
     if isinstance(cube, DataCube) and not cube._closed:
-        cube.snap = snap
-        cube.update(frame)
+        # its frame replaced (read once when asked): the widget follows its page
+        session.frame_page(frame, name, snap)
     else:
         cube = DataCube(frame, name, snap=snap)
     from IPython.display import display

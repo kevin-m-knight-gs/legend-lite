@@ -308,10 +308,13 @@ try {
     dc.on('pageerror', (e) => { console.log(`page error: ${e.message}`); failed = true; });
     await dc.goto(served.link);
     await dc.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    const tiles = await dc.locator('[data-tile^="grid-"]').count();
+    // on a page of the tab's own (New ▸ Blank Page leaves the page Python serves: D1) -- a page Python serves holds what
+    // Python holds, its frames, until Python reads more (X1-X5)
+    const tiles = 0;
     await dc.click('.dc-titlebar-menu');
     await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
-    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
+    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+    await dc.locator('.dc-blank .dc-primary').click();
     await dc.locator('.dc-picker').waitFor({ timeout: 5000 });
     await dc.locator('.dc-picker-tab[data-section="saved"]').click();
     const row = dc.locator('.dc-picker-row[data-query]', { hasText: 'Parties' });
@@ -325,7 +328,8 @@ try {
         const tile = dc.locator('[data-tile^="grid-"]').nth(tiles);
         await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 }).catch(() => undefined);
         const cells = await tile.locator('.dc-row').evaluateAll((rs) => rs.map((r) => r.textContent ?? ''));
-        openedSaved = `${(await tile.locator('.dc-tile-cube').textContent()) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
+        // the page's one grid: its header in the page's bar (a lone grid's)
+        openedSaved = `${(await dc.locator('.dc-page-alone').textContent()) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
       }
     } else {
       openedSaved = `Saved queries listed: ${(await dc.$$eval('.dc-picker-row[data-query]', (els) => els.map((e) => e.textContent ?? ''))).join(', ')}`;
@@ -509,8 +513,9 @@ try {
     failed = true;
   }
 
-  // A FRAME CLOSED IN PYTHON: its open tab keeps what it shows, and says it no longer follows the frame -- in its status
-  // line and its title (the app's live page, docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §5)
+  // A FRAME CLOSED IN PYTHON: its open tab keeps what it shows, and says it no longer follows its page -- in its status
+  // line and its title (the app's live page, docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §5; a frame shown is a page of
+  // one grid: P12)
   engine.stdin.write('show-closing\n');
   const closingLine = await nextLine();
   if (!closingLine.startsWith('done show-closing ')) throw new Error(`the engine did not show the frame: ${closingLine}`);
@@ -522,10 +527,10 @@ try {
   engine.stdin.write('close-closing\n');
   if ((await nextLine()) !== 'done close-closing') throw new Error('the engine did not close the frame');
   const closedSaid = closingShown && await closingTab.waitForFunction(
-    () => /not following the frame: the frame was closed/.test(document.querySelector('.dc-app-status')?.textContent ?? '')
-      && /not followed: the frame was closed/.test(document.title) && /\b2 rows\b/.test(document.body.innerText),
+    () => /not following the page: the page was closed/.test(document.querySelector('.dc-app-status')?.textContent ?? '')
+      && /not followed: the page was closed/.test(document.title) && /\b2 rows\b/.test(document.body.innerText),
     undefined, { timeout: 30_000 }).then(() => true, () => false);
-  console.log(`${closedSaid ? 'ok  ' : 'FAIL'} a frame closed in Python: its tab keeps its rows and says it no longer follows the frame`);
+  console.log(`${closedSaid ? 'ok  ' : 'FAIL'} a frame closed in Python: its tab keeps its rows and says it no longer follows its page`);
   if (!closedSaid) {
     console.log(`  the tab said: ${await closingTab.evaluate(() => `${document.title} | ${document.querySelector('.dc-app-status')?.textContent}`)}`);
     failed = true;
@@ -792,8 +797,8 @@ try {
     console.log(`  the tab showed: ${(await snappedTab.evaluate(() => document.body.innerText)).slice(0, 400)}`);
     failed = true;
   }
-  // the tab gone (navigated away): the copy it made let go in Python (§18.8), as the copies the page tab's grids made
-  // and Python's page read stay Python's
+  // the tab gone (navigated away): the copy stays -- Python's page of one grid reads it (P12), and a copy a page the
+  // keeper keeps reads is the keeper's (Z17): the tab's release of it is answered "kept"
   const held = async () => {
     engine.stdin.write('copies-held\n');
     const line = await nextLine();
@@ -802,16 +807,15 @@ try {
   };
   const heldBefore = await held();
   await snappedTab.goto('about:blank');
-  const heldAfter = await (async () => {
-    for (let tries = 0; tries < 20; tries += 1) {
-      const now = await held();
-      if (now.length < heldBefore.length) return now;
-      await new Promise((done) => { setTimeout(done, 500); });
-    }
-    return undefined;
-  })();
-  console.log(`${heldAfter ? 'ok  ' : 'FAIL'} a tab gone lets the copy it made go in Python (${heldBefore.join(', ')} -> ${heldAfter?.join(', ') ?? 'kept'})`);
-  if (!heldAfter) failed = true;
+  // its release, sent as it goes (keepalive), given the time a let-go copy took to go before (P12): held throughout
+  let heldAfter = heldBefore;
+  for (let tries = 0; tries < 6 && JSON.stringify(heldAfter) === JSON.stringify(heldBefore); tries += 1) {
+    await new Promise((done) => { setTimeout(done, 500); });
+    heldAfter = await held();
+  }
+  const stayed = heldBefore.length > 0 && JSON.stringify(heldAfter) === JSON.stringify(heldBefore);
+  console.log(`${stayed ? 'ok  ' : 'FAIL'} a tab gone keeps the copy Python's page reads (${heldBefore.join(', ')} -> ${heldAfter.join(', ')})`);
+  if (!stayed) failed = true;
   await snappedTab.close();
 
   // EVERY PAGE PYTHON WRITES IS ONE DATACUBE READS: pages built with each kind of edit Python makes, one with a frozen

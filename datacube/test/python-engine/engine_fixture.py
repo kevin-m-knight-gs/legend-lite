@@ -177,9 +177,9 @@ def main() -> None:
         'source': table.source,
         'columns': SCHEMA.names,
         'rows': [list(row) for row in ROWS],
-        'widgets': {name: {'esm': w._esm, 'state': {'_module': w._module, 'height': w.height, **(
-            {'table': w.table, 'version': w.version} if isinstance(w, DataCube)
-            else {'page_key': w.page_key, 'versions': w.versions})}} for name, w in widgets.items()},
+        # each a page's widget: a frame's cube too, a page of one grid over it (P12)
+        'widgets': {name: {'esm': w._esm, 'state': {'_module': w._module, 'height': w.height, 'page_key': w.page_key,
+                                                    'versions': w.versions}} for name, w in widgets.items()},
     }))
     # the test's commands, one a line: `update` -- one row more; `columns` -- a column more (a new model);
     # `widget-update` -- the first widget's frame a row more; `widget <name> <message>` -- a widget page's message.
@@ -271,7 +271,7 @@ def main() -> None:
                 # the copies its grids read, the open page's writes among them (a snap made there)
                 command = f'py-page-copies {json.dumps({g.id: g.snapped for g in pypage.grids})}'
             elif command == 'show-snapped':
-                # ll.show(df, snap=True): the tab's grid snaps as it opens the frame
+                # ll.show(df, snap=True): its page's grid read once, by its Snap, in Python (P12)
                 with contextlib.redirect_stdout(io.StringIO()):
                     once = ll.show(frame.slice(0, 4), name='snapped', browser=False, snap=True)
                 command = f'show-snapped {json.dumps(once.url)}'

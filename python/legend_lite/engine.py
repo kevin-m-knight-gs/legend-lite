@@ -1376,24 +1376,22 @@ class Engine:
         return Answer(200, 'application/json', body)
 
     def _version(self, query: str) -> Answer:
-        """``table``'s version (``changed``): ``{"version": n}`` at once, or 404 when the engine serves no such frame
-        (it was closed). A tab asks about once a second; nothing is held open while it waits, so cubes in many tabs
-        never use up the browser's six connections to one origin. Asked with ``page``, a page's: ``{"version": n,
-        "frames": {name: n}}``, the page's own and each of its frames' (``page_versions``) -- the tab open on it saying
-        who it is and the version it shows (``follower``, ``at``: ``_followed``)."""
+        """A page's versions (``page``, its key): ``{"version": n, "frames": {name: n}}``, the page's own and each of its
+        frames' (``page_versions``), at once -- the tab open on it saying who it is and the version it shows
+        (``follower``, ``at``: ``_followed``) -- or 404 when the engine serves no such page (it was closed). A tab asks
+        about once a second; nothing is held open while it waits, so pages in many tabs never use up the browser's six
+        connections to one origin. (A frame is shown as a page of one grid: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+        P12.)"""
         asked = parse_qs(query)
-        if 'page' in asked:
-            versions = self.page_versions(asked['page'][0])
-            if versions is None:
-                return _said(404, f'this engine serves no page named {asked["page"][0]!r}')
-            refused = self._followed(asked['page'][0], asked, asked.get('at', [''])[0])
-            if refused is not None:
-                return refused
-            return Answer(200, 'application/json', json.dumps(versions).encode('utf-8'))
-        name = asked.get('table', [''])[0]
-        if name not in self.frames:
-            return _said(404, f'this engine serves no frame named {name!r}')
-        return Answer(200, 'application/json', json.dumps({'version': self.version(name)}).encode('utf-8'))
+        if 'page' not in asked:
+            return _said(400, 'a version is asked of a page (page=<its key>)')
+        versions = self.page_versions(asked['page'][0])
+        if versions is None:
+            return _said(404, f'this engine serves no page named {asked["page"][0]!r}')
+        refused = self._followed(asked['page'][0], asked, asked.get('at', [''])[0])
+        if refused is not None:
+            return refused
+        return Answer(200, 'application/json', json.dumps(versions).encode('utf-8'))
 
     def _page(self, query: str) -> Answer:
         """A page it serves (keeper.py: shown somewhere) as it is now: ``{"version": n, "page": <its document>, "held": [<every

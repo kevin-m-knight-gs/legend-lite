@@ -285,7 +285,7 @@ async function run(): Promise<void> {
     const offers = await askedOffers(link);
     const open = async (): Promise<Services> => {
       const kept = await askedSettings(link);
-      return pythonServices({ link, shows: { frame: 'trades' }, offers, ...(kept ? { settings: kept } : {}),
+      return pythonServices({ link, shows: { page: 'trades' }, offers, ...(kept ? { settings: kept } : {}),
         watch: () => () => undefined, browser: browserBasics });
     };
     const first = await open();
@@ -306,7 +306,7 @@ async function run(): Promise<void> {
     const link: PythonLink = { baseUrl: location.origin, fetch: (i, init) => fetch(i, init), authorization: served.authorization };
     const offers = await askedOffers(link);
     equal(offers.warehouse, true, 'Python offers a warehouse:');
-    const services = pythonServices({ link, shows: { frame: 'trades' }, offers, watch: () => () => undefined, browser: browserBasics });
+    const services = pythonServices({ link, shows: { page: 'trades' }, offers, watch: () => () => undefined, browser: browserBasics });
     const warehouse = services.warehouse!;
     await rejects(warehouse.connect(served.warehouse, 'rita', 'wrong'), /sign-in failed — AUTH_INVALID: wrong user or password/);
     const { session, objects } = await warehouse.connect(served.warehouse, 'rita', 'rita-pw');
