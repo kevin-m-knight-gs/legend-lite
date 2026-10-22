@@ -11,7 +11,7 @@ import { JSDOM } from 'jsdom';
 import { openDataCube } from '../src/app/datacube-app.ts';
 import type { LivePage } from '../src/app/services.ts';
 import { pageNew } from '../src/headless/page.ts';
-import { readPage, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, readPage, type PageDocument } from '../src/page-document.ts';
 import { applyPageCommands, idsOf } from '../src/page-commands.ts';
 import type { LiveWrite } from '../src/app/services.ts';
 import { corpus } from './fixtures/pages/make.ts';
@@ -164,6 +164,19 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.equal(added[0]!.id, 'sheet-3', 'never an id its keeper held');
   });
 
+  it("the empty page's Add a data source adds to the page Python serves, as New ▸ Data Source… does (the S7 confirmation audit's H2-6)", async () => {
+    const editor = new Editor();
+    const app = await opened(editor);
+    await settle();
+    const doc = dom.window.document;
+    const add = [...doc.querySelectorAll<HTMLButtonElement>('.dc-blank-actions button')].find((b) => b.textContent === 'Add a data source');
+    assert.ok(add, 'the card offers a data source');
+    add.click();
+    await settle();
+    assert.equal(doc.querySelector('.dc-picker-title')?.textContent, 'Add a source', 'added to the page, not opened in place of it');
+    assert.equal(app.unwatched(), false, 'the page Python serves is still the one on screen');
+  });
+
   it('the editor is told, as it is asked, the version on screen: the copies it reads stay until it moves past them (Z17)', async () => {
     const editor = new Editor();
     const app = await opened(editor);
@@ -263,6 +276,33 @@ describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", (
     await settle();
     assert.doesNotMatch(app.text(), /Positions/, "Python's page never put over the tab's own");
     assert.match(app.text(), /a page of this tab's own: the page Python serves is left as it was/);
+  });
+});
+
+describe("a snapped grid whose copy is not read here (the S7 audit's G-3)", () => {
+  it("is told live once the page is open, and rebuilt when what it reads changed, as Python's Grid.live tells both (the S7 confirmation audit's H2-4)", async () => {
+    const editor = new Editor();
+    const trades = (await corpus())['trades.page.json']!;
+    const grid = trades.views.find((v) => v.kind === 'grid')!;
+    const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
+    const page: PageDocument = { ...trades, copies: { [grid.cube]: copy } };
+    editor.read = async () => {
+      editor.reads += 1;
+      return { version: 1, page, held: idsOf(page) };
+    };
+    const written: LiveWrite[] = [];
+    editor.report = async (at, write) => {
+      written.push(write);
+      return { version: at + 1, combined: false };
+    };
+    await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }));
+    await settle();
+    await new Promise((done) => { setTimeout(done, 700); });
+    const told = written.flatMap((w) => ('edits' in w ? w.edits : [])).flatMap((e) => ('page' in e ? [e.page] : []));
+    assert.deepEqual(told.filter((c) => c.kind === 'live'), [{ kind: 'live', grid: grid.id }], 'its keeper told it reads live');
+    // the frame it reads opened again as it is now (the fixture's): its rebuilt told too, after its live
+    const at = (kind: string, cube: string): number => told.findIndex((c) => c.kind === kind && (c.kind === 'live' ? c.grid === grid.id : 'cube' in c && c.cube === cube));
+    assert.ok(at('rebuilt', grid.cube) > at('live', grid.cube), `rebuilt after its live (${JSON.stringify(told.map((c) => c.kind))})`);
   });
 });
 

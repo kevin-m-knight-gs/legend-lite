@@ -121,6 +121,14 @@ export function sheetLabel(sheet: { readonly name?: string | undefined; readonly
 }
 
 /**
+ * A PAGE NONE OF WHOSE SOURCES OPENED is not opened, said in these words -- the tab's Open…, Python's load (the S7
+ * confirmation audit's Y2-2: Python opened a page it could read nothing of): `opened`, how many of its cubes opened.
+ */
+export function noneOpened(name: string, opened: number): string | undefined {
+  return opened === 0 ? `not opened: "${name}" -- none of its sources was opened` : undefined;
+}
+
+/**
  * WHAT A PAGE LEAVES OUT WHEN IT OPENS AND A CUBE'S SOURCE CANNOT BE OPENED, the one rule (the tab's Open…, P9; Python's
  * load, headless gridOpened's `leaveOut` -- the S7 audit's H-6: Python refused the whole page): a class whose rows are
  * not read here, a join that no longer joins -- kept as the page saved it, its views saying why, the page's other grids
@@ -442,6 +450,12 @@ export interface SavedRecord {
  * name, the page is that name (B4), which its editor then tells as the name box does (renamePage). `name` by the one
  * rule of a page's name (givenName), or why not, in its words.
  */
+/** Whether `page` saves over the saved page it is (its record, either editor's: B13) rather than as a new one -- the
+ *  tab's Save, Python's save (the S7 confirmation audit's Y2-5: Python spelled the choice itself). */
+export function savesOver(page: PageDocument): boolean {
+  return page.record !== undefined;
+}
+
 export function savedRecord(name: string, page: PageDocument, fresh: string): SavedRecord | { readonly refused: string } {
   const given = givenName('page', name);
   if ('refused' in given) return given;

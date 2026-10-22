@@ -415,6 +415,32 @@ describe('the commands told are the ones that landed, in the order they landed (
     assert.deepEqual(kinds(), [], 'no command told for a transition an undo is part of');
   });
 
+  it('a setting made while an undo runs, then an undo that lands with no query: the page written whole, the setting not told again on top of it (the S7 confirmation audit G2-1)', async () => {
+    let restores = 0;
+    await remount({ onCommand: (command) => told.push(command), onRestore: () => { restores += 1; }, signInAgain: async () => {} });
+    // two steps whose queries differ, the second's query the first's before it (no sort, a sort, none again)
+    await app.edit([{ kind: 'sorts', sorts: [{ column: 'region', direction: 'asc' }] }], 'sort');
+    await settle();
+    await app.edit([{ kind: 'sorts', sorts: [] }], 'sort');
+    await settle();
+    // an undo whose query runs, held; a setting laid on it, told at once
+    engine.gate.hold = true;
+    void app.undo();
+    await settle();
+    const pin: GridCommand = { kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } };
+    await app.edit([pin], 'settings');
+    await settle();
+    // a second undo: back to the start, whose query is the one on screen -- it lands at once, no query, a restore
+    void app.undo();
+    await settle();
+    await release();
+    assert.ok(restores > 0, 'the undo written whole');
+    told = [];
+    await app.edit([{ kind: 'sorts', sorts: [{ column: 'desk', direction: 'desc' }] }], 'sort');
+    await settle();
+    assert.deepEqual(kinds(), ['sorts'], 'the next change told alone: the setting is in the page written whole, or undone with it');
+  });
+
   it("another editor's commands are that editor's own: never told back, the person's made meanwhile are (T4)", async () => {
     engine.gate.hold = true;
     const theirs = app.applyGridCommands([{ kind: 'group', rows: ['desk'] }], 'Python');

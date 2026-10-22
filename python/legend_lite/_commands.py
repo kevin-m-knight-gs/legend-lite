@@ -12,8 +12,8 @@ from typing import Any
 _ABSENT: Any = object()
 
 GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
-                               'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'measures',
-                               'editCalculated', 'removeCalculated', 'open', 'collapseAll',)
+                               'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
+                               'removeCalculated', 'open', 'collapseAll',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
                                'renameTile', 'addGrid', 'addChart', 'setChart', 'followGrid', 'select', 'moveTile',
                                'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap',
@@ -70,10 +70,6 @@ def grid_refilter(*, remove: Any, add: Any) -> dict[str, Any]:
 
 def grid_calculate(*, level: Any, column: Any) -> dict[str, Any]:
     return {'kind': 'calculate', 'level': level, 'column': column}
-
-
-def grid_measures(*, measures: Any) -> dict[str, Any]:
-    return {'kind': 'measures', 'measures': measures}
 
 
 def grid_edit_calculated(*, name: Any, level: Any, column: Any) -> dict[str, Any]:

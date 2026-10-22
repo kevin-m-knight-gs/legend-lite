@@ -12,13 +12,14 @@ import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { configurationOf, type CubeDocument, type FileSource } from '../src/cube-document.ts';
+import { configurationOf, treeOf, type CubeDocument, type FileSource } from '../src/cube-document.ts';
+import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
 import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
-import { gridCopyOf, newPage as freshPage, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, type PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
-import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
+import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { classRelation } from '../src/class-source.ts';
@@ -894,7 +895,7 @@ describe("another editor's commands followed: nothing told back that the page di
     assert.deepEqual(filterOf(page.state.page, a), filterOf(kept, a));
   });
 
-  it("the screen's own Remove of a selected chart: removeTile alone, as Python's, its grid's filter as the rule leaves it", async () => {
+  it("the screen's own Remove of a selected chart: removeTile, its grid's refilter its own step, told (the S7 confirmation audit's G2-2)", async () => {
     const pageTold: PageCommand[] = [];
     newPage({ onPageCommand: (c) => pageTold.push(c) });
     const a = page.addGrid(telling('trades.csv'));
@@ -912,9 +913,54 @@ describe("another editor's commands followed: nothing told back that the page di
     tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     assert.deepEqual(pageTold.map((c) => c.kind), ['removeTile']);
-    assert.deepEqual(told, [], 'no refilter beside it: the removal took the selection off');
+    assert.deepEqual(told, [{ grid: a, kind: 'refilter' }], "the grid's own step, told: nothing left to take off where the removal took it off");
     assert.deepEqual(filterOf(page.document('Q3')!, a), filterOf(kept, a));
     assert.deepEqual(filterOf(page.state.page, a), filterOf(kept, a));
+    assert.equal((page.grid(a) as unknown as CubeApp).canUndo, true, "the grid's own history kept (a removal followed as another editor's wiped it)");
+  });
+
+  it("a selected chart removed while its click still runs: the grid's edits told in the order made, the host's page as the screen's (the S7 confirmation audit's B2-3)", async () => {
+    const all: { readonly page?: PageCommand; readonly grid?: { readonly id: string; readonly command: GridCommand } }[] = [];
+    const recording = (name: string): GridMaker => (gridHost, spawned, start) => new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+      engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+      configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
+      ...(page ? { windowHost: page.root } : {}), ...spawned,
+      onCommand: (command) => { if (spawned.id !== undefined) all.push({ grid: { id: spawned.id, command } }); },
+    });
+    newPage({ onPageCommand: (c) => all.push({ page: c }) });
+    const a = page.addGrid(recording('trades.csv'));
+    page.addGrid(recording('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(a);
+    await settle();
+    const before = page.document('Q3')!;
+    all.length = 0;
+    // the click's query held: its refilter not yet landed (nor told) when the chart is removed
+    engine.gate.hold = true;
+    echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!
+      .trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    engine.gate.hold = false;
+    engine.gate.releaseAll();
+    await settle();
+    // the host's replay: the page's commands and each grid's, in the order told, on the page before
+    let host: PageDraft = { page: before, held: idsOf(before) };
+    for (const t of all) {
+      if (t.page) host = applyPageCommands(host, [t.page]).draft;
+      else {
+        const at = host.page.cubes.find((c) => c.id === t.grid!.id)!;
+        // a refilter's change is the grid's filter: the cube's query as the fixture's snapshot over its source
+        const d = applyGridCommands({ snapshot: { ...SNAPSHOT, ...at.cube.query }, config: configurationOf(at.cube), tree: treeOf(at.cube) },
+          [t.grid!.command]);
+        const { filter: _was, ...query } = at.cube.query;
+        const cube = { ...at.cube, query: d.snapshot.filter ? { ...query, filter: d.snapshot.filter } : query };
+        host = { ...host, page: { ...host.page, cubes: host.page.cubes.map((c) => (c.id === at.id ? { ...c, cube } : c)) } };
+      }
+    }
+    assert.deepEqual(filterOf(host.page, a), filterOf(page.document('Q3')!, a), "the host's grid filtered as the screen's");
+    assert.equal(filterOf(page.document('Q3')!, a), undefined, 'no selection left on the grid: its chart is gone');
   });
 
   it("a grid the other editor adds while the bar is folded: its title bar as its document says, the page's state too (the S7 audit's G-3)", async () => {
@@ -968,6 +1014,35 @@ describe("another editor's commands followed: nothing told back that the page di
     (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
     assert.equal(page.state.page.record, 'r-3', 'kept through an edit');
+    // an undo or a redo of an edit made before a Save and a rename: neither is a step, so both stay (the S7
+    // confirmation audit's H2-2: an undo past a Save saved a second record, under the old name)
+    page.savedAs('r-4');
+    page.rename('Trades');
+    page.undo();
+    await settle();
+    assert.equal(page.record, 'r-4', 'the record kept by an undo');
+    assert.equal(page.state.page.record, 'r-4');
+    assert.equal(page.title, 'Trades', 'the name kept by an undo');
+    assert.equal(page.document(page.title)!.name, 'Trades');
+    page.redo();
+    await settle();
+    assert.equal(page.record, 'r-4', 'and by a redo');
+    assert.equal(page.title, 'Trades');
+  });
+
+  it("a sheet's label counts a grid the page could not open, as the rule does (the S7 confirmation audit's B2-4)", async () => {
+    // unnamed: its title is its first sheet's label
+    newPage({ title: '' });
+    const a = page.addGrid(over('trades.csv'));
+    page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const doc = page.document('')!;
+    // its first grid left out when it opens again (a class whose rows are not read here)
+    page.restore(doc, new Map(doc.cubes.filter((c) => c.id !== a).map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    const sheet = page.state.page.sheets[0]!;
+    assert.equal(page.suggestedName, unnamedLabel(page.state.page, sheet), "the screen's label is the rule's");
+    assert.equal(page.suggestedName, 'trades.csv');
   });
 
   it("the same mark clicked again takes it off, whatever order its page wrote the selection's keys in (the S7 audit's Y-9)", async () => {

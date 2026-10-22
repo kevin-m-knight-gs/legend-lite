@@ -87,9 +87,7 @@ def _operations(cls: Any) -> Any:
 def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
     """A name a page, a tile or a sheet is given, by DataCube's one rule (page-names.ts givenName, asked headless:
     nameGiven, as the screen's renames ask it): its text trimmed, a page's or a tile's blank refused in DataCube's words,
-    a sheet's blank none of its own (None). Python only refuses what is not text."""
-    if not isinstance(name, str):
-        raise ValueError(f'{what} is a name, not {name!r}')
+    a sheet's blank none of its own (None); what is not text refused in DataCube's words too."""
     said = json.loads(session.headless().call('nameGiven', part, name))
     if 'problems' in said:
         raise ValueError(f'{what}: ' + '; '.join(said['problems']))
@@ -201,9 +199,7 @@ class Tile:
     @title.setter
     def title(self, title: str | None) -> None:
         _ = self._view
-        if title is not None and not isinstance(title, str):
-            raise ValueError(f'a title is a name, not {title!r}')
-        # by the command the screen's rename builds (a chart has a title; a grid's None takes its own off)
+        # by the command the screen's rename builds, what is not text refused by its reader, in DataCube's words (a chart has a title; a grid's None takes its own off)
         self._page._apply_page([_commands.page_rename_tile(tile=self._id, title=title)], 'a title')
 
     @property
@@ -412,7 +408,16 @@ class Grid(Tile):
         as the screen would add one. A grouped ``column`` takes no Aggregation of its own: give the measure a ``name``."""
         measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
                    **({'weight': weight} if weight is not None else {})}
-        return self._apply([_commands.grid_measures(measures=[measure])])
+        # made by the steps a person makes it by -- Column Properties' Aggregation, or the column editor's calculated
+        # column and then its Aggregation -- built by DataCube (headless gridMeasure: grid-measures.ts measureCommands;
+        # the user, 2026-10-22: one API, no command kind of Python's own)
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridMeasure', self._spec(engine, frames), _json.dumps([measure])))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
 
     def filter(self, condition: Any) -> Grid:
         """Its filter: a condition ``(column, operator[, value])``, a list of them (all of them), a group
@@ -436,6 +441,31 @@ class Grid(Tile):
         addSort: a sort it had of ``column`` taken first; one it has already changes nothing): ``column`` (one of the
         grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
         return self._apply([_commands.grid_add_sort(column=column, direction=direction)])
+
+    def toggle_sort(self, column: str, *, chained: bool = False) -> Grid:
+        """``column``'s sort turned as a click on its header turns it (DataCube's one rule for the click, headless
+        gridHeaderSort: header-sort.ts headerSortCommand, grid-edits.ts clickSort -- the user, 2026-10-22: one sort API
+        the screen's click and a program call): first in its direction by the type its header has -- a number or a date
+        from the largest, anything else from A -- then the other way, then no sort. Alone, every other sort taken off;
+        ``chained`` (the screen's Ctrl-click), after the others, keeping its place among them. A column the grid shows
+        no header of is refused in DataCube's words."""
+        return self._header_sort(column, chained)
+
+    def toggle_group_sort(self, *, chained: bool = False) -> Grid:
+        """The groups' order turned as a click on the tree column's header turns it (DataCube's one rule, headless
+        gridHeaderSort: grid-edits.ts clickTreeSort): the rows ordered by the groups alone, every other sort taken off,
+        the other way from the order they show; ``chained``, with sorts applied, the first group column chained after
+        them, as a click chains any column."""
+        return self._header_sort(None, chained)
+
+    def _header_sort(self, column: str | None, chained: bool) -> Grid:
+        self._page._current(self._view['cube'], 5)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridHeaderSort', self._spec(engine, frames), column, chained))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 4)
 
     def sorts(self, sorts: Sequence[Any]) -> Grid:
         """Its sorts, whole and in order, replacing those it has, as the Sorts panel sets them (a ``sorts`` command,
@@ -465,8 +495,6 @@ class Grid(Tile):
         this one is now -- its query and its settings, no group open (DataCube's code, headless gridCopied:
         cube-document.ts cubeCopied) -- titled by its number unless given one, as the screen adds it (an ``addGrid``
         command). Its charts are not copied, as the screen copies none."""
-        if title is not None and not isinstance(title, str):
-            raise ValueError(f'a title is a name, not {title!r}')
         page = self._page
         said = json.loads(page._session.headless().call('gridCopied', _json.dumps(self._cube)))
         if 'problems' in said:
@@ -656,8 +684,6 @@ class Grid(Tile):
         # made as DataCube makes a new chart (what is not given is its own default), and judged as it will draw it: what
         # DataCube would refuse to draw is refused here, in its words, before the chart is kept
         spec = _made(self._page, self._view['cube'], given)
-        if title is not None and not isinstance(title, str):
-            raise ValueError(f'a title is a name, not {title!r}')
         # beside this grid, titled by its number unless given one, as the screen adds a chart (page-commands.ts addChart)
         applied = self._page._apply_page([_commands.page_add_chart(near=self._id, spec=spec, title=title, columns=None)],
                                          'a title')
@@ -1048,8 +1074,7 @@ class Sheet:
     @name.setter
     def name(self, name: str | None) -> None:
         _ = self._doc
-        if name is not None and not isinstance(name, str):
-            raise ValueError(f"a sheet's name is a name, not {name!r}")
+        # what is not text refused by renameSheet's reader, in DataCube's words
         self._page._apply_page([_commands.page_rename_sheet(sheet=self._id, name=name)], "a sheet's name")
 
     def move(self, position: int) -> Sheet:
@@ -1108,11 +1133,8 @@ class Sheet:
 
     def _arranged(self, preset: str, order: list[str] | None) -> Sheet:
         """Its places arranged as the screen's layout picker arranges them (page-commands.ts arrange), in ``order`` (their
-        tiles; None: reading order)."""
-        try:
-            self._page._apply_page([_commands.page_arrange(sheet=self._id, preset=preset, order=order)])
-        except ValueError as e:
-            raise ValueError(f'{e} (a shape as the layout picker names it, or sheet.layout(...) band by band)') from None
+        tiles; None: reading order) -- refused in DataCube's words alone (the S7 confirmation audit's Y2-4)."""
+        self._page._apply_page([_commands.page_arrange(sheet=self._id, preset=preset, order=order)])
         return self
 
     def layout_from(self, layout: Mapping[str, Any]) -> Sheet:
@@ -1141,8 +1163,6 @@ class Page:
     def __init__(self, name: str | None = None) -> None:
         from .datacube import _current
         self._session = _current()
-        if name is not None and not isinstance(name, str):
-            raise ValueError(f"a page's name is a name, not {name!r}")
         # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's Blank Page's
         # too -- unnamed when no name is given, as the tab's, else named by DataCube's rule; no grid yet, its one sheet an
         # empty board: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11), and kept by its session's keeper from now on: the
@@ -1257,6 +1277,11 @@ class Page:
         try:
             if self._unserved is None:
                 reads = self._reads()
+                # admitted as every editor's page written whole is, by the frames this host serves (Frames.unadmitted:
+                # the S7 confirmation audit's Y2-6)
+                refused = self._session.frames.unadmitted(reads)
+                if refused is not None:
+                    raise Refused(refused)
                 settled = Settled(keeper.restore(self._key_name, self._version, self._document, reads,
                                                  sorted(self._ids | set(reads['ids']))), False, {})
             else:
@@ -1352,10 +1377,6 @@ class Page:
 
     @name.setter
     def name(self, name: str) -> None:
-        if name is None:
-            raise ValueError('a page has a name')
-        if not isinstance(name, str):
-            raise ValueError(f"a page's name is a name, not {name!r}")
         # the page's name is each cube's too: DataCube writes them (page-commands.ts renamePage), as the screen does
         self._apply_page([_commands.page_rename_page(name=name)], "a page's name")
 
@@ -1460,12 +1481,14 @@ class Page:
             # grid's cube has none: nothing to ask when none is given)
             with self._batch(tell=False):
                 pairs = list(measures.items() if isinstance(measures, Mapping) else measures or ())
-                # as the commands that make them, in the order a person would (headless gridSetUp: grid-commands.ts
-                # setUpCommands), each judged as the screen judges it
-                said = json.loads(session.headless().call('gridSetUp', _json.dumps({
-                    'dimensions': list(dimensions), 'rows': list(rows), 'columns': list(columns),
-                    'measures': [list(p) if isinstance(p, (list, tuple)) else p for p in pairs],
-                    'sorts': [list(s) if isinstance(s, (list, tuple)) else s for s in sort]})))
+                # as the commands that make them, in the order a person would (headless gridSetUp), each judged as the
+                # screen judges it -- a measure by a person's own steps, against the grid the steps before it made
+                engine, frames = grid._headless()
+                with frames.reading():
+                    said = json.loads(engine.call('gridSetUp', grid._spec(engine, frames), _json.dumps({
+                        'dimensions': list(dimensions), 'rows': list(rows), 'columns': list(columns),
+                        'measures': [list(p) if isinstance(p, (list, tuple)) else p for p in pairs],
+                        'sorts': [list(s) if isinstance(s, (list, tuple)) else s for s in sort]})))
                 if 'problems' in said:
                     raise ValueError('; '.join(said['problems']))
                 commands = said['commands']
@@ -1549,9 +1572,7 @@ class Page:
 
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
-        if name is not None and not isinstance(name, str):
-            raise ValueError(f"a sheet's name is a name, not {name!r}")
-        # as the screen adds one (page-commands.ts addSheet): its id after every one the page has held
+        # as the screen adds one -- what is not text refused by addSheet's reader, in DataCube's words (page-commands.ts addSheet): its id after every one the page has held
         applied = self._apply_page([_commands.page_add_sheet(name=name)], "a sheet's name")
         return self._sheet(applied[0]['id'])
 
@@ -1621,9 +1642,11 @@ class Page:
         return _copied(self._doc)
 
     def to_json(self, indent: int | None = 2) -> str:
-        """The page document as JSON text, its numbers exact, as DataCube writes it -- indented by ``indent`` (None: one
-        line, as ``save(path)`` writes a page file): refused in DataCube's words when DataCube's Save would refuse it (a
-        page with nothing on it)."""
+        """The page document as JSON text, its numbers exact, as DataCube writes the page it holds -- the saved page it
+        is (its ``record``) among it, unnamed as ``''`` -- indented by ``indent`` (None: one line): refused in DataCube's
+        words when DataCube's Save would refuse it (a page with nothing on it). A page file, as DataCube's Export ▸ Page
+        File writes one -- named as Save names it, no saved record -- is ``save(path)``'s; either, loaded, is a page of
+        its own, no saved record (the S7 confirmation audit's Y2-3)."""
         return _json.dumps(self._written(), indent=indent)
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
@@ -1652,10 +1675,11 @@ class Page:
         if 'problems' in made:
             raise ValueError('; '.join(made['problems']))
         id, record = made['id'], made['record']
-        # over the record it is saved as, else a new one, as the tab's Save decides -- a record deleted since (in
-        # DataCube's Open…) refused, as the tab's Save is refused, never made again under its id (the S7 audit's Y-8)
+        # over the record it is saved as, else a new one, as the tab's Save decides (headless pageRecord's `over`:
+        # page-document.ts savesOver -- the S7 confirmation audit's Y2-5) -- a record deleted since (in DataCube's
+        # Open…) refused, as the tab's Save is refused, never made again under its id (the S7 audit's Y-8)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
-                        if id == doc.get('record') else
+                        if made['over'] else
                         store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', record, THIS_USER))
         if status != 200:
             try:
@@ -1686,7 +1710,11 @@ class Page:
         opened = json.loads(_current().headless().call('pageOfRecord', said))
         if 'problems' in opened:
             raise ValueError('; '.join(opened['problems']))
-        return cls.load(_plain(_json.loads(opened['page'])), frames, files=files)
+        page = cls.load(_plain(_json.loads(opened['page'])), frames, files=files)
+        # the saved page it is, by its command (savedAs, no step: B13) -- a page loaded from a document is none (the S7
+        # confirmation audit's Y2-3: a page loaded from another's document saved over that one's record)
+        page._apply_page([_commands.page_saved_as(record=id)])
+        return page
 
     @classmethod
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any] | None = None, *,
@@ -1760,9 +1788,15 @@ class Page:
         self._ids |= set(self._reads()['ids'])
         # each cube as DataCube opens it over what this host serves now (above): what it leaves out, left out here too
         # and said once, so no later call on the grid sends it -- each its command, none written alone
+        left: list[str] = []
         with self._batch(tell=False):
             for c in doc['cubes']:
-                self._reopened(c['id'], 4, given, leave_out=True)
+                self._reopened(c['id'], 4, given, leave_out=True, left=left)
+        # none of its sources opened: not opened, in DataCube's words, as the tab's Open... refuses it (headless
+        # pageNoneOpened: page-document.ts noneOpened -- the S7 confirmation audit's Y2-2)
+        refused = json.loads(self._session.headless().call('pageNoneOpened', doc['name'], len(doc['cubes']) - len(left)))
+        if refused is not None:
+            raise ValueError(refused)
         # a page loaded is a page made whole, by no command
         self._unnoted()
 
@@ -1902,7 +1936,8 @@ class Page:
             for id in reading:
                 self._reopened(id, 4)
 
-    def _reopened(self, id: str, stacklevel: int, given: Mapping[str, str] | None = None, leave_out: bool = False) -> bool:
+    def _reopened(self, id: str, stacklevel: int, given: Mapping[str, str] | None = None, leave_out: bool = False,
+                  left: list[str] | None = None) -> bool:
         """The page's cube ``id`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
         cube-document.ts rebuilt -- a new column hidden; a gone one left out; the open groups dropped when the grouping
         changed), taken when it is
@@ -1914,7 +1949,8 @@ class Page:
         hash of the file read in for it (headless gridOpened). ``leave_out``, as a page loads: a class whose rows are not
         read here, a join that no longer joins, left out and said as the tab's Open... leaves it out -- kept as the page
         saved it, refused in words when its grid is next asked (DataCube's rule, headless gridOpened's leaveOut:
-        page-document.ts leftOutWhenUnopened; the S7 audit's H-6: Python refused the whole page)."""
+        page-document.ts leftOutWhenUnopened; the S7 audit's H-6: Python refused the whole page), its id added to
+        ``left``."""
         # opened again over its source only as DataCube's rule says (headless cubeOpensAgain: not a snapped grid's, which
         # reads its copy until it goes live -- the S7 audit's Y-2: Python kept the rule itself)
         if not json.loads(self._session.headless().call('cubeOpensAgain', _json.dumps(self._doc), id)):
@@ -1924,6 +1960,8 @@ class Page:
         said = self._opened_cube(held, given or {}, leave_out)
         if isinstance(said, str):
             warnings.warn(said, stacklevel=stacklevel)
+            if left is not None:
+                left.append(id)
             return False
         notes, taken, opened = said
         # whether it is taken is DataCube's rule (headless gridOpened `taken`): not, the cube stands as it is

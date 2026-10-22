@@ -79,10 +79,13 @@ export interface ChartSource {
   refilter(old: readonly FilterNode[], add: readonly FilterNode[], label: string): void;
   /**
    * A chart's selection `old` taken off the grid's filter as a page step took it already (removeTile, followGrid:
-   * page-commands.ts unselected) -- followed, as another editor's change is: never told back, no step of the grid's own
-   * (the S7 audit's P-1).
+   * page-commands.ts unselected). `theirs`: another editor's step, followed as its change is -- never told back, no step
+   * of the grid's own (the S7 audit's P-1); else the person's own (a Remove, a Show Grid, a page undo): a step of the
+   * grid's own history, told, so the grid's own edits stay in the order they were made (the S7 confirmation audit's
+   * G2-2, B2-3: a removal followed as another editor's wiped the grid's undo, and a click still running then told its
+   * selection after the removal had taken it off).
    */
-  unselected(old: readonly FilterNode[]): void;
+  unselected(old: readonly FilterNode[], theirs: boolean): void;
   /**
    * A grid of its own over the same source, in `host`: a chart's editing grid, or another grid on
    * the page. `onChart` is where its own "+ Chart" goes (the page), rather than a board of its own.
@@ -553,10 +556,10 @@ export class CubePage {
    * step is said so once it has done.
    */
   sync(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined = () => undefined): void {
+    unopened: (cube: string) => string | undefined = () => undefined, theirs = false): void {
     this.#syncing = true;
     try {
-      this.#synced(to, from, remake, unopened);
+      this.#synced(to, from, remake, unopened, theirs);
     } finally {
       this.#syncing = false;
     }
@@ -567,7 +570,7 @@ export class CubePage {
   }
 
   #synced(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined): void {
+    unopened: (cube: string) => string | undefined, theirs: boolean): void {
     const wanted = new Map(to.views.map((v) => [v.id, v]));
     const known = new Set(from.views.map((v) => v.id));
     const sheetFor = new Map(to.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
@@ -586,7 +589,7 @@ export class CubePage {
         this.#place(spec);
       }
       // tiles the page held and the step does not: charts first (a grid would take its following ones, or detach them)
-      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id);
+      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs);
       for (const id of [...this.#grids.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropGrid(id);
       for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
       // what it could not open, back: kept as the step has it, in its place
@@ -644,10 +647,10 @@ export class CubePage {
           // reading another grid there than here (a grid's removal undone; a Show Grid, or one undone or redone): it reads
           // that grid
           if (chart.link.grid !== view.cube && this.#grids.has(view.cube)) {
-            // moved off a grid with a selection (another editor's followGrid): off that grid as the step took it off
+            // moved off a grid with a selection (a followGrid): off that grid as the step took it off
             const moved = chart.link.grid !== null && chart.conditions.length > 0;
             if (moved) {
-              this.#sourceOf(chart.link).unselected(chart.conditions);
+              this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
               chart.conditions = [];
             }
             chart.link.grid = view.cube;
@@ -1485,8 +1488,10 @@ export class CubePage {
   /**
    * A TILE'S REMOVE (its x, its menu's Remove, a grid's Remove from Page): a tile of the page's is told as its removal,
    * and `sync` takes it off (#drop). A chart's selection comes off its grid's filter by removeTile's own rule (the
-   * page's unselected), as Python's removeTile takes it off: one removal, one command (the S1 audit's 5), the grid on
-   * the board following the step, nothing more told (the S7 audit's P-1).
+   * page's unselected), as Python's removeTile takes it off: one removal, one page command (the S1 audit's 5); the grid
+   * on the board follows the step by a refilter of its own, told after any edit of its own still running, which finds
+   * nothing left to take off where the step took it off already (ChartSource.unselected; the S7 audit's P-1, the S7
+   * confirmation audit's G2-2, B2-3).
    */
   #removeTile(id: string): void {
     if (!this.#saved(id)) {
@@ -1507,14 +1512,14 @@ export class CubePage {
     } else if (this.#charts.has(id)) this.#dropChart(id);
   }
 
-  /** A chart off the board: its selection off its grid's filter as the step took it off (followed, not told), a grid
-   *  kept only for it let go. */
-  #dropChart(id: string): void {
+  /** A chart off the board: its selection off its grid's filter as the step took it off (`theirs`: another editor's,
+   *  followed, not told), a grid kept only for it let go. */
+  #dropChart(id: string, theirs = false): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
     // its selection off its grid as the step that took it off the board took it off the grid's filter (the page's
-    // unselected): followed, nothing told
-    if (chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions);
+    // unselected)
+    if (chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
     chart.panel.dispose();
     this.#charts.delete(id);
     this.#take(id);

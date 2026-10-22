@@ -18,6 +18,8 @@ import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readCha
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
 import { availableDimensions, drillDown, drillUp, useDimension } from '../dimensions.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
+import { headerSortCommand } from '../header-sort.ts';
+import { TREE_COLUMN } from '../treeview.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
@@ -35,7 +37,8 @@ import {
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { applyToSnapshot } from '../config.ts';
-import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
+import { applyGridCommands, readGridCommand, readMeasure, type GridCommand } from '../grid-commands.ts';
+import { measureCommands } from '../grid-measures.ts';
 import type { GridDraft } from '../grid-edits.ts';
 import { leftOutNote, leftOutWhenUnopened, plainNumbers, readGridCopy, readPage, type GridCopy, type PageView } from '../page-document.ts';
 import { gridLens, readPageFilters } from '../page-filters.ts';
@@ -395,10 +398,11 @@ export async function gridOpened(cube: string, host: HostTables, name: string, g
   try {
     return await openedOn(was, cube, host, name, gridsOnPage, given);
   } catch (e) {
-    // `leaveOut`, as a page opens: a source the page leaves out when it cannot be opened, said in the page's words, the
-    // cube kept as saved (page-document.ts leftOutWhenUnopened, the tab's Open…'s rule; the S7 audit's H-6)
-    if (!leaveOut || !(e instanceof CubeRefusal) || !leftOutWhenUnopened(was.source)) throw e;
-    return JSON.stringify({ leftOut: leftOutNote(was.source.name, e.message) });
+    // `leaveOut`, as a page opens: a source the page leaves out when it cannot be opened, for any reason, said in the
+    // page's words, the cube kept as saved (page-document.ts leftOutWhenUnopened, the tab's Open…'s rule; the S7 audit's
+    // H-6) -- a join that no longer joins fails as its plan does, no refusal (the S7 confirmation audit's Y2-1)
+    if (!leaveOut || !leftOutWhenUnopened(was.source)) throw e;
+    return JSON.stringify({ leftOut: leftOutNote(was.source.name, e instanceof Error ? e.message : String(e)) });
   }
 }
 
@@ -588,6 +592,28 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
       return JSON.stringify({ problems: [e.message] });
     }
     return applied(spec, o, commands);
+  });
+}
+
+/**
+ * A HEADER'S SORT CLICK, as the screen's click makes it (header-sort.ts headerSortCommand, the one rule: the user,
+ * 2026-10-22) -- Python's grid.toggle_sort and grid.toggle_group_sort: `column` (null: the groups, the tree column's)
+ * sorted first in its direction by the type its header has in the grid's view, then the other way, then none;
+ * `chained`, after the other sorts. A column the grid shows no header of refused in words. JSON: as gridApply's, or
+ * `{problems}`.
+ */
+export async function gridHeaderSort(spec: GridSpec, column: string | null, chained: boolean): Promise<string> {
+  return using(spec, async (o) => {
+    const view = await controllerOf(o).run({ snapshot: o.state.snapshot, tree: o.state.tree });
+    if (view === STALE) throw new Error('the grid was asked again before its view was ready');
+    let command: GridCommand;
+    try {
+      command = headerSortCommand(view.columns.leaves, column ?? TREE_COLUMN, chained);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+    return applied(spec, o, [command]);
   });
 }
 
@@ -931,24 +957,55 @@ function readSetUp(given: unknown): GridSetUp | string {
 /**
  * A NEW GRID'S QUERY AS THE COMMANDS THAT MAKE IT (`given`: JSON, a GridSetUp), in the order a person makes them, as
  * draftCommands orders an editor's: the columns made dimensions first (a column made one can then be grouped), the row
- * groups and the pivot, the measures (a measure of a grouped column is one of its own), the sorts last (one may name a
- * column a measure made); a part none is given of, left out -- what Python's `page.grid(...)` applies in one call
- * (gridApply, which judges each; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z8). JSON: `{commands}`, or `{problems}`,
- * why it was refused, in words.
+ * groups and the pivot, the measures (a measure of a grouped column is one of its own) -- each by the steps a person
+ * makes one by (grid-measures.ts measureCommands, judged against the grid the steps before it made) -- the sorts last
+ * (one may name a column a measure made); a part none is given of, left out -- what Python's `page.grid(...)` applies
+ * in one call (gridApply, which judges each; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z8). JSON: `{commands}`, or
+ * `{problems}`, why it was refused, in words.
  */
-export function gridSetUp(given: string): string {
+export async function gridSetUp(spec: GridSpec, given: string): Promise<string> {
   const read = readSetUp(JSON.parse(given));
   if (typeof read === 'string') return JSON.stringify({ problems: [read] });
-  const commands: GridCommand[] = [
+  const shaped: GridCommand[] = [
     ...read.dimensions.map((name): GridCommand => ({ kind: 'column', name, change: { kind: 'dimension' } })),
     ...(read.rows.length > 0 ? [{ kind: 'group', rows: [...read.rows] } as const] : []),
     ...(read.columns.length > 0 ? [{ kind: 'pivot', columns: [...read.columns] } as const] : []),
-    ...(read.measures.length > 0
-      ? [{ kind: 'measures', measures: read.measures.map(([column, fn]) => ({ name: column, column, fn })) } as const] : []),
-    ...(read.sorts.length > 0
-      ? [{ kind: 'sorts', sorts: read.sorts.map(([column, direction]) => ({ column, direction })) } as const] : []),
   ];
-  return JSON.stringify({ commands });
+  const sorts: GridCommand[] = read.sorts.length > 0
+    ? [{ kind: 'sorts', sorts: read.sorts.map(([column, direction]) => ({ column, direction })) }] : [];
+  if (read.measures.length === 0) return JSON.stringify({ commands: [...shaped, ...sorts] });
+  return using(spec, async ({ runner, cube }) => {
+    try {
+      const d = applyGridCommands({ snapshot: await typedColumns(runner, cube.snapshot), config: cube.configuration, tree: cube.tree },
+        shaped);
+      const measures = measureCommands(d, read.measures.map(([column, fn]) => readMeasure({ name: column, column, fn })));
+      return JSON.stringify({ commands: [...shaped, ...measures, ...sorts] });
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+  });
+}
+
+/**
+ * MEASURES MADE AS A PERSON MAKES THEM (grid-measures.ts measureCommands: Column Properties' Aggregation, or the column
+ * editor's calculated column of its own name and then its Aggregation) -- Python's grid.measure: `given`, a JSON list of
+ * `{name, column, fn[, weight]}`. JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ */
+export async function gridMeasure(spec: GridSpec, given: string): Promise<string> {
+  return using(spec, async (o) => {
+    let commands: GridCommand[];
+    try {
+      const asked: unknown = JSON.parse(given);
+      if (!Array.isArray(asked)) throw new CubeRefusal('the measures are a list');
+      commands = measureCommands({ snapshot: await typedColumns(o.runner, o.cube.snapshot), config: o.cube.configuration, tree: o.cube.tree },
+        asked.map(readMeasure));
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+    return applied(spec, o, commands);
+  });
 }
 
 /**

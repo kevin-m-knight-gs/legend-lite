@@ -10,7 +10,7 @@ import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts
 import { element } from '../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, withColumn, withConfiguration } from '../src/config.ts';
 import {
-  GRID_COMMAND_KINDS, applyGridCommand, applyGridCommands, draftCommands, readGridCommand, type GridCommand,
+  GRID_COMMAND_KINDS, applyGridCommand, applyGridCommands, draftCommands, readGridCommand, readMeasure, type GridCommand,
 } from '../src/grid-commands.ts';
 import {
   addSort, clearSort, clickSort, clickTreeSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, spreadMeasureNames,
@@ -18,6 +18,8 @@ import {
 } from '../src/grid-edits.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type DerivedColumn } from '../src/snapshot.ts';
 import { TREE_COLUMN } from '../src/treeview.ts';
+import { headerSortCommand } from '../src/header-sort.ts';
+import { measureCommands } from '../src/grid-measures.ts';
 import { DETAIL_ROW, TreeState, parsePathKey } from '../src/tree.ts';
 import { stand } from './fake-planner.ts';
 
@@ -44,6 +46,48 @@ const refused = (f: () => unknown, words: RegExp): void => {
 
 const double: DerivedColumn = { name: 'double', lambda: stand('$x.qty * 2'), kind: 'measure' };
 
+
+describe("a measure made by the steps a person makes it by: no command of its own (the user, 2026-10-22: one API)", () => {
+  const d = draft();
+  const applied = (ms: Parameters<typeof measureCommands>[1]): GridDraft => applyGridCommands(d, measureCommands(d, ms));
+  it("its own column's Aggregation: Column Properties' command, the grid measureAsColumn makes", () => {
+    assert.deepEqual(measureCommands(d, [{ name: 'qty', column: 'qty', fn: 'max' }]),
+      [{ kind: 'column', name: 'qty', change: { aggregate: 'max' } }]);
+    assert.deepEqual(applied([{ name: 'qty', column: 'qty', fn: 'max' }]), measureAsColumn(d, { name: 'qty', column: 'qty', fn: 'max' }).draft);
+  });
+  it("a second of a column taken, or another name: the column editor's calculated column, then its Aggregation", () => {
+    const made = measureCommands(d, [{ name: 'qty', column: 'qty', fn: 'max' }, { name: 'qty_min', column: 'qty', fn: 'min' }]);
+    assert.deepEqual(made.map((c) => c.kind), ['column', 'calculate', 'column']);
+    const once = measureAsColumn(d, { name: 'qty', column: 'qty', fn: 'max' }).draft;
+    const want = measureAsColumn(once, { name: 'qty_min', column: 'qty', fn: 'min' }, new Set(['qty'])).draft;
+    assert.deepEqual(applyGridCommands(d, made).snapshot.derived, want.snapshot.derived);
+    assert.deepEqual(applyGridCommands(d, made).config, want.config);
+    // through JSON, as Python's are read
+    for (const c of made) assert.deepEqual(readGridCommand(JSON.parse(JSON.stringify(c))), c, c.kind);
+  });
+  it('refused in the words measureAsColumn refuses in, nothing made', () => {
+    assert.throws(() => measureCommands(d, [{ name: 'x', column: 'nope', fn: 'sum' }]), (e: unknown) => e instanceof CubeRefusal
+      && /'nope' is not a column of the grid/.test(e.message));
+    assert.throws(() => readMeasure({ name: 'x', column: 'qty' }), CubeRefusal);
+    assert.deepEqual(readMeasure({ name: ' w ', column: 'notional', fn: 'wavg', weight: 'qty' }),
+      { name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' });
+  });
+});
+
+describe("a header's sort click, the one rule the screen's click and Python's toggle_sort ask (the user, 2026-10-22)", () => {
+  const headers = [{ name: 'notional', type: 'Float' }, { name: 'desk', type: 'String' }, { name: '2024__|__qty', type: 'Integer' }];
+  it('a number first from the largest, text from A, by the type its header has; the tree column turns the groups', () => {
+    assert.deepEqual(headerSortCommand(headers, 'notional', false), { kind: 'clickSort', column: 'notional', first: 'desc', chained: false });
+    assert.deepEqual(headerSortCommand(headers, 'desk', true), { kind: 'clickSort', column: 'desk', first: 'asc', chained: true });
+    assert.deepEqual(headerSortCommand(headers, '2024__|__qty', false), { kind: 'clickSort', column: '2024__|__qty', first: 'desc', chained: false });
+    assert.deepEqual(headerSortCommand(headers, TREE_COLUMN, true), { kind: 'clickTreeSort', chained: true });
+  });
+  it('a column the grid shows no header of is refused, naming those it does', () => {
+    assert.throws(() => headerSortCommand(headers, 'nope', false), (e: unknown) => e instanceof CubeRefusal
+      && e.message === "'nope' is no header of the grid (notional, desk, 2024__|__qty)");
+  });
+});
+
 describe('each command gives what the screen\'s own edit gives', () => {
   const d = draft();
   const cases: [string, GridCommand, GridDraft][] = [
@@ -60,8 +104,6 @@ describe('each command gives what the screen\'s own edit gives', () => {
     ['column', { kind: 'column', name: 'qty', change: { aggregate: 'average' } }, setColumn(d, 'qty', { aggregate: 'average' })],
     ['configure', { kind: 'configure', patch: { reportTitle: 'Trades', columns: { qty: { hidden: true } } } },
       { ...d, config: withConfiguration(d.config, { reportTitle: 'Trades', columns: { qty: { hidden: true } } }) }],
-    ['measures', { kind: 'measures', measures: [{ name: 'qty', column: 'qty', fn: 'max' }] },
-      measureAsColumn(d, { name: 'qty', column: 'qty', fn: 'max' }).draft],
   ];
   for (const [name, command, want] of cases) {
     it(name, () => {
@@ -336,7 +378,6 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'calculate', level: 'row', column: { name: 'bucket', window: { fn: 'ntile', partition: [], order: [], buckets: 4 } } },
     { kind: 'calculate', level: 'group', column: { name: 'smallest', childAggregate: { fn: 'min', of: 'notional' }, kind: 'measure' } },
     { kind: 'calculate', level: 'row', column: { ...double, name: 'each', unnest: true } },
-    { kind: 'measures', measures: [{ name: 'w', column: 'notional', fn: 'wavg', weight: 'qty' }] },
     { kind: 'editCalculated', name: 'double', level: 'group', column: { ...double, name: 'twice' } },
     { kind: 'removeCalculated', name: 'double' },
     { kind: 'open', path: ['EMEA', null], open: true },

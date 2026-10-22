@@ -954,13 +954,41 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     const sources = pageSources({ services, page: pg(), gridMaker: (() => () => undefined) as never, taken: [], ask: () => {} });
     // asked of the host, never of the person (a file it holds is no file to choose: a tab would wait on a hidden button)
     const opened = await Promise.race([
-      sources.reopened(now, undefined, false),
+      sources.reopened(now, undefined, false, undefined, true),
       new Promise<'waiting'>((done) => { setTimeout(() => done('waiting'), 2000); }),
     ]);
     assert.notEqual(opened, 'waiting', 'opened by the host, not waiting on a file to be chosen');
     assert.equal(asked.length, 1);
     assert.equal(opened !== 'waiting' && opened?.taken, true, "what the host's opening changed: told as the page's rebuilt");
     assert.equal(opened !== 'waiting' ? opened?.notes[0] : '', 'qty: left out', "the host's notes said first");
+  });
+
+  it("a page of the tab's own on a host opens a file grid the tab's way: the file asked for, not the host (the S7 confirmation audit's H2-1)", async () => {
+    // the host holds only what was read there this session: a file of a page saved earlier is refused there
+    const asked: string[] = [];
+    const now = writeCube({ name: 'Q3', source: file('trades.csv'), snapshot: SNAPSHOT, configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty() });
+    const services = {
+      engine: {
+        rows: () => ({ planner: new StubPlanner(), engine }),
+        database: {
+          opened: async (doc: string) => {
+            asked.push(doc);
+            throw new Error('the file trades.csv is not read here');
+          },
+          ingestFile: async () => { throw new Error('not reached'); },
+        },
+      },
+      browser: { address: 'http://localhost/' },
+    } as never;
+    newPage();
+    const sources = pageSources({ services, page: pg(), gridMaker: (() => () => undefined) as never, taken: [], ask: () => {} });
+    const opened = await Promise.race([
+      sources.reopened(now, undefined, false).catch((e: unknown) => (e instanceof Error ? e.message : String(e))),
+      new Promise<'waiting'>((done) => { setTimeout(() => done('waiting'), 500); }),
+    ]);
+    assert.equal(opened, 'waiting', 'the person asked for the file');
+    assert.deepEqual(asked, [], 'the host never asked');
+    for (const d of document.querySelectorAll('dialog')) d.remove();
   });
 
   it("a frozen chart's selection, cleared when its grid went, comes back with it (the audit's 2)", async () => {

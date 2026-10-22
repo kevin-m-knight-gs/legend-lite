@@ -31,8 +31,10 @@ import {
   readSaved,
   leftOutNote,
   leftOutWhenUnopened,
+  noneOpened,
   savedPage,
   savedRecord,
+  savesOver,
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
@@ -465,7 +467,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         add.type = 'button';
         add.className = 'dc-picker-button dc-primary';
         add.textContent = 'Add a data source';
-        add.addEventListener('click', () => void picker?.('open'));
+        // on the page its other editor serves, the first source is added to it, as New ▸ Data Source… adds one -- opened
+        // in place, it would leave that page for one of the tab's own (the S7 confirmation audit's H2-6)
+        add.addEventListener('click', () => void picker?.(channel ? 'add' : 'open'));
         actions.append(add);
       }
       if (services.pages) {
@@ -752,7 +756,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           let o: Opened | undefined;
           let why = 'not opened';
           try {
-            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
+            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId], replacing);
           } catch (e) {
             // a class whose rows are not here (its table read by no grid of the tab), or a join that no longer joins (an
             // input's file changed under it, a remote file that asks for keys) is left out and said, as a file not
@@ -782,8 +786,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       // a page its other editor serves opens as its keeper has it, a page of no grid (or none opened) too: its name, its
       // sheets and the ids it holds are the page's (the S7 audit's H-1)
-      if (makers.size === 0 && !replacing) {
-        library?.say(`not opened: "${doc.name}" -- none of its sources was opened`, 'warn');
+      const unopened = replacing ? undefined : noneOpened(doc.name, makers.size);
+      if (unopened !== undefined) {
+        library?.say(unopened, 'warn');
         return [];
       }
       // the page on screen is this one from now: Save writes over it, never over the page it replaced
@@ -813,8 +818,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await grid.followSnap(copy);
         } catch (e) {
           // read live here: said, and -- its grid's id in `unread` -- told as its live command once the page is open, so
-          // its keeper's page is live too (the S7 audit's G-3)
-          unread.push(gridOfCube(doc, cube));
+          // its keeper's page is live too (the S7 audit's G-3); a detached chart's cube has no grid a live command names:
+          // said alone, its keeper's copy kept (the S7 confirmation audit's H2-4: told, it was refused, and the page
+          // opened again, and told again)
+          const shownIn = doc.views.find((v) => v.kind === 'grid' && v.cube === cube)?.id;
+          if (shownIn !== undefined) unread.push(shownIn);
           notes.push(`${doc.cubes.find((c) => c.id === cube)?.cube.source.name ?? cube} reads its rows live: its snap `
             + `(${copy.label}) was not read: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -861,10 +869,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // the record by DataCube's one rule (savedRecord: Python's save() asks it too): over the saved page it is, or, Save
       // As, a new one; the page named as it is saved
       const { record: _was, ...asItself } = doc;
-      const record = savedRecord(name, asNew ? asItself : doc, crypto.randomUUID());
+      const saving = asNew ? asItself : doc;
+      const record = savedRecord(name, saving, crypto.randomUUID());
       if ('refused' in record) throw new Error(record.refused);
       const id = record.id;
-      if (id === page.record) await store.update(id, record);
+      if (savesOver(saving)) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
       current = { ...current, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
@@ -1371,10 +1380,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
       // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
       const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
-      const { rebuiltCommands } = await import('../page-commands.ts');
-      for (const command of opened ? rebuiltCommands(said.page, opened, taken) : []) channel?.edit({ page: command });
-      // a snapped grid whose copy was not read here reads its rows live: told so (the S7 audit's G-3)
-      for (const grid of unread) channel?.edit({ page: { kind: 'live', grid } });
+      const { applyPageCommands, rebuiltCommands } = await import('../page-commands.ts');
+      // a snapped grid whose copy was not read here reads its rows live: told so (the S7 audit's G-3) -- first, so a
+      // grid it leaves over frames that changed meanwhile is told rebuilt too, as Python's Grid.live tells both (the S7
+      // confirmation audit's H2-4: judged against the copy, it never was)
+      const lives = unread.map((grid): PageCommand => ({ kind: 'live', grid }));
+      for (const command of lives) channel?.edit({ page: command });
+      const base = lives.length > 0 ? applyPageCommands({ page: said.page, held: said.held }, lives).draft.page : said.page;
+      for (const command of opened ? rebuiltCommands(base, opened, taken) : []) channel?.edit({ page: command });
       // the page as it opened, written once it settles (restoring is a change): Python's page is what is on screen
       liveChanged();
       return undefined;
@@ -1413,7 +1426,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             cubes: page.cubes.length,
             follow: (commands, makers) => page.follow(commands, makers),
             applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
-            open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid]),
+            open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid], true),
             frameVersion: (frame) => sources.frameVersion(frame),
           });
           await page.ready();

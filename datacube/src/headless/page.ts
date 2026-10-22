@@ -5,8 +5,8 @@
 
 import { CubeDocumentError, cubeCopied, cubeToJson, readCube } from '../cube-document.ts';
 import {
-  gridCopyOf, newPage, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage,
-  readSaved, savedPage, savedRecord, suggestedName, type ChartView, type PageDocument,
+  gridCopyOf, newPage, noneOpened, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage,
+  readSaved, savedPage, savedRecord, savesOver, suggestedName, type ChartView, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, opensAgain, readPageCommand, type PageCommand } from '../page-commands.ts';
@@ -29,7 +29,10 @@ import { defaultLabel } from '../../../engine-client/src/snap.ts';
  */
 export function pageRead(text: string): string {
   try {
-    return JSON.stringify({ page: pageToJson(savedPage(readSaved(text))) });
+    // a page read as a file or a document is no saved record (B13), as the tab's Open… of a file or text opens one: a
+    // page opened by its id holds that record by its savedAs (Python's Page.open) -- the S7 confirmation audit's Y2-3
+    const { record: _saved, ...read } = savedPage(readSaved(text));
+    return JSON.stringify({ page: pageToJson(read) });
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -79,8 +82,10 @@ export function pageRecord(fresh: string, name: string | null, text: string): st
     if (page.cubes.length === 0) return JSON.stringify({ problems: [NOTHING_TO_SAVE] });
     // a name given, else the one the Save window suggests (D11: an unnamed page, its first sheet's)
     const made = savedRecord(name ?? suggestedName(page), page, fresh);
+    // `over`: saved over the record it is, else made a new one (savesOver, the tab's Save's rule)
     return 'refused' in made ? JSON.stringify({ problems: [made.refused] })
-      : `{"record":${JSON.stringify(toJson(made))},"id":${JSON.stringify(made.id)},"name":${JSON.stringify(made.name)}}`;
+      : `{"record":${JSON.stringify(toJson(made))},"id":${JSON.stringify(made.id)},"name":${JSON.stringify(made.name)},`
+        + `"over":${JSON.stringify(savesOver(page))}}`;
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -94,7 +99,7 @@ export function pageRecord(fresh: string, name: string | null, text: string): st
  * A page with no cube is shown and followed (D2), never saved (pageSaved): Python's first grid makes it one DataCube
  * saves.
  */
-export function pageNew(name: string | null): string {
+export function pageNew(name: unknown): string {
   if (name === null) return JSON.stringify({ page: pageToJson(newPage()) });
   const given = givenName('page', name);
   if ('refused' in given) return JSON.stringify({ problems: [given.refused] });
@@ -109,7 +114,7 @@ const PARTS: readonly NamedPart[] = ['page', 'tile', 'sheet'];
  * renames ask too) -- so Python names nothing by a rule of its own. JSON: `{name}` (null: a sheet's blank, none of its
  * own) or `{problems}`, why it was refused, in DataCube's words.
  */
-export function nameGiven(part: string, text: string): string {
+export function nameGiven(part: string, text: unknown): string {
   if (!PARTS.includes(part as NamedPart)) throw new Error(`a name is a page's, a tile's or a sheet's, not a ${part}'s`);
   const given = givenName(part as NamedPart, text);
   return JSON.stringify('refused' in given ? { problems: [given.refused] } : { name: given.name ?? null });
@@ -210,6 +215,15 @@ function chartOf(doc: PageDocument, chart: string): ChartView | string {
  */
 export function cubeOpensAgain(page: string, cube: string): string {
   return JSON.stringify(opensAgain(heldPage(page), cube));
+}
+
+/**
+ * A PAGE `name` OPENED WITH `opened` OF ITS CUBES OPENED: why it is not opened, in the tab's words (page-document.ts
+ * noneOpened, the tab's Open…'s rule), or null -- what Python's load asks once each cube is opened or left out (the S7
+ * confirmation audit's Y2-2). JSON: the words, or null.
+ */
+export function pageNoneOpened(name: string, opened: number): string {
+  return JSON.stringify(noneOpened(name, opened) ?? null);
 }
 
 /**

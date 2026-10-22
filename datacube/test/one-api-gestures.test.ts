@@ -761,7 +761,8 @@ const GESTURES: readonly Gesture[] = [
     name: 'every group collapsed, a grid opened to its level',
     setUp: async () => {
       const g = await twoGrids();
-      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'group', rows: ['desk'] }, { kind: 'configure', patch: { initialExpandToLevel: 1 } }], 'Level'), null);
+      // two row groups: the level opens the first's groups (it never opens the deepest: the S7 confirmation audit's G2-4)
+      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'group', rows: ['region', 'desk'] }, { kind: 'configure', patch: { initialExpandToLevel: 1 } }], 'Level'), null);
       await settle();
       return g;
     },
@@ -792,7 +793,6 @@ const L2_GAPS: Record<string, Partial<Record<Check, Gap>>> = {};
 
 /** The command kinds no gesture here tells, each by its item or why: the screen makes none, or none is driven yet. */
 const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?: string }> = {
-  measures: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" },
   // the model home is not in this harness: page-commands.test.ts holds what the screen tells (modelCommands), and
   // python/tests/test_model.py the commands Python's model actions apply
   modelInto: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
@@ -801,8 +801,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   // a cube opened again over its frames as they are now: told as a host's page opens (test/python-engine), and by Python
   rebuilt: { items: [], why: "opening a host's page whose frame changed in place: test/python-engine, python/tests/test_page.py" },
 };
-/** No gesture leaves: the list only grows (a gesture taken off is a check taken off). */
-const GESTURES_AT_LEAST = 40;
+/** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
+ *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it. */
+const GESTURES_AT_LEAST = 51;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

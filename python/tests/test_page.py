@@ -92,7 +92,8 @@ class Document(Paged):
         page = ll.Page('Set up')
         page.grid(trades(), name='set_trades', rows=['region'], columns=['desk'], measures=[('notional', 'sum')],
                   sort=[('region', 'asc')], dimensions=['pnl'])
-        self.assertEqual([c['kind'] for c in page._commands], ['column', 'group', 'pivot', 'measures', 'sorts'])
+        # a measure by the steps a person makes it by (Column Properties' Aggregation): no command of its own (F72)
+        self.assertEqual([c['kind'] for c in page._commands], ['column', 'group', 'pivot', 'column', 'sorts'])
         with self.assertRaisesRegex(ValueError, r'^a measure is a pair: its column and its aggregate, not '
                                                 r'\["notional","sum","pnl"\]$'):
             page.grid(trades(), name='odd_trades', measures=[('notional', 'sum', 'pnl')])
@@ -211,6 +212,25 @@ class Document(Paged):
         self.assertNotEqual(other.save(), first)
         with self.assertRaises(ValueError):
             page.save(name=' ')
+
+    def test_a_page_loaded_from_another_pages_document_is_a_page_of_its_own(self):
+        # (the S7 confirmation audit's Y2-3) the document carries the record the other page was saved as; loaded, a page
+        # holds none -- as the tab's Open... of a file or text -- so its save is a new saved page, the other's as it was
+        from legend_lite.engine import Engine
+        page, _, _ = self.built()
+        first = page.save()
+        other = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertNotIn('record', other.to_dict())
+        other.name = 'Q4'
+        second = other.save()
+        self.assertNotEqual(second, first)
+        engine = Engine(ll.Frames())
+        self.assertEqual(json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{first}', '', None).body)['name'],
+                         'Q3 review', "the other page's saved page as it was")
+        # opened by its id, it holds that record, by its command (savedAs): saved again, over it
+        opened = ll.Page.open(second, frames={'trades': trades()})
+        self.assertEqual(opened.to_dict()['record'], second)
+        self.assertEqual(opened.save(), second)
 
     def test_a_page_nobody_named_is_unnamed_and_saved_under_its_first_sheets_name(self):
         # one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B3): unnamed, as the tab's Blank Page -- no name in the
@@ -995,8 +1015,18 @@ class Document(Paged):
             page.name = '  '
         with self.assertRaisesRegex(ValueError, "a page's name: a page's name is not blank"):
             ll.Page('  ')
-        with self.assertRaisesRegex(ValueError, 'is a name, not 3'):
+        # what is not text: refused in DataCube's words, as its commands' readers refuse it (the S7 confirmation audit's
+        # Y2-4: Python refused it in words of its own)
+        with self.assertRaisesRegex(ValueError, "a tile's title is text, not 3"):
             grid.title = 3
+        with self.assertRaisesRegex(ValueError, "a page's name is text, not null"):
+            page.name = None
+        with self.assertRaisesRegex(ValueError, "a page's name is text, not 5"):
+            ll.Page(5)
+        with self.assertRaisesRegex(ValueError, "a sheet's name is text, not 5"):
+            page.sheet(5)
+        with self.assertRaisesRegex(ValueError, "a tile's title is text, not 5"):
+            grid.copy(title=5)
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
         # ... a sheet's blank is none of its own (named after its first grid), as the screen's rename makes it; a name
         # is kept trimmed, as the screen keeps one
@@ -1228,6 +1258,35 @@ class Abilities(Paged):
         grid.sorts([])
         self.assertEqual(grid._query['sorts'], [])
 
+    def test_a_header_click_s_sort_is_turned_by_the_screen_s_one_rule(self):
+        # (the user, 2026-10-22: one sort API the screen's click and a program call) grid.toggle_sort: the header click's
+        # command, made by DataCube's rule (headless gridHeaderSort), applied by the one rule every sort is (clickSort)
+        page = ll.Page('Clicked')
+        grid = page.grid(trades(), name='clicked_trades')
+        sorts = lambda: [(s['column'], s['direction']) for s in grid._query['sorts']]  # noqa: E731
+        # a number from the largest, then the other way, then none
+        grid.toggle_sort('notional')
+        self.assertEqual(sorts(), [('notional', 'desc')])
+        self.assertEqual(page._commands[-1], {'kind': 'clickSort', 'column': 'notional', 'first': 'desc', 'chained': False})
+        self.assertEqual(self.notionals(grid), [250.0, 100.0, 75.5])
+        grid.toggle_sort('notional')
+        self.assertEqual(sorts(), [('notional', 'asc')])
+        grid.toggle_sort('notional')
+        self.assertEqual(sorts(), [])
+        # text from A; chained, after the others; alone, every other taken off
+        grid.toggle_sort('notional')
+        grid.toggle_sort('desk', chained=True)
+        self.assertEqual(sorts(), [('notional', 'desc'), ('desk', 'asc')])
+        grid.toggle_sort('region')
+        self.assertEqual(sorts(), [('region', 'asc')])
+        # the groups' order, as the tree column's header turns it
+        grid.group(['region'])
+        grid.toggle_group_sort()
+        self.assertEqual(page._commands[-1], {'kind': 'clickTreeSort', 'chained': False})
+        self.assertEqual(sorts(), [])
+        with self.assertRaisesRegex(ValueError, r"'nope' is no header of the grid \("):
+            grid.toggle_sort('nope')
+
     def test_a_condition_is_added_to_its_filter_and_ed_with_what_it_has(self):
         # (K2) grid.add_filter: a cell's Add Filter (addFilter), the condition built as grid.filter builds one
         page = ll.Page('Filtered')
@@ -1454,12 +1513,16 @@ class Abilities(Paged):
         before = page.to_dict()
         self.assertEqual(follows.grid().id, grid.id)
         self.assertEqual(page.to_dict(), before, 'the page as it is')
+        # its grid opened to a level by its settings: a grid of its own opens to it too, as the screen's Show Grid's does
+        # (the one tree rule, cube-document.ts newGridTree: the S7 confirmation audit's G2-5)
+        grid.configure({'initialExpandToLevel': 1})
         # a frozen chart, its mark selected: a grid of its own grouping, its values the grid's Column Properties
         frozen = grid.chart('bar', x='desk', y=[('pnl', 'max')])
         frozen.select('Rates')
         own = frozen.grid()
         self.assertNotEqual(own.id, grid.id)
         self.assertEqual(own._query['rows'], ['desk'])
+        self.assertEqual(next(c['cube'] for c in page.to_dict()['cubes'] if c['id'] == own._view['cube'])['tree'].get('expandTo'), 1)
         self.assertEqual(groups_of(own.view(), 'pnl'), {'FX': 1.5, 'Rates': 0.25}, "its values: each desk's most pnl")
         self.assertEqual([c['kind'] for c in page._page_commands[-3:]], ['addGrid', 'followGrid', 'setChart'])
         self.assertEqual(frozen._view['cube'], own._view['cube'])
@@ -2042,6 +2105,19 @@ class Joined(Paged):
         self.assertTrue(any('floor' in str(w.message) for w in said), [str(w.message) for w in said])
         # every column of theirs kept (keep None): the new one among them, under its own name (mine has none of it)
         self.assertIn('floor', list(grid.to_pandas().columns))
+
+    def test_a_join_that_no_longer_joins_is_left_out_as_the_tab_leaves_it_out(self):
+        # (the S7 confirmation audit's Y2-1) a frame served without the column it joins on: the join fails as its plan
+        # does, no refusal -- left out and said, as the tab's Open... leaves it out, the page's other grids opened
+        page, joined = self.joined()
+        saved = page.to_dict()
+        name = next(c['cube']['source']['name'] for c in saved['cubes'] if c['cube']['source']['_type'] == 'join')
+        with warnings.catch_warnings(record=True) as said:
+            warnings.simplefilter('always')
+            loaded = ll.Page.load(saved, frames={'trades': trades(), 'desks': desks().rename(columns={'desk': 'team'})})
+        self.assertTrue(any(str(w.message).startswith(f'left out: {name} (') for w in said), [str(w.message) for w in said])
+        self.assertEqual(len(loaded.grids), 3, 'kept as the page saved it')
+        self.assertEqual(len(loaded.grids[0].to_pandas()), len(trades()))
 
     def test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11: the tab's Join… on a page Python serves, which has no database of
@@ -2691,12 +2767,11 @@ class OverClasses(Paged):
     def test_a_class_its_model_home_does_not_hold_is_refused_in_words(self):
         _, doc = self.classed()
         doc['cubes'][0]['cube']['source']['revision'] = 'no-such-revision'
-        # left out as the page opens, said (the S7 audit's H-6), and refused in words when its grid is asked
-        with self.assertWarnsRegex(UserWarning, 'left out: Trade'):
-            loaded = ll.Page.load(doc)
-        with self.assertRaisesRegex(Exception, 'Trade is a class of .*, which this host\'s model home cannot read at '
-                                               'revision no-such-revision'):
-            loaded.grids[0].view()
+        # left out as the page opens, said in DataCube's words (the S7 audit's H-6) -- and, its only grid, the page not
+        # opened, as the tab's Open... refuses a page none of whose sources opened (the S7 confirmation audit's Y2-2)
+        with self.assertWarnsRegex(UserWarning, 'left out: Trade .*cannot read at revision no-such-revision'), \
+                self.assertRaisesRegex(ValueError, '^not opened: "Classes" -- none of its sources was opened$'):
+            ll.Page.load(doc)
 
 
 class OverWarehouse(Paged):

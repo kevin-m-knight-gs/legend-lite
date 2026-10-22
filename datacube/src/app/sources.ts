@@ -197,9 +197,11 @@ export interface PageSources {
   /**
    * A saved cube's source opened again, the least intrusive way that works; undefined when the person gave up. `page`:
    * the saved page it is opened from, whose kept handles its files are read from (file-handles.ts handleKey); `tables`:
-   * the names its page's model keeps for its leaves' tables (a join's each, in its leaves' order).
+   * the names its page's model keeps for its leaves' tables (a join's each, in its leaves' order); `served`: a grid of
+   * the page its other editor (Python) serves, whose every source the host holds where it reads it.
    */
-  reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[]): Promise<Opened | undefined>;
+  reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[],
+    served?: boolean): Promise<Opened | undefined>;
   /** A saved query's record -- from a store, or as a share link carries it -- as a cube's source. */
   openedRecord(q: SavedQueryRecord): Promise<OpenedQuery>;
   /** A frame of the host's (Python's dataframe) for a grid: fresh, or a saved cube rebuilt over it. */
@@ -1089,10 +1091,16 @@ export function pageSources(d: SourcesOf): PageSources {
    * A saved cube's source opened again, the least intrusive way that works (a file asked for, a saved query rerun, a
    * warehouse signed in to, a remote file's keys asked for): its grid's maker, or undefined when the person gave up.
    */
-  async function reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[]): Promise<Opened | undefined> {
+  async function reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[],
+    served = false): Promise<Opened | undefined> {
     const src = doc.source;
-    // on a host's page (Python's), every kind but a frame's opened by the host, where it reads it (H-2, H-3)
-    if (!local && database.opened && src._type !== 'frame') return openedOnHost(src, doc, several);
+    // a grid of the page its other editor serves: every kind but a frame's opened by the host, where it reads it (H-2,
+    // H-3). A page of this tab's own on a host opens its sources the tab's way -- the host holds only what was read
+    // there this session, and refuses a file it does not (the S7 confirmation audit's H2-1)
+    if (served && src._type !== 'frame') {
+      if (!database.opened) throw new Error(`${src.name} is the host's, and this page reaches no host`);
+      return openedOnHost(src, doc, several);
+    }
     // `several`: one of a page's grids, its columns panel folded as a grid added beside others is
     if (src._type === 'savedQuery') return openedSavedQuery(await openedRecord(src.query), doc, several);
     if (src._type === 'warehouseTable') return reopenTable(src, doc, several);
@@ -1104,6 +1112,8 @@ export function pageSources(d: SourcesOf): PageSources {
     // a join's files are its leaves': each read from where the page kept it, as a file's grid's is, under the name its
     // page's model keeps for it
     if (src._type === 'join') {
+      // on a host's page, the host opens it over the tables it holds -- this page has no database or compiler of its own
+      if (!local && database.opened) return openedOnHost(src, doc, several);
       return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}) });
     }
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);

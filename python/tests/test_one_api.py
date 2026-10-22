@@ -225,7 +225,7 @@ class Static(unittest.TestCase):
         found = Counter()
         unadmitted = []
         for path in (PAGE, ENGINE, SESSION):
-            for node, where, _ in _where(ast.parse(path.read_text('utf-8'))):
+            for node, where, scope in _where(ast.parse(path.read_text('utf-8'))):
                 if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                         and node.func.attr in ('keep', 'write', 'settle', 'restore', 'forget')
                         and 'keeper' in ast.unparse(node.func.value)):
@@ -234,6 +234,12 @@ class Static(unittest.TestCase):
                     admit = node.args[3] if len(node.args) > 3 else next((k.value for k in node.keywords if k.arg == 'admit'), None)
                     if node.func.attr == 'settle' and (admit is None or 'unadmitted' not in ast.unparse(admit)):
                         unadmitted.append(f'{path.name}:{where}')
+                    # a page written whole is admitted by the same rule, by the function that restores it (the S7
+                    # confirmation audit's Y2-6: Python's own restore was not)
+                    if node.func.attr == 'restore' and (scope is None or not any(
+                            isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'unadmitted'
+                            for n in ast.walk(scope))):
+                        unadmitted.append(f'{path.name}:{where}:restore')
         _held_to(self, found, L9_KEEPER, 'keeper writers', 'L9_KEEPER')
         self.assertEqual(unadmitted, [], 'a write settled without the admission every editor\'s write takes (Frames.unadmitted)')
 

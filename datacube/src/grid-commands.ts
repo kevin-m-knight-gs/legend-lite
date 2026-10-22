@@ -11,7 +11,7 @@ import {
   type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
-  addSort, allColumns, clearSort, clickSort, clickTreeSort, measureAsColumn, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
+  addSort, allColumns, clearSort, clickSort, clickTreeSort, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
   setSorts, spreadMeasureNames, type ColumnChange, type GridDraft,
 } from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
@@ -61,8 +61,6 @@ export type GridCommand =
    *  for the one it has now) -- each condition taken off where it stands, the rest of the filter kept as it is. */
   | { readonly kind: 'refilter'; readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] }
   | { readonly kind: 'calculate'; readonly level: 'row' | 'group'; readonly column: DerivedColumn }
-  /** Measures as columns (Python's measure and grid(measures=...)): an Aggregation, or a copy under its own name. */
-  | { readonly kind: 'measures'; readonly measures: readonly Measure[] }
   /** A calculated column edited (Edit Column's OK): the column `name` replaced by `column`, computed at `level` -- in its
    *  place when it stays at its level, else last of its new one; renamed, what read it (the groups, the pivot, the sorts,
    *  the filter, the columns computed from it, its settings) reads it by its new name. */
@@ -78,7 +76,7 @@ export type GridCommand =
 
 export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
-  'refilter', 'calculate', 'measures', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
+  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
@@ -86,7 +84,7 @@ export const GRID_COMMAND_FIELDS = {
   group: ['rows'], pivot: ['columns'], sorts: ['sorts'], addSort: ['column', 'direction'], clearSort: ['column'],
   clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
   filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column'],
-  measures: ['measures'], editCalculated: ['name', 'level', 'column'], removeCalculated: ['name'], open: ['path', 'open'],
+  editCalculated: ['name', 'level', 'column'], removeCalculated: ['name'], open: ['path', 'open'],
   collapseAll: [],
 } as const satisfies CommandFields<GridCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -159,18 +157,6 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
       // another column reading it: the compiler refuses the grid, in its words, when the change is planned
       return { ...draft, snapshot: { ...s, derived: s.derived.filter((d) => d.name !== command.name),
         groupDerived: (s.groupDerived ?? []).filter((d) => d.name !== command.name) } };
-    }
-    case 'measures': {
-      // each as Python's measure() asks it, refused in words (a converting open is lenient; a command is not): a column
-      // a measure of the list already aggregates is taken, so another of it is a copy under its own name
-      let d = draft;
-      const taken = new Set<string>();
-      for (const m of command.measures) {
-        const one = measureAsColumn(d, m, taken);
-        if (one.made.column === m.column) taken.add(m.column);
-        d = one.draft;
-      }
-      return d;
     }
     case 'open': {
       if (command.path.length === 0) throw new CubeRefusal('the grand total is no group to open: it is shown or not (Show Root Aggregation)');
@@ -570,6 +556,18 @@ function calculatedFrom(v: unknown): DerivedColumn {
  * the kind takes, each of its type -- or refused in words. What the fields NAME (a column the grid has, a setting
  * DataCube knows) is the apply's to judge, as it judges the screen's.
  */
+/** A measure as JSON carries one (`{name, column, fn[, weight]}`: Python's grid.measure, page.grid's measures) read, or
+ *  refused in words. */
+export function readMeasure(m: unknown): Measure {
+  if (!isObject(m)) throw new CubeRefusal(`a measure is {name, column, fn[, weight]}, not ${JSON.stringify(m)}`);
+  return {
+    name: textFrom(m['name'], "a measure's name").trim(),
+    column: textFrom(m['column'], "a measure's column"),
+    fn: aggregateFrom(m['fn']),
+    ...(m['weight'] !== undefined ? { weight: textFrom(m['weight'], "a measure's weight") } : {}),
+  };
+}
+
 export function readGridCommand(given: unknown): GridCommand {
   if (!isObject(given) || typeof given['kind'] !== 'string') {
     throw new CubeRefusal(`a grid's command is {kind, ...}, its kind one of ${GRID_COMMAND_KINDS.join(', ')}, not ${JSON.stringify(given)}`);
@@ -664,19 +662,6 @@ export function readGridCommand(given: unknown): GridCommand {
     case 'collapseAll':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind };
-    case 'measures': {
-      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
-      if (!Array.isArray(o['measures'])) throw new CubeRefusal('the measures are a list');
-      return { kind, measures: o['measures'].map((m) => {
-        if (!isObject(m)) throw new CubeRefusal(`a measure is {name, column, fn[, weight]}, not ${JSON.stringify(m)}`);
-        return {
-          name: textFrom(m['name'], "a measure's name").trim(),
-          column: textFrom(m['column'], "a measure's column"),
-          fn: aggregateFrom(m['fn']),
-          ...(m['weight'] !== undefined ? { weight: textFrom(m['weight'], "a measure's weight") } : {}),
-        };
-      }) };
-    }
     default:
       throw new CubeRefusal(`'${kind}' is not a grid's command: ${GRID_COMMAND_KINDS.join(', ')}`);
   }

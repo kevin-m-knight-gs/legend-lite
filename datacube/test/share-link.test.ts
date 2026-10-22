@@ -125,6 +125,13 @@ describe('a link gives back EXACTLY the page', () => {
     assert.match(pageDefinitionText(got), /10000\.50/, 'the decimal kept exactly');
   });
 
+  it("a saved page's link carries no record of the person's store (the S7 confirmation audit's H2-3)", () => {
+    const p = page(12);
+    const read = readPageFragment(pageFragment({ ...p, record: 'r-1' }));
+    assert.equal(read.record, undefined);
+    same(p, read);
+  });
+
   it('with or without its #; and a link read from a whole address', () => {
     const p = page(12);
     const link = shareLink('http://127.0.0.1:8000/demo/index.html?plane=local#stale', p);

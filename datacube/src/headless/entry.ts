@@ -9,13 +9,13 @@ import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/le
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridDimension, gridExport,
-  gridFilter, gridOpened, gridPreset, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused, sourceCube,
+  gridFilter, gridHeaderSort, gridMeasure, gridOpened, gridPreset, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  chartDrill, chartPick, cubeOpensAgain, gridCopied, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, cubeOpensAgain, gridCopied, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageWithCube, pageWritten,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides } from './join.ts';
@@ -44,6 +44,9 @@ export { gridAddFilter, gridCopied };
  *  grid.calculate, window, child_aggregate, explode) -- a preset as the header menu adds one (gridPreset: grid.grain,
  *  show_as, bins), and a named dimension used or drilled (gridDimension: grid.dimension, drill, drill_up). */
 export { gridColumn, gridDimension, gridPreset };
+/** A header's sort click, as the screen's click makes it (gridHeaderSort: Python's grid.toggle_sort, toggle_group_sort),
+ *  and measures made by a person's own steps (gridMeasure: Python's grid.measure). */
+export { gridHeaderSort, gridMeasure };
 
 /** A new grid's cube over a class, a saved query or a warehouse table, as the tab adds one (sourceCube: Python's
  *  `page.grid(cls=...)`, `page.grid(query=...)`, `page.grid(warehouse=...)`; X4). */
@@ -78,8 +81,9 @@ export { layoutBands, layoutTiles };
 export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
 /** A page saved in the page store as it opens (pageOfRecord: the tab's Open…, Python's Page.open). */
 export { pageOfRecord };
-/** Whether a page's cube opens again over its source as it is now (cubeOpensAgain: a snapped grid's does not). */
-export { cubeOpensAgain };
+/** Whether a page's cube opens again over its source as it is now (cubeOpensAgain: a snapped grid's does not); why a
+ *  page none of whose cubes opened is not opened (pageNoneOpened: the tab's Open…'s rule, Python's load's). */
+export { cubeOpensAgain, pageNoneOpened };
 /** A chart's mark selected, as a click selects one (chartPick: Python's chart.select), and a chart drilled down into a
  *  mark or back up, as a double-click and the crumbs drill (chartDrill: chart.drill, chart.drill_up). */
 export { chartDrill, chartPick };

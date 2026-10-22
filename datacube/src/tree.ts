@@ -164,6 +164,15 @@ export class TreeState {
     return [...this.#open];
   }
 
+  /**
+   * Whether a group may be open in a grid of `depth` row groups: one opened by hand, or one its expand level opens --
+   * which never opens the deepest (isOpen), so a grid of one row group opened to a level has none (the S7 confirmation
+   * audit's G2-4: Collapse All offered there changed nothing a person sees).
+   */
+  opensAny(depth: number): boolean {
+    return this.#open.size > 0 || (this.#expandTo > 0 && depth > 1);
+  }
+
   /** Groups the user closed that the expand level would otherwise open. */
   get closedPaths(): string[] {
     return [...this.#closed];

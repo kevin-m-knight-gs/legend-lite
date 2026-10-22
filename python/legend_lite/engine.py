@@ -1647,9 +1647,6 @@ class Engine:
                 or ('edits' in written and not isinstance(written['edits'], list)):
             return _said(400, 'a page\'s write is {"edits": [<its edits>]} -- or, an undo or a redo, {"restore": <the page>}')
 
-        # the keeper's admission of a page by what it reads: the one rule Python's own writes are admitted by too
-        unserved = self.frames.unadmitted
-
         try:
             if 'restore' in written:
                 # asked for holding nothing (the session's lock first, then the frames')
@@ -1657,7 +1654,8 @@ class Engine:
                 if 'problems' in said:
                     return _said(422, '; '.join(said['problems']))
                 reads = said['reads']
-                refused = unserved(reads)
+                # the keeper's admission of a page by what it reads: the one rule Python's own writes are admitted by too
+                refused = self.frames.unadmitted(reads)
                 if refused is not None:
                     return _said(422, refused)
                 settled = Settled(self.keeper.restore(name, int(version), _json.loads(said['page']), reads, reads['ids']),

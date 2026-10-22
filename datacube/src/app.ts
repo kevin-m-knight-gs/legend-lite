@@ -47,7 +47,8 @@ import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, firstSortDirection, headerSorts, type GridDraft } from './grid-edits.ts';
+import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
+import { headerSortCommand } from './header-sort.ts';
 import { applyGridCommands, draftCommands, type GridCommand, type SettingsPatch } from './grid-commands.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
@@ -1082,6 +1083,9 @@ export class CubeApp {
         // an undo or a redo of a presentation change (a width, a format): no command says it, so the page is written
         // whole, a restore (N2), as a move that queries is when it commits (the S7 audit's G-1)
         if (event.moved) {
+          // what was kept to tell again after a change it laid over is in the page written whole, or undone with it
+          // (the S7 confirmation audit's G2-1)
+          this.#untold = [];
           this.#options.onRestore?.();
           return;
         }
@@ -2033,8 +2037,8 @@ export class CubeApp {
           ? this.#shown.rows.includes(column)
           : false,
         hasSelection: this.#selection !== null,
-        // a group open by hand, or the level its settings open it to: Collapse All closes both (the S7 audit's G-5)
-        hasExpanded: this.#owner.current.tree.openPaths.length > 0 || this.#owner.current.tree.expandTo > 0,
+        // a group open by hand, or by the level its settings open it to: Collapse All closes both (the S7 audit's G-5)
+        hasExpanded: this.#owner.current.tree.opensAny(this.#shown.rows.length),
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
         ...(this.#config.pivotStatisticColumnName !== undefined
@@ -2331,15 +2335,17 @@ export class CubeApp {
    * The tree column orders the groups, and turns their order (clickTreeSort). A pivot total sorts as any column.
    */
   #sortByHeader(column: string, chained: boolean): void {
-    if (column === TREE_COLUMN) {
-      void this.#apply([{ kind: 'clickTreeSort', chained }], 'sort the groups');
+    // the click's command by the one rule Python's grid.toggle_sort asks too (header-sort.ts headerSortCommand): its
+    // first direction the type the compiler gave the header, which only the view has
+    let command: GridCommand;
+    try {
+      command = headerSortCommand(this.#view?.columns.leaves ?? [], column, chained);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
       return;
     }
-    // the click's first direction is the type the compiler gave the header, which only the view has: a pivot's header
-    // and a count of text are numbers (grid-edits.ts firstSortDirection)
-    const type = this.#view?.columns.leaves.find((l) => l.name === column)?.type;
-    void this.#apply([{ kind: 'clickSort', column, first: firstSortDirection(type), chained }],
-      `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
+    void this.#apply([command], column === TREE_COLUMN ? 'sort the groups' : `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
   }
 
   /**
@@ -2761,10 +2767,12 @@ export class CubeApp {
       refilter: (old, add, label) => {
         void this.#apply([{ kind: 'refilter', remove: [...old], add: [...add] }], label);
       },
-      // a chart's selection off this grid as a page step took it off (the page's unselected): another editor's change, as
-      // it were -- never told back, no step of its own history
-      unselected: (old) => {
-        void this.applyGridCommands([{ kind: 'refilter', remove: [...old], add: [] }], 'Chart Removed');
+      // a chart's selection off this grid as a page step took it off (the page's unselected): another editor's step,
+      // followed as its change is -- never told back, no step of its own history; the person's own, a step of this
+      // grid's, told after any of its own still running (the S7 confirmation audit's G2-2, B2-3)
+      unselected: (old, theirs) => {
+        const off: GridCommand[] = [{ kind: 'refilter', remove: [...old], add: [] }];
+        void (theirs ? this.applyGridCommands(off, 'Chart Removed') : this.#apply(off, 'Chart Removed'));
       },
       spawn: (host, snapshot, spawned) => {
         const o = this.#options;

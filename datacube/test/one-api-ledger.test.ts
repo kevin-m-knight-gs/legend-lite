@@ -88,9 +88,15 @@ interface Entry {
 // of the host's `current`, an optional call of a listed gap (`blankPage?.(`), savedAs as a told command; the grid's
 // state changed through an alias of its owner refused outright; the grid's refreshes (the same state run again) said
 // why they are not listed; the reasons of entries the audit found worded wrong, corrected
+// 2026-10-22 (S7, the user's ask: "why are clickSort exempt? ... a single sort API that UI actions call that also can be
+// called programmatically"): L8_KINDS 3 -> 1 -- a header's sort click is a command made by one rule (header-sort.ts
+// headerSortCommand) the screen's click and Python's grid.toggle_sort / toggle_group_sort ask (headless gridHeaderSort);
+// the "nature" entries were wrong. F71. And L8_KINDS 1 -> 0: Python's measure is made by the steps a person makes it by
+// (grid-measures.ts measureCommands: `column`, or `calculate` and `column`), the `measures` kind deleted -- a page open
+// on it is told what a person's steps tell. F72
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 3, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
+  L8_KINDS: 0, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
 function pinned(name: string, size: number): void {
@@ -221,6 +227,10 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
     assert.deepEqual(Object.fromEntries(following), {
       'src/page/cube-page.ts:#dropChart:unselected': 1, 'src/page/cube-page.ts:#synced:unselected': 1,
     });
+    // the grid's own calls of its way in for another editor's commands (applyGridCommands: no step, nothing told) --
+    // ROUTE_FILES leaves the grid out, so a gesture of its own reaching it changed the grid with nothing told unseen (the
+    // S7 confirmation audit's G2-3): only the selection a page step took off, followed as another editor's step is
+    assert.deepEqual(Object.fromEntries(sites(app, /this\.(applyGridCommands)\(/g)), { 'unselected:applyGridCommands': 1 });
   });
 
   it("a new grid's configuration, made by one rule (G15 closed)", () => {
@@ -255,9 +265,6 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
 type Cell = 'screen' | 'python';
 /** The missing cells of each kind, by item; `nature` where the kind is one side's by its nature (reviewed at S7). */
 const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
-  clickSort: { python: { items: [], why: "nature: a header click is the screen's; Python sorts by `sorts` and `addSort`" } },
-  clickTreeSort: { python: { items: [], why: "nature: the tree column's click is the screen's; Python reaches its states by sorts([]) and configure({'treeColumnSort': ...})" } },
-  measures: { screen: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" } },
 };
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */
@@ -317,8 +324,11 @@ describe('L8: every command kind and source kind, against who makes and reads it
   const filters = SOURCES.read('src/page-filters.ts');
   // its whole body, to its closing brace at the margin (its parameters' type closes at the margin first)
   const pickRule = filters.slice(filters.indexOf('export function chartPicked'), filters.indexOf('\n}\n', filters.indexOf('export function chartPicked')));
+  // 2026-10-22 (the user: one sort API): a header's sort click made by the one rule the screen's click asks too
+  // (header-sort.ts headerSortCommand), which headless gridHeaderSort calls
+  const headerRule = SOURCES.read('src/header-sort.ts');
   const exportMakes = (body: string, kind: string): boolean => made(body, kind) || (/\bnew PageModel\(/.test(body) && made(pageModel, kind))
-    || (/\bchartPicked\(/.test(body) && made(pickRule, kind));
+    || (/\bchartPicked\(/.test(body) && made(pickRule, kind)) || (/\bheaderSortCommand\(/.test(body) && made(headerRule, kind));
 
   it('each command kind is in its list, read by its reader, renamed by the rebase', () => {
     assert.deepEqual(listed(grid, 'GRID_COMMAND_KINDS'), gridKinds, 'GRID_COMMAND_KINDS is every grid command kind');

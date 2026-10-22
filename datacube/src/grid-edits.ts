@@ -351,6 +351,36 @@ export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken
   readonly made: MeasureMade;
   readonly note: string;
 } {
+  const plan = measurePlan(draft, m, taken);
+  if (plan.copy === undefined) {
+    const dimension = converting && columnKind(draft, m.column) === 'dimension';
+    const d = setColumn(dimension ? asMeasure(draft, m.column) : draft, m.column, plan.change);
+    return {
+      draft: d, made: { measure: m, column: m.column },
+      note: `measure ${m.name} is now ${m.column}'s Aggregation, ${m.fn}${dimension ? ` (${m.column} is now a measure)` : ''}`,
+    };
+  }
+  const copy = plan.copy;
+  const d = setColumn({ ...draft, snapshot: { ...draft.snapshot, derived: [...draft.snapshot.derived, copy] } },
+    copy.name, plan.change);
+  // a column kept out of the pivot carries its exclusion; a calculated column has none (its editor sets none): a pivot
+  // spreads the copy
+  const column = rowColumns(draft.snapshot).find((c) => c.name === m.column)!;
+  const keptOut = converting && (columnConfig(draft.config, m.column).excludedFromPivot ?? column.excludedFromPivot) === true;
+  return {
+    draft: d, made: { measure: m, column: copy.name },
+    note: `measure ${m.name} is now a calculated column of ${m.column}, its Aggregation ${m.fn}`
+      + (keptOut ? ` (a pivot spreads it: ${m.column} is kept out of one, a calculated column cannot be)` : ''),
+  };
+}
+
+/**
+ * WHAT ONE MEASURE IS MADE AS (measureAsColumn's rule, and grid-measures.ts measureCommands' -- the screen's own steps,
+ * as commands, for Python's grid.measure): its Aggregation (`change`) set on its own column, or (`copy`) on a calculated
+ * column of its name reading its column. Refused in their words, as measureAsColumn says.
+ */
+export function measurePlan(draft: GridDraft, m: Measure, taken: ReadonlySet<string> = new Set()):
+  { readonly change: ColumnChange; readonly copy?: DerivedColumn } {
   const change: ColumnChange = { aggregate: m.fn, ...(m.weight !== undefined ? { weight: m.weight } : {}) };
   const column = rowColumns(draft.snapshot).find((c) => c.name === m.column);
   if (!column) {
@@ -364,14 +394,7 @@ export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken
       + `${offeredAggregates(column.type).join(', ') || 'none'}${m.fn === 'count' ? " (Show leaf count counts a group's rows)" : ''}`);
   }
   const isKey = draft.snapshot.rows.includes(m.column) || draft.snapshot.pivotOn.includes(m.column);
-  if (m.name === m.column && !isKey && !taken.has(m.column)) {
-    const dimension = converting && columnKind(draft, m.column) === 'dimension';
-    const d = setColumn(dimension ? asMeasure(draft, m.column) : draft, m.column, change);
-    return {
-      draft: d, made: { measure: m, column: m.column },
-      note: `measure ${m.name} is now ${m.column}'s Aggregation, ${m.fn}${dimension ? ` (${m.column} is now a measure)` : ''}`,
-    };
-  }
+  if (m.name === m.column && !isKey && !taken.has(m.column)) return { change };
   const problem = nameProblem(draft.snapshot, 'row', m.name);
   if (problem !== null) throw new CubeRefusal(problem);
   const copy: DerivedColumn = {
@@ -379,16 +402,7 @@ export function measureAsColumn<D extends GridDraft>(draft: D, m: Measure, taken
     // typed as its column is, so its Aggregation is offered by its type now (the compiler types it again on refresh)
     ...(column.type !== undefined ? { type: column.type } : {}),
   };
-  const d = setColumn({ ...draft, snapshot: { ...draft.snapshot, derived: [...draft.snapshot.derived, copy] } },
-    copy.name, change);
-  // a column kept out of the pivot carries its exclusion; a calculated column has none (its editor sets none): a pivot
-  // spreads the copy
-  const keptOut = converting && (columnConfig(draft.config, m.column).excludedFromPivot ?? column.excludedFromPivot) === true;
-  return {
-    draft: d, made: { measure: m, column: copy.name },
-    note: `measure ${m.name} is now a calculated column of ${m.column}, its Aggregation ${m.fn}`
-      + (keptOut ? ` (a pivot spreads it: ${m.column} is kept out of one, a calculated column cannot be)` : ''),
-  };
+  return { change, copy };
 }
 
 /**

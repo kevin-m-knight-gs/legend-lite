@@ -46,7 +46,7 @@ import {
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
-import { openCube, type CubeDocument, type CubeSource } from '../cube-document.ts';
+import { configurationOf, openCube, type CubeDocument, type CubeSource } from '../cube-document.ts';
 import type { GridCopy } from '../page-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
@@ -496,9 +496,14 @@ export class PageApp {
    * one sheet looks as it did, its source's name in the one tab), else "Sheet N".
    */
   #sheetLabel(sheet: SheetInfo): string {
-    // the one rule (page-document.ts sheetLabel), asked of the board: a tile is a grid when the board holds it as one
-    return sheetLabel(sheet, this.#page.sheets.findIndex((s) => s.id === sheet.id),
-      (t) => (this.grid(t) !== undefined && this.#page.grids.has(t) ? { title: this.grid(t)?.configuration.reportTitle } : undefined));
+    // the one rule (page-document.ts sheetLabel), asked of the board: a tile is a grid when the board holds it as one,
+    // or a grid the page could not open, as its page saved it -- the page's grid still, as the rule counts it (the S7
+    // confirmation audit's B2-4: a rename to the label shown was dropped as the label the rule computes)
+    return sheetLabel(sheet, this.#page.sheets.findIndex((s) => s.id === sheet.id), (t) => {
+      if (this.grid(t) !== undefined && this.#page.grids.has(t)) return { title: this.grid(t)?.configuration.reportTitle };
+      const left = this.#unopened.get(t);
+      return left ? { title: configurationOf(left).reportTitle } : undefined;
+    });
   }
 
   /** The sheets, in order (their ids), and the one shown. */
@@ -928,7 +933,7 @@ export class PageApp {
    * has them (a grid it makes opens with them), a grid it makes made by its maker -- the one that made it, or `makers`'
    * (another editor's) -- and each grid's lens given it again.
    */
-  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map()): void {
+  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map(), theirs = false): void {
     // its name as the step has it (a renamePage: its editor's, or another's)
     if (to.name !== this.#name) {
       this.#name = to.name;
@@ -942,7 +947,7 @@ export class PageApp {
       this.#page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, (grid, document) => {
         const make = makers.get(grid);
         return this.#remake(grid, document) ?? (make ? this.#maker(make, undefined, false) : undefined);
-      }, (cube) => this.#unopenedWhy(cube));
+      }, (cube) => this.#unopenedWhy(cube), theirs);
     } finally {
       this.#syncing = false;
       this.#restoring = undefined;
@@ -1002,7 +1007,7 @@ export class PageApp {
     const made = applyPageCommands(this.#state.draft, commands).draft;
     const to = made.page;
     // its name too (a page renamed in Python), by #syncTo: the host reads it back (`title`)
-    this.#syncTo(to, from, makers);
+    this.#syncTo(to, from, makers, true);
     // the page the commands made, whole -- the ids it has held, its cubes -- the start of its history again: before the
     // grids read their rows where the commands say, so an edit made meanwhile is a step on top of it (the S3 audit's 5)
     this.#state = new PageState(made);
@@ -1026,17 +1031,20 @@ export class PageApp {
     const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
     if (!step) return;
     this.#options.onRestore?.();
-    // what the page's model actions wrote stays, no step of its history (D5): a grid brought back brings its own
-    const { model: was, ...back } = step.draft.page;
+    // what the page's model actions wrote stays, no step of its history (D5): a grid brought back brings its own; and
+    // its name and the saved page it is (renamePage, savedAs: no steps either) -- an undo past a Save saves over the
+    // same record, under the name it has (the S7 confirmation audit's H2-2)
+    const { model: was, name: _named, record: _saved, ...back } = step.draft.page;
     const model = modelAcross(was, from.model, back.cubes);
-    this.#syncTo(model ? { ...back, model } : back, from);
+    const across = { ...back, name: from.name, ...(from.record !== undefined ? { record: from.record } : {}) };
+    this.#syncTo(model ? { ...across, model } : across, from);
     // its grids keep their own history (G8): a chart brought back with a selection its grid's filter lost meanwhile has
     // it put back by that grid's own refilter, as a click puts it there
     for (const { grid, command } of selectionRefilters(step.draft.page, (cube) => this.grid(cube)?.snapshot.filter)) {
       void this.grid(grid)?.edit([command], 'filter to chart mark');
     }
     // the screen is the page: what it now shows is the state's (a grid made again writes its own cube)
-    this.#state.keep(this.#seen());
+    this.#state.keep(this.#seen(from.record));
     this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${step.label}.`);
   }
 
