@@ -19,6 +19,7 @@ import { classAction, classSamples, keyUnique, noRow } from './model-plans.ts';
 import { associationDialog } from './ui/association-dialog.ts';
 import { dataSpaceDialog, type DataSpaceChoice, type DataSpaceGrid } from './ui/data-space-dialog.ts';
 import type { CreatedClass } from './ui/class-dialog.ts';
+import { writerClass } from './class-source.ts';
 
 /** A grid of the page, as the actions read it. */
 export interface PageGrid {
@@ -180,7 +181,7 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<readonly Pag
         // a class of the project: its relation function over the project's files
         const j = last?.joinable.find((x) => x.class === cls);
         const column = j?.keys.find((k) => k.name === on)?.column;
-        const made = lastChoice?.made.find((m) => `${pkg}::domain::${m.className}` === cls);
+        const made = lastChoice?.made.find((m) => writerClass(pkg, m.className) === cls);
         if (made === undefined && j?.function !== undefined && column !== undefined && state.text !== '') {
           return keyUnique(facts, last!.joinable, cls, on, o);
         }
@@ -215,7 +216,7 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<readonly Pag
         for (const m of choice.made) {
           const g = o.grids.find((x) => x.id === m.id);
           if (!g || 'refused' in g.made) continue;
-          model.keep(g.id, g.made.kept, `${into.package}::domain::${m.className}`);
+          model.keep(g.id, g.made.kept, writerClass(into.package, m.className));
         }
         const kept = await o.persist();
         const at = model.ref ?? { project: done.project, workspace: done.workspace };

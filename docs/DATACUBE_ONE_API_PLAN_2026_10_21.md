@@ -511,9 +511,13 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   file a page reads, checked against its hash, a file not given refused in words, a remote file mounted again by URL
   (page-rebase.test.ts, test_keeper.py `test_each_file_a_page_read_is_kept_by_the_same_rule_as_a_copy`, test_page.py
   `OverFiles`)
-- [ ] **X4** Python adds such grids: `page.grid(file=…)`, remote, warehouse, saved query, class — S6, L8 (S5: `file=`
+- [x] **X4** Python adds such grids: `page.grid(file=…)`, remote, warehouse, saved query, class — closed S6 (S5: `file=`
   and `remote=` added, each read in once — for its bytes, for its URL — test_page.py `OverFiles`, test_headless.py
-  `Remote`; warehouse, saved query and class with X1's rest)
+  `Remote`; S6: `page.grid(cls=..., project=..., revision=...)`, `page.grid(query=id)` and `page.grid(warehouse=...,
+  table='schema.table', catalog=...)`, each named as the tab records its source -- headless `givenSource`: a class by
+  class-source.ts `classAt` (the page's model at its pin, or another project's class by its path at a revision), a
+  saved query's record by query-store `sharedPart` -- and made by headless `sourceCube` where the host reads it
+  (host-tables.ts `leafOnHost`) (test_page.py `OverClasses`, `OverWarehouse`, `OverSavedQueries`, `PublishedQueries`))
 - [x] **X5** saved queries and classes through Python's project routes — closed S5: a class's project read from the
   host's model home (`/sdlc/api`) and a saved query's version from its depot (`/depot/api`), by the host's fetch, as its
   engine answers a tab; their rows the engine's plan-and-run (the frames' database, a project's own: C5)
@@ -677,9 +681,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   a `class` case that throws now fails it, checked)
 - [x] **F33** the warehouse stand-in answered the same rows for any SQL; the saved-query test never runs Python's own depot
   route — closed in part (review, 6): the stand-in runs the planned SQL on a DuckDB of its own, and its grid's view and
-  filter are checked (test_page.py `OverWarehouse`); declared: the saved-query test stands in for the depot's answer, so
-  Python's `/depot/api` route under a saved query is untested end to end (a version needs the model home's review and
-  merge), As built (S5)'s words corrected
+  filter are checked (test_page.py `OverWarehouse`); the saved-query half closed S6: test_page.py `PublishedQueries`
+  makes a project by Create a Class…, reviews, approves and commits its workspace, publishes a version, saves a query
+  of it and adds a grid over the query (X4), its model read through the host's own `/depot/api`, nothing stood in for
 - [x] **F34** every Python grid call over a warehouse table opens it again (lists the warehouse's objects, writes and
   holds its model) — declared (review, 7): a cost, kept so a grid reads the table's columns as they are now; S7 measures it
 - [x] **F35** a Python call's queries waited on a tab's query in flight, which held the frames' lock while its SQL ran —
@@ -716,6 +720,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   another -- its filter set again, never taken off -- closed (S6, found building K7): page-filters.ts `classPick` (the
   click's rule, moved out of page-app.ts) compares them as data (snapshot.ts `sameValue`), and so does headless
   `chartPick` with the chart's selection (page-filters.test.ts, failing without it)
+- [x] **F44** a saved query of a DataCube-made project answers no rows on Python: the version's own database is made by
+  the DuckDB dialect's DDL, which spells an unquoted column upper case (`DuckDb.ddlIdentifier`, 2026-09-22), so a
+  grid's query selecting `t0.desk` unaliased is answered `DESK`, which its plan does not type (`UntypedColumn`) —
+  declared (S6, found by F33's end-to-end test): core's dialect, not this line's; said in IN_FLIGHT for the dialect
+  line; test_page.py `PublishedQueries` asserts the refusal, and fails when it is fixed
 
 ## 5. The steps
 

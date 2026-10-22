@@ -39,6 +39,16 @@ export function classAt(ref: PageModelRef, cls: string, place: string): ClassAt 
   };
 }
 
+/** A class DataCube's writer makes, by its name: `<package>::domain::<Name>`, where Create a Class… makes every one. */
+export function writerClass(pkg: string, name: string): string {
+  return `${pkg}::domain::${name}`;
+}
+
+/** The package DataCube's writer made a class in, from its path (writerClass's layout) -- undefined for a path not of it. */
+export function writerPackageOf(path: string): string | undefined {
+  return /^(.+)::domain::[^:]+$/.exec(path)?.[1];
+}
+
 /** A model element as the compiler gives it (PureModelContextData's): what a class source reads of one. */
 export interface ClassElement {
   readonly _type: string;

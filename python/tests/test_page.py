@@ -23,7 +23,7 @@ from unittest import mock
 import pandas as pd
 
 import legend_lite as ll
-from legend_lite import _headless, _json, _pool, datacube
+from legend_lite import _headless, _home, _json, _pool, datacube
 from legend_lite import page as page_module
 from legend_lite._types import plain_type
 
@@ -2505,6 +2505,36 @@ class OverClasses(Paged):
                           'runtime': f"{model['package']}::runtime::Python", 'columns': cube['source']['columns']}
         return page, doc
 
+    def test_a_grid_is_added_over_a_class_as_the_tabs_add_a_grid_adds_one(self):
+        # (X4) page.grid(cls=...): a class of the page's model at its pin (class-source.ts classAt, the tab's rule), read
+        # through the writer's mapping and Python's runtime where this host reads it (headless sourceCube)
+        page = ll.Page('Classes')
+        path = page.grid(trades(), name='trades').create_class('Trade')
+        model = page.model
+        grid = page.grid(cls='Trade')
+        source = page.to_dict()['cubes'][-1]['cube']['source']
+        self.assertEqual((source['_type'], source['name'], source['class'], source['project'], source['revision']),
+                         ('class', 'Trade', path, model['project'], model['revision']))
+        self.assertEqual((source['mapping'], source['runtime']),
+                         (f"{model['package']}::mapping::Model", f"{model['package']}::runtime::Python"))
+        self.assertEqual(sorted(c['name'] for c in source['columns']), ['desk', 'notional', 'pnl', 'region'])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 100.0, 250.0])
+        # by its path, at the revision named
+        self.assertEqual(page.grid(cls=path, revision=model['revision']).to_pandas().shape[0], 3)
+        # refused in DataCube's words, the page as it was
+        before = page.to_dict()
+        with self.assertRaisesRegex(Exception, 'the project has no class'):
+            page.grid(cls='Nope')
+        with self.assertRaisesRegex(ValueError, "a class of other:project is named by its path as DataCube's writer makes one"):
+            page.grid(cls='Trade', project='other:project', revision='r1')
+        with self.assertRaisesRegex(ValueError, 'a class of other:project is read at a revision of it'):
+            page.grid(cls=path, project='other:project')
+        with self.assertRaisesRegex(ValueError, "project= and revision= say where a class is read: they go with cls="):
+            page.grid(trades(), name='trades', revision='r1')
+        self.assertEqual(page.to_dict(), before)
+        with self.assertRaisesRegex(ValueError, "the page has no model of its own"):
+            ll.Page('Bare').grid(cls='Trade')
+
     def test_a_page_over_a_class_is_loaded_read_edited_and_saved(self):
         _, doc = self.classed()
         loaded = ll.Page.load(doc)
@@ -2696,6 +2726,30 @@ class OverWarehouse(Paged):
         self.assertTrue(all('POSITIONS' in sql for sql in self.ran), self.ran)
         self.assertEqual(loaded.to_dict()['cubes'][0]['cube']['source']['_type'], 'warehouseTable')
 
+    def test_a_grid_is_added_over_a_warehouse_table_as_the_tab_adds_one(self):
+        # (X4) page.grid(warehouse=..., table=..., catalog=...): the table as the tab records it (schema.table), read
+        # under the session the engine holds for the warehouse (headless sourceCube), refused in words without one
+        page = ll.Page('Positions')
+        with self.assertRaisesRegex(ValueError, 'which no tab of this host has signed in to'):
+            page.grid(warehouse=self.URL, catalog='main', table='trading.POSITIONS')
+        engine = datacube._session.engine()
+        self.assertEqual(engine.answer('POST', '/warehouse.json', '', json.dumps(
+            {'op': 'connect', 'url': self.URL, 'user': 'rita', 'password': 'pw'})).status, 200)
+        grid = page.grid(warehouse=self.URL, catalog='main', table='trading.POSITIONS', rows=['desk'],
+                         measures={'qty': 'sum'})
+        source = page.to_dict()['cubes'][0]['cube']['source']
+        self.assertEqual({k: source[k] for k in ('_type', 'name', 'warehouse', 'catalog', 'schema', 'table')},
+                         {'_type': 'warehouseTable', 'name': 'trading.POSITIONS', 'warehouse': self.URL, 'catalog': 'main',
+                          'schema': 'trading', 'table': 'POSITIONS'})
+        self.assertEqual([c['name'] for c in source['columns']], ['desk', 'qty'])
+        self.assertEqual(groups_of(grid.view(), 'qty'), {'FX': 13, 'EQ': 5})
+        with self.assertRaisesRegex(ValueError, 'a warehouse table is named schema.table, not "POSITIONS"'):
+            page.grid(warehouse=self.URL, catalog='main', table='POSITIONS')
+        with self.assertRaisesRegex(ValueError, 'a warehouse table is in a catalog: name it'):
+            page.grid(warehouse=self.URL, table='trading.POSITIONS')
+        with self.assertRaisesRegex(ValueError, 'a class, a saved query and a warehouse table are named as DataCube names'):
+            page.grid(warehouse=self.URL, catalog='main', table='trading.POSITIONS', name='mine')
+
     def test_a_warehouse_grid_is_read_while_every_compiler_thread_waits(self):
         # F29: what DataCube's thread asks of the warehouse (its table opened, as every grid call over it asks) runs on that
         # thread, never waiting on the compiler's pool -- whose threads may all be waiting for DataCube's turn
@@ -2781,6 +2835,10 @@ Data demo::party::PartyData
 
     def setUp(self):
         super().setUp()
+        # this user's things (the saved queries' store) in a folder of the test's own
+        home = mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))})
+        home.start()
+        self.addCleanup(home.stop)
         answer = _headless.answer_fetch
         self.asked = []
 
@@ -2817,6 +2875,25 @@ Data demo::party::PartyData
         self.assertEqual([row[0] for row in grid.view().rows], ['Meridian Capital', 'Halberd Securities'])
         self.assertEqual(loaded.to_dict()['cubes'][0]['cube']['source']['query']['versionId'], '1.0.0')
 
+    def test_a_grid_is_added_over_a_saved_query_by_its_id(self):
+        # (X4) page.grid(query=id): the query as this user's store holds it, written down as the tab writes one (query-store
+        # sharedPart), opened over its project's version as this host's depot gives it (headless sourceCube)
+        record = {'id': 'parties-1', 'name': 'Parties', 'groupId': 'demo', 'artifactId': 'party', 'versionId': '1.0.0',
+                  'content': '|demo::party::Party.all()->project(~[name: p|$p.name])',
+                  'executionContext': {'_type': 'explicitExecutionContext', 'mapping': 'demo::party::PartyMapping',
+                                       'runtime': 'demo::party::Runtime'}}
+        status, said = _home.store_call('lite_saved_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
+                                        _home.THIS_USER)
+        self.assertEqual(status, 200, said)
+        page = ll.Page('Parties')
+        grid = page.grid(query='parties-1')
+        self.assertEqual(sorted(grid.to_pandas()['name']), ['Halberd Securities', 'Meridian Capital'])
+        source = page.to_dict()['cubes'][0]['cube']['source']
+        self.assertEqual((source['_type'], source['name'], source['query']['versionId']), ('savedQuery', 'Parties', '1.0.0'))
+        self.assertNotIn('id', source['query'], "the query as it is, not where it is stored")
+        with self.assertRaisesRegex(ValueError, "no saved query 'nope' in this user's store"):
+            page.grid(query='nope')
+
     def test_a_query_whose_version_the_depot_does_not_hold_is_refused_in_words(self):
         def none(method, url, body):
             return 404, json.dumps({'message': 'no such version'})
@@ -2824,6 +2901,57 @@ Data demo::party::PartyData
                 self.assertRaisesRegex(Exception, "Parties is a saved query of demo:party:1.0.0, which this host's depot "
                                                   'does not hold'):
             ll.Page.load(self.page_over_the_query())
+
+
+class PublishedQueries(Paged):
+    """A SAVED QUERY OF A PUBLISHED VERSION, END TO END (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md F33, X4): a project made
+    in this user's model home by DataCube's Create a Class…, its workspace reviewed, approved and committed, a version
+    published by its SDLC, a query of that version saved in this user's store, and a grid added over the query, read
+    through this host's own /depot/api -- nothing stood in for."""
+
+    def setUp(self):
+        super().setUp()
+        home = mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))})
+        home.start()
+        self.addCleanup(home.stop)
+
+    def sdlc(self, method, target, body=None):
+        status, said = _home.home_call(_home.model_home_folder(), 'sdlc', method, target,
+                                       None if body is None else json.dumps(body))
+        self.assertLess(status, 300, f'{method} {target}: {said}')
+        return json.loads(said) if said else None
+
+    def test_a_query_of_a_published_version_opens_through_the_hosts_depot(self):
+        page = ll.Page('Published')
+        path = page.grid(trades(), name='trades').create_class('Trade')
+        model = page.model
+        project = model['project']
+        # the workspace Create a Class… wrote, reviewed, approved and committed; a version of the project published
+        review = self.sdlc('POST', f'/projects/{project}/reviews',
+                           {'workspaceId': model['workspace'], 'title': 'Trade', 'description': 'the class'})['id']
+        self.sdlc('POST', f'/projects/{project}/reviews/{review}/approve', {})
+        self.sdlc('POST', f'/projects/{project}/reviews/{review}/commit', {'message': 'Trade'})
+        version = self.sdlc('POST', f'/projects/{project}/versions', {'versionType': 'MAJOR'})['id']
+        self.assertEqual(version, {'majorVersion': 1, 'minorVersion': 0, 'patchVersion': 0})
+        group, artifact = project.split(':')
+        record = {'id': 'trades-1', 'name': 'Trades', 'groupId': group, 'artifactId': artifact, 'versionId': '1.0.0',
+                  'content': f'|{path}.all()->project(~[desk: x|$x.desk, notional: x|$x.notional])',
+                  'executionContext': {'_type': 'explicitExecutionContext',
+                                       'mapping': f"{model['package']}::mapping::Model",
+                                       'runtime': f"{model['package']}::runtime::Python"}}
+        status, said = _home.store_call('lite_saved_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
+                                        _home.THIS_USER)
+        self.assertEqual(status, 200, said)
+        # the grid over the query, its model read through this host's /depot/api and its columns typed by the compiler
+        grid = page.grid(query='trades-1', rows=['desk'], measures={'notional': 'sum'})
+        source = page.to_dict()['cubes'][-1]['cube']['source']
+        self.assertEqual((source['query']['versionId'], [c['name'] for c in source['columns']]), ('1.0.0', ['desk', 'notional']))
+        # its rows are the version's own (the sample Create a Class… wrote, in the version's database) -- F44, declared:
+        # that database's tables are made by the DuckDB dialect's DDL, which spells an unquoted column upper case
+        # (DuckDb.ddlIdentifier), so a query selecting `t0.desk` unaliased is answered `DESK`, which its plan does not
+        # type. When the dialect line closes F44 this fails: assert the rows instead ({'FX': 100.0, 'Rates': 325.5})
+        with self.assertRaisesRegex(Exception, "the plan does not type the result column 'DESK'"):
+            grid.view()
 
 
 class CorpusPage(unittest.TestCase):

@@ -19,6 +19,7 @@ import type { PlanAndRun } from '../runner.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { gridClassed, type GridSpec } from './grid.ts';
 import { hostCalls, hostEngine, hostFetch, hostWorker } from './host.ts';
+import { writerClass } from '../class-source.ts';
 
 // -- THE MODEL ACTIONS, HEADLESS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): Create a Class…, Create an
 // Association… and Create a Data Space… run in the host's V8 by the windows' own functions (model-plans.ts) and the
@@ -271,7 +272,7 @@ export async function modelDataSpace(page: string, grids: readonly { readonly cu
     const done = await createDataSpace({ sdlc: client, writer, ...into, dataSpace, classes, associations });
     model.pin(done.revision);
     // each grid made a class keeps its tables and its class, as the window keeps them
-    for (const k of kept) model.keep(k.cube, k.tables, `${into.package}::domain::${k.name}`);
+    for (const k of kept) model.keep(k.cube, k.tables, writerClass(into.package, k.name));
     return answered(model, { dataSpace: done.answer.dataSpace ?? dataSpace.name });
   } catch (e) {
     return refused(model, e);

@@ -22,7 +22,7 @@ import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, fileChanged, fileSourceOf, frameSource, gridCapped, leavesOf, openCube,
-  readCube, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinSource,
+  readCube, readCubeSource, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinSource,
   type OpenedCube, type QuerySource, type WarehouseSource,
 } from '../cube-document.ts';
 import {
@@ -57,6 +57,9 @@ import { TreeState } from '../tree.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
+import { classAt, className, writerClass, writerPackageOf, type ClassAt } from '../class-source.ts';
+import { PAGE_WORKSPACE, type PageModelRef } from '../page-model.ts';
+import { sharedPart, type SharedQuery } from '../../../query-store/src/share.ts';
 import { joinOpenedOn } from './join.ts';
 import { base64 } from './web.ts';
 
@@ -208,6 +211,92 @@ export async function gridCube(spec: FrameSpec, saved: string | null, name: stri
 export async function leafCube(leaf: HostLeaf, host: HostTables, name: string, gridsOnPage: number): Promise<string> {
   const on = await leafOnHost(leaf, host);
   return gridCube({ ...on.base, frame: leaf.name, ...(on.leaf !== undefined ? { leaf: on.leaf } : {}) }, null, name, leaf.name, gridsOnPage);
+}
+
+/**
+ * WHAT PYTHON NAMES A NEW GRID'S SOURCE BY (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X4: page.grid's `cls=`, `query=`,
+ * `warehouse=`), as the source the tab records when it adds a grid over it, its columns still to be typed -- read by the
+ * cube's own reader (readCubeSource), refused in its words:
+ * - a class (`{class, project?, revision?}`), read as the tab's Add a Grid reads one (class-source.ts classAt): the
+ *   page's project at its pin unless `revision` names another, the class by its path or by its name where DataCube's
+ *   writer makes it (writerClass); a class of another project by its path, at a `revision`, read through what the
+ *   writer makes beside it (its package's `mapping::Model`, the `place`'s runtime) in DataCube's workspace;
+ * - a saved query by its store's record (`{record}`): what the tab writes down of one (query-store sharedPart);
+ * - a warehouse table (`{warehouse, catalog, table}`, its table `schema.name`, as the cube names it).
+ */
+export function givenSource(model: PageModelRef | null, given: Readonly<Record<string, unknown>>, place: string):
+  ClassSource | QuerySource | WarehouseSource | string {
+  try {
+    if (given['class'] !== undefined) {
+      const { class: cls, project, revision } = given;
+      if (typeof cls !== 'string' || cls === '') return `a class is named by its path or its name, not ${JSON.stringify(cls)}`;
+      if (project !== undefined && (typeof project !== 'string' || project === '')) return `a project is named group:artifact, not ${JSON.stringify(project)}`;
+      if (revision !== undefined && (typeof revision !== 'string' || revision === '')) return `a revision is named by its id, not ${JSON.stringify(revision)}`;
+      let ref: PageModelRef;
+      let path: string;
+      if (project === undefined || project === model?.project) {
+        if (model === null) return "the page has no model of its own: name the class's project (project=...) and its revision";
+        path = cls.includes('::') ? cls : writerClass(model.package, cls);
+        ref = revision === undefined ? model : { ...model, revision };
+      } else {
+        // read through what DataCube's writer makes beside the class: its package's mapping and the place's runtime
+        const pkg = writerPackageOf(cls);
+        if (pkg === undefined) {
+          return `a class of ${project} is named by its path as DataCube's writer makes one (package::domain::Name), not ${JSON.stringify(cls)}`;
+        }
+        if (revision === undefined) return `a class of ${project} is read at a revision of it: name it (revision=...)`;
+        path = cls;
+        ref = { project, workspace: PAGE_WORKSPACE, package: pkg, tables: {}, revision };
+      }
+      let at: ClassAt;
+      try {
+        at = classAt(ref, path, place);
+      } catch (e) {
+        // its one refusal, in its words: the page's project has no saved revision to read the class at
+        if (ref.revision !== undefined || !(e instanceof Error)) throw e;
+        return e.message;
+      }
+      return readCubeSource({ _type: 'class', name: className(at.class), ...at, columns: [] }) as ClassSource;
+    }
+    if (given['record'] !== undefined) {
+      const q = given['record'] as SharedQuery | null;
+      if (q === null || typeof q !== 'object' || typeof q.name !== 'string') return 'not a saved query: the store\'s record has no name';
+      return readCubeSource({ _type: 'savedQuery', name: q.name, query: sharedPart(q), columns: [] }) as QuerySource;
+    }
+    if (given['warehouse'] !== undefined) {
+      const { warehouse, catalog, table } = given;
+      if (typeof warehouse !== 'string' || warehouse === '') return `a warehouse is named by its address, not ${JSON.stringify(warehouse)}`;
+      if (typeof catalog !== 'string' || catalog === '') return `a warehouse table is in a catalog: name it (catalog=...), not ${JSON.stringify(catalog ?? null)}`;
+      if (typeof table !== 'string' || !/^[^.]+\.[^.]+$/.test(table)) return `a warehouse table is named schema.table, not ${JSON.stringify(table ?? null)}`;
+      const [schema, name] = table.split('.') as [string, string];
+      return readCubeSource({ _type: 'warehouseTable', name: table, warehouse, catalog, schema, table: name, columns: [] }) as WarehouseSource;
+    }
+    return 'a grid is over a class, a saved query or a warehouse table';
+  } catch (e) {
+    if (e instanceof CubeDocumentError || e instanceof CubeRefusal) return e.message;
+    throw e;
+  }
+}
+
+/**
+ * A NEW GRID'S CUBE OVER A CLASS, A SAVED QUERY OR A WAREHOUSE TABLE, AS PYTHON ADDS ONE (X4), as the tab adds one: the
+ * source Python names (givenSource) read where the host reads it, the one rule (host-tables.ts leafOnHost: a class
+ * through its project at its revision in the host's model home, a saved query through its project's version in the
+ * host's depot, a warehouse table under the session the host holds for it), its columns as the compiler types them now
+ * -- gridCube's cube, titled after the source. `model`: the page's (its `model`), or null. JSON: as gridCube's, or
+ * `{problems}`, in DataCube's words.
+ */
+export async function sourceCube(model: string | null, given: string, host: HostTables, name: string, gridsOnPage: number,
+  place: string): Promise<string> {
+  const source = givenSource(model === null ? null : JSON.parse(model) as PageModelRef, JSON.parse(given) as Record<string, unknown>, place);
+  if (typeof source === 'string') return JSON.stringify({ problems: [source] });
+  try {
+    const on = await leafOnHost(source, host);
+    return await gridCube({ ...on.base, frame: source.name, as: source }, null, name, source.name, gridsOnPage);
+  } catch (e) {
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
 }
 
 /**

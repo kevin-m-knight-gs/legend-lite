@@ -79,9 +79,13 @@ interface Entry {
 // chartGrid -- the screen's gesture (addGrid, followGrid, setChart) and Python's chart.grid() (headless chartOwnGrid) by
 // the same rule; the telling pattern below names followGrid in setChartCube's place; tested by test_page.py Abilities,
 // one-api-gestures.test.ts (four Show Grid gestures), page-commands.test.ts (followGrid)
+// 2026-10-22 (S6 E: X4): L8_SOURCES 3 -> 0 -- Python adds a grid over a class (page.grid(cls=...)), a saved query
+// (page.grid(query=...)) and a warehouse table (page.grid(warehouse=..., table=..., catalog=...)) as the tab adds one,
+// by headless sourceCube (givenSource: class-source.ts classAt, query-store sharedPart; host-tables.ts leafOnHost);
+// tested by test_page.py OverClasses, OverWarehouse, OverSavedQueries and PublishedQueries (F33, end to end)
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 3, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
+  L8_KINDS: 3, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
 function pinned(name: string, size: number): void {
@@ -238,16 +242,18 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
 };
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */
-const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }> = {
-  warehouseTable: { add: { items: ['X4'] } },
-  savedQuery: { add: { items: ['X4'] } },
-  class: { add: { items: ['X4'] } },
-};
+const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }> = {};
 /** The headless functions by which Python adds a grid over a source kind today -- pinned: a new entry is S5/S6's,
  *  with a test that adds such a grid from Python. */
 // 2026-10-22 (S5, X1-X4, D14): a file and a remote file added by Python too (page.grid(file=..., remote=...): leafCube
 // over the file read in, where the host reads it), tested by test_page.py OverFiles
-const PYTHON_ADDS: Record<string, string> = { frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube' };
+// 2026-10-22 (S6 E, X4): a class, a saved query and a warehouse table added by Python too (page.grid(cls=..., query=...,
+// warehouse=...): sourceCube over the source where the host reads it), tested by test_page.py OverClasses, OverWarehouse,
+// OverSavedQueries and PublishedQueries
+const PYTHON_ADDS: Record<string, string> = {
+  frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
+  class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+};
 
 /** Headless exports Python never asks (`call('<name>'`): each one Python should. */
 const L8_UNASKED: Record<string, Entry> = {};
@@ -353,8 +359,10 @@ describe('L8: every command kind and source kind, against who makes and reads it
     }
     for (const kind of Object.keys(L8_SOURCES)) if (!kinds.includes(kind)) problems.push(`${kind}: no such source kind`);
     assert.deepEqual(problems, []);
-    assert.deepEqual(PYTHON_ADDS, { frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube' },
-      'a new way for Python to add a grid comes with its test');
+    assert.deepEqual(PYTHON_ADDS, {
+      frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
+      class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+    }, 'a new way for Python to add a grid comes with its test');
     pinned('L8_SOURCES', Object.keys(L8_SOURCES).length);
   });
 
@@ -453,7 +461,7 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-22, PR #64's CI (macOS, 821615817): a test that raced the board's lazily loaded code, added by rule 9
   + 'F41 '
   // 2026-10-22, S6 B: a page filter with a number broke Python's grid reads (the lens read it exactly), found testing K7
-  + 'F42 F43 ').split(' ').filter((item) => item !== '');
+  + 'F42 F43 F44 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

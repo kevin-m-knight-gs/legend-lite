@@ -1374,6 +1374,8 @@ class Page:
     # -- building ------------------------------------------------------------------------------------------------------
 
     def grid(self, frame: Any = None, *, file: str | Path | None = None, remote: str | None = None,
+             cls: str | None = None, project: str | None = None, revision: str | None = None, query: str | None = None,
+             warehouse: str | None = None, table: str | None = None, catalog: str | None = None,
              name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
              measures: Mapping[str, str] | Sequence[tuple[str, str]] | None = None, filter: Any = None,
              sort: Sequence[tuple[str, str]] = (), dimensions: Sequence[str] = (), title: str | None = None,
@@ -1382,7 +1384,13 @@ class Page:
         under ``name`` (``frame``, ``frame_2``, ... unless given) -- or over a ``file`` (its path; ``name`` the file's
         name, its path's unless given), read in as the tab reads a file it is given (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
         X4: once for its bytes), or a ``remote`` file (its URL), mounted as the tab mounts one (once for its URL) -- in a band of its own at
-        the bottom of ``sheet`` (the first unless given). Each query reads the frame as it is then; the grid's Snap keeps its rows as they are. A
+        the bottom of ``sheet`` (the first unless given) -- or over what the tab adds a grid over beside them (X4), read
+        where this host reads it (DataCube's code, headless sourceCube: host-tables.ts leafOnHost) and titled as the tab
+        titles it: a class (``cls``, its name or its path), of the page's model at its pin unless ``revision`` names
+        another, or of another ``project`` by its path at a ``revision`` (class-source.ts classAt, the tab's Add a Grid's
+        rule); a saved query of this user's store, by its id (``query``); a warehouse table (``warehouse``, its address;
+        ``table``, ``schema.table``; ``catalog``), read under the session this host holds for that warehouse. Each query
+        reads the frame as it is then; the grid's Snap keeps its rows as they are. A
         name served already is this grid's when it serves this same frame (two grids over one frame), and refused
         when it serves another: ``grid.update(frame)`` replaces a frame, every grid
         over it showing the new one. ``rows``, ``columns``, ``measures`` (``{column: aggregate}`` or ``[(column,
@@ -1398,26 +1406,37 @@ class Page:
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
         session = self._session
-        if (frame is not None) + (file is not None) + (remote is not None) != 1:
-            raise ValueError('a grid is over a frame, a file (file=path) or a remote file (remote=url): one of them')
+        if sum(b is not None for b in (frame, file, remote, cls, query, warehouse)) != 1:
+            raise ValueError('a grid is over a frame, a file (file=path), a remote file (remote=url), a class (cls=...), a '
+                             'saved query (query=id) or a warehouse table (warehouse=url, table=...): one of them')
         if remote is not None and name is not None:
             raise ValueError("a remote file is named after its URL: it takes no name")
+        if (project is not None or revision is not None) and cls is None:
+            raise ValueError("project= and revision= say where a class is read: they go with cls=")
+        if (table is not None or catalog is not None) and warehouse is None:
+            raise ValueError("table= and catalog= name a warehouse table: they go with warehouse=")
+        if name is not None and (cls is not None or query is not None or warehouse is not None):
+            raise ValueError('a class, a saved query and a warehouse table are named as DataCube names them: they take no '
+                             'name')
+        # what DataCube reads a class, a saved query or a warehouse table by: the page's model, and what was named
+        given = None if cls is None and query is None and warehouse is None else self._given_source(
+            cls, project, revision, query, warehouse, table, catalog)
         # what the grid reads: a frame served (``served``, ``new``: served for it), or a file or remote file read in
-        # (``read``: as DataCube read it; ``fresh``: read for it)
+        # (``read``: as DataCube read it; ``fresh``: read for it) -- or, ``given``, what the host reads elsewhere
         served, new, read, fresh = None, False, None, False
-        if frame is None:
+        if file is not None or remote is not None:
             engine = session.engine()
             if file is not None:
                 read, fresh = engine.read_file_once(file, name if name is not None else Path(file).name)
             else:
                 read, fresh = engine.mount_remote_once(remote)
-        elif name is not None and name in session.frames:
+        elif frame is not None and name is not None and name in session.frames:
             table = session.frames[name]
             if table.given is not frame:
                 raise ValueError(f'{name!r} serves another frame already: grid.update(frame) replaces a frame, every grid '
                                  f'over it showing the new one; or give this grid a name of its own')
             served = table.name
-        else:
+        elif frame is not None:
             served, new = session.register(frame, name), True
         # the page as it was, to go back to when the grid is refused
         was = (self._doc, set(self._ids), len(self._page_commands), len(self._commands),
@@ -1426,7 +1445,8 @@ class Page:
         try:
             # its cube as DataCube makes a grid's over a frame, a file or a remote file: capped at the row limit when it is
             # not the page's only grid
-            cube = (self._frame_cube(served, len(self._doc['cubes']) + 1)[0] if read is None
+            cube = (self._source_cube(given, len(self._doc['cubes']) + 1) if given is not None
+                    else self._frame_cube(served, len(self._doc['cubes']) + 1)[0] if read is None
                     else self._leaf_cube(read, len(self._doc['cubes']) + 1))
             # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band at
             # the bottom, told nothing yet
@@ -1942,6 +1962,34 @@ class Page:
         engine, frames = self._session.headless(), self._session.frames
         with frames.reading():
             made = json.loads(engine.call('leafCube', read['leaf'], frames.hosted(), self.name, grids_on_page))
+        return _plain(_json.loads(made['cube']))
+
+    def _given_source(self, cls: str | None, project: str | None, revision: str | None, query: str | None,
+                      warehouse: str | None, table: str | None, catalog: str | None) -> dict[str, Any]:
+        """What names a new grid's class, saved query or warehouse table, as DataCube reads it (headless givenSource): a
+        saved query as this user's store holds it, by its id (its record, which DataCube writes down of it)."""
+        if cls is not None:
+            return {'class': cls, **({'project': project} if project is not None else {}),
+                    **({'revision': revision} if revision is not None else {})}
+        if query is not None:
+            from ._home import THIS_USER, queries_folder, store_call
+            status, said = store_call('lite_saved_queries', queries_folder(), 'GET', f'/{query}', '', '', THIS_USER)
+            if status != 200:
+                raise ValueError(f'no saved query {query!r} in this user\'s store: {said}')
+            return {'record': json.loads(said)}
+        return {'warehouse': warehouse, **({'table': table} if table is not None else {}),
+                **({'catalog': catalog} if catalog is not None else {})}
+
+    def _source_cube(self, given: Mapping[str, Any], grids_on_page: int) -> dict[str, Any]:
+        """A new grid's cube over a class, a saved query or a warehouse table, as DataCube makes one where this host
+        reads it (headless sourceCube): over the page's model for a class, titled as the tab titles it."""
+        engine, frames = self._session.headless(), self._session.frames
+        model = self._doc.get('model')
+        with frames.reading():
+            made = json.loads(engine.call('sourceCube', None if model is None else _json.dumps(model), _json.dumps(given),
+                                          frames.hosted(), self.name, grids_on_page, 'Python'))
+        if 'problems' in made:
+            raise ValueError('; '.join(made['problems']))
         return _plain(_json.loads(made['cube']))
 
     def __repr__(self) -> str:
