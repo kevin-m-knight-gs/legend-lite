@@ -505,7 +505,9 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // (fixed, or declared) with each fix
   + 'F71 F72 F73 F74 F75 F76 F77 F78 F79 F80 F81 F82 F83 F84 F85 F86 F87 F88 F89 F90 '
   // 2026-10-22, S7: the confirmation audit's third round, added by rule 9 and closed with each fix
-  + 'F91 F92 F93 F94 F95 F96 ').split(' ').filter((item) => item !== '');
+  + 'F91 F92 F93 F94 F95 F96 '
+  // 2026-10-22, S7: the audit's fourth round, added by rule 9 and closed (fixed, or moved to D19) with each fix
+  + 'F97 F98 F99 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

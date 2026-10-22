@@ -239,11 +239,16 @@ class Static(unittest.TestCase):
                     # ... by its own reads (the restore's fourth argument), the answer acted on (the S7 confirmation
                     # audit's third round's 5)
                     reads = ast.unparse(node.args[3]) if len(node.args) > 3 else None
-                    if node.func.attr == 'restore' and (scope is None or reads is None or not any(
-                            isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
-                            and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'unadmitted'
-                            and [ast.unparse(a) for a in n.value.args] == [reads]
-                            for n in ast.walk(scope))):
+                    admitted = [] if scope is None or reads is None else [
+                        ast.unparse(n.targets[0]) for n in ast.walk(scope)
+                        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+                        and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'unadmitted'
+                        and [ast.unparse(a) for a in n.value.args] == [reads]]
+                    # ... and its answer acted on: a refusal raised or returned when it is one (the fourth round's 6)
+                    acted = any(isinstance(n, ast.If) and ast.unparse(n.test) in (f'{a} is not None' for a in admitted)
+                                and any(isinstance(b, (ast.Raise, ast.Return)) for b in n.body)
+                                for n in ast.walk(scope)) if admitted else False
+                    if node.func.attr == 'restore' and not acted:
                         unadmitted.append(f'{path.name}:{where}:restore')
         _held_to(self, found, L9_KEEPER, 'keeper writers', 'L9_KEEPER')
         self.assertEqual(unadmitted, [], 'a write settled without the admission every editor\'s write takes (Frames.unadmitted)')

@@ -970,6 +970,9 @@ export class CubeApp {
   }
 
   /** The view on screen, and its rows. */
+  /** The headers on screen, as #paintView painted them: what a header click sorts by (header-sort.ts). */
+  #headers: readonly LeafColumn[] = [];
+
   get #view(): CubeView | null {
     return this.#owner.view;
   }
@@ -1373,6 +1376,7 @@ export class CubeApp {
    */
   #paintView(view: CubeView): void {
     const model = shownColumns(view, this.#config);
+    this.#headers = model.leaves;
     // Refreshed AFTER the view lands, because the pivot's leaf names
     // are only known once the engine has answered.
     this.#refreshFormats();
@@ -2343,7 +2347,8 @@ export class CubeApp {
     // first direction the type the compiler gave the header, which only the view has
     let command: GridCommand;
     try {
-      command = headerSortCommand(this.#view ? shownColumns(this.#view, this.#config).leaves : [], column, chained);
+      // the headers as painted, not as a change still running would lay them out (the S7 audit's fourth round's 4)
+      command = headerSortCommand(this.#headers, column, chained);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       this.#status(e.message, 'warn');

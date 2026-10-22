@@ -1035,6 +1035,9 @@ class Document(Paged):
             grid.calculate(5, '$x.notional')
         with self.assertRaisesRegex(ValueError, 'an expression is text, not 5'):
             grid.calculate('five', 5)
+        # an edit naming no column is refused, never taken for a new one (the S7 audit's fourth round's 3)
+        with self.assertRaisesRegex(ValueError, 'the calculated column edited is named by text, not null'):
+            grid.edit_calculated(None, '$x.notional', rename='y')
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
         # ... a sheet's blank is none of its own (named after its first grid), as the screen's rename makes it; a name
         # is kept trimmed, as the screen keeps one

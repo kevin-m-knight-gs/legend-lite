@@ -495,7 +495,7 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
  */
 export async function gridColumn(spec: GridSpec, given: string): Promise<string> {
   const asked = JSON.parse(given) as {
-    name?: unknown; replacing?: string | null; level?: unknown; kind?: ColumnKind | null; mode?: unknown;
+    name?: unknown; replacing?: unknown; level?: unknown; kind?: ColumnKind | null; mode?: unknown;
     expression?: unknown; explode?: unknown; window?: unknown; child?: unknown;
   };
   const kind = asked.kind ?? null;
@@ -530,7 +530,12 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
       return JSON.stringify({ problems: [e.message] });
     }
   }
-  const replacing = asked.replacing ?? null;
+  // the column an edit replaces, named -- an edit naming none is refused, never taken for a new column (the S7 audit's
+  // fourth round's 3: Python's edit_calculated(None, ...) added one)
+  if ('replacing' in asked && typeof asked.replacing !== 'string') {
+    return JSON.stringify({ problems: [`the calculated column edited is named by text, not ${JSON.stringify(asked.replacing)}`] });
+  }
+  const replacing = typeof asked.replacing === 'string' ? asked.replacing : null;
   return using(spec, async (o) => {
     const { planner, state } = o;
     // an edit starts from the column as it is (Edit Column opens on it: its level, its explode), as told otherwise
@@ -994,7 +999,7 @@ export async function gridSetUp(spec: GridSpec | null, given: string): Promise<s
 /**
  * MEASURES MADE AS A PERSON MAKES THEM (grid-measures.ts measureCommands: Column Properties' Aggregation, or the column
  * editor's calculated column of its own name and then its Aggregation) -- Python's grid.measure: `given`, a JSON list of
- * `{name, column, fn[, weight]}`. JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ * `{column, fn[, name][, weight]}`. JSON: as gridApply's, or `{problems}`, in DataCube's words.
  */
 export async function gridMeasure(spec: GridSpec, given: string): Promise<string> {
   return using(spec, async (o) => {

@@ -864,7 +864,7 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **F90** declared by the S7 confirmation audit: a file grid of the page Python serves, opened again on the host,
   offers Snap and Go Live where one added shows Snapped -- the host's answer says no read time or row count to show
   (H2-5); a host's refusal said on the tab carries the exception's kind (`CubeRefusal: `), as every 422 of the host's
-  does (H2-7); another editor's removal followed while the person's click still runs is two editors at once: D19's
+  does (H2-7); another editor's removal followed while the person's click still runs is two editors at once: D19's own
 - [x] **F91** F75's closure kept the person's own removal out of the grid's undo stack but did not record it: an undo
   past it put the removed chart's selection back and took the edit before it away (the S7 confirmation audit's third
   round's 1) -- fixed S7: a recorded step of the grid's history, told nothing (`#applyCommands`' `said`) (page-app.test.ts)
@@ -883,6 +883,17 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   then); a value JSON cannot carry (a path, bytes) is refused by the transport, a TypeError, before DataCube can judge
   it (P1); the L9 restore scan now holds each restore to an admission of its own reads (P5); two doc comments put back
   above their functions
+- [x] **F97** a selected chart removed while the click that selected it still runs: the click's `select` is told at once,
+  its grid's refilter when its query lands, so a condition put on the grid by hand too, or another chart's equal
+  selection, comes off twice on the host (the S7 audit's fourth round's 1, 2); and a page undo's restore written before
+  its grid's removal lands, or a removal refused and not run again after signing in, leaves the host the selection --
+  the tab tells its page and its grids on two schedules: moved to D19, the single writer's client side, whose scope it is
+- [x] **F98** an edit of a calculated column naming none (Python's `edit_calculated(None, ...)`) added a new column (the
+  fourth round's 3) -- fixed S7: headless gridColumn refuses it in words (test_page.py)
+- [x] **F99** F92's header lookup laid the headers out by a change still running, not as painted (the fourth round's 4)
+  -- fixed S7: the headers #paintView painted; and the fourth round's lows: L9 holds each restore's admission acted on
+  (raised or returned), an unnamed measure of a padded column is its own Aggregation (the fix itself, said), the
+  measure's form in gridSetUp's doc, F90's text finished
 
 ## 5. The steps
 
@@ -987,6 +998,33 @@ rest named exceptions; the names agreed with the user before building (the chart
 ### S7. The final audit
 The four audits run again, fresh, with one extra instruction: find what the ledgers miss. Anything found goes into the
 register and a ledger, and is fixed. Done when every ledger is empty but N1-N3 and the audit finds nothing new.
+
+### S8. Screen code builds no command (the user, 2026-10-22)
+The audits found the screen deciding what a gesture means in screen code twice (F71: the header click's first
+direction; F72: a command kind only Python sent) -- and L8 could not see it: it asks whether each command *kind* is made
+on both sides, never where a gesture's meaning is decided. The user: "Most important piece of the audits are if they
+are finding new places where we don't have real API for datacube functionality and have somehow coupled the UI to the
+implementation instead ... Is there any realistic way to find all and guard against this", then "Shouldn't we do all
+60 so we close ledger completely?" -- yes: every command the screen tells is made by one of two things, and screen code
+makes none itself.
+
+- *A generated constructor*, where the gesture is the person's input passed through (a tile renamed, a sheet removed):
+  the TypeScript twin of Python's generated builders (D17), written from the same field lists
+  (`GRID_COMMAND_FIELDS`, `PAGE_COMMAND_FIELDS`), so both sides build the same command by the same generated code.
+- *A gesture function*, where the gesture decides what it means (a column added to the row groups, a header clicked, a
+  column hidden, a tile dropped beside another): in a module of no screen's, taking what the person did and the state,
+  exported headless and asked by a Python method (its name agreed with the user first, as D21's). A drag splits there:
+  pixels to "tile A, at tile B's left edge" are the screen's; the rest is the gesture function's.
+
+Ledger L11 (in one-api-ledger.test.ts), closed at 0:
+1. no command literal in a screen file (src/app.ts, src/page/**, src/app/**, src/ui/**, src/layout/**), found by the
+   command types, not by text;
+2. every gesture function a screen file imports is exported headless and asked by Python (or, a pixel's, listed);
+3. a screen file imports no rule internal (grid-edits.ts, page-commands.ts' rules) -- only gesture functions and the
+   generated constructors (F71's leak was such an import: firstSortDirection).
+
+Items: A1-A60, one per site, classified at the step's start (constructor or gesture function); each closed with the
+commit that moves it, its gesture's test through the function the screen calls and the one Python calls.
 
 ## 6. How it is tested
 
@@ -1439,7 +1477,9 @@ ledgers miss: 40 findings (H-1..H-13, G-1..G-7, P-1..P-9, Y-1..Y-11), F45-F70 --
 each (F45-F67), the ledgers' blind spots closed with no ceiling moved (F68), D19's own moved there (F69), the rest
 declared (F70). A confirmation round of the same four audits, over those fixes, found 21 more -- five of them wrong
 closures or regressions of the first round's fixes -- and the user asked why a header click was exempt (F71-F90); a
-third round, over those, found six more, three of them its own fixes' wrong closures or regressions (F91-F96):
+third round, over those, found six more, three of them its own fixes' wrong closures or regressions (F91-F96); a
+fourth, over those, seven -- two races of the tab telling its page and its grids on two schedules (D19's, F97), one
+regression and lows (F98, F99) -- and no new place where the screen decides a DataCube rule:
 
 - *One sort API* (F71, the user's question): header-sort.ts `headerSortCommand` is the one rule the screen's header
   click and Python's `grid.toggle_sort` / `grid.toggle_group_sort` ask (headless gridHeaderSort). The "by nature"
@@ -1481,6 +1521,13 @@ another editor, a kind tested elsewhere): `L8_KINDS` 3 -> 0 (F71, F72); `L8_SOUR
 
 **Gates.** The full local set after the first round: 202 of 203 targets green, the one red the register pin (F45-F70
 not listed), fixed and pushed (17c513e72). After the confirmation round (749bf4e0c): 203 of 203 green. After the third
-round: GATES_R3.
+round (7cf6eab6b): 202 of 203, the one red F92's new test clicking a column its grid does not group by -- fixed
+(d15a7ba24), green, red without F92's fix. After the fourth round: GATES_R4.
 
-**Next.** D19, the single writer's client side, with H-5, H-11, H-13 and F90's race. NEXT_R3
+**The done condition.** The rounds found 40, 21, 6 and 7, each fewer and smaller; the fourth found no new place where
+the screen decides what a gesture means, and its races are D19's. S7 closes on that -- and the class of finding the
+audits kept turning up by hand (F71, F72: a gesture's meaning decided in screen code) gets a mechanical guard of its own,
+S8, the user's ask.
+
+**Next.** S8 (screen code builds no command), then D19, the single writer's client side, with H-5, H-11, H-13, F90's
+race and F97.
