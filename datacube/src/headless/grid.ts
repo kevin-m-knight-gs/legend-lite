@@ -564,7 +564,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
  * `{"$decimal": text}`) are their exact text, as the filter editor keeps one; anything else as it came -- a number JSON
  * cannot write (`{"$float": "NaN"}`) is then no value a filter takes, refused by its operand's check in its words.
  */
-function untagged(v: unknown): unknown {
+export function untagged(v: unknown): unknown {
   if (!isRecord(v) || Object.keys(v).length !== 1) return v;
   const text = v['$date'] ?? v['$timestamp'] ?? v['$decimal'];
   if (typeof text !== 'string') return v;

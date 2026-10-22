@@ -537,11 +537,17 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **K6** dimensions — closed S6: `grid.dimension(name)` as View > Dimensions uses one, `grid.drill`/`grid.drill_up`
   by dimensions.ts `drillDown`/`drillUp` (no screen gesture drills a grid's dimension today: the rule is DataCube's all
   the same), over the configuration's `dimensions` (headless `gridDimension`) (test_page.py `Abilities`)
-- [ ] **K7** a chart's selection; page filters — S6, L8 (D8: `select`, `selection`) (S6 B: page filters done --
-  `page.filter`, `page.filters`, `page.remove_filter`; the chart's selection left, with S6 D)
+- [x] **K7** a chart's selection; page filters — closed S6: page filters (S6 B) `page.filter`, `page.filters`,
+  `page.remove_filter`; the chart's selection (S6 D) `chart.select(value, split=...)`, `chart.select(None)`,
+  `chart.selection` -- the mark named as a click names it (chart-spec.ts `namedMark`), made the click's conditions
+  (`markConditions`) and what the click does with them (page-filters.ts `classPick`, moved out of page-app.ts: D6),
+  the grid's `refilter` then the page's `select` (headless `chartPick`); named, never toggled (test_page.py
+  `Abilities`, `OverClasses`; one-api-gestures.test.ts holds the screen's click to `chartPick`)
 - [x] **K8** sheets: reorder, remove — closed S6: `sheet.move(position)` (`moveSheet`), `page.remove(sheet)`
   (`removeSheet`, its tiles with it) (test_page.py `Abilities`)
-- [ ] **K9** drill a chart, and back up — S6, L8 (D8: `drill`, `drill_up`, `drilled`)
+- [x] **K9** drill a chart, and back up — closed S6: `chart.drill(value)`, `chart.drill_up(levels=1)`, `chart.drilled`,
+  by chart-spec.ts `drillDown` and `drillUp` (the double-click's and the crumbs'), refused in the words of a new
+  `drillRefusal` beside `drillLevels` (headless `chartDrill`, as `setChart`) (test_page.py `Abilities`)
 - [x] **K10** Copy of Grid — closed S6: `grid.copy()`, its cube by cube-document.ts `cubeCopied` (headless `gridCopied`),
   the one the screen's copy writes, held the same by one-api-gestures.test.ts (test_page.py `Abilities`)
 - [ ] **K11** a chart's Open in grid and Update — S6, L8 (D7: one Show Grid replaces them; D8: `chart.grid()`)
@@ -696,6 +702,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   failed to print it — S5's B1, tested with text values only — closed (S6, found testing K7): the lens reads them with
   plain numbers, as a page's filters are read (page-document.ts `plainNumbers`, grid.ts `lensOf`) (test_page.py
   `OverClasses` `test_a_page_filter_is_set_read_and_taken_off_as_the_screens_add_a_filter_sets_one`, failing without it)
+- [x] **F43** a chart's click on a grid over a class compared the chart's page filter with the mark as JSON text: a page
+  read back writes a condition's keys in its reader's order, so after a reopen the same mark clicked again was taken as
+  another -- its filter set again, never taken off -- closed (S6, found building K7): page-filters.ts `classPick` (the
+  click's rule, moved out of page-app.ts) compares them as data (snapshot.ts `sameValue`), and so does headless
+  `chartPick` with the chart's selection (page-filters.test.ts, failing without it)
 
 ## 5. The steps
 

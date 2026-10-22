@@ -1347,6 +1347,89 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, r"the grid has no dimension 'Geo' \(its dimensions: Book\)"):
             grid.dimension('Geo')
 
+    def test_a_charts_mark_is_selected_its_selection_read_and_cleared(self):
+        # (K7, D8) chart.select: the mark named by its value across, and its series', as a click selects it (headless
+        # chartPick): its conditions on its grid's filter -- the grid's refilter, then the page's select. Named, never
+        # toggled: the same mark again stays selected
+        page = ll.Page('Selected')
+        grid = page.grid(trades(), name='selected_trades', rows=['region'], measures={'notional': 'sum'})
+        chart = grid.chart('bar')
+        mark = lambda column, value: {'kind': 'condition', 'column': column, 'operator': 'equal', 'value': value}
+        chart.select('EMEA')
+        self.assertEqual(chart.selection, [mark('region', 'EMEA')])
+        self.assertEqual(grid._query['filter'], mark('region', 'EMEA'))
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5})
+        self.assertEqual(page._commands[-1], {'kind': 'refilter', 'remove': [], 'add': [mark('region', 'EMEA')]})
+        self.assertEqual(page._page_commands[-1], {'kind': 'select', 'chart': chart.id, 'conditions': [mark('region', 'EMEA')]})
+        told = len(page._page_commands)
+        chart.select('EMEA')
+        self.assertEqual(chart.selection, [mark('region', 'EMEA')], 'the same mark again stays selected')
+        self.assertEqual(len(page._page_commands), told, 'nothing to do')
+        # another mark in its place, never piled on
+        chart.select('AMER')
+        self.assertEqual(grid._query['filter'], mark('region', 'AMER'))
+        self.assertEqual(chart.selection, [mark('region', 'AMER')])
+        chart.select(None)
+        self.assertEqual(chart.selection, [])
+        self.assertNotIn('filter', grid._query)
+        # refused in DataCube's words, nothing changed
+        with self.assertRaisesRegex(ValueError, 'the chart is split by nothing: a mark of it is named by its value across alone'):
+            chart.select('EMEA', split='FX')
+        with self.assertRaisesRegex(ValueError, 'a selection cleared names no mark: it takes no split'):
+            chart.select(None, split='FX')
+        with self.assertRaisesRegex(ValueError, r"a mark's value across is text, a number, true or false, a date or a timestamp, not \["):
+            chart.select(['EMEA'])
+        # a split chart's mark is named by its series too
+        grid.group('region', 'desk')
+        self.assertEqual(chart._view['spec']['split'], 'desk')
+        with self.assertRaisesRegex(ValueError, "the chart is split by desk: name the mark's desk too"):
+            chart.select('EMEA')
+        chart.select('EMEA', split='Rates')
+        self.assertEqual(chart.selection, [mark('region', 'EMEA'), mark('desk', 'Rates')])
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 75.5})
+        # a chart whose marks are no values across, and one whose grid was removed
+        scatter = grid.chart('scatter', x='notional', y=[('pnl', 'sum')])
+        with self.assertRaisesRegex(ValueError, "a scatter chart's marks are not named by a value across"):
+            scatter.select(100.0)
+        frozen = grid.chart('bar', x='desk', split=None)
+        page.remove(grid)
+        with self.assertRaisesRegex(ValueError, f"'{frozen.id}' is detached \\(its grid was removed\\): its marks filter no grid"):
+            frozen.select('FX')
+
+    def test_a_chart_is_drilled_into_a_mark_and_back_up(self):
+        # (K9, D8) chart.drill, chart.drill_up, chart.drilled: the double-click's drillDown and the crumbs' drillUp
+        # (headless chartDrill), as the chart's setChart; a selection on a drilled chart takes its path with it
+        page = ll.Page('Drilled')
+        grid = page.grid(trades(), name='drilled_trades', rows=['region', 'desk'], measures={'notional': 'sum'})
+        chart = grid.chart('bar', split=None)
+        self.assertEqual(chart.drilled, {})
+        chart.drill('EMEA')
+        self.assertEqual(chart.drilled, {'region': 'EMEA'})
+        self.assertEqual(page._page_commands[-1]['kind'], 'setChart')
+        self.assertEqual(page._page_commands[-1]['spec']['drill'], {'levels': ['region', 'desk'], 'path': ['EMEA']})
+        with self.assertRaisesRegex(ValueError, r'the chart is drilled to desk, the last of its levels \(region, desk\): nothing is below it'):
+            chart.drill('FX')
+        chart.select('Rates')
+        mark = lambda column, value: {'kind': 'condition', 'column': column, 'operator': 'equal', 'value': value}
+        self.assertEqual(chart.selection, [mark('region', 'EMEA'), mark('desk', 'Rates')], 'its path with the mark')
+        chart.select(None)
+        chart.drill_up()
+        self.assertEqual(chart.drilled, {})
+        self.assertNotIn('drill', chart._view['spec'])
+        with self.assertRaisesRegex(ValueError, 'the chart is not drilled: it is at its top level'):
+            chart.drill_up()
+        chart.drill('AMER')
+        with self.assertRaisesRegex(ValueError, 'the chart is drilled 1 level down: it goes up 1 at most'):
+            chart.drill_up(2)
+        with self.assertRaisesRegex(ValueError, 'a chart goes up 1 level or more, a whole number, not 0'):
+            chart.drill_up(0)
+        # a chart that does not drill, in DataCube's words
+        flat = page.grid(trades(), name='flat_trades', rows=['region'], measures={'notional': 'sum'})
+        with self.assertRaisesRegex(ValueError, r"nothing is below region in the grid's groupings \(region\)"):
+            flat.chart('bar').drill('EMEA')
+        with self.assertRaisesRegex(ValueError, 'a kpi chart does not drill: its marks are not its categories across'):
+            flat.chart('kpi').drill('EMEA')
+
     def test_a_saved_page_is_opened_by_its_id_as_datacubes_open_opens_it(self):
         # (K12) ll.Page.open: the record from this user's saved pages, opened as Open… opens it (headless pageOfRecord)
         from legend_lite._home import THIS_USER, pages_folder, store_call
@@ -2411,6 +2494,27 @@ class OverClasses(Paged):
         self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5})
         self.assertNotIn('AMER', grid.export('csv'))
         self.assertIn('EMEA', grid.export('csv'))
+
+    def test_a_charts_mark_on_a_grid_over_the_class_is_a_page_filter_from_the_chart(self):
+        # (K7, D8; page-filters.ts classPick, the screen's click's rule) the mark's conditions on the class's properties a
+        # page filter from the chart, replacing its last -- its own grid's filter untouched; named, never toggled
+        _, doc = self.classed()
+        path = doc['cubes'][0]['cube']['source']['class']
+        loaded = ll.Page.load(doc)
+        grid = loaded.grids[0]
+        grid.group('region')
+        chart = grid.chart('bar')
+        mark = lambda value: {'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': value}
+        chart.select('EMEA')
+        self.assertEqual(loaded.filters, [{'id': 'filter-1', 'class': path, 'condition': mark('EMEA'), 'from': chart.id}])
+        self.assertEqual(chart.selection, [], 'the mark is the page\'s filter, not its grid\'s')
+        self.assertNotIn('filter', grid._query)
+        chart.select('EMEA')
+        self.assertEqual(len(loaded.filters), 1, 'the same mark again stays')
+        chart.select('AMER')
+        self.assertEqual(loaded.filters, [{'id': 'filter-1', 'class': path, 'condition': mark('AMER'), 'from': chart.id}])
+        chart.select(None)
+        self.assertEqual(loaded.filters, [])
 
     def test_a_page_filter_is_set_read_and_taken_off_as_the_screens_add_a_filter_sets_one(self):
         # (K7, Z19) page.filter: made by DataCube's code headless (pageFilter), the setPageFilter command the screen's Add

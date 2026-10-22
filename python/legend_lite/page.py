@@ -921,6 +921,67 @@ class Chart(Tile):
         self._page._apply_page([_commands.page_set_chart(chart=self._id, spec=spec)])
         return self
 
+    # -- what a click does: a selection, a drill (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D8) -----------------------------
+
+    def select(self, value: Any, *, split: Any = _KEEP) -> Chart:
+        """Its mark ``value`` selected -- named by its value across and, on a chart split by a column, its series'
+        (``split``) -- as a click on the mark selects it (DataCube's code: headless chartPick): the mark's conditions (a
+        drilled chart's path with them) put on its grid's filter in place of its last selection's, or, its grid over a
+        class, those on the class's properties a page filter from the chart, reaching every other grid over the class
+        (page-filters.ts classPick). Named, never toggled: the same mark again stays selected. ``None``: the selection
+        cleared. Refused in DataCube's words: a chart whose marks are no values across (a scatter, a treemap), a period
+        or a bin across (a range, ending where the database says), a detached chart (its grid removed: it filters
+        none)."""
+        page = self._page
+        _ = self._view
+        said = json.loads(page._session.headless().call('chartPick', _json.dumps(page._doc), self._id, _json.dumps(
+            {'value': _tagged(value), **({'split': _tagged(split)} if split is not _KEEP else {})})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        # as the screen tells a click: its grid's refilter, then the page's commands (its page filter, its select)
+        with page._batch():
+            if said['commands']:
+                page._tile(said['grid'], Grid)._apply(said['commands'])
+            if said['page']:
+                page._apply_page(said['page'])
+        return self
+
+    @property
+    def selection(self) -> list[dict[str, Any]]:
+        """What its selected mark put on its grid's filter, as the page keeps it (a copy): its conditions, each
+        ``{"kind": "condition", "column", "operator", "value"}``; none, nothing selected. A mark's conditions on a class's
+        properties are its page filter instead (``page.filters``, ``from`` this chart)."""
+        return copy.deepcopy(self._view.get('selection', []))
+
+    def drill(self, value: Any) -> Chart:
+        """One level down its grid's groupings, into the mark ``value`` across (None: the empty one), as a double-click
+        on the mark drills (chart-spec.ts drillDown: headless chartDrill): the chart then across the grouping below,
+        within ``value``. Refused in DataCube's words: a chart that does not drill (a period across, a column the grid
+        does not group by, the last grouping), or one drilled to its last level."""
+        return self._drilled('down', {'value': _tagged(value)})
+
+    def drill_up(self, levels: int = 1) -> Chart:
+        """Back up ``levels`` levels, as its crumbs go back (chart-spec.ts drillUp: headless chartDrill). Refused in
+        DataCube's words when it is not drilled that far."""
+        return self._drilled('up', {'levels': levels})
+
+    @property
+    def drilled(self) -> dict[str, Any]:
+        """Where it is drilled, as the page keeps it: each grouping above the one shown, and the value drilled into
+        there, in order; empty, at its top level."""
+        drill = self._view['spec'].get('drill')
+        return {} if not drill else dict(zip(drill['levels'], copy.deepcopy(drill['path'])))
+
+    def _drilled(self, move: str, given: Mapping[str, Any]) -> Chart:
+        page = self._page
+        _ = self._view
+        said = json.loads(page._session.headless().call('chartDrill', _json.dumps(page._doc), self._id, move,
+                                                        _json.dumps(given)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page._apply_page([said['command']])
+        return self
+
     def __repr__(self) -> str:
         return f'<Chart {self._id}>'
 

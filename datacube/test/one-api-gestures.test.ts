@@ -29,10 +29,10 @@ import { applyGridCommands, GRID_COMMAND_KINDS } from '../src/grid-commands.ts';
 import { LiveChannel } from '../src/app/live-channel.ts';
 import type { LivePage, LiveWrite } from '../src/app/services.ts';
 import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS } from '../src/page-commands.ts';
-import { pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
+import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { rebaseEdits, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
-import { pageWritten, readEdits } from '../src/headless/page.ts';
+import { chartPick, pageWritten, readEdits } from '../src/headless/page.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
@@ -856,6 +856,39 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     assert.ok(copy, 'its document written');
     assert.deepEqual(JSON.parse(cubeToJson(copy)), JSON.parse(cubeToJson(cubeCopied(original))));
     assert.deepEqual(copy.tree.open, [], 'no group open in the copy');
+  });
+});
+
+describe("A chart's mark clicked selects it by the one rule Python's chart.select asks (K7, D8: headless chartPick)", () => {
+  it('the refilter and select the click tells are what chartPick makes of the mark named by its value', async () => {
+    const ids = await withChart();
+    await drawn();
+    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel.opened(1);
+    await drawn();
+    await channel.idle();
+    const was = onScreen();
+    clickMark(ids['chart']!, 0, 0);
+    await drawn();
+    await channel.idle();
+    await drawn();
+    const edits = writes.flatMap((w) => ('restore' in w.write ? [] : w.write.edits));
+    const chart = was.views.find((v): v is ChartView => v.id === ids['chart'] && v.kind === 'chart')!;
+    const selected = onScreen().views.find((v): v is ChartView => v.id === ids['chart'] && v.kind === 'chart')?.selection ?? [];
+    // the mark as Python names it: its value across (and its series', on a split chart), as the click's selection says
+    const valueOf = (column: string | undefined): unknown => {
+      const c = selected.find((n) => n.kind === 'condition' && n.column === column);
+      return c?.kind === 'condition' ? c.value : undefined;
+    };
+    assert.ok(valueOf(chart.spec.x) !== undefined, 'the click selected a mark across');
+    const asked = { value: valueOf(chart.spec.x), ...(chart.spec.split !== undefined ? { split: valueOf(chart.spec.split) } : {}) };
+    const said = JSON.parse(chartPick(pageToJson(was), chart.id, JSON.stringify(asked))) as {
+      grid: string; commands: unknown[]; page: unknown[]; problems?: string[];
+    };
+    assert.equal(said.problems, undefined);
+    assert.deepEqual(edits.flatMap((e) => ('grid' in e ? [{ grid: e.grid, command: e.command }] : [])),
+      said.commands.map((command) => ({ grid: said.grid, command })), "the grid's refilter");
+    assert.deepEqual(edits.flatMap((e) => ('page' in e ? [e.page] : [])), said.page, "the page's select");
   });
 });
 

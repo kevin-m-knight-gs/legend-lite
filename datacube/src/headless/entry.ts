@@ -15,7 +15,7 @@ import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  gridCopied, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, gridCopied, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageWithCube, pageWritten,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides } from './join.ts';
@@ -74,6 +74,9 @@ export { layoutBands, layoutTiles };
 export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
 /** A page saved in the page store as it opens (pageOfRecord: the tab's Open…, Python's Page.open). */
 export { pageOfRecord };
+/** A chart's mark selected, as a click selects one (chartPick: Python's chart.select), and a chart drilled down into a
+ *  mark or back up, as a double-click and the crumbs drill (chartDrill: chart.drill, chart.drill_up). */
+export { chartDrill, chartPick };
 /** A grid's edit on a page: the page with its cube as the edit left it, its charts following it (V1, V2). */
 export { pageWithCube };
 /** The page's keeper (Python's: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) asks DataCube what it never reads itself: a

@@ -6,15 +6,17 @@
 import { CubeDocumentError, cubeCopied, cubeToJson, readCube } from '../cube-document.ts';
 import {
   gridCopyOf, newPage, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage,
-  readSaved, savedPage, savedRecord, suggestedName, type PageDocument,
+  readSaved, savedPage, savedRecord, suggestedName, type ChartView, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
 import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
-import { CubeRefusal, sameValue } from '../snapshot.ts';
+import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
-import { baseOnHost, draftFrom, gridApply, readGivenFilter, type HeldCopy } from './grid.ts';
+import { drillDown, drillLevels, drillRefusal, drillUp, markConditions, namedMark } from '../chart-spec.ts';
+import { classPick } from '../page-filters.ts';
+import { baseOnHost, draftFrom, gridApply, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
@@ -184,6 +186,107 @@ export function pageFilter(page: string, given: string): string {
   const condition = toFilterNode(draft, (c) => types.get(c));
   if (condition === null) return JSON.stringify({ problems: ['a page filter lets something through: give it a condition'] });
   return `{"command":${toJson({ kind: 'setPageFilter', ...(asked.id !== undefined ? { id: asked.id } : {}), class: classes[0]!, condition, from: null })}}`;
+}
+
+/** A value a mark is named by, as a host gives it (untagged: D12): text, a number, true or false, or null (none). */
+function markValue(raw: unknown, what: string): { readonly value: string | number | boolean | null } | string {
+  const v = untagged(raw);
+  if (v === null || typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))) return { value: v };
+  return `${what} is text, a number, true or false, a date or a timestamp, not ${JSON.stringify(raw)}`;
+}
+
+/** The chart `chart` of a page as Python holds it, or why not. */
+function chartOf(doc: PageDocument, chart: string): ChartView | string {
+  const view = doc.views.find((v) => v.id === chart);
+  return view?.kind === 'chart' ? view : `'${chart}' is no chart of the page`;
+}
+
+/**
+ * A CHART'S MARK SELECTED AS PYTHON NAMES ONE (chart.select; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D8): `given`,
+ * `{value, split?}` -- the mark's value across and, on a split chart, its series', each tagged where JSON has no form
+ * for it (D12) -- or `{value: null}`: the selection cleared. Named as a click names it (chart-spec.ts namedMark) and
+ * made the click's conditions (markConditions: a drilled chart's path with them), then what the screen's click does with
+ * them (page/cube-page.ts #select; page-filters.ts classPick): on a grid over a class, those on its properties the
+ * chart's page filter; the rest the chart's selection -- its grid's `refilter`, the old selection off and the new on, and
+ * the page's `select`. Explicit, never toggled (D8): the same mark again is kept. A chart whose grid was removed
+ * (detached) filters no grid: refused. JSON: `{grid, commands, page}` -- the grid's tile and its commands (for
+ * gridApply), then the page's (for pageApply), in that order, as the screen tells them -- or `{problems}`, in DataCube's
+ * words.
+ */
+export function chartPick(page: string, chart: string, given: string): string {
+  const doc = heldPage(page);
+  const view = chartOf(doc, chart);
+  if (typeof view === 'string') return JSON.stringify({ problems: [view] });
+  const grid = doc.views.find((v) => v.kind === 'grid' && v.cube === view.cube);
+  if (grid === undefined) return JSON.stringify({ problems: [`'${chart}' is detached (its grid was removed): its marks filter no grid`] });
+  const asked = JSON.parse(given) as { value?: unknown; split?: unknown };
+  const cube = doc.cubes.find((c) => c.id === view.cube)!.cube;
+  let conditions: FilterNode[] | null = null;
+  if (asked.value === null) {
+    if ('split' in asked) return JSON.stringify({ problems: ['a selection cleared names no mark: it takes no split'] });
+  } else {
+    const value = markValue(asked.value, "a mark's value across");
+    if (typeof value === 'string') return JSON.stringify({ problems: [value] });
+    const split = 'split' in asked ? markValue(asked.split, "a mark's series") : undefined;
+    if (typeof split === 'string') return JSON.stringify({ problems: [split] });
+    const key = namedMark(view.spec, value.value, split);
+    if (typeof key === 'string') return JSON.stringify({ problems: [key] });
+    conditions = markConditions(view.spec, { ...cube.query, epoch: 0 }, key);
+  }
+  const old = view.selection ?? [];
+  const pageCommands: PageCommand[] = [];
+  let next: readonly FilterNode[] = conditions ?? [];
+  if (cube.source._type === 'class') {
+    const pick = classPick(cube.source, chart, conditions, false);
+    const command = pick.command(doc.filters ?? []);
+    if (command !== undefined) pageCommands.push(command);
+    next = pick.own ?? [];
+  }
+  // as data, whatever order the page's writer put a condition's keys in
+  const kept = sameValue(next, old);
+  const commands: GridCommand[] = kept ? [] : [{ kind: 'refilter', remove: [...old], add: [...next] }];
+  if (!kept) pageCommands.push({ kind: 'select', chart, conditions: [...next] });
+  return JSON.stringify({ grid: grid.id, commands, page: pageCommands });
+}
+
+/**
+ * A CHART DRILLED AS PYTHON DRILLS ONE (chart.drill, chart.drill_up; D8): `move` 'down', into the mark `given` names by
+ * its value across (`{value}`, tagged where JSON has no form for it: D12; null the empty one) -- chart-spec.ts
+ * drillDown, the screen's double-click's -- or 'up', `{levels}` levels (drillUp, its crumbs'), over the chart's cube as
+ * the page holds it (its groupings the levels). JSON: `{command}`, the chart's setChart (for pageApply), or `{problems}`,
+ * in DataCube's words.
+ */
+export function chartDrill(page: string, chart: string, move: string, given: string): string {
+  const doc = heldPage(page);
+  const view = chartOf(doc, chart);
+  if (typeof view === 'string') return JSON.stringify({ problems: [view] });
+  const asked = JSON.parse(given) as { value?: unknown; levels?: unknown };
+  const spec = view.spec;
+  const setChart = (next: typeof spec): string => JSON.stringify({ command: { kind: 'setChart', chart, spec: next } });
+  if (move === 'up') {
+    const depth = spec.drill?.path.length ?? 0;
+    const levels = asked.levels;
+    if (typeof levels !== 'number' || !Number.isInteger(levels) || levels < 1) {
+      return JSON.stringify({ problems: [`a chart goes up 1 level or more, a whole number, not ${JSON.stringify(levels)}`] });
+    }
+    if (depth === 0) return JSON.stringify({ problems: ['the chart is not drilled: it is at its top level'] });
+    if (levels > depth) {
+      return JSON.stringify({ problems: [`the chart is drilled ${depth} level${depth === 1 ? '' : 's'} down: it goes up ${depth} at most`] });
+    }
+    return setChart(drillUp(spec, depth - levels));
+  }
+  if (move !== 'down') throw new Error(`a chart drills 'down' or 'up', not ${JSON.stringify(move)}`);
+  const shape = { ...doc.cubes.find((c) => c.id === view.cube)!.cube.query, epoch: 0 };
+  const refused = drillRefusal(spec, shape);
+  if (refused !== null) return JSON.stringify({ problems: [refused] });
+  const value = markValue(asked.value, 'the value drilled into');
+  if (typeof value === 'string') return JSON.stringify({ problems: [value] });
+  const next = drillDown(spec, shape, value.value);
+  if (next === null) {
+    const levels = drillLevels(spec, shape)!;
+    return JSON.stringify({ problems: [`the chart is drilled to ${levels[levels.length - 1]!}, the last of its levels (${levels.join(', ')}): nothing is below it`] });
+  }
+  return setChart(next);
 }
 
 /**

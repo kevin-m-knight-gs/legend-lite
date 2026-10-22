@@ -11,7 +11,7 @@ import { classLambda } from '../src/class-source.ts';
 import type { ClassSource, CubeSource } from '../src/cube-document.ts';
 import { applyPageCommand, applyPageCommands, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { openingOrder, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
-import { conditionWords, filterWords, filteredByClass, gridLens, readPageFilter, readPageFilters, type PageFilter } from '../src/page-filters.ts';
+import { classPick, conditionWords, filterWords, filteredByClass, gridLens, readPageFilter, readPageFilters, type PageFilter } from '../src/page-filters.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { pageApply, pageFilter } from '../src/headless/page.ts';
 import { corpus } from './fixtures/pages/make.ts';
@@ -163,6 +163,39 @@ describe('page filters set and taken off by page commands, kept by the page docu
       assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
     }
     refused(() => readPageCommand({ kind: 'setPageFilter', class: TRADE, condition: EMEA }), /the chart a page filter came from is text/);
+  });
+});
+
+describe("a chart's mark on a grid over a class (classPick: the screen's click's rule and Python's chart.select's)", () => {
+  const over = classOver([{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }]);
+  const OWN: FilterNode = { kind: 'condition', column: 'double', operator: 'greaterThan', value: 1 };
+  const AMER: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'AMER' };
+  const fromChart = (condition: FilterNode): PageFilter => ({ id: 'filter-3', class: TRADE, condition, from: 'chart-1' });
+
+  it("its conditions on the class's properties are the chart's page filter, replacing its last; the rest the grid's own", () => {
+    const pick = classPick(over, 'chart-1', [EMEA, OWN], false);
+    assert.deepEqual(pick.own, [OWN]);
+    assert.equal(pick.cleared, false);
+    assert.deepEqual(pick.command([]), { kind: 'setPageFilter', class: TRADE, condition: EMEA, from: 'chart-1' });
+    assert.deepEqual(classPick(over, 'chart-1', [AMER], false).command([fromChart(EMEA)]),
+      { kind: 'setPageFilter', id: 'filter-3', class: TRADE, condition: AMER, from: 'chart-1' }, 'its last replaced');
+    assert.deepEqual(classPick(over, 'chart-1', [EMEA, BIG], false).command([]),
+      { kind: 'setPageFilter', class: TRADE, condition: { kind: 'and', children: [EMEA, BIG] }, from: 'chart-1' });
+  });
+
+  it('the same mark again: a click takes it off, Python keeps it; none on the class, or cleared, takes it off', () => {
+    assert.deepEqual(classPick(over, 'chart-1', [EMEA], true).command([fromChart(EMEA)]), { kind: 'removePageFilter', filter: 'filter-3' });
+    // the same as data, its keys in another order (F43: a page read back writes them in its reader's order)
+    const reread = { value: 'EMEA', operator: 'equal', column: 'region', kind: 'condition' } as FilterNode;
+    assert.deepEqual(classPick(over, 'chart-1', [EMEA], true).command([fromChart(reread)]), { kind: 'removePageFilter', filter: 'filter-3' });
+    assert.equal(classPick(over, 'chart-1', [EMEA], false).command([fromChart(reread)]), undefined);
+    assert.equal(classPick(over, 'chart-1', [EMEA], false).command([fromChart(EMEA)]), undefined);
+    const cleared = classPick(over, 'chart-1', null, false);
+    assert.equal(cleared.own, null);
+    assert.equal(cleared.cleared, true);
+    assert.deepEqual(cleared.command([fromChart(EMEA)]), { kind: 'removePageFilter', filter: 'filter-3' });
+    assert.equal(cleared.command([]), undefined, 'nothing to take off');
+    assert.deepEqual(classPick(over, 'chart-1', [OWN], false).command([fromChart(EMEA)]), { kind: 'removePageFilter', filter: 'filter-3' });
   });
 });
 

@@ -36,7 +36,7 @@ import {
   filtersFor, keptFor, modelAcross, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
   type PageViews,
 } from '../page-document.ts';
-import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
+import { classPick, conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
 import { CubeRefusal, type FilterNode } from '../snapshot.ts';
@@ -1200,23 +1200,13 @@ export class PageApp {
   #pick(chart: string, grid: string, conditions: readonly FilterNode[] | null): readonly FilterNode[] | null {
     const source = this.grid(grid)?.cubeSource;
     if (source?._type !== 'class') return null;
-    const properties = new Set(source.columns.map((c) => c.name));
-    const onClass = (c: FilterNode): boolean => [...namedProperties(c)].every((p) => properties.has(p));
-    // the mark's conditions on the class's properties are the page's; the rest (a calculated column's) its grid's own
-    const mine = (conditions ?? []).filter(onClass);
-    const own = (conditions ?? []).filter((c) => !onClass(c));
-    const condition: FilterNode | undefined = mine.length === 0 ? undefined
-      : mine.length === 1 ? mine[0]! : { kind: 'and', children: mine };
-    // decided on the page as the edits before it leave it: the chart's last filter replaced, or -- the same mark again,
-    // or none of it on the class -- taken off
-    void this.#filterCommand((): PageCommand | undefined => {
-      const last = this.#filters.find((f) => f.from === chart);
-      if (condition === undefined || (last && JSON.stringify(last.condition) === JSON.stringify(condition))) {
-        return last ? { kind: 'removePageFilter', filter: last.id } : undefined;
-      }
-      return { kind: 'setPageFilter', ...(last ? { id: last.id } : {}), class: source.class, condition, from: chart };
-    }, condition === undefined ? 'Clear Chart Filter' : 'Filter to Chart Mark').catch((e: unknown) => this.#refused(e));
-    return conditions === null ? null : own;
+    // the mark's conditions on the class's properties are the page's; the rest (a calculated column's) its grid's own --
+    // decided on the page as the edits before it leave it (page-filters.ts classPick, a click's: the same mark again
+    // takes the chart's filter off)
+    const pick = classPick(source, chart, conditions, true);
+    void this.#filterCommand(() => pick.command(this.#filters), pick.cleared ? 'Clear Chart Filter' : 'Filter to Chart Mark')
+      .catch((e: unknown) => this.#refused(e));
+    return pick.own;
   }
 
   // -- the page's menu --------------------------------------------------------------

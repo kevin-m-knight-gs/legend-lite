@@ -9,9 +9,10 @@ import { and, fn, isIdentifier, lambda, transform, type Lambda, type ValueSpecif
 import type { ClassSource, CubeSource } from './cube-document.ts';
 import { OPERATORS } from './filter-operators.ts';
 import { readFilterNode } from './grid-commands.ts';
+import type { PageCommand } from './page-commands.ts';
 import { filterNode } from './query.ts';
 import type { QueryLens } from './runner.ts';
-import { CubeRefusal, isRelativeDate, type FilterNode, type FilterValue } from './snapshot.ts';
+import { CubeRefusal, isRelativeDate, sameValue, type FilterNode, type FilterValue } from './snapshot.ts';
 
 /** One filter of the page. */
 export interface PageFilter {
@@ -40,6 +41,41 @@ export function namedProperties(node: FilterNode): Set<string> {
   };
   visit(node);
   return out;
+}
+
+/**
+ * A CHART'S MARK ON A GRID OVER A CLASS (§16.2: one rule, the screen's click's and Python's chart.select's): the mark's
+ * conditions on the class's properties are a page filter from that chart, replacing its last, reaching every other grid
+ * over the class; the rest -- a calculated column's -- are the grid's own, as on any grid (`own`; null: none given, the
+ * selection cleared). `command`, decided on the page's filters as the edits before it leave them: the chart's filter set,
+ * or taken off when none of the mark is on the class -- or, a click's `toggle`, when the chart's filter is the same mark
+ * again (Python names the mark it wants and keeps it: D8). Undefined: nothing to do.
+ */
+export function classPick(
+  source: ClassSource, chart: string, conditions: readonly FilterNode[] | null, toggle: boolean,
+): {
+  readonly own: readonly FilterNode[] | null;
+  readonly cleared: boolean;
+  readonly command: (filters: readonly PageFilter[]) => PageCommand | undefined;
+} {
+  const properties = new Set(source.columns.map((c) => c.name));
+  const onClass = (c: FilterNode): boolean => [...namedProperties(c)].every((p) => properties.has(p));
+  const mine = (conditions ?? []).filter(onClass);
+  const own = conditions === null ? null : conditions.filter((c) => !onClass(c));
+  const condition: FilterNode | undefined = mine.length === 0 ? undefined
+    : mine.length === 1 ? mine[0]! : { kind: 'and', children: mine };
+  return {
+    own,
+    cleared: condition === undefined,
+    command: (filters) => {
+      const last = filters.find((f) => f.from === chart);
+      // as data, whatever order its writer put the keys in (F43: a page read back writes them in its reader's)
+      const same = last !== undefined && condition !== undefined && sameValue(last.condition, condition);
+      if (condition === undefined || (toggle && same)) return last ? { kind: 'removePageFilter', filter: last.id } : undefined;
+      if (same) return undefined;
+      return { kind: 'setPageFilter', ...(last ? { id: last.id } : {}), class: source.class, condition, from: chart };
+    },
+  };
 }
 
 /**

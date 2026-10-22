@@ -68,9 +68,15 @@ interface Entry {
 // presets by the one rule the menu now asks too (grid.grain, show_as, bins: grid-presets.ts presetCommands), and uses and
 // drills a named dimension (grid.dimension, drill, drill_up: dimensions.ts); tested by test_page.py Abilities and
 // grid-presets.test.ts
+// 2026-10-22 (S6 D: K7 K9, D8's names): L8_KINDS 6 -> 4, UNCHECKED 2 -> 1 -- Python selects a chart's mark named by its
+// value across and its series' (chart.select: headless chartPick, the click's own rules -- chart-spec.ts namedMark and
+// markConditions, page-filters.ts classPick, which the screen's click now asks too -- as the grid's refilter and the
+// page's select), and drills a chart down and back up (chart.drill, drill_up: headless chartDrill, chart-spec.ts
+// drillDown and drillUp, as setChart); tested by test_page.py Abilities and OverClasses, and one-api-gestures.test.ts
+// (the screen's click told as chartPick makes it)
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 6, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 2,
+  L8_KINDS: 4, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 1,
 };
 
 function pinned(name: string, size: number): void {
@@ -224,10 +230,6 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   clickSort: { python: { items: [], why: "nature: a header click is the screen's; Python sorts by `sorts` and `addSort`" } },
   clickTreeSort: { python: { items: [], why: "nature: the tree column's click is the screen's" } },
   measures: { screen: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" } },
-  // 2026-10-21, One API S1 G7: a chart's selection became the page's select and its grid's refilter -- Python's chart
-  // selection is K7's (S6), so both kinds come in listed (L8_KINDS 13 -> 15; signed off by the user, 2026-10-22: D10)
-  select: { python: { items: ['K7'] } },
-  refilter: { python: { items: ['K7'] } },
   // 2026-10-21, One API S1 P8: a detached chart's Update tells its query as setChartCube -- Python's Open in grid and
   // Update are K11's (S6), so the kind comes in listed (L8_KINDS 12 -> 13; signed off by the user, 2026-10-22: D10)
   setChartCube: { python: { items: ['K11'] } },
@@ -254,7 +256,6 @@ const L8_UNASKED: Record<string, Entry> = {};
  * these are register entries no test holds -- listed so, and pinned, never mistaken for checked.
  */
 const UNCHECKED_UNTIL_S6: Record<string, string> = {
-  K9: 'a chart drilled, and back up',
   K11: "a chart's Open in grid and Update",
 };
 
@@ -451,7 +452,7 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-22, PR #64's CI (macOS, 821615817): a test that raced the board's lazily loaded code, added by rule 9
   + 'F41 '
   // 2026-10-22, S6 B: a page filter with a number broke Python's grid reads (the lens read it exactly), found testing K7
-  + 'F42 ').split(' ').filter((item) => item !== '');
+  + 'F42 F43 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

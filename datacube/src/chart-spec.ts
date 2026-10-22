@@ -679,19 +679,34 @@ export function drilledView(spec: ChartSpec): { readonly spec: ChartSpec; readon
  * never the split. Null when there is nothing below, or the column across is not one of them (a period, a bin, a column
  * the grid does not group by).
  */
-export function drillLevels(spec: ChartSpec, s: CubeSnapshot): readonly string[] | null {
-  if (spec.drill) return spec.drill.levels;
-  if (spec.x === undefined || !DRILLABLE.has(spec.mark) || spec.facet !== undefined) return null;
+export function drillLevels(spec: ChartSpec, s: CubeShape): readonly string[] | null {
+  return drillRefusal(spec, s) === null ? drillLevelsOf(spec, s) : null;
+}
+
+/**
+ * Why a chart does not drill (drillLevels null), in words -- what Python's chart.drill is told (D8) -- or null: it does.
+ */
+export function drillRefusal(spec: ChartSpec, s: CubeShape): string | null {
+  if (spec.drill) return null;
+  if (spec.x === undefined) return 'the chart has nothing across to drill into';
+  if (!DRILLABLE.has(spec.mark)) return `a ${spec.mark} chart does not drill: its marks are not its categories across`;
+  if (spec.facet !== undefined) return 'a chart of small multiples does not drill';
   // a period or a bin is not a level of the grid's groupings: there is nowhere "down" from a month
-  if (spec.grain !== undefined || spec.bins !== undefined) return null;
-  const at = s.rows.indexOf(spec.x);
-  if (at < 0) return null;
-  const levels = s.rows.slice(at).filter((c) => c !== spec.split);
+  if (spec.grain !== undefined || spec.bins !== undefined) {
+    return `${spec.x} across is in ${spec.grain !== undefined ? `${spec.grain}s` : 'bins'}, not a grouping of the grid's: there is nothing below one`;
+  }
+  if (!s.rows.includes(spec.x)) return `the grid does not group by ${spec.x}, the chart's column across: it has no level below it`;
+  return drillLevelsOf(spec, s) === null ? `nothing is below ${spec.x} in the grid's groupings (${s.rows.join(', ')})` : null;
+}
+
+function drillLevelsOf(spec: ChartSpec, s: CubeShape): readonly string[] | null {
+  if (spec.drill) return spec.drill.levels;
+  const levels = s.rows.slice(s.rows.indexOf(spec.x!)).filter((c) => c !== spec.split);
   return levels.length > 1 ? levels : null;
 }
 
 /** The chart one level down from a clicked mark's value across, or null at the bottom. */
-export function drillDown(spec: ChartSpec, s: CubeSnapshot, value: Scalar): ChartSpec | null {
+export function drillDown(spec: ChartSpec, s: CubeShape, value: Scalar): ChartSpec | null {
   const levels = drillLevels(spec, s);
   const path = spec.drill?.path ?? [];
   if (!levels || path.length + 1 >= levels.length) return null;
@@ -736,7 +751,7 @@ export function rangesAcross(spec: ChartSpec): boolean {
  */
 export function markConditions(
   spec: ChartSpec,
-  s: CubeSnapshot,
+  s: CubeShape,
   key: Readonly<Record<string, Scalar>>,
   upper?: Scalar,
 ): FilterNode[] {
@@ -757,6 +772,33 @@ export function markConditions(
       ? [{ kind: 'condition', column, operator: 'isEmpty' }]
       : [{ kind: 'condition', column, operator: 'equal', value }];
   })];
+}
+
+/**
+ * A MARK NAMED BY ITS VALUES, as a click on it names it (the drawing's key: chart-option.ts, chart-kinds.ts; D8, Python's
+ * chart.select): its value across -- the level drilled to, on a drilled chart -- and, on a chart split by a column, its
+ * series' (`split`, which a chart split by nothing takes none of). A chart whose marks are not its categories across
+ * names none so: rows (a scatter, a scatter matrix), the grid's own rows (a treemap, a sunburst, a tree), layers no click
+ * takes (a stream), one figure (a KPI, a gauge). A period or a bin across is a range that ends where the database says
+ * (`AXIS_UPPER`), not named by its start (D8: not at first). The mark's key, for `markConditions`, or why not, in words.
+ */
+export function namedMark(
+  drilled: ChartSpec, value: Scalar, split?: { readonly value: Scalar },
+): Readonly<Record<string, Scalar>> | string {
+  const { spec } = drilledView(drilled);
+  if (plotsRows(spec) || GRID_MARKS.has(spec.mark) || spec.mark === 'stream' || spec.mark === 'kpi' || spec.mark === 'gauge') {
+    return `a ${spec.mark} chart's marks are not named by a value across`;
+  }
+  if (spec.x === undefined) return 'the chart has nothing across: no mark of it is named by a value';
+  if (rangesAcross(spec)) {
+    return `the chart's marks across are ${spec.grain !== undefined ? `${spec.grain}s` : 'bins'} of ${spec.x}, each a range `
+      + 'the database ends: a range is not selected by its start';
+  }
+  if (spec.split === undefined) {
+    return split === undefined ? { [spec.x]: value } : 'the chart is split by nothing: a mark of it is named by its value across alone';
+  }
+  if (split === undefined) return `the chart is split by ${spec.split}: name the mark's ${spec.split} too`;
+  return { [spec.x]: value, [spec.split]: split.value };
 }
 
 /**
