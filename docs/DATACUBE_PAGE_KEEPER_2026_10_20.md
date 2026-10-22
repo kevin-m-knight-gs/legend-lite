@@ -150,7 +150,7 @@ Known limits, left to the steps after:
 3. **"Changed since saved"** on the open page now stays marked for a change made there after Python's change lands (the
    whole reopen used to clear it): right, since the person's change is saved nowhere, and noted because it is new.
 4. Following charts are not yet derived by every writer (step (c)); the Snap ownership code (adopt, hand-over, claims)
-   is still in place (step (d)).
+   is still in place (step (d); deleted by the one API plan's Z17, 2026-10-22: one model, the keeper's).
 5. **A page with no grid** (found by the 80-seed soak of section 7). Python holds one (`ll.Page` starts as one; Python
    may take off its last grid), but the open page cannot write one: DataCube's reader refuses a page with no cube
    (`PageNoCubeError`), and the tab writes nothing for a blank page (`pageNow` gives none). The last grid taken off in
@@ -162,7 +162,10 @@ Known limits, left to the steps after:
    reads it: its queries meet a table gone, and the commands that moved the page since may not apply over it -- the app
    then opens the page again whole (followLive), so nothing diverges, but the screen flashes an error and loses its
    view state. Step (d): a copy lives until every open page has followed past the version that dropped it (each
-   follower says its version on every read and write).
+   follower says its version on every read and write). **Closed 2026-10-22** (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+   Z17), as planned: the keeper keeps the copies each version read, and each open page's version, said with its
+   follows and writes and its tab's version poll (`follower`, `at`); a copy goes when no page reads it now and none
+   open shows a version that reads it, or any since -- one silent for `FOLLOWED_FOR` (five minutes) keeps none.
 
 ## 7. Confidence (1b, 2026-10-20)
 
@@ -220,7 +223,8 @@ planned would have written it a second time for the tab. Instead the host settle
   PageApp whose edits reach a keeper as commands it makes again on top of the other editor's), keeper storage and settle
   unit tests, the Python convergence and two-thread tests on the new protocol. Full suite 210/210.
 
-Still open: known limit 6 (a replaced copy dropped before every open page followed past it; step (d)); the seven tab
+Still open: known limit 6 (a replaced copy dropped before every open page followed past it; step (d): closed by the one
+API plan's Z17, 2026-10-22); the seven tab
 edits that are no commands yet stay whole-page writes, refused when they collide (step (c): proposed to drop, for its
 cost against a rare case -- the user's decision pending); on a combined write the tab reopens the page (its view state
 lost then).

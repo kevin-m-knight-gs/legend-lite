@@ -110,10 +110,10 @@ export interface PythonServicesOptions {
   readonly settings?: Record<string, unknown>;
   /**
    * How the page is told that Python moved what it shows: at once of the versions now, then as they move, or why
-   * Python no longer says (a string). A tab asks (`askedVersions`, about once a second); a notebook's widget is told
-   * (its `versions`, or its frame's `version`). Returns what stops it.
+   * Python no longer says (a string). A tab asks (`askedVersions`, about once a second), saying where it is
+   * (`follower`); a notebook's widget is told (its `versions`, or its frame's `version`). Returns what stops it.
    */
-  readonly watch: (moved: (now: Versions | string) => void) => () => void;
+  readonly watch: (moved: (now: Versions | string) => void, follower: PageFollower) => () => void;
   /** The browser's own things where the page is: a tab's (its title too), a notebook's (no title of its own). */
   readonly browser: BrowserService;
 }
@@ -151,6 +151,21 @@ function pythonPlanes(offers: PythonOffers): PlaneService {
       throw new Error(`${plane.label}: a page on Python plans on Python's own planner, in process`);
     },
   };
+}
+
+/**
+ * A PAGE OPEN ON ONE PYTHON KEEPS, as Python knows it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): the id it asks by,
+ * and the version it shows (none while it opens or follows one). Python keeps the copies that version reads, and every
+ * later version's, until the page says it moved past them -- so a page that has not followed yet still reads its copies.
+ */
+export interface PageFollower {
+  readonly id: string;
+  shown(): number | undefined;
+}
+
+/** A follower's id: random, never read by a person -- made where `crypto.randomUUID` is not too (a page on plain http). */
+function followerId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 const headers = (link: PythonLink): Record<string, string> =>
@@ -573,9 +588,13 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
   };
 }
 
-/** The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays. */
-export function livePage(link: PythonLink, key: string): LivePage {
+/**
+ * The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays.
+ * `follower`: the id the page open here asks by, each follow and write saying the version it shows (Z17).
+ */
+export function livePage(link: PythonLink, key: string, follower?: string): LivePage {
   const at = `page.json?page=${encodeURIComponent(key)}`;
+  const as = follower === undefined ? '' : `&follower=${follower}`;
   /** The page as Python serves it now, read from the answer's exact JSON, and every id it has held. */
   const read = (text: string): { version: number; page: PageDocument; held: readonly string[] } => {
     const said = fromJson(text) as { version: unknown; page: unknown };
@@ -592,7 +611,7 @@ export function livePage(link: PythonLink, key: string): LivePage {
     // added's cube and a calculated column's lambda from the answer's exact numbers (12.30 kept, an integer past 2^53
     // every digit) -- the rest as the screen holds its own commands; the page's rules fetched with the first commands
     changes: async (since) => {
-      const text = await asked(link, `${at}&since=${since}`);
+      const text = await asked(link, `${at}&since=${since}${as}`);
       const plain = JSON.parse(text) as { version: number; commands?: unknown[] };
       if (plain.commands === undefined) return read(text);
       const exact = (fromJson(text) as { commands: Record<string, Record<string, unknown>>[] }).commands;
@@ -616,7 +635,7 @@ export function livePage(link: PythonLink, key: string): LivePage {
       return { version: plain.version, commands };
     },
     report: async (version: number, write: LiveWrite) => {
-      const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}`, {
+      const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}${as}`, {
         method: 'POST',
         headers: { ...headers(link), 'Content-Type': 'application/json' },
         // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), or the page whole
@@ -633,10 +652,13 @@ export function livePage(link: PythonLink, key: string): LivePage {
 
 /**
  * The versions Python says now (`version.json`) of what it shows -- a page's own and each of its frames', or one
- * frame's -- or why it does not say (the page or the frame closed, the engine gone).
+ * frame's -- or why it does not say (the page or the frame closed, the engine gone). A page open here says, asking,
+ * who it is and the version it shows (`follower`, Z17).
  */
-export async function askedVersions(link: PythonLink, shows: PythonShows): Promise<Versions | string> {
-  const query = 'page' in shows ? `page=${encodeURIComponent(shows.page)}` : `table=${encodeURIComponent(shows.frame)}`;
+export async function askedVersions(link: PythonLink, shows: PythonShows, follower?: PageFollower): Promise<Versions | string> {
+  const shown = follower?.shown();
+  const where = follower === undefined ? '' : `&follower=${follower.id}${shown === undefined ? '' : `&at=${shown}`}`;
+  const query = 'page' in shows ? `page=${encodeURIComponent(shows.page)}${where}` : `table=${encodeURIComponent(shows.frame)}`;
   const answer = await link.fetch(`${link.baseUrl}/version.json?${query}`, { headers: headers(link) }).catch(() => undefined);
   if (answer === undefined) return 'the engine stopped';
   if (answer.status === 404) return 'page' in shows ? 'the page was closed' : 'the frame was closed';
@@ -651,6 +673,8 @@ export function pythonServices(o: PythonServicesOptions): Services {
   // Python's compiler on legend-engine's and legend-lite's own routes (pure/v1, lite/v1): it writes a model, and reads a
   // query's text and a model's elements
   const compiler = new LitePlanner({ model: '', runtime: '', worker: () => pythonWorker(link) });
+  // who this page is to Python, as it follows Python's page and writes it (Z17)
+  const follower = followerId();
   return {
     engine: {
       plane: pythonPlanes(o.offers),
@@ -680,8 +704,8 @@ export function pythonServices(o: PythonServicesOptions): Services {
     ...(o.offers.modelHome ? { modelHome: pythonModelHome(link, o.offers.modelHome.where, o.offers.apps ?? []) } : {}),
     ...(o.offers.warehouse ? { warehouse: pythonWarehouse(link) } : {}),
     live: {
-      watch: o.watch,
-      ...('page' in o.shows ? { page: livePage(link, o.shows.page) } : {}),
+      watch: (moved, shown) => o.watch(moved, { id: follower, shown: shown ?? (() => undefined) }),
+      ...('page' in o.shows ? { page: livePage(link, o.shows.page, follower) } : {}),
     },
     browser: pythonBrowser(link, o.browser, o.settings),
   };

@@ -63,9 +63,10 @@ afterEach(() => {
 
 /** The app opened on `editor`'s page, as a tab opens it: what it watches through, and its page's text. */
 async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>):
-  Promise<{ moved: (version: number) => void; unwatched: () => boolean; text: () => string }> {
+  Promise<{ moved: (version: number) => void; unwatched: () => boolean; text: () => string; shown: () => number | undefined }> {
   const watchers: ((now: { version: number; frames: Record<string, number> } | string) => void)[] = [];
   let unwatched = false;
+  let shown: () => number | undefined = () => { throw new Error('the app said no version on screen to its editor'); };
   const services = {
     engine: {
       plane: { word: 'engine', planes: [], choose() {} },
@@ -78,8 +79,9 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
     },
     live: {
       page: editor,
-      watch: (fn: (now: { version: number; frames: Record<string, number> } | string) => void) => {
+      watch: (fn: (now: { version: number; frames: Record<string, number> } | string) => void, onScreen?: () => number | undefined) => {
         watchers.push(fn);
+        if (onScreen) shown = onScreen;
         return () => { unwatched = true; };
       },
     },
@@ -102,6 +104,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
     moved: (version) => { for (const w of watchers) w({ version, frames: {} }); },
     unwatched: () => unwatched,
     text: () => (doc.body.textContent ?? '').replace(/\s+/g, ' '),
+    shown: () => shown(),
   };
 }
 
@@ -130,6 +133,17 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     app.moved(2);
     await settle();
     assert.deepEqual(editor.changesAsked, [1], 'its move followed, by the commands since the version shown');
+  });
+
+  it('the editor is told, as it is asked, the version on screen: the copies it reads stay until it moves past them (Z17)', async () => {
+    const editor = new Editor();
+    const app = await opened(editor);
+    assert.equal(app.shown(), 1, 'opened at version 1');
+    app.moved(2);
+    await settle();
+    assert.equal(app.shown(), 2, 'followed to version 2');
+    blankPage();
+    assert.equal(app.shown(), undefined, 'left: no page of the editor\'s on screen');
   });
 
   it('a first read that failed is tried again at the next move', async () => {

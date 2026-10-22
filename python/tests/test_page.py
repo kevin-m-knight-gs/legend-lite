@@ -1810,7 +1810,7 @@ class Snapped(Paged):
         grid.snap()
         said = engine.answer('POST', '/snap.json', '', json.dumps({'op': 'release', 'table': 'snap'}))
         self.assertEqual((said.status, json.loads(said.body)),
-                         (200, {'kept': 'a page reads it: it goes with the last page that reads it'}))
+                         (200, {'kept': 'a page reads it: it goes when nothing reads it any more'}))
         self.assertTrue(self.held('snap'))
         # the page collected (a cell made it again): its copies let go at the session's next safe moment
         del page, grid

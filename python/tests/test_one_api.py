@@ -43,7 +43,7 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10).
 # 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 6, 'L9_KEEPER': 6,
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 5, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -241,7 +241,6 @@ MARKERS = [
     (PAGE, "path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)", ('Z6',), 1),
     (PAGE, "'near': None, 'title': title, 'columns': None}], 'a title')", ('Z9',), 1),
     (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
-    (ENGINE, 'self._claimed: set[str] = set()', ('Z17',), 1),
     (PAGE, "def __init__(self, name: str = 'Untitled page') -> None:", ('B3',), 1),
     # the page _apply_page assigns is headless pageApply's, as read (L5 pins the assignment, this its binding)
     (PAGE, "page = _plain(_json.loads(said['page']))", ALLOWED, 1),

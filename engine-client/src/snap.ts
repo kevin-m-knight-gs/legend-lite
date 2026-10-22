@@ -390,7 +390,7 @@ export interface HostSnapTarget {
    * pull's receipt, the copy's table and the relation that reads it (the host's model of what the copy holds).
    */
   snap(pull: Lambda): Promise<HostFrozen>;
-  /** That copy dropped, by its table. */
+  /** That copy let go of by the grid, by its table: dropped, unless a page the host keeps reads it (the host's then). */
   release(table: string): Promise<void>;
   /** Whose database the copy is in, as a person reads it: `Python`. */
   readonly store: string;
@@ -405,15 +405,18 @@ export interface HostFrozen {
   readonly source: ValueSpecification;
 }
 
-/** The states SnapManager keeps, for a copy its host keeps (HostSnapTarget). */
+/**
+ * The states SnapManager keeps, for a copy its host keeps (HostSnapTarget). Whose copy it is is the host's to say, never
+ * the grid's (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): the grid lets go of the copy it reads -- going live, snapped
+ * again, closed, its page left -- and the host drops it unless a page its keeper keeps reads it (or did, or a page open
+ * on it still shows one that does): the keeper's from then on, it goes when nothing reads it any more.
+ */
 export class HostSnaps implements Snaps {
   readonly #target: HostSnapTarget;
   #state: PlaneState = { mode: 'live' };
   /** A snap asked for and not answered yet: a grid closed meanwhile lets its copy go once it is made (`close`). */
   #pending: Promise<unknown> | undefined;
   #closed = false;
-  /** The snap the grid reads that another editor of its page made (`adopt`): its host's to let go, never the grid's. */
-  #adopted: SnapInfo | undefined;
 
   constructor(target: HostSnapTarget) {
     this.#target = target;
@@ -463,11 +466,10 @@ export class HostSnaps implements Snaps {
 
   /**
    * A COPY ANOTHER EDITOR OF THE PAGE MADE, read from now on (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8: the
-   * page's snap command, made in Python): `copy`, its host's copy as it was made, taken at `at` under `label`. The
-   * page's other editor lets it go, never this grid (`discard` leaves it; `forget` is how it goes). One held already
-   * goes first, by the caller.
+   * page's snap command, made in Python): `copy`, its host's copy as it was made, taken at `at` under `label` -- its
+   * host's, as every copy (a page its keeper keeps reads it). One held already goes first, by the caller.
    */
-  adopt(copy: { readonly table: string; readonly schema?: string; readonly source: ValueSpecification },
+  follow(copy: { readonly table: string; readonly schema?: string; readonly source: ValueSpecification },
     at: { readonly takenAt: Date; readonly label: string; readonly rowCount: number; readonly pulledBy?: Receipt }): SnapInfo {
     const snap: SnapInfo = {
       ...(at.pulledBy ? { pulledBy: at.pulledBy } : {}),
@@ -480,25 +482,7 @@ export class HostSnaps implements Snaps {
       store: this.#target.store,
     };
     this.#state = { mode: 'snapped', snap };
-    this.#adopted = snap;
     return snap;
-  }
-
-  /** The copy the grid reads let go of by the editor that made it (the page's live command): live, nothing let go here. */
-  forget(): SnapInfo | null {
-    const held = this.detach();
-    if (held === this.#adopted) this.#adopted = undefined;
-    return held;
-  }
-
-  /** The copy the grid reads, when it is `table`, another editor's from now on (its page reads it there too): kept here. */
-  handOver(table: string): void {
-    if (this.#state.mode === 'snapped' && this.#state.snap.table === table) this.#adopted = this.#state.snap;
-  }
-
-  /** Whether the copy the grid reads is one another editor of its page made (`adopt`). */
-  get adopted(): boolean {
-    return this.#state.mode === 'snapped' && this.#state.snap === this.#adopted;
   }
 
   async release(): Promise<void> {
@@ -517,22 +501,17 @@ export class HostSnaps implements Snaps {
     this.#state = { mode: 'snapped', snap };
   }
 
+  /** Live answered: the copy let go of (its host keeps it when a page reads it). */
   async discard(snap: SnapInfo): Promise<void> {
-    // another editor's copy is its own to let go (the page's live command): the grid only stops reading it
-    if (snap === this.#adopted) {
-      this.#adopted = undefined;
-      return;
-    }
     await this.#target.release(snap.table);
   }
 
   /**
-   * The page is going (its tab closed, navigated away): the copy the grid made asked to be let go -- its host keeps it
-   * when its page's other editor reads it -- without waiting, as nothing here is left to wait. An adopted copy is its
-   * maker's to let go.
+   * The page is going (its tab closed, navigated away): the copy the grid reads let go of -- its host keeps it when a
+   * page reads it -- without waiting, as nothing here is left to wait.
    */
   leaving(): void {
-    if (this.#state.mode !== 'snapped' || this.adopted) return;
+    if (this.#state.mode !== 'snapped') return;
     void this.#target.release(this.#state.snap.table).catch(() => undefined);
   }
 

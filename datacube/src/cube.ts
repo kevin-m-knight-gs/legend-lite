@@ -288,7 +288,7 @@ export interface HostSnap extends HostSnapTarget {
    * snap command, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) -- and the runner its queries go to. Absent, a host
    * whose copies only this page makes.
    */
-  adopt?(table: string): Promise<{ readonly table: string; readonly schema?: string; readonly source: ValueSpecification;
+  held?(table: string): Promise<{ readonly table: string; readonly schema?: string; readonly source: ValueSpecification;
     readonly runner: QueryRunner }>;
 }
 
@@ -809,39 +809,36 @@ export class CubeController {
   /**
    * THE PAGE'S SNAP COMMAND, MADE BY ITS OTHER EDITOR (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): `copy`, which
    * its host made already (Python's grid.snap()), read from now on wherever a query reads `live`, the cube's live base
-   * (runner.ts rebased) -- the host's runner over its model of the copy. That editor lets it go (the page's live command:
-   * `forget`), never this grid. A copy it read before goes first. The owner then re-runs the state, as after a snap.
+   * (runner.ts rebased) -- the host's runner over its model of the copy, and the host's to let go, as every copy it holds
+   * (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17). A copy it read before goes first. The owner then re-runs the state,
+   * as after a snap.
    */
-  async adopt(copy: { readonly table: string; readonly label: string; readonly takenAt: Date; readonly rowCount: number;
+  async follow(copy: { readonly table: string; readonly label: string; readonly takenAt: Date; readonly rowCount: number;
     readonly pulledBy?: Receipt }, live: ValueSpecification): Promise<void> {
     const host = this.#options.hostSnap;
-    if (!(this.#snaps instanceof HostSnaps) || !host?.adopt) {
+    if (!(this.#snaps instanceof HostSnaps) || !host?.held) {
       throw new CubeRefusal('this grid reads no copy its host makes: it snaps in this tab');
     }
     if (this.#closed) throw new CubeRefusal('this grid is closed: it reads no copy');
     if (this.#snapping) throw new CubeRefusal('this grid\u2019s snap is being made: wait for its copy');
-    const held = await host.adopt(copy.table);
+    const held = await host.held(copy.table);
     if (this.#closed) throw new CubeRefusal('the grid was closed while its copy was found');
     if (this.#snaps.isSnapped) await this.release();
-    this.#snaps.adopt(held, copy);
+    this.#snaps.follow(held, copy);
     this.#copy = { runner: rebased(held.runner, live, held.source), dispose: () => {} };
   }
 
-  /** The copy it reads let go of by the editor that made it (the page's live command): live again, nothing let go here. */
+  /** The page's live command, made by its other editor: live again -- the copy it read its host's to let go (the page no
+   *  longer reads it), nothing let go here. */
   forget(): void {
-    if (this.#snaps instanceof HostSnaps) this.#snaps.forget();
+    if (this.#snaps instanceof HostSnaps) this.#snaps.detach();
     this.#letCopyGo();
   }
 
-  /** The page is going: a copy its host keeps for this grid asked to be let go (HostSnaps.leaving); the tab's own goes
-   *  with the tab. */
+  /** The page is going: the copy its host keeps for this grid let go of (HostSnaps.leaving: kept there when a page reads
+   *  it); the tab's own goes with the tab. */
   leaving(): void {
     if (this.#snaps instanceof HostSnaps) this.#snaps.leaving();
-  }
-
-  /** The copy it reads, when it is `table`, handed to the page's other editor: kept when this grid lets go of it. */
-  handOver(table: string): void {
-    if (this.#snaps instanceof HostSnaps) this.#snaps.handOver(table);
   }
 
   /** Back to live; the owner re-runs the state, as after a snap. */

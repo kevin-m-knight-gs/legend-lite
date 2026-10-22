@@ -14,13 +14,21 @@ whole: a RESTORE (an undo or a redo, the plan's N2; a page loaded, N1), taken on
 Each version keeps the edits that moved the page to it (a page's, or a grid's with its tile's id), or none -- a page
 restored whole -- so a page open at an older version follows by the edits since, or opens the page again; and the ids
 the page had held then (what a write made at it knew). A write that leaves the page as it was is no new version.
+
+EACH COPY IS THE KEEPER'S ONCE A PAGE READS IT (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): a snap's copy is its
+maker's until a page the keeper keeps reads it -- its maker lets it go when it never lands (``has_read``) -- and from then
+on goes only when nothing reads it any more (``letting_go``): no page as it is, and no page open on one at a version that
+reads it, or any version since. Each open page says the version it shows (``follow``), as it asks and writes; one that
+says nothing for ``FOLLOWED_FOR`` seconds (its tab closed, its machine asleep) keeps nothing. So a page open somewhere
+that has not followed yet still reads its copies, and follows by the commands since (the keeper's known limit 6).
 """
 
 from __future__ import annotations
 
 import copy
 import threading
-from collections.abc import Callable, Mapping
+import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,6 +37,9 @@ STEPS_KEPT = 64
 # how many times a write is made again on top of a page that keeps moving before it is refused (each makes it again on
 # the page as it is then: only a writer that keeps losing the race to another meets it)
 COMBINED_AT_MOST = 64
+# how long a page open somewhere is taken to show the version it last said (seconds): a tab asks about once a second,
+# and a hidden one about once a minute; one that says nothing for longer -- closed, asleep -- keeps no copy
+FOLLOWED_FOR = 300.0
 
 
 class Stale(Exception):
@@ -67,6 +78,10 @@ class _Kept:
     # the ids the page had held at each version kept: what a write made at it knew (a page filter it made, told from one
     # another writer made since under the same id: H3)
     helds: dict[int, list[str]] = field(default_factory=dict)
+    # the copies the page read at each version kept: what a page open at that version, or following past it, reads
+    copies: dict[int, list[str]] = field(default_factory=dict)
+    # the pages open on it, each by the id it asks by: the version it said it shows, and when (time.monotonic)
+    followers: dict[str, tuple[int, float]] = field(default_factory=dict)
     # shown somewhere (a tab, a notebook widget): what an open page may read and write
     served: bool = False
 
@@ -85,6 +100,8 @@ class PageKeeper:
     def __init__(self, on_write: Callable[[str, int], None] | None = None, combine: Combine | None = None) -> None:
         self._lock = threading.Lock()
         self._pages: dict[str, _Kept] = {}
+        # every copy a page kept has read: the keeper's to let go from then on, never its maker's
+        self._read: set[str] = set()
         # told each new version (its page's key, the version), outside the lock: where the page is shown follows it
         self.on_write = on_write
         # how a write's edits are applied to the page as it is (asked outside the lock: DataCube's, headless)
@@ -92,9 +109,11 @@ class PageKeeper:
 
     def keep(self, key: str, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
         """A page kept from now on (a new Python page), at version 1."""
+        kept_reads = _reads(reads)
         with self._lock:
             ids = sorted(set(held))
-            self._pages[key] = _Kept(1, copy.deepcopy(doc), _reads(reads), ids, {1: None}, {1: ids})
+            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, ids, {1: None}, {1: ids}, {1: kept_reads['copies']})
+            self._read |= set(kept_reads['copies'])
         return 1
 
     def forget(self, key: str) -> None:
@@ -148,9 +167,12 @@ class PageKeeper:
             kept.reads = kept_reads
             kept.steps[kept.version] = kept_edits
             kept.helds[kept.version] = list(kept.held)
+            kept.copies[kept.version] = kept_reads['copies']
+            self._read |= set(kept_reads['copies'])
             for old in [v for v in kept.steps if v <= kept.version - STEPS_KEPT]:
                 del kept.steps[old]
                 kept.helds.pop(old, None)
+                kept.copies.pop(old, None)
             version = kept.version
         if self.on_write is not None:
             self.on_write(key, version)
@@ -210,21 +232,62 @@ class PageKeeper:
             return kept.version, [c for m in moved for c in m or []]
 
     def serve(self, key: str, served: bool) -> None:
-        """The page shown somewhere, or shown nowhere any more."""
+        """The page shown somewhere, or shown nowhere any more (no page is open on it then)."""
         with self._lock:
             kept = self._pages.get(key)
             if kept is not None:
                 kept.served = served
+                if not served:
+                    kept.followers.clear()
+
+    def follow(self, key: str, follower: str, version: int | None) -> bool:
+        """A page open on ``key`` -- ``follower``, the id it asks by -- says it shows ``version`` (None: it is opening or
+        following one, and shows the version it said last, if any): the copies that version and every one since read
+        stay while it does (``letting_go``), and for ``FOLLOWED_FOR`` seconds after it last said anything. Whether it
+        moved from the version it said before (the copies only that one read may go now: a sweep)."""
+        with self._lock:
+            kept = self._pages.get(key)
+            if kept is None:
+                return False
+            was = kept.followers.get(follower)
+            if version is None:
+                if was is not None:
+                    kept.followers[follower] = (was[0], time.monotonic())
+                return False
+            kept.followers[follower] = (version, time.monotonic())
+            return was is not None and was[0] != version
 
     def served(self, key: str) -> bool:
         with self._lock:
             kept = self._pages.get(key)
             return kept is not None and kept.served
 
-    def referenced(self) -> set[str]:
-        """The copies the pages kept read, by table, as DataCube said with each one's last write."""
+    def has_read(self, table: str) -> bool:
+        """Whether a page kept has read the copy ``table``: the keeper's to let go from then on (``letting_go``), never
+        its maker's."""
         with self._lock:
-            return {t for kept in self._pages.values() for t in kept.reads['copies']}
+            return table in self._read
+
+    def letting_go(self, copies: Iterable[str]) -> list[str]:
+        """Of ``copies`` (the copies held, by table), the ones nothing reads any more, to let go: read by a page kept once,
+        and now by none -- neither by a page as it is, nor at a version a page open on it shows (as it last said within
+        ``FOLLOWED_FOR`` seconds), nor at any version since, which that page follows by. A page collected reads none."""
+        now = time.monotonic()
+        with self._lock:
+            read: set[str] = set()
+            for kept in self._pages.values():
+                kept.followers = {f: said for f, said in kept.followers.items() if now - said[1] <= FOLLOWED_FOR}
+                oldest = min((v for v, _ in kept.followers.values()), default=kept.version)
+                read.update(kept.reads['copies'])
+                for version, then in kept.copies.items():
+                    if version >= oldest:
+                        read.update(then)
+            return sorted(t for t in set(copies) if t in self._read and t not in read)
+
+    def gone(self, table: str) -> None:
+        """The copy ``table`` let go of (its name is never given again)."""
+        with self._lock:
+            self._read.discard(table)
 
 
 def _reads(reads: Mapping[str, list[str]]) -> dict[str, list[str]]:

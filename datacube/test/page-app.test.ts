@@ -679,7 +679,7 @@ describe('a page of its own', () => {
         store: 'Python',
         snap: async () => ({ rowCount: 3, table: 'snap_2', source: SNAPSHOT.source.query, runner }),
         release: async (table) => { released.push(table); },
-        adopt: async (table) => ({ table, source: SNAPSHOT.source.query, runner }),
+        held: async (table) => ({ table, source: SNAPSHOT.source.query, runner }),
       },
       ...(page ? { windowHost: page.root } : {}), ...spawned,
     });
@@ -709,7 +709,7 @@ describe('a page of its own', () => {
     await page.follow([{ kind: 'live', grid: a }], new Map());
     await settle();
     assert.equal(pill(), 'Live');
-    assert.deepEqual(released, [], "the other editor's copies, and one it read, are its to let go");
+    assert.deepEqual(released, [], "the other editor's live command lets nothing go here: the page no longer reads the copy, which its host lets go");
     // a snap command for a grid this page cannot read a host's copy for: refused, so the page opens again as it is there
     await assert.rejects(page.follow([{ kind: 'snap', grid: 'grid-9', copy }], new Map()));
   });
@@ -724,7 +724,7 @@ describe('a page of its own', () => {
         store: 'Python',
         snap: async () => ({ rowCount: 3, table: 'snap_2', source: SNAPSHOT.source.query, runner }),
         release: async () => {},
-        adopt: async (table) => {
+        held: async (table) => {
           await o.slow?.taken();
           return { table, source: SNAPSHOT.source.query, runner };
         },

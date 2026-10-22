@@ -798,8 +798,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       // the page on screen is this one from now: Save writes over it, never over the page it replaced
       const onScreen = place();
-      // a copy a grid going now reads that the page opened reads too -- its other editor's from now on -- stays
-      for (const [cube, copy] of Object.entries(doc.copies ?? {})) page.grid(cube)?.handOver?.(copy.table);
       // a page of this tab's own, in place of the one its other editor serves (D1)
       if (!replacing) leaveServed();
       page.restore(doc, makers, held);
@@ -1547,7 +1545,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           if (typeof now === 'string') return stop(now);
           failed(await followed(now));
         }).catch((e: unknown) => failed(e instanceof Error ? e.message : String(e)));
-      });
+      }, () => channel?.shown);
       undo.push(() => unwatch?.());
     }
 

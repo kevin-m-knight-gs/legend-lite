@@ -34,6 +34,7 @@ import hmac
 import http.server
 import json
 import os
+import re
 import secrets
 import socket
 import socketserver
@@ -83,6 +84,8 @@ _WAREHOUSE = '/warehouse.json'
 # a grid's Snap on a page Python serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its base query copied into a
 # table of the frames' database of its own -- a frame's, a page's file's, or a warehouse table's -- and let go of
 _SNAP = '/snap.json'
+# the id a page open on another asks by (follower=): a tab's or a notebook widget's, made by DataCube's code
+_FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
 # a saved grid of a page Python serves, opened by Python over its frames as they are now (§18.3): a join of frames, which
 # the page cannot open itself -- it has no compiler and no database of its own on Python's page
 _OPENED = '/opened.json'
@@ -411,10 +414,6 @@ class Engine:
         # the copy go (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) -- finds it gone, never another grid's copy
         self._released: set[str] = set()
         self._copies_made = 0
-        # the copies some page the keeper keeps has read (sweep): a tab's release of one a page reads keeps it, and one
-        # no page reads any more is let go -- a copy no page has read yet (one being made, a tab's own before it says
-        # so) is its maker's to let go (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
-        self._claimed: set[str] = set()
         self._warehouse_lock = threading.Lock()
         # the binding's calls on the compiler's threads, never a connection's (warehouse.set_library_thread)
         warehouse.set_library_thread(_on_compiler_threads)
@@ -999,30 +998,26 @@ class Engine:
             raise PermissionError(answer.body.decode('utf-8'))
         if answer.status != 200:
             raise ValueError(answer.body.decode('utf-8'))
-        # its maker's until a page the keeper keeps reads it (sweep)
+        # its maker's until a page the keeper keeps reads it (keeper.py has_read)
         return _json.loads(answer.body.decode('utf-8'))
 
     def release_copy(self, table: str) -> None:
-        """A snap's copy let go of (Go Live, a snap taken again, its grid or page gone), as ``snap.json``'s release lets
-        one go: dropped by DataCube's code, then served no more; refused in its words (ValueError)."""
-        answer = self._release_copy(table, keep_claimed=False)
+        """A copy Python's snap made let go of by its maker, as ``snap.json``'s release lets one go (its page never read
+        it: the write failed); refused in its words (ValueError)."""
+        answer = self._release_copy(table)
         if answer.status != 200:
             raise ValueError(answer.body.decode('utf-8'))
 
     def sweep(self) -> None:
-        """EACH COPY GOES WITH THE LAST PAGE THAT READS IT (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the copies the pages
-        the keeper keeps read are theirs from now on (a tab's release of one keeps it); one a page read and none reads any
-        more -- gone live, snapped again, its grid removed, its page collected -- is let go. One no page has read yet is
-        its maker's. Called after a page's every write, by whoever wrote it, holding nothing."""
-        reads = self.keeper.referenced()
+        """EACH COPY GOES WITH THE LAST PAGE THAT READS IT (keeper.py, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): the
+        copies the keeper says nothing reads any more -- gone live, snapped again, its grid removed, its page collected,
+        and every page open on it moved past them -- let go. Called after a page's every write, by whoever wrote it, and
+        as an open page says it moved on, holding nothing."""
         with self._warehouse_lock:
-            self._claimed |= reads & set(self._copies)
-            gone = sorted(t for t in self._claimed if t not in reads)
-        for table in gone:
-            answer = self._release_copy(table, keep_claimed=False)
-            if answer.status != 200:
-                # its drop failed: it stays served, as any copy whose drop failed, and is tried again at the next sweep
-                continue
+            held = list(self._copies)
+        for table in self.keeper.letting_go(held):
+            # a drop that fails leaves it served, as any copy whose drop failed, tried again at the next sweep
+            self._drop_copy(table)
 
     def copy_of(self, table: str) -> dict[str, Any] | None:
         """A snap's copy this engine holds, by its table: its model, runtime and relation (a grid snapped onto it reads
@@ -1036,21 +1031,28 @@ class Engine:
         with self._warehouse_lock:
             return {t: {'model': c['model'], 'runtime': c['runtime'], 'source': c['source']} for t, c in self._copies.items()}
 
-    def _release_copy(self, name: Any, keep_claimed: bool = True) -> Answer:
-        """A snap's copy let go of: dropped by DataCube's code, and only then served no more. One let go already is gone:
-        said as let go (the page's other editor let it go first). A tab's release (``keep_claimed``) keeps one a page the
-        keeper keeps reads: it goes with the last page that reads it (``sweep``)."""
+    def _release_copy(self, name: Any) -> Answer:
+        """A snap's copy let go of by its maker (a tab's grid, Python's snap): dropped by DataCube's code, and only then
+        served no more -- or, a page the keeper keeps has read it, kept: the keeper's from then on, it goes when nothing
+        reads it any more (``sweep``). One let go already is gone: said as let go."""
         with self._warehouse_lock:
             ours = isinstance(name, str) and name in self._copies
             gone = isinstance(name, str) and name in self._released
-            claimed = keep_claimed and isinstance(name, str) and name in self._claimed
         if gone:
             return Answer(200, 'application/json', b'{}')
-        if claimed:
-            return Answer(200, 'application/json', b'{"kept": "a page reads it: it goes with the last page that reads it"}')
+        if ours and self.keeper.has_read(name):
+            return Answer(200, 'application/json', b'{"kept": "a page reads it: it goes when nothing reads it any more"}')
         if not ours:
             return _said(404, f'{name!r} is no copy a snap of this engine made')
+        return self._drop_copy(name)
+
+    def _drop_copy(self, name: str) -> Answer:
+        """A snap's copy dropped by DataCube's code, and only then served no more; its name never given again. One let go
+        already (by a sweep at once) is gone."""
         assert self._headless is not None
+        with self._warehouse_lock:
+            if name not in self._copies:
+                return Answer(200, 'application/json', b'{}')
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
@@ -1062,8 +1064,8 @@ class Engine:
             return _said(422, f'{type(failure).__name__}: {failure}')
         with self._warehouse_lock:
             self._copies.pop(name, None)
-            self._claimed.discard(name)
             self._released.add(name)
+        self.keeper.gone(name)
         return Answer(200, 'application/json', b'{}')
 
     def _landed(self, headless: Any, land: Callable[[Any, dict[str, Any]], None], rows: int,
@@ -1377,12 +1379,16 @@ class Engine:
         """``table``'s version (``changed``): ``{"version": n}`` at once, or 404 when the engine serves no such frame
         (it was closed). A tab asks about once a second; nothing is held open while it waits, so cubes in many tabs
         never use up the browser's six connections to one origin. Asked with ``page``, a page's: ``{"version": n,
-        "frames": {name: n}}``, the page's own and each of its frames' (``page_versions``)."""
+        "frames": {name: n}}``, the page's own and each of its frames' (``page_versions``) -- the tab open on it saying
+        who it is and the version it shows (``follower``, ``at``: ``_followed``)."""
         asked = parse_qs(query)
         if 'page' in asked:
             versions = self.page_versions(asked['page'][0])
             if versions is None:
                 return _said(404, f'this engine serves no page named {asked["page"][0]!r}')
+            refused = self._followed(asked['page'][0], asked, asked.get('at', [''])[0])
+            if refused is not None:
+                return refused
             return Answer(200, 'application/json', json.dumps(versions).encode('utf-8'))
         name = asked.get('table', [''])[0]
         if name not in self.frames:
@@ -1403,6 +1409,9 @@ class Engine:
         kept = self.keeper.current(name) if self.keeper.served(name) else None
         if kept is None:
             return _said(404, f'this engine serves no page named {name!r}')
+        refused = self._followed(name, asked, since)
+        if refused is not None:
+            return refused
         if since:
             version, commands = self.keeper.changes(name, int(since))
             if commands is not None:
@@ -1433,6 +1442,9 @@ class Engine:
         if self._headless is None:
             return _said(404, 'this engine keeps no page: legend-lite reads one with DataCube\'s own code, headless, '
                               'which this engine was not given')
+        refused = self._followed(name, asked, version)
+        if refused is not None:
+            return refused
         try:
             written = _json.loads(body)
         except ValueError:
@@ -1467,6 +1479,21 @@ class Engine:
         self.sweep()
         return Answer(200, 'application/json', json.dumps({'version': settled.version, 'combined': settled.combined,
                                                            'renamed': settled.renamed}).encode('utf-8'))
+
+    def _followed(self, name: str, asked: Mapping[str, list[str]], at: str) -> Answer | None:
+        """A PAGE OPEN ON ``name`` SAYS WHERE IT IS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): ``follower``, the id it
+        asks by, and ``at``, the version it shows (none while it opens or follows one: the version it said last stands)
+        -- kept by the page's keeper, so the copies that version reads stay until it moves past them; the ones it moved
+        past are let go. A request that names no follower says nothing. None, or the request refused."""
+        follower = asked.get('follower', [''])[0]
+        if not follower:
+            return None if 'at' not in asked else _said(400, 'a page says the version it shows with who it is (follower=<its id>)')
+        if not _FOLLOWER.fullmatch(follower) or (at and not at.isdigit()):
+            return _said(400, 'a page open on another says who it is (follower=<letters, digits and -, at most 64>) and '
+                              'the version it shows (a whole number)')
+        if self.keeper.follow(name, follower, int(at) if at else None):
+            self.sweep()
+        return None
 
     def page_versions(self, name: str) -> dict[str, Any] | None:
         """A page's version, and each of its frames' (the frames its cubes read), or None when it serves no such page."""

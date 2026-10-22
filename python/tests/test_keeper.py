@@ -17,11 +17,13 @@ import random
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 import pandas as pd
 
 import legend_lite as ll
 from legend_lite import _json, datacube
+from legend_lite import keeper as keeper_module
 from legend_lite.keeper import PageKeeper, Refused, Stale
 
 # how many interleavings, and of how many steps: the seed of a failure is printed, so it can be run alone (a long soak:
@@ -103,18 +105,59 @@ class Keeper(unittest.TestCase):
         self.assertEqual(keeper.current('p')[1], {'views': [{'id': 'grid-3'}]}, 'written: copied in')
         self.assertEqual(keeper.changes('p', 1)[1], [{'page': {'kind': 'x'}}], 'its edits too')
 
-    def test_the_copies_the_pages_kept_read_and_where_each_is_shown(self):
+    def test_each_copy_a_page_read_is_the_keepers_and_goes_when_nothing_reads_it(self):
+        # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17: one model of whose a copy is -- its maker's until a page reads it
         keeper = PageKeeper()
         keeper.keep('p', {}, reads(copies=['snap']), [])
         keeper.keep('q', {}, reads(copies=['snap_2']), [])
-        self.assertEqual(keeper.referenced(), {'snap', 'snap_2'})
+        self.assertEqual([keeper.has_read(t) for t in ('snap', 'snap_2', 'snap_3')], [True, True, False],
+                         "one no page has read is its maker's")
+        self.assertEqual(keeper.letting_go(['snap', 'snap_2', 'snap_3']), [], "each read now, or its maker's")
         keeper.forget('q')
-        self.assertEqual(keeper.referenced(), {'snap'})
+        self.assertEqual(keeper.letting_go(['snap', 'snap_2', 'snap_3']), ['snap_2'], 'read by a page collected only')
+        keeper.write('p', 1, {'live': True}, NOTHING, None, [])
+        self.assertEqual(keeper.letting_go(['snap', 'snap_3']), ['snap'], 'read by the page as it was only')
+        keeper.gone('snap')
+        self.assertFalse(keeper.has_read('snap'), 'let go: no longer the keeper\'s')
         self.assertFalse(keeper.served('p'))
         keeper.serve('p', True)
         self.assertTrue(keeper.served('p'))
         keeper.serve('p', False)
         self.assertFalse(keeper.served('p'))
+
+
+    def test_a_page_open_on_it_keeps_the_copies_of_the_version_it_shows_and_of_every_one_since(self):
+        # the keeper's known limit 6 (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md), closed by Z17: an open page that has not
+        # followed yet reads the copies of the version it shows, and follows through every version since
+        keeper = PageKeeper()
+        keeper.keep('p', {'v': 1}, reads(copies=['snap']), [])
+        keeper.serve('p', True)
+        self.assertFalse(keeper.follow('p', 'tab', 1), 'a page open: nothing it moved past')
+        keeper.write('p', 1, {'v': 2}, reads(copies=['snap_2']), None, [])
+        keeper.write('p', 2, {'v': 3}, NOTHING, None, [])
+        both = ['snap', 'snap_2']
+        self.assertEqual(keeper.letting_go(both), [], 'the tab shows version 1, and follows through 2')
+        self.assertFalse(keeper.follow('p', 'tab', None), 'following: the version it said last stands')
+        self.assertEqual(keeper.letting_go(both), [])
+        self.assertFalse(keeper.follow('other', 'tab', 3), 'a page not kept follows nothing')
+        self.assertTrue(keeper.follow('p', 'tab', 2), 'moved: a sweep')
+        self.assertEqual(keeper.letting_go(both), ['snap'])
+        self.assertTrue(keeper.follow('p', 'tab', 3))
+        self.assertEqual(keeper.letting_go(both), both)
+        # one that says nothing for FOLLOWED_FOR seconds keeps nothing, nor does a page served nowhere
+        keeper.follow('p', 'tab', 1)
+        with mock.patch.object(keeper_module, 'FOLLOWED_FOR', -1.0):
+            self.assertEqual(keeper.letting_go(both), both, 'silent too long')
+        keeper.follow('p', 'tab', 1)
+        keeper.follow('p', 'tab', None)
+        self.assertEqual(keeper.letting_go(both), [], 'saying no version keeps it open')
+        keeper.serve('p', False)
+        self.assertEqual(keeper.letting_go(both), both)
+        # two pages open: the one furthest behind keeps what it shows
+        keeper.serve('p', True)
+        keeper.follow('p', 'tab', 3)
+        keeper.follow('p', 'widget', 2)
+        self.assertEqual(keeper.letting_go(both), ['snap'])
 
 
 class Settle(unittest.TestCase):
@@ -611,9 +654,9 @@ class Converged(unittest.TestCase):
     def copies_read(self, where):
         engine = datacube._session.engine()
         datacube._session.sweep()
-        reads = datacube._session.keeper.referenced()
-        self.assertEqual({t for t in engine._copies if t in engine._claimed or t in reads}, reads,
-                         f'{where}: the copies held are the ones read')
+        keeper = datacube._session.keeper
+        reads = {t for kept in keeper._pages.values() for t in kept.reads['copies']}
+        self.assertEqual(reads - set(engine._copies), set(), f'{where}: every copy read is held')
         self.assertEqual(set(engine._copies) - reads, set(), f'{where}: no copy held that no page reads')
 
     def one(self, page, open_page, intent, where):

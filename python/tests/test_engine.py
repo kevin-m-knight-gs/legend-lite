@@ -1245,15 +1245,14 @@ class WarehouseOnPython(unittest.TestCase):
         # nor is it a page's file to drop
         self.assertEqual(self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'x', 'table': 'snap_2'})).status,
                          404)
-        # a copy a page the keeper keeps reads (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): a tab's release keeps it, and
-        # it goes with the last page that reads it
+        # a copy a page the keeper keeps reads (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): the keeper's -- its maker's
+        # release keeps it -- and it goes with the last page that reads it
         # (what a page reads comes with each write, as DataCube says it: headless pageReads)
         reads = {'frames': [], 'copies': ['snap_2'], 'ids': []}
         self.engine.keeper.keep('p', {'name': 'p'}, reads, [])
         self.engine.keeper.keep('q', {'name': 'q'}, reads, [])
-        self.engine.sweep()
         status, body = self.call({'op': 'release', 'table': 'snap_2'}, '/snap.json')
-        self.assertEqual((status, json.loads(body)), (200, {'kept': 'a page reads it: it goes with the last page that reads it'}))
+        self.assertEqual((status, json.loads(body)), (200, {'kept': 'a page reads it: it goes when nothing reads it any more'}))
         self.assertEqual(self.copy_rows(second)[0], 200, 'kept')
         self.engine.keeper.forget('p')
         self.engine.sweep()
@@ -1261,6 +1260,40 @@ class WarehouseOnPython(unittest.TestCase):
         self.engine.keeper.write('q', 1, {'name': 'q, live'}, {'frames': [], 'copies': [], 'ids': []}, None, [])
         self.engine.sweep()
         self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 404, 'let go with the last page')
+
+    def test_a_copy_lives_until_every_page_open_on_it_moved_past_it(self):
+        # the keeper's known limit 6, closed (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): a page open on another -- a
+        # tab, a widget -- at a version that reads a copy still reads it, its queries and the commands it follows by,
+        # until it says it shows a later one (as it asks, follows and writes), or says nothing for FOLLOWED_FOR seconds
+        m = self.opened()
+        copy = self.snapped(m)['table']
+        keeper = self.engine.keeper
+        keeper.keep('p', {'name': 'p'}, {'frames': [], 'copies': [copy], 'ids': []}, [])
+        keeper.serve('p', True)
+
+        def asked(path, query):
+            return self.engine.answer('GET', path, query, None).status
+
+        def held():
+            return self.call({'op': 'held', 'table': copy}, '/snap.json')[0]
+
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=1'), 200)
+        # Python goes live: version 2 reads no copy
+        keeper.write('p', 1, {'name': 'p, live'}, {'frames': [], 'copies': [], 'ids': []}, None, [])
+        self.engine.sweep()
+        self.assertEqual(held(), 200, 'the open page shows version 1, which reads it')
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1'), 200, 'following: no version said')
+        self.assertEqual(self.call({'op': 'release', 'table': copy}, '/snap.json')[0], 200)
+        self.assertEqual(held(), 200, "its maker's release keeps it: the keeper's")
+        self.assertEqual(asked('/page.json', 'page=p&since=1&follower=tab-1'), 200)
+        self.assertEqual(held(), 200, 'following from version 1')
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=2'), 200)
+        self.assertEqual(held(), 404, 'moved past it: let go as it said so')
+        # who it is, and the version it shows, said right or refused
+        self.assertEqual(asked('/version.json', 'page=p&at=2'), 400)
+        self.assertEqual(asked('/version.json', 'page=p&follower=a%20b&at=2'), 400)
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=two'), 400)
+        self.assertEqual(asked('/page.json', 'page=p&since=2'), 200, 'a request that names no follower says nothing')
 
     def test_the_dry_run_plans_a_table_as_its_run_does_and_refuses_the_runtime_its_run_refuses(self):
         # plan.json, plan-and-run's planning half (the one-app design §15.10): never run, the run's plan, and the run's

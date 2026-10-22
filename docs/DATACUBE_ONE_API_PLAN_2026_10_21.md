@@ -330,8 +330,15 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **Z16** snap refusal sentence from one TypeScript function (N3 keeps the values) — closed S5: snap.ts
   `snapRefusal(rows, limit)`, the preflight's, which Python's engine says through headless `snapRefused` with its own
   limit (snap.test.ts; test_engine.py `test_the_snap_limit_in_the_tabs_words`)
-- [ ] **Z17** copy ownership: one model (the keeper's), `HostSnaps` adopt / handOver and `_claimed` gone; keeper
-  known limit 6 closed — S5, L6
+- [x] **Z17** copy ownership: one model (the keeper's), `HostSnaps` adopt / handOver and `_claimed` gone; keeper
+  known limit 6 closed — closed S5: a copy is its maker's until a page the keeper keeps reads it, the keeper's from then
+  on (keeper.py `has_read`, `letting_go`): it goes when no page reads it as it is, nor at a version a page open on it
+  shows or any since -- each open page says the version it shows as it asks, follows and writes (`follower`, `at`:
+  engine.py `_followed`, python-host.ts `PageFollower`; a hidden tab says so once a minute), silent for five minutes it
+  keeps none. The grid lets go of whichever copy it reads and the host decides (engine.py `_release_copy`); the tab's
+  `adopt` is `follow`, its `handOver`/`adopted` and the engine's `_claimed` are deleted (test_keeper.py, test_engine.py
+  `test_a_copy_lives_until_every_page_open_on_it_moved_past_it`, plane.test.ts, live-follow.test.ts,
+  datacube-app-live.test.ts)
 - [x] **Z18** the saved-page record — closed S5: page-document.ts `savedRecord(id, name, page)`, the Save window's,
   which Python's `save()` asks through headless `pageRecord` (page-document.test.ts, test_page.py)
 - [ ] **Z19** headless exports Python never calls (`pageFilter`, `joinQuestions`) used by S6's API, stale comments

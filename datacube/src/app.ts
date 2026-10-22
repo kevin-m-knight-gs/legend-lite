@@ -3066,7 +3066,7 @@ export class CubeApp {
    * words, the grid as it was.
    */
   async followSnap(copy: GridCopy): Promise<void> {
-    await this.#controller.adopt({
+    await this.#controller.follow({
       table: copy.table, label: copy.label, takenAt: new Date(copy.takenAt), rowCount: copy.rowCount,
       ...(copy.pulledBy ? { pulledBy: copy.pulledBy } : {}),
     }, this.#owner.committed.snapshot.source.query);
@@ -3077,14 +3077,6 @@ export class CubeApp {
   async followLive(): Promise<void> {
     this.#controller.forget();
     await this.#planeMoved();
-  }
-
-  /**
-   * Its copy kept when the grid goes (`table`, the copy its page's other editor now reads too: a page opened again as
-   * that editor has it, §18.8) -- that editor's to let go from now on.
-   */
-  handOver(table: string): void {
-    this.#controller.handOver(table);
   }
 
   /**

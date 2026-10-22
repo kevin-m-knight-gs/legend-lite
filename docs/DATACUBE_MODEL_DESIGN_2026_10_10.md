@@ -1273,3 +1273,10 @@ its next safe moment -- a page's change, a cell's end -- never inside the collec
 each copy its grids made to be let go, sent to outlive the tab (`keepalive`); a copy in the tab's own DuckDB goes with
 the tab. A saved page opens live, each snapped grid said, in the tab (step B's openSaved) and in Python (`Page.load`).
 
+**Superseded in part (2026-10-22, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17).** Whose a copy is has one model, the
+page keeper's: its maker's until a page the keeper keeps reads it, the keeper's from then on, let go when nothing reads
+it -- no page as it is, and no page open on one at a version that reads it, or any since (each open page says the
+version it shows). The tab keeps no book of it: the grid lets go of whichever copy it reads (its Go Live, its close,
+its tab going) and the host keeps one a page reads (`{"kept"}`); step B's `adopt` is `follow`, `handOver` and the
+engine's claims are deleted.
+

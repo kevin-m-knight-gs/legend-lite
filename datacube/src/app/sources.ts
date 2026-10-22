@@ -458,7 +458,7 @@ export function pageSources(d: SourcesOf): PageSources {
       release: (table) => release(table),
       // a copy the page's other editor made (Python's grid.snap(), §18.8), read through the host's runner as one made here
       ...(held ? {
-        adopt: async (table: string) => {
+        held: async (table: string) => {
           const made = await held(table);
           const runner = services.engine.rows(made.model, made.runtime, { bitColumns: made.bitColumns }).runner;
           if (!runner) throw new Error(`${store} holds a copy whose rows it does not run`);

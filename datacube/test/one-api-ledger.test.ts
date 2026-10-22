@@ -45,7 +45,7 @@ interface Entry {
 // 2026-10-22 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D10, the user's sign-off): MARKERS 9 -> 10 -- S1's audit finding
 // 10 registered as P15, pinned by its code
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 9, L1_PLANE: 3, L1_HOST: 12,
   L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 6, UNCHECKED: 7,
 };
 
@@ -116,12 +116,11 @@ const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebui
 const quiet = (body: string): boolean => !TELLS.test(body);
 
 /** Where the grid says the rows it reads moved, or moves them (a snap, going live): the page's copies change. */
-const GRID_PLANE = /this\.(#emit\('plane'\)|#controller\.(?:snapAndRun|goLive|adopt|forget|handOver)\()/g;
+const GRID_PLANE = /this\.(#emit\('plane'\)|#controller\.(?:snapAndRun|goLive|follow|forget)\()/g;
 const L1_PLANE: Record<string, Entry> = {
   "#planeMoved:#emit('plane')": { items: [], why: "following another editor's snap or going live" },
-  'followSnap:#controller.adopt(': { items: [], why: "following another editor's snap" },
+  'followSnap:#controller.follow(': { items: [], why: "following another editor's snap" },
   'followLive:#controller.forget(': { items: [], why: "following another editor's going live" },
-  'handOver:#controller.handOver(': { items: ['Z17'] },
 };
 
 /** The host's own writes of the page (app/datacube-app.ts) in a function that tells no command. */

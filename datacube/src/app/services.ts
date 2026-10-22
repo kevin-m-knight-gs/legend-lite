@@ -237,9 +237,11 @@ export interface Versions {
 export interface LiveService {
   /**
    * Told each time the editor moves what the page shows (its versions), or -- a string -- why it no longer says (the
-   * page or the frame closed, Python gone): told nothing after that. Returns what stops it.
+   * page or the frame closed, Python gone): told nothing after that. `shown`: the version of the editor's page on
+   * screen (none while it opens or follows one), which the editor is told as it is asked (its copies that version
+   * reads stay until the screen moves past them: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17). Returns what stops it.
    */
-  watch(moved: (now: Versions | string) => void): () => void;
+  watch(moved: (now: Versions | string) => void, shown?: () => number | undefined): () => void;
   /** The page the editor serves, when it serves one (`ll.Page`; `ll.show(df)` serves a frame, a page of one grid). */
   readonly page?: LivePage;
 }

@@ -13,7 +13,7 @@ import { leavesOf, type CubeDocument, type FrameSource } from '../src/cube-docum
 import type { GridCommand } from '../src/grid-commands.ts';
 import type { PageCommand } from '../src/page-commands.ts';
 import { pageToJson } from '../src/page-document.ts';
-import { livePage } from '../src/services/python-host.ts';
+import { askedVersions, livePage } from '../src/services/python-host.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
@@ -133,5 +133,41 @@ describe("Python's commands read as the page reads them", () => {
     // a page said with no ids held is no page the keeper serves: refused, never taken as holding none
     await assert.rejects(livePage(link(`{"version": 7, "page": ${pageToJson(trades)}}`), 'q3').changes(2), /no ids the page has held/);
     await assert.rejects(livePage(link('{"version": 3, "commands": [{"nope": 1}]}'), 'q3').changes(2), /a command of no page and no grid/);
+  });
+});
+
+describe('a page open on Python\'s says who it is and the version it shows (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17)', () => {
+  // Python keeps the copies the version it shows reads, and every later version's, until it says it moved past them:
+  // the keeper's known limit 6, closed
+  const asking = () => {
+    const urls: string[] = [];
+    const link = {
+      baseUrl: 'http://engine',
+      fetch: (async (url: string) => {
+        urls.push(url.replace('http://engine/', ''));
+        return new Response(url.includes('version.json') ? '{"version": 4, "frames": {}}' : '{"version": 4, "commands": [], "combined": false}');
+      }) as unknown as typeof fetch,
+    };
+    return { link, urls };
+  };
+
+  it('as it asks the versions, follows and writes; asking with no version on screen, it says none', async () => {
+    const { link, urls } = asking();
+    let shown: number | undefined = 3;
+    const follower = { id: 'f00d', shown: () => shown };
+    await askedVersions(link, { page: 'q 3' }, follower);
+    shown = undefined;
+    await askedVersions(link, { page: 'q 3' }, follower);
+    await askedVersions(link, { frame: 'trades' }, follower);
+    const page = livePage(link, 'q 3', 'f00d');
+    await page.changes(3);
+    await page.report(3, { edits: [] });
+    assert.deepEqual(urls, [
+      'version.json?page=q%203&follower=f00d&at=3',
+      'version.json?page=q%203&follower=f00d',
+      'version.json?table=trades',
+      'page.json?page=q%203&since=3&follower=f00d',
+      'page.json?page=q%203&version=3&follower=f00d',
+    ]);
   });
 });

@@ -77,8 +77,6 @@ export interface PageGrid extends SpawnedGrid {
   followSnap?(copy: GridCopy): Promise<void>;
   /** The page's live command from its other editor: its live rows again. */
   followLive?(): Promise<void>;
-  /** Its copy, when it is `table`, kept when the grid goes: the page's other editor reads it too (a page opened again). */
-  handOver?(table: string): void;
   /** Its edit by commands, as a host makes one (grid-commands.ts): told, one step of its own history; the refusal or null. */
   edit(commands: readonly GridCommand[], label: string): Promise<string | null>;
 }
