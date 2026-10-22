@@ -70,15 +70,6 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
         return new ParsedSection(elements, imports);
     }
 
-    @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        try {
-            return com.legend.model.ModelFromProtocol.element(element);
-        } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
-            throw new UnsupportedElementShape(u.reason());
-        }
-    }
-
     /**
      * One {@code Runtime | SingleConnectionRuntime qn { ... }} element at
      * the cursor, into its protocol record — full wire fidelity; the

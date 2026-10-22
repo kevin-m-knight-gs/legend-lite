@@ -210,6 +210,13 @@ final class ModelPacker {
             }
             CoreInstance el = ps.package_getByUserPath(fqn);
             if (el != null && Instance.instanceOf(el,
+                    "meta::pure::metamodel::type::PrimitiveType", ps)) {
+                // a PRIMITIVE is the platform's, never injected (2026-10-21: a bare 'Integer' root passed the
+                // metamodel prefix and was injected as 'Class Integer extends Number', a user class the
+                // compiler now refuses -- an M3 primitive type is an instance of Class)
+                continue;
+            }
+            if (el != null && Instance.instanceOf(el,
                     "meta::pure::metamodel::type::Enumeration", ps)) {
                 enums.add(fqn);
             } else if (el != null && Instance.instanceOf(el,
@@ -295,10 +302,11 @@ final class ModelPacker {
                 typeRef = "Any";
             } else {
                 String qualifiedTypeName = getQualifiedName(rawType);
-                String primitive = qualifiedTypeName != null
-                        ? primitivePureName(qualifiedTypeName) : null;
-                if (primitive != null) {
-                    typeRef = primitive;
+                // a primitive is judged by its M3 kind (2026-10-21: matched by lite's full names, a primitive's
+                // bare M3 path -- 'Integer' -- missed, and the primitive was injected as a class)
+                if (qualifiedTypeName != null && Instance.instanceOf(rawType,
+                        "meta::pure::metamodel::type::PrimitiveType", ps)) {
+                    typeRef = qualifiedTypeName + typeVariableValues(genericType, propName, className);
                 } else if (qualifiedTypeName == null) {
                     // B11: no silent shape change — a property whose type
                     // has no packageable path names itself and refuses
@@ -362,6 +370,29 @@ final class ModelPacker {
         classes.put(fqn, sb.toString());
     }
 
+    /** A precise primitive's values as written ({@code (200)} of {@code Varchar(200)}), or nothing: an integer each,
+     *  anything else refused loudly (B11; 2026-10-21, the independent audit: the values were dropped). */
+    private static String typeVariableValues(CoreInstance genericType, String propName, String className) {
+        List<String> values = new ArrayList<>();
+        for (CoreInstance v : genericType.getValueForMetaPropertyToMany("typeVariableValues")) {
+            List<String> literal = new ArrayList<>();
+            for (CoreInstance x : v.getValueForMetaPropertyToMany(M3Properties.values)) {
+                String text = x.getName();
+                if (!text.matches("-?[0-9]+")) {
+                    throw new UnsupportedOperationException("property '" + propName + "' of '" + className
+                            + "' has a precise primitive value '" + text + "' -- refusing to silently drop it");
+                }
+                literal.add(text);
+            }
+            if (literal.size() != 1) {
+                throw new UnsupportedOperationException("property '" + propName + "' of '" + className
+                        + "' has a precise primitive value of " + literal.size() + " literals");
+            }
+            values.add(literal.get(0));
+        }
+        return values.isEmpty() ? "" : "(" + String.join(", ", values) + ")";
+    }
+
     /** The Pure multiplicity print form: [1], [0..1], [*], [2..*]. */
     private static String multText(int lower, Integer upper) {
         if (upper == null) {
@@ -371,16 +402,6 @@ final class ModelPacker {
             return "[" + upper + "]";
         }
         return "[" + lower + ".." + upper + "]";
-    }
-
-    /** The Pure simple name of a primitive FQN, or null if not a primitive. */
-    private static String primitivePureName(String fqn) {
-        for (var p : com.legend.compiler.element.type.Type.Primitive.values()) {
-            if (p.qualifiedName().equals(fqn)) {
-                return p.typeName();
-            }
-        }
-        return null;
     }
 
     private String getQualifiedName(CoreInstance element) {

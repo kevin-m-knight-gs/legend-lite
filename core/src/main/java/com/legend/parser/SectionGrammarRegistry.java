@@ -14,7 +14,7 @@ import java.util.Optional;
  * third-party overlay will use — the dogfooding rule that keeps the
  * plug-in path honest. An unknown section stops being lexer raw-skip
  * silence and becomes an explicit, reportable "no grammar registered"
- * ({@link com.legend.model.ParsedModel#unclaimedSections()}).
+ * ({@code PmcdParser.Parsed#unclaimed()}).
  *
  * <p>Step 2 (the {@code legend-lite-spi} artifact) grows
  * {@link SectionGrammar} a {@code parse(SectionSource, ElementSink)}

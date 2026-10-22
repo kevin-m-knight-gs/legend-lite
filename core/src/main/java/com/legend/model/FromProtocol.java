@@ -65,7 +65,8 @@ public final class FromProtocol {
         return new FunctionDefinition(
                 f.qualifiedName(), f.typeParams(), f.multParams(),
                 toFunctionParams(f.parameters()), f.returnType(), f.returnMultiplicity(),
-                f.body(), stereotypes(f.stereotypes()), taggedValues(f.taggedValues()));
+                f.body(), stereotypes(f.stereotypes()), taggedValues(f.taggedValues()), null,
+                f.preConstraints(), f.postConstraints());
     }
 
     /** Protocol association to the model's — two ends plus qualified properties. */
@@ -74,7 +75,7 @@ public final class FromProtocol {
                 new ArrayList<>(a.properties().size());
         for (PProperty p : a.properties()) {
             ends.add(new AssociationDefinition.AssociationEndDefinition(
-                    p.name(), p.type(), p.multiplicity(), stereotypes(p.stereotypes())));
+                    p.name(), p.type(), p.multiplicity(), stereotypes(p.stereotypes()), taggedValues(p.taggedValues())));
         }
         if (ends.size() != 2) {
             // ENGINE-VERBATIM (TestDomainCompilationFromGrammar): the
@@ -87,7 +88,7 @@ public final class FromProtocol {
                             + a.qualifiedName() + "'");
         }
         return new AssociationDefinition(a.qualifiedName(), ends.get(0), ends.get(1),
-                a.derivedProperties());
+                a.derivedProperties(), stereotypes(a.stereotypes()), taggedValues(a.taggedValues()));
     }
 
     /** Protocol profile to the model's — bare names; spans stay protocol-side. */
@@ -107,10 +108,16 @@ public final class FromProtocol {
      *  consume enum annotations. */
     public static EnumDefinition toEnumDefinition(Protocol.PEnumeration e) {
         java.util.List<String> names = new ArrayList<>(e.values().size());
+        java.util.List<EnumDefinition.ValueAnnotations> annotated = new ArrayList<>();
         for (Protocol.PEnumValue v : e.values()) {
             names.add(v.value());
+            if (!v.stereotypes().isEmpty() || !v.taggedValues().isEmpty()) {
+                annotated.add(new EnumDefinition.ValueAnnotations(v.value(), stereotypes(v.stereotypes()),
+                        taggedValues(v.taggedValues())));
+            }
         }
-        return new EnumDefinition(e.qualifiedName(), names);
+        return new EnumDefinition(e.qualifiedName(), names, stereotypes(e.stereotypes()),
+                taggedValues(e.taggedValues()), annotated);
     }
 
     /**
@@ -373,7 +380,7 @@ public final class FromProtocol {
         return new ClassDefinition(c.qualifiedName(), c.typeParams(), c.typeVariables(), supers, props,
                 c.derivedProperties(), c.constraints(),
                 stereotypes(c.stereotypes()), taggedValues(c.taggedValues()),
-                c.isNative());
+                c.isNative(), c.multiplicityParams());
     }
 
     /** A parsed connection whose shape the model cannot represent yet (e.g.

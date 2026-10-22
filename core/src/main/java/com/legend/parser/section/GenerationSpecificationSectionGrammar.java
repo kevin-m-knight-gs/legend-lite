@@ -32,11 +32,6 @@ public final class GenerationSpecificationSectionGrammar
     }
 
     @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
-    @Override
     public Protocol.Element parseOne(TokenStreamCursor c) {
         SectionParse.Head h = SectionParse.head(c, "GenerationSpecification");
         c.expect(TokenType.BRACE_OPEN);

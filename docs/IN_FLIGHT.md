@@ -672,9 +672,13 @@ records, and the records mirroring the engine's JSON where it was cut so far -- 
 `compiler/` with the Compiler Rewrite line's review: `spec/Typer.java` (the zero-argument qualified-property lift
 takes a parameterized class), `spec/GraphFetchChecker.java`, `spec/typed/TypedGraphTree.java` and
 `resolver/GraphEmission.java` (no `qualified` mark), `NameResolver.java` and `normalizer/` (the mapping's dead
-`testSuitesSource`). Step 2 continues on `leg8-records`: a relation column's `[0..1]`, a decimal decided by its kind,
-the operator spelling (each with the Compiler Rewrite line, judged as before), and the dropped-text rule, the user's
-to decide first. Then leg 9, imports and comments
+`testSuitesSource`). **Built 2026-10-11 to 2026-10-13 on the Mac, and stranded there (the session's pushes were
+refused from 2026-10-11): a relation column's `[0..1]`, a decimal as its value, a relation cast read as parsed**, with
+the Compiler Rewrite line's review -- in `compiler/`, `spec/Typer.java` (a decimal by its value; its rounding past
+DECIMAL(38) is PARK-27) and `spec/TypeAnnotations.java` (the parsed column multiplicity read as it is);
+`NameResolver.java` unchanged, but its resolved columns now keep the written multiplicity; then `leg8-step2b`
+(persistence spans, a reference body, value equality without position) and `leg8-tds`. All three rebased on main and
+judged again 2026-10-21 on the branch `studio-program` (the note below; GATES 2026-10-21). Then leg 9, imports and comments
 (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
@@ -694,6 +698,62 @@ fast-forward), after the user decides the order. **Overlap to watch:** the compi
 (`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`, names resolved once) changes how call nodes (`protocol.spec`
 `AppliedFunction`) are built, and the protocol program changes the same records (nullable spans, the `list` factory);
 whichever lands second merges, and the two should agree before either starts on those files.
+
+**2026-10-21: the Studio line resumes in a cloud session** (session_01FAGeqrwQFYg5GrctquLuEy; the Mac session is
+unreachable). The Mac session's last work was stranded there (its pushes to `main` and `ci/*` were refused from
+2026-10-11); the user pushed its branches on 2026-10-21. This session's pushes to `main` are refused too, and **the
+user, 2026-10-21: everything is built on one branch, `studio-program`, kept up to date with main** (main merged in,
+never a rebase or a force-push: rule 1), landing on main when the user says. On it, in order: the Query fix (a mapping
+maps its includes' classes) and Studio's Data panel naming a refused file; the protocol program's leg 8 step 2 from the
+Mac's three branches, rebased and judged again; then leg 8's rest -- the dropped-text rule (the user's rule A,
+2026-10-21: `docs/SEMANTICS_REGISTER.md` S89), the operator spelling, step 3 (the routes take a PureModelContextData;
+execute compiles once) and the last step (the parser returns protocol only) -- and then leg 9's design, with the user.
+**Files beyond the line's own:** `core/src/main/java/com/legend/{parser,protocol,model}/` (rule A at the engine's
+dialect; the readers and emitters); `compiler/spec/{Typer,Overloads}.java` (an operator run by its shape -- the Compiler
+Rewrite line's area; that session is offline too, so the change is judged as its changes are: the six corpus passes,
+PCT, the reference lane); `server/{PureV1Api,QueryService,ModelInput}.java`, `Execution.java`, `Compiler.java` (step 3:
+the seam agreed with the Plan Gen / Exec Split line on 2026-10-10, `boundParameters` untouched); `core/BUILD.bazel`
+(one file in `:pure_v1`, and the last step's new `//core:door`: `door/ModelFromText.java`, the text's door, with
+`tools/deps/core-layers.txt` and ArchitectureTest's rule 7c losing `model..`); the callers of the parser's old
+model entry (`builtin/{Pure,Prelude,SystemMetamodel}.java`, `ide/ModelOrchestrator.java`, the spec module's
+generators, parser-equivalence's harness); parser-equivalence's oracle and ratchet. Each judged in GATES before the
+next.
+
+**Then the compiler's missing reference checks (the user, 2026-10-21, after an honest account of what leg 8 had
+shortcut: "def fix arithmetic, def need real tests, definitely need to fix function constraints and fake extends and
+fakes profiles/stereotypes")**, built on `reference-checks` (from `studio-program`'s d170f3eb0) and squashed onto
+`studio-program` once judged (two commits; `reference-checks` keeps the working history). A probe of 64 broken models through both doors found what lite accepted that the engine
+refuses: a supertype that is no class, a generic's wrong arity, a profile, stereotype or tag that does not exist, a
+runtime's mapping, a service's or data space's mapping and runtime, a database's or mapping's
+include, an Operation's member set, an optional property with a default; and two messages that misled. Each is now
+refused with the engine's (or legend-pure's) words, a case each in `ReferenceIntegrityTest`; defaults and a function's
+pre/post-conditions are compiled (lifted as synthesized functions and typed, as derived properties are); an operator run
+is decided by the resolved declaration (`NativeFn.OperatorRun`), never a spelling. The element kinds lite carries by
+name (diagrams, bindings, activators, ...) are the roadmap's, not this change's: PARK-38 and PARK-39 (the user: "we
+have to do 11 eventually, can put it on roadmap for later"). **Files beyond the line's own** (the Compiler Rewrite
+line's area, judged as its changes are): `compiler/element/{ModelIntegrity,TypeClassifier,TypedClass,ClassCompiler,
+type/PlatformTypes}.java`, `compiler/{NameResolver,ModelBuilder,KnowledgeLayer,DerivedProps,SynthFqn}.java`,
+`compiler/spec/{Typer,Overloads,InferenceKernel,TableReferenceChecker}.java`, `normalizer/{ModelNormalizer,
+MappingClosures,MappingValidation,MappingPrePass}.java`, `builtin/{NativeFn,Prelude,SystemMetamodel}.java` and the
+regenerated `prelude.pure` (its generator in `spec/`: the platform's profiles join it), `Compiler.java`
+(`withoutPreludeShadows`: a platform profile yields to the prelude's), `model/{ClassDefinition,EnumDefinition,
+AssociationDefinition,FunctionDefinition,FromProtocol,SynthHat}.java`; in `pct/`, `ModelPacker` (it injected a
+primitive as a class: `Class Integer extends Number`) and the standard suite's model roots (the module's own
+dependency, the relation functions' qualifier profile); guards `FallbackLedgerTest` (floor 10 -> 6) and
+`IdentityGuardrailTest` (NAME_CUTTING 108 -> 107), each dated. And what the stricter compiler found in the
+repository's own inputs: the stress corpus's generator and layout (`scripts/corpus/build.py`, `core/stress.bzl`, three
+comments in `core/BUILD.bazel` and `scripts/corpus/BUILD.bazel` -- the build line's files: the three services over the
+excluded `55-canonical-store.pure` generated apart into `94-canonical-services.pure`, which lite excludes with it),
+two hand-written stress fixtures, `StressExclusions` and `LegendLiteGapTest`; parser-equivalence's pins
+(`JsonModelDoorTest`, `OwnCorpusConformanceTest`, `OwnDialectCensusTest`, `FixtureAdjudicationTest`) and
+`JavaEvalLedgerTest`'s ModelPacker row, each dated. **Then the independent audit (2026-10-21, three reviewers, GATES
+"the independent audit"),** fixed on `reference-checks` and squashed onto `studio-program` again: files beyond the
+above -- `parser/SpecParser.java` (a binding's first expression; ModelStore data), `server/PureV1Api.java` (the
+request depth), `Compiler.java` (the JSON door's refusal), `compiler/spec/SpecCompiler.java` (a default's new
+instances; a condition's message), `normalizer/ImplicitInheritance.java` (a missing association, FallbackLedger 6 -> 5),
+`protocol/{DomainReader,ProtocolEmitter}.java` (a condition's lambda), the prelude generator (the engine's profiles),
+`pct/.../ModelPacker.java` (a precise primitive's values), the stress corpus (`74-path-surface.pure`, excluded),
+parser-equivalence's `JsonModelDoorTest` (rule A's texts listed, `json-door-rule-a.tsv`).
 
 ## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
 

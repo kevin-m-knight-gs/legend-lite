@@ -135,11 +135,4 @@ public final class QueryPostProcessorSectionGrammar
                 c.spanOf(s, c.pos() - 1));
     }
 
-
-    @Override
-    public com.legend.model.PackageableElement toModel(
-            Protocol.Element element) {
-        // parse-only element: the model carries the named carrier; no compiler phase opens it
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
 }

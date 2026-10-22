@@ -103,7 +103,11 @@ class JavaEvalLedgerTest {
             // (verbatim injection, probed) and the silent property-drop
             // channels became LOUD WALLS (generic classes, no-path
             // types) — wall growth, zero evaluation
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 266),
+            // 266 -> 261 (2026-10-21, the reference checks): primitivePureName deleted -- a primitive is judged by
+            // its M3 kind (the name match missed 'Integer' and injected the primitive as a class)
+            // 261 -> 281 (the same day, the independent audit): typeVariableValues -- a precise primitive's values
+            // (Varchar(200)) rendered as written or refused loudly, never dropped: wall growth, zero evaluation
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 281),
             // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
             // Float shape (FloatCoreInstance IS BigDecimal-backed)
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),
@@ -1353,6 +1357,9 @@ class JavaEvalLedgerTest {
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
                             "PureV1Api.java",
+                            // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
+                            // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
+                            "ModelInput.java",
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
                             // the rules over a records interface, one implementation for the server, Python and the page)
                             "QueryService.java"),

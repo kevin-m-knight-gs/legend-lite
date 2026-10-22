@@ -35,7 +35,8 @@ right.
 ```
 text                                                            [FRONTEND]
   ──▶  lexer/        Lexer.tokenize                              text → tokens
-  ──▶  parser/       ElementParser, SpecParser                   tokens → parsed syntax
+  ──▶  parser/       PmcdParser (ElementParser, SpecParser)      tokens → protocol records
+  ──▶  door/         ModelFromText (→ model/ModelFromProtocol)   records → parsed model
   ──▶  compiler/     NameResolver                                simple → FQN
   ──▶  normalizer/   ModelNormalizer                             Decl → Decl (mappings → fns)
   ──▶  compiler/     PureModelContext.from                       Decl → Def     (compiled model)
@@ -53,8 +54,8 @@ text                                                            [FRONTEND]
 |---|---|---|---|---|
 | 0 | bootstrap | `builtin/` | (static registry) | platform types + native sigs |
 | A | lex | `lexer/` | `Lexer` | `Token` stream |
-| B | parse elements | `parser/` | `ElementParser` | `parser.element.PackageableElement` (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
-| C | parse specs | `parser/` | `SpecParser` | `parser.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
+| B | parse elements | `parser/`, then `door/` | `PmcdParser` (each `###Pure` element through `ElementParser`, every other section through its grammar), then `door.ModelFromText` | `Protocol.PureModelContextData` records; the door (`model.ModelFromProtocol`, the same one a JSON model goes through) makes them `model.PackageableElement`s (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
+| C | parse specs | `parser/` | `SpecParser` | `protocol.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
 | D | resolve names | `compiler/` | `NameResolver.resolve` (`:157`) | (same shapes, FQN-rewritten) |
 | E | normalize model | `normalizer/` | `ModelNormalizer.normalize` (`:98`) — `MappingNormalizer` is sub-slice E.1, not the entry | `PackageableElement` (mappings desugared into `FunctionDefinition`s) |
 | F | compile elements | `compiler/` | `PureModelContext.from` (`:84`) — there is no `ElementCompiler` class | `compiler.element.TypedElement` (`TypedClass`, `TypedMapping`, …) + `ModelContext` |
@@ -87,55 +88,20 @@ core/src/main/java/com/legend/
 │   ├── Token.java                           materialized record (TokenType, text, start, end)
 │   └── TokenType.java
 │
-├── parser/                            B,C,D. tokens → resolved syntax
-│   ├── ElementParser.java                   B driver
-│   ├── SpecParser.java                      C driver
-│   ├── ImportResolver.java                  D driver (imports → FQN; with ImportScope)
-│   ├── ImportScope.java
-│   ├── SourceLocation.java
-│   ├── ParsedModel.java                     B output wrapper: (List<PackageableElement>, ImportScope)
-│   ├── element/                             B output: parsed packageable elements (engine names verbatim)
-│   │   ├── PackageableElement.java              sealed root
-│   │   ├── ClassDefinition.java
-│   │   ├── AssociationDefinition.java
-│   │   ├── AssociationMappingDefinition.java
-│   │   ├── EnumDefinition.java
-│   │   ├── ProfileDefinition.java
-│   │   ├── FunctionDefinition.java
-│   │   ├── MappingDefinition.java               (desugared into FunctionDefinition in step E)
-│   │   ├── MappingInclude.java
-│   │   ├── DatabaseDefinition.java
-│   │   ├── JoinChainElement.java
-│   │   ├── RelationalOperation.java
-│   │   ├── PropertyMappingValue.java
-│   │   ├── ConnectionDefinition.java
-│   │   ├── ConnectionSpecification.java         sealed (JsonModelConnection, RelationalConnection, …)
-│   │   ├── JsonModelConnection.java
-│   │   ├── AuthenticationSpec.java              sealed
-│   │   ├── RuntimeDefinition.java
-│   │   ├── ServiceDefinition.java
-│   │   ├── StereotypeApplication.java
-│   │   └── TaggedValue.java
-│   └── spec/                                C output: parsed value specifications (engine names verbatim)
-│       ├── ValueSpecification.java              sealed root
-│       ├── LambdaFunction.java
-│       ├── AppliedFunction.java
-│       ├── AppliedProperty.java
-│       ├── Variable.java
-│       ├── NewInstance.java
-│       ├── EnumValue.java
-│       ├── PackageableElementPtr.java
-│       ├── PureCollection.java
-│       ├── TdsLiteral.java
-│       ├── UnitInstance.java
-│       ├── GraphFetchTree.java
-│       ├── ColumnInstance.java
-│       ├── ColSpec.java
-│       ├── ColSpecArray.java
-│       ├── TypeAnnotation.java                  sealed
-│       ├── CBoolean.java, CString.java, CInteger.java, CFloat.java, CDecimal.java,
-│       ├── CByteArray.java, CDate.java, CTime.java, CLatestDate.java
-│       └── PureDateLiteral.java, PureTimeLiteral.java          sealed (structured date/time)
+├── parser/                            B,C. tokens → protocol records, and no compiler model (ArchitectureTest 7c)
+│   ├── PmcdParser.java                      B driver: a text → its Protocol.PureModelContextData (the engine's section walk)
+│   ├── ElementParser.java                   the ###Pure elements, each into its record
+│   ├── SpecParser.java                      C driver: tokens → protocol.spec.ValueSpecification
+│   ├── MappingProtocolParser.java, DatabaseProtocolParser.java, …   the other sections' grammars
+│   └── section/                             the registered section grammars (each a section's records)
+│
+├── door/                              B → D. a text's records → the compiler's model (leg 8's last step, 2026-10-21)
+│   └── ModelFromText.java                   PmcdParser's records through model/ModelFromProtocol, the door a JSON
+│                                              model also goes through; the one place the parser and model meet
+│
+├── model/                             the compiler's parsed model: PackageableElement records, ParsedModel,
+│                                        ImportScope, and ModelFromProtocol (records → model); value specifications
+│                                        are protocol/spec's
 │
 ├── normalizer/                        E. mapping desugar
 │   └── MappingNormalizer.java               PackageableElement → PackageableElement

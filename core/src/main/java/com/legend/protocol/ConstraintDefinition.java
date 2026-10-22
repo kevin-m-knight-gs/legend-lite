@@ -64,6 +64,28 @@ public record ConstraintDefinition(String name, Realization realization,
     }
 
     /**
+     * Whether the constraint reads {@code $return}: a FUNCTION's constraint that does is a post-condition, one that
+     * does not a pre-condition -- legend-pure's split (AntlrContextToM3CoreInstance: the constraint's text contains
+     * {@code $return}), read here off the expression's variables rather than its text -- so a parameter named
+     * {@code $returnValue} or a string {@code '$return'} splits apart from legend-pure's (S89).
+     */
+    public boolean mentionsReturn() {
+        java.util.ArrayDeque<ValueSpecification> todo = new java.util.ArrayDeque<>(realization instanceof Realization.Inline in
+                ? in.body() : List.of());
+        while (!todo.isEmpty()) {
+            ValueSpecification v = todo.pop();
+            if (v instanceof com.legend.protocol.spec.Variable var && RETURN.equals(var.name())) {
+                return true;
+            }
+            todo.addAll(v.children());
+        }
+        return false;
+    }
+
+    /** The variable a post-condition reads the function's result through. */
+    public static final String RETURN = "return";
+
+    /**
      * The inline predicate (sugar form). Valid only when the realization is
      * an {@link Realization.Inline}; a Door-4 function-ref binding has none.
      */

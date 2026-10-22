@@ -8097,7 +8097,7 @@ public final class IqDialect implements InputDialect {
     public SqlToPure.@com.legend.base.Nullable Relation source(SqlAst.FromItem item) {
         if (item instanceof SqlAst.TableName t && dummy(t.name())) {
             String one = "\ndummy_col\n0\n";
-            return new SqlToPure.Relation(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+            return new SqlToPure.Relation(com.legend.protocol.spec.TdsLiteral.of(one, null),
                     List.of(new SqlToPure.RelationColumn("dummy_col", Kind.INTEGER, false,
                             IqType.integer("INTEGER", BigInteger.ZERO, BigInteger.ZERO, false))));
         }

@@ -1192,7 +1192,7 @@ public final class SqlToPure {
         // no FROM: one row, of no columns the query can name
         String one = "\n" + SYNTHETIC + "row\n1\n";
         Source src = !s.from().isEmpty() ? null : setFunction != null ? from(setFunction)
-                : new Source(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null), List.of(), List.of());
+                : new Source(com.legend.protocol.spec.TdsLiteral.of(one, null), List.of(), List.of());
         // IQ island, 2026-10-15 (checklist 0.6): a WHERE of T-SQL outer join predicates makes the FROM clause its joins
         TsqlFrom tsql = s.from().isEmpty() ? null : tsqlOuterJoins(s, setFunction != null);
         if (tsql != null) {

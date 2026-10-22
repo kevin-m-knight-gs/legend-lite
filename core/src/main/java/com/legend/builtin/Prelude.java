@@ -52,7 +52,7 @@ public final class Prelude {
     /** Parsed once at class load — fails loudly if the source rots (the
      * {@link Pure} native-catalog discipline; the same bootstrap-loader
      * regime as {@link SystemMetamodel}). */
-    private static final ParsedModel PARSED = com.legend.parser.ElementParser.parse(
+    private static final ParsedModel PARSED = com.legend.door.ModelFromText.parse(
             SOURCE, com.legend.parser.Dialect.LEGEND_PLATFORM);
 
     // ORDERED, in module order (PRELUDE_MODULE_HOMEWORK §9.12): the
@@ -83,6 +83,12 @@ public final class Prelude {
                     .filter(e -> e instanceof com.legend.model.FunctionDefinition)
                     .map(e -> com.legend.model.FunctionId.of((com.legend.model.FunctionDefinition) e))
                     .collect(Collectors.toCollection(() -> new LinkedHashSet<com.legend.model.FunctionId>())));
+    /** The platform's PROFILES (legend-pure's, 2026-10-21): a stereotype's or tag's bare profile name resolves among
+     *  these and the model's own, never to a function of the same name (NameResolver.resolveProfile). */
+    private static final Set<String> PROFILE_FQNS = Collections.unmodifiableSet(
+            PARSED.elements().stream()
+                    .filter(e -> e instanceof com.legend.model.ProfileDefinition).map(PackageableElement::qualifiedName)
+                    .collect(Collectors.toCollection(() -> new LinkedHashSet<String>())));
     private static final Set<String> ELEMENT_FQNS = Collections.unmodifiableSet(
             PARSED.elements().stream()
                     .map(PackageableElement::qualifiedName)
@@ -121,6 +127,10 @@ public final class Prelude {
 
     public static Set<String> enumFqns() {
         return ENUM_FQNS;
+    }
+
+    public static Set<String> profileFqns() {
+        return PROFILE_FQNS;
     }
 
     /** A generated class by FQN, AS PARSED (unresolved) — for tests and the

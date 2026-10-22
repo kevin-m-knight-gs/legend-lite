@@ -5,6 +5,7 @@ package com.legend.testing;
 
 import com.legend.lexer.TokenStream;
 import com.legend.parser.Dialect;
+import com.legend.door.ModelFromText;
 import com.legend.parser.ElementParser;
 
 /**
@@ -22,7 +23,7 @@ public final class Engine {
 
     /** A whole-model parse at the engine level (strict-surface pins). */
     public static com.legend.model.ParsedModel model(String source) {
-        return ElementParser.parse(source, SUITE);
+        return ModelFromText.parse(source, SUITE);
     }
 
     /** A parser positioned at {@code tokenIndex}, engine level. */

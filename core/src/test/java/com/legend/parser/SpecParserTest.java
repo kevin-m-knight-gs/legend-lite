@@ -2231,11 +2231,11 @@ final class SpecParserTest {
                         new TypeAnnotation.RelationShape.Column(
                                 "name",
                                 new TypeAnnotation.Named(nr("String")),
-                                null),
+                                Multiplicity.Concrete.ZERO_ONE),
                         new TypeAnnotation.RelationShape.Column(
                                 "age",
                                 new TypeAnnotation.Named(nr("Integer")),
-                                null))),
+                                Multiplicity.Concrete.ZERO_ONE))),
                 com.legend.testing.Platform.spec("@Relation<(name:String, age:Integer)>"));
     }
 
@@ -2272,11 +2272,11 @@ final class SpecParserTest {
                         new TypeAnnotation.RelationShape.Column(
                                 "city",
                                 new TypeAnnotation.Named(nr("String")),
-                                null),
+                                Multiplicity.Concrete.ZERO_ONE),
                         new TypeAnnotation.RelationShape.Column(
                                 "2011__|__newCol",
                                 new TypeAnnotation.Named(nr("Integer")),
-                                null))),
+                                Multiplicity.Concrete.ZERO_ONE))),
                 com.legend.testing.Platform.spec(
                         "@Relation<(city:String, '2011__|__newCol':Integer)>"));
     }
@@ -2293,11 +2293,11 @@ final class SpecParserTest {
                         new TypeAnnotation.RelationShape.Column(
                                 null,
                                 new TypeAnnotation.Wildcard(),
-                                null),
+                                Multiplicity.Concrete.ZERO_ONE),
                         new TypeAnnotation.RelationShape.Column(
                                 "name",
                                 new TypeAnnotation.Named(nr("String")),
-                                null))),
+                                Multiplicity.Concrete.ZERO_ONE))),
                 com.legend.testing.Platform.spec("@Relation<(?:?, name:String)>"));
     }
 
@@ -2315,11 +2315,11 @@ final class SpecParserTest {
                         new TypeAnnotation.RelationShape.Column(
                                 null,
                                 new TypeAnnotation.Named(nr("String")),
-                                null),
+                                Multiplicity.Concrete.ZERO_ONE),
                         new TypeAnnotation.RelationShape.Column(
                                 "name",
                                 new TypeAnnotation.Wildcard(),
-                                null))),
+                                Multiplicity.Concrete.ZERO_ONE))),
                 com.legend.testing.Platform.spec("@Relation<(?:String, name:?)>"));
     }
 
@@ -2337,11 +2337,11 @@ final class SpecParserTest {
                         new TypeAnnotation.RelationShape.Column(
                                 "owner",
                                 new TypeAnnotation.Named(nr("my::pkg::Firm")),
-                                null),
+                                Multiplicity.Concrete.ZERO_ONE),
                         new TypeAnnotation.RelationShape.Column(
                                 "tags",
                                 new TypeAnnotation.Named(tg("List", nr("String"))),
-                                null))),
+                                Multiplicity.Concrete.ZERO_ONE))),
                 com.legend.testing.Platform.spec(
                         "@Relation<(owner:my::pkg::Firm, tags:List<String>)>"));
     }
@@ -2381,11 +2381,11 @@ final class SpecParserTest {
                                 new TypeAnnotation.RelationShape.Column(
                                         "city",
                                         new TypeAnnotation.Named(nr("String")),
-                                        null),
+                                        Multiplicity.Concrete.ZERO_ONE),
                                 new TypeAnnotation.RelationShape.Column(
                                         "country",
                                         new TypeAnnotation.Named(nr("String")),
-                                        null))))),
+                                        Multiplicity.Concrete.ZERO_ONE))))),
                 com.legend.testing.Platform.spec(
                         "$rel->cast(@Relation<(city:String, country:String)>)"));
     }
@@ -2696,6 +2696,37 @@ final class SpecParserTest {
                         && tl.desugared().parameters().get(0)
                                 .equals(new CString("TDS")),
                 () -> "want TdsLiteral over tds() call, got: " + result);
+    }
+
+    /** Both spellings carry the table between their delimiters, untrimmed -- the wire's tdsString, and the text the
+     *  desugared tds() call hands the compiler -- so the compiler never reads a delimiter, in either form or door. */
+    @Test
+    void tdsLiteralCarriesTheTableInsideItsDelimiters_inBothForms() {
+        for (String src : List.of("#TDS{\nid\n1\n}#", "#TDS\nid\n1\n#")) {
+            ValueSpecification result = com.legend.testing.Platform.spec(src);
+            assertTrue(result instanceof com.legend.protocol.spec.TdsLiteral tl
+                            && tl.tdsString().equals("\nid\n1\n")
+                            && tl.desugared().parameters().get(1).equals(new CString("\nid\n1\n")),
+                    () -> src + " -> " + result);
+        }
+    }
+
+    /** A braced literal with no "}#" is refused in its own words, never read as brace-less with '{' for a header. */
+    @Test
+    void unterminatedBracedTdsLiteralIsRefused() {
+        ParseException ex = assertThrows(ParseException.class,
+                () -> com.legend.testing.Platform.spec("#TDS{\nid\n1\n"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("unterminated #TDS{ literal"),
+                () -> "got: " + ex.getMessage());
+    }
+
+    /** The braced form ends at its first "}#": a '#' in a value is the value's, never the literal's end. */
+    @Test
+    void bracedTdsLiteralKeepsAHashInAValue() {
+        ValueSpecification result = com.legend.testing.Platform.spec("#TDS{\nid, tag\n1, a#b\n}#");
+        assertTrue(result instanceof com.legend.protocol.spec.TdsLiteral tl
+                        && tl.tdsString().equals("\nid, tag\n1, a#b\n"),
+                () -> "got: " + result);
     }
 
     // ----- C.7b: DSL islands (graph-fetch + table reference) -----------
