@@ -11,7 +11,7 @@ import com.legend.protocol.SourceInfo;
 import com.legend.protocol.spec.SqlIsland;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.InputDialect;
-import com.legend.protocol.sql.PostgresDialect;
+import com.legend.protocol.sql.InputLanguages;
 import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
 import com.legend.protocol.sql.iq.IqDialect;
@@ -21,10 +21,11 @@ import java.util.function.Function;
 
 /**
  * THE ONE PLACE a SQL island becomes a Relation expression (docs/LEGEND_SQL_STUDY_2026_10_11.md §3,
- * docs/IQ_SQL_STUDY_2026_10_13.md §5): {@code #SQL{...}#} read as Postgres ({@link PostgresDialect}), {@code #IQ{...}#}
- * as SAP IQ under its profile ({@link IqDialect}). The protocol layer's translator ({@link SqlToPure}) reads the SQL
- * through the island's dialect and builds the Pure a person would write; this seam answers its one question, what a
- * FROM source's columns are (each column's declared store type too, when the source is a table), by typing the source;
+ * docs/IQ_SQL_STUDY_2026_10_13.md §5): {@code #SQL{...}#} read as Postgres
+ * ({@link com.legend.protocol.sql.PostgresDialect}), {@code #IQ{...}#} as SAP IQ under its profile
+ * ({@link IqDialect}). The protocol layer's translator ({@link SqlToPure}) reads the SQL through the island's dialect
+ * and builds the Pure a person would write; this seam answers its one question, what a FROM source's columns are
+ * (each column's declared store type too, when the source is a table), by typing the source;
  * it resolves the result's names as the resolver resolves any query, and the Typer then types it once, like any query.
  * A refusal becomes the compile error its kind says, placed in the enclosing source.
  */
@@ -67,6 +68,12 @@ final class SqlIslands {
             @Override
             public void variables(java.util.function.Consumer<String> names) {
                 env.names().forEach(names);
+            }
+
+            @Override
+            public ValueSpecification inlineView(ValueSpecification relation) {
+                // IQ island, 2026-10-16: the compiler's marker (InlineViewChecker)
+                return Calls.exact(com.legend.builtin.Pure.Lite.INLINE_VIEW, java.util.List.of(relation));
             }
         };
         try {
@@ -152,10 +159,12 @@ final class SqlIslands {
         return true;
     }
 
-    /** The island's dialect: Postgres for {@code #SQL{}}, IQ under the island's profile for {@code #IQ{}}. */
+    /** The island's dialect: its language's ({@link InputLanguages}), IQ under the island's profile for
+     *  {@code #IQ{}}. */
     private static InputDialect dialect(SqlIsland island) {
-        if (island.language().equals(SqlIsland.SQL) && island.profile() == null) {
-            return PostgresDialect.INSTANCE;
+        InputDialect plain = island.profile() == null ? InputLanguages.plain(island.language()) : null;
+        if (plain != null) {
+            return plain;
         }
         if (!island.language().equals(SqlIsland.IQ)) {
             throw new TypeInferenceException("an island of language " + island.language() + (island.profile() == null
@@ -166,7 +175,7 @@ final class SqlIslands {
         if (profile == null) {
             throw new TypeInferenceException(IqProfile.unknown(java.util.Objects.requireNonNull(named)));
         }
-        return IqDialect.of(profile);
+        return IqDialect.of(profile.settings());
     }
 
     /** A FROM source's columns, as the translator reads them: each column's name, its type's name, whether it may hold

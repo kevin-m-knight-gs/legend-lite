@@ -1,20 +1,18 @@
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -70,7 +68,7 @@ class ResolveNavigationTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE P (NAME VARCHAR, CITY VARCHAR, FID INTEGER,"
                     + " BOSS INTEGER, ID INTEGER)");
@@ -89,24 +87,13 @@ class ResolveNavigationTest {
     }
 
     private static String sqlOf(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return ResolvedSql.of(MODEL, query);
     }
 
     /** Driver-style resolution (runtime as API argument — the corpus's
      * no-from() shape; scalar-collection roots cannot spell from()). */
     private static String sqlOfDriver(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs)
-                .resolve(body, "m::RT");
-        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return ResolvedSql.of(MODEL, query, "m::RT");
     }
 
     private List<String> exec(String sql) throws SQLException {
@@ -272,7 +259,7 @@ class ResolveNavigationTest {
         // pipeline: assoc hop + nested slot = two LEFT JOINs, and the leaf
         // reads the doubly-prefixed flat column.
         var resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        String sql = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
+        String sql = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
                 resolved.get(resolved.size() - 1)));
         assertEquals(2, sql.split("LEFT OUTER JOIN", -1).length - 1,
                 "assoc hop + nested slot join: " + sql);
@@ -299,11 +286,7 @@ class ResolveNavigationTest {
             """;
 
     private static String sqlOfA7(String query) {
-        var ctx = Compiler.compileModel(A7_MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
-                new StoreResolver(ctx, specs).resolve(body, null)));
+        return ResolvedSql.of(A7_MODEL, query);
     }
 
     @Test

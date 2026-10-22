@@ -42,7 +42,7 @@ import {
   toggleGroup,
 } from './form.ts';
 import {
-  SORT_DIRECTIONS,
+  SORT_DIRECTION_OPTIONS,
   panelShell,
   type PanelBuilder,
   type PanelContext,
@@ -305,7 +305,7 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.treeColumnSort,
-        SORT_DIRECTIONS,
+        SORT_DIRECTION_OPTIONS,
         (d) => setConfig({ treeColumnSort: d ?? 'asc' } as Patch<CubeConfiguration>),
         { width: 130 },
       ),

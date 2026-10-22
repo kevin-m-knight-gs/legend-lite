@@ -65,8 +65,46 @@ public interface SqlDialect {
         return this;
     }
 
-    /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} (the
-     *  BC-faithful carrier the executor reads every timestamp as). Default: it does, and a refusal fails loudly. */
+    /** The server versions this dialect's text is written for ({@link #forServer} keeps it for these and takes another
+     *  dialect for any other), which a plan names so its runner refuses another; null when its text depends on no
+     *  server's version (the dialect program's Phase 5, 2026-10-16: until then {@code Databases.servers} listed each
+     *  database). */
+    default @com.legend.base.Nullable java.util.List<String> serverVersions() {
+        return null;
+    }
+
+    /** Whether a target on this database loads its declared rows through the database's own bulk loader (a plan's
+     *  {@code SetupStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
+     *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
+     *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
+    default boolean loadsRowsInBulk() {
+        return false;
+    }
+
+    /** Whether a {@code RelationalDatabaseConnection} declares this database: its text is SQL over relational tables.
+     *  Every dialect's but MongoDB's, whose text is an aggregation pipeline its {@code MongoDBConnection} runs
+     *  (docs/MONGODB_PLAN_2026_10_16.md D1, D4; the grammar's relational types do not list it). A test or tool that
+     *  declares a relational connection on every database iterates these ({@code Databases.relational}; main's merge,
+     *  2026-10-22, when MongoDB joined the implemented databases). Default: relational. */
+    default boolean relational() {
+        return true;
+    }
+
+    /** Whether this database runs IN THIS PROCESS (an embedded engine, a private instance of which the platform opens:
+     *  H2, DuckDB, SQLite) or on a SERVER: a plan writes the system metamodel store's tables as its target's setup on
+     *  the one and as its sessions' own TEMPORARY tables on the other (the plan path program's step 9, 2026-10-19; until
+     *  main's dialect program Phase 5 merged in, 2026-10-22, {@code Databases.inProcess} listed each database). The
+     *  execution side's connector answers the same of its sessions ({@code exec.DatabaseConnector#inProcess}), and
+     *  {@code ConnectorsTest} holds the two together. Default: a server. */
+    default boolean inProcess() {
+        return false;
+    }
+
+    /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} and a date cell
+     *  as {@code java.time.LocalDate} (the BC-faithful carriers the executor reads every timestamp and date as; dates
+     *  since 2026-10-17, measured then on pgjdbc, DuckDB's and H2's drivers: the other drivers' JDBC 4.2 support
+     *  of LocalDate is what their LocalDateTime re-fetch already relies on, and is first measured in their cloud
+     *  lanes). Default: it does, and a refusal fails loudly. */
     default boolean refetchesTimestampAsJavaTime() {
         return true;
     }
@@ -116,7 +154,7 @@ public interface SqlDialect {
         REPEATABLE_READ,
         /** a transaction at SERIALIZABLE */
         SERIALIZABLE,
-        /** no transaction across statements: a key written between the two is not the body's (register S84) */
+        /** no transaction across statements: a key written between the two is not the body's (register S103) */
         NONE
     }
 
@@ -153,6 +191,15 @@ public interface SqlDialect {
 
     /** One statement of the engine's H2 text as this database runs it: H2's own, translated, or refused by name. */
     String fromEngineText(String statement);
+
+    /** The path a written model's specification names for this database's in-memory session, where legend-engine must
+     *  be given one (it opens the path a specification names, and refuses one that names none); null when this
+     *  database's specification names no path for one. The platform reads a pathless specification as in memory (the
+     *  dialect program's Phase 7, 2026-10-18: the model writer, {@code server.CreateClass}, asked the protocol's tag
+     *  until then). */
+    default @com.legend.base.Nullable String inMemoryPath() {
+        return null;
+    }
 
     /** This database's host operations (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5 and D5): its own, written in its
      *  dialect's package, or each refused, naming the database. Until 2026-10-15 {@code HostOperations.of} chose them by
@@ -206,6 +253,16 @@ public interface SqlDialect {
     default CatalogType catalogType(CatalogModel.Column column) {
         throw new DialectCapability("reading this database's catalog type '" + column.dataType()
                 + "' is not implemented for " + getClass().getSimpleName());
+    }
+
+    /** THE CATALOG QUESTION for one table: the statement whose rows are the table's columns as {@link CatalogModel}
+     *  reads them (each column's name, its own type name, its canonical type, a decimal's precision and scale, whether
+     *  it holds no null: {@link #catalogType}'s input), {@code schema} and {@code table} written in as this database's
+     *  string literals. Refused, naming the dialect, where the platform does not ask the catalog itself (an attached
+     *  database's tables are listed by their host). The dialect program's Phase 7, 2026-10-18: the tab's planner read
+     *  DuckDB's question off its class until then. */
+    default String catalogColumnsQuery(String schema, String table) {
+        throw new UnsupportedOperationException("the platform asks no catalog question of " + getClass().getSimpleName());
     }
 
     /** Whether a store that declares the catalog's name {@code catalogName} BARE reaches the object the catalog

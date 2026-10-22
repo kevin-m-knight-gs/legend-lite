@@ -72,8 +72,15 @@ class FallbackLedgerTest {
      * normalizer's copy of the view main-table rule; the rule's one home is
      * now ModelBuilder.viewMainTable, whose miss (a navigated join its
      * database does not declare) is a ModelException — still loud, in the
-     * kernel's own vocabulary. */
-    private static final int NEVER_FIRED_FLOOR = 10;
+     * kernel's own vocabulary.
+     * 10 -> 6 (2026-10-21, the reference checks after leg 8, ReferenceIntegrityTest): MappingClosures#1-#4 fired on a
+     * user's model -- an include of a mapping it has not, an association mapping of an association it has not -- so
+     * each is that model's error now, a ModelException in legend-engine's words ("Can't find mapping 'x'", "Can't find
+     * association 'x'"): still loud, and the user's, not an internal state. */
+    // 6 -> 5 (2026-10-21, the independent audit of the reference checks): ImplicitInheritance#1, an association
+    // mapping of an association the model has not, reached from a user's text (ReferenceIntegrityTest
+    // anAssociationMappingsAssociationExists): "Can't find association 'x'" now
+    private static final int NEVER_FIRED_FLOOR = 5;
 
     @org.junit.jupiter.api.Test
     void noBareEmptyAnswerOutsideTheFunnel() throws IOException {

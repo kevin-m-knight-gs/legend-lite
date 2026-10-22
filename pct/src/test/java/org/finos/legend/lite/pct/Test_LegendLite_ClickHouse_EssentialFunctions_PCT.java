@@ -74,7 +74,7 @@ public class Test_LegendLite_ClickHouse_EssentialFunctions_PCT extends PCTReport
             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
-            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).

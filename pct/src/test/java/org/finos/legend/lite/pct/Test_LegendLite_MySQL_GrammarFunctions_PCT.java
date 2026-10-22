@@ -47,7 +47,7 @@ public class Test_LegendLite_MySQL_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
             // NOTE 2026-10-20 (the parity phase): testDateCompare unpinned -- two dates without a time compare on their
             // day numbers, year*10000 + month*100 + day, in any year (MixedEncoding.dayNumberOrNull)
-            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.
     );

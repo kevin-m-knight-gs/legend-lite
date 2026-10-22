@@ -336,7 +336,7 @@ final class InstanceEquality {
         if (lv == null || rv == null || !lf.equals(rf)) {
             return null;
         }
-        SqlExpr empty = new SqlExpr.Cast(new SqlExpr.ArrayLit(List.of()), new SqlType.Array(SqlType.Scalar.VARCHAR));
+        SqlExpr empty = new SqlExpr.Cast(CanonicalRenderSql.emptyArray(), new SqlType.Array(SqlType.Scalar.VARCHAR));
         return SqlExpr.Call.of(SqlFn.EQUAL,
                 SqlExpr.Call.of(SqlFn.COALESCE, equalValues(PureSql.asList(scalar.apply(l), isMany(l)), lt, lv,
                         freshVar), empty),
@@ -368,7 +368,7 @@ final class InstanceEquality {
     /** The MODEL-class fqn of an instance TYPE (any multiplicity), or
      * null (platform carriers, relations and TDSs, Any/variant/Nil, and a
      * type value: a model element, which travels as its path and compares
-     * by it, register S82). */
+     * by it, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). */
     private static @com.legend.base.Nullable String classInstanceFqn(Type t) {
         String fqn = EqualityKeys.fqnOf(t);
         if (fqn != null && PlatformTypes.isTypeClassifier(fqn)) {

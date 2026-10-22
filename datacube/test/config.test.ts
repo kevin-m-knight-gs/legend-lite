@@ -17,6 +17,7 @@ import {
   toColumnLayout,
   toFormats,
   withColumn,
+  withConfiguration,
   type CubeConfiguration,
 } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -36,7 +37,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -71,6 +71,30 @@ describe('withColumn', () => {
     let c = withColumn(DEFAULT_CONFIGURATION, 'region', { hidden: true });
     c = withColumn(c, 'year', { hidden: true });
     assert.deepEqual(Object.keys(c.columns).sort(), ['region', 'year']);
+  });
+});
+
+describe('withConfiguration: a host\'s patch (CubeApp.applyConfiguration, Python\'s Grid.configure)', () => {
+  it('merges each column into what it has, and leaves the others and the column map alone', () => {
+    let c = withColumn(DEFAULT_CONFIGURATION, 'region', { pinned: 'left' });
+    c = withColumn(c, 'year', { hidden: true });
+    c = withConfiguration(c, { reportTitle: 'Trades', columns: { region: { hidden: true } } });
+    assert.equal(c.reportTitle, 'Trades');
+    assert.deepEqual(columnConfig(c, 'region'), { pinned: 'left', hidden: true });
+    assert.deepEqual(columnConfig(c, 'year'), { hidden: true });
+    assert.deepEqual(withConfiguration(c, { maxRows: 10 }).columns, c.columns);
+  });
+
+  it('merges a part of the grid-wide appearance into what it has', () => {
+    const before = DEFAULT_CONFIGURATION.appearance;
+    const c = withConfiguration(DEFAULT_CONFIGURATION, { appearance: { fontSize: 14 } as never });
+    assert.equal(c.appearance.fontSize, 14);
+    assert.deepEqual({ ...c.appearance, fontSize: before.fontSize }, before, 'every other appearance setting kept');
+  });
+
+  it('clears what it is told undefined', () => {
+    const c = withConfiguration(withConfiguration(DEFAULT_CONFIGURATION, { maxRows: 10 }), { maxRows: undefined });
+    assert.equal('maxRows' in c, false);
   });
 });
 
@@ -294,7 +318,6 @@ describe('Column Properties > Aggregation reaches the query', () => {
     derived: [],
     rows: ['region'],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   };
@@ -362,7 +385,6 @@ describe('renaming a calculated column that is in use', async () => {
     derived: [{ name: 'big', lambda: (await row('$x.qty > 10')), kind: 'dimension' }],
     rows: ['big'],
     pivotOn: ['big'],
-    measures: [{ name: 'n', column: 'big', fn: 'count' }],
     sorts: [{ column: 'big', direction: 'desc' }],
     filter: { kind: 'not', child: { kind: 'or', children: [
       { kind: 'condition', column: 'big', operator: 'equal', value: true },
@@ -377,7 +399,6 @@ describe('renaming a calculated column that is in use', async () => {
     assert.deepEqual(r.rows, ['large']);
     assert.deepEqual(r.pivotOn, ['large']);
     assert.equal(r.sorts[0]?.column, 'large');
-    assert.equal(r.measures[0]?.column, 'large');
     assert.match(JSON.stringify(r.filter), /"column":"large"/);
     assert.match(JSON.stringify(r.filter), /"rightColumn":"large"/);
     assert.doesNotMatch(JSON.stringify(r.filter), /"big"/);
@@ -402,7 +423,6 @@ describe('what the count counts', () => {
     derived: [],
     rows: ['region'],
     pivotOn: [],
-    measures: [],
     sorts: [],
     epoch: 1,
   };

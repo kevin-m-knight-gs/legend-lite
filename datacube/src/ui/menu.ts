@@ -38,23 +38,27 @@ import type {
   FilterOperator,
   FilterValue,
   SortDirection,
+  SortSpec,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { SHOW_AS_KINDS, TIME_GRAINS, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
-import { isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
+import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
+import { addSort, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
+import type { CubeConfiguration } from '../config.ts';
 
 /**
  * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
  * menu that shows it raw asks the user to read the separator. It
  * reads back as "2021 / notional", the same presentation the sorts
- * panel uses.
+ * panel uses; a pivot total's as its header names it, `total`
+ * (Properties' Pivot Statistic Column Name, Total unless renamed).
  */
-export function columnLabel(name: string): string {
-  return name.split(PIVOT_SEPARATOR).join(' / ');
+export function columnLabel(name: string, total?: string): string {
+  return name.split(PIVOT_SEPARATOR).map((part) => (part === PIVOT_TOTAL_KEY ? total ?? 'Total' : part)).join(' / ');
 }
 
 export interface MenuContext {
@@ -69,6 +73,8 @@ export interface MenuContext {
   readonly hasExpanded?: boolean;
   /** Whether the column under the pointer already has a heatmap. */
   readonly hasHeatmap?: boolean;
+  /** What a pivot total's header is named (Properties' Pivot Statistic Column Name), when it is renamed. */
+  readonly totalLabel?: string;
   /**
    * Whether the column may be grouped or pivoted by at all.
    *
@@ -90,12 +96,6 @@ export interface MenuContext {
   readonly canEmail?: boolean;
   /** Whether the host knows where the cube's rows come from, so the cube can be written down. */
   readonly canSaveCube?: boolean;
-  /**
-   * The column is a pivot TOTAL. It exists only in the grid -- joined
-   * in from a second query -- so no query can sort, filter or pivot
-   * by it.
-   */
-  readonly pivotTotal?: boolean;
   /** From a header: Properties... opens Column Properties on this. */
   readonly propertiesColumn?: string;
   /** The column pivot's headers are measure-first (a checked entry). */
@@ -443,11 +443,11 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
 
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const { snapshot: s } = ctx;
-  // A pivot total is a real column of the level's query (a conditional
-  // aggregate), so it SORTS like any measure; everything else about it is
-  // column-free: a filter applies to source rows, before any total exists,
-  // and a total is not a dimension to pivot, hide or rename.
-  const column = ctx.pivotTotal ? undefined : ctx.column;
+  // A pivot total is a column of the level's query like any other (an aggregate over the group's every pivot value),
+  // so it is offered what a pivot's cell is: a sort, a heatmap of its own, a width, hiding, copying. What it is not
+  // offered it is not, as a cell is not: a dimension to group or pivot by (canGroup), a value to filter by (a filter
+  // runs on source rows, before any total), a pin (a pivot's result, pivotBase).
+  const column = ctx.column;
   const sortColumn = ctx.column;
   const groups: MenuGroup[] = [];
   const push = (label: string, items: (MenuItem | null)[]): void => {
@@ -482,7 +482,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'copy.column',
           label: column
-            ? `Column ${columnLabel(column)} as Plain Text`
+            ? `Column ${columnLabel(column, ctx.totalLabel)} as Plain Text`
             : 'Selected Column as Plain Text',
           disabled: !column,
           ...(column ? { column } : {}),
@@ -541,7 +541,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.vertical',
           label: groupable
-            ? `Vertical Pivot on ${columnLabel(column)}`
+            ? `Vertical Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Vertical Pivot',
           disabled: !groupable,
           ...(column ? { column } : {}),
@@ -549,7 +549,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.addVertical',
           label: groupable
-            ? `Add Vertical Pivot on ${columnLabel(column)}`
+            ? `Add Vertical Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Add Vertical Pivot',
           disabled: !groupable || isVertical,
           ...(column ? { column } : {}),
@@ -557,7 +557,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.removeVertical',
           label: groupable
-            ? `Remove Vertical Pivot on ${columnLabel(column)}`
+            ? `Remove Vertical Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Remove Vertical Pivot',
           disabled: !isVertical,
           ...(column ? { column } : {}),
@@ -570,7 +570,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.horizontal',
           label: groupable
-            ? `Horizontal Pivot on ${columnLabel(column)}`
+            ? `Horizontal Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Horizontal Pivot',
           disabled: !groupable,
           ...(column ? { column } : {}),
@@ -578,7 +578,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.addHorizontal',
           label: groupable
-            ? `Add Horizontal Pivot on ${columnLabel(column)}`
+            ? `Add Horizontal Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Add Horizontal Pivot',
           disabled: !groupable || isHorizontal,
           ...(column ? { column } : {}),
@@ -586,7 +586,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.removeHorizontal',
           label: groupable
-            ? `Remove Horizontal Pivot on ${columnLabel(column)}`
+            ? `Remove Horizontal Pivot on ${columnLabel(column, ctx.totalLabel)}`
             : 'Remove Horizontal Pivot',
           disabled: !isHorizontal,
           ...(column ? { column } : {}),
@@ -598,7 +598,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           && !ctx.excludedFromPivot && s.pivotOn.length > 0
           ? [{
             id: 'pivot.exclude' as const,
-            label: `Exclude Column ${columnLabel(ctx.pivotBase)} from Horizontal Pivot`,
+            label: `Exclude Column ${columnLabel(ctx.pivotBase, ctx.totalLabel)} from Horizontal Pivot`,
             column: ctx.pivotBase,
           }]
           : []),
@@ -606,7 +606,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           && ctx.excludedFromPivot && s.pivotOn.length > 0
           ? [{
             id: 'pivot.include' as const,
-            label: `Include Column ${columnLabel(column)} in Horizontal Pivot`,
+            label: `Include Column ${columnLabel(column, ctx.totalLabel)} in Horizontal Pivot`,
             column,
           }]
           : []),
@@ -632,7 +632,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   // Upstream's entries and wording (DataCubeGridMenuBuilder): add one,
   // seed one from the column under the pointer, and edit or delete
   // the one under the pointer when it is itself calculated.
-  const named = column === undefined ? '' : columnLabel(column);
+  const named = column === undefined ? '' : columnLabel(column, ctx.totalLabel);
   push('', [
     {
       label: 'Extended Columns',
@@ -710,7 +710,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     },
     {
       id: 'column.hide',
-      label: column ? `Hide ${columnLabel(column)}` : 'Hide',
+      label: column ? `Hide ${columnLabel(column, ctx.totalLabel)}` : 'Hide',
       disabled: !column,
       ...(column ? { column } : {}),
     },
@@ -725,7 +725,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'heatmap.add',
           label: column
-            ? `Add Heatmap to ${columnLabel(column)}`
+            ? `Add Heatmap to ${columnLabel(column, ctx.totalLabel)}`
             : 'Add Heatmap',
           disabled: !column || Boolean(ctx.hasHeatmap),
           ...(column ? { column } : {}),
@@ -792,7 +792,7 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
         const more = operators.filter((op) => op !== 'equal');
         if (more.length > 0) {
           items.push({
-            label: `More Filters on ${columnLabel(column)}...`,
+            label: `More Filters on ${columnLabel(column, ctx.totalLabel)}...`,
             submenu: more.map((op) => filterItem(column, op, value)),
           });
         }
@@ -825,39 +825,38 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
  *
  * Actions that change nothing return the snapshot unchanged by
  * identity, so a caller can skip a refresh rather than re-running the
- * same query.
+ * same query. Sorts and pivots are set by grid-edits.ts, the one way a
+ * grid's are set (`config`: the grid's, which says a column's kind);
+ * an action its offers refuse throws its words (CubeRefusal).
  */
 export function applyMenuAction(
   s: CubeSnapshot,
   item: MenuItem,
+  config: CubeConfiguration,
 ): CubeSnapshot {
   const col = item.column;
   const without = <T>(xs: readonly T[], p: (x: T) => boolean): T[] =>
     xs.filter((x) => !p(x));
+  const draft = { snapshot: s, config };
+  const sorted = (sorts: readonly SortSpec[]): CubeSnapshot => setSorts(draft, sorts).snapshot;
+  const rows = (names: readonly string[]): CubeSnapshot => setGrouping(draft, names).snapshot;
+  const pivotOn = (names: readonly string[]): CubeSnapshot => setPivot(draft, names).snapshot;
 
   switch (item.id) {
     case 'sort.asc':
     case 'sort.desc':
       return col
-        ? { ...s, sorts: [{ column: col, direction: item.direction ?? 'asc' }] }
+        ? sorted([{ column: col, direction: item.direction ?? 'asc' }])
         : s;
     case 'sort.addAsc':
     case 'sort.addDesc':
-      return col
-        ? {
-            ...s,
-            sorts: [
-              ...without(s.sorts, (x) => x.column === col),
-              { column: col, direction: item.direction ?? 'asc' },
-            ],
-          }
-        : s;
+      return col ? addSort(draft, col, item.direction ?? 'asc').snapshot : s;
     case 'sort.clearColumn':
       return col
-        ? { ...s, sorts: without(s.sorts, (x) => x.column === col) }
+        ? sorted(without(s.sorts, (x) => x.column === col))
         : s;
     case 'sort.clearAll':
-      return { ...s, sorts: [] };
+      return sorted([]);
 
     case 'filter.add': {
       // ADDS to the filter rather than replacing it, which is what
@@ -885,26 +884,26 @@ export function applyMenuAction(
     }
 
     case 'pivot.vertical':
-      return col ? { ...s, rows: [col] } : s;
+      return col ? rows([col]) : s;
     case 'pivot.addVertical':
       return col && !s.rows.includes(col)
-        ? { ...s, rows: [...s.rows, col] }
+        ? rows([...s.rows, col])
         : s;
     case 'pivot.removeVertical':
-      return col ? { ...s, rows: without(s.rows, (x) => x === col) } : s;
+      return col ? rows(without(s.rows, (x) => x === col)) : s;
     case 'pivot.clearVertical':
-      return { ...s, rows: [] };
+      return rows([]);
 
     case 'pivot.horizontal':
-      return col ? { ...s, pivotOn: [col] } : s;
+      return col ? pivotOn([col]) : s;
     case 'pivot.addHorizontal':
       return col && !s.pivotOn.includes(col)
-        ? { ...s, pivotOn: [...s.pivotOn, col] }
+        ? pivotOn([...s.pivotOn, col])
         : s;
     case 'pivot.removeHorizontal':
-      return col ? { ...s, pivotOn: without(s.pivotOn, (x) => x === col) } : s;
+      return col ? pivotOn(without(s.pivotOn, (x) => x === col)) : s;
     case 'pivot.clearHorizontal':
-      return { ...s, pivotOn: [] };
+      return pivotOn([]);
 
     default:
       // Layout, copy and export actions do not touch the query.

@@ -1,11 +1,11 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -207,6 +207,11 @@ class JsonM2MChainIntegrationTest {
             )
 
             // ===== Connection & Runtime =====
+            ###Relational
+            Database store::TestDb
+            (
+            )
+
             ###Connection
             import model::*;
             import store::*;
@@ -296,6 +301,11 @@ class JsonM2MChainIntegrationTest {
                 }
             )
 
+            ###Relational
+            Database store::TestDb
+            (
+            )
+
             ###Connection
             import model::*;
             import store::*;
@@ -334,7 +344,7 @@ class JsonM2MChainIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -814,6 +824,11 @@ class JsonM2MChainIntegrationTest {
                     }
                 )
 
+                ###Relational
+                Database store::TestDb
+                (
+                )
+
                 ###Connection
                 import model::*;
                 import store::*;
@@ -1014,6 +1029,11 @@ class JsonM2MChainIntegrationTest {
                             displayName: $src.fullName->toUpper(),
                             department: $src.dept
                         }
+                    )
+
+                    ###Relational
+                    Database store::TestDb
+                    (
                     )
 
                     ###Connection

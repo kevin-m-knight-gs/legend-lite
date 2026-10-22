@@ -5,8 +5,7 @@
 // the second app shows must be what the first showed -- typed values, not rendered text.
 
 import assert from 'node:assert/strict';
-import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
-import path from 'node:path';
+import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import { before, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -26,7 +25,7 @@ import { TreeState } from '../../src/tree.ts';
 import { ingestFile, type DuckDbFiles } from '../../src/upload.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { col, fn, lambda, lit, times, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
+import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -65,13 +64,7 @@ let files: DuckDbFiles;
 let planner: LitePlanner;
 
 before(async () => {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB({
-    mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-    eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-  }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
   files = {
     registerFileText: async (name, text) => db.registerFileText(name, text),
@@ -128,7 +121,6 @@ describe('a saved cube reopens in a fresh app over its file', () => {
       derived: [{ name: 'double', lambda: lambda(['x'], times(fn('toOne', col('x', 'notional')), lit.integer(2))) }],
       rows: ['region'],
       pivotOn: [],
-      measures: [{ name: 'notional', column: 'notional', fn: 'sum' }, { name: 'double', column: 'double', fn: 'sum' }],
       sorts: [{ column: 'region', direction: 'asc' }],
       filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 1 },
       epoch: 1,
@@ -172,7 +164,6 @@ describe('a saved cube reopens in a fresh app over its file', () => {
       derived: [],
       rows: ['region'],
       pivotOn: [],
-      measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
       sorts: [],
       filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 1 },
       epoch: 1,
@@ -198,7 +189,7 @@ describe('a saved cube reopens in a fresh app over its file', () => {
     const first = await read('trades.csv', CSV);
     const cube: CubeSnapshot = {
       source: { query: first.relation }, columns: first.columns, derived: [],
-      rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1,
+      rows: [], pivotOn: [], sorts: [], epoch: 1,
     };
     const a = await openApp(cube, DEFAULT_CONFIGURATION, first.source);
     const text = cubeToJson(a.app.cubeDocument('flat') ?? assert.fail('no document'));

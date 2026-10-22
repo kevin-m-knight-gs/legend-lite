@@ -1,0 +1,111 @@
+# A property or an index of a value the database holds as a Variant (the study's §12.43): the platform's get,
+# read by the entry's kind where the Variant's shape is known (a spelled map's entries, a list's one kind, a
+# spelled list's places), else a Variant the judge reads as the value it holds; type and labels of a Variant of a
+# known mark; the functions' type errors. Each judged by Neo4j.
+cases:
+  - id: an_unwound_map_s_entries_typed
+    cypher: "UNWIND [{a: 1, b: 'x'}, {a: 2, b: 'y'}] AS m RETURN m.a AS a, m.b AS b ORDER BY a"
+  - id: an_unwound_map_s_entry_it_lacks
+    cypher: "UNWIND [{a: 1}, {a: 2}] AS m RETURN m.a AS a, m.z AS z ORDER BY a"
+  - id: an_unwound_map_s_entry_compared
+    cypher: "UNWIND [{a: 1, b: 'x'}, {a: 2, b: 'y'}] AS m WITH m WHERE m.a > 1 RETURN m.b AS b"
+  - id: an_unwound_map_s_entry_in_arithmetic
+    cypher: "UNWIND [{a: 1}, {a: 2}] AS m RETURN m.a * 10 AS ten ORDER BY ten"
+  - id: an_unwound_map_s_boolean_entry_as_a_condition
+    cypher: "UNWIND [{list: [2], fixed: true}, {list: [1, 2], fixed: false}] AS input WITH CASE WHEN input.fixed THEN input.list ELSE null END AS fixedList, input.fixed AS fixed RETURN fixed, fixedList ORDER BY fixed"
+  - id: an_unwound_map_s_list_entry_sized
+    cypher: "UNWIND [{l: [1, 2], ok: true}, {l: [3], ok: false}] AS m RETURN m.ok AS ok, size(m.l) AS n ORDER BY ok"
+  - id: an_unwound_map_s_list_entry_unwound
+    cypher: "UNWIND [{l: [1, 2]}, {l: [3]}] AS m UNWIND m.l AS x RETURN x ORDER BY x"
+  - id: an_unwound_map_s_list_entry_indexed
+    cypher: "UNWIND [{l: [1, 2]}, {l: [3, 4]}] AS m RETURN m.l[0] AS first, m.l[-1] AS last ORDER BY first"
+  - id: an_unwound_map_s_entry_indexed_by_a_key
+    cypher: "UNWIND [{a: 1, b: 'x'}, {a: 2, b: 'y'}] AS m RETURN m['b'] AS b ORDER BY b"
+  - id: an_unwound_map_s_entry_indexed_by_a_key_of_the_row
+    cypher: "UNWIND ['a', 'b'] AS k UNWIND [{a: 1, b: 'x'}] AS m RETURN k, m[k] AS v ORDER BY k"
+  - id: an_unwound_map_s_scalar_entry_has_no_entries
+    cypher: "UNWIND [{a: 1}] AS m RETURN m.a.b"
+  - id: a_map_of_row_values_through_with_navigated
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 2})
+    cypher: "MATCH (p:P) WITH {name: p.name, age: p.age} AS m RETURN m.name AS name, m.age + 1 AS next ORDER BY name"
+  - id: a_map_of_row_values_through_with_navigated_where_an_entry_is_null
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH {name: p.name, age: p.age} AS m RETURN m.name AS name, m.age + 1 AS next ORDER BY name"
+  - id: a_list_of_row_values_through_with_indexed_from_its_end
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 2})
+    cypher: "MATCH (p:P) WITH [p.age, p.age * 10] AS l RETURN l[-1] AS last ORDER BY last"
+  - id: a_list_of_row_values_through_with_indexed_by_a_place_of_the_row
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 2})
+    cypher: "MATCH (p:P) WITH [p.age, p.age * 10] AS l UNWIND [0, 1, 2] AS i RETURN i, l[i] AS at ORDER BY i, at"
+  - id: a_collected_node_s_property
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH collect(p) AS ps UNWIND ps AS n RETURN n.name AS name"
+  - id: a_collected_node_s_property_it_lacks
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH collect(p) AS ps UNWIND ps AS n RETURN n.name AS name, n.age AS age"
+  - id: a_collected_node_s_labels
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH collect(p) AS ps UNWIND ps AS n RETURN labels(n) AS ls"
+  - id: a_collected_node_s_type_is_an_error
+    graph: |
+      CREATE (:P {name: 'a'})
+    cypher: "MATCH (p:P) WITH collect(p) AS ps UNWIND ps AS n RETURN type(n)"
+  - id: a_node_in_a_list_through_with_navigated
+    graph: |
+      CREATE (:P {name: 'a', age: 1})
+    cypher: "MATCH (p:P) WITH [123, p] AS l RETURN (l[1]).name AS name, (l[1]).missing AS missing, l[0] AS first"
+  - id: a_relationship_in_a_list_through_with_typed
+    graph: |
+      CREATE (:P {name: 'a'})-[:KNOWS]->(:P {name: 'b'})
+    cypher: "MATCH (:P)-[r:KNOWS]->(:P) WITH [r, 1] AS l RETURN type(l[0]) AS t"
+  - id: a_list_through_with_indexed_beyond_its_end
+    graph: |
+      CREATE (:P {name: 'a'})-[:KNOWS]->(:P {name: 'b'})
+    cypher: "MATCH (:P)-[r:KNOWS]->(:P) WITH [r, 1] AS l RETURN l[2] AS none, l[-1] AS last"
+  - id: an_integer_in_a_list_through_with_has_no_type
+    graph: |
+      CREATE (:P {name: 'a'})-[:KNOWS]->(:P {name: 'b'})
+    cypher: "MATCH (:P)-[r:KNOWS]->(:P) WITH [r, 1] AS l RETURN type(l[1]) AS t"
+  - id: a_node_indexed_by_a_computed_key
+    graph: |
+      CREATE (:P {name: 'a'})
+    cypher: "MATCH (p:P) RETURN p['na' + 'me'] AS value"
+  - id: a_node_indexed_by_a_key_of_the_row
+    graph: |
+      CREATE (:P {name: 'a', age: 1})
+    cypher: "MATCH (p:P) UNWIND ['name', 'age', 'none'] AS k RETURN k, p[k] AS v ORDER BY k"
+  - id: a_collected_mixed_list_s_places
+    cypher: "WITH collect([0, 0.0]) AS numbers UNWIND numbers AS arr WITH arr[0] AS first, arr[1] AS second RETURN first, second, first = second AS same, toInteger(0) = first AS zero"
+  - id: a_collected_mixed_list_s_place_of_another_kind
+    cypher: "WITH collect(['0', 0]) AS things UNWIND things AS arr WITH arr[0] AS expected RETURN expected, 0 = expected AS same"
+  - id: type_of_a_node_is_an_error
+    graph: |
+      CREATE (:P {name: 'a'})
+    cypher: "MATCH (p:P) RETURN type(p)"
+  - id: type_of_an_integer_is_an_error
+    cypher: "RETURN type(1)"
+  - id: type_in_a_comprehension_over_a_relationship_and_an_integer_is_an_error
+    graph: |
+      CREATE (:P {name: 'a'})-[:KNOWS]->(:P {name: 'b'})
+    cypher: "MATCH (:P)-[r:KNOWS]->(:P) RETURN [x IN [r, 1] | type(x)] AS list"
+  - id: length_of_a_node_is_an_error
+    graph: |
+      CREATE (:P {name: 'a'})
+    cypher: "MATCH (p:P) RETURN length(p)"
+  - id: length_of_a_relationship_is_an_error
+    graph: |
+      CREATE (:P {name: 'a'})-[:KNOWS]->(:P {name: 'b'})
+    cypher: "MATCH (:P)-[r:KNOWS]->(:P) RETURN length(r)"
+  - id: properties_of_an_integer_is_an_error
+    cypher: "RETURN properties(1)"
+  - id: properties_of_a_list_is_an_error
+    cypher: "RETURN properties([true, false])"
+  - id: labels_of_a_string_is_an_error
+    cypher: "RETURN labels('a')"

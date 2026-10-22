@@ -7,9 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlIslandCases;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -31,29 +32,32 @@ import org.junit.jupiter.api.Test;
  */
 class CorrelatedComputedColumnTest {
 
+    /** The platform's own engine: the table, the island's session and the answer it is held to. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
+
     private static final String MODEL =
-            SqlIslandCases.model("type: DuckDB;\n specification: DuckDB { };\n auth: Test;");
+            SqlIslandCases.model(PLATFORM.connectionBody());
     private static final String EMP = "tb('store::HR.EMP')";
-    private static Connection duckdb;
+    private static Connection session;
 
     @BeforeAll
     static void seed() throws SQLException {
-        duckdb = DriverManager.getConnection("jdbc:duckdb:");
-        try (Statement s = duckdb.createStatement()) {
-            s.execute(SqlIslandCases.DUCKDB_TABLE);
+        session = PLATFORM.open();
+        try (Statement s = session.createStatement()) {
+            s.execute(SqlIslandCases.table(PLATFORM));
             s.execute("INSERT INTO EMP VALUES " + SqlIslandCases.ROWS);
         }
     }
 
     @AfterAll
     static void close() throws SQLException {
-        duckdb.close();
+        session.close();
     }
 
     /** The island's answer to {@code sql} (its tables spelled through the source function) as rows of cell texts. */
     private static List<List<String>> island(String sql) throws SQLException {
         ExecutionResult result = new QueryService().execute(MODEL, "|#SQL{" + sql + "}#",
-                SqlIslandCases.RUNTIME, duckdb);
+                SqlIslandCases.RUNTIME, session);
         List<List<String>> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<String> cells = new ArrayList<>();
@@ -65,10 +69,10 @@ class CorrelatedComputedColumnTest {
         return rows;
     }
 
-    /** DuckDB's own answer to the same SQL over the same table: the referee, no snap needed. */
-    private static List<List<String>> duckdb(String sql) throws SQLException {
+    /** The platform database's own answer to the same SQL over the same table: the referee, no snap needed. */
+    private static List<List<String>> direct(String sql) throws SQLException {
         List<List<String>> rows = new ArrayList<>();
-        try (Statement s = duckdb.createStatement(); ResultSet rs = s.executeQuery(sql.replace(EMP, "EMP"))) {
+        try (Statement s = session.createStatement(); ResultSet rs = s.executeQuery(sql.replace(EMP, "EMP"))) {
             int n = rs.getMetaData().getColumnCount();
             while (rs.next()) {
                 List<String> cells = new ArrayList<>();
@@ -95,7 +99,7 @@ class CorrelatedComputedColumnTest {
                 // the outer row read in the WHERE only: worked before, kept
                 "SELECT e.ID, (SELECT max(x.age) FROM " + EMP + " x WHERE x.dept = e.dept) AS s FROM " + EMP
                         + " e ORDER BY e.ID")) {
-            assertEquals(duckdb(sql), island(sql), sql);
+            assertEquals(direct(sql), island(sql), sql);
         }
     }
 
@@ -117,7 +121,7 @@ class CorrelatedComputedColumnTest {
                 #->filter(o|$o.person == $p.id)->groupBy(~[person], ~[m:o|$o.amount:y|$y->max()])
                 ->extend(~[v:x|$x.m->toOne() + $p.id])->map(x|$x.v)->toOne()])
                 ->select(~[id, top])->sort(ascending(~id))""",
-                SqlIslandCases.RUNTIME, duckdb);
+                SqlIslandCases.RUNTIME, session);
         assertEquals(List.of(8, 11), result.rows().subList(0, 2).stream().map(r -> r.values().get(1)).toList());
         assertEquals(null, result.rows().get(2).values().get(1), "no order: SQL's NULL");
     }
@@ -136,7 +140,7 @@ class CorrelatedComputedColumnTest {
                 100, 1
                 200, 2
                 #->filter(o|$o.person == $p.id)->extend(~[v:o|$p.id * 10 + $o.person])->map(o|$o.v)->toOne()])
-                ->select(~[id, tag])->sort(ascending(~id))""", SqlIslandCases.RUNTIME, duckdb);
+                ->select(~[id, tag])->sort(ascending(~id))""", SqlIslandCases.RUNTIME, session);
         assertEquals(List.of(11, 22), result.rows().stream().map(r -> r.values().get(1)).toList());
     }
 }

@@ -67,8 +67,7 @@ final class SpecIslandReader {
                     "GQL", (value, pos) -> new GqlIsland(GqlReader.document(value), pos),
                     "TDS", (value, pos) -> {
                         Wire w = Wire.of(value, "TDS island");
-                        String tds = w.str("tdsString");
-                        return w.done(TdsLiteral.of(tds, "#TDS{" + tds + "}#", pos));
+                        return w.done(TdsLiteral.of(w.str("tdsString"), pos));
                     }));
 
     private static Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> withOlderKinds(
@@ -222,13 +221,14 @@ final class SpecIslandReader {
 
     /**
      * {@code {"_type":"keyExpression","add":false,"expression":v,"key":{"_type":"string","value":k}}};
-     * {@code add} is always false on the engine wire, and an absent expression is {@code package=::}
+     * {@code add} is false on the JSON the engine's parser writes (its walker never sets it) and true for {@code +=}
+     * at lite's dialect (S89), which the engine's compiler reads; an absent expression is {@code package=::}
      * (the root package, which the engine drops whole).
      */
     private static NewInstance.KeyBinding keyBinding(Json.Node node) {
         Wire k = Wire.of(node, "keyExpression");
         k.constant("_type", "keyExpression");
-        k.constant("add", false);
+        boolean add = k.bool("add");
         // older JSON: a [1] multiplicity the engine ignores, and the key written as a literal of any form
         Json.Node m = k.opt("multiplicity");
         if (m != null && !ProtocolReader.multiplicity(m).equals(new Multiplicity.Concrete(1, 1))) {
@@ -240,7 +240,7 @@ final class SpecIslandReader {
         }
         String name = key.value();
         ValueSpecification value = expr == null ? new PackageableElementPtr("::") : ProtocolReader.valueSpec(expr);
-        return k.done(new NewInstance.KeyBinding(name, new KeyExpression(value, false, false)));
+        return k.done(new NewInstance.KeyBinding(name, new KeyExpression(value, add, false)));
     }
 
     // ---------------------------------------------------------------------
@@ -262,6 +262,20 @@ final class SpecIslandReader {
         }
         com.legend.protocol.TypeExpression type = ProtocolReader.genericType(w.take("genericType"));
         SourceInfo pos = w.span();
+        // a relation shape, as the parser reads its two spellings (leg 8 step 2): `@(x:String, ...)` is a bare
+        // relationType rawType, the annotation's span the shape's too; `@Relation<(x:String, ...)>` (the name as
+        // spelled, its simple name Relation) the packageable type over one relation type argument
+        if (type instanceof com.legend.protocol.TypeExpression.RelationType bare) {
+            return new com.legend.protocol.spec.TypeAnnotation.RelationShape(shapeColumns(bare), null, pos, pos);
+        }
+        if (type instanceof com.legend.protocol.TypeExpression.Generic g
+                && com.legend.protocol.spec.TypeAnnotation.RelationShape.spelledRelation(g.name())
+                && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof com.legend.protocol.TypeExpression.RelationType rel
+                && g.multiplicityArguments().isEmpty() && g.typeVariableValues().isEmpty()) {
+            return new com.legend.protocol.spec.TypeAnnotation.RelationShape(shapeColumns(rel), g.name(), g.pos(),
+                    pos);
+        }
         if (type instanceof com.legend.protocol.TypeExpression.NameRef n && n.name().indexOf('~') >= 0) {
             if (n.pos() != null) {
                 throw Wire.refuse("a unit type annotation whose rawType carries a span: " + n.name());
@@ -269,6 +283,17 @@ final class SpecIslandReader {
             return ProtocolReader.named(new com.legend.protocol.TypeExpression.NameRef(n.name(), pos), pos);
         }
         return ProtocolReader.named(type, pos);
+    }
+
+    /** A relation type's columns as a shape's: each column's type the annotation the parser makes of it. */
+    private static List<com.legend.protocol.spec.TypeAnnotation.RelationShape.Column> shapeColumns(
+            com.legend.protocol.TypeExpression.RelationType rel) {
+        List<com.legend.protocol.spec.TypeAnnotation.RelationShape.Column> out = new ArrayList<>(rel.columns().size());
+        for (com.legend.protocol.TypeExpression.Column c : rel.columns()) {
+            out.add(new com.legend.protocol.spec.TypeAnnotation.RelationShape.Column(c.name(),
+                    new com.legend.protocol.spec.TypeAnnotation.Named(c.type()), c.multiplicity(), c.pos()));
+        }
+        return out;
     }
 
     /**

@@ -1,7 +1,7 @@
 package com.legend;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.lowering.Lowerer;
-import com.legend.sql.dialect.DuckDb;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +26,7 @@ class PipelineStageFailureTest {
 
     /** The full pipe: model+query → typed → lowered → rendered. */
     private static String pipe(String model, String query) {
-        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), query).expression()));
+        return TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), query).expression()));
     }
 
     private static <T extends Throwable> T failsWith(Class<T> type, String model, String query) {

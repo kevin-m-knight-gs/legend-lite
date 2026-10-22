@@ -25,11 +25,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IqParserTest {
 
     private static SqlAst.Select select(String sql) {
-        return (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT);
+        return (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
     private static SqlSyntaxException error(String sql) {
-        return assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT));
+        return assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings()));
     }
 
     @Test
@@ -121,21 +121,19 @@ class IqParserTest {
                 // IQ island, 2026-10-14 (M1b): comma joins, JOIN ... ON and UNION are read now (below)
                 // IQ island, 2026-10-14 (M1c): GROUP BY, HAVING and COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST are read
                 // now (below); ROLLUP, CUBE, the statistics and the other aggregates are not
-                {"SELECT id FROM t GROUP BY ROLLUP(id)", "ROLLUP"},
-                {"SELECT id FROM t GROUP BY id WITH CUBE", "CUBE"},
+                // IQ island, 2026-10-15 (checklist 2.16b): ROLLUP, CUBE and ( ) read now (IqDialect.rolledUp); GROUPING
+                // SETS and a key beside ROLLUP are IQ's -1001030
                 {"SELECT id FROM t GROUP BY GROUPING SETS ((id))", "GROUPING SETS"},
-                {"SELECT id FROM t GROUP BY ()", "empty grouping"},
+                {"SELECT id FROM t GROUP BY id, ROLLUP(id)", "-1001030"},
                 {"SELECT id FROM t GROUP BY (id, vc)", "composite"},
                 {"SELECT stddev(id) FROM t", "loses precision"},
                 {"SELECT corr(id, id) FROM t", "aggregate"},
-                {"SELECT count(*) OVER () FROM t", "OVER"},
                 {"SELECT dba.f(id) FROM t", "owner-qualified"},
                 // IQ island, 2026-10-14 (M1a): LIKE, IN lists and the truth tests are read now; these are not
                 {"SELECT id FROM t WHERE vc SIMILAR TO 'a%'", "SIMILAR"},
-                // IQ island, 2026-10-14 (M1b): IN (subquery) and scalar subqueries are read now (below); KEY JOIN and
-                // APPLY stay refused
+                // IQ island, 2026-10-14 (M1b): IN (subquery) and scalar subqueries are read now (below); KEY JOIN
+                // stays refused (IQ island, 2026-10-16, checklist 2.16c: APPLY is read)
                 {"SELECT a.id FROM t a KEY JOIN u b", "KEY JOIN"},
-                {"SELECT a.id FROM t a CROSS APPLY u b", "APPLY"},
                 {"SELECT id FROM t WHERE id IS OF (INT)", "is not supported"},
                 {"SELECT id & 1 FROM t", "bitwise"},
                 // IQ island, 2026-10-14 (M1e): :name and @name are host variables now (below); ? names none
@@ -144,15 +142,16 @@ class IqParserTest {
                 {"SELECT :a.b FROM t", "part of a host variable"},
                 {"SELECT dba.t.* FROM dba.t", "owner-qualified star"},
                 {"SELECT @@version", "global variables"},
-                {"WITH q AS (SELECT 1) SELECT * FROM q", "WITH"},
+                // IQ island, 2026-10-15: WITH reads now (each CTE inlined as a derived table); RECURSIVE does not
+                {"SELECT x FROM (WITH RECURSIVE q AS (SELECT 1 AS x) SELECT x FROM q) d", "RECURSIVE"},
                 {"SELECT id INTO x FROM t", "INTO"},
-                {"SELECT id FROM t;", "separator"},
-                {"SELECT TOP 10 PERCENT id FROM t", "PERCENT"},
+                // IQ island, 2026-10-15 (the corpus lane): a trailing separator reads now (below); 2026-10-17, a batch's
+                // later statements too (aBatchAnswersItsFirstStatement); a later one that is no SELECT does not
+                {"SELECT id FROM t; INSERT INTO t VALUES (1)", "no SELECT"},
                 {"SELECT TOP @n id FROM t", "variable"},
                 {"SELECT @v = id FROM t", "assignment"},
                 {"SELECT id '' FROM t", "empty"},
-                // IQ island, 2026-10-14 (M1d): CAST reads now; EXTRACT is a special form still refused
-                {"SELECT EXTRACT(year FROM dt) FROM t", "special form"},
+                // IQ island, 2026-10-14 (M1d): CAST reads now; 2026-10-15: EXTRACT too (IqFunctionsTest)
                 {"SELECT 0.000000000000000000000000000000000000001234 FROM t", "38"},
                 {"SELECT 1e-50 FROM t", "38"},
                 {"SELECT id FROM t ORDER BY +(1)", "position"},
@@ -162,6 +161,58 @@ class IqParserTest {
             assertTrue(e.unsupported(), r[0] + ": " + e.reason());
             assertTrue(e.reason().contains(r[1]), r[0] + ": " + e.reason());
         }
+    }
+
+    /** IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's queries end so; measured on IQ 17.1): a statement's
+     *  one trailing separator is read, blanks and a comment after it too. */
+    @Test
+    void aStatementsTrailingSeparatorIsRead() {
+        assertEquals(1, select("SELECT id FROM t ORDER BY id;").orderBy().size());
+        assertEquals(1, select("SELECT id FROM t ORDER BY id ;  -- done\n").orderBy().size());
+        // IQ island, 2026-10-17 (measured on IQ 17.1): separators in a row are read too
+        assertEquals(1, select("SELECT id FROM t ORDER BY id;;").orderBy().size());
+    }
+
+    @Test
+    void aBatchAnswersItsFirstStatement() {
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a batch's later statements, separated by ';' or not, are read
+        // for their syntax; the first is the answer
+        assertEquals(1, select("SELECT id FROM t ORDER BY id SELECT vc FROM t; SELECT 2").orderBy().size());
+        assertEquals(1, select("SELECT id FROM t ORDER BY id; WITH r AS (SELECT id FROM r) SELECT id FROM r").orderBy()
+                .size());
+        // 2026-10-18 (landing 5's review): what a later statement holds is not the first's -- a recursion, a LATERAL
+        IqParser.Parsed later = IqParser.parsed("SELECT id FROM t; WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT"
+                + " n + 1 FROM r WHERE n < 3) SELECT n FROM r; SELECT a.id FROM t a, LATERAL (SELECT b.id FROM u b"
+                + " WHERE b.t_id = a.id) c", IqProfile.IQ17_DEFAULT.settings());
+        assertFalse(later.recursion().with());
+        assertTrue(later.recursion().reads().isEmpty());
+        assertTrue(later.laterals().isEmpty());
+        assertEquals(2, later.later().size());
+        // one that does not parse fails the batch, IQ's syntax error
+        SqlSyntaxException e = error("SELECT id FROM t; SELECT id FROM t LIMIT 5");
+        assertFalse(e.unsupported());
+        assertTrue(e.getMessage().contains("SQLCODE -131"), e.getMessage());
+    }
+
+    @Test
+    void aRecursiveCteNamedInItsOwnReadingIsReadAsItsFirstBranch() {
+        // IQ island, 2026-10-17 (measured on IQ 17.1): IQ raises its error for every recursion read (the dialect's
+        // recursion); the names bind to the first branch under the CTE's column list
+        IqParser.Parsed p = IqParser.parsed("WITH RECURSIVE r(n) AS (SELECT id FROM t UNION ALL SELECT n + 1 FROM r"
+                + " WHERE n < 3) SELECT n FROM r", IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.recursion().with());
+        assertEquals(1, p.recursion().reads().size());
+        assertTrue(p.recursion().columnless().isEmpty());
+        SqlAst.SubqueryFrom r = (SqlAst.SubqueryFrom) ((SqlAst.Select) p.statement()).from().get(0);
+        SqlAst.SetOperation body = (SqlAst.SetOperation) r.query();
+        SqlAst.SubqueryFrom standIn = (SqlAst.SubqueryFrom) ((SqlAst.Select) body.right()).from().get(0);
+        assertEquals("n", standIn.columnAliases().get(0).text());
+        assertInstanceOf(SqlAst.Select.class, standIn.query());
+        // an unread one is never read; one with no column list is noted
+        assertTrue(IqParser.parsed("WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n FROM r) SELECT id FROM t",
+                IqProfile.IQ17_DEFAULT.settings()).recursion().reads().isEmpty());
+        assertEquals(1, IqParser.parsed("WITH RECURSIVE r AS (SELECT 1 AS n UNION ALL SELECT n FROM r) SELECT n FROM r",
+                IqProfile.IQ17_DEFAULT.settings()).recursion().columnless().size());
     }
 
     // ------------------------------------------------------------------ M1a: predicates
@@ -273,7 +324,7 @@ class IqParserTest {
                 .map(i -> ((SqlAst.SelectExpr) i).alias().text()).toList());
         assertInstanceOf(SqlAst.Binary.class, ((SqlAst.SelectExpr) s.items().get(0)).expr());
         // under a TDS login "q" is a string: still an alias
-        SqlAst.Select tds = (SqlAst.Select) IqParser.parse("SELECT \"q\" = id, id \"r\" FROM t", IqProfile.IQ16_TDS);
+        SqlAst.Select tds = (SqlAst.Select) IqParser.parse("SELECT \"q\" = id, id \"r\" FROM t", IqProfile.IQ16_TDS.settings());
         assertEquals("q", ((SqlAst.SelectExpr) tds.items().get(0)).alias().text());
         assertEquals("r", ((SqlAst.SelectExpr) tds.items().get(1)).alias().text());
         for (String sql : new String[] {"SELECT n = id = 1 FROM t", "SELECT n = id AS m FROM t",
@@ -343,7 +394,7 @@ class IqParserTest {
     // ------------------------------------------------------------------ M1b: relations
 
     private static SqlAst.Statement statement(String sql) {
-        return IqParser.parse(sql, IqProfile.IQ16_DEFAULT);
+        return IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
     @Test
@@ -459,7 +510,7 @@ class IqParserTest {
         assertEquals(2, list.orderBy().size());
         assertTrue(list.orderBy().get(0).descending());
         // the texts kept for IQ's names of a grouped query's items
-        IqParser.Parsed p = IqParser.parsed("SELECT SUM( v ) FROM t GROUP BY (k) + 1", IqProfile.IQ16_DEFAULT);
+        IqParser.Parsed p = IqParser.parsed("SELECT SUM( v ) FROM t GROUP BY (k) + 1", IqProfile.IQ16_DEFAULT.settings());
         SqlAst.Select q = (SqlAst.Select) p.statement();
         assertEquals("(k) + 1", p.spans().get(q.groupBy().get(0)));
         assertEquals("SUM( v )", p.spans().get(((SqlAst.SelectExpr) q.items().get(0)).expr()));
@@ -476,14 +527,14 @@ class IqParserTest {
     @Test
     void anItemIsReadAgainAsWritten() {
         IqParser.Written w = IqParser.written("((a + 1)) * CASE b WHEN 1 THEN 2 END + IF c = 1 THEN 1 ENDIF",
-                IqProfile.IQ16_DEFAULT);
+                IqProfile.IQ16_DEFAULT.settings());
         SqlAst.Binary plus = (SqlAst.Binary) w.expr();
         SqlAst.Binary times = (SqlAst.Binary) plus.left();
         assertEquals(2, w.parensOf(times.left()));
         assertTrue(w.simpleCases().contains(times.right()));
         assertTrue(w.ifs().contains(plus.right()));
         assertFalse(w.commented());
-        assertTrue(IqParser.written("a /* x */ + 1", IqProfile.IQ16_DEFAULT).commented());
+        assertTrue(IqParser.written("a /* x */ + 1", IqProfile.IQ16_DEFAULT.settings()).commented());
     }
 
     // ------------------------------------------------------------------ M1e: names and host variables
@@ -527,5 +578,77 @@ class IqParserTest {
             assertFalse(e.unsupported(), sql + ": " + e.reason());
             assertTrue(e.reason().contains("SQLCODE -131"), e.reason());
         }
+    }
+
+    @org.junit.jupiter.api.Test
+    void aCommonTableExpressionIsReadAsTheDerivedTableItNames() {
+        // IQ island, 2026-10-15: each reference a derived table of its own, read again from the CTE's tokens
+        SqlAst.Statement s = IqParser.parse("WITH q (a) AS (SELECT id FROM t), r AS (SELECT a FROM q)"
+                + " SELECT x.a, r.a FROM q x, r", IqProfile.IQ16_DEFAULT.settings());
+        SqlAst.Select top = (SqlAst.Select) s;
+        SqlAst.SubqueryFrom x = (SqlAst.SubqueryFrom) top.from().get(0);
+        SqlAst.SubqueryFrom r = (SqlAst.SubqueryFrom) top.from().get(1);
+        org.junit.jupiter.api.Assertions.assertEquals("x", java.util.Objects.requireNonNull(x.alias()).text());
+        org.junit.jupiter.api.Assertions.assertEquals(List.of("a"), x.columnAliases().stream().map(SqlAst.Ident::text)
+                .toList());
+        org.junit.jupiter.api.Assertions.assertEquals("r", java.util.Objects.requireNonNull(r.alias()).text());
+        // r's query reads q: inlined there too, a tree of its own
+        SqlAst.SubqueryFrom inner = (SqlAst.SubqueryFrom) ((SqlAst.Select) r.query()).from().get(0);
+        org.junit.jupiter.api.Assertions.assertNotSame(x.query(), inner.query());
+    }
+
+    @Test
+    void commonTableExpressionsAreScopedAsIq17Scopes() {
+        // IQ island, 2026-10-15, each measured on IQ 17.1: a CTE names one written after it
+        SqlAst.SubqueryFrom a = (SqlAst.SubqueryFrom) select("WITH a AS (SELECT n FROM b), b (n) AS (SELECT 1)"
+                + " SELECT n FROM a").from().get(0);
+        assertInstanceOf(SqlAst.SubqueryFrom.class, ((SqlAst.Select) a.query()).from().get(0));
+        // of two with one name, in any case, the first is read
+        SqlAst.SubqueryFrom q = (SqlAst.SubqueryFrom) select("WITH q AS (SELECT 1 AS a), Q AS (SELECT 2 AS a)"
+                + " SELECT a FROM q").from().get(0);
+        assertEquals(BigInteger.ONE, ((SqlAst.IntegerLit) ((SqlAst.SelectExpr) ((SqlAst.Select) q.query()).items()
+                .get(0)).expr()).value());
+        // one named inside its own reading: -938 itself (a subquery's reference too), -914 a cycle; only where read
+        assertTrue(error("WITH r (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r")
+                .getMessage().contains("-938"));
+        assertTrue(error("WITH r (n) AS (SELECT 1 FROM t WHERE id IN (SELECT n FROM r)) SELECT n FROM r")
+                .getMessage().contains("-938"));
+        assertTrue(error("WITH a AS (SELECT n FROM b), b (n) AS (SELECT n FROM a) SELECT n FROM a").getMessage()
+                .contains("-914"));
+        select("WITH r AS (SELECT 1 AS a FROM r) SELECT 1 AS x");
+        // a derived table's WITH: read there, and blind to the CTEs outside it (a table of that name)
+        SqlAst.SubqueryFrom d = (SqlAst.SubqueryFrom) select("WITH q AS (SELECT 5 AS a) SELECT a FROM (WITH r AS"
+                + " (SELECT 1 AS b) SELECT a FROM q) d").from().get(0);
+        assertInstanceOf(SqlAst.TableName.class, ((SqlAst.Select) d.query()).from().get(0));
+        // a plain derived table and a subquery see them
+        SqlAst.SubqueryFrom plain = (SqlAst.SubqueryFrom) select("WITH q AS (SELECT 5 AS a) SELECT a FROM (SELECT a"
+                + " FROM q) d").from().get(0);
+        assertInstanceOf(SqlAst.SubqueryFrom.class, ((SqlAst.Select) plain.query()).from().get(0));
+        // WITH in a subquery, a CTE's query or a set operation's branch is IQ's syntax error
+        assertTrue(error("SELECT id FROM t WHERE id IN (WITH q AS (SELECT 1 AS a) SELECT a FROM q)").getMessage()
+                .contains("-131"));
+        assertTrue(error("WITH p AS (WITH q AS (SELECT 1 AS a) SELECT a FROM q) SELECT a FROM p").getMessage()
+                .contains("-131"));
+        assertTrue(error("SELECT 1 AS a UNION ALL (WITH q AS (SELECT 2 AS a) SELECT a FROM q)").getMessage()
+                .contains("-131"));
+    }
+
+    @Test
+    void commonTableExpressionsReadAgainAreBounded() {
+        // IQ island, 2026-10-15: a chain whose each link names the one before twice doubles with each link
+        StringBuilder sql = new StringBuilder("WITH c0 AS (SELECT id FROM t)");
+        for (int i = 1; i <= 20; i++) {
+            sql.append(", c").append(i).append(" AS (SELECT x.id FROM c").append(i - 1).append(" x, c").append(i - 1)
+                    .append(" y)");
+        }
+        sql.append(" SELECT id FROM c20");
+        assertTrue(error(sql.toString()).getMessage().contains("name each fewer times"));
+        // a chain of single links reads each once: 50 links, linear (a doubling read would never end); 200 overflowed
+        // the Windows CI's stack, where the test JVM runs on C1, whose frames are larger (2026-10-16, PR #43's run)
+        StringBuilder chain = new StringBuilder("WITH c0 AS (SELECT id FROM t)");
+        for (int i = 1; i <= 50; i++) {
+            chain.append(", c").append(i).append(" AS (SELECT id FROM c").append(i - 1).append(")");
+        }
+        select(chain.append(" SELECT id FROM c50").toString());
     }
 }

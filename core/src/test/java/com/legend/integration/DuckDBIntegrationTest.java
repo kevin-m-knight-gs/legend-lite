@@ -4,6 +4,9 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.exec.ExecutionResult;
 import com.legend.model.ClassMapping;
 import com.legend.model.PropertyMapping;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,18 +35,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
     @Override
-    protected String getDatabaseType() {
-        return "DuckDB";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:duckdb:"; // In-memory DuckDB
+    protected TestBackend backend() {
+        return TestBackends.of(DatabaseType.DuckDB);
     }
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 
@@ -859,7 +857,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     dept: DeptMC2[0..1];
                 }
 ###Relational
-                Database store::McDb2
+                Database store::McDbSecond
                 (
                     Table T_EMP_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))
                     Table T_DEPT_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))
@@ -871,10 +869,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
                 Mapping model::McMap2
                 (
-                    EmpMC2: Relational { ~mainTable [McDb2] T_EMP_MC2  name: [McDb2] T_EMP_MC2.NAME }
-                    DeptMC2: Relational { ~mainTable [McDb2] T_DEPT_MC2  deptName: [McDb2] T_DEPT_MC2.DEPT_NAME }
+                    EmpMC2: Relational { ~mainTable [McDbSecond] T_EMP_MC2  name: [McDbSecond] T_EMP_MC2.NAME }
+                    DeptMC2: Relational { ~mainTable [McDbSecond] T_DEPT_MC2  deptName: [McDbSecond] T_DEPT_MC2.DEPT_NAME }
                 
-                    model::Emp_Dept_MC2: Relational { AssociationMapping ( emp: [store::McDb2]@Emp_Dept_MC2, dept: [store::McDb2]@Emp_Dept_MC2 ) }
+                    model::Emp_Dept_MC2: Relational { AssociationMapping ( emp: [store::McDbSecond]@Emp_Dept_MC2, dept: [store::McDbSecond]@Emp_Dept_MC2 ) }
 )
 ###Connection
                 import model::*;
@@ -885,7 +883,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import model::*;
                 import store::*;
                 import test::*;
-                Runtime test::McRT2 { mappings: [model::McMap2]; connections: [store::McDb2: [environment: store::McConn2]]; }
+                Runtime test::McRT2 { mappings: [model::McMap2]; connections: [store::McDbSecond: [environment: store::McConn2]]; }
                 """;
 
         // Project through association → LEFT JOIN with compound ON
@@ -6768,6 +6766,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("PCT Regression: test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort")
     void testPCT_test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort() throws SQLException {
+        // the PCT original's own ->toOne() on year and country (relation/tests/composition.pure): a relation
+        // column written without a multiplicity is [0..1], as the engine and legend-pure read it (leg 8 step 2)
         String pureQuery = """
                 |#TDS
                     city, country, year, treePlanted
@@ -6779,7 +6779,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     SAN, USA, 2011, 2500
                     NYC, USA, 2012, 12000
                     NYC, USA, 2012, 3200
-                #->meta::pure::functions::relation::extend(~yr:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.year - 2000)->meta::pure::functions::relation::filter(x: (city:String, country:String, year:Integer, treePlanted:Integer, yr:Integer)[1]|$x.yr > 10)->meta::pure::functions::relation::select(~[city, country, year, treePlanted])->meta::pure::functions::relation::pivot(~year, ~newCol:x|$x.treePlanted:y|$y->meta::pure::functions::math::sum())->meta::pure::functions::lang::cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)->meta::pure::functions::relation::groupBy(~country, ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->meta::pure::functions::math::sum(), '2012__|__newCol':x|$x.'2012__|__newCol':y|$y->meta::pure::functions::math::sum()])->meta::pure::functions::relation::extend(~newCol:x: (country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)[1]|$x.country + '_0')->meta::pure::functions::relation::sort(~country->meta::pure::functions::relation::ascending())
+                #->meta::pure::functions::relation::extend(~yr:x: (city:String, country:String, year:Integer, treePlanted:Integer)[1]|$x.year->meta::pure::functions::multiplicity::toOne() - 2000)->meta::pure::functions::relation::filter(x: (city:String, country:String, year:Integer, treePlanted:Integer, yr:Integer)[1]|$x.yr > 10)->meta::pure::functions::relation::select(~[city, country, year, treePlanted])->meta::pure::functions::relation::pivot(~year, ~newCol:x|$x.treePlanted:y|$y->meta::pure::functions::math::sum())->meta::pure::functions::lang::cast(@Relation<(city:String, country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)>)->meta::pure::functions::relation::groupBy(~country, ~['2011__|__newCol':x|$x.'2011__|__newCol':y|$y->meta::pure::functions::math::sum(), '2012__|__newCol':x|$x.'2012__|__newCol':y|$y->meta::pure::functions::math::sum()])->meta::pure::functions::relation::extend(~newCol:x: (country:String, '2011__|__newCol':Integer, '2012__|__newCol':Integer)[1]|$x.country->meta::pure::functions::multiplicity::toOne() + '_0')->meta::pure::functions::relation::sort(~country->meta::pure::functions::relation::ascending())
                 """;
         var result = executeRelation(pureQuery);
         System.out.println("Pivot composition result: " + result.rows());

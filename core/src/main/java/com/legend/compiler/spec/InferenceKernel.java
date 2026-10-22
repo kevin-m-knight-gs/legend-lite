@@ -399,12 +399,19 @@ public final class InferenceKernel {
                             + right.typeName());
                 }
                 List<Type.Column> selected = new ArrayList<>(actualRow.columns().size());
+                // the superset's columns by name, the first of each as the scan found it (2026-10-15, the IQ
+                // island's census scale suite: a scan per column was quadratic in a wide select's width)
+                java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
+                for (Type.Column sc : schema.columns()) {
+                    byName.putIfAbsent(stripColQ(sc.name()), sc);
+                }
                 for (Type.Column c : actualRow.columns()) {
-                    selected.add(schema.columns().stream()
-                            .filter(sc -> sameColumn(sc.name(), c.name()))
-                            .findFirst()
-                            .orElseThrow(() -> new TypeInferenceException(
-                                    "unknown column '" + c.name() + "' in " + schema.typeName())));
+                    Type.Column found = byName.get(stripColQ(c.name()));
+                    if (found == null) {
+                        throw new TypeInferenceException("unknown column '" + c.name() + "' in "
+                                + schema.typeName());
+                    }
+                    selected.add(found);
                 }
                 unifyConstraintLeft(sa.left(), new Type.RelationType(selected), b);
             }
@@ -2058,17 +2065,14 @@ public final class InferenceKernel {
         Bindings b = new Bindings();
         List<Type> targs = t instanceof Type.GenericType g ? g.arguments() : List.of();
         List<Multiplicity> margs = t instanceof Type.GenericType g ? g.multArguments() : List.of();
-        int pi = 0;
-        for (String p : cls.typeParameters()) {
-            if (pi < targs.size()) {
-                b.bindType(p, targs.get(pi));
-            } else if (pi - targs.size() < margs.size()) {
-                b.bindMult(p, margs.get(pi - targs.size()));
-            } else {
-                b.bindType(p, anyType());
-                b.bindMult(p, Multiplicity.Bounded.ZERO_MANY);
-            }
-            pi++;
+        // type arguments to type parameters, multiplicity arguments to multiplicity parameters; a receiver written
+        // without them (a mapped class named bare) has Any and [*]
+        for (int i = 0; i < cls.typeParameters().size(); i++) {
+            b.bindType(cls.typeParameters().get(i), i < targs.size() ? targs.get(i) : anyType());
+        }
+        for (int i = 0; i < cls.multiplicityParameters().size(); i++) {
+            b.bindMult(cls.multiplicityParameters().get(i),
+                    i < margs.size() ? margs.get(i) : Multiplicity.Bounded.ZERO_MANY);
         }
         for (Type st : cls.superTypes()) {
             Type inst;

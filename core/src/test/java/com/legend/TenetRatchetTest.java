@@ -66,7 +66,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * its session variable, the database's own text passed on unread (C1.2's carriage): a
  * MariaDB SELECT can raise no error of its own text (SIGNAL runs only in a stored
  * program; every run-time error's text is fixed, measured), so the raise keeps it in
- * the session and fails on a fixed error.)
+ * the session and fails on a fixed error. The site is MariaDbConnector.raisedMessage's since
+ * 2026-10-16, the dialect program's Phase 5: the same one getString, moved with the read.)
  */
 @Tag("guardrail")
 class TenetRatchetTest {
@@ -74,7 +75,9 @@ class TenetRatchetTest {
     // 15 -> 20 (2026-10-18/19, the plan path program's step 6, typed rows: JdbcDecode reads a driver's typed
     // cells by the plan's slots, six sites of carriage -- a Map, an Array, a Struct, a Struct's attributes --
     // beside Executor's nine, which step 11 deletes with the legacy executor; the number then goes down)
-    private static final int RESULT_SET_ACCESSOR_SITES = 20;
+    // 20 -> 21 (2026-10-22, main's merge): main's Executor holds ten, its DATE cell re-read as java.time (2026-10-17, the
+    // corpus program's step 1) one more, under main's own pin of 15 (it counted 14); the two sides' sites add
+    private static final int RESULT_SET_ACCESSOR_SITES = 21;
 
     private static final List<String> DRIVERS = List.of("org.duckdb", "org.h2.", "org.sqlite", "org.postgresql",
             "org.mariadb", "com.mysql", "com.clickhouse", "io.trino", "net.snowflake", "com.databricks", "com.simba",

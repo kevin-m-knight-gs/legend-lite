@@ -23,12 +23,13 @@ final class PlanEnvelope {
             TypedSpec term, @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
             com.legend.sql.dialect.EngineTextDialect pd, boolean hasParams) {
+        EngineText.InListTempTables inList = EngineText.inListTempTables(dbType);
         var inp = com.legend.plan.InProtocol.apply(es.plan(),
-                com.legend.plan.InProtocol.thresholdFor(connName, dbType),
-                dbType);
+                com.legend.plan.InProtocol.thresholdFor(connName, inList.threshold()),
+                inList.tablePrefix());
         java.util.List<String> inTexts = inp == null ? java.util.List.of()
                 : com.legend.plan.InProtocol.allNodeTexts(inp, connName,
-                        dbType, pd::collectionSplice, pd::inTempTableSelect);
+                        inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
         var planOut = inp != null ? inp.plan() : es.plan();
         boolean pushDownEnums = StatementExecutor.pushDownEnums(env, java.util.List.of(term));
         String rel = com.legend.plan.PlanText.single(env.ctx(), rootClass,

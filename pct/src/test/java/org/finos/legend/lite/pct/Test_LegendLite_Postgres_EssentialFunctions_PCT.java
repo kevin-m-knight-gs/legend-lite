@@ -68,7 +68,7 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             // reduction keeps it (Unknown); the fix is a semantic dedup node (CARRIER_REDESIGN tenet #1), not a dialect's
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
-            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).

@@ -53,7 +53,7 @@ public class Test_LegendLite_SQLite_GrammarFunctions_PCT extends PCTReportConfig
             one("meta::pure::functions::math::tests::minus::testLargeMinus_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),
             one("meta::pure::functions::math::tests::plus::testLargePlus_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),
             one("meta::pure::functions::math::tests::times::testLargeTimes_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\"")
-            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.
     );

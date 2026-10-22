@@ -102,24 +102,44 @@ public final class IqLexer {
             "varchar", "variable", "varray", "varying", "view", "wait", "waitfor", "when", "where", "while", "window",
             "with", "within", "work", "writetext", "xml");
 
+    /** IQ island, 2026-10-17 (the corpus lane's SEDE: {@code AS Timeline}; measured on IQ 17.1, its
+     *  sa_reserved_words() against SQL Anywhere 17's): the words IQ reserves beyond SQL Anywhere's that it reads as no
+     *  name anywhere -- an alias, a table's alias, a column read (-131). Its other extra words (true, false,
+     *  current_database_schema as an alias only; dynamic, limit, no, out, timestamp ... nowhere) are names here. The
+     *  words of an IQ profile of IQ 17.1's UTF-8 database (the iq17 presets); IQ 16's, whose stand-in is SQL Anywhere
+     *  17, and SQL Anywhere's are SQL Anywhere's. */
+    static final Set<String> IQ_RESERVED = Set.of("aes_decrypt", "clear", "iq", "timeline");
+
+    /** IQ island, 2026-10-17 (the corpus lane's {@code AS row}; measured on IQ 17.1): words SQL Anywhere 17 reserves
+     *  that IQ 17.1 reads as names everywhere -- an alias with AS or without, a column read alone or after a dot, a
+     *  table's alias -- though its sa_reserved_words() lists them (array, json, row, rowtype, unnest and varray of its
+     *  sixteen alias-able words; the other ten are names to SQL Anywhere too). The iq17 presets' names; IQ 16's
+     *  stand-in, SQL Anywhere 17, reserves them. */
+    static final Set<String> IQ_NAMES = Set.of("array", "json", "row", "rowtype", "unnest", "varray");
+
+    /** IQ island, 2026-10-17 (BIRD's THEN TRUE ELSE FALSE; measured on IQ 17.1): TRUE and FALSE, IQ 17.1's
+     *  constants 1 and 0 (SMALLINTs, as the literals are; TRUE + 1 is 2), no name; in IQ 16's stand-in, SQL Anywhere
+     *  17, names. */
+    static final Set<String> IQ_CONSTANTS = Set.of("true", "false");
+
     /** IQ's two- and one-character operators, longest first where one begins another. */
     private static final List<String> OPERATORS = List.of("<>", "<=", ">=", "!=", "!<", "!>", "*=", "=*", "||", "=",
             "<", ">", "+", "-", "*", "/", "%", "&", "|", "^", "~", "(", ")", ",", ".", ";", "?", ":", "{", "}");
 
     private final String text;
-    private final IqProfile profile;
+    private final IqSettings settings;
     private int at;
     private int line = 1;
     private int column = 1;
 
-    private IqLexer(String text, IqProfile profile) {
+    private IqLexer(String text, IqSettings settings) {
         this.text = text;
-        this.profile = profile;
+        this.settings = settings;
     }
 
-    /** Every token of {@code text} under {@code profile}'s options, ending with one {@link Kind#EOF}. */
-    public static List<Token> tokenize(String text, IqProfile profile) {
-        return new IqLexer(text, profile).all();
+    /** Every token of {@code text} under {@code settings}'s options, ending with one {@link Kind#EOF}. */
+    public static List<Token> tokenize(String text, IqSettings settings) {
+        return new IqLexer(text, settings).all();
     }
 
     /** Whether IQ reserves {@code word} (in any case). */
@@ -147,7 +167,7 @@ public final class IqLexer {
             return new Token(Kind.STRING, string(pos), pos, start, at);
         }
         if (c == '"') {
-            if (profile.quotedIdentifier()) {
+            if (settings.quotedIdentifier()) {
                 return new Token(Kind.QUOTED, delimited('"', pos), pos, start, at);
             }
             return new Token(Kind.STRING, doubleQuotedString(pos), pos, start, at);
@@ -170,14 +190,22 @@ public final class IqLexer {
             throw SqlSyntaxException.unsupported("money literals ($5) are not supported yet", pos);
         }
         if (c == 'N' && peek(1) == '\'') {
-            throw SqlSyntaxException.unsupported("national-character strings (N'...') are not supported yet", pos);
+            // IQ island, 2026-10-15 (the corpus lane: 120 of SEDE's queries; measured on IQ 17.1): a national string,
+            // N right before the quote (n'...' and N '...' are not one), is a string of the database's own charset,
+            // UTF-8 (IQ's engine types N'abc' a VARCHAR(3), its value 'abc')
+            advance(1);
+            return new Token(Kind.STRING, string(pos), pos, start, at);
         }
         if (isIdentifierStart(c)) {
             while (at < text.length() && isIdentifierPart(text.charAt(at))) {
                 advance(1);
             }
             String word = text.substring(start, at);
-            return new Token(reserved(word) ? Kind.KEYWORD : Kind.WORD, word, pos, start, at);
+            boolean iq17 = settings.iq17();
+            String lowered = lower(word);
+            boolean keyword = reserved(word) && !(iq17 && IQ_NAMES.contains(lowered))
+                    || iq17 && (IQ_RESERVED.contains(lowered) || IQ_CONSTANTS.contains(lowered));
+            return new Token(keyword ? Kind.KEYWORD : Kind.WORD, word, pos, start, at);
         }
         for (String op : OPERATORS) {
             if (text.startsWith(op, at)) {
@@ -241,7 +269,7 @@ public final class IqLexer {
                 advance(1);
                 return charset(value.toString(), pos);
             }
-            if (c == '\\' && profile.escapeCharacter()) {
+            if (c == '\\' && settings.escapeCharacter()) {
                 char e = peek(1);
                 if (e == 'n') {
                     value.append('\n');
@@ -259,10 +287,10 @@ public final class IqLexer {
                         throw SqlSyntaxException.unsupported("a NUL character (\\x00) in a string is not supported: not"
                                 + " every database lite runs on can hold one", pos);
                     }
-                    if (code > 0x7F && !profile.latin1()) {
+                    if (code > 0x7F && !settings.latin1()) {
                         // a UTF-8 database stores the escape's byte as it is, which is no character of its own
                         throw SqlSyntaxException.unsupported("the escape \\x" + text.substring(at + 2, at + 4)
-                                + " of a byte above 0x7F is not supported in profile " + profile.spelling()
+                                + " of a byte above 0x7F is not supported in profile " + settings.spelling()
                                 + "'s UTF-8 database", pos);
                     }
                     value.append((char) code);
@@ -358,11 +386,11 @@ public final class IqLexer {
     /** {@code value}, refused by name when the profile's database cannot hold one of its characters (IQ's ISO-8859-1
      *  turns any other into something else). */
     private String charset(String value, SqlAst.Pos pos) {
-        if (profile.latin1()) {
+        if (settings.latin1()) {
             for (int i = 0; i < value.length(); i++) {
                 if (value.charAt(i) > 0xFF) {
                     throw SqlSyntaxException.unsupported("the character U+" + hex4(value.charAt(i)) + " is not in"
-                            + " ISO-8859-1, the charset of profile " + profile.spelling() + "'s database", pos);
+                            + " ISO-8859-1, the charset of profile " + settings.spelling() + "'s database", pos);
                 }
             }
         }
@@ -371,7 +399,7 @@ public final class IqLexer {
 
     private boolean isIdentifierStart(char c) {
         return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' || c == '@' || c == '#' || c == '$'
-                || c > 0x7F && Character.isLetter(c) && (c <= 0xFF || !profile.latin1());
+                || c > 0x7F && Character.isLetter(c) && (c <= 0xFF || !settings.latin1());
     }
 
     private boolean isIdentifierPart(char c) {

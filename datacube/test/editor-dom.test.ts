@@ -30,8 +30,7 @@ const CUBE: CubeSnapshot = {
   derived: [{ name: 'margin', lambda: stand('$x.a / $x.b'), kind: 'measure' }],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
-  sorts: [{ column: 'total', direction: 'desc' }],
+  sorts: [{ column: 'notional', direction: 'desc' }],
   epoch: 3,
 };
 
@@ -194,8 +193,7 @@ describe('the editor', () => {
 
   it('Sorts keeps a direction across a remove and re-add', () => {
     go('Sorts');
-    assert.deepEqual(rows('selected'), ['total']);
-    // total is a measure name, so it is not in the source columns;
+    assert.deepEqual(rows('selected'), ['notional']);
     // the sorts panel offers every column the cube knows, derived
     // ones included.
     assert.ok(rows('available').includes('margin'));
@@ -317,6 +315,19 @@ describe('the editor', () => {
     assert.equal(weight().disabled, false);
   });
 
+  it('offers as a weight the columns the rows have, never a group-level one', () => {
+    root.replaceChildren();
+    editor = new CubeEditor(root, draftFor({ ...CUBE, groupDerived: [{ name: 'share', lambda: stand('$x.a / 2') }] }), {
+      onApply: () => true, onClose: () => undefined,
+    });
+    go('Column Properties');
+    chooseColumn(root, 'notional');
+    const weight = fieldWithLabel('Weight column:').querySelector('select') as HTMLSelectElement;
+    const offered = [...weight.options].map((o) => o.value).filter((v) => v !== '');
+    assert.ok(offered.includes('notional') && offered.includes('margin'), offered.join(', '));
+    assert.equal(offered.includes('share'), false, 'a group-level column exists only after grouping');
+  });
+
   it('keeps the width numbers when the mode changes', () => {
     go('Column Properties');
     const mode = (): HTMLSelectElement =>
@@ -402,6 +413,31 @@ describe('the editor', () => {
       const kind = fieldWithLabel('Column Kind:').querySelector('select') as HTMLSelectElement;
       assert.equal(kind.disabled, true);
       assert.match(kind.title, /cannot be changed while the column is used in pivot/);
+    });
+
+    it('leaves a calculated column\'s kind to its editor, which every query reads', () => {
+      // set here, it was saved and read by none: the grid groups by the editor's declared kind (grid-edits.ts)
+      choose('margin');
+      const field = fieldWithLabel('Column Kind:');
+      const kind = field.querySelector('select') as HTMLSelectElement;
+      assert.equal(kind.disabled, true);
+      assert.equal(kind.value, 'measure');
+      assert.match(field.textContent ?? '', /Set in its editor/);
+    });
+
+    it('takes no Aggregation for a group-level column, computed after grouping', () => {
+      root.replaceChildren();
+      editor = new CubeEditor(root, draftFor({
+        ...CUBE,
+        groupDerived: [{ name: 'share', lambda: stand('$x.notional / 2'), type: 'Float', kind: 'measure' }],
+      }), { onApply: () => true, onClose: () => {} });
+      choose('share');
+      const field = fieldWithLabel('Aggregation:');
+      assert.equal((field.querySelector('select') as HTMLSelectElement).disabled, true);
+      assert.match(field.textContent ?? '', /Computed after grouping/);
+      // a row-level calculated measure is aggregated like any other
+      choose('margin');
+      assert.equal((fieldWithLabel('Aggregation:').querySelector('select') as HTMLSelectElement).disabled, false);
     });
 
     it('a new kind resets the exclusion from the pivot, as upstream', () => {

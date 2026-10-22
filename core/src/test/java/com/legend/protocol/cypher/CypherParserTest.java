@@ -38,6 +38,26 @@ class CypherParserTest {
         return CypherParser.parse(text);
     }
 
+    @Test
+    void aPatternInsideAnExpressionIsAPredicate() {
+        assertEquals("(pattern:3)", tree(expr("(n)-[:T]->()")));
+        assertEquals("NOT((pattern:3))", tree(expr("NOT (n)<-[]-(:B)")));
+        assertEquals("AND((pattern:3),EQ(n.x,1))", tree(expr("(n)-->() AND n.x = 1")));
+        assertEquals("(n)", tree(expr("(n)")));
+        assertEquals("EXISTS{pattern:3 WHERE EQ(b.x,1)}", tree(expr("EXISTS { MATCH (n)-[:T]->(b) WHERE b.x = 1 RETURN b }")));
+        assertEquals("EXISTS{pattern:3}", tree(expr("exists { (n)-->() }")));
+        assertEquals("EXISTS{pattern:3}", tree(expr("EXISTS { MATCH (n)-->(m) RETURN * }")));
+        assertEquals("EXISTS{pattern:3}", tree(expr("EXISTS { MATCH (n)-->(m) RETURN DISTINCT m AS x, n }")));
+        // (the review's tenth finding: a labelled or empty start node, a map start, and arithmetic over
+        // parenthesized values, which is no relationship)
+        assertEquals("(pattern:3)", tree(expr("(:A)-[:K]->(a)")));
+        assertEquals("(pattern:3)", tree(expr("()-->(a)")));
+        assertEquals("(pattern:3)", tree(expr("({k: 1})-->(a)")));
+        assertEquals("MINUS((a),(b))", tree(expr("(a) - (b)")));
+        assertEquals("MINUS(({k:1}),(b))", tree(expr("({k: 1}) - (b)")));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE EXISTS { OPTIONAL MATCH (n)-->() } RETURN n").kind());
+    }
+
     private static Expr expr(String text) {
         Return r = (Return) parse("RETURN " + text).clauses().get(0);
         return r.items().get(0).expr();
@@ -76,6 +96,9 @@ class CypherParserTest {
             case CypherAst.PatternComprehension pc -> "[pattern" + (pc.pattern().variable() == null ? ""
                     : " " + pc.pattern().variable()) + ":" + pc.pattern().elements().size()
                     + (pc.where() == null ? "" : " WHERE " + tree(pc.where())) + " | " + tree(pc.map()) + "]";
+            case CypherAst.PatternPredicate pp -> "(pattern:" + pp.pattern().elements().size() + ")";
+            case CypherAst.ExistsSubquery ex -> "EXISTS{pattern:" + ex.pattern().elements().size()
+                    + (ex.where() == null ? "" : " WHERE " + tree(ex.where())) + "}";
             case CypherAst.Index ix -> tree(ix.target()) + "[" + tree(ix.index()) + "]";
             case CypherAst.Slice sl -> tree(sl.target()) + "[" + (sl.from() == null ? "" : tree(sl.from())) + ".."
                     + (sl.to() == null ? "" : tree(sl.to())) + "]";
@@ -166,9 +189,25 @@ class CypherParserTest {
         assertTrue(expr("[(n:Foo)-[:T]->(m) | m]") instanceof CypherAst.PatternComprehension);
         OtherClause detach = (OtherClause) parse("MATCH (n) DETACH DELETE n").clauses().get(1);
         assertEquals("DETACH DELETE", detach.keyword());
-        OtherClause call = (OtherClause) parse("CALL db.labels() YIELD label RETURN label").clauses().get(0);
-        assertEquals("CALL", call.keyword());
-        assertEquals("CALL db.labels() YIELD label", call.text());
+        // CALL is read since the procedures leg (the study's §12.60): the dotted name, the arguments when written
+        // in parentheses (null for the implicit form), the yielded outputs under their aliases, YIELD *
+        CypherAst.ProcedureCall call = (CypherAst.ProcedureCall) parse("CALL db.labels() YIELD label RETURN label")
+                .clauses().get(0);
+        assertEquals("db.labels", call.name());
+        assertEquals(List.of(), call.args());
+        assertEquals(List.of("label"), call.yields().stream().map(CypherAst.YieldItem::name).toList());
+        CypherAst.ProcedureCall renamed = (CypherAst.ProcedureCall) parse("CALL test.my.proc('a', 1) YIELD city AS c,"
+                + " code RETURN c").clauses().get(0);
+        assertEquals("test.my.proc", renamed.name());
+        assertEquals(2, renamed.args().size());
+        assertEquals("c", renamed.yields().get(0).alias());
+        assertEquals(null, renamed.yields().get(1).alias());
+        CypherAst.ProcedureCall implicit = (CypherAst.ProcedureCall) parse("CALL test.my.proc").clauses().get(0);
+        assertEquals(null, implicit.args());
+        assertEquals(null, implicit.yields());
+        assertTrue(((CypherAst.ProcedureCall) parse("CALL test.my.proc() YIELD *").clauses().get(0)).yieldAll());
+        OtherClause foreach = (OtherClause) parse("MATCH (n) FOREACH (x IN [1] | SET n.p = x)").clauses().get(1);
+        assertEquals("FOREACH", foreach.keyword());
     }
 
     @Test
@@ -346,9 +385,8 @@ class CypherParserTest {
         assertEquals("a[..2]", tree(expr("a[..2]")));
         assertEquals("a[-1..2][0]", tree(expr("a[-1..2][0]")));
         assertEquals("[[1]][0][0]", tree(expr("[[1]][0][0]")));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE EXISTS { (n)-->() } RETURN n")
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE COUNT { (n)-->() } > 1 RETURN n")
                 .kind());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE (n)-->() RETURN n").kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("RETURN 1 IS :: INTEGER").kind());
     }
 
@@ -394,7 +432,9 @@ class CypherParserTest {
                 ? ((CypherAst.Var) ((Return) parse("WITH 1 AS end RETURN end").clauses().get(1)).items().get(0).expr())
                         .name() : "");
         assertEquals("PLUS((x),1)", tree(expr("(x) + 1")));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("RETURN (x)-->() ").kind());
+        // (a pattern after a parenthesized variable: a predicate, since the pattern-predicate leg; the translator
+        // refuses it outside a boolean context, as Neo4j does)
+        assertEquals("(pattern:3)", tree(expr("(x)-->() ")));
         assertEquals("CASE(GT(a,1)->end;else 2)", tree(expr("CASE WHEN a > 1 THEN end ELSE 2 END")));
     }
 

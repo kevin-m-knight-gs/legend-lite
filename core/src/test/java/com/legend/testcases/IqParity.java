@@ -9,6 +9,7 @@ import com.legend.protocol.sql.iq.IqDialect;
 import com.legend.protocol.sql.iq.IqLexer;
 import com.legend.protocol.sql.iq.IqParser;
 import com.legend.protocol.sql.iq.IqProfile;
+import com.legend.testbackend.TestBackend;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -40,6 +41,13 @@ import java.util.regex.Pattern;
  * rewrite (through {@link IqLexer}), the IQ types of the schema.
  *
  * <p>The snapped answers are {@link IqAnswers}', which also guards them against the cases.
+ *
+ * <p>IQ island, landing 4 (WP1), 2026-10-14: real SAP IQ 17.1 is the oracle of the {@code iq17-*} profiles. Every case
+ * that runs under an {@code iq16-*} profile runs under the matching {@code iq17-*} one too ({@link #runs}), judged by
+ * the live IQ's snapped answer ({@code snap.sh --oracle iq}); the {@code iq16-*} and {@code sqla17-*} runs stay judged
+ * by SQL Anywhere. Where lite follows SQL Anywhere's semantics and IQ's differ, an {@code iq17-*} run fails: each such
+ * run is named, with its cause, in the known-divergence allowlist {@code iq-parity/iq17-divergences.tsv}, which only
+ * shrinks ({@link #divergences}).
  */
 public final class IqParity {
 
@@ -49,7 +57,7 @@ public final class IqParity {
 
     /** The keys a case may carry (tools/iq-oracle/README.md): any other is an error. */
     private static final Set<String> CASE_KEYS = Set.of("id", "sql", "profile", "engine", "skip", "sa_defect",
-            "decision", "expect", "params");
+            "decision", "expect", "params", "settings", "nondeterministic", "member");
 
     private static final Pattern DECISION = Pattern.compile("D-[A-Z]+[0-9]+[a-z]?");
 
@@ -60,16 +68,41 @@ public final class IqParity {
 
     /** A case: its file (relative to iq-parity/, {@code lite/...}), its id, its SQL, its profiles, the engine it pins
      *  (null for auto), why it is not run (a skip or an SA defect), and the provisional decision that judges it, with
-     *  the decided rows (one line of JSON). */
+     *  the decided rows (one line of JSON); IQ island, 2026-10-14 (review 7, the user's ruling on B1): why its answer
+     *  may be one plan's choice ({@code nondeterministic}: it tests a refusal or an error, {@link #determinism}); IQ
+     *  island, 2026-10-15 (the user's rule: any answer IQ could give is right): why a string it shows is one value of a
+     *  group of values IQ's collation holds equal, IQ's choice of which ({@code member}: its strings are compared by
+     *  that collation, {@link #compare}). */
     public record Case(String file, String id, String sql, List<String> profiles, @com.legend.base.Nullable String engine,
             @com.legend.base.Nullable String skip, @com.legend.base.Nullable String decision,
-            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params) {
+            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params,
+            @com.legend.base.Nullable String settings, @com.legend.base.Nullable String nondeterministic,
+            @com.legend.base.Nullable String member) {
+
+        /** A case whose strings are compared as they are. */
+        public Case(String file, String id, String sql, List<String> profiles,
+                @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
+                @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect,
+                @com.legend.base.Nullable String params, @com.legend.base.Nullable String settings,
+                @com.legend.base.Nullable String nondeterministic) {
+            this(file, id, sql, profiles, engine, skip, decision, expect, params, settings, nondeterministic, null);
+        }
+
+        /** A case without settings (IQ island, 2026-10-14, the options framework: {@code settings}, IQ's settings by
+         *  level as written, {@code database.<name>=<value>, query.<name>=<value>, ...}) that does not opt out of the
+         *  determinism lint. */
+        public Case(String file, String id, String sql, List<String> profiles,
+                @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
+                @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect,
+                @com.legend.base.Nullable String params) {
+            this(file, id, sql, profiles, engine, skip, decision, expect, params, null, null, null);
+        }
 
         /** A case that binds no variables. */
         public Case(String file, String id, String sql, List<String> profiles,
                 @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
                 @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect) {
-            this(file, id, sql, profiles, engine, skip, decision, expect, null);
+            this(file, id, sql, profiles, engine, skip, decision, expect, null, null, null, null);
         }
 
         /** The case's key in the answers file: {@code lite/<file>/<id>}. */
@@ -180,6 +213,29 @@ public final class IqParity {
             return c.key() + "@" + profile.spelling();
         }
 
+        /** IQ island, 2026-10-14 (the options framework): the settings the run's SQL is read under -- its profile's,
+         *  with its case's settings given ({@link IqParity#settings}, {@code IqSettings.resolve}) -- before the SET
+         *  statements its SQL may begin with; the profile's when the settings are IQ's error (the run raises it). */
+        public com.legend.protocol.sql.iq.IqSettings settings() {
+            if (c.settings() == null) {
+                return profile.settings();
+            }
+            try {
+                return com.legend.protocol.sql.iq.IqSettings.resolve(profile, IqParity.settings(
+                        java.util.Objects.requireNonNull(c.settings())));
+            } catch (com.legend.protocol.sql.SqlTranslationException e) {
+                return profile.settings();
+            }
+        }
+
+        /** The run's SELECT as the island reads it: its text with the SET statements before it blanked, and the
+         *  settings they make; {@link SqlSyntaxException} or {@code SqlTranslationException} when they are not read. */
+        public com.legend.protocol.sql.iq.IqSetPrefix.Prefix select(String sql) {
+            com.legend.protocol.sql.iq.IqSetPrefix.Prefix p = com.legend.protocol.sql.iq.IqSetPrefix.read(sql,
+                    settings());
+            return p != null ? p : new com.legend.protocol.sql.iq.IqSetPrefix.Prefix(settings(), sql);
+        }
+
         /** The run as SqlParity's ratchet keeps one: its file and an id that holds the profile. */
         SqlParity.Case asSqlParityCase() {
             return new SqlParity.Case(c.file(), c.id() + "@" + profile.spelling(), c.sql(), c.skip());
@@ -243,19 +299,48 @@ public final class IqParity {
         }
         String params = (String) m.get("params");
         params(params);
+        String settings = (String) m.get("settings");
+        if (settings != null) {
+            settings(settings);
+        }
+        Object nondeterministic = m.get("nondeterministic");
+        if (nondeterministic != null && (!(nondeterministic instanceof String why) || why.strip().isEmpty())) {
+            throw new IllegalStateException(where + ": nondeterministic states its reason (the case tests a refusal or"
+                    + " an error)");
+        }
+        Object member = m.get("member");
+        if (member != null && (!(member instanceof String why) || why.strip().isEmpty())) {
+            throw new IllegalStateException(where + ": member states its reason (which value of a group of equal"
+                    + " strings the query shows is IQ's choice)");
+        }
         return new Case(file, id, sql, profiles, engine == null || engine.equals("auto") ? null : engine, skip,
-                decision, expect, params);
+                decision, expect, params, settings, (String) nondeterministic, (String) member);
     }
 
-    /** Every run of {@code cases}: each case under each of its profiles, in order. */
+    /** Every run of {@code cases}: each case under each of its profiles, in order, then (IQ island, landing 4, WP1,
+     *  2026-10-14) under the {@code iq17-*} twin of each {@code iq16-*} one it does not name (tools/iq-oracle's
+     *  {@code twins} derives the same runs). */
     public static List<Run> runs(List<Case> cases) {
         List<Run> runs = new ArrayList<>();
         for (Case c : cases) {
+            List<String> profiles = new ArrayList<>(c.profiles());
             for (String p : c.profiles()) {
+                String twin = p.startsWith("iq16-") ? "iq17-" + p.substring("iq16-".length()) : null;
+                if (twin != null && !profiles.contains(twin)) {
+                    profiles.add(twin);
+                }
+            }
+            for (String p : profiles) {
                 runs.add(new Run(c, java.util.Objects.requireNonNull(IqProfile.named(p))));
             }
         }
         return runs;
+    }
+
+    /** Whether a profile's runs are judged by the live IQ (the {@code iq17-*} profiles: IQ island, landing 4, WP1),
+     *  not by SQL Anywhere. */
+    public static boolean liveIq(IqProfile profile) {
+        return profile.spelling().startsWith("iq17-");
     }
 
     // ------------------------------------------------------------------ the schema, the model and the data
@@ -273,10 +358,10 @@ public final class IqParity {
     public static String model(List<SqlParity.Table> tables, String connection) {
         StringBuilder m = new StringBuilder("###Relational\nDatabase " + DATABASE + "\n(\n");
         for (SqlParity.Table t : tables) {
-            m.append("    Table ").append(t.name()).append("\n    (\n");
+            m.append("    Table ").append(quoted(t.name())).append("\n    (\n");
             for (int i = 0; i < t.columns().size(); i++) {
                 SqlParity.Column c = t.columns().get(i);
-                m.append("        ").append(c.name()).append(' ').append(relationalType(c.type()))
+                m.append("        ").append(quoted(c.name())).append(' ').append(relationalType(c.type()))
                         .append(i + 1 < t.columns().size() ? ",\n" : "\n");
             }
             m.append("    )\n");
@@ -286,6 +371,22 @@ public final class IqParity {
                 .append(DATABASE).append(": [ environment: e2e::Conn ] ];\n}\n");
         return m.toString();
     }
+
+    /** A table's or a column's name as the model and the DDL write it: as it is when it is a plain identifier, else in
+     *  double quotes (IQ island, 2026-10-15, the corpus lane: Tableau's "Number of Records"). */
+    static String quoted(String name) {
+        return name.matches("[A-Za-z_][A-Za-z0-9_]*") && !RESERVED.contains(name.toLowerCase(Locale.ROOT)) ? name
+                : "\"" + name.replace("\"", "\"\"") + "\"";
+    }
+
+    /** The words the lanes' databases reserve, which a name the corpora use must be quoted as. */
+    private static final Set<String> RESERVED = Set.of("all", "and", "any", "as", "asc", "between", "both", "by", "case",
+            "cast", "check", "column", "constraint", "create", "cross", "current_date", "current_time", "default",
+            "desc", "distinct", "do", "else", "end", "except", "false", "fetch", "for", "foreign", "from", "full",
+            "grant", "group", "having", "in", "inner", "intersect", "into", "is", "join", "leading", "left", "like",
+            "limit", "natural", "not", "null", "offset", "on", "only", "or", "order", "outer", "primary", "references",
+            "right", "select", "table", "then", "to", "trailing", "true", "union", "unique", "user", "using", "when",
+            "where", "window", "with");
 
     /** An IQ type of the schema as the relational store spells it (the store type the island reads). */
     static String relationalType(String iqType) {
@@ -306,39 +407,61 @@ public final class IqParity {
         };
     }
 
-    /** An IQ type of the schema as the lane's database declares it: a BIT is a boolean (the relational store's BIT is
-     *  Pure's Boolean), a CHAR(n) a VARCHAR(n), holding the value as written (DuckDB's CHAR is its text; Postgres's
-     *  bpchar would pad it, which is the IQ engine's rule to apply -- D-S1, the island's read -- not the store's). */
-    private static String databaseType(String iqType, boolean postgres) {
+    /** An IQ type of the schema as the lane's table declares it, for its dialect to spell: a BIT is a boolean (the
+     *  relational store's BIT is Pure's Boolean), a CHAR(n) a VARCHAR(n), holding the value as written (a padded CHAR
+     *  is the IQ engine's rule to apply -- D-S1, the island's read -- not the store's), a TINYINT a SMALLINT, a FLOAT a
+     *  DOUBLE, a NUMERIC a DECIMAL. */
+    private static com.legend.sql.SqlDdl.ColumnType columnType(String iqType) {
         String t = relationalType(iqType);
-        if (t.startsWith("CHAR(")) {
-            return "VARCHAR" + t.substring("CHAR".length());
+        Matcher sized = Pattern.compile("(CHAR|VARCHAR)\\((\\d+)\\)").matcher(t);
+        if (sized.matches()) {
+            return new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", Integer.parseInt(sized.group(2)));
         }
-        return switch (t) {
-            case "BIT" -> "BOOLEAN";
-            case "DOUBLE", "FLOAT" -> postgres ? "DOUBLE PRECISION" : "DOUBLE";
-            case "TINYINT" -> "SMALLINT";
-            default -> t.startsWith("NUMERIC") ? "DECIMAL" + t.substring("NUMERIC".length()) : t;
-        };
+        Matcher scaled = Pattern.compile("(NUMERIC|DECIMAL)\\((\\d+),(\\d+)\\)").matcher(t);
+        if (scaled.matches()) {
+            return new com.legend.sql.SqlDdl.ColumnType.Scaled("DECIMAL", Integer.parseInt(scaled.group(2)),
+                    Integer.parseInt(scaled.group(3)));
+        }
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(switch (t) {
+            case "BIT" -> com.legend.sql.SqlDdl.ColumnType.Kind.BIT;
+            case "DOUBLE", "FLOAT" -> com.legend.sql.SqlDdl.ColumnType.Kind.DOUBLE;
+            case "TINYINT", "SMALLINT" -> com.legend.sql.SqlDdl.ColumnType.Kind.SMALLINT;
+            case "INTEGER" -> com.legend.sql.SqlDdl.ColumnType.Kind.INTEGER;
+            case "BIGINT" -> com.legend.sql.SqlDdl.ColumnType.Kind.BIGINT;
+            case "REAL" -> com.legend.sql.SqlDdl.ColumnType.Kind.REAL;
+            case "DATE" -> com.legend.sql.SqlDdl.ColumnType.Kind.DATE;
+            case "TIMESTAMP" -> com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP;
+            default -> throw new IllegalStateException("no column type for the schema's " + iqType);
+        });
     }
 
-    /** Creates and fills the schema's tables: each value bound by its column's type, a quoted value read by it. */
-    public static void seed(Connection c, List<SqlParity.Table> tables, boolean postgres) throws SQLException {
+    /** Whether {@code name} is declared quoted: a name that is not a plain identifier, or that a lane's database
+     *  reserves ({@link #quoted}'s rule). */
+    private static boolean declaredQuoted(String name) {
+        return !quoted(name).equals(name);
+    }
+
+    /** Creates and fills the schema's tables on {@code backend}'s database, each rendered by its dialect: each value
+     *  bound by its column's type, a quoted value read by it. */
+    public static void seed(TestBackend backend, Connection c, List<SqlParity.Table> tables) throws SQLException {
+        com.legend.sql.dialect.SqlDialect dialect = backend.dialect();
         for (SqlParity.Table t : tables) {
-            StringBuilder ddl = new StringBuilder("CREATE TABLE " + t.name() + " (");
-            for (int i = 0; i < t.columns().size(); i++) {
-                SqlParity.Column col = t.columns().get(i);
-                ddl.append(i > 0 ? ", " : "").append(col.name()).append(' ').append(databaseType(col.type(), postgres));
+            com.legend.sql.NameQuoting quoting = new com.legend.sql.NameQuoting(false, declaredQuoted(t.name()));
+            List<com.legend.sql.SqlDdl.Column> columns = new ArrayList<>();
+            for (SqlParity.Column col : t.columns()) {
+                columns.add(new com.legend.sql.SqlDdl.Column(col.name(), declaredQuoted(col.name()),
+                        columnType(col.type()), false, false));
             }
             try (Statement s = c.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS " + t.name());
-                s.execute(ddl.append(')').toString());
+                s.execute(dialect.render(new com.legend.sql.SqlDdl.DropTable(null, t.name(), quoting)));
+                s.execute(dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, t.name(), quoting, columns)));
             }
             if (t.rows().isEmpty()) {
                 continue;
             }
             String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + t.name() + " VALUES (" + marks + ")")) {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + quoted(t.name()) + " VALUES (" + marks
+                    + ")")) {
                 for (List<Object> row : t.rows()) {
                     for (int i = 0; i < row.size(); i++) {
                         bind(ps, i + 1, row.get(i), relationalType(t.columns().get(i).type()));
@@ -383,14 +506,56 @@ public final class IqParity {
 
     // ------------------------------------------------------------------ the rewrite
 
+    /** The names a leading {@code WITH [RECURSIVE] name [(...)] AS (...), ...} defines, in lower case. */
+    private static Set<String> cteNames(List<IqLexer.Token> tokens) {
+        Set<String> out = new java.util.HashSet<>();
+        if (tokens.isEmpty() || !tokens.get(0).is("with")) {
+            return out;
+        }
+        int i = 1;
+        if (i < tokens.size() && tokens.get(i).isWord("recursive")) {
+            i++;
+        }
+        while (i < tokens.size() && tokens.get(i).isName()) {
+            out.add(tokens.get(i).text().toLowerCase(Locale.ROOT));
+            i++;
+            // the optional column list, AS, then the CTE's parenthesized query
+            for (int round = 0; round < 2 && i < tokens.size(); round++) {
+                if (tokens.get(i).is("as")) {
+                    i++;
+                }
+                if (i < tokens.size() && tokens.get(i).isOp("(")) {
+                    int depth = 0;
+                    do {
+                        IqLexer.Token x = tokens.get(i);
+                        depth += x.isOp("(") ? 1 : x.isOp(")") ? -1 : 0;
+                        i++;
+                    } while (depth > 0 && i < tokens.size());
+                }
+            }
+            if (i < tokens.size() && tokens.get(i).isOp(",")) {
+                i++;
+            } else {
+                break;
+            }
+        }
+        return out;
+    }
+
     /** {@code sql} with each schema table named in FROM, after JOIN or after a comma in FROM ({@code t}, {@code [t]},
      *  {@code T}) replaced by its Legend source, {@code tb('e2e::DB.t')}, aliased by the name as written when no alias
      *  follows. The text is read by {@link IqLexer} under the run's profile; text that does not lex is returned as it
      *  is, for the island to refuse. */
     public static String rewrite(String sql, Set<String> tables, IqProfile profile) {
+        return rewrite(sql, tables, profile.settings());
+    }
+
+    /** {@link #rewrite(String, Set, IqProfile)} under {@code settings} (IQ island, 2026-10-14, the options framework:
+     *  a run's, its case's settings given over its profile's). */
+    public static String rewrite(String sql, Set<String> tables, com.legend.protocol.sql.iq.IqSettings settings) {
         List<IqLexer.Token> tokens;
         try {
-            tokens = IqLexer.tokenize(sql, profile);
+            tokens = IqLexer.tokenize(sql, settings);
         } catch (SqlSyntaxException e) {
             return sql;
         }
@@ -398,6 +563,8 @@ public final class IqParity {
         int copied = 0;
         Deque<Boolean> inFrom = new ArrayDeque<>();
         inFrom.push(false);
+        // IQ island, 2026-10-15: a common table expression's name hides a table's, so it is no table to rewrite
+        Set<String> ctes = cteNames(tokens);
         for (int i = 0; i < tokens.size(); i++) {
             IqLexer.Token t = tokens.get(i);
             if (t.isOp("(")) {
@@ -429,12 +596,19 @@ public final class IqParity {
                     || (prev.isOp(",") || prev.isOp("(")) && Boolean.TRUE.equals(inFrom.peek());
             IqLexer.Token after = tokens.get(Math.min(i + 1, tokens.size() - 1));
             if (!tablePlace || !t.isName() || !tables.contains(t.text().toLowerCase(Locale.ROOT))
-                    || after.isOp(".") || after.isOp("(")) {
+                    || ctes.contains(t.text().toLowerCase(Locale.ROOT)) || after.isOp(".") || after.isOp("(")) {
+                continue;
+            }
+            boolean aliased = after.is("as") || after.isName();
+            IqLexer.Token alias = after.is("as") ? tokens.get(Math.min(i + 2, tokens.size() - 1)) : after;
+            if (aliased && alias.isName() && alias.text().equalsIgnoreCase(t.text())) {
+                // IQ island, 2026-10-14 (review 7's m4): FROM t AS t is left to the island, which binds t to the
+                // model's table and keeps the alias (IQ's -845 for DBA.t.id there); tb('...t') AS t is the island's
+                // spelling of t unaliased
                 continue;
             }
             out.append(sql, copied, t.start()).append("tb('").append(DATABASE).append('.')
                     .append(t.text().toLowerCase(Locale.ROOT)).append("')");
-            boolean aliased = after.is("as") || after.isName();
             if (!aliased) {
                 out.append(" AS ").append(sql, t.start(), t.end());
             }
@@ -470,12 +644,14 @@ public final class IqParity {
             return null;
         }
         SqlAst.Statement statement;
+        com.legend.protocol.sql.iq.IqSetPrefix.Prefix select;
         try {
-            statement = IqParser.parse(rewrite(run.c().sql(), tables, run.profile()), run.profile());
-        } catch (SqlSyntaxException e) {
+            select = run.select(rewrite(run.c().sql(), tables, run.settings()));
+            statement = IqParser.parse(select.select(), select.settings());
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             return null;
         }
-        String engine = IqDialect.engineOf(statement, run.profile()).name().toLowerCase(Locale.ROOT);
+        String engine = IqDialect.engineOf(statement, select.settings()).name().toLowerCase(Locale.ROOT);
         return engine.equals(pinned) ? null : "ENGINE: " + run.key() + " pins engine=" + pinned + ", and its island"
                 + " runs in engine=" + engine;
     }
@@ -487,6 +663,10 @@ public final class IqParity {
     public static @com.legend.base.Nullable String engineNeutrality(Run run, List<SqlParity.Table> tables,
             Set<String> names) {
         Case c = run.c();
+        if (liveIq(run.profile())) {
+            // IQ island, landing 4 (WP1): real IQ judges an iq17-* run, by the IQ engine's own semantics
+            return null;
+        }
         if ("iq".equals(c.engine()) && c.decision() == null && c.skip() == null) {
             // IQ island, 2026-10-14 (the second review's m2): a pin to the IQ engine would escape this guard while
             // SQL Anywhere still judges the case
@@ -497,24 +677,52 @@ public final class IqParity {
         if (c.engine() != null || c.decision() != null || c.skip() != null) {
             return null;
         }
-        String sql = rewrite(c.sql(), names, run.profile());
+        String sql = rewrite(c.sql(), names, run.settings());
         SqlAst.Statement statement;
+        com.legend.protocol.sql.iq.IqSetPrefix.Prefix select;
         try {
-            statement = IqParser.parse(sql, run.profile());
-        } catch (SqlSyntaxException e) {
+            select = run.select(sql);
+            statement = IqParser.parse(select.select(), select.settings());
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             return null;
         }
-        if (IqDialect.engineOf(statement, run.profile()) != IqDialect.Engine.IQ) {
+        if (IqDialect.engineOf(statement, select.settings()) != IqDialect.Engine.IQ) {
+            return null;
+        }
+        if (run.profile().spelling().startsWith("iq16-") && liveJudgesItsSettings(c)
+                && select.select().strip().equals(sql.strip())) {
+            // IQ island, 2026-10-15 (landing 4, the research's D-N3: IQ's engine widens integer arithmetic, so most
+            // integer arithmetic over IQ tables translates otherwise under its rules): this guard predates the live
+            // IQ. An iq16-* run now has an iq17-* twin (runs) that the live IQ 17.1 judges by the IQ engine's own
+            // semantics, so the IQ engine's translation is judged where it differs; SQL Anywhere stays a second judge,
+            // whose disagreement fails the run (which then names its decision). Kept for a case with SET statements or
+            // settings other than the query's own (temporary options), whose twin the live IQ may not judge
+            // (not_judged: another database property or PUBLIC option).
             return null;
         }
         List<Param> params = params(c.params());
-        String iq = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.IQ), params);
+        String iq = pureOf(sql, tables, IqDialect.of(run.settings(), IqDialect.Engine.IQ), params);
         if (iq == null) {
             return null;
         }
-        String sa = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.SA), params);
+        String sa = pureOf(sql, tables, IqDialect.of(run.settings(), IqDialect.Engine.SA), params);
         return iq.equals(sa) ? null : "ENGINE NEUTRALITY: " + run.key() + " translates otherwise under the IQ engine's"
                 + " rules than under SQL Anywhere's, which judges it: name its decision, or pin engine: sa";
+    }
+
+    /** Whether the live IQ judges {@code c}'s iq17-* twin whatever its settings: none, or the query's own only (the
+     *  temporary options a connection sets; IQ island, 2026-10-15, {@link #engineNeutrality}). */
+    private static boolean liveJudgesItsSettings(Case c) {
+        String written = c.settings();
+        if (written == null) {
+            return true;
+        }
+        for (com.legend.protocol.sql.iq.IqSettings.Setting setting : settings(written)) {
+            if (setting.level() != com.legend.protocol.sql.iq.IqSettings.Level.QUERY) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The skip a case takes when its answer depends on the order IQ evaluates a search condition's operands in (the
@@ -531,8 +739,9 @@ public final class IqParity {
         }
         SqlAst.Statement statement;
         try {
-            statement = IqParser.parse(run.c().sql(), run.profile());
-        } catch (SqlSyntaxException e) {
+            com.legend.protocol.sql.iq.IqSetPrefix.Prefix select = run.select(run.c().sql());
+            statement = IqParser.parse(select.select(), select.settings());
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             return null;
         }
         // IQ island, 2026-10-14 (M1b): every query's WHERE (a subquery's, a branch's, a derived table's) and every
@@ -646,7 +855,718 @@ public final class IqParity {
             }
             // IQ island, 2026-10-14 (M1d): CAST and CONVERT
             case SqlAst.Cast c -> List.of(c.operand());
+            // IQ island, 2026-10-15 (windows): a window call's arguments and keys
+            case SqlAst.Window w -> {
+                List<SqlAst.Expr> all = new ArrayList<>(w.call().args());
+                all.addAll(w.spec().partitionBy());
+                w.spec().orderBy().forEach(o -> all.add(o.expr()));
+                yield all;
+            }
             default -> List.of();
+        };
+    }
+
+    // ------------------------------------------------------------------ determinism (IQ island, 2026-10-14)
+
+    /** The column every schema table holds once per row, never NULL ({@link #determinism}: checked against the rows). */
+    public static final String KEY = "id";
+
+    /** The aggregates the island reads: a query of one of them and no GROUP BY has at most one row. */
+    private static final Set<String> AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "median", "list");
+
+    /**
+     * IQ island, 2026-10-14 (review 7's B1, the user's ruling): a committed case is deterministic. Where IQ's own answer
+     * is not determined -- which rows a TOP, FIRST or START AT keeps where its ORDER BY keys tie at the cut, the order
+     * of a LIST's values -- any answer IQ could return is right, and lite returns its database's; but a case judged so
+     * would pin one plan's choice, SQL Anywhere's snapped against DuckDB's or Postgres's. So a run fails here when its
+     * SQL has
+     * <ul>
+     *   <li>a row limit (TOP, FIRST, START AT) without ORDER BY;</li>
+     *   <li>a row limit whose ORDER BY reaches no column unique in its source: a table's {@link #KEY},
+     *       {@code sa_rowgenerator}'s {@code row_num}, a derived table's column unique in its query, a grouped query's
+     *       keys (all of them), or every item of a SELECT DISTINCT -- for each FROM item, the ORDER BY keys need one
+     *       of its unique columns, unless an inner join's ON or the WHERE equates one with a column of an item they
+     *       order;</li>
+     *   <li>a LIST without its own ORDER BY, unless it lists a GROUP BY key of its query or a constant (its values
+     *       are one);</li>
+     *   <li>IQ island, 2026-10-15 (windows): a window function that reads its window's rows in its order (ROW_NUMBER,
+     *       NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, an aggregate over a ROWS frame) whose PARTITION BY and ORDER BY
+     *       keys reach no unique column of a FROM item, as a row limit's must ({@link #unorderedWindows}).</li>
+     * </ul>
+     * A limit over at most one row (no FROM, DUMMY, an aggregate without GROUP BY) needs no ORDER BY, nor does one
+     * inside EXISTS, which reads only whether a row is kept (SQL Anywhere rejects an ORDER BY there, -131). A case
+     * may opt out ({@code nondeterministic: <reason>}) only when it tests a refusal or an error: then the run must not
+     * PASS, and a case with nothing to opt out of may not. A skipped case is not run, and a statement IQ's reader
+     * rejects keeps no rows. Returns the run's problem, or null.
+     */
+    public static @com.legend.base.Nullable String determinism(Run run, List<SqlParity.Table> tables,
+            SqlParity.Status status) {
+        Case c = run.c();
+        if (c.skip() != null) {
+            return null;
+        }
+        List<String> found;
+        try {
+            // the SELECT after the SET statements a run may begin with, read under the settings they make; a
+            // statement the reader rejects, or settings IQ raises an error for, keeps no rows
+            com.legend.protocol.sql.iq.IqSetPrefix.Prefix select = run.select(c.sql());
+            found = nondeterminism(IqParser.parse(select.select(), select.settings()), tables);
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
+            found = List.of();
+        }
+        String why = c.nondeterministic();
+        if (why == null) {
+            return found.isEmpty() ? null : "NONDETERMINISTIC: " + run.key() + ": " + String.join("; ", found)
+                    + " -- add the source's unique key (" + KEY + ") as the last ORDER BY key, or, for a case that"
+                    + " tests a refusal or an error, say so (nondeterministic: <reason>)";
+        }
+        if (found.isEmpty()) {
+            return "NONDETERMINISTIC: " + run.key() + " opts out (" + why + "), but its SQL has nothing to opt out of";
+        }
+        return status == SqlParity.Status.PASS ? "NONDETERMINISTIC: " + run.key() + " opts out (" + why + "), but it"
+                + " PASSes: its answer may be one plan's choice (" + String.join("; ", found) + ")" : null;
+    }
+
+    /** What makes {@code statement}'s answer one plan's choice ({@link #determinism}), each in a few words. */
+    static List<String> nondeterminism(SqlAst.Statement statement, List<SqlParity.Table> tables) {
+        Map<String, SqlParity.Table> byName = new LinkedHashMap<>();
+        for (SqlParity.Table t : tables) {
+            byName.put(t.name().toLowerCase(Locale.ROOT), t);
+        }
+        Set<SqlAst.Statement> underExists = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<SqlAst.Statement> queries = IqDialect.queries(statement);
+        for (SqlAst.Statement q : queries) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : clauses(s)) {
+                    existsQueries(e, underExists);
+                }
+            }
+        }
+        List<String> found = new ArrayList<>();
+        for (SqlAst.Statement q : queries) {
+            String limited = limitProblem(q, byName, underExists);
+            if (limited != null) {
+                found.add(limited);
+            }
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : clauses(s)) {
+                    unorderedLists(e, s, byName, found);
+                    unorderedWindows(e, s, byName, found);
+                }
+            }
+        }
+        return found;
+    }
+
+    /** IQ island, 2026-10-15 (windows): the window functions that read their window's rows in its order. */
+    private static final Set<String> ORDERED_WINDOWS = Set.of("row_number", "ntile", "lag", "lead", "first_value",
+            "last_value");
+
+    /**
+     * IQ island, 2026-10-15 (windows): each window call under {@code e} (in {@code s}) whose value is one plan's choice,
+     * in a few words, into {@code out}: ROW_NUMBER, NTILE, LAG, LEAD, FIRST_VALUE and LAST_VALUE, and an aggregate over
+     * a ROWS frame other than the whole partition, read rows in the window's order, so its PARTITION BY and ORDER BY
+     * keys together must reach a unique column of each FROM item, as a row limit's ORDER BY must ({@link #limitProblem}:
+     * a grouped query's keys, all of them). RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST and RANGE frames give ties one
+     * value.
+     */
+    private static void unorderedWindows(SqlAst.Expr e, SqlAst.Select s, Map<String, SqlParity.Table> tables,
+            List<String> out) {
+        if (e instanceof SqlAst.Window w) {
+            SqlAst.WindowSpec spec = w.spec();
+            for (int guard = 0; spec.base() != null && guard <= s.windows().size(); guard++) {
+                String base = java.util.Objects.requireNonNull(spec.base()).text().toLowerCase(Locale.ROOT);
+                SqlAst.WindowSpec named = null;
+                for (SqlAst.NamedWindow n : s.windows()) {
+                    if (named == null && n.name().text().toLowerCase(Locale.ROOT).equals(base)) {
+                        named = n.spec();
+                    }
+                }
+                if (named == null) {
+                    break;
+                }
+                spec = new SqlAst.WindowSpec(named.base(), named.partitionBy(), spec.orderBy().isEmpty()
+                        ? named.orderBy() : spec.orderBy(), spec.frame() != null ? spec.frame() : named.frame(),
+                        spec.pos());
+            }
+            String fn = w.call().name().get(w.call().name().size() - 1).text().toLowerCase(Locale.ROOT);
+            SqlAst.Frame frame = spec.frame();
+            boolean rows = frame != null && frame.unit() == SqlAst.FrameUnit.ROWS
+                    && !(frame.start().kind() == SqlAst.BoundKind.UNBOUNDED_PRECEDING
+                    && frame.end().kind() == SqlAst.BoundKind.UNBOUNDED_FOLLOWING);
+            if (ORDERED_WINDOWS.contains(fn) || rows) {
+                String why = windowOrder(spec, s, tables);
+                if (why != null) {
+                    out.add("the window at line " + w.pos().line() + ", column " + w.pos().column() + " " + why
+                            + " (" + fn.toUpperCase(Locale.ROOT) + (rows && !ORDERED_WINDOWS.contains(fn)
+                            ? " over a ROWS frame" : "") + " reads its rows in the window's order)");
+                }
+            }
+        }
+        for (SqlAst.Expr child : subexpressions(e)) {
+            unorderedWindows(child, s, tables, out);
+        }
+    }
+
+    /** Why {@code spec}'s keys order no row of {@code s} totally ({@link #unorderedWindows}); null when they do. */
+    private static @com.legend.base.Nullable String windowOrder(SqlAst.WindowSpec spec, SqlAst.Select s,
+            Map<String, SqlParity.Table> tables) {
+        if (oneRow(s, tables)) {
+            return null;
+        }
+        List<Source> sources = sources(s, tables);
+        List<String> keys = new ArrayList<>();
+        for (SqlAst.Expr k : spec.partitionBy()) {
+            String r = resolve(k, s, sources, true);
+            if (r != null) {
+                keys.add(r);
+            }
+        }
+        for (SqlAst.SortItem o : spec.orderBy()) {
+            String r = resolve(o.expr(), s, sources, true);
+            if (r != null) {
+                keys.add(r);
+            }
+        }
+        if (!s.groupBy().isEmpty()) {
+            for (SqlAst.Expr g : s.groupBy()) {
+                String k = resolve(g, s, sources, true);
+                if (k == null || !keys.contains(k)) {
+                    return "orders a grouped query by fewer than its GROUP BY keys";
+                }
+            }
+            return null;
+        }
+        boolean[] reached = new boolean[sources.size()];
+        for (int i = 0; i < sources.size(); i++) {
+            Source src = sources.get(i);
+            reached[i] = src.oneRow();
+            for (String u : src.unique()) {
+                reached[i] |= keys.contains(i + "." + u);
+            }
+        }
+        List<SqlAst.Expr> equalities = new ArrayList<>();
+        if (s.where() != null) {
+            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
+        }
+        for (SqlAst.FromItem f : s.from()) {
+            innerOns(f, equalities);
+        }
+        for (boolean more = true; more; ) {
+            more = false;
+            for (SqlAst.Expr eq : equalities) {
+                if (eq instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
+                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
+                            sources, reached) | determines(resolve(b.right(), s, sources, false),
+                            resolve(b.left(), s, sources, false), sources, reached);
+                }
+            }
+        }
+        for (int i = 0; i < sources.size(); i++) {
+            if (!reached[i]) {
+                return "orders by no unique column of " + sources.get(i).label();
+            }
+        }
+        return null;
+    }
+
+    /** Whether every item {@code s} shows is a constant (a literal, or a sign or arithmetic of literals): its rows
+     *  all show the same values (IQ island, 2026-10-15, row limits without ORDER BY). */
+    private static boolean constantsOnly(SqlAst.Select s) {
+        for (SqlAst.SelectItem item : s.items()) {
+            if (!(item instanceof SqlAst.SelectExpr x) || !literal(x.expr())) {
+                return false;
+            }
+        }
+        return !s.items().isEmpty();
+    }
+
+    private static boolean literal(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.NumericLit n -> true;
+            case SqlAst.StringLit t -> true;
+            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && literal(u.operand());
+            case SqlAst.Binary b -> switch (b.op()) {
+                case PLUS, MINUS, TIMES -> literal(b.left()) && literal(b.right());
+                default -> false;
+            };
+            default -> false;
+        };
+    }
+
+    /** A query's row limit that keeps rows of its plan's choosing, in a few words; null for none (IQ's reader puts a
+     *  row limit on a SELECT only: a set operation's TOP is its first branch's). */
+    private static @com.legend.base.Nullable String limitProblem(SqlAst.Statement q, Map<String, SqlParity.Table> tables,
+            Set<SqlAst.Statement> underExists) {
+        if (!(q instanceof SqlAst.Select s) || s.limit() == null && s.offset() == null || underExists.contains(q)
+                || oneRow(q, tables)) {
+            return null;
+        }
+        String at = "the row limit at line " + q.pos().line() + ", column " + q.pos().column();
+        if (constantsOnly(s)) {
+            // IQ island, 2026-10-15: every row it keeps shows the same values, whichever rows they are
+            return null;
+        }
+        if (s.orderBy().isEmpty()) {
+            return at + " has no ORDER BY";
+        }
+        List<Source> sources = sources(s, tables);
+        List<String> keys = new ArrayList<>();
+        for (SqlAst.SortItem i : s.orderBy()) {
+            String k = resolve(i.expr(), s, sources, true);
+            if (k != null) {
+                keys.add(k);
+            }
+        }
+        if (!s.groupBy().isEmpty()) {
+            // IQ island, 2026-10-16 (checklist 2.16b): a ROLLUP's or a CUBE's keys are its arguments, and a group of a
+            // NULL key ties with a subtotal unless the ORDER BY reads a GROUPING for each of them
+            List<SqlAst.Expr> groupKeys = new ArrayList<>();
+            int rolled = 0;
+            for (SqlAst.Expr g : s.groupBy()) {
+                if (g instanceof SqlAst.FunctionCall f && f.name().size() == 1 && Set.of("rollup", "cube").contains(
+                        f.name().get(0).text().toLowerCase(Locale.ROOT))) {
+                    groupKeys.addAll(f.args());
+                    rolled += f.args().size();
+                } else {
+                    groupKeys.add(g);
+                }
+            }
+            for (SqlAst.Expr g : groupKeys) {
+                String k = resolve(g, s, sources, true);
+                if (k == null || !keys.contains(k)) {
+                    return at + " orders a grouped query by fewer than its GROUP BY keys";
+                }
+            }
+            if (groupingsOrdered(s) < rolled) {
+                return at + " orders a ROLLUP or a CUBE by fewer GROUPINGs than its keys (a NULL key's group ties with"
+                        + " a subtotal)";
+            }
+            return null;
+        }
+        if (s.distinct()) {
+            boolean every = true;
+            for (int i = 0; i < s.items().size() && every; i++) {
+                every = s.items().get(i) instanceof SqlAst.SelectExpr x && keys.contains(itemKey(x, i, s, sources));
+            }
+            if (every) {
+                return null;
+            }
+        }
+        // a FROM item is ordered where the ORDER BY reaches a unique column of it, or where an inner join's ON or the
+        // WHERE equates a unique column of it with a column of an item that is ordered (one row of it for each row of
+        // that one: SELECT ... FROM t JOIN (... GROUP BY t.id) a ON a.tid = t.id ORDER BY t.id)
+        boolean[] reached = new boolean[sources.size()];
+        for (int i = 0; i < sources.size(); i++) {
+            Source src = sources.get(i);
+            reached[i] = src.oneRow();
+            for (String u : src.unique()) {
+                reached[i] |= keys.contains(i + "." + u);
+            }
+        }
+        List<SqlAst.Expr> equalities = new ArrayList<>();
+        if (s.where() != null) {
+            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
+        }
+        for (SqlAst.FromItem f : s.from()) {
+            innerOns(f, equalities);
+        }
+        for (boolean more = true; more; ) {
+            more = false;
+            for (SqlAst.Expr e : equalities) {
+                if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
+                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
+                            sources, reached) | determines(resolve(b.right(), s, sources, false),
+                            resolve(b.left(), s, sources, false), sources, reached);
+                }
+            }
+        }
+        for (int i = 0; i < sources.size(); i++) {
+            if (!reached[i]) {
+                return at + " orders by no unique column of " + sources.get(i).label();
+            }
+        }
+        return null;
+    }
+
+    /** How many of {@code s}'s ORDER BY keys are a GROUPING call (written there, or an item's by its alias or its
+     *  position). */
+    private static int groupingsOrdered(SqlAst.Select s) {
+        int n = 0;
+        for (SqlAst.SortItem o : s.orderBy()) {
+            SqlAst.Expr e = o.expr();
+            for (int i = 0; i < s.items().size(); i++) {
+                if (s.items().get(i) instanceof SqlAst.SelectExpr x && (e instanceof SqlAst.IntegerLit p
+                        && p.value().intValue() == i + 1 || x.alias() != null && e instanceof SqlAst.ColumnRef r
+                        && r.parts().size() == 1 && r.parts().get(0).text().equalsIgnoreCase(
+                        java.util.Objects.requireNonNull(x.alias()).text()))) {
+                    e = x.expr();
+                    break;
+                }
+            }
+            if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                    && f.name().get(0).text().equalsIgnoreCase("grouping")) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** Marks {@code unique}'s source ordered where it is a unique column of a source not yet ordered, and
+     *  {@code other} a column of another, ordered source; whether it did. */
+    private static boolean determines(@com.legend.base.Nullable String unique, @com.legend.base.Nullable String other,
+            List<Source> sources, boolean[] reached) {
+        if (unique == null || other == null || !unique.contains(".") || !other.contains(".")) {
+            return false;
+        }
+        int i = Integer.parseInt(unique.substring(0, unique.indexOf('.')));
+        int j = Integer.parseInt(other.substring(0, other.indexOf('.')));
+        if (i == j || reached[i] || !reached[j] || !sources.get(i).unique().contains(unique.substring(
+                unique.indexOf('.') + 1))) {
+            return false;
+        }
+        reached[i] = true;
+        return true;
+    }
+
+    /** The operands of the ANDs of {@code e}, into {@code out}. */
+    private static void conjuncts(SqlAst.Expr e, List<SqlAst.Expr> out) {
+        if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.AND) {
+            conjuncts(b.left(), out);
+            conjuncts(b.right(), out);
+        } else {
+            out.add(e);
+        }
+    }
+
+    /** The conjuncts of the ON conditions of the inner joins of {@code f}, into {@code out}. */
+    private static void innerOns(SqlAst.FromItem f, List<SqlAst.Expr> out) {
+        if (f instanceof SqlAst.Join j) {
+            if (j.type() == SqlAst.JoinType.INNER && j.on() != null) {
+                conjuncts(java.util.Objects.requireNonNull(j.on()), out);
+            }
+            innerOns(j.left(), out);
+            innerOns(j.right(), out);
+        }
+    }
+
+    /** A FROM item as the lint knows it: its label, the name that qualifies its columns (lower case), its columns
+     *  (null when not known), those unique in its rows, and whether it has at most one row. */
+    private record Source(String label, String qualifier, @com.legend.base.Nullable List<String> columns,
+            Set<String> unique, boolean oneRow) {
+    }
+
+    private static List<Source> sources(SqlAst.Select s, Map<String, SqlParity.Table> tables) {
+        List<Source> out = new ArrayList<>();
+        for (SqlAst.FromItem f : s.from()) {
+            for (SqlAst.FromItem leaf : leaves(f)) {
+                out.add(source(leaf, tables));
+            }
+        }
+        return out;
+    }
+
+    private static Source source(SqlAst.FromItem leaf, Map<String, SqlParity.Table> tables) {
+        switch (leaf) {
+            case SqlAst.TableName t -> {
+                String name = t.name().get(t.name().size() - 1).text().toLowerCase(Locale.ROOT);
+                String q = t.alias() != null ? java.util.Objects.requireNonNull(t.alias()).text()
+                        .toLowerCase(Locale.ROOT) : name;
+                if (name.equals("dummy")) {
+                    return new Source("DUMMY", q, List.of("dummy_col"), Set.of("dummy_col"), true);
+                }
+                return table(name, q, tables);
+            }
+            case SqlAst.TableFunction f -> {
+                String fn = f.name().get(f.name().size() - 1).text().toLowerCase(Locale.ROOT);
+                String q = f.alias() != null ? java.util.Objects.requireNonNull(f.alias()).text()
+                        .toLowerCase(Locale.ROOT) : fn;
+                if (fn.equals("sa_rowgenerator")) {
+                    return new Source("sa_rowgenerator", q, List.of("row_num"), Set.of("row_num"), false);
+                }
+                if (fn.equals("tb") && f.args().size() == 1 && f.args().get(0).value() instanceof SqlAst.StringLit p) {
+                    String path = p.value();
+                    return table(path.substring(path.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT), q, tables);
+                }
+                return new Source(fn, q, null, Set.of(), false);
+            }
+            case SqlAst.SubqueryFrom d -> {
+                String q = d.alias() != null ? java.util.Objects.requireNonNull(d.alias()).text()
+                        .toLowerCase(Locale.ROOT) : "";
+                List<Output> outputs = outputs(d.query(), tables);
+                if (outputs == null) {
+                    return new Source("the derived table " + q, q, null, Set.of(), oneRow(d.query(), tables));
+                }
+                List<String> names = new ArrayList<>();
+                Set<String> unique = new java.util.HashSet<>();
+                for (int i = 0; i < outputs.size(); i++) {
+                    String name = i < d.columnAliases().size() ? d.columnAliases().get(i).text()
+                            .toLowerCase(Locale.ROOT) : outputs.get(i).name();
+                    names.add(name == null ? "" : name);
+                    if (name != null && outputs.get(i).unique()) {
+                        unique.add(name);
+                    }
+                }
+                return new Source("the derived table " + q, q, names, unique, oneRow(d.query(), tables));
+            }
+            case SqlAst.Join j -> throw new IllegalStateException("a join is no FROM leaf");
+        }
+    }
+
+    /** A schema table's source: its columns, and {@link #KEY} unique where its rows hold it once each. */
+    private static Source table(String name, String qualifier, Map<String, SqlParity.Table> tables) {
+        SqlParity.Table t = tables.get(name);
+        if (t == null) {
+            return new Source(name, qualifier, null, Set.of(), false);
+        }
+        List<String> columns = t.columns().stream().map(c -> c.name().toLowerCase(Locale.ROOT)).toList();
+        int key = columns.indexOf(KEY);
+        if (key < 0) {
+            return new Source(name, qualifier, columns, Set.of(), false);
+        }
+        Set<Object> seen = new java.util.HashSet<>();
+        for (List<Object> row : t.rows()) {
+            Object v = row.get(key);
+            if (v == null || !seen.add(v)) {
+                throw new IllegalStateException("the schema's table " + name + " holds its " + KEY + " " + v
+                        + " twice, or NULL: the determinism lint's key is no key");
+            }
+        }
+        return new Source(name, qualifier, columns, Set.of(KEY), false);
+    }
+
+    /** A query's output column: its name (lower case; null for none) and whether no two of its rows have one value. */
+    private record Output(@com.legend.base.Nullable String name, boolean unique) {
+    }
+
+    /** {@code q}'s output columns, in order; null where a {@code *} reads a source whose columns are not known. */
+    private static @com.legend.base.Nullable List<Output> outputs(SqlAst.Statement q,
+            Map<String, SqlParity.Table> tables) {
+        if (q instanceof SqlAst.SetOperation o) {
+            List<Output> left = outputs(first(o), tables);
+            if (left == null) {
+                return null;
+            }
+            boolean single = left.size() == 1 && !o.all();
+            return left.stream().map(x -> new Output(x.name(), single)).toList();
+        }
+        SqlAst.Select s = (SqlAst.Select) q;
+        List<Source> sources = sources(s, tables);
+        boolean one = oneRow(s, tables);
+        List<String> group = new ArrayList<>();
+        for (SqlAst.Expr g : s.groupBy()) {
+            group.add(resolve(g, s, sources, true));
+        }
+        List<Output> out = new ArrayList<>();
+        int multi = 0;
+        for (Source src : sources) {
+            multi += src.oneRow() ? 0 : 1;
+        }
+        for (int i = 0; i < s.items().size(); i++) {
+            SqlAst.SelectItem item = s.items().get(i);
+            if (item instanceof SqlAst.AllColumns a) {
+                for (int k = 0; k < sources.size(); k++) {
+                    Source src = sources.get(k);
+                    if (a.qualifier() != null && !src.qualifier().equals(java.util.Objects.requireNonNull(
+                            a.qualifier()).text().toLowerCase(Locale.ROOT))) {
+                        continue;
+                    }
+                    if (src.columns() == null) {
+                        return null;
+                    }
+                    for (String col : java.util.Objects.requireNonNull(src.columns())) {
+                        out.add(new Output(col, one || s.groupBy().isEmpty() && !s.distinct() && multi <= 1
+                                && src.unique().contains(col)));
+                    }
+                }
+                continue;
+            }
+            SqlAst.SelectExpr x = (SqlAst.SelectExpr) item;
+            String name = x.alias() != null ? java.util.Objects.requireNonNull(x.alias()).text()
+                    .toLowerCase(Locale.ROOT) : x.expr() instanceof SqlAst.ColumnRef r
+                    ? r.parts().get(r.parts().size() - 1).text().toLowerCase(Locale.ROOT) : null;
+            String k = resolve(x.expr(), s, sources, false);
+            boolean unique;
+            if (one) {
+                unique = true;
+            } else if (!s.groupBy().isEmpty()) {
+                unique = group.size() == 1 && k != null && k.equals(group.get(0));
+            } else if (s.distinct()) {
+                unique = s.items().size() == 1;
+            } else {
+                int dot = k == null ? -1 : k.indexOf('.');
+                unique = dot > 0 && multi <= 1 && sources.get(Integer.parseInt(k.substring(0, dot))).unique()
+                        .contains(k.substring(dot + 1)) && !sources.get(Integer.parseInt(k.substring(0, dot)))
+                        .oneRow();
+            }
+            out.add(new Output(name, unique));
+        }
+        return out;
+    }
+
+    /** Whether {@code q} has at most one row: no FROM, only one-row FROM items (DUMMY), or an aggregate without
+     *  GROUP BY. */
+    private static boolean oneRow(SqlAst.Statement q, Map<String, SqlParity.Table> tables) {
+        if (!(q instanceof SqlAst.Select s)) {
+            return false;
+        }
+        if (s.from().isEmpty()) {
+            return true;
+        }
+        if (s.groupBy().isEmpty()) {
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr x && aggregated(x.expr())) {
+                    return true;
+                }
+            }
+        }
+        return sources(s, tables).stream().allMatch(Source::oneRow);
+    }
+
+    private static boolean aggregated(SqlAst.Expr e) {
+        if (e instanceof SqlAst.FunctionCall f && AGGREGATES.contains(f.name().get(f.name().size() - 1).text()
+                .toLowerCase(Locale.ROOT))) {
+            return true;
+        }
+        return subexpressions(e).stream().anyMatch(IqParity::aggregated);
+    }
+
+    /** What an ORDER BY or GROUP BY key (or a select item, {@code aliases} false) reads in {@code s}: a source's
+     *  column, {@code <source index>.<column>}; a select item that is no column, {@code item <index>}; null otherwise.
+     *  A position and a name of a select item's alias read that item, an alias before a column (as IQ reads them). */
+    private static @com.legend.base.Nullable String resolve(SqlAst.Expr e, SqlAst.Select s, List<Source> sources,
+            boolean aliases) {
+        if (aliases && e instanceof SqlAst.IntegerLit n) {
+            int i = n.value().intValue() - 1;
+            return i >= 0 && i < s.items().size() && s.items().get(i) instanceof SqlAst.SelectExpr x
+                    ? itemKey(x, i, s, sources) : null;
+        }
+        if (!(e instanceof SqlAst.ColumnRef r)) {
+            return null;
+        }
+        List<String> parts = r.parts().stream().map(p -> p.text().toLowerCase(Locale.ROOT)).toList();
+        String column = parts.get(parts.size() - 1);
+        if (aliases && parts.size() == 1) {
+            for (int i = 0; i < s.items().size(); i++) {
+                if (s.items().get(i) instanceof SqlAst.SelectExpr x && x.alias() != null
+                        && java.util.Objects.requireNonNull(x.alias()).text().toLowerCase(Locale.ROOT).equals(column)) {
+                    return itemKey(x, i, s, sources);
+                }
+            }
+        }
+        int found = -1;
+        for (int i = 0; i < sources.size(); i++) {
+            Source src = sources.get(i);
+            boolean here = parts.size() == 1 ? src.columns() == null ? sources.size() == 1
+                    : java.util.Objects.requireNonNull(src.columns()).contains(column)
+                    : src.qualifier().equals(parts.get(parts.size() - 2));
+            if (here) {
+                if (found >= 0) {
+                    return null;
+                }
+                found = i;
+            }
+        }
+        return found < 0 ? null : found + "." + column;
+    }
+
+    /** The key a select item reads ({@link #resolve}): its column's, else the item's own. */
+    private static String itemKey(SqlAst.SelectExpr x, int i, SqlAst.Select s, List<Source> sources) {
+        String k = resolve(x.expr(), s, sources, false);
+        return k != null ? k : "item " + i;
+    }
+
+    /** A query's clauses' expressions: its items', WHERE's, GROUP BY's, HAVING's, ORDER BY's and its joins' ON
+     *  conditions (not its subqueries'). */
+    private static List<SqlAst.Expr> clauses(SqlAst.Select s) {
+        List<SqlAst.Expr> all = new ArrayList<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                all.add(x.expr());
+            }
+        }
+        if (s.where() != null) {
+            all.add(java.util.Objects.requireNonNull(s.where()));
+        }
+        all.addAll(s.groupBy());
+        if (s.having() != null) {
+            all.add(java.util.Objects.requireNonNull(s.having()));
+        }
+        s.orderBy().forEach(o -> all.add(o.expr()));
+        for (SqlAst.FromItem f : s.from()) {
+            List<SqlAst.Expr> on = new ArrayList<>();
+            onConditions(f, on);
+            all.addAll(on);
+        }
+        return all;
+    }
+
+    /** The queries an EXISTS under {@code e} reads, and a set operation's branches there, into {@code out}. */
+    private static void existsQueries(SqlAst.Expr e, Set<SqlAst.Statement> out) {
+        if (e instanceof SqlAst.Exists x) {
+            Deque<SqlAst.Statement> todo = new ArrayDeque<>(List.of(x.query()));
+            while (!todo.isEmpty()) {
+                SqlAst.Statement q = todo.pop();
+                out.add(q);
+                if (q instanceof SqlAst.SetOperation o) {
+                    todo.push(o.left());
+                    todo.push(o.right());
+                }
+            }
+        }
+        for (SqlAst.Expr child : subexpressions(e)) {
+            existsQueries(child, out);
+        }
+    }
+
+    /** Each LIST under {@code e} (in {@code s}, not in its subqueries) without its own ORDER BY that lists no GROUP BY
+     *  key of {@code s}, in a few words, into {@code out}. */
+    private static void unorderedLists(SqlAst.Expr e, SqlAst.Select s, Map<String, SqlParity.Table> tables,
+            List<String> out) {
+        if (e instanceof SqlAst.FunctionCall f && f.name().get(f.name().size() - 1).text().equalsIgnoreCase("list")
+                && f.orderBy().isEmpty()) {
+            List<Source> sources = sources(s, tables);
+            String listed = f.args().isEmpty() ? null : resolve(f.args().get(0), s, sources, false);
+            // a constant's values are one value too
+            boolean key = !f.args().isEmpty() && (f.args().get(0) instanceof SqlAst.IntegerLit
+                    || f.args().get(0) instanceof SqlAst.NumericLit || f.args().get(0) instanceof SqlAst.StringLit
+                    || f.args().get(0) instanceof SqlAst.NullLit);
+            for (SqlAst.Expr g : s.groupBy()) {
+                String grouped = resolve(g, s, sources, true);
+                key |= listed != null && listed.equals(grouped);
+                // IQ island, 2026-10-15: grouped by a unique column of its one source, each group is one row
+                if (sources.size() == 1 && grouped != null) {
+                    for (String u : sources.get(0).unique()) {
+                        key |= grouped.equals("0." + u);
+                    }
+                }
+            }
+            if (!key) {
+                out.add("the LIST at line " + f.pos().line() + ", column " + f.pos().column() + " has no ORDER BY");
+            }
+        }
+        for (SqlAst.Expr child : subexpressions(e)) {
+            unorderedLists(child, s, tables, out);
+        }
+    }
+
+    /** A FROM item's tables, functions and derived tables, through its joins. */
+    private static List<SqlAst.FromItem> leaves(SqlAst.FromItem item) {
+        if (item instanceof SqlAst.Join j) {
+            List<SqlAst.FromItem> out = new ArrayList<>(leaves(j.left()));
+            out.addAll(leaves(j.right()));
+            return out;
+        }
+        return List.of(item);
+    }
+
+    /** The first SELECT of a query. */
+    private static SqlAst.Select first(SqlAst.Statement q) {
+        return switch (q) {
+            case SqlAst.Select s -> s;
+            case SqlAst.SetOperation o -> first(o.left());
+            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
         };
     }
 
@@ -654,8 +1574,133 @@ public final class IqParity {
      *  the refusal's kind and message when it rejects it. */
     private static @com.legend.base.Nullable String pureOf(String sql, List<SqlParity.Table> tables,
             IqDialect dialect, List<Param> params) {
+        try {
+            return com.legend.protocol.PureComposer.valueSpecification(com.legend.protocol.sql.SqlToPure.translate(sql,
+                    sources(tables, params), dialect), com.legend.protocol.PureComposer.Style.STANDARD);
+        } catch (com.legend.protocol.sql.SqlTranslationException e) {
+            return e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? null
+                    : e.kind() + ": " + e.getMessage();
+        }
+    }
+
+    /**
+     * IQ island, 2026-10-14 (the options framework): the query a run is, as the lanes run it -- its island; for a case
+     * with settings, which reach no island yet (their Pure plumbing, tagged values of the IQ profile on a Database and a
+     * function, lands separately), the translation of its SQL under them ({@code IqSettings.resolve}) done here as the
+     * island's seam does it (SqlIslands: the schema's tables its sources, each column's store type, the case's
+     * variables), printed, its variables let before it. A translation's refusal or error is thrown as the
+     * {@code SqlTranslationException} it is.
+     */
+    public static String query(Run run, List<SqlParity.Table> schema, Set<String> tables) {
+        if (run.c().settings() == null) {
+            return island(run, tables);
+        }
+        com.legend.protocol.sql.iq.IqSettings settings = com.legend.protocol.sql.iq.IqSettings.resolve(run.profile(),
+                settings(java.util.Objects.requireNonNull(run.c().settings())));
+        List<Param> params = params(run.c().params());
+        String pure = parsedTds(com.legend.protocol.PureComposer.valueSpecification(
+                com.legend.protocol.sql.SqlToPure.translate(rewrite(run.c().sql(), tables, settings),
+                        sources(schema, params), IqDialect.of(settings)), com.legend.protocol.PureComposer.Style.STANDARD));
+        if (params.isEmpty()) {
+            return pure;
+        }
+        StringBuilder lets = new StringBuilder("|");
+        params.forEach(p -> lets.append("let ").append(p.name()).append(" = ").append(p.pure()).append("; "));
+        return lets.append(pure).append(';').toString();
+    }
+
+    /** {@code pure} with each TDS literal the printer writes {@code #TDS{...}#} written {@code #TDS...#}, the spelling
+     *  the parser reads back as the same rows (it reads the braced one's braces as rows: a FROM-less SELECT's one row
+     *  read back as three). */
+    private static String parsedTds(String pure) {
+        StringBuilder out = new StringBuilder();
+        int at = 0;
+        for (int i = pure.indexOf("#TDS{"); i >= 0; i = pure.indexOf("#TDS{", at)) {
+            int end = pure.indexOf("}#", i);
+            out.append(pure, at, i).append("#TDS").append(pure, i + "#TDS{".length(), end).append('#');
+            at = end + 2;
+        }
+        return out.append(pure.substring(at)).toString();
+    }
+
+    /**
+     * IQ island, 2026-10-14 (the options framework): a case's {@code settings}, as {@code IqSettings.resolve} takes
+     * them -- each {@code database.<name>=<value>} (a Database element's tagged value: a database property, a PUBLIC
+     * option, CommProtocol) or {@code query.<name>=<value>} (the enclosing function's: the connection's temporary
+     * value), IQ's names, a value as text (quoted, {@code ''} a quote in it, or bare up to the next comma), separated by
+     * commas.
+     */
+    public static List<com.legend.protocol.sql.iq.IqSettings.Setting> settings(String text) {
+        List<com.legend.protocol.sql.iq.IqSettings.Setting> out = new ArrayList<>();
+        int i = 0;
+        int n = text.length();
+        while (true) {
+            while (i < n && text.charAt(i) == ' ') {
+                i++;
+            }
+            int dot = text.indexOf('.', i);
+            int eq = text.indexOf('=', i);
+            if (dot < 0 || eq < dot) {
+                throw new IllegalStateException("a setting is database.<name>=<value> or query.<name>=<value>: "
+                        + text.substring(i));
+            }
+            String level = text.substring(i, dot).strip().toLowerCase(Locale.ROOT);
+            String name = text.substring(dot + 1, eq).strip();
+            if (!level.equals("database") && !level.equals("query") || name.isEmpty()) {
+                throw new IllegalStateException("a setting is database.<name>=<value> or query.<name>=<value>: "
+                        + text.substring(i));
+            }
+            i = eq + 1;
+            while (i < n && text.charAt(i) == ' ') {
+                i++;
+            }
+            StringBuilder value = new StringBuilder();
+            if (i < n && text.charAt(i) == '\'') {
+                i++;
+                while (true) {
+                    if (i >= n) {
+                        throw new IllegalStateException("a setting's quoted value is not closed: " + text);
+                    }
+                    if (text.charAt(i) == '\'' && i + 1 < n && text.charAt(i + 1) == '\'') {
+                        value.append('\'');
+                        i += 2;
+                    } else if (text.charAt(i) == '\'') {
+                        i++;
+                        break;
+                    } else {
+                        value.append(text.charAt(i++));
+                    }
+                }
+            } else {
+                while (i < n && text.charAt(i) != ',') {
+                    value.append(text.charAt(i++));
+                }
+                if (value.toString().strip().isEmpty()) {
+                    throw new IllegalStateException("a setting has a value: " + text);
+                }
+            }
+            out.add(new com.legend.protocol.sql.iq.IqSettings.Setting(level.equals("database")
+                    ? com.legend.protocol.sql.iq.IqSettings.Level.DATABASE
+                    : com.legend.protocol.sql.iq.IqSettings.Level.QUERY, name, value.toString().strip()));
+            while (i < n && text.charAt(i) == ' ') {
+                i++;
+            }
+            if (i >= n) {
+                return out;
+            }
+            if (text.charAt(i) != ',') {
+                throw new IllegalStateException("',' expected between settings: " + text.substring(i));
+            }
+            i++;
+        }
+    }
+
+    /** The translator's sources for a run: the schema's tables (in the model's default schema), each column of its
+     *  Pure type and store type, and the case's variables. */
+    private static com.legend.protocol.sql.SqlToPure.Sources sources(List<SqlParity.Table> tables,
+            List<Param> params) {
         // IQ island, 2026-10-14 (M1e): the model's tables (in its default schema) and the case's variables
-        com.legend.protocol.sql.SqlToPure.Sources sources = new com.legend.protocol.sql.SqlToPure.Sources() {
+        return new com.legend.protocol.sql.SqlToPure.Sources() {
             @Override
             public void columns(com.legend.protocol.spec.ValueSpecification source,
                     com.legend.protocol.sql.SqlToPure.Column column) {
@@ -691,13 +1736,6 @@ public final class IqParity {
                 params.forEach(p -> names.accept(p.name()));
             }
         };
-        try {
-            return com.legend.protocol.PureComposer.valueSpecification(com.legend.protocol.sql.SqlToPure.translate(sql,
-                    sources, dialect), com.legend.protocol.PureComposer.Style.STANDARD);
-        } catch (com.legend.protocol.sql.SqlTranslationException e) {
-            return e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? null
-                    : e.kind() + ": " + e.getMessage();
-        }
     }
 
     /** The Pure type of a schema column of IQ type {@code iqType}, as the typer reports it to the island. */
@@ -724,17 +1762,40 @@ public final class IqParity {
      *  comparison ({@link #compare}). An error is a both-error only when it is the island's own (its syntax error, its
      *  refusal, IQ's error it raises) or the database's; any other exception in legend-lite is an ERROR. */
     public static SqlParity.Outcome outcome(Run run, IqAnswers.@com.legend.base.Nullable Snap snap,
-            Set<String> tables, SqlParity.Legend legend) {
+            List<SqlParity.Table> schema, Set<String> tables, SqlParity.Legend legend) {
+        SqlParity.Outcome o = judged(run, snap, schema, tables, legend);
+        // IQ island, landing 4 (WP1): an iq17-* run's judge is the live IQ, and its report says so
+        return liveIq(run.profile()) ? new SqlParity.Outcome(o.status(), o.detail().replace("SQL Anywhere",
+                "the live IQ")) : o;
+    }
+
+    private static SqlParity.Outcome judged(Run run, IqAnswers.@com.legend.base.Nullable Snap snap,
+            List<SqlParity.Table> schema, Set<String> tables, SqlParity.Legend legend) {
         if (run.c().skip() != null) {
             return new SqlParity.Outcome(SqlParity.Status.SKIP, java.util.Objects.requireNonNull(run.c().skip()));
         }
         if (snap == null) {
             return new SqlParity.Outcome(SqlParity.Status.ERROR, "no snapped answer (UNSNAPPED)");
         }
+        if (snap.notJudged() != null) {
+            // IQ island, landing 4 (WP1): a run the live IQ cannot judge here (snap.sh --oracle iq says why)
+            return new SqlParity.Outcome(SqlParity.Status.SKIP, "not judged by the live IQ: " + snap.notJudged());
+        }
+        // IQ island, 2026-10-15 (windows): a decision written in full judges by its own columns (IqAnswers.judged)
+        snap = IqAnswers.judged(run, snap);
         SqlParity.Answer expected = IqAnswers.expected(run, snap);
         com.legend.exec.ExecutionResult result;
         try {
-            result = legend.run(island(run, tables));
+            result = legend.run(query(run, schema, tables));
+        } catch (com.legend.protocol.sql.SqlTranslationException e) {
+            // IQ island, 2026-10-14 (the options framework): a case with settings, translated here: a refusal by
+            // name, or the island's own error (its syntax error, IQ's error it raises)
+            if (e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED) {
+                return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                        : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+            }
+            return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                    : new SqlParity.Outcome(SqlParity.Status.ERROR, oneLine(e));
         } catch (com.legend.error.NotImplementedException e) {
             return expected instanceof SqlParity.Rejected r ? bothError(e, r)
                     : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
@@ -742,7 +1803,11 @@ public final class IqParity {
             if (!liteError(e)) {
                 return new SqlParity.Outcome(SqlParity.Status.ERROR, "a Java exception in legend-lite: " + oneLine(e));
             }
-            return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+            // IQ island, 2026-10-14 (review 7's m3): an error the island raises in the database by name is a refusal
+            // whose test the database computes -- REFUSED where SQL Anywhere answers, never a PASS; any other error
+            // of the database's where SQL Anywhere answers stays an ERROR
+            return expected instanceof SqlParity.Rejected r ? bothError(e, r) : refusedAtRunTime(e)
+                    ? new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e))
                     : new SqlParity.Outcome(SqlParity.Status.ERROR, oneLine(e));
         }
         SqlParity.Grid actual = SqlParity.grid(result);
@@ -779,6 +1844,18 @@ public final class IqParity {
             }
         }
         return new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e));
+    }
+
+    /** Whether {@code e} is the database's error that the island raises by name ({@link IqDialect#REFUSED_AT_RUN_TIME},
+     *  a {@code DataError}): its refusal of a value the database tests. */
+    static boolean refusedAtRunTime(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof com.legend.error.DataError && t.getMessage() != null
+                    && t.getMessage().contains(IqDialect.REFUSED_AT_RUN_TIME)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether {@code e} is an error legend-lite reports on purpose: the island's syntax error or IQ's error it raises
@@ -831,31 +1908,41 @@ public final class IqParity {
         if (!diffs.isEmpty()) {
             return diffs;
         }
+        if (run.c().member() != null) {
+            // IQ island, 2026-10-15: a string shown is any value of its group of equal strings
+            expected = collated(expected, snap.types(), run.settings());
+            actual = collated(actual, snap.types(), run.settings());
+        }
         List<SqlAst.SortItem> orderBy;
         SqlAst.Statement st;
         try {
-            st = IqParser.parse(run.c().sql(), run.profile());
+            com.legend.protocol.sql.iq.IqSetPrefix.Prefix select = run.select(run.c().sql());
+            st = IqParser.parse(select.select(), select.settings());
             // IQ island, 2026-10-14 (M1b): a set operation's ORDER BY is its own
             orderBy = st instanceof SqlAst.Select s ? s.orderBy() : st instanceof SqlAst.SetOperation o ? o.orderBy()
                     : List.of();
-        } catch (SqlSyntaxException e) {
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             boolean ordered = run.c().sql().toUpperCase(Locale.ROOT).contains("ORDER BY");
-            return rows(ordered, null, expected, actual, snap.types(), run.profile());
+            return rows(ordered, null, expected, actual, snap.types(), run.settings());
         }
         if (orderBy.isEmpty()) {
-            return rows(false, null, expected, actual, snap.types(), run.profile());
+            return rows(false, null, expected, actual, snap.types(), run.settings());
         }
         if (rounded(st)) {
             // IQ island, 2026-10-14 (review 4's B2): the tie rule reads the shown keys; a value of a quotient or an
             // AVG is shown rounded where SQL Anywhere sorts by the unrounded one (.9990 and .9990 sort as 997/998 <
             // 998/999), so where any item of the statement is (or reads) one, the rows are compared in their order
-            return rows(true, null, expected, actual, snap.types(), run.profile());
+            return rows(true, null, expected, actual, snap.types(), run.settings());
         }
         List<Integer> keys = new ArrayList<>();
         for (SqlAst.SortItem item : orderBy) {
             int found = -1;
+            if (item.expr() instanceof SqlAst.IntegerLit n && n.value().bitLength() > 31) {
+                // an integer past an INT's range is a constant, which orders nothing (measured; 2026-10-16)
+                continue;
+            }
             if (item.expr() instanceof SqlAst.IntegerLit n && n.value().signum() > 0
-                    && n.value().intValue() <= expected.columns().size()) {
+                    && n.value().compareTo(java.math.BigInteger.valueOf(expected.columns().size())) <= 0) {
                 found = n.value().intValue() - 1;
             } else if (item.expr() instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
                 for (int i = 0; i < expected.columns().size(); i++) {
@@ -865,11 +1952,11 @@ public final class IqParity {
                 }
             }
             if (found < 0) {
-                return rows(true, null, expected, actual, snap.types(), run.profile());
+                return rows(true, null, expected, actual, snap.types(), run.settings());
             }
             keys.add(found);
         }
-        return rows(true, keys, expected, actual, snap.types(), run.profile());
+        return rows(true, keys, expected, actual, snap.types(), run.settings());
     }
 
     /** Whether a select item of any query of {@code statement} is, or reads, a quotient ({@code /}) or an AVG or a
@@ -899,7 +1986,8 @@ public final class IqParity {
      *  differ only in trailing spaces, or in a {@code sqla17} profile in the ASCII letters' case, tie, and their order
      *  is the plan's, measured on SQL Anywhere 17). */
     private static List<String> rows(boolean ordered, @com.legend.base.Nullable List<Integer> keys,
-            SqlParity.Grid expected, SqlParity.Grid actual, List<String> types, IqProfile profile) {
+            SqlParity.Grid expected, SqlParity.Grid actual, List<String> types,
+            com.legend.protocol.sql.iq.IqSettings profile) {
         List<String> diffs = new ArrayList<>();
         if (expected.rows().size() != actual.rows().size()) {
             diffs.add("Row count mismatch: expected " + expected.rows().size() + " but got " + actual.rows().size());
@@ -934,7 +2022,7 @@ public final class IqParity {
      *  {@code profile} -- its ASCII letters in lower case in a case-insensitive database, its trailing spaces dropped in
      *  a blank-padding one -- any other cell itself. */
     static @com.legend.base.Nullable Object collationKey(@com.legend.base.Nullable Object cell, String saType,
-            IqProfile profile) {
+            com.legend.protocol.sql.iq.IqSettings profile) {
         if (!(cell instanceof String s) || !(saType.equals("char") || saType.equals("varchar")
                 || saType.equals("long varchar"))) {
             return cell;
@@ -949,6 +2037,21 @@ public final class IqParity {
             end--;
         }
         return b.substring(0, end);
+    }
+
+    /** {@code grid} with each string cell its collation key under {@code profile} ({@link #collationKey}): the
+     *  strings of a case that shows one value of each group of equal strings (IQ island, 2026-10-15, {@code member}). */
+    private static SqlParity.Grid collated(SqlParity.Grid grid, List<String> types,
+            com.legend.protocol.sql.iq.IqSettings profile) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (List<Object> row : grid.rows()) {
+            List<Object> keyed = new ArrayList<>();
+            for (int c = 0; c < row.size(); c++) {
+                keyed.add(collationKey(row.get(c), types.get(c), profile));
+            }
+            rows.add(keyed);
+        }
+        return new SqlParity.Grid(grid.columns(), rows);
     }
 
     /** Rows in one order whatever their source: by each cell's canonical text ({@link #canonical}). */
@@ -1088,5 +2191,110 @@ public final class IqParity {
         }
         return SqlParity.ratchet("the #IQ{...}# island's parity cases", "iq-parity", LEDGER_HEADER, cases, byKey,
                 ledger, lane, update);
+    }
+
+    // ------------------------------------------------------------------ the known divergences (IQ island, landing 4)
+
+    /** The statuses of a judged run whose answer is not its judge's: a wrong answer, an answer where the judge rejects
+     *  it, an error where the judge answers. */
+    private static final Set<SqlParity.Status> DIVERGING = Set.of(SqlParity.Status.FAIL, SqlParity.Status.BUG,
+            SqlParity.Status.ERROR);
+
+    /** One entry of the known-divergence allowlist: an {@code iq17-*} run, the lanes it diverges in, and the cause
+     *  (a cause id the file declares). */
+    public record Divergence(String run, Set<String> lanes, String cause) {
+    }
+
+    /** The allowlist {@code iq17-divergences.tsv}: its causes (id to what) and its entries, by run. Lines are
+     *  {@code cause<TAB>id<TAB>what} and {@code run<TAB>key<TAB>cause id<TAB>lanes (duckdb,postgres)}; a line starting
+     *  with {@code #} is a comment. A cause declared twice, an entry of an undeclared cause, a run listed twice, a lane
+     *  of no lane, and an entry of no {@code iq17-*} run are errors. */
+    public static Map<String, Divergence> divergences(Path file, Map<String, String> causes) throws IOException {
+        Map<String, Divergence> out = new LinkedHashMap<>();
+        int n = 0;
+        for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            n++;
+            if (line.isBlank() || line.startsWith("#")) {
+                continue;
+            }
+            String[] f = line.split("\t", -1);
+            String where = file.getFileName() + ":" + n + ": ";
+            if (f[0].equals("cause") && f.length == 3 && !f[1].isEmpty() && !f[2].isEmpty()) {
+                if (causes.put(f[1], f[2]) != null) {
+                    throw new IllegalStateException(where + "the cause " + f[1] + " is declared twice");
+                }
+            } else if (f[0].equals("run") && f.length == 4) {
+                if (!causes.containsKey(f[2])) {
+                    throw new IllegalStateException(where + "the cause " + f[2] + " is not declared (cause<TAB>id<TAB>"
+                            + "what, above its runs)");
+                }
+                Set<String> lanes = new java.util.LinkedHashSet<>(List.of(f[3].split(",")));
+                if (lanes.isEmpty() || !SqlParity.LANES.containsAll(lanes)) {
+                    throw new IllegalStateException(where + "the lanes are some of " + SqlParity.LANES + ": " + f[3]);
+                }
+                if (!f[1].contains("@iq17-")) {
+                    throw new IllegalStateException(where + f[1] + " is no iq17-* run: a run SQL Anywhere judges"
+                            + " diverges never (no FAIL, BUG or ERROR is allowed it)");
+                }
+                if (out.put(f[1], new Divergence(f[1], lanes, f[2])) != null) {
+                    throw new IllegalStateException(where + f[1] + " is listed twice");
+                }
+            } else {
+                throw new IllegalStateException(where + "a line is cause<TAB>id<TAB>what or run<TAB>key<TAB>cause"
+                        + "<TAB>lanes: " + line);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * IQ island, landing 4 (WP1), 2026-10-14: the lane's outcomes against the known-divergence allowlist. A run whose
+     * status is FAIL, BUG or ERROR in {@code lane} must be listed for the lane (an iq17-* run whose lite answer is not
+     * the live IQ's, for a cause the file names); a listed run must still diverge in each lane it lists -- one that
+     * now PASSes, or is refused or both-errors or skipped, must leave the list (shrink-only), and so must a run that is
+     * gone; a declared cause no entry names is stale too. Returns the problems.
+     */
+    public static List<String> divergences(List<Run> runs, Map<String, SqlParity.Outcome> outcomes, Path file,
+            String lane) throws IOException {
+        Map<String, String> causes = new LinkedHashMap<>();
+        Map<String, Divergence> listed = divergences(file, causes);
+        List<String> problems = new ArrayList<>();
+        Set<String> live = new java.util.HashSet<>();
+        Map<String, Integer> counts = new java.util.TreeMap<>();
+        for (Run r : runs) {
+            live.add(r.key());
+            SqlParity.Outcome o = outcomes.get(r.key());
+            Divergence d = listed.get(r.key());
+            boolean here = d != null && d.lanes().contains(lane);
+            if (o != null && DIVERGING.contains(o.status()) && !here) {
+                problems.add("UNLISTED DIVERGENCE: " + r.key() + " is " + o.status() + " in the " + lane + " lane and"
+                        + " not in iq17-divergences.tsv" + (liveIq(r.profile()) ? " (list it with its cause, in a dated"
+                        + " block naming the task, or fix it)" : " (a run SQL Anywhere judges may not diverge: fix it)")
+                        + (o.detail().isEmpty() ? "" : ": " + o.detail()));
+            } else if (here && (o == null || !DIVERGING.contains(o.status()))) {
+                problems.add("ALLOWLIST SHRINKS: " + r.key() + " is listed in iq17-divergences.tsv (" + d.cause()
+                        + ") for the " + lane + " lane, and is now " + (o == null ? "not run" : o.status()) + ": remove"
+                        + " it (the list only shrinks)");
+            }
+            if (here) {
+                counts.merge(d.cause(), 1, Integer::sum);
+            }
+        }
+        for (Divergence d : listed.values()) {
+            if (!live.contains(d.run())) {
+                problems.add("ALLOWLIST SHRINKS: " + d.run() + " is listed in iq17-divergences.tsv and is no run: remove"
+                        + " it");
+            }
+        }
+        Set<String> used = new java.util.HashSet<>();
+        listed.values().forEach(d -> used.add(d.cause()));
+        for (String cause : causes.keySet()) {
+            if (!used.contains(cause)) {
+                problems.add("ALLOWLIST SHRINKS: the cause " + cause + " of iq17-divergences.tsv names no run: remove"
+                        + " it");
+            }
+        }
+        System.out.println("iq17 known divergences, " + lane + " lane: " + counts);
+        return problems;
     }
 }

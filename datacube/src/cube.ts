@@ -20,7 +20,7 @@ import {
   type ColumnModel,
 } from './grid/columns.ts';
 import type { CubeSnapshot } from './snapshot.ts';
-import { CubeRefusal } from './snapshot.ts';
+import { CubeRefusal, refuseMeasuresList } from './snapshot.ts';
 import {
   pinnedPivotFacts,
   pivotLabel,
@@ -32,6 +32,7 @@ import {
   levelLambda,
   TOTAL_ROWS_COLUMN,
   pivotValuesLambda,
+  sourceWithDerived,
 } from './query.ts';
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
@@ -369,22 +370,45 @@ export class CubeController {
    * flat query, each with its row cap -- because a check of a
    * different query passes a draft its own run then refuses (a Row
    * Limit the planner refused sailed through a cap-less compile).
-   * Resolves to the first refused query and the refusal, the first
-   * query and null when all compile, or undefined when this plane
-   * cannot compile without executing. `shown` is the view on screen: a
+   * Its columns are typed first, as a refresh types them (step 0,
+   * `typeColumns`): an aggregate is chosen by a column's type, so a
+   * draft column left untyped would compile one aggregate where its run
+   * sends another (the one default-aggregate rule, query.ts
+   * `defaultAggregate`). Resolves to the first refused query and the
+   * refusal -- the typing query's own refusal first -- or the first
+   * query and null when all compile. `shown` is the view on screen: a
    * pivoted draft on the same keys compiles with its values.
    */
   async compile(
     state: RunState,
     shown: CubeView | null,
     signal?: AbortSignal,
-  ): Promise<CompileOutcome | undefined> {
+  ): Promise<CompileOutcome> {
     const { snapshot, tree } = state;
     const runner = this.#runner;
-    const s: CubeSnapshot = {
+    const reading: CubeSnapshot = {
       ...snapshot,
       source: { query: this.#snaps.sourceFor(snapshot.source.query) },
     };
+    // STEP 0, as a refresh's: the columns' types, from the compiler, before
+    // any query reads them to choose an aggregate. A check adopts nothing
+    // (its schema changes are the run's to report); a refusal is its answer
+    // -- building the typing query's (no query to show), or the compiler's.
+    let typing: Lambda;
+    try {
+      refuseMeasuresList(snapshot);
+      typing = sourceWithDerived(reading).lambda();
+    } catch (error: unknown) {
+      if (!(error instanceof CubeRefusal)) throw error;
+      return { refusal: error.message };
+    }
+    let s: CubeSnapshot;
+    try {
+      s = (await typeColumns(reading, runner, signal)).snapshot;
+    } catch (error: unknown) {
+      if (signal?.aborted) throw error;
+      return { query: typing, refusal: error instanceof Error ? error.message : String(error) };
+    }
     const scopes: (LevelScope | undefined)[] = [];
     if (s.rows.length > 0) {
       const limit = (s.maxRows ?? DEFAULT_MAX_ROWS) + 1;
@@ -498,6 +522,7 @@ export class CubeController {
   async run(state: RunState): Promise<CubeView | Stale> {
     const { snapshot, tree } = state;
     return this.#guard.issue(async (epoch, signal) => {
+      refuseMeasuresList(snapshot);
       // EVERY QUERY'S RECEIPT, from the engine that ran it: the view says what answered it
       // (receipt.ts). Collected by wrapping the runner for this run, so a tree's levels, a
       // pivot's values and the type query are all on it, not just the query behind the rows.
@@ -518,7 +543,8 @@ export class CubeController {
       const typed = await typeColumns(reading, runner, signal);
       const withEpoch: CubeSnapshot = typed.snapshot;
       const withChanges = typed.changes.length > 0 ? { schemaChanges: typed.changes } : {};
-      const measureNames = withEpoch.measures.map((m) => m.name);
+      // a grid asks no measures of its own (snapshot.ts QuerySnapshot): its pivot's headers are the plan's (pivotPaths)
+      const measureNames: readonly string[] = [];
       // STEP 1 of a pivoted cube: its values, from their own query,
       // on this refresh's data (plan.ts). Every level is then one
       // groupBy written with them.

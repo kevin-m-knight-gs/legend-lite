@@ -54,7 +54,7 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
             // (MongoDb.unfolded)
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
-            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).

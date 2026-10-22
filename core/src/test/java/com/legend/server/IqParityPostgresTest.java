@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.IqAnswers;
 import com.legend.testcases.IqParity;
 import com.legend.testcases.SqlParity;
@@ -49,7 +51,7 @@ class IqParityPostgresTest {
         List<String> problems = new ArrayList<>(IqAnswers.guards(runs, answers, Files.readAllBytes(schemaFile)));
         EmbeddedPostgres pg = EmbeddedPostgres.shared();
         try (Connection admin = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
-            IqParity.seed(admin, tables, true);
+            IqParity.seed(TestBackends.of(DatabaseType.Postgres), admin, tables);
             grantToThisAccount(admin, tables);
             String model = IqParity.model(tables, String.format(Locale.ROOT, "type: Postgres;\n    specification:"
                     + " Static { host: '127.0.0.1'; port: %d; name: 'postgres'; };\n    auth: Test;", pg.port()));
@@ -60,12 +62,24 @@ class IqParityPostgresTest {
                 if (mismatch != null) {
                     problems.add(mismatch);
                 }
-                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, admin)));
+                SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
+                        island -> service.execute(model, island, IqParity.RUNTIME, admin));
+                outcomes.put(r.key(), outcome);
+                // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
+                String nondeterministic = IqParity.determinism(r, tables, outcome.status());
+                if (nondeterministic != null) {
+                    problems.add(nondeterministic);
+                }
             }
             String update = System.getProperty("iq.parity.update");
             problems.addAll(IqParity.ratchet(runs, outcomes, Runfile.property("iq.parity.ledger"), "postgres",
                     update == null ? null : Path.of(update)));
+            if (update == null) {
+                // IQ island, landing 4 (WP1), 2026-10-14: every FAIL, BUG or ERROR is a listed iq17 divergence, and
+                // the list only shrinks
+                problems.addAll(IqParity.divergences(runs, outcomes, Runfile.property("iq.parity.divergences"),
+                        "postgres"));
+            }
         }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
     }

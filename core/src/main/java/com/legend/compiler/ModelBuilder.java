@@ -143,6 +143,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     private final ArrayList<ServiceDefinition>     services      = new ArrayList<>();
     /** {@code ###Data} elements — the bodies test suites reference by name. */
     private final ArrayList<com.legend.model.DataDefinition> dataElements = new ArrayList<>();
+    private final ArrayList<com.legend.model.DataSpaceDefinition> dataSpaces = new ArrayList<>();
     private final ArrayList<RuntimeDefinition>     runtimes      = new ArrayList<>();
     private final ArrayList<ConnectionDefinition>  connections   = new ArrayList<>();
     /** Named model-store connections (Json/Xml/ModelChain) — indexed so a
@@ -335,6 +336,8 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
                 case ServiceDefinition sd -> putAtId(services, intern(sd.qualifiedName()), sd);
                 case com.legend.model.DataDefinition dd ->
                         putAtId(dataElements, intern(dd.qualifiedName()), dd);
+                case com.legend.model.DataSpaceDefinition ds ->
+                        putAtId(dataSpaces, intern(ds.qualifiedName()), ds);
                 case ConnectionDefinition cd -> putAtId(connections, intern(cd.qualifiedName()), cd);
                 case com.legend.model.ModelConnectionDefinition mc ->
                         modelConnections.put(mc.qualifiedName(), mc);
@@ -372,6 +375,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             case MappingDefinition md -> idGet(mappings, id) == md;
             case ServiceDefinition sd -> idGet(services, id) == sd;
             case com.legend.model.DataDefinition dd -> idGet(dataElements, id) == dd;
+            case com.legend.model.DataSpaceDefinition ds -> idGet(dataSpaces, id) == ds;
             case ConnectionDefinition cd -> idGet(connections, id) == cd;
             case RuntimeDefinition rd -> idGet(runtimes, id) == rd;
             case Function fn -> {
@@ -892,6 +896,12 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         return Optional.ofNullable(idGet(dataElements, symbols.resolveId(fqn)));
     }
 
+    /** O(1). Returns the {@code ###DataSpace} element for {@code fqn}, if any (the graph a Cypher island's
+     *  {@code USE} names, docs/CYPHER_STUDY_2026_10_15.md §12.45). */
+    public Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {
+        return Optional.ofNullable(idGet(dataSpaces, symbols.resolveId(fqn)));
+    }
+
     /** O(1). Returns {@link RuntimeDefinition} for {@code fqn}, if any. */
     public Optional<RuntimeDefinition> findRuntime(@com.legend.base.Nullable String fqn) {
         if (fqn == null) {
@@ -1277,6 +1287,21 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     /** All {@link RuntimeDefinition}s in ingest order. */
     public Stream<RuntimeDefinition> runtimes() {
         return inOrder(runtimes);
+    }
+
+    /** All {@link ServiceDefinition}s in ingest order (the integrity pass's references). */
+    public Stream<ServiceDefinition> services() {
+        return inOrder(services);
+    }
+
+    /** All data spaces in ingest order (the integrity pass's references). */
+    public Stream<com.legend.model.DataSpaceDefinition> dataSpaces() {
+        return inOrder(dataSpaces);
+    }
+
+    /** All registered relational connections in ingest order, a runtime's hoisted inline ones among them. */
+    public Stream<ConnectionDefinition> connections() {
+        return inOrder(connections);
     }
 
     /** The ELEMENT's own import scope, else the model-wide one — store

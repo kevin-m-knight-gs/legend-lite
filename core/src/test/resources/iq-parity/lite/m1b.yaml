@@ -125,8 +125,12 @@ tests:
   - id: name_of_a_constant_scalar_subquery
     sql: "SELECT (SELECT 1 + 1 FROM DUMMY), ((SELECT dummy_col FROM DUMMY))"
     engine: sa
+  # IQ island, 2026-10-14 (the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16): answered now; the id
+  # is kept as the ledger's key
   - id: name_with_a_comment_is_refused
     sql: "SELECT id /* one */ + 1 FROM t WHERE id = 1"
+  # IQ island, 2026-10-17 (measured on IQ 17.1): named now, by the derived column's definition (t.id as x+1), the id
+  # kept from when it was refused
   - id: name_over_a_derived_column_is_refused
     sql: "SELECT x + 1 FROM (SELECT id AS x FROM t) d WHERE x = 1"
   - id: name_of_a_bare_derived_column
@@ -281,7 +285,7 @@ tests:
     sql: "SELECT t.id, DUMMY.dummy_col FROM t CROSS JOIN DUMMY WHERE t.id = 1"
   - id: cross_join_with_on_is_a_syntax_error
     sql: "SELECT t.id FROM t CROSS JOIN u ON t.id = u.id"
-  - id: cross_apply_is_refused
+  - id: cross_apply_of_a_constant_row
     sql: "SELECT t.id FROM t CROSS APPLY (SELECT 1 AS x) d"
 
   # ---- NATURAL JOIN: the shared columns are not merged
@@ -356,6 +360,8 @@ tests:
     sql: "SELECT d.x + 1 AS y FROM (SELECT it AS x FROM t WHERE id > 2) d ORDER BY 1"
   - id: derived_table_smallint_overflow
     sql: "SELECT d.x + 1 AS y FROM (SELECT sm AS x FROM t WHERE id = 1) d"
+    decision: D-N3
+    expect: '{"columns": [["y", "integer", 0]], "rows": [["32768"]]}'
   - id: derived_table_computed_column
     sql: "SELECT d.y FROM (SELECT id * 10 AS y FROM t WHERE id < 3) d ORDER BY 1"
   - id: derived_table_nested
@@ -437,7 +443,7 @@ tests:
     sql: "SELECT IF EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id) THEN 1 ELSE 0 ENDIF AS x FROM t WHERE id = 1"
   - id: exists_in_if_in_the_front_end
     sql: "SELECT IF EXISTS (SELECT 1 FROM sa_rowgenerator(1, 3) WHERE row_num = 2) THEN 1 ELSE 0 ENDIF AS x"
-  - id: exists_in_the_on_is_refused
+  - id: exists_in_the_on
     sql: "SELECT t.id FROM t JOIN u ON t.id = u.t_id AND EXISTS (SELECT 1 FROM DUMMY)"
   - id: exists_with_a_union_is_refused
     sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u UNION SELECT 2 FROM DUMMY)"
@@ -469,7 +475,7 @@ tests:
     sql: "SELECT id FROM t WHERE vc IN (SELECT 'x' FROM DUMMY)"
   - id: in_subquery_of_dummy
     sql: "SELECT id FROM t WHERE id IN (SELECT dummy_col + 1 FROM DUMMY)"
-  - id: in_subquery_of_a_union_is_refused
+  - id: in_subquery_of_a_union
     sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u UNION SELECT 7 FROM DUMMY) ORDER BY 1"
   - id: in_subquery_of_a_union_in_the_front_end
     sql: "SELECT IF 2 IN (SELECT 1 FROM DUMMY UNION ALL SELECT 2 FROM DUMMY) THEN 'T' ELSE 'F' ENDIF AS x"
@@ -551,8 +557,9 @@ tests:
     sql: "SELECT bt FROM t UNION SELECT sm FROM t WHERE id < 3 ORDER BY 1"
   - id: union_all_of_strings
     sql: "SELECT vc FROM t WHERE id < 3 UNION ALL SELECT label FROM u WHERE id = 1"
-  - id: union_of_strings_is_refused
+  - id: union_of_strings
     sql: "SELECT vc FROM t UNION SELECT label FROM u"
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   # IQ island, 2026-10-14 (the merge of M1b/M1c with the natives slice): was union_all_ordered_by_a_string_is_refused; IQ's collation answers it now
   - id: union_all_ordered_by_a_string
     sql: "SELECT vc FROM t UNION ALL SELECT label FROM u ORDER BY 1"
@@ -562,11 +569,11 @@ tests:
     sql: "SELECT ts FROM t WHERE id = 1 UNION ALL SELECT ts FROM t WHERE id = 7 ORDER BY 1"
   - id: union_of_doubles
     sql: "SELECT dbl FROM t WHERE id < 3 UNION SELECT dbl FROM t WHERE id = 7 ORDER BY 1"
-  - id: union_of_numerics_is_refused
+  - id: union_of_numerics
     sql: "SELECT nm FROM t UNION SELECT qty FROM u"
   - id: union_integer_with_numeric_is_refused
     sql: "SELECT 1 UNION SELECT 1.5"
-  - id: union_integer_with_double_is_refused
+  - id: union_integer_with_double
     sql: "SELECT id FROM t UNION ALL SELECT dbl FROM t"
   - id: union_parenthesized_branches
     sql: "(SELECT id FROM t) UNION (SELECT t_id FROM u) ORDER BY 1"
@@ -578,6 +585,7 @@ tests:
     sql: "SELECT TOP 1 id FROM t ORDER BY id UNION SELECT 1"
   - id: union_branch_with_top_is_refused
     sql: "SELECT TOP 1 id FROM t UNION SELECT 1"
+    nondeterministic: "tests the refusal of a TOP in a set operation's branch, which has no ORDER BY of its own"
   - id: union_branch_with_with_is_a_syntax_error
     sql: "SELECT 1 UNION ALL (WITH x AS (SELECT 1 a) SELECT a FROM x)"
   - id: union_three_branches

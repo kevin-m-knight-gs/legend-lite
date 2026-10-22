@@ -35,6 +35,4 @@ public interface RawSectionGrammar extends com.legend.spi.SectionGrammar {
         return parseRaw(src);
     }
 
-    /** Transform one parsed element into the model. */
-    com.legend.model.PackageableElement toModel(Protocol.Element element);
 }

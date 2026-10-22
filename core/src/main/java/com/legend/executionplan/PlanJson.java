@@ -18,9 +18,7 @@ import com.legend.executionplan.ExecutionPlan.TdsResult;
 import com.legend.executionplan.ExecutionPlan.TextResult;
 import com.legend.executionplan.ExecutionPlan.Value;
 import com.legend.json.Json;
-import com.legend.model.AuthenticationSpec;
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionSpecification;
+import com.legend.model.ConnectionWire;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -71,13 +69,6 @@ public final class PlanJson {
     enum DatabaseTag { declared, platform }
 
     enum ServersTag { every, versions }
-
-    enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Trino, Snowflake, Spanner,
-        Databricks, BigQuery }
-
-    enum AuthenticationTag { NoAuth, DefaultH2, TestAuth, GCPApplicationDefaultCredentials, UsernamePassword,
-        DelegatedKerberos, VaultUserNamePassword, SnowflakePublic, ApiToken, MiddleTierUserNamePassword, OAuth,
-        GcpWorkloadIdentityFederation }
 
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
         return named(family, o.getString("_type"), what + " _type");
@@ -294,7 +285,7 @@ public final class PlanJson {
         switch (database) {
             case ExecutionPlan.Database.Declared d -> {
                 o.put("_type", DatabaseTag.declared.name());
-                o.put("connection", connection(d.connection()));
+                o.put("connection", ConnectionWire.write(d.connection()));
             }
             case ExecutionPlan.Database.Platform p -> {
                 o.put("_type", DatabaseTag.platform.name());
@@ -333,152 +324,6 @@ public final class PlanJson {
             }
         }
         return o;
-    }
-
-    private static Map<String, Object> connection(ConnectionDefinition c) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        o.put("name", c.qualifiedName());
-        if (c.storeName() != null) {
-            o.put("store", c.storeName());
-        }
-        o.put("databaseType", c.databaseType().name());
-        o.put("specification", specification(c.specification()));
-        o.put("authentication", authentication(c.authentication()));
-        return o;
-    }
-
-    private static Map<String, Object> specification(ConnectionSpecification spec) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        switch (spec) {
-            case ConnectionSpecification.InMemory x -> o.put("_type", SpecificationTag.InMemory.name());
-            case ConnectionSpecification.LocalFile x -> {
-                o.put("_type", SpecificationTag.LocalFile.name());
-                o.put("path", x.path());
-            }
-            case ConnectionSpecification.LocalH2 x -> {
-                o.put("_type", SpecificationTag.LocalH2.name());
-                putIfSet(o, "url", x.url());
-                putIfSet(o, "testDataSetupCsv", x.testDataSetupCsv());
-                if (x.testDataSetupSqls() != null) {
-                    o.put("testDataSetupSqls", x.testDataSetupSqls());
-                }
-            }
-            case ConnectionSpecification.EmbeddedH2 x -> {
-                o.put("_type", SpecificationTag.EmbeddedH2.name());
-                o.put("databaseName", x.databaseName());
-                o.put("directory", x.directory());
-                o.put("autoServerMode", x.autoServerMode());
-            }
-            case ConnectionSpecification.StaticDatasource x -> {
-                o.put("_type", SpecificationTag.StaticDatasource.name());
-                o.put("host", x.host());
-                o.put("port", x.port());
-                o.put("database", x.database());
-            }
-            case ConnectionSpecification.Trino x -> {
-                o.put("_type", SpecificationTag.Trino.name());
-                o.put("host", x.host());
-                o.put("port", x.port());
-                putIfSet(o, "catalog", x.catalog());
-                putIfSet(o, "schema", x.schema());
-                putIfSet(o, "clientTags", x.clientTags());
-                o.put("ssl", x.ssl());
-            }
-            case ConnectionSpecification.Snowflake x -> {
-                o.put("_type", SpecificationTag.Snowflake.name());
-                o.put("databaseName", x.databaseName());
-                o.put("accountName", x.accountName());
-                o.put("warehouseName", x.warehouseName());
-                o.put("region", x.region());
-                putIfSet(o, "accountType", x.accountType());
-                putIfSet(o, "cloudType", x.cloudType());
-                if (x.enableQueryTags() != null) {
-                    o.put("enableQueryTags", x.enableQueryTags());
-                }
-                putIfSet(o, "organization", x.organization());
-                putIfSet(o, "role", x.role());
-            }
-            case ConnectionSpecification.Spanner x -> {
-                o.put("_type", SpecificationTag.Spanner.name());
-                o.put("projectId", x.projectId());
-                o.put("instanceId", x.instanceId());
-                o.put("databaseId", x.databaseId());
-            }
-            case ConnectionSpecification.Databricks x -> {
-                o.put("_type", SpecificationTag.Databricks.name());
-                o.put("hostname", x.hostname());
-                o.put("port", x.port());
-                o.put("protocol", x.protocol());
-                o.put("httpPath", x.httpPath());
-            }
-            case ConnectionSpecification.BigQuery x -> {
-                o.put("_type", SpecificationTag.BigQuery.name());
-                o.put("projectId", x.projectId());
-                o.put("defaultDataset", x.defaultDataset());
-            }
-        }
-        return o;
-    }
-
-    private static Map<String, Object> authentication(AuthenticationSpec auth) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        switch (auth) {
-            case AuthenticationSpec.NoAuth x -> o.put("_type", AuthenticationTag.NoAuth.name());
-            case AuthenticationSpec.DefaultH2 x -> o.put("_type", AuthenticationTag.DefaultH2.name());
-            case AuthenticationSpec.TestAuth x -> o.put("_type", AuthenticationTag.TestAuth.name());
-            case AuthenticationSpec.GCPApplicationDefaultCredentials x ->
-                    o.put("_type", AuthenticationTag.GCPApplicationDefaultCredentials.name());
-            case AuthenticationSpec.UsernamePassword x -> {
-                o.put("_type", AuthenticationTag.UsernamePassword.name());
-                o.put("username", x.username());
-                o.put("passwordVaultRef", x.passwordVaultRef());
-            }
-            case AuthenticationSpec.DelegatedKerberos x -> {
-                o.put("_type", AuthenticationTag.DelegatedKerberos.name());
-                putIfSet(o, "serverPrincipal", x.serverPrincipal());
-                putIfSet(o, "kerberosRemoteServiceName", x.kerberosRemoteServiceName());
-                if (x.kerberosUseCanonicalHostname() != null) {
-                    o.put("kerberosUseCanonicalHostname", x.kerberosUseCanonicalHostname());
-                }
-            }
-            case AuthenticationSpec.VaultUserNamePassword x -> {
-                o.put("_type", AuthenticationTag.VaultUserNamePassword.name());
-                putIfSet(o, "baseVaultReference", x.baseVaultReference());
-                o.put("userNameVaultReference", x.userNameVaultReference());
-                o.put("passwordVaultReference", x.passwordVaultReference());
-            }
-            case AuthenticationSpec.SnowflakePublic x -> {
-                o.put("_type", AuthenticationTag.SnowflakePublic.name());
-                o.put("publicUserName", x.publicUserName());
-                o.put("privateKeyVaultReference", x.privateKeyVaultReference());
-                o.put("passPhraseVaultReference", x.passPhraseVaultReference());
-            }
-            case AuthenticationSpec.ApiToken x -> {
-                o.put("_type", AuthenticationTag.ApiToken.name());
-                o.put("apiToken", x.apiToken());
-            }
-            case AuthenticationSpec.MiddleTierUserNamePassword x -> {
-                o.put("_type", AuthenticationTag.MiddleTierUserNamePassword.name());
-                o.put("vaultReference", x.vaultReference());
-            }
-            case AuthenticationSpec.OAuth x -> {
-                o.put("_type", AuthenticationTag.OAuth.name());
-                o.put("oauthKey", x.oauthKey());
-                o.put("scopeName", x.scopeName());
-            }
-            case AuthenticationSpec.GcpWorkloadIdentityFederation x -> {
-                o.put("_type", AuthenticationTag.GcpWorkloadIdentityFederation.name());
-                o.put("serviceAccountEmail", x.serviceAccountEmail());
-                o.put("additionalGcpScopes", x.additionalGcpScopes());
-            }
-        }
-        return o;
-    }
-
-    private static void putIfSet(Map<String, Object> o, String key, @com.legend.base.Nullable String value) {
-        if (value != null) {
-            o.put(key, value);
-        }
     }
 
     // ---- read -------------------------------------------------------------------------------------------------------
@@ -625,9 +470,9 @@ public final class PlanJson {
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {
         return switch (tag(DatabaseTag.class, o, "database")) {
-            case declared -> new ExecutionPlan.Database.Declared(readConnection(o.getObj("connection")));
+            case declared -> new ExecutionPlan.Database.Declared(ConnectionWire.read(fields(o.getObj("connection"))));
             case platform -> new ExecutionPlan.Database.Platform(
-                    named(ConnectionDefinition.DatabaseType.class, o.getString("databaseType"), "database type"));
+                    ConnectionWire.databaseType(o.getString("databaseType")));
         };
     }
 
@@ -672,62 +517,43 @@ public final class PlanJson {
                 + ": a cell is text or null (the database types it)");
     }
 
-    private static ConnectionDefinition readConnection(Json.Obj o) {
-        return new ConnectionDefinition(o.getString("name"), o.getStringOr("store", null),
-                ConnectionDefinition.DatabaseType.valueOf(o.getString("databaseType")),
-                readSpecification(o.getObj("specification")), readAuthentication(o.getObj("authentication")));
-    }
+    /** {@code o} as the fields a model record reads ({@link ConnectionWire}: the model depends on no JSON). */
+    private static ConnectionWire.Fields fields(Json.Obj o) {
+        return new ConnectionWire.Fields() {
+            @Override
+            public String string(String key) {
+                return o.getString(key);
+            }
 
-    private static ConnectionSpecification readSpecification(Json.Obj o) {
-        return switch (tag(SpecificationTag.class, o, "connection specification")) {
-            case InMemory -> new ConnectionSpecification.InMemory();
-            case LocalFile -> new ConnectionSpecification.LocalFile(o.getString("path"));
-            case LocalH2 -> new ConnectionSpecification.LocalH2(o.getStringOr("url", null),
-                    o.getStringOr("testDataSetupCsv", null),
-                    o.has("testDataSetupSqls") ? o.getStringArray("testDataSetupSqls") : null);
-            case EmbeddedH2 -> new ConnectionSpecification.EmbeddedH2(o.getString("databaseName"),
-                    o.getString("directory"), o.getBool("autoServerMode"));
-            case StaticDatasource -> new ConnectionSpecification.StaticDatasource(o.getString("host"),
-                    o.getInt("port"), o.getString("database"));
-            case Trino -> new ConnectionSpecification.Trino(o.getString("host"), o.getInt("port"),
-                    o.getStringOr("catalog", null), o.getStringOr("schema", null), o.getStringOr("clientTags", null),
-                    o.getBool("ssl"));
-            case Snowflake -> new ConnectionSpecification.Snowflake(o.getString("databaseName"),
-                    o.getString("accountName"), o.getString("warehouseName"), o.getString("region"),
-                    o.getStringOr("accountType", null), o.getStringOr("cloudType", null),
-                    o.has("enableQueryTags") ? o.getBool("enableQueryTags") : null,
-                    o.getStringOr("organization", null), o.getStringOr("role", null));
-            case Spanner -> new ConnectionSpecification.Spanner(o.getString("projectId"), o.getString("instanceId"),
-                    o.getString("databaseId"));
-            case Databricks -> new ConnectionSpecification.Databricks(o.getString("hostname"), o.getString("port"),
-                    o.getString("protocol"), o.getString("httpPath"));
-            case BigQuery -> new ConnectionSpecification.BigQuery(o.getString("projectId"),
-                    o.getString("defaultDataset"));
-        };
-    }
+            @Override
+            public @com.legend.base.Nullable String optionalString(String key) {
+                return o.getStringOr(key, null);
+            }
 
-    private static AuthenticationSpec readAuthentication(Json.Obj o) {
-        return switch (tag(AuthenticationTag.class, o, "authentication")) {
-            case NoAuth -> new AuthenticationSpec.NoAuth();
-            case DefaultH2 -> new AuthenticationSpec.DefaultH2();
-            case TestAuth -> new AuthenticationSpec.TestAuth();
-            case GCPApplicationDefaultCredentials -> new AuthenticationSpec.GCPApplicationDefaultCredentials();
-            case UsernamePassword -> new AuthenticationSpec.UsernamePassword(o.getString("username"),
-                    o.getString("passwordVaultRef"));
-            case DelegatedKerberos -> new AuthenticationSpec.DelegatedKerberos(o.getStringOr("serverPrincipal", null),
-                    o.getStringOr("kerberosRemoteServiceName", null),
-                    o.has("kerberosUseCanonicalHostname") ? o.getBool("kerberosUseCanonicalHostname") : null);
-            case VaultUserNamePassword -> new AuthenticationSpec.VaultUserNamePassword(
-                    o.getStringOr("baseVaultReference", null), o.getString("userNameVaultReference"),
-                    o.getString("passwordVaultReference"));
-            case SnowflakePublic -> new AuthenticationSpec.SnowflakePublic(o.getString("publicUserName"),
-                    o.getString("privateKeyVaultReference"), o.getString("passPhraseVaultReference"));
-            case ApiToken -> new AuthenticationSpec.ApiToken(o.getString("apiToken"));
-            case MiddleTierUserNamePassword -> new AuthenticationSpec.MiddleTierUserNamePassword(
-                    o.getString("vaultReference"));
-            case OAuth -> new AuthenticationSpec.OAuth(o.getString("oauthKey"), o.getString("scopeName"));
-            case GcpWorkloadIdentityFederation -> new AuthenticationSpec.GcpWorkloadIdentityFederation(
-                    o.getString("serviceAccountEmail"), o.getStringArray("additionalGcpScopes"));
+            @Override
+            public int integer(String key) {
+                return o.getInt(key);
+            }
+
+            @Override
+            public boolean bool(String key) {
+                return o.getBool(key);
+            }
+
+            @Override
+            public boolean has(String key) {
+                return o.has(key);
+            }
+
+            @Override
+            public java.util.List<String> strings(String key) {
+                return o.getStringArray(key);
+            }
+
+            @Override
+            public ConnectionWire.Fields object(String key) {
+                return fields(o.getObj(key));
+            }
         };
     }
 }

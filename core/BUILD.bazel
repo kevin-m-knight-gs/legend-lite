@@ -96,8 +96,12 @@ legend_java_library(
     name = "parser",
     srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
+    deps = ["//base", ":error", ":lexer", ":protocol", ":spi", ":values"],
 )
+
+# THE TEXT'S DOOR (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8's last step): a text's records (the parser's) made the
+# compiler's model (ModelFromProtocol) -- the one place the two meet, so the parser depends on no model
+legend_java_library(name = "door", srcs = glob(["src/main/java/com/legend/door/*.java"]), deps = ["//base", ":model", ":parser", ":protocol"])
 
 # the platform's declarations, generated from the pinned upstream; the four
 # resources (prelude, handler surface, imports, membership) ride here because
@@ -111,7 +115,7 @@ legend_java_library(
         ["src/main/resources/**"],
         exclude = ["src/main/resources/com/legend/builtin/native-claims.tsv"],
     ),
-    deps = ["//base", ":error", ":model", ":parser", ":protocol"],
+    deps = ["//base", ":door", ":error", ":model", ":parser", ":protocol"],
 )
 # :error since 2026-10-09 (build rebuild Phase 3b, item 1b): PlatformPure.adopt refuses a declaration whose parameter
 # names differ from the platform's own version with a ModelException, the model error it is
@@ -130,13 +134,13 @@ legend_java_library(
 )
 
 # THE plan-side owner of every per-database decision (C3 of
-# docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a declared DatabaseType -> its dialect,
-# legend-engine's text for it, its plan facts. No JDBC: the browser planner carries it.
+# docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a declared DatabaseType -> its dialect, which
+# answers its plan facts (the dialect program's Phase 5, 2026-10-16). No JDBC: the browser planner carries it.
 legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":execution_plan", ":model", ":sql_dialect"],
+    deps = ["//base", ":error", ":model", ":sql_dialect"],
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
@@ -171,7 +175,7 @@ legend_java_library(
     name = "plan",
     visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":lineage", ":model", ":sql"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":execution_plan", ":lineage", ":model", ":sql"],
 )
 legend_java_library(
     name = "resolver",
@@ -225,7 +229,7 @@ legend_java_library(
     visibility = ["//datacube:__pkg__"],
     srcs = _PLANNER_SRCS,
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
         ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":validation", ":values",
     ],
@@ -241,7 +245,7 @@ legend_java_library(
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
-legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":lexer", ":model", ":parser"])
+legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
@@ -257,9 +261,10 @@ legend_java_library(
         "src/main/java/com/legend/server/CreateClass.java",
         "src/main/java/com/legend/server/CreateDataSpace.java",
         "src/main/java/com/legend/server/ModelChanges.java",
+        "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
     ],
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
 )
 legend_java_library(
     name = "server_lib",
@@ -270,6 +275,7 @@ legend_java_library(
             "src/main/java/com/legend/server/CreateClass.java",
             "src/main/java/com/legend/server/CreateDataSpace.java",
             "src/main/java/com/legend/server/ModelChanges.java",
+            "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
         ],
     ),
@@ -277,7 +283,7 @@ legend_java_library(
 )
 
 _CORE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":probe", ":testdatagen",
     ":execution_plan", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
@@ -287,7 +293,7 @@ _CORE_TARGETS = [
 # stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
 # depends on this, so the build proves it carries no database and no driver.
 _PLAN_SIDE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":planner", ":pure_v1",
 ]
@@ -397,8 +403,6 @@ legend_java_binary(
     visibility = [
         "//:__pkg__",
         "//fixtures/saved-queries:__pkg__",
-        # Python's planner on a server, tested against this one (//python:upstream_test; the program's G1)
-        "//python:__pkg__",
         "//query:__pkg__",
         "//query-store:__pkg__",
     ],
@@ -416,7 +420,11 @@ _CENSUS_READS = _CORE_READS + [
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",
+    "//native:main_java",
+    "//testing:main_java",
+    "//warehouse:main_java",
     "//warehouse:test_java",
+    "//wasm:planner_java",
 ]
 
 # core's tests, compiled ONCE; every lane below runs from this library.
@@ -438,17 +446,25 @@ legend_java_library(
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
+            "src/test/java/com/legend/FixtureAsidePostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
             "src/test/java/com/legend/server/IqParityPostgresTest.java",
+            # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
+            "src/test/java/com/legend/integration/IqCorpusTest.java",
+            # the regression suite's corpus lane is :pg_regress_corpus_test's alone (manual): it fails without
+            # -Dsql.corpus.regress (2026-10-17)
+            "src/test/java/com/legend/integration/PostgresRegressCorpusTest.java",
             # the #Cypher{...}# island's parity lanes are :cypher_parity_test's and :cypher_parity_postgres_test's
             "src/test/java/com/legend/integration/CypherParityTest.java",
             "src/test/java/com/legend/server/CypherParityPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
+            # the tests' databases are :test_backends's
+            "src/test/java/com/legend/testbackend/*.java",
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
             "src/test/java/com/legend/parser/SectionGrammarRegistryTest.java",
             "src/test/java/com/legend/parser/ToySectionGrammar.java",
@@ -475,13 +491,14 @@ legend_java_library(
             "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
         ],
     ),
-    # :duckdb_load: the bulk-load path RowLoadTest judges, declared, not borrowed from :drivers (P3-02)
+    # :duckdb_load: the bulk-load path RowLoadDuckDbTest judges, declared, not borrowed from :drivers (P3-02)
     runtime_deps = [
         ":duckdb_load",
         ":shadow_binding",
     ],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
@@ -567,8 +584,14 @@ _CORE_TEST_PACKAGES = [
 
 # Measured 2026-10-05: every package's live heap peak is under 342 MB (the largest, root, 264 MB), so P1-21's rule
 # (the live peak plus half again, at least 512 MB, rounded up to 256 MB) gives each 512 MB. The longest, integration,
-# runs 31 s on a desk: no shards, and `medium` (300 s) leaves CI's slower runners room.
+# ran 31 s on a desk then: no shards, and `medium` (300 s) left CI's slower runners room. 2026-10-18: integration has
+# grown to 95-100 s on a Linux desk, and on CI's Windows runner it reached its 300 s limit, timing out on main's own
+# push run of da2dd235 (300.3 s) and on #54's first run (300.8 s), passing on re-runs of the same commits: it is
+# `large` (900 s); the other packages stay `medium`.
 _CORE_TEST_MEMORY_MB = 512
+
+# the packages whose run outgrew `medium`'s 300 s on CI's slowest runner (above)
+_CORE_TEST_LARGE = ["integration"]
 
 _CORE_TEST_EXCLUDED_TAGS = [
     "benchmark",   # the seam measurement (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): its own manual targets below
@@ -581,7 +604,7 @@ _CORE_TEST_EXCLUDED_TAGS = [
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
-    size = "medium",
+    size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
@@ -619,10 +642,10 @@ junit_test(
     name = "corpus_differential_test",
     memory_mb = 768,
     data = [
-        "//scripts/corpus:diff/seed.sql",
+        "//scripts/corpus:diff/seed.json",
         "//scripts/corpus:gen_differential",
     ],
-    jvm_flags = ["-Dcorpus.differential.seed=$(rlocationpath //scripts/corpus:diff/seed.sql)"],
+    jvm_flags = ["-Dcorpus.differential.seed=$(rlocationpath //scripts/corpus:diff/seed.json)"],
     select = ["--select-class=com.legend.integration.CorpusDifferentialTest"],
     runtime_deps = [
         ":core_tests_lib",
@@ -645,12 +668,12 @@ java_test(
 )
 
 # THE BULK-LOAD PATH, on its own (Bazel workplan P3-02): DuckDB's Appender is found through ServiceLoader
-# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadTest asserts the Appender ran.
+# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadDuckDbTest asserts the Appender ran.
 junit_test(
     name = "duckdb_load_test",
     memory_mb = 768,
     size = "small",
-    select = ["--select-class=com.legend.exec.RowLoadTest"],
+    select = ["--select-class=com.legend.exec.RowLoadDuckDbTest"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
@@ -676,8 +699,8 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
-        "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
@@ -691,9 +714,16 @@ junit_test(
     name = "seam_benchmark",
     memory_mb = 2048,
     size = "enormous",
-    srcs = ["src/test/java/com/legend/exec/SeamBenchmarkTest.java"],
+    srcs = [
+        "src/test/java/com/legend/exec/SeamBenchmark.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
+    ],
     jvm_flags = ["-Duser.timezone=GMT"],
-    select = ["--select-class=com.legend.exec.SeamBenchmarkTest"],
+    select = [
+        "--select-class=com.legend.exec.SeamBenchmarkDuckDbTest",
+        "--select-class=com.legend.exec.SeamBenchmarkH2Test",
+    ],
     tags = ["manual"],
     runtime_deps = [":drivers"],
     deps = [
@@ -706,12 +736,19 @@ junit_test(
     name = "seam_benchmark_small_heap",
     memory_mb = 256,
     size = "enormous",
-    srcs = ["src/test/java/com/legend/exec/SeamBenchmarkTest.java"],
+    srcs = [
+        "src/test/java/com/legend/exec/SeamBenchmark.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
+    ],
     jvm_flags = [
         "-Duser.timezone=GMT",
         "-Dseam.heap=small",
     ],
-    select = ["--select-class=com.legend.exec.SeamBenchmarkTest"],
+    select = [
+        "--select-class=com.legend.exec.SeamBenchmarkDuckDbTest",
+        "--select-class=com.legend.exec.SeamBenchmarkH2Test",
+    ],
     tags = ["manual"],
     runtime_deps = [":drivers"],
     deps = [
@@ -748,6 +785,8 @@ junit_test(
     deps = [
         ":core",
         ":test_cases",   # PlanRoundTrip: the plan path program's round-trip gate (step 1b)
+        # the reference's and MongoDB's storeless runtimes are their test backends' (main's merge, 2026-10-22)
+        ":test_backends",
         "//testing",
         "@bson//jar",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -780,6 +819,29 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# a clashing fixture set aside in a Postgres corpus workspace survives the rollback of the test body's attempt it was
+# set in (the dialect program's defect 5), on the embedded Postgres 16
+junit_test(
+    name = "fixture_aside_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/FixtureAsidePostgresTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.FixtureAsidePostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # the #SQL{...}# island's cases on a real Postgres (docs/LEGEND_SQL_STUDY_2026_10_11.md §3): Postgres is the spec, so
 # each case's recorded answer is checked against Postgres itself, and each island through the Postgres dialect; the
 # same cases run on DuckDB in core_tests_integration (SqlIslandIntegrationTest)
@@ -798,6 +860,7 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -838,6 +901,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -871,17 +935,21 @@ junit_test(
 # iq-parity/lite, each run under each of its profiles as an #IQ{...}# island, judged against SQL Anywhere 17's answers
 # snapped by tools/iq-oracle (CI never runs SQL Anywhere) or the case's provisional decision, each run's status held
 # by iq-parity/ledger.tsv (testcases/IqParity.java). On DuckDB here; on the embedded Postgres below (no drift step:
-# the oracle is SQL Anywhere).
-_IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/*.yaml"]) + [
+# the oracle is SQL Anywhere). IQ island, 2026-10-14 (the options framework): the case files of lite's subdirectories
+# too (lite/options/<option>.yaml).
+_IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/**/*.yaml"]) + [
     "src/test/resources/iq-parity/iq-answers.jsonl",
     "src/test/resources/iq-parity/ledger.tsv",
     "src/test/resources/iq-parity/schema.yaml",
+    # IQ island, landing 4 (WP1), 2026-10-14: the iq17-* runs' known divergences from the live IQ, shrink-only
+    "src/test/resources/iq-parity/iq17-divergences.tsv",
 ]
 
 _IQ_PARITY_FLAGS = [
     "-Diq.parity.schema=$(rlocationpath src/test/resources/iq-parity/schema.yaml)",
     "-Diq.parity.answers=$(rlocationpath src/test/resources/iq-parity/iq-answers.jsonl)",
     "-Diq.parity.ledger=$(rlocationpath src/test/resources/iq-parity/ledger.tsv)",
+    "-Diq.parity.divergences=$(rlocationpath src/test/resources/iq-parity/iq17-divergences.tsv)",
     # the case files: the directory of this file
     "-Diq.parity.lite=$(rlocationpath src/test/resources/iq-parity/lite/basics.yaml)",
 ]
@@ -897,7 +965,9 @@ _IQ_SHOWCASE_DATA = [
 junit_test(
     name = "iq_parity_test",
     memory_mb = 768,
-    size = "medium",
+    # 4,100 cases, 8,500 runs by profile, each a model compiled and a query run (IQ island, 2026-10-17): 43 s alone,
+    # past medium's 300 s in //gates:local beside the other lanes (landing 5's gate run)
+    size = "large",
     srcs = ["src/test/java/com/legend/integration/IqParityTest.java"],
     data = _IQ_PARITY_DATA + _IQ_SHOWCASE_DATA,
     jvm_flags = _IQ_PARITY_FLAGS + [
@@ -908,6 +978,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -915,10 +986,61 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# THE #SQL{...}# ISLAND OVER THE POSTGRESQL REGRESSION SUITE (the corpus program's first corpus, 2026-10-17, the
+# seventh line): each read-only statement of the suite's files, replayed in schedule order on the embedded Postgres 16,
+# judged live against Postgres (integration/PostgresRegressCorpusTest.java). Run only where -Dsql.corpus.regress names a
+# src/test/regress directory (the suite is PostgreSQL's: REL_16_STABLE); manual, not a gate:
+#   bazel test //core:pg_regress_corpus_test --strategy=TestRunner=local --test_output=all \
+#     --jvmopt=-Dsql.corpus.regress=<.../src/test/regress> --jvmopt=-Dsql.corpus.report=<report dir>
+junit_test(
+    name = "pg_regress_corpus_test",
+    memory_mb = 4096,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/PostgresRegressCorpusTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.PostgresRegressCorpusTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# the #IQ{...}# island over real-world SQL corpora (IQ island, 2026-10-15): coverage, run only where
+# -Diq.corpus.root names the corpora (their licences and size keep them out of this repository); manual, not a gate:
+#   bazel test //core:iq_corpus_test --strategy=TestRunner=local --test_output=all \
+#     --jvmopt=-Diq.corpus.root=<corpora> --jvmopt=-Diq.corpus.report=<report dir>
+junit_test(
+    name = "iq_corpus_test",
+    memory_mb = 4096,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/IqCorpusTest.java"],
+    select = ["--select-class=com.legend.integration.IqCorpusTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 junit_test(
     name = "iq_parity_postgres_test",
     memory_mb = 768,
-    size = "medium",
+    # :iq_parity_test's cases on an embedded Postgres (IQ island, 2026-10-17): sized as that lane is
+    size = "large",
     srcs = ["src/test/java/com/legend/server/IqParityPostgresTest.java"],
     data = _IQ_PARITY_DATA + [
         "@embedded_postgres//:pg/PG_ROOT",
@@ -930,6 +1052,7 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -951,6 +1074,7 @@ _CYPHER_PARITY_DATA = glob(
     exclude = ["src/test/resources/cypher-parity/tck/**/*.md"],
 ) + [
     "src/test/resources/cypher-parity/neo4j-answers.jsonl",
+    "src/test/resources/cypher-parity/cypher-functions.txt",
     "src/test/resources/cypher-parity/ledger.tsv",
     "src/test/resources/cypher-parity/decisions.tsv",
 ]
@@ -959,6 +1083,7 @@ _CYPHER_PARITY_FLAGS = [
     # the TCK's directory: the directory of its LICENSE
     "-Dcypher.parity.tck=$(rlocationpath src/test/resources/cypher-parity/tck/LICENSE)",
     "-Dcypher.parity.answers=$(rlocationpath src/test/resources/cypher-parity/neo4j-answers.jsonl)",
+    "-Dcypher.parity.functions=$(rlocationpath src/test/resources/cypher-parity/cypher-functions.txt)",
     "-Dcypher.parity.ledger=$(rlocationpath src/test/resources/cypher-parity/ledger.tsv)",
     "-Dcypher.parity.decisions=$(rlocationpath src/test/resources/cypher-parity/decisions.tsv)",
     # the case files: the directory of this file
@@ -989,7 +1114,16 @@ _CYPHER_SHOWCASE_DATA = [
 
 junit_test(
     name = "cypher_parity_test",
-    memory_mb = 1024,
+    # eternal (3600 s), the size kept (2026-10-19): main's Windows core lane timed it out at large's 900 s three times on
+    # 167018c4 (runs 39164681359 and 39262226227); measured 451-820 s on Linux and macOS and 645 s on Windows when
+    # green. Eight temporal cases send 0.3-34 MB of SQL each (CypherToPure's temporal helpers repeat an input in every
+    # use: lite/temporal/nanos_arithmetic is one 33.7 MB statement, 130 s in DuckDB's prepare) and take 75% of the
+    # lane (throwaway branch debug/cypher-parity-timing). Back to large's own timeout when the translator binds a
+    # shared temporal value once.
+    timeout = "eternal",
+    # live peak 955 MB at 1024 (measured 2026-10-18, 5062 cases, the review's cases landed): the rule's half again;
+    # at 1024 the gate's cgroup killed it beside three other tests
+    memory_mb = 1536,
     # 3,900 cases, each a model compiled and a query run: measured below medium's 300 s only on a fast machine
     size = "large",
     srcs = ["src/test/java/com/legend/integration/CypherParityTest.java"],
@@ -1002,6 +1136,7 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -1011,7 +1146,8 @@ junit_test(
 
 junit_test(
     name = "cypher_parity_postgres_test",
-    memory_mb = 1024,
+    # live peak 840 MB, 1021 MB before a collection, at 1024 (measured 2026-10-18, 5062 cases): the rule's half again
+    memory_mb = 1280,
     # 3,900 cases, each a model compiled and a query run: measured below medium's 300 s only on a fast machine
     size = "large",
     srcs = ["src/test/java/com/legend/server/CypherParityPostgresTest.java"],
@@ -1068,7 +1204,27 @@ legend_java_library(
     srcs = glob(["src/test/java/com/legend/testcases/*.java"]),
     deps = [
         ":core",
+        # the cases' tables are created on a test backend's database, by its dialect
+        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# THE TESTS' DATABASES (the dialect program's Phase 6, 2026-10-16): a TestBackend per database the platform executes on
+# (its session, its storeless runtime, a server's system connection) and TestBackends, the registry -- the harness
+# knowledge every module's tests share instead of naming a database each (core's tests, the PCT lanes, the corpus)
+legend_java_library(
+    name = "test_backends",
+    # not yet written to the null discipline (Bazel workplan P1-20), as core_tests_lib
+    nullaway = False,
+    testonly = True,
+    srcs = glob(["src/test/java/com/legend/testbackend/*.java"]),
+    visibility = ["//pct:__pkg__", "//spec:__pkg__"],
+    deps = [
+        ":core",
+        "//testing",
+        # DuckDB's corpus workspaces duplicate a connection (DuckDbWorkspaces)
+        "@duckdb_jdbc//jar",
     ],
 )
 
@@ -1208,7 +1364,7 @@ junit_test(
 )
 
 # Gate 10 on H2 (Bazel workplan P3-12): the same suites on H2, a fresh, freshly seeded session per test (the engine's
-# shape), held by MIN_PASS_H2 (StressServiceSuitesH2Test). Until 2026-10-05 the H2 floor was enforced by no lane.
+# shape), held by StressServiceSuitesH2Test.MIN_PASS. Until 2026-10-05 the H2 floor was enforced by no lane.
 junit_test(
     name = "stress_suites_h2",
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
@@ -1222,7 +1378,7 @@ junit_test(
 )
 
 # The stress corpus's measuring tool (StressTool: data overrides, row dumps, one service, a session policy):
-#   bazel run //core:stress_tool -- [--backend duckdb|h2] [--sessions fresh|shared] [--only NAME] [--data F.pure,...]
+#   bazel run //core:stress_tool -- [--backend NAME] [--sessions fresh|shared] [--only NAME] [--data F.pure,...]
 #       [--rows DIR] [--out DIR]
 legend_java_binary(
     name = "stress_tool",
@@ -1283,9 +1439,9 @@ filegroup(
     visibility = ["//spec:__pkg__"],
 )
 
-# THE STRESS CORPUS'S GENERATED FILES (Bazel workplan P2-01, from spike S5): ten files in the stress directory
+# THE STRESS CORPUS'S GENERATED FILES (Bazel workplan P2-01, from spike S5): eleven files in the stress directory
 # are outputs of //scripts/corpus's Bazel actions, diff-tested in //:generated. They are never generator INPUTS: the generators read
-# :stress_sources, which leaves all ten out.
+# :stress_sources, which leaves all eleven out.
 stress_layout(
     name = "stress_layout",
     visibility = ["//scripts/corpus:__pkg__"],
@@ -1312,7 +1468,7 @@ stress_index(
     out = "src/test/resources/com/legend/integration/stress-index.txt",
 )
 
-# every stress file, the generated ten included: what the corpus ratchets measure (//scripts/corpus, P2-04)
+# every stress file, the generated eleven included: what the corpus ratchets measure (//scripts/corpus, P2-04)
 filegroup(
     name = "stress_files",
     srcs = glob(["src/test/resources/stress/*.pure"]),
@@ -1500,6 +1656,7 @@ core_layer_queries(not_layers = {
     "postgres_cells": "Postgres's JSON cells behind the DriverCells seam, beside the drivers (the plan path program's step 9, 2026-10-19)",
     "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",
+    "test_backends": "each database as the tests run on it (pct and spec share it), not product code",
     "test_cases": "the test cases core's tests and postgres_arm_test share, not product code",
     "toy_grammar": "a toy section grammar for the registry's own test (section_grammar_registry_test)",
 })

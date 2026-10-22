@@ -75,9 +75,11 @@ public final class PureV1Api {
     /**
      * A request body's JSON. A query built as protocol JSON nests a few levels per chained
      * function, so the default limit (64, sized for configuration files) would refuse a long
-     * cube query; 1024 still bounds a hostile body.
+     * cube query; and a request may carry a whole model as data ({@code ModelInput}), which nests as deep as a
+     * model's own JSON -- the bound {@code ModelReader} reads a model's text at (4096; 2026-10-21, the independent
+     * audit: at 1024 a model compiled as text and was refused as data). It still bounds a hostile body.
      */
-    static final Json.Config REQUEST = new Json.Config(1024);
+    static final Json.Config REQUEST = new Json.Config(4096);
 
     /**
      * How a host runs an execute: the query planned and run on its runtime's connection, its rows written as
@@ -86,7 +88,9 @@ public final class PureV1Api {
      */
     @FunctionalInterface
     public interface Runner {
-        QueryPlan run(String model, LambdaFunction lambda, String runtime, java.io.Writer rows);
+        /** {@code model} compiled once, by the route (leg 8 step 3: a text's or a JSON model's alike). */
+        QueryPlan run(com.legend.compiler.element.ModelContext model, LambdaFunction lambda, String runtime,
+                java.io.Writer rows);
     }
 
     /**
@@ -216,7 +220,7 @@ public final class PureV1Api {
     public static Answer compile(String body) {
         List<String> errors = new ArrayList<>();
         Answer a = answer(400, "COMPILATION", () -> {
-            errors.addAll(com.legend.Compiler.compileErrors(modelText(request(body))));
+            errors.addAll(ModelInput.of(request(body)).compileErrors());
             return "{\"message\":\"OK\",\"defects\":[]}";
         });
         // a body's message names its element ("in function '...'")
@@ -235,7 +239,7 @@ public final class PureV1Api {
     public static Answer compileEveryError(String body) {
         return answer(400, "COMPILATION", () -> {
             List<Map<String, Object>> errors = new ArrayList<>();
-            for (String message : com.legend.Compiler.compileErrors(modelText(request(body)))) {
+            for (String message : ModelInput.of(request(body)).compileErrors()) {
                 errors.add(Map.of("message", message));
             }
             return Json.toCompact(Map.of("errors", errors));
@@ -263,9 +267,9 @@ public final class PureV1Api {
     public static Answer lambdaReturnType(String body) {
         return answer(400, "COMPILATION", () -> {
             Json.Obj request = request(body);
-            String model = modelText(request.getObj("model"));
+            ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            com.legend.compiler.element.type.Type t = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda).resultType().type();
+            com.legend.compiler.element.type.Type t = com.legend.Compiler.query(model.compile(), lambda).resultType().type();
             String path = com.legend.compiler.element.type.Type.schemaView(t) != null
                     ? "meta::pure::metamodel::relation::Relation"
                     : UpstreamRelationType.typePath(t);
@@ -298,10 +302,10 @@ public final class PureV1Api {
     public static Answer lambdaRelationType(String body) {
         return answer(400, "COMPILATION", () -> {
             Json.Obj request = request(body);
-            String model = modelText(request.getObj("model"));
+            ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
             return Json.toCompact(UpstreamRelationType.of(
-                    com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda).resultType()));
+                    com.legend.Compiler.query(model.compile(), lambda).resultType()));
         });
     }
 
@@ -314,15 +318,15 @@ public final class PureV1Api {
         // the engine answers generatePlan's and execute's compile errors 500 (measured)
         return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
-            String model = modelText(request.getObj("model"));
+            ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("function"));
             // compiled and typed once: the target it names and its plan come off the one typed query
-            com.legend.TypedQuery query = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda);
+            com.legend.TypedQuery query = com.legend.Compiler.query(model.compile(), lambda);
             com.legend.Compiler.Target target = query.target();
             String runtime = runtimeOf(request, target);
             QueryPlan plan = query.plan(runtime);
             return Json.toCompact(executionPlan(plan,
-                    connectionOf(model, runtime, target.store())));
+                    connectionOf(model.records(), runtime, target.store())));
         });
     }
 
@@ -338,10 +342,12 @@ public final class PureV1Api {
     public static Answer execute(String body, Runner runner) {
         return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
-            String model = modelText(request.getObj("model"));
+            // the model compiled ONCE (leg 8 step 3: it was compiled here for the query's target, then again by the
+            // runner from its text), and handed on -- the seam the execution plan's step 4 builds on
+            com.legend.compiler.element.ModelContext model = ModelInput.of(request.getObj("model")).compile();
             LambdaFunction lambda = ProtocolReader.lambda(
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
-            String runtime = runtimeOf(request, com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda).target());
+            String runtime = runtimeOf(request, com.legend.Compiler.query(model, lambda).target());
             java.io.StringWriter rows = new java.io.StringWriter();
             QueryPlan plan = runner.run(model, lambda, runtime, rows);
             if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {
@@ -696,29 +702,29 @@ public final class PureV1Api {
     private static final java.util.Set<String> NOT_IN_A_PLAN =
             java.util.Set.of("databaseType", "sourceInformation", "elementSourceInformation");
 
-    static Map<String, Object> connectionOf(String model, String runtime,
+    static Map<String, Object> connectionOf(com.legend.protocol.Protocol.PureModelContextData model, String runtime,
             @com.legend.base.Nullable String store) {
-        Json.Arr elements = Json.parseObject(PmcdParser.parseDocument(model)).getArr("elements");
-        Json.Obj rt = element(elements, "runtime", runtime);
+        // the records, as the parser or the model reader made them (leg 8 step 3: never the parser's JSON); the plan's
+        // connection written from its record through the emitter
+        com.legend.protocol.Protocol.PRuntime rt =
+                elementAt(model, runtime, com.legend.protocol.Protocol.PRuntime.class, "runtime");
         String pointer = null;
-        List<Json.Node> connections = rt.getObj("runtimeValue").getArr("connections").items();
+        List<com.legend.protocol.Protocol.PStoreConnections> connections = rt.connections();
         if (store == null && connections.size() != 1) {
             throw new com.legend.error.NotImplementedException("generatePlan: a class query's "
                     + "store is chosen by its mapping, and a runtime of " + connections.size()
                     + " connections is unprobed");
         }
-        for (Json.Node c : connections) {
-            Json.Obj sc = (Json.Obj) c;
-            if (store != null && !store.equals(sc.getObj("store").getString("path"))) {
+        for (com.legend.protocol.Protocol.PStoreConnections sc : connections) {
+            if (store != null && !store.equals(sc.store().path())) {
                 continue;
             }
-            for (Json.Node n : sc.getArr("storeConnections").items()) {
-                Json.Obj conn = ((Json.Obj) n).getObj("connection");
-                if (!"connectionPointer".equals(conn.getString("_type"))) {
+            for (com.legend.protocol.Protocol.PIdentifiedConnection ic : sc.storeConnections()) {
+                if (!(ic.connection() instanceof com.legend.protocol.Protocol.PConnectionPointer cp)) {
                     throw new com.legend.error.NotImplementedException(
                             "generatePlan: an embedded runtime connection is unprobed");
                 }
-                pointer = conn.getString("connection");
+                pointer = cp.connection();
                 break;
             }
         }
@@ -726,7 +732,10 @@ public final class PureV1Api {
             throw new IllegalArgumentException("runtime " + runtime + " has no connection"
                     + (store == null ? "" : " for " + store));
         }
-        Json.Obj value = element(elements, "connection", pointer).getObj("connectionValue");
+        com.legend.protocol.Protocol.PConnection connection =
+                elementAt(model, pointer, com.legend.protocol.Protocol.PConnection.class, "connection");
+        Json.Obj value = Json.parseObject(com.legend.protocol.ProtocolEmitter.emitElement(connection))
+                .getObj("connectionValue");
         Map<String, Object> out = new java.util.TreeMap<>();
         for (Map.Entry<String, Json.Node> e : value.fields().entrySet()) {
             if (!NOT_IN_A_PLAN.contains(e.getKey())) {
@@ -742,15 +751,16 @@ public final class PureV1Api {
         return ordered;
     }
 
-    private static Json.Obj element(Json.Arr elements, String type, String path) {
-        for (Json.Node n : elements.items()) {
-            Json.Obj e = (Json.Obj) n;
-            if (type.equals(e.getStringOr("_type", ""))
-                    && path.equals(e.getStringOr("package", "") + "::" + e.getStringOr("name", ""))) {
-                return e;
+    /** The model's element of {@code kind} at {@code path} (the engine's {@code PackageableElement.getPath},
+     *  {@link com.legend.protocol.Protocol#pathOf}), by its record; {@code what} names the kind if there is none. */
+    private static <T extends com.legend.protocol.Protocol.Element> T elementAt(
+            com.legend.protocol.Protocol.PureModelContextData model, String path, Class<T> kind, String what) {
+        for (com.legend.protocol.Protocol.Element e : model.elements()) {
+            if (kind.isInstance(e) && path.equals(com.legend.protocol.Protocol.pathOf(e))) {
+                return kind.cast(e);
             }
         }
-        throw new IllegalArgumentException("the model has no " + type + " " + path);
+        throw new IllegalArgumentException("the model has no " + what + " " + path);
     }
 
     /** The runtime: the request's own, else the one the query's {@code ->from} binds. */
@@ -770,12 +780,14 @@ public final class PureV1Api {
     // Plumbing
     // ---------------------------------------------------------------------
 
-    /** A {@code PureModelContextText}'s code; any other model context is refused. */
+    /** A {@code PureModelContextText}'s code, for the routes that read a model's text itself (the host and the
+     *  model-change routes); any other model context is refused there. The routes that compile a model read its
+     *  data too ({@code ModelInput}; 2026-10-21, the independent audit: this said no reader was built). */
     static String modelText(Json.Obj model) {
         String type = model.getStringOr("_type", "");
         if (!"text".equals(type)) {
-            throw new IllegalArgumentException("a model of _type '" + type + "': legend-lite reads "
-                    + "PureModelContextText ({\"_type\":\"text\",\"code\":...}); the PMCD reader is not built");
+            throw new IllegalArgumentException("a model of _type '" + type + "': this route reads a model's text "
+                    + "(PureModelContextText, {\"_type\":\"text\",\"code\":...})");
         }
         return model.getString("code");
     }

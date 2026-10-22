@@ -192,19 +192,18 @@ final class Typer {
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));
             case CFloat lit -> new TypedCFloat(lit.value(), lit.exact(), ExprType.one(Type.Primitive.FLOAT));
             case CDecimal lit -> {
+                // beyond the DECIMAL(38) carrier a decimal literal ROUNDS to the
+                // carrier's edge, as it always has: the D-suffix test that was to
+                // refuse a written decimal instead never fired (the parser stripped
+                // the suffix before it was read), and the JSON has no spelling to
+                // test (leg 8 step 2 deleted it, the behaviour unchanged). Whether a
+                // width belongs here at all is open, PARK-27: Pure's Decimal is
+                // unbounded and legend-engine compiles any scale; DECIMAL(38) is the
+                // store's width, met when the value is rendered. A bare float with
+                // more digits than a double holds is a CFloat carrying its exact
+                // value, never a CDecimal (essential testComplexPow's 44-digit literal)
                 BigDecimal dv = lit.value();
-                // a PROMOTED literal (no D suffix — the parser's
-                // precision-promotion of a bare float literal) beyond the
-                // DECIMAL(38) carrier ROUNDS to the carrier's edge: the
-                // exact tail is physically unrepresentable, and 38 digits
-                // is still ~10^21x tighter than the double it was promoted
-                // from (essential testComplexPow's 44-digit literal). An
-                // EXPLICIT D-suffixed decimal keeps the loud reject —
-                // silent truncation of a declared decimal lies.
-                if (dv.scale() > Type.PrecisionDecimal.MAX_PRECISION
-                        && (lit.written() == null
-                                || !lit.written().toUpperCase(java.util.Locale.ROOT)
-                                        .endsWith("D"))) {
+                if (dv.scale() > Type.PrecisionDecimal.MAX_PRECISION) {
                     dv = dv.setScale(Type.PrecisionDecimal.MAX_PRECISION,
                             java.math.RoundingMode.HALF_EVEN);
                 }
@@ -347,14 +346,19 @@ final class Typer {
     // =====================================================================
 
 
-    /** The parser's INFIX marker rides the typed run ({@code TypedCollection
-     *  .operatorRun}) — on BOTH typing paths (eager and deferred), the one
-     *  place an application's typed arguments are final. */
-    static void markOperatorRun(boolean infix, List<TypedSpec> args) {
-        if (infix && args.size() == 1
-                && args.get(0) instanceof com.legend.compiler.spec.typed.TypedCollection run) {
-            args.set(0, run.asOperatorRun());
+    /** An operator run is decided by its SHAPE -- an arithmetic carrier over a literal list of two or more
+     *  operands -- never by how it was spelled: {@code 1 + 2 + 3} and {@code plus([1, 2, 3])} are one call to
+     *  legend-engine and legend-pure, and a model given as JSON carries no spelling (leg 8, step 2: the compiler
+     *  stops reading the parser's {@code infix} marker). The mark rides the typed run ({@code TypedCollection
+     *  .operatorRun}) — on BOTH typing paths (eager and deferred), once the overload is CHOSEN: the carrier is the
+     *  resolved declaration ({@code NativeFn.OperatorRun}), never the name the call was written with. */
+    static List<TypedSpec> withOperatorRun(TypedFunction chosen, List<TypedSpec> args) {
+        if (args.size() == 1 && com.legend.builtin.NativeFn.OperatorRun.of(chosen.id()).isPresent()
+                && args.get(0) instanceof com.legend.compiler.spec.typed.TypedCollection run
+                && run.elements().size() >= 2) {
+            return List.of(run.asOperatorRun());
         }
+        return args;
     }
 
     /**
@@ -756,6 +760,8 @@ final class Typer {
             // legacyNavigate: the pre-map rule, target table rows spelled in
             case LEGACY_NAVIGATE -> NavigateChecker.legacy(this, af, env);
             case ROUTE -> throw NavigateChecker.routeAlone();
+            case INLINE_VIEW -> InlineViewChecker.check(this, af, env);
+            case RECURSE -> RecurseChecker.check(this, af, env);
             case IS_DISTINCT -> IsDistinctChecker.check(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);
             case GRAPH_FETCH_CHECKED ->
@@ -1551,19 +1557,19 @@ final class Typer {
         Property prop = ctx.findProperty(g.rawFqn(), ap.property()).orElseThrow(() ->
                 new TypeInferenceException("class " + g.rawFqn()
                         + " has no property '" + ap.property() + "'"));
-        int supplied = g.arguments().size() + g.multArguments().size();
-        if (supplied > cls.typeParameters().size()) {
+        if (g.arguments().size() > cls.typeParameters().size()
+                || g.multArguments().size() > cls.multiplicityParameters().size()) {
             throw new TypeInferenceException("class " + g.rawFqn() + " declares "
-                    + cls.typeParameters().size() + " type parameter(s) but the receiver "
-                    + g.typeName() + " supplies " + supplied);
+                    + cls.typeParameters().size() + " type parameter(s) and " + cls.multiplicityParameters().size()
+                    + " multiplicity parameter(s) but the receiver " + g.typeName() + " supplies "
+                    + g.arguments().size() + " and " + g.multArguments().size());
         }
         Bindings b = new Bindings();
-        int pi = 0;
-        for (Type targ : g.arguments()) {
-            b.bindType(cls.typeParameters().get(pi++), targ);
+        for (int i = 0; i < g.arguments().size(); i++) {
+            b.bindType(cls.typeParameters().get(i), g.arguments().get(i));
         }
-        for (Multiplicity marg : g.multArguments()) {
-            b.bindMult(cls.typeParameters().get(pi++), marg);
+        for (int i = 0; i < g.multArguments().size(); i++) {
+            b.bindMult(cls.multiplicityParameters().get(i), g.multArguments().get(i));
         }
         Multiplicity pm = prop.multiplicity();
         if (pm instanceof Multiplicity.Var mv) {
@@ -1798,12 +1804,15 @@ final class Typer {
         }
         List<Type.Column> cols = new ArrayList<>(arr.colSpecs().size());
         List<String> names = new ArrayList<>(arr.colSpecs().size());
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (ColSpec cs : arr.colSpecs()) {
             if (cs.function1() != null) {
                 throw new TypeInferenceException("~" + cs.name()
                         + ": mapped/aggregate column specifications need an enclosing call to type against");
             }
-            if (names.contains(cs.name())) {
+            // a set's lookup, not the list's scan (2026-10-15, the IQ island's census scale suite: quadratic in a
+            // wide select's width)
+            if (!seen.add(cs.name())) {
                 throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             names.add(cs.name());

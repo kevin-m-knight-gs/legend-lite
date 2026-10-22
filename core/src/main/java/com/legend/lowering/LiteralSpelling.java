@@ -751,7 +751,7 @@ public final class LiteralSpelling {
     /** The canonical layout of a class ({@code ClassLayouts.layoutOf}): the struct's fields, by name, with their Pure
      *  types and multiplicities; empty for a type that is no class of the model. With it the model's other fact the
      *  carrier spells by, each class's strict subclasses ({@code ModelContext.subtree}): an instance carried as JSON
-     *  with its own class is spelled as the subclass it names (register S81, 2026-10-20). The driver supplies both. */
+     *  with its own class is spelled as the subclass it names (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). The driver supplies both. */
     public interface Layouts extends java.util.function.Function<Type, java.util.Optional<List<Type.Column>>> {
 
         /** The strict subclasses of the class {@code fqn}, in the model's order. */
@@ -856,7 +856,7 @@ public final class LiteralSpelling {
             if (com.legend.compiler.element.type.PlatformTypes.isClassMetaclass(g) && g.arguments().size() == 1) {
                 // a Type value: its path from the typed fact where the fact names one class (Class<my::X>); where it
                 // names their common ancestor (a collection of types, Class<Any>) the cell, which carries the type's
-                // path too (the value lane's convention, register S82, 2026-10-20), so the reader resolves it
+                // path too (the value lane's convention, 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9), so the reader resolves it
                 // whatever its namesakes
                 Type arg = g.arguments().get(0);
                 return arg instanceof Type.ClassType ac && !com.legend.compiler.element.type.PlatformTypes.isAny(ac)
@@ -873,7 +873,7 @@ public final class LiteralSpelling {
             }
             if (slot == SqlType.Scalar.VARCHAR) {
                 // a class-typed value whose slot is text is a model element referenced as a value (a Type, a Class, a
-                // ModelElement -- an instance's slot is a struct): the lowering carries its path (register S82),
+                // ModelElement -- an instance's slot is a struct): the lowering carries its path (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9),
                 // which the reader compiles
                 return new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
             }
@@ -929,7 +929,7 @@ public final class LiteralSpelling {
     }
 
     /**
-     * An instance carried as JSON (register S81, 2026-10-20). Where instances of several classes meet at an ancestor
+     * An instance carried as JSON (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). Where instances of several classes meet at an ancestor
      * with no layout of its own (a collection of them typed by the abstract ancestor), the lowering writes each one's
      * own class into its JSON ({@code __type}, {@code MixedEncoding.withClass}), and its text is the literal of the
      * class it names, each property read from the JSON by its type: the database compares the class against the

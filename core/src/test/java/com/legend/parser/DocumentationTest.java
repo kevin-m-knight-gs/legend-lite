@@ -32,7 +32,7 @@ class DocumentationTest {
     private static final String DOC = "meta::pure::profiles::doc";
 
     private static ParsedModel model(String src) {
-        return ElementParser.parse(src, Dialect.LEGEND_ENGINE);
+        return com.legend.door.ModelFromText.parse(src, Dialect.LEGEND_ENGINE);
     }
 
     private static String wire(String src) {

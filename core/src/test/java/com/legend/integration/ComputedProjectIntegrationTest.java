@@ -1,10 +1,10 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -81,7 +81,7 @@ public class ComputedProjectIntegrationTest {
 
     @Test
     void testSimpleProjectList_pctExpression() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("SET timezone='UTC'");
             }
@@ -145,7 +145,7 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testFilterPostProject() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("SET timezone='UTC'");
             }
@@ -209,7 +209,7 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testGroupByCastBeforeAgg() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("SET timezone='UTC'");
             }
@@ -261,7 +261,7 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testGroupByCastAfterAgg() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("SET timezone='UTC'");
             }
@@ -330,7 +330,7 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testOLAPAggCastWithPartitionWindow() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("SET timezone='UTC'");
             }
@@ -403,7 +403,7 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testSimpleRelationProject_computedColumn() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("SET timezone='UTC'");
             }

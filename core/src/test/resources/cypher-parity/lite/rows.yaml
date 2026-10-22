@@ -1,0 +1,48 @@
+# A MATCH after rows (a WITH that projected its variables, an UNWIND) whose pattern names no variable of the rows:
+# the product of the rows and the pattern's rows, the WHERE over the pairs (the study's §12.44). Each judged by
+# Neo4j.
+cases:
+  - id: a_fresh_match_after_a_projecting_with
+    graph: |
+      CREATE (:Begin {num: 42}), (:End {num: 42, name: 'x'}), (:End {num: 3, name: 'y'})
+    cypher: "MATCH (a:Begin) WITH a.num AS property MATCH (b:End) WHERE property = b.num RETURN b.name AS name"
+  - id: a_fresh_match_after_a_projecting_with_returning_the_node
+    graph: |
+      CREATE (:Begin {num: 42}), (:End {num: 42, name: 'x'}), (:End {num: 3, name: 'y'})
+    cypher: "MATCH (a:Begin) WITH a.num AS property MATCH (b:End) WHERE property = b.num RETURN property, b"
+  - id: a_fresh_match_after_an_unwind
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "UNWIND [1, 2] AS i MATCH (p:P) RETURN i, p.name AS name ORDER BY i, name"
+  - id: a_fresh_match_after_a_first_with
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "WITH 'tag' AS tag MATCH (p:P) RETURN tag, p.name AS name ORDER BY name"
+  - id: a_fresh_label_less_match_after_rows
+    graph: |
+      CREATE (:P {id: 0}), (:Q {id: 1})
+    cypher: "WITH collect([0, 0.0]) AS numbers UNWIND numbers AS arr WITH arr[0] AS expected MATCH (n) WHERE toInteger(n.id) = expected RETURN n.id AS id"
+  - id: a_fresh_label_less_match_after_rows_finding_nothing
+    graph: |
+      CREATE (:P {id: 0})
+    cypher: "WITH collect(['0', 0]) AS things UNWIND things AS arr WITH arr[0] AS expected MATCH (n) WHERE toInteger(n.id) = expected RETURN n"
+  - id: a_fresh_match_with_a_relationship_after_rows
+    graph: |
+      CREATE (:P {name: 'a'})-[:KNOWS]->(:P {name: 'b'})
+    cypher: "WITH 'x' AS tag MATCH (a:P)-[:KNOWS]->(b:P) RETURN tag, a.name AS a, b.name AS b"
+  - id: a_fresh_untyped_match_after_rows_aggregated
+    graph: |
+      CREATE (:P {name: 'a'})-[:KNOWS]->(:P {name: 'b'})-[:KNOWS]->(:P {name: 'c'})
+    cypher: "MATCH (:P) WITH 1 AS x MATCH ()-[r]->() RETURN count(r) AS n, x"
+  - id: a_fresh_match_after_rows_counted
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "UNWIND [1, 2] AS i MATCH (p:P) RETURN i, count(p) AS n ORDER BY i"
+  - id: a_fresh_match_after_rows_keeps_no_row_over_no_node
+    graph: |
+      CREATE (:P {name: 'a'})
+    cypher: "UNWIND [1, 2] AS i MATCH (p:P) WHERE p.name = 'z' RETURN i"
+  - id: a_match_binding_a_projected_variable_after_rows_refused
+    graph: |
+      CREATE (:P {name: 'a'})
+    cypher: "MATCH (p:P) WITH p.name AS name MATCH (q:P) WHERE q.name = name MATCH (name) RETURN name"

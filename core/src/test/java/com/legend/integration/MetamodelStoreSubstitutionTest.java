@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.integration;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -10,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -48,7 +48,7 @@ class MetamodelStoreSubstitutionTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:duckdb:");
+        connection = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -57,7 +57,7 @@ class MetamodelStoreSubstitutionTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
         if (r instanceof ExecutionResult.Collection c) {
             return c.values();
         }
@@ -90,7 +90,7 @@ class MetamodelStoreSubstitutionTest {
                 """;
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.LegendCompileException.class,
-                () -> Execution.execute(StorelessRuntime.with(cyclic, DatabaseType.DuckDB), "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", StorelessRuntime.RUNTIME, connection));
+                () -> Execution.execute(StorelessRuntime.with(cyclic, Databases.PLATFORM), "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", StorelessRuntime.RUNTIME, connection));
         org.junit.jupiter.api.Assertions.assertTrue(
                 String.valueOf(e.getMessage()).contains("mapping include cycle")
                         && e.getMessage().contains("ss::c1") && e.getMessage().contains("ss::c2"),

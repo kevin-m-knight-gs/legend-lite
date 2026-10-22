@@ -14,17 +14,18 @@ import {
   CALC_OPERATORS,
   columnRef,
   columnsInScope,
+  measureNameProblem,
   completionsFor,
   nameProblem,
 } from '../src/calc.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { CALC_FACTS } from '../src/generated/offer-facts.ts';
 import { pivotColumns } from '../src/query.ts';
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import type { QuerySnapshot, Measure } from '../src/snapshot.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
 import { stand } from './fake-planner.ts';
 
-const snap = (over: Partial<CubeSnapshot> = {}): CubeSnapshot => ({
+const snap = (over: Partial<QuerySnapshot> = {}): QuerySnapshot => ({
   source: { query: accessor('db', 'T') },
   columns: [
     { name: 'region', type: 'String' },
@@ -48,18 +49,18 @@ describe('what a calculated column can see', () => {
     assert.deepEqual(labels(got), ['region', 'notional', 'pnl']);
   });
 
-  it('does NOT offer source columns at the group stage', () => {
-    // The source rows are gone after grouping. This is the check that
-    // matters: an expression naming `pnl` here does not compile, so
-    // the editor must not suggest it.
+  it('offers at the group stage exactly the columns the grouped query writes', () => {
+    // The source rows are gone after grouping: a measured column is there under its measure's name (`total`, not
+    // `notional`), and every other column on its own aggregate (`pnl`) -- the level query's own list (query.ts
+    // groupedMeasures). This case once expected [region, total], saying "an expression naming pnl here does not
+    // compile": false whenever a measure is set, the groupBy writing pnl on its default (found 2026-10-16).
     const s = snap({
       rows: ['region'],
       measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
     });
     const got = labels(columnsInScope(s, 'group'));
-    assert.ok(!got.includes('pnl'), `offered a source column: ${got}`);
-    assert.ok(!got.includes('notional'), `offered a source column: ${got}`);
-    assert.deepEqual(got, ['region', 'total']);
+    assert.ok(!got.includes('notional'), `offered a column its measure renamed: ${got}`);
+    assert.deepEqual(got, ['region', 'total', 'pnl']);
   });
 
   it('offers the row dimensions and measures at the group stage', () => {
@@ -203,17 +204,68 @@ describe('the offered vocabulary', () => {
   });
 });
 
+describe('naming a measure: the calculated column\'s rule (takenNames)', () => {
+  const m = (name: string, column: string, fn: Measure['fn'] = 'sum'): Measure => ({ name, column, fn });
+
+  it('takes its own column\'s name while that column is no grouping key', () => {
+    const own = m('notional', 'notional');
+    assert.equal(measureNameProblem(snap({ measures: [own] }), 0), null);
+    const count = m('region', 'region', 'count');
+    assert.match(measureNameProblem(snap({ rows: ['region'], measures: [count] }), 0) ?? '',
+      /'region' is already a column: the measure count\(region\) takes a name of its own/);
+  });
+
+  it('refuses another column\'s name, another measure\'s, a reserved one and the pivot separator', () => {
+    const named = (n: string) => m(n, 'notional');
+    for (const taken of ['pnl', '__root__', '__leafCount']) {
+      const x = named(taken);
+      assert.match(measureNameProblem(snap({ measures: [x] }), 0) ?? '', /already a column/, taken);
+    }
+    const [a, b] = [named('total'), m('total', 'pnl')];
+    assert.match(measureNameProblem(snap({ measures: [a, b] }), 1) ?? '', /'total' is already a column/);
+    const x = named(`a${PIVOT_SEPARATOR}b`);
+    assert.match(measureNameProblem(snap({ measures: [x] }), 0) ?? '', /pivot/);
+  });
+
+  it('pivoted, a spread measure clashes with no column, only with another measure; one kept out by the column rule', () => {
+    const [pnl, again] = [m('pnl', 'notional'), m('pnl', 'region', 'count')];
+    // spread under each pivot value (`<value>__|__pnl`): the column pnl is no clash
+    assert.equal(measureNameProblem(snap({ pivotOn: ['region'], measures: [pnl] }), 0), null);
+    assert.match(measureNameProblem(snap({ pivotOn: ['region'], measures: [pnl, again] }), 1) ?? '',
+      /'pnl' is already a measure's name: the measure count\(region\) takes a name of its own/);
+    // its column kept out of the pivot: written beside the keys under its name, as a grouped level writes it
+    const keptOut = snap({ pivotOn: ['region'], measures: [pnl],
+      columns: snap().columns.map((c) => (c.name === 'notional' ? { ...c, excludedFromPivot: true } : c)) });
+    assert.match(measureNameProblem(keptOut, 0) ?? '', /'pnl' is already a column/);
+  });
+
+  it('one measure object held twice is two measures of one name: judged by place (the round\'s second audit)', () => {
+    const total = m('total', 'notional');
+    assert.equal(measureNameProblem(snap({ measures: [total, total] }), 0), null);
+    assert.match(measureNameProblem(snap({ measures: [total, total] }), 1) ?? '', /'total' is already a column/);
+    assert.match(measureNameProblem(snap({ pivotOn: ['region'], measures: [total, total] }), 1) ?? '',
+      /'total' is already a measure's name/);
+  });
+
+  it('two measures of one column, each named, are both free', () => {
+    const [sum, avg] = [m('notional', 'notional'), m('avg_notional', 'notional', 'average')];
+    const s = snap({ rows: ['region'], measures: [sum, avg] });
+    assert.equal(measureNameProblem(s, 0), null);
+    assert.equal(measureNameProblem(s, 1), null);
+  });
+});
+
 describe('naming a calculated column', () => {
   it('refuses an empty name', () => {
     assert.match(nameProblem(snap(), 'row', '  ') ?? '', /needs a name/);
   });
 
-  it('refuses a name that collides with any existing column', () => {
+  it('refuses a name that collides with any existing column, or one its queries reserve', () => {
     const s = snap({
       measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
       derived: [{ name: 'uplift', lambda: stand('1') }],
     });
-    for (const taken of ['region', 'total', 'uplift']) {
+    for (const taken of ['region', 'total', 'uplift', '__root__', '__leafCount']) {
       assert.match(nameProblem(s, 'row', taken) ?? '',
         /already a column/, taken);
     }

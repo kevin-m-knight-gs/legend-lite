@@ -2,7 +2,6 @@ package com.legend.integration;
 
 import org.junit.jupiter.api.*;
 
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -30,19 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Relation API E2E Integration Tests")
 class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
-    @Override
-    protected String getDatabaseType() {
-        return "DuckDB";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:duckdb:";
-    }
-
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 
@@ -974,6 +963,26 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("#TDS{...}# literal (the engine's brace form) reads its grid, not its braces")
+        void testTdsLiteralBraceForm() throws SQLException {
+            // the braces wrap the grid: a literal parsed from text read '{' as its first header cell (2026-10-17, the
+            // Cypher island's procedures, the study's §12.60)
+            String pureQuery = """
+                    #TDS{
+                      name:String, age:Integer
+                      Alice, 25
+                      Bob, 30
+                    }#->select(~[name])
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            assertEquals(1, result.columns().size());
+            assertEquals(2, result.rows().size());
+            assertEquals("Alice", result.rows().get(0).get(0));
+        }
+
+        @Test
         @DisplayName("#TDS literal generates correct SQL VALUES clause")
         void testTdsLiteralSqlGeneration() throws SQLException {
             String pureQuery = """
@@ -1006,6 +1015,25 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
 
             assertEquals(1, result.columns().size());
             assertEquals(3, result.rows().size());
+        }
+
+        /** The braced form, legend-engine's own (#TDS{...}#): the same table as the brace-less, its braces no row
+         *  (the Python / DataCube line's report, 2026-10-13: "{" was read as the header, "}" as a row). */
+        @Test
+        @DisplayName("#TDS{...}# literal reads the table inside its braces")
+        void testTdsLiteralBraced() throws SQLException {
+            var one = executeRelation("#TDS{\nid\n1\n2\n}#");
+            assertEquals(List.of("id"), one.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of(1L, 2L), one.rows().stream().map(r -> ((Number) r.get(0)).longValue()).toList());
+
+            var two = executeRelation("#TDS{\nid, name\n1, a\n}#");
+            assertEquals(List.of("id", "name"), two.columns().stream().map(c -> c.name()).toList());
+            assertEquals(1, two.rows().size());
+            assertEquals("a", two.rows().get(0).get(1));
+
+            // a '#' in a value is the value's: the braced form ends at its "}#"
+            var hash = executeRelation("#TDS{\nid, tag\n1, a#b\n}#");
+            assertEquals("a#b", hash.rows().get(0).get(1));
         }
 
         @Test

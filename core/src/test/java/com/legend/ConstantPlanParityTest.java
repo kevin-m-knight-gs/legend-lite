@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
@@ -13,7 +14,6 @@ import com.legend.server.QueryService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,7 +54,7 @@ class ConstantPlanParityTest {
 
     @Test
     void admittedKindsAgreeWithTheSqlPath() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             QueryService qs = new QueryService();
             // String: bare literal folds; ->toOne() is [1]-identity that
             // MUST lower to SQL — same value, both routes

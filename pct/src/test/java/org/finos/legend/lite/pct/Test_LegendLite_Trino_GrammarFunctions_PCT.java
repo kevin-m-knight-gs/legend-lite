@@ -49,7 +49,7 @@ public class Test_LegendLite_Trino_GrammarFunctions_PCT extends PCTReportConfigu
             // unpinned -- the field takes the slot its builder declared (Trino.structLit)
             // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
             // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
-            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.
     );

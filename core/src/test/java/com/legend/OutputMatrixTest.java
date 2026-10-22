@@ -8,13 +8,10 @@ import com.legend.testcases.PlanCases;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * docs/PLAN_PATH_PROGRAM_2026_10_17.md): for each kind of value -- a whole, a fractional and an extreme Float, a Float
  * after arithmetic, a Decimal literal and after arithmetic, a DateTime with no, three and nine fraction digits, a
  * StrictDate, each as a value root and as a column -- and each of lite's own outputs on the plan path (CSV, the JSON
- * wire, a stream of JSON rows, Pure's TDS text) on DuckDB and H2, the text lite writes beside interpreted Pure's
+ * wire, a stream of JSON rows, Pure's TDS text) on DuckDB and H2 (OutputMatrixH2Test), the text lite writes beside interpreted Pure's
  * (the reference: {@code docs/execution-plan-boundary-2026-10-05/probes/engine-reference/pure-interpreted-results.txt},
  * PureEval.java, 2026-10-10). Every cell is judged: a cell equal to Pure's text passes; a cell that differs is
  * either PINNED here with the text it writes today -- a deviation named, shrink-only, each later landing of the
@@ -31,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * so a fix is recorded by deleting its pin. The whole table is printed on every run.
  */
 class OutputMatrixTest {
-    private static final AtomicInteger H2_NAMES = new AtomicInteger();
 
     /** A table of one row, {@code ID = 2}, for the column forms. */
     private static final String MODEL = """
@@ -95,10 +91,22 @@ class OutputMatrixTest {
 
     @Test
     void everyKindOnEveryOutputWritesPuresText_orIsPinnedByName() throws Exception {
+        assertEveryKindWritesPuresText(com.legend.testbackend.TestBackends.platform());    // and on H2: its own test
+    }
+
+    /** {@link #everyKindOnEveryOutputWritesPuresText_orIsPinnedByName} on {@code backend}, against its own pins (main's
+     *  merge, 2026-10-22: one test named DuckDB and H2; each database's run is its own test's). */
+    static void assertEveryKindWritesPuresText(com.legend.testbackend.TestBackend backend) throws Exception {
         List<String> table = new ArrayList<>();
         List<String> failures = new ArrayList<>();
-        Map<String, String> pins = new LinkedHashMap<>(PINNED);
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        Map<String, String> pins = new LinkedHashMap<>();
+        PINNED.forEach((key, cell) -> {
+            if (key.endsWith("/" + backend.type())) {
+                pins.put(key, cell);
+            }
+        });
+        {
+            DatabaseType type = backend.type();
             var ctx = Compiler.compileModel(MODEL.formatted(type.name()));
             for (Kind kind : KINDS) {
                 for (String form : List.of("value", "column")) {
@@ -106,7 +114,7 @@ class OutputMatrixTest {
                     for (TypedQuery.Output output : OUTPUTS) {
                         String key = kind.name() + "/" + form + "/" + output + "/" + type;
                         String cell;
-                        try (Connection c = fresh(type)) {
+                        try (Connection c = backend.open()) {
                             ExecutionPlan plan = Compiler.query(ctx, query).executionPlan("s::RT", output);
                             cell = cellOf(PlanCases.run(plan, c), output);
                         } catch (RuntimeException e) {
@@ -164,14 +172,5 @@ class OutputMatrixTest {
 
     private static String firstLine(String s) {
         return s == null ? "" : s.split("\n")[0];
-    }
-
-    private static Connection fresh(DatabaseType type) throws SQLException {
-        return switch (type) {
-            case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
-            case H2 -> DriverManager.getConnection("jdbc:h2:mem:outputmatrix" + H2_NAMES.incrementAndGet()
-                    + com.legend.exec.H2Settings.SETTINGS);
-            default -> throw new IllegalArgumentException(type.name());
-        };
     }
 }

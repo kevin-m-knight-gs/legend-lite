@@ -3,20 +3,13 @@
 
 package com.legend.resolver;
 
-import com.legend.Compiler;
-import com.legend.compiler.NameResolver;
-import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.lowering.Lowerer;
+import com.legend.testbackend.TestBackends;
 import com.legend.parser.SpecParser;
-import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.DuckDb;
 import com.legend.testing.Rows;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -64,13 +57,7 @@ class ResolveUnionSelfJoinProbeTest {
             """).formatted(UNION_FQN);
 
     private static String sqlOf(String query) {
-        var ctx = Compiler.compileModel(MODEL);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
-        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
-        return new DuckDb().render(plan);
+        return ResolvedSql.of(MODEL, query);
     }
 
     @Test
@@ -83,7 +70,7 @@ class ResolveUnionSelfJoinProbeTest {
         // cross-set routes find no one with a different last name; a join that lost its condition would pair Smith
         // and Brown)
         List<List<Object>> rows = new ArrayList<>();
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
+        try (Connection c = TestBackends.platform().open(); Statement st = c.createStatement()) {
             st.execute("CREATE TABLE P1 (ID INTEGER PRIMARY KEY, lastName_s1 VARCHAR(200))");
             st.execute("CREATE TABLE P2 (ID INTEGER PRIMARY KEY, lastName_s2 VARCHAR(200))");
             st.execute("INSERT INTO P1 VALUES (1, 'Smith'), (3, 'Brown')");

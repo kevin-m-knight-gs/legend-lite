@@ -65,6 +65,19 @@ class FoldTest {
     }
 
     @Test
+    @DisplayName("a non-deterministic call is never substituted into a consumer: random and uuid draw afresh per place")
+    void nondeterministicCallsIsolate() {
+        // (the Cypher island's rand-and-clocks leg, 2026-10-17: WITH rand() AS r RETURN r = r answered false while
+        // the projection's random() was written at both places)
+        assertTrue(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.RANDOM)));
+        assertTrue(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.GUID)));
+        // the statement clocks are one value per statement: they substitute freely
+        assertFalse(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.NOW)));
+        assertFalse(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.TODAY)));
+        assertFalse(Fold.nondeterministic(col("A")));
+    }
+
+    @Test
     @DisplayName("filter isolates on every truncation/dedup boundary")
     void filterBoundaries() {
         assertEquals(Fold.FilterSlot.ISOLATE, Fold.filterSlot(BARE.withLimit(5L), false));
@@ -139,7 +152,7 @@ class FoldTest {
     }
 
     @Test
-    @DisplayName("groupBy folds only onto a clean select; extend only minds DISTINCT")
+    @DisplayName("groupBy folds only onto a clean select; extend minds DISTINCT and truncation")
     void groupByAndExtendRules() {
         assertTrue(Fold.groupByFolds(BARE));
         assertFalse(Fold.groupByFolds(BARE.withGroupBy(List.of(col("A")))));
@@ -149,8 +162,10 @@ class FoldTest {
         assertFalse(Fold.groupByFolds(BARE.withLimit(1L)));
 
         assertTrue(Fold.extendFolds(BARE));
-        assertTrue(Fold.extendFolds(BARE.withLimit(1L)),
-                "extend commutes with truncation — row count untouched");
+        // IQ island, 2026-10-16 (the user's decision; this pin moved from "extend commutes with truncation"): in its
+        // values, not in its errors -- a column that raises would raise for the rows the limit drops
+        assertFalse(Fold.extendFolds(BARE.withLimit(1L)), "extend over a LIMIT is computed for the kept rows only");
+        assertFalse(Fold.extendFolds(BARE.withOffset(1L)), "and over an OFFSET");
         assertTrue(Fold.extendFolds(BARE.withOrderBy(List.of(SqlSelect.SortKey.asc(col("A"))))));
         assertFalse(Fold.extendFolds(BARE.withDistinct()),
                 "extending a deduped set would dedup WITH the new column");

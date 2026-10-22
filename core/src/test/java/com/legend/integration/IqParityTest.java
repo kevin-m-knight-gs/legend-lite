@@ -5,6 +5,8 @@ package com.legend.integration;
 
 import com.legend.protocol.sql.iq.IqProfile;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import com.legend.testcases.IqAnswers;
 import com.legend.testcases.IqParity;
 import com.legend.testcases.SqlParity;
@@ -14,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,8 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * DuckDB, judged against SQL Anywhere 17's snapped answer (or the case's provisional decision), and held to the
  * ledger's {@code duckdb} column. The answers file is checked against the cases first: UNSNAPPED, STALE and GONE fail
  * the lane, as does a case pinning an engine its island does not run in, a case SQL Anywhere judges whose
- * translation the IQ engine's rules change (engine neutrality, the study's §6.3), and a judged case whose WHERE puts
- * an operation that can raise beside AND or OR (its answer depends on IQ's plan: the study's D-E2).
+ * translation the IQ engine's rules change (engine neutrality, the study's §6.3), a judged case whose WHERE puts
+ * an operation that can raise beside AND or OR (its answer depends on IQ's plan: the study's D-E2), and a case whose
+ * answer may be one plan's choice (a row limit's ties, a LIST's order: {@link IqParity#determinism}).
  *
  * <p>Its own target ({@code //core:iq_parity_test}). Run with {@code --jvm_flag=-Diq.parity.update=<the ledger's path
  * in the workspace>} to write the ledger's column instead.
@@ -41,6 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>It also pins the showcase's SQL (docs/IQ_SQL_SHOWCASE.md): {@link #theShowcasePlansItsPinnedSql}.
  */
 class IqParityTest {
+
+    /** The platform's own engine: the island's session, its tables and the connection its model declares. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
 
     /** The showcase's query: {@code lite/showcase.yaml}'s main case, judged by SQL Anywhere above like every case. */
     private static final String SHOWCASE = "lite/showcase/showcase_main@iq16-default";
@@ -55,17 +60,17 @@ class IqParityTest {
     };
 
     @Test
-    void everyIqCaseHasItsLedgerStatusOnDuckDB() throws Exception {
+    void everyIqCaseHasItsLedgerStatusOnThePlatform() throws Exception {
         Path schemaFile = Runfile.property("iq.parity.schema");
         List<IqParity.Run> runs = IqParity.runs(IqParity.cases(Runfile.property("iq.parity.lite").getParent()));
         List<SqlParity.Table> tables = IqParity.schema(schemaFile);
         Set<String> names = IqParity.tableNames(tables);
         Map<String, IqAnswers.Snap> answers = IqAnswers.read(Runfile.property("iq.parity.answers"));
         List<String> problems = new ArrayList<>(IqAnswers.guards(runs, answers, Files.readAllBytes(schemaFile)));
-        String model = IqParity.model(tables, "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;");
+        String model = IqParity.model(tables, PLATFORM.connectionBody());
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
-        try (Connection duckdb = DriverManager.getConnection("jdbc:duckdb:")) {
-            IqParity.seed(duckdb, tables, false);
+        try (Connection session = PLATFORM.open()) {
+            IqParity.seed(PLATFORM, session, tables);
             QueryService service = new QueryService();
             for (IqParity.Run r : runs) {
                 String mismatch = IqParity.engineMismatch(r, names);
@@ -80,13 +85,24 @@ class IqParityTest {
                 if (order != null) {
                     problems.add(order);
                 }
-                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, duckdb)));
+                SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
+                        island -> service.execute(model, island, IqParity.RUNTIME, session));
+                outcomes.put(r.key(), outcome);
+                // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
+                String nondeterministic = IqParity.determinism(r, tables, outcome.status());
+                if (nondeterministic != null) {
+                    problems.add(nondeterministic);
+                }
             }
         }
         String update = System.getProperty("iq.parity.update");
         problems.addAll(IqParity.ratchet(runs, outcomes, Runfile.property("iq.parity.ledger"), "duckdb",
                 update == null ? null : Path.of(update)));
+        if (update == null) {
+            // IQ island, landing 4 (WP1), 2026-10-14: every FAIL, BUG or ERROR is a listed iq17 divergence, and the
+            // list only shrinks
+            problems.addAll(IqParity.divergences(runs, outcomes, Runfile.property("iq.parity.divergences"), "duckdb"));
+        }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
     }
 
@@ -144,10 +160,92 @@ class IqParityTest {
         answers.put("lite/x/b@iq16-default", new IqAnswers.Snap("lite/x/b", "iq16-default",
                 IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, schema), List.of(), List.of(), List.of(), null));
         List<String> problems = IqAnswers.guards(IqParity.runs(List.of(c)), answers, schema);
-        assertEquals(3, problems.size(), String.join("\n", problems));
+        // IQ island, landing 4 (WP1): each iq16-* run's iq17-* twin is a run too, answered by the live IQ
+        assertEquals(5, problems.size(), String.join("\n", problems));
         assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
         assertTrue(problems.get(1).startsWith("UNSNAPPED: lite/x/a@iq16-tds"), problems.get(1));
-        assertTrue(problems.get(2).startsWith("GONE: lite/x/b@iq16-default"), problems.get(2));
+        assertTrue(problems.get(2).startsWith("UNSNAPPED: lite/x/a@iq17-default"), problems.get(2));
+        assertTrue(problems.get(2).contains("--oracle iq"), problems.get(2));
+        assertTrue(problems.get(3).startsWith("UNSNAPPED: lite/x/a@iq17-tds"), problems.get(3));
+        assertTrue(problems.get(4).startsWith("GONE: lite/x/b@iq16-default"), problems.get(4));
+    }
+
+    /** IQ island, landing 4 (WP1), 2026-10-14: a case runs under the iq17-* twin of each iq16-* profile it names (the
+     *  live IQ judges it there), never twice; an iq17-* run's answer must be the live IQ's, and one the live IQ could
+     *  not judge is a SKIP that says why. */
+    @Test
+    void eachIq16RunHasAnIq17TwinJudgedByTheLiveIq() throws Exception {
+        IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT 1 AS x", List.of("iq16-tds", "sqla17-default",
+                "iq16-default", "iq17-default"), null, null, "D-S1", "[[\"2\"]]");
+        List<String> keys = IqParity.runs(List.of(c)).stream().map(IqParity.Run::key).toList();
+        assertEquals(List.of("lite/x/a@iq16-tds", "lite/x/a@sqla17-default", "lite/x/a@iq16-default",
+                "lite/x/a@iq17-default", "lite/x/a@iq17-tds"), keys);
+        assertTrue(IqParity.liveIq(IqProfile.IQ17_ODBC) && !IqParity.liveIq(IqProfile.IQ16_ODBC));
+        byte[] schema = "tables:\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        IqParity.Run twin = IqParity.runs(List.of(c)).get(4);
+        // stamped without the decision and its rows: real IQ judges it, by its own answer
+        String sha = IqAnswers.sqlSha(c.sql(), "iq17-tds", null, null, schema);
+        assertEquals(sha, IqAnswers.sqlSha(twin, schema));
+        IqAnswers.Snap sa = new IqAnswers.Snap("lite/x/a", "iq17-tds", sha, List.of("x"), List.of("integer"),
+                List.of(List.of("1")), null);
+        IqAnswers.Snap iq = new IqAnswers.Snap("lite/x/a", "iq17-tds", sha, List.of("x"), List.of("smallint"),
+                List.of(List.of("1")), null, List.of(0), "iq", null);
+        List<String> problems = IqAnswers.guards(List.of(twin), Map.of(twin.key(), sa), schema);
+        assertTrue(problems.size() == 1 && problems.get(0).startsWith("ORACLE: lite/x/a@iq17-tds"), problems.toString());
+        assertEquals(List.of(), IqAnswers.guards(List.of(twin), Map.of(twin.key(), iq), schema));
+        assertTrue(IqAnswers.expected(twin, iq) instanceof SqlParity.Rows rows && rows.grid().rows().equals(
+                List.of(List.of(java.math.BigInteger.ONE))), "the live IQ's rows, not the decision's");
+        IqAnswers.Snap notJudged = new IqAnswers.Snap("lite/x/a", "iq17-tds", sha, List.of(), List.of(), null, null,
+                List.of(), "iq", "the database property CaseSensitive = 'Off': this server's is 'On'");
+        SqlParity.Outcome skipped = IqParity.outcome(twin, notJudged, List.of(), Set.of(), island -> {
+            throw new AssertionError("a run the live IQ does not judge is not run");
+        });
+        assertEquals(SqlParity.Status.SKIP, skipped.status());
+        assertTrue(skipped.detail().contains("CaseSensitive"), skipped.detail());
+        Path answers = Files.createTempFile("iq-answers", ".jsonl");
+        Files.writeString(answers, "{\"meta\":{}}\n{\"id\":\"lite/x/a\",\"profile\":\"iq17-tds\",\"oracle\":\"iq\","
+                + "\"sqlSha\":\"" + sha + "\",\"not_judged\":\"why\"}\n");
+        IqAnswers.Snap read = IqAnswers.read(answers).get("lite/x/a@iq17-tds");
+        assertEquals("iq", read.judge());
+        assertEquals("why", read.notJudged());
+        Files.delete(answers);
+    }
+
+    /** IQ island, landing 4 (WP1), 2026-10-14: the known-divergence allowlist. A FAIL, BUG or ERROR must be listed
+     *  (an iq17-* run only: a run SQL Anywhere judges never diverges), and a listed run must still diverge in each lane
+     *  it lists: one that passes now, or is gone, or a cause no run names, must leave the list. */
+    @Test
+    void theKnownDivergencesAreListedAndOnlyShrink() throws Exception {
+        IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT 1 AS x", List.of("iq16-default"), null, null,
+                null, null);
+        List<IqParity.Run> runs = IqParity.runs(List.of(c));
+        Path file = Files.createTempFile("iq17-divergences", ".tsv");
+        Files.writeString(file, "# a test's\ncause\twidening\tD-N3: IQ's engine widens\nrun\tlite/x/a@iq17-default"
+                + "\twidening\tduckdb,postgres\n");
+        Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
+        outcomes.put("lite/x/a@iq16-default", new SqlParity.Outcome(SqlParity.Status.PASS, ""));
+        outcomes.put("lite/x/a@iq17-default", new SqlParity.Outcome(SqlParity.Status.ERROR, "an overflow"));
+        assertEquals(List.of(), IqParity.divergences(runs, outcomes, file, "duckdb"));
+        // the listed run passes now: it must leave the list, and its cause with it
+        outcomes.put("lite/x/a@iq17-default", new SqlParity.Outcome(SqlParity.Status.PASS, ""));
+        List<String> problems = IqParity.divergences(runs, outcomes, file, "postgres");
+        assertTrue(problems.size() == 1 && problems.get(0).startsWith("ALLOWLIST SHRINKS: lite/x/a@iq17-default"),
+                problems.toString());
+        // a FAIL of a run SQL Anywhere judges is never allowed
+        outcomes.put("lite/x/a@iq16-default", new SqlParity.Outcome(SqlParity.Status.FAIL, "rows"));
+        outcomes.put("lite/x/a@iq17-default", new SqlParity.Outcome(SqlParity.Status.FAIL, "rows"));
+        problems = IqParity.divergences(runs, outcomes, file, "duckdb");
+        assertTrue(problems.size() == 1 && problems.get(0).startsWith("UNLISTED DIVERGENCE: lite/x/a@iq16-default"),
+                problems.toString());
+        Files.writeString(file, "cause\tw\tx\nrun\tlite/x/a@iq16-default\tw\tduckdb\n");
+        assertThrows(IllegalStateException.class, () -> IqParity.divergences(runs, outcomes, file, "duckdb"));
+        Files.writeString(file, "run\tlite/x/a@iq17-default\tw\tduckdb\n");
+        assertThrows(IllegalStateException.class, () -> IqParity.divergences(runs, outcomes, file, "duckdb"));
+        Files.writeString(file, "cause\tw\tx\ncause\tv\ty\nrun\tlite/x/a@iq17-default\tw\tduckdb\n");
+        problems = IqParity.divergences(runs, outcomes, file, "duckdb");
+        assertTrue(problems.size() == 2 && problems.get(1).startsWith("ALLOWLIST SHRINKS: the cause v"),
+                problems.toString());
+        Files.delete(file);
     }
 
     @Test
@@ -155,9 +253,12 @@ class IqParityTest {
         String first = Files.readAllLines(Runfile.property("iq.parity.answers")).get(0);
         com.legend.json.Json.Obj meta = (com.legend.json.Json.Obj) ((com.legend.json.Json.Obj)
                 com.legend.json.Json.parse(first)).get("meta");
-        com.legend.json.Json.Obj profiles = (com.legend.json.Json.Obj) meta.get("profiles");
-        com.legend.json.Json.Obj databases = (com.legend.json.Json.Obj) meta.get("databases");
         for (IqProfile p : IqProfile.values()) {
+            // IQ island, landing 4 (WP1): the iq17-* profiles are the live IQ's, in the meta line's live_iq part
+            boolean live = IqParity.liveIq(p);
+            com.legend.json.Json.Obj source = live ? (com.legend.json.Json.Obj) meta.get("live_iq") : meta;
+            com.legend.json.Json.Obj profiles = (com.legend.json.Json.Obj) source.get("profiles");
+            com.legend.json.Json.Obj databases = (com.legend.json.Json.Obj) source.get("databases");
             com.legend.json.Json.Obj profile = (com.legend.json.Json.Obj) profiles.get(p.spelling());
             String db = ((com.legend.json.Json.Str) profile.get("db")).value();
             com.legend.json.Json.Obj database = (com.legend.json.Json.Obj) databases.get(db);
@@ -165,23 +266,61 @@ class IqParityTest {
             com.legend.json.Json.Obj pub = (com.legend.json.Json.Obj) database.get("public");
             com.legend.json.Json.Obj options = (com.legend.json.Json.Obj) profile.get("options");
             String where = p.spelling() + ": ";
-            assertEquals(db.equals("lite_iq"), p.iqDatabase(), where + "database");
-            assertEquals(text(props, "CaseSensitive", "").equals("On"), p.caseSensitive(), where + "case");
-            assertEquals(text(props, "BlankPadding", "").equals("On"), p.blankPadding(), where + "blank padding");
-            assertEquals(text(props, "CharSet", "").startsWith("ISO_8859-1"), p.latin1(), where + "charset");
-            assertEquals(Integer.parseInt(text(pub, "precision", "30")), p.precision(), where + "precision");
-            assertEquals(Integer.parseInt(text(pub, "scale", "6")), p.scale(), where + "scale");
-            assertEquals(!text(options, "ansinull", "On").equalsIgnoreCase("Off"), p.ansinull(), where + "ansinull");
-            assertEquals(!text(options, "quoted_identifier", "On").equalsIgnoreCase("Off"), p.quotedIdentifier(),
+            var s = p.settings();
+            assertEquals(live || db.equals("lite_iq"), s.iqDatabase(), where + "database");
+            assertEquals(text(props, "Collation", ""), s.value(com.legend.protocol.sql.iq.IqOption.COLLATION),
+                    where + "collation");
+            assertEquals(text(props, "CaseSensitive", "").equals("On"), s.caseSensitive(), where + "case");
+            assertEquals(text(props, "BlankPadding", "").equals("On"), s.blankPadding(), where + "blank padding");
+            assertEquals(text(props, "CharSet", "").startsWith("ISO_8859-1"), s.latin1(), where + "charset");
+            assertEquals(Integer.parseInt(text(pub, "precision", "30")), s.precision(), where + "precision");
+            assertEquals(Integer.parseInt(text(pub, "scale", "6")), s.scale(), where + "scale");
+            assertEquals(!text(options, "ansinull", "On").equalsIgnoreCase("Off"), s.ansinull(), where + "ansinull");
+            assertEquals(!text(options, "quoted_identifier", "On").equalsIgnoreCase("Off"), s.quotedIdentifier(),
                     where + "quoted_identifier");
-            assertEquals(!text(options, "escape_character", "On").equalsIgnoreCase("Off"), p.escapeCharacter(),
+            assertEquals(!text(options, "escape_character", "On").equalsIgnoreCase("Off"), s.escapeCharacter(),
                     where + "escape_character");
-            assertTrue(text(options, "date_order", "YMD").equalsIgnoreCase(p.dateOrder()), where + "date_order");
+            assertTrue(text(options, "date_order", "YMD").equalsIgnoreCase(s.dateOrder()), where + "date_order");
         }
     }
 
     private static String text(com.legend.json.Json.Obj o, String key, String otherwise) {
         return o.getOr(key, null) instanceof com.legend.json.Json.Str s ? s.value() : otherwise;
+    }
+
+    /** IQ island, 2026-10-14 (the options framework): a case's settings are given to IqSettings.resolve (no island
+     *  header: the lanes translate such a case's SQL under them), and are part of what its answer is snapped for. */
+    @Test
+    void aCasesSettingsAreResolvedAndStampItsAnswer() {
+        byte[] schema = "tables:\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT CAST('01/02/03' AS DATE) AS d",
+                List.of("iq16-default", "sqla17-tds"), null, null, null, null, null,
+                "database.CaseSensitive=Off, query.date_order='DMY'", null);
+        List<IqParity.Run> runs = IqParity.runs(List.of(c));
+        assertEquals("#IQ{SELECT CAST('01/02/03' AS DATE) AS d}#", IqParity.island(runs.get(0), Set.of()));
+        assertFalse(runs.get(0).settings().caseSensitive());
+        assertEquals("DMY", runs.get(1).settings().dateOrder());
+        String query = IqParity.query(runs.get(0), List.of(), Set.of());
+        assertTrue(query.contains("2003-02-01"), query);
+        assertEquals(2, IqParity.settings("database.precision = 40 , query.date_format='DD''MM'").size());
+        assertEquals("DD'MM", IqParity.settings("query.date_format='DD''MM'").get(0).value());
+        assertThrows(IllegalStateException.class, () -> IqParity.settings("date_order=DMY"));
+        assertThrows(IllegalStateException.class, () -> IqParity.settings("session.date_order=DMY"));
+        Map<String, IqAnswers.Snap> answers = new LinkedHashMap<>();
+        answers.put("lite/x/a@iq16-default", new IqAnswers.Snap("lite/x/a", "iq16-default",
+                IqAnswers.sqlSha(c.sql(), "iq16-default", null, null, null, "query.date_order='MDY'", schema),
+                List.of(), List.of(), List.of(), null));
+        answers.put("lite/x/a@sqla17-tds", new IqAnswers.Snap("lite/x/a", "sqla17-tds",
+                IqAnswers.sqlSha(c.sql(), "sqla17-tds", null, null, null, c.settings(), schema), List.of(),
+                List.of(), List.of(), null));
+        List<String> problems = IqAnswers.guards(runs, answers, schema);
+        // IQ island, landing 4 (WP1): and its iq16-default run's iq17-default twin, the live IQ's to answer
+        assertEquals(2, problems.size(), String.join("\n", problems));
+        assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
+        assertTrue(problems.get(1).startsWith("UNSNAPPED: lite/x/a@iq17-default"), problems.get(1));
+        // a case without settings keeps its stamp
+        assertEquals(IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, schema),
+                IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, null, null, schema));
     }
 
     @Test
@@ -193,6 +332,11 @@ class IqParityTest {
         answers.put("lite/x/a@iq16-default", new IqAnswers.Snap("lite/x/a", "iq16-default",
                 IqAnswers.sqlSha("SELECT 1", "iq16-default", "D-S1", "[[\"2\"]]", schema), List.of(), List.of(),
                 List.of(), null));
+        // IQ island, landing 4 (WP1): its iq17-default twin's answer, the live IQ's, is stamped without the decision:
+        // editing the decided rows leaves it as it is
+        answers.put("lite/x/a@iq17-default", new IqAnswers.Snap("lite/x/a", "iq17-default",
+                IqAnswers.sqlSha("SELECT 1", "iq17-default", null, null, schema), List.of("1"), List.of("smallint"),
+                List.of(List.of("1")), null, List.of(0), "iq", null));
         List<String> problems = IqAnswers.guards(IqParity.runs(List.of(decided)), answers, schema);
         assertEquals(1, problems.size(), String.join("\n", problems));
         assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
@@ -221,9 +365,14 @@ class IqParityTest {
         List<SqlParity.Table> tables = List.of(new SqlParity.Table("t", List.of(new SqlParity.Column("id", "integer"),
                 new SqlParity.Column("ch", "char(5)")), List.of()));
         Set<String> names = Set.of("t");
-        IqParity.Case padded = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
+        // IQ island, 2026-10-15 (landing 4): an iq16 run whose live twin judges the IQ engine's rules needs no decision
+        IqParity.Case twinned = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
                 null, null, null, null);
-        // the IQ engine pads ch (D-S1), SQL Anywhere's does not: the case must name its decision
+        assertEquals(null, IqParity.engineNeutrality(IqParity.runs(List.of(twinned)).get(0), tables, names));
+        // one whose settings the live IQ may not take (a database property) still must name its decision: the IQ
+        // engine pads ch (D-S1), SQL Anywhere's does not
+        IqParity.Case padded = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
+                null, null, null, null, null, "database.BlankPadding='On'", null);
         assertTrue(IqParity.engineNeutrality(IqParity.runs(List.of(padded)).get(0), tables, names) != null);
         IqParity.Case decided = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
                 null, null, "D-S1", "[]");
@@ -268,6 +417,103 @@ class IqParityTest {
                 != null);
         assertTrue(order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND SUM(v) > 0", null) != null);
         assertEquals(null, order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND MAX(v) > 0", null));
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 7, the user's ruling on B1): which rows a TOP keeps where its ORDER BY keys tie at
+     * the cut, and a LIST's order without its own ORDER BY, are the plan's choice, so no committed case may depend on
+     * them -- the determinism lint ({@link IqParity#determinism}); a case that tests a refusal or an error may opt out
+     * with its reason, and must then not PASS.
+     */
+    @Test
+    void aCaseWhoseAnswerIsThePlansChoiceIsNotCommitted() throws Exception {
+        List<SqlParity.Table> tables = List.of(
+                new SqlParity.Table("t", List.of(new SqlParity.Column("id", "integer"), new SqlParity.Column("sm",
+                        "smallint")), List.of(List.of(1L, 5L), List.of(2L, 5L))),
+                new SqlParity.Table("u", List.of(new SqlParity.Column("id", "integer"), new SqlParity.Column("t_id",
+                        "integer")), List.of(List.of(1L, 1L))),
+                new SqlParity.Table("g", List.of(new SqlParity.Column("id", "integer"), new SqlParity.Column("k",
+                        "smallint"), new SqlParity.Column("v", "integer")), List.of(List.of(1L, 1L, 1L))));
+        java.util.function.BiFunction<String, String, String> lint = (sql, why) -> IqParity.determinism(
+                IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a", sql, List.of("sqla17-default"), null,
+                        null, null, null, null, null, why))).get(0), tables, SqlParity.Status.REFUSED);
+        // a row limit without ORDER BY, or whose ORDER BY reaches no unique column of each FROM item
+        assertTrue(lint.apply("SELECT TOP 2 id FROM t", null).contains("has no ORDER BY"));
+        assertTrue(lint.apply("SELECT TOP ALL START AT 2 id FROM t", null).contains("has no ORDER BY"));
+        assertTrue(lint.apply("SELECT TOP 1 id FROM t ORDER BY sm", null).contains("no unique column of t"));
+        assertTrue(lint.apply("SELECT FIRST id FROM t ORDER BY 1 + 0", null) != null);
+        assertTrue(lint.apply("SELECT id FROM t WHERE id IN (SELECT TOP 1 t_id FROM u ORDER BY t_id)", null)
+                != null);
+        assertTrue(lint.apply("SELECT d.id FROM (SELECT TOP 1 id FROM t ORDER BY sm DESC) d", null) != null);
+        assertTrue(lint.apply("SELECT TOP 1 t.id FROM t, u ORDER BY t.id", null).contains("no unique column of u"));
+        assertTrue(lint.apply("SELECT TOP 1 k FROM g GROUP BY k, v ORDER BY k", null) != null);
+        assertTrue(lint.apply("SELECT TOP 1 id FROM t UNION ALL SELECT id FROM u ORDER BY 1", null) != null);
+        // a LIST without its own ORDER BY, of no GROUP BY key
+        assertTrue(lint.apply("SELECT LIST(id) FROM g", null).contains("LIST"));
+        assertTrue(lint.apply("SELECT k, LIST(DISTINCT v) FROM g GROUP BY k ORDER BY 1", null).contains("LIST"));
+        assertTrue(lint.apply("SELECT (SELECT LIST(v) FROM g WHERE g.k = t.id) FROM t ORDER BY id", null) != null);
+        // the key reached, by name, qualified, by position, by an alias, last or before a later key; a key per item
+        for (String sql : List.of("SELECT TOP 2 id FROM t ORDER BY sm, id", "SELECT TOP 2 id FROM t ORDER BY t.id DESC",
+                "SELECT TOP 2 x.id FROM t AS x ORDER BY x.sm, x.id", "SELECT TOP 2 id, sm FROM t ORDER BY 2, 1",
+                "SELECT TOP 2 id AS i FROM t ORDER BY sm, i", "SELECT TOP 2 START AT 2 id FROM DBA.t ORDER BY id, sm",
+                "SELECT TOP 1 t.id FROM t, u ORDER BY u.id, t.id",
+                "SELECT TOP 1 t.id FROM t JOIN u ON u.id = t.id ORDER BY t.id",
+                "SELECT TOP 2 row_num FROM sa_rowgenerator(1, 5) ORDER BY row_num DESC",
+                "SELECT TOP 1 d.id FROM (SELECT id, sm FROM t) d ORDER BY d.sm, d.id",
+                "SELECT TOP 1 d.k FROM (SELECT k, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY d.n, d.k",
+                "SELECT TOP 1 k, COUNT(*) FROM g GROUP BY k ORDER BY 2 DESC, 1",
+                "SELECT DISTINCT TOP 1 sm FROM t ORDER BY sm",
+                // at most one row, or EXISTS (whether a row is kept)
+                "SELECT TOP 1 1", "SELECT TOP 1 COUNT(*) FROM t", "SELECT FIRST dummy_col FROM DUMMY",
+                "SELECT id FROM t WHERE EXISTS (SELECT TOP 1 1 FROM u WHERE u.t_id = t.id) ORDER BY id",
+                // a LIST ordered, of a GROUP BY key, of a constant; a statement the reader rejects keeps no rows
+                "SELECT LIST(id ORDER BY id) FROM g", "SELECT k, LIST(k) FROM g GROUP BY k ORDER BY 1",
+                "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1", "SELECT TOP 2 WITH TIES id FROM t")) {
+            assertEquals(null, lint.apply(sql, null), sql);
+        }
+        // IQ island, 2026-10-14 (the combination with the options framework): a run that begins with SET statements
+        // is linted on its SELECT, read under the settings they make (quoted_identifier Off: ORDER BY "id" orders by
+        // a string); an error in them keeps no rows; a case's settings key reads alike
+        assertTrue(lint.apply("SET TEMPORARY OPTION date_order = 'DMY'; SELECT TOP 2 id FROM t", null)
+                .contains("has no ORDER BY"));
+        assertEquals(null, lint.apply("SET TEMPORARY OPTION date_order = 'DMY'; SELECT TOP 2 id FROM t ORDER BY id",
+                null));
+        assertEquals(null, lint.apply("SELECT TOP 2 id FROM t ORDER BY \"id\"", null));
+        assertTrue(lint.apply("SET TEMPORARY OPTION quoted_identifier = 'Off'; SELECT TOP 2 id FROM t ORDER BY \"id\"",
+                null).contains("no unique column of t"));
+        assertEquals(null, lint.apply("SET TEMPORARY OPTION no_such_option = 1; SELECT TOP 2 id FROM t", null));
+        assertTrue(IqParity.determinism(IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a",
+                "SELECT TOP 2 id FROM t", List.of("sqla17-default"), null, null, null, null, null,
+                "query.date_order='DMY'", null))).get(0), tables, SqlParity.Status.REFUSED)
+                .contains("has no ORDER BY"));
+        // a case that tests a refusal or an error opts out with its reason: it must not PASS, nor opt out of nothing
+        assertEquals(null, lint.apply("SELECT TOP 2 id FROM t", "tests the refusal of a TOP without ORDER BY"));
+        assertTrue(IqParity.determinism(IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a",
+                "SELECT TOP 2 id FROM t", List.of("iq16-default"), null, null, null, null, null, null, "a refusal")))
+                .get(0), tables, SqlParity.Status.PASS).contains("PASSes"));
+        assertTrue(lint.apply("SELECT TOP 2 id FROM t ORDER BY id", "a refusal").contains("nothing to opt out of"));
+        // a skipped case is not run
+        assertEquals(null, IqParity.determinism(IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a",
+                "SELECT TOP 2 id FROM t", List.of("iq16-default"), null, "a skip", null, null))).get(0), tables,
+                SqlParity.Status.SKIP));
+        // the key is the schema's: a table whose id repeats has none
+        List<SqlParity.Table> twice = List.of(new SqlParity.Table("t", List.of(new SqlParity.Column("id", "integer")),
+                List.of(List.of(1L), List.of(1L))));
+        assertThrows(IllegalStateException.class, () -> IqParity.determinism(IqParity.runs(List.of(
+                new IqParity.Case("lite/x.yaml", "a", "SELECT TOP 1 id FROM t ORDER BY id", List.of("iq16-default"),
+                null, null, null, null))).get(0), twice, SqlParity.Status.PASS));
+        // every committed case: the lanes check each run with its status; here, each case is deterministic or says
+        // why not
+        List<IqParity.Run> runs = IqParity.runs(IqParity.cases(Runfile.property("iq.parity.lite").getParent()));
+        List<SqlParity.Table> schema = IqParity.schema(Runfile.property("iq.parity.schema"));
+        List<String> problems = new ArrayList<>();
+        for (IqParity.Run r : runs) {
+            String p = IqParity.determinism(r, schema, SqlParity.Status.REFUSED);
+            if (p != null) {
+                problems.add(p);
+            }
+        }
+        assertTrue(problems.isEmpty(), String.join("\n", problems));
     }
 
     @Test
@@ -356,6 +602,10 @@ class IqParityTest {
         answers.put("lite/x/a@iq16-default", new IqAnswers.Snap("lite/x/a", "iq16-default",
                 IqAnswers.sqlSha(c.sql(), "iq16-default", null, null, "lo = 4", schema), List.of(), List.of(),
                 List.of(), null));
+        // IQ island, landing 4 (WP1): its iq17-default twin's answer, the live IQ's, stamped with the params too
+        answers.put("lite/x/a@iq17-default", new IqAnswers.Snap("lite/x/a", "iq17-default",
+                IqAnswers.sqlSha(c.sql(), "iq17-default", null, null, "lo = 3", schema), List.of(), List.of(),
+                null, "SQLCODE -141", List.of(), "iq", null));
         List<String> problems = IqAnswers.guards(IqParity.runs(List.of(c)), answers, schema);
         assertEquals(1, problems.size(), String.join("\n", problems));
         assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));

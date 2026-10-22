@@ -1,0 +1,78 @@
+# NUMERIC arithmetic and unification under IQ's engine (IQ island, 2026-10-15; the research's D-N1 and D-S1, measured on
+# the live IQ 17.1): + - * and % type and compute as SQL Anywhere's front end does; / is a NUMERIC of scale max(6, s1 +
+# (p2 - s2) + 1), cut toward zero; a NUMERIC unified with integers or NUMERICs takes the largest scale (COALESCE(nm, 0)
+# is 0.00), with a DOUBLE a DOUBLE; strings of different lengths unify to a VARCHAR, each value as it is. Judged by the
+# live IQ only. Every case is deterministic.
+tests:
+  - id: numeric_plus_and_minus
+    sql: "SELECT id, nm + 1 AS a, nm + nm AS b, nm - 0.5 AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_times
+    sql: "SELECT id, nm * 2 AS a, nm * nm AS b, nm * 1.5 AS c FROM t WHERE id <> 2 ORDER BY id"
+    profile: iq17-default
+  - id: numeric_divided_by_a_constant
+    sql: "SELECT id, nm / 3 AS a, nm / 2 AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_divided_by_a_numeric
+    sql: "SELECT id, nm / CAST(3 AS NUMERIC(5,2)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_quantities
+    sql: "SELECT id, qty * 10 AS a, qty / 4 AS b, qty + qty AS c FROM u ORDER BY id"
+    profile: iq17-default
+  - id: numeric_with_integer_columns
+    sql: "SELECT id, nm + it AS a, nm * sm AS b FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: numeric_negated_and_remainder
+    sql: "SELECT id, -nm AS a, nm % 3 AS m FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_product_compared
+    sql: "SELECT id FROM t WHERE nm * 2 > 100 ORDER BY id"
+    profile: iq17-default
+  - id: numeric_sum_of_a_product_and_an_average
+    sql: "SELECT t_id, SUM(qty * 2) AS s, SUM(qty) / COUNT(*) AS a FROM u GROUP BY t_id ORDER BY t_id"
+    profile: iq17-default
+  - id: numeric_divided_by_integer_columns
+    sql: "SELECT nm / sm AS a, nm / it AS b, nm / 100 AS c FROM t WHERE id IN (1, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: numeric_scale_of_a_wide_dividend
+    sql: "SELECT CAST(nm AS NUMERIC(20,10)) / 3 AS a FROM t WHERE id = 7"
+    profile: iq17-default
+  - id: numeric_quotient_cut_toward_zero
+    sql: "SELECT CAST(-2 AS NUMERIC(5,2)) / 3 AS a, CAST(1 AS NUMERIC(7,4)) / 3 AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: numeric_with_a_double
+    sql: "SELECT id, dbl + nm AS a FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: numeric_division_by_zero_is_iqs_error
+    sql: "SELECT nm / 0 AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: coalesce_of_a_numeric_and_zero
+    sql: "SELECT id, COALESCE(nm, 0) AS a, ISNULL(nm, 0) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_of_a_numeric_and_constants
+    sql: "SELECT id, CASE WHEN id < 3 THEN nm ELSE 0 END AS a, CASE WHEN id < 3 THEN nm ELSE 1.5 END AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: coalesce_of_a_numeric_and_a_bigint
+    sql: "SELECT id, COALESCE(nm, bg) AS a, COALESCE(nm, sm) AS b FROM t WHERE id IN (5, 6) ORDER BY id"
+    profile: iq17-default
+  - id: coalesce_of_a_sum
+    sql: "SELECT t_id, COALESCE(SUM(qty), 0) AS s FROM u GROUP BY t_id ORDER BY t_id"
+    profile: iq17-default
+  - id: case_of_a_numeric_and_a_double
+    sql: "SELECT id, CASE WHEN id < 3 THEN nm ELSE dbl END AS a FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: union_of_a_numeric_and_an_integer
+    sql: "SELECT nm AS a FROM t WHERE id = 1 UNION ALL SELECT 7 FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: case_of_strings_of_different_lengths
+    sql: "SELECT id, CASE WHEN id = 1 THEN 'Yes' ELSE 'No' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: if_of_strings_of_different_lengths
+    sql: "SELECT id, IF id > 3 THEN 'big' ELSE 'small' ENDIF AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_of_a_char_column_and_a_constant
+    sql: "SELECT id, CASE WHEN id < 3 THEN ch ELSE 'zz' END AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: union_of_constants_of_different_lengths
+    sql: "SELECT 'Yes' AS a FROM t WHERE id = 1 UNION ALL SELECT 'No' FROM t WHERE id = 1"
+    profile: iq17-default

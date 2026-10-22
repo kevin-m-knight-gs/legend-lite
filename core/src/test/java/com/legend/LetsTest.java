@@ -7,7 +7,6 @@ import com.legend.testcases.PlanCases;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +38,7 @@ class LetsTest {
     @Test
     void aLetIsDissolved_aClockReadIsOneValue_aValueComputedAnewEachCallReadTwiceIsRefused() throws Exception {
         var ctx = Compiler.compileModel(MODEL);
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = com.legend.testbackend.TestBackends.platform().open()) {
             ExecutionPlan twice = Compiler.query(ctx, "|let x = 2 + 3; $x * $x;").executionPlan("s::RT", TypedQuery.Output.JSON);
             assertTrue(((ExecutionPlan.TextResult) twice.root()).sql().statement().contains("2 + 3"));
             assertEquals("[{\"value\":25}]", PlanCases.run(twice, c));

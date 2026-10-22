@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -8,7 +9,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Map;
@@ -41,7 +41,7 @@ class RelationMappingWindowSeamTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE PERSON (ID INT, NAME VARCHAR(100), AGE INT, GRP VARCHAR(20), SAL INT)");
             // Group A: Peter (23, sal 10) ranks 1st, John (30, sal 20) 2nd;

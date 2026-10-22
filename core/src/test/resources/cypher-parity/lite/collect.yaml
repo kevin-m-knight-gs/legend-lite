@@ -1,0 +1,59 @@
+# collect(x) as the list the database builds, and UNWIND over a list the database holds as a Variant (the study's
+# §12.41): each judged by Neo4j.
+cases:
+  - id: collect_of_a_property_per_group
+    graph: |
+      CREATE (:P {name: 'a', age: 1}), (:P {name: 'b', age: 2}), (:P {name: 'c'})
+    cypher: "MATCH (p:P) RETURN p.name AS name, collect(p.age) AS ages ORDER BY name"
+  - id: collect_skips_nulls
+    cypher: "UNWIND [1, null, 2] AS x RETURN collect(x) AS xs"
+  - id: collect_over_nothing_is_the_empty_list
+    graph: |
+      CREATE (:P {name: 'a'})-[:T]->(:Q {name: 'q'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) OPTIONAL MATCH (p)-[:T]->(q) RETURN p.name AS name, collect(q.name) AS qs ORDER BY name"
+  - id: collect_of_nodes
+    graph: |
+      CREATE (:P {name: 'a'}), (:Q {name: 'q'})
+    cypher: "MATCH (n:P) RETURN collect(n) AS ns"
+  - id: collect_of_booleans
+    cypher: "UNWIND [true, false, null] AS b RETURN collect(b) AS bs"
+  - id: collect_of_lists
+    cypher: "UNWIND [1, 2] AS x RETURN collect([x, x * 2]) AS pairs"
+  - id: collect_of_strings_and_floats
+    cypher: "UNWIND ['a', 'b'] AS s RETURN collect(s) AS ss, collect(1.5) AS fs"
+  - id: collect_then_unwind
+    cypher: "UNWIND [1, 2, 3] AS x WITH collect(x) AS xs UNWIND xs AS y RETURN y ORDER BY y"
+  - id: size_of_a_collected_list
+    cypher: "UNWIND [1, 2, 3] AS x RETURN size(collect(x)) AS n"
+  - id: collect_distinct_counts_the_distinct_values
+    cypher: "UNWIND [1, 1, 2] AS x RETURN size(collect(DISTINCT x)) AS n, size(collect(x)) AS m"
+  - id: collect_with_a_count_beside
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) RETURN count(p) AS n, size(collect(p.name)) AS m"
+  - id: unwind_a_list_of_lists
+    cypher: "UNWIND [[1, 2], [3]] AS l RETURN l"
+  - id: unwind_a_list_of_lists_twice
+    cypher: "WITH [[1, 2, 3], [4, 5, 6]] AS lol UNWIND lol AS x UNWIND x AS y RETURN y ORDER BY y"
+  - id: unwind_a_list_of_maps
+    cypher: "UNWIND [{a: 1}, {a: 2}] AS m RETURN m"
+  - id: unwind_a_list_of_several_kinds
+    cypher: "UNWIND [1, 'a', true, null, 2.5] AS v RETURN v"
+  - id: unwind_a_stored_list
+    graph: |
+      CREATE (:P {name: 'a', tags: ['x', 'y']})
+    cypher: "MATCH (p:P) UNWIND p.tags AS t RETURN t"
+  - id: unwind_a_collected_list_of_nodes
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH collect(p) AS ps UNWIND ps AS n RETURN n"
+  - id: a_quantifier_over_a_collected_list
+    cypher: "UNWIND [1, 2, 3] AS x WITH collect(x) AS xs RETURN all(y IN xs WHERE y > 0) AS every, any(y IN xs WHERE y > 2) AS some, none(y IN xs WHERE y > 3) AS no"
+  - id: in_over_a_collected_list
+    cypher: "UNWIND [1, 2, 3] AS x WITH collect(x) AS xs RETURN 2 IN xs AS yes, 5 IN xs AS no"
+  - id: a_comprehension_over_a_collected_list
+    cypher: "UNWIND [1, 2, 3] AS x WITH collect(x) AS xs RETURN size([y IN xs WHERE y > 1]) AS n"
+  - id: a_quantifier_over_collected_booleans
+    cypher: "UNWIND [true, false, null] AS a UNWIND [true, false, null] AS b WITH collect((a OR b) = (b OR a)) AS eq RETURN all(x IN eq WHERE x) AS commutes"
+  - id: a_list_of_lists_unwound_and_quantified
+    cypher: "UNWIND [[1, 2], [3, 4]] AS l RETURN all(x IN l WHERE x > 0) AS positive, size(l) AS n"

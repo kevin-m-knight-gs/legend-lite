@@ -15,7 +15,6 @@ const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };

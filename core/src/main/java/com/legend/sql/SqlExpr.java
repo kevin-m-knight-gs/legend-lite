@@ -748,7 +748,8 @@ public sealed interface SqlExpr
     record ArrayLit(List<SqlExpr> elements, TypeFact type)
             implements SqlExpr {
         public ArrayLit {
-            // the type its elements prove; where they prove none (an empty list, untyped elements), the builder's
+            // the type its elements prove; where they prove none (an empty list -- the empty side of a one-element
+            // concatenation, 2026-10-17 -- or untyped elements), the type it is given
             TypeFact proven = SqlTyping.arrayLitType(elements);
             type = proven instanceof TypeFact.Unknown && type != null ? type : proven;
         }

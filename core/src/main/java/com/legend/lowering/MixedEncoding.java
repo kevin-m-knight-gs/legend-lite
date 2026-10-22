@@ -574,7 +574,7 @@ final class MixedEncoding {
     }
 
     /** An instance entering the JSON slot of a class with no layout of its own (instances of several classes meeting
-     *  at an abstract ancestor): its struct carries its own class as {@code __type} (register S81, 2026-10-20), the
+     *  at an abstract ancestor): its struct carries its own class as {@code __type} (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9), the
      *  class the text carrier spells it as ({@code LiteralSpelling.jsonInstanceText}); any other value unchanged. */
     static SqlExpr withClass(com.legend.compiler.spec.typed.TypedSpec e, SqlExpr lowered) {
         if (e.info().type() instanceof Type.ClassType own && lowered instanceof SqlExpr.StructLit s

@@ -483,15 +483,30 @@ final class CreateClass {
             Json.Obj value = connectionValue(sources, fromRuntime, from);
             LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>(value.fields());
             fields.put("element", Json.str(store));
-            Json.Obj spec = value.getObjOr("datasourceSpecification", null);
-            if (spec != null && "duckDB".equals(spec.getStringOr("_type", "")) && !spec.has("path")) {
-                // a host's own DuckDB (a table model names no path: the host runs the SQL on its engine): the tab's
-                // is in memory, and upstream's DuckDB names its database
-                fields.put("datasourceSpecification", with(spec, "path", Json.str(":memory:")));
+            String inMemory = inMemoryPath(value);
+            if (inMemory != null) {
+                // a host's own database (a table model names no path: the host runs the SQL on its engine) is in memory:
+                // the project names it as its database does, where legend-engine must be given a path
+                fields.put("datasourceSpecification",
+                        with(value.getObj("datasourceSpecification"), "path", Json.str(inMemory)));
             }
             m.put(renamed(Json.obj(), place.pkg() + "::connection", place.name(), Map.of("_type", Json.str("connection"),
                     "connectionValue", new Json.Obj(fields))));
         }
+    }
+
+    /** The path a connection {@code value} written into the project names for its in-memory database: its declared
+     *  database's ({@code SqlDialect.inMemoryPath}) when its specification names no path, or null. A database the
+     *  platform does not run on (no dialect) is written as it is: the writer runs nothing. */
+    static @com.legend.base.Nullable String inMemoryPath(Json.Obj value) {
+        Json.Obj spec = value.getObjOr("datasourceSpecification", null);
+        String declared = value.getStringOr("databaseType", null);
+        if (spec == null || spec.has("path") || declared == null) {
+            return null;
+        }
+        return com.legend.database.Databases.implemented().contains(com.legend.database.Databases.named(declared))
+                ? com.legend.database.Databases.dialect(com.legend.database.Databases.named(declared)).inMemoryPath()
+                : null;
     }
 
     /** The connection {@code runtime} reads {@code store} through: a packageable connection's value, or the one the

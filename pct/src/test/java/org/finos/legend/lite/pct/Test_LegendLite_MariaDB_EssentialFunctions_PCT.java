@@ -75,8 +75,8 @@ public class Test_LegendLite_MariaDB_EssentialFunctions_PCT extends PCTReportCon
             // NOTE 2026-10-20 (the parity phase): testRemoveDuplicatesPrimitiveStandardFunctionExplicit unpinned -- an
             // ordered derived table takes a LIMIT here, so the server keeps its ORDER BY (MariaDb.subselectSource)
             // step 9, 2026-10-19, the plan route: a heterogeneous class collection meeting at an abstract ancestor crosses
-            // as JSON without its class, which the text carrier has no form for; register S81 (as on DuckDB)
-            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // as JSON without its class, which the text carrier has no form for; the instance carrier (as on DuckDB)
+            // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).

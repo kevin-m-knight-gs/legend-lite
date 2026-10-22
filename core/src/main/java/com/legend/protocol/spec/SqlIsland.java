@@ -37,6 +37,18 @@ public record SqlIsland(String sql,
      *  {@code compiler/spec/CypherIslands}. */
     public static final String CYPHER = "Cypher";
 
+    /** Position is excluded from equality, as on every value specification ({@code ValueSpecEqualityTest}). */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof SqlIsland other && sql.equals(other.sql()) && language.equals(other.language())
+                && Objects.equals(profile, other.profile());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sql, language, profile);
+    }
+
     public SqlIsland {
         Objects.requireNonNull(sql, "sql");
         Objects.requireNonNull(language, "language");

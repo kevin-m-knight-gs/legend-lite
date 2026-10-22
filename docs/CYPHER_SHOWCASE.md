@@ -106,7 +106,10 @@ the values in the TCK's value grammar: strings, integers, and floats within a re
 The harness infers it from the dump (`CypherGraph`), the lanes compile it, and nothing hand-written is in it: a class
 per label, a property per key typed by its values (every property optional, as a graph's are), each relationship type
 an association (`g::R_<type>`, named apart from the classes) whose ends are named by the type (`WORKS_AT` holds the
-firm, `WORKS_AT_in` the people), realized as a foreign key on the to-one side.
+firm, `WORKS_AT_in` the people), realized as a foreign key on the to-one side. The graph itself is a DataSpace,
+`g::Graph`, listing every class and marked `<<graph::graph.Open>>` (the study's §12.45): each island opens with
+`USE g::Graph`, and the graph is OPEN, as a Neo4j graph is, so a label, a relationship type or a property the graph
+lacks reads as Neo4j reads it (no rows, null) rather than as a compile error.
 
 ```
 ###Pure
@@ -456,7 +459,7 @@ null; `ORDER BY age DESC` is a `sort` with Neo4j's null order (nulls first desce
 **The SQL for DuckDB** (`showcase/easy/duckdb.sql`, rendered and run):
 
 ```sql
-SELECT t0.p_name AS name, t0.p_age AS age, CASE WHEN CASE WHEN t0.p_active IS NOT NULL AND t0.p_active THEN TRUE ELSE CASE WHEN t0.p_active IS NOT NULL AND NOT t0.p_active THEN FALSE ELSE NULL END END IS NULL THEN FALSE ELSE CASE WHEN t0.p_active IS NOT NULL AND t0.p_active THEN TRUE ELSE CASE WHEN t0.p_active IS NOT NULL AND NOT t0.p_active THEN FALSE ELSE NULL END END END AS active
+SELECT t0.p_name AS name, t0.p_age AS age, CASE WHEN CASE WHEN t0.p_active IS NOT NULL AND t0.p_active THEN TRUE WHEN t0.p_active IS NOT NULL AND NOT t0.p_active THEN FALSE ELSE NULL END IS NULL THEN FALSE WHEN t0.p_active IS NOT NULL AND t0.p_active THEN TRUE WHEN t0.p_active IS NOT NULL AND NOT t0.p_active THEN FALSE ELSE NULL END AS active
 FROM n_person AS t0
 WHERE t0.p_age IS NOT NULL AND t0.p_age IS NOT NULL AND t0.p_age > 28
 ORDER BY t0.p_age DESC NULLS FIRST
@@ -465,7 +468,7 @@ ORDER BY t0.p_age DESC NULLS FIRST
 **The SQL for Snowflake** (`showcase/easy/snowflake.sql`, rendered only):
 
 ```sql
-SELECT "t0"."p_name" AS "name", "t0"."p_age" AS "age", CASE WHEN CASE WHEN "t0"."p_active" IS NOT NULL AND "t0"."p_active" THEN TRUE ELSE CASE WHEN "t0"."p_active" IS NOT NULL AND NOT "t0"."p_active" THEN FALSE ELSE NULL END END IS NULL THEN FALSE ELSE CASE WHEN "t0"."p_active" IS NOT NULL AND "t0"."p_active" THEN TRUE ELSE CASE WHEN "t0"."p_active" IS NOT NULL AND NOT "t0"."p_active" THEN FALSE ELSE NULL END END END AS "active"
+SELECT "t0"."p_name" AS "name", "t0"."p_age" AS "age", CASE WHEN CASE WHEN "t0"."p_active" IS NOT NULL AND "t0"."p_active" THEN TRUE WHEN "t0"."p_active" IS NOT NULL AND NOT "t0"."p_active" THEN FALSE ELSE NULL END IS NULL THEN FALSE WHEN "t0"."p_active" IS NOT NULL AND "t0"."p_active" THEN TRUE WHEN "t0"."p_active" IS NOT NULL AND NOT "t0"."p_active" THEN FALSE ELSE NULL END AS "active"
 FROM "n_person" AS "t0"
 WHERE "t0"."p_age" IS NOT NULL AND "t0"."p_age" IS NOT NULL AND "t0"."p_age" > 28
 ORDER BY "t0"."p_age" DESC NULLS FIRST
@@ -508,7 +511,7 @@ property (§12.3).
 **The Pure** (`showcase/hard/pure.txt`):
 
 ```
-g::Firm.all()->project(~[firm:f|$f.legalName, city:f|$f.HQ.name, noHq:f|!if($f.HQ->isEmpty(), |[]->cast(@meta::pure::metamodel::variant::Variant), |fromJson(('{"@labels":' + '["City"]') + if($f.HQ.name->isEmpty(), |'', |',"name":' + ('"' + $f.HQ.name->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"')) + '}'))->isNotEmpty(), headcount:f|$f.WORKS_AT_in->size(), seniors:f|fromJson('[' + $f.WORKS_AT_in->filter(_cypher_1|$_cypher_1.age->isNotEmpty() && ($_cypher_1.age->toOne() > 35))->map(_cypher_1|',' + if($_cypher_1.name->isEmpty(), |'null', |'"' + $_cypher_1.name->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"'))->joinStrings('')->substring(2) + ']'), old:f|if($f.founded->isNotEmpty() && ($f.founded->isNotEmpty() && ($f.founded->toOne() < 2000)), |true, |if(!$f.founded->isNotEmpty() || ($f.founded->isNotEmpty() && !($f.founded->toOne() < 2000)), |false, |[])), where:f|if(!if($f.HQ->isEmpty(), |[]->cast(@meta::pure::metamodel::variant::Variant), |fromJson(('{"@labels":' + '["City"]') + if($f.HQ.name->isEmpty(), |'', |',"name":' + ('"' + $f.HQ.name->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"')) + '}'))->isNotEmpty(), |'no hq', |if($f.HQ.name->isEmpty(), |[], |'in ' + $f.HQ.name->toOne()))])->sort([~firm->ascending(meta::pure::functions::relation::NullOrder.LAST)])
+g::Firm.all()->project(~[firm:f|$f.legalName, city:f|$f.HQ.name, noHq:f|!if($f.HQ->isEmpty(), |[]->cast(@meta::pure::metamodel::variant::Variant), |fromJson((('{"@labels":' + '["City"]') + if(if($f.HQ->isEmpty(), |[]->cast(@String), |$f.HQ->meta::legend::lite::elementId())->isEmpty(), |'', |',"@id":' + ('"' + if($f.HQ->isEmpty(), |[]->cast(@String), |$f.HQ->meta::legend::lite::elementId())->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"'))) + if($f.HQ.name->isEmpty(), |'', |',"name":' + ('"' + $f.HQ.name->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"')) + '}'))->isNotEmpty(), headcount:f|$f.WORKS_AT_in->size(), seniors:f|fromJson('[' + $f.WORKS_AT_in->filter(_cypher_1|$_cypher_1.age->isNotEmpty() && ($_cypher_1.age->toOne() > 35))->map(_cypher_1|',' + if($_cypher_1.name->isEmpty(), |'null', |'"' + $_cypher_1.name->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"'))->joinStrings('')->substring(2) + ']'), old:f|if($f.founded->isNotEmpty() && ($f.founded->isNotEmpty() && ($f.founded->toOne() < 2000)), |true, |if(!$f.founded->isNotEmpty() || ($f.founded->isNotEmpty() && !($f.founded->toOne() < 2000)), |false, |[])), where:f|if(!if($f.HQ->isEmpty(), |[]->cast(@meta::pure::metamodel::variant::Variant), |fromJson((('{"@labels":' + '["City"]') + if(if($f.HQ->isEmpty(), |[]->cast(@String), |$f.HQ->meta::legend::lite::elementId())->isEmpty(), |'', |',"@id":' + ('"' + if($f.HQ->isEmpty(), |[]->cast(@String), |$f.HQ->meta::legend::lite::elementId())->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"'))) + if($f.HQ.name->isEmpty(), |'', |',"name":' + ('"' + $f.HQ.name->toOne()->replace('\\', '\\\\')->replace('"', '\\"') + '"')) + '}'))->isNotEmpty(), |'no hq', |if($f.HQ.name->isEmpty(), |[], |'in ' + $f.HQ.name->toOne()))])->sort([~firm->ascending(meta::pure::functions::relation::NullOrder.LAST)])
 ```
 
 How the Cypher lands in it: the root is `Firm` (`all()`); the optional hop is the navigation `$f.HQ` with no
@@ -521,7 +524,7 @@ three-valued condition (`if ... true ... false ... []`); the `CASE` is an `if` o
 **The SQL for DuckDB** (`showcase/hard/duckdb.sql`, rendered and run):
 
 ```sql
-SELECT t0.p_legalname AS firm, t1.p_name AS city, NOT CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t6 WHERE t0.r_hq = t6.id) THEN NULL ELSE CAST(concat('{"@labels":', '["City"]', CASE WHEN t1.p_name IS NULL THEN '' ELSE concat(',"name":', '"', replace(replace(t1.p_name, '\', '\\'), '"', '\"'), '"') END, '}') AS JSON) END IS NOT NULL AS noHq, CASE WHEN t3.agg_0 IS NOT NULL THEN t3.agg_0 ELSE 0 END AS headcount, CAST(concat('[', substr(t5.agg_0, 2), ']') AS JSON) AS seniors, CASE WHEN t0.p_founded IS NOT NULL AND t0.p_founded IS NOT NULL AND t0.p_founded IS NOT NULL AND t0.p_founded < 2000 THEN TRUE ELSE CASE WHEN NOT t0.p_founded IS NOT NULL OR t0.p_founded IS NOT NULL AND NOT (t0.p_founded IS NOT NULL AND t0.p_founded < 2000) THEN FALSE ELSE NULL END END AS old, CASE WHEN NOT CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t7 WHERE t0.r_hq = t7.id) THEN NULL ELSE CAST(concat('{"@labels":', '["City"]', CASE WHEN t1.p_name IS NULL THEN '' ELSE concat(',"name":', '"', replace(replace(t1.p_name, '\', '\\'), '"', '\"'), '"') END, '}') AS JSON) END IS NOT NULL THEN 'no hq' ELSE CASE WHEN t1.p_name IS NULL THEN NULL ELSE concat('in ', t1.p_name) END END AS "where"
+SELECT t0.p_legalname AS firm, t1.p_name AS city, NOT CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t6 WHERE t0.r_hq = t6.id) THEN CAST(NULL AS JSON) ELSE CAST(concat('{"@labels":', '["City"]', CASE WHEN CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t7 WHERE t0.r_hq = t7.id) THEN NULL WHEN t1.id IS NOT NULL THEN coalesce(list_aggregate(list_filter(['g::City:', CAST(t1.id AS VARCHAR)], x -> x IS NOT NULL), 'string_agg', ''), '') ELSE NULL END IS NULL THEN '' ELSE concat(',"@id":', '"', replace(replace(CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t8 WHERE t0.r_hq = t8.id) THEN NULL WHEN t1.id IS NOT NULL THEN coalesce(list_aggregate(list_filter(['g::City:', CAST(t1.id AS VARCHAR)], x -> x IS NOT NULL), 'string_agg', ''), '') ELSE NULL END, '\', '\\'), '"', '\"'), '"') END, CASE WHEN t1.p_name IS NULL THEN '' ELSE concat(',"name":', '"', replace(replace(t1.p_name, '\', '\\'), '"', '\"'), '"') END, '}') AS JSON) END IS NOT NULL AS noHq, CASE WHEN t3.agg_0 IS NOT NULL THEN t3.agg_0 ELSE 0 END AS headcount, CAST(concat('[', substr(t5.agg_0, 2), ']') AS JSON) AS seniors, CASE WHEN t0.p_founded IS NOT NULL AND t0.p_founded IS NOT NULL AND t0.p_founded IS NOT NULL AND t0.p_founded < 2000 THEN TRUE WHEN NOT t0.p_founded IS NOT NULL OR t0.p_founded IS NOT NULL AND NOT (t0.p_founded IS NOT NULL AND t0.p_founded < 2000) THEN FALSE ELSE NULL END AS old, CASE WHEN NOT CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t9 WHERE t0.r_hq = t9.id) THEN CAST(NULL AS JSON) ELSE CAST(concat('{"@labels":', '["City"]', CASE WHEN CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t10 WHERE t0.r_hq = t10.id) THEN NULL WHEN t1.id IS NOT NULL THEN coalesce(list_aggregate(list_filter(['g::City:', CAST(t1.id AS VARCHAR)], x -> x IS NOT NULL), 'string_agg', ''), '') ELSE NULL END IS NULL THEN '' ELSE concat(',"@id":', '"', replace(replace(CASE WHEN NOT EXISTS (SELECT * FROM n_city AS t11 WHERE t0.r_hq = t11.id) THEN NULL WHEN t1.id IS NOT NULL THEN coalesce(list_aggregate(list_filter(['g::City:', CAST(t1.id AS VARCHAR)], x -> x IS NOT NULL), 'string_agg', ''), '') ELSE NULL END, '\', '\\'), '"', '\"'), '"') END, CASE WHEN t1.p_name IS NULL THEN '' ELSE concat(',"name":', '"', replace(replace(t1.p_name, '\', '\\'), '"', '\"'), '"') END, '}') AS JSON) END IS NOT NULL THEN 'no hq' WHEN t1.p_name IS NULL THEN NULL ELSE concat('in ', t1.p_name) END AS "where"
 FROM n_firm AS t0
 LEFT OUTER JOIN n_city AS t1 ON t0.r_hq = t1.id
 LEFT OUTER JOIN (
@@ -546,7 +549,7 @@ grouped `COUNT(*)` over the people, keyed by their firm, joined back and read as
 **The SQL for Snowflake** (`showcase/hard/snowflake.sql`, rendered only):
 
 ```sql
-SELECT "t0"."p_legalname" AS "firm", "t1"."p_name" AS "city", NOT CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t6" WHERE "t0"."r_hq" = "t6"."id") THEN NULL ELSE PARSE_JSON(('{"@labels":' || '["City"]' || COALESCE(CASE WHEN "t1"."p_name" IS NULL THEN '' ELSE (',"name":' || '"' || COALESCE(replace(replace("t1"."p_name", '\\', '\\\\'), '"', '\\"'), '') || '"') END, '') || '}')) END IS NOT NULL AS "noHq", CASE WHEN "t3"."agg_0" IS NOT NULL THEN "t3"."agg_0" ELSE 0 END AS "headcount", PARSE_JSON(('[' || COALESCE(substr("t5"."agg_0", 2), '') || ']')) AS "seniors", CASE WHEN "t0"."p_founded" IS NOT NULL AND "t0"."p_founded" IS NOT NULL AND "t0"."p_founded" IS NOT NULL AND "t0"."p_founded" < 2000 THEN TRUE ELSE CASE WHEN NOT "t0"."p_founded" IS NOT NULL OR "t0"."p_founded" IS NOT NULL AND NOT ("t0"."p_founded" IS NOT NULL AND "t0"."p_founded" < 2000) THEN FALSE ELSE NULL END END AS "old", CASE WHEN NOT CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t7" WHERE "t0"."r_hq" = "t7"."id") THEN NULL ELSE PARSE_JSON(('{"@labels":' || '["City"]' || COALESCE(CASE WHEN "t1"."p_name" IS NULL THEN '' ELSE (',"name":' || '"' || COALESCE(replace(replace("t1"."p_name", '\\', '\\\\'), '"', '\\"'), '') || '"') END, '') || '}')) END IS NOT NULL THEN 'no hq' ELSE CASE WHEN "t1"."p_name" IS NULL THEN NULL ELSE ('in ' || COALESCE("t1"."p_name", '')) END END AS "where"
+SELECT "t0"."p_legalname" AS "firm", "t1"."p_name" AS "city", NOT CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t6" WHERE "t0"."r_hq" = "t6"."id") THEN TO_VARIANT(NULL) ELSE PARSE_JSON(('{"@labels":' || '["City"]' || COALESCE(CASE WHEN CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t7" WHERE "t0"."r_hq" = "t7"."id") THEN NULL WHEN "t1"."id" IS NOT NULL THEN coalesce((CASE WHEN ARRAY_SIZE(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR))))) > 0 THEN ARRAY_TO_STRING(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR)))), '') END), '') ELSE NULL END IS NULL THEN '' ELSE (',"@id":' || '"' || COALESCE(replace(replace(CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t8" WHERE "t0"."r_hq" = "t8"."id") THEN NULL WHEN "t1"."id" IS NOT NULL THEN coalesce((CASE WHEN ARRAY_SIZE(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR))))) > 0 THEN ARRAY_TO_STRING(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR)))), '') END), '') ELSE NULL END, '\\', '\\\\'), '"', '\\"'), '') || '"') END, '') || COALESCE(CASE WHEN "t1"."p_name" IS NULL THEN '' ELSE (',"name":' || '"' || COALESCE(replace(replace("t1"."p_name", '\\', '\\\\'), '"', '\\"'), '') || '"') END, '') || '}')) END IS NOT NULL AS "noHq", CASE WHEN "t3"."agg_0" IS NOT NULL THEN "t3"."agg_0" ELSE 0 END AS "headcount", PARSE_JSON(('[' || COALESCE(substr("t5"."agg_0", 2), '') || ']')) AS "seniors", CASE WHEN "t0"."p_founded" IS NOT NULL AND "t0"."p_founded" IS NOT NULL AND "t0"."p_founded" IS NOT NULL AND "t0"."p_founded" < 2000 THEN TRUE WHEN NOT "t0"."p_founded" IS NOT NULL OR "t0"."p_founded" IS NOT NULL AND NOT ("t0"."p_founded" IS NOT NULL AND "t0"."p_founded" < 2000) THEN FALSE ELSE NULL END AS "old", CASE WHEN NOT CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t9" WHERE "t0"."r_hq" = "t9"."id") THEN TO_VARIANT(NULL) ELSE PARSE_JSON(('{"@labels":' || '["City"]' || COALESCE(CASE WHEN CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t10" WHERE "t0"."r_hq" = "t10"."id") THEN NULL WHEN "t1"."id" IS NOT NULL THEN coalesce((CASE WHEN ARRAY_SIZE(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR))))) > 0 THEN ARRAY_TO_STRING(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR)))), '') END), '') ELSE NULL END IS NULL THEN '' ELSE (',"@id":' || '"' || COALESCE(replace(replace(CASE WHEN NOT EXISTS (SELECT * FROM "n_city" AS "t11" WHERE "t0"."r_hq" = "t11"."id") THEN NULL WHEN "t1"."id" IS NOT NULL THEN coalesce((CASE WHEN ARRAY_SIZE(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR))))) > 0 THEN ARRAY_TO_STRING(ARRAY_COMPACT(ARRAY_COMPACT(ARRAY_CONSTRUCT('g::City:', CAST("t1"."id" AS VARCHAR)))), '') END), '') ELSE NULL END, '\\', '\\\\'), '"', '\\"'), '') || '"') END, '') || COALESCE(CASE WHEN "t1"."p_name" IS NULL THEN '' ELSE (',"name":' || '"' || COALESCE(replace(replace("t1"."p_name", '\\', '\\\\'), '"', '\\"'), '') || '"') END, '') || '}')) END IS NOT NULL THEN 'no hq' WHEN "t1"."p_name" IS NULL THEN NULL ELSE ('in ' || COALESCE("t1"."p_name", '')) END AS "where"
 FROM "n_firm" AS "t0"
 LEFT OUTER JOIN "n_city" AS "t1" ON "t0"."r_hq" = "t1"."id"
 LEFT OUTER JOIN (
@@ -930,66 +933,91 @@ MATCH (n) RETURN n.numbers AS l, n.name AS name, n
 | [1, 2, 3] | 'n' | ({name: 'n', numbers: [1, 2, 3]}) |
 
 
-## 20. The TCK ledger today (DuckDB, 2026-10-16, after the study's §12.37)
+### §12.38 the edge class — `lite/edges/properties_and_keys_of_a_relationship`
+
+A relationship type whose relationships carry properties is an edge class (the study's §5.6): the harness declares `g::E_ACTED_IN` marked `<<graph::graph.Edge>>` with the properties `role` and `year`, its type `<<graph::graph.type>> type() { g::RelationshipType.ACTED_IN }`, and its two ends as associations (`<<graph::graph.from>> from: g::Actor[1]` with the actor's `ACTED_IN_out: g::E_ACTED_IN[*]`, `<<graph::graph.to>> to: g::Movie[1]` with the movie's `ACTED_IN_in`), over a bridge table `r_acted_in (id, src_id, dst_id, p_role, p_year)`. The pattern navigates `$a.ACTED_IN_out` (one row per relationship) to the edge instance and `.to` on to the movie; `properties(r)` and `keys(r)` read the edge instance.
+
+Graph: `CREATE (a:Actor {name: 'Keanu'}), (m:Movie {title: 'The Matrix'}), (n:Movie {title: 'Speed'}), (a)-[:ACTED_IN {role: 'Neo', year: 1999}]->(m), (a)-[:ACTED_IN {role: 'Jack'}]->(n)`
+
+```
+MATCH (:Actor)-[r:ACTED_IN]->(m:Movie)
+RETURN m.title AS title, properties(r) AS props, size(keys(r)) AS n, 'year' IN keys(r) AS hasYear
+ORDER BY title
+```
+
+| title | props | n | hasYear |
+|---|---|---|---|
+| 'Speed' | {role: 'Jack'} | 1 | false |
+| 'The Matrix' | {role: 'Neo', year: 1999} | 2 | true |
+
+## 20. The TCK ledger today (DuckDB, 2026-10-17, after the study's §12.52)
 
 The openCypher TCK's 3880 scenarios (every example of an outline a case of its own), judged by Neo4j's snapped
 answers on the DuckDB lane. `PASS`: lite's rows match Neo4j's cell for cell. `BOTH_ERROR`: Neo4j errors (the TCK's
 negative scenarios, a syntax or type error) and lite errors too, by the same static check or by a refusal. `REFUSED`:
-Neo4j answers, lite refuses by name. `SKIP`: the harness cannot model the scenario (a relationship type joining
-several class pairs, a relationship property, a `CALL`; a list property is modelled since §12.37). No case is `FAIL`, `BUG` or `ERROR` on either lane.
+Neo4j answers, lite refuses by name. `SKIP`: the harness cannot model the scenario (a node with several labels, a
+time-of-day or zoned property, a `CALL`; a list property is modelled since §12.37, a relationship property since
+§12.38, a type joining several class pairs since §12.39). No case is `FAIL`, `BUG` or `ERROR` on either lane.
 
 | status | cases |
 |---|---|
-| PASS | 2272 |
-| BOTH_ERROR | 666 |
-| REFUSED | 595 |
-| SKIP | 347 |
+| PASS | 2600 |
+| BOTH_ERROR | 670 |
+| REFUSED | 429 |
+| SKIP | 181 |
+| total | 3880 |
 
-| area | cases | PASS | BOTH_ERROR | REFUSED | SKIP |
+| feature | cases | PASS | BOTH_ERROR | REFUSED | SKIP |
 |---|---|---|---|---|---|
 | clauses/call | 52 | 0 | 2 | 0 | 50 |
 | clauses/create | 78 | 0 | 15 | 54 | 9 |
-| clauses/delete | 41 | 0 | 4 | 27 | 10 |
-| clauses/match | 381 | 26 | 238 | 74 | 43 |
-| clauses/match-where | 34 | 13 | 2 | 6 | 13 |
-| clauses/merge | 75 | 0 | 13 | 47 | 15 |
-| clauses/remove | 33 | 0 | 0 | 22 | 11 |
-| clauses/return | 63 | 29 | 10 | 19 | 5 |
-| clauses/return-orderby | 35 | 16 | 3 | 15 | 1 |
-| clauses/return-skip-limit | 31 | 11 | 16 | 3 | 1 |
-| clauses/set | 53 | 0 | 2 | 43 | 8 |
+| clauses/delete | 41 | 0 | 5 | 36 | 0 |
+| clauses/match | 381 | 97 | 240 | 38 | 6 |
+| clauses/match-where | 34 | 27 | 2 | 5 | 0 |
+| clauses/merge | 75 | 0 | 13 | 54 | 8 |
+| clauses/remove | 33 | 0 | 0 | 31 | 2 |
+| clauses/return | 63 | 46 | 11 | 6 | 0 |
+| clauses/return-orderby | 35 | 23 | 3 | 9 | 0 |
+| clauses/return-skip-limit | 31 | 12 | 16 | 3 | 0 |
+| clauses/set | 53 | 0 | 2 | 51 | 0 |
 | clauses/union | 12 | 7 | 4 | 1 | 0 |
-| clauses/unwind | 14 | 8 | 0 | 5 | 1 |
-| clauses/with | 29 | 9 | 4 | 12 | 4 |
-| clauses/with-orderBy | 292 | 154 | 67 | 30 | 41 |
-| clauses/with-skip-limit | 9 | 3 | 0 | 2 | 4 |
-| clauses/with-where | 19 | 6 | 0 | 7 | 6 |
-| expressions/aggregation | 35 | 15 | 7 | 13 | 0 |
+| clauses/unwind | 14 | 11 | 0 | 3 | 0 |
+| clauses/with | 29 | 19 | 4 | 5 | 1 |
+| clauses/with-orderBy | 292 | 156 | 67 | 29 | 40 |
+| clauses/with-skip-limit | 9 | 6 | 0 | 1 | 2 |
+| clauses/with-where | 19 | 15 | 0 | 4 | 0 |
+| expressions/aggregation | 35 | 19 | 7 | 9 | 0 |
 | expressions/boolean | 150 | 32 | 118 | 0 | 0 |
-| expressions/comparison | 72 | 58 | 1 | 10 | 3 |
+| expressions/comparison | 72 | 64 | 1 | 5 | 2 |
 | expressions/conditional | 13 | 13 | 0 | 0 | 0 |
-| expressions/existentialSubqueries | 10 | 0 | 1 | 0 | 9 |
-| expressions/graph | 61 | 17 | 15 | 13 | 16 |
-| expressions/list | 185 | 117 | 59 | 6 | 3 |
+| expressions/existentialSubqueries | 10 | 5 | 1 | 4 | 0 |
+| expressions/graph | 61 | 28 | 15 | 7 | 11 |
+| expressions/list | 185 | 119 | 59 | 7 | 0 |
 | expressions/literals | 131 | 100 | 25 | 6 | 0 |
 | expressions/map | 44 | 35 | 9 | 0 | 0 |
 | expressions/mathematical | 6 | 5 | 1 | 0 | 0 |
-| expressions/null | 44 | 40 | 0 | 4 | 0 |
-| expressions/path | 7 | 2 | 2 | 1 | 2 |
-| expressions/pattern | 50 | 3 | 19 | 3 | 25 |
-| expressions/precedence | 104 | 60 | 0 | 44 | 0 |
-| expressions/quantifier | 604 | 512 | 12 | 72 | 8 |
+| expressions/null | 44 | 44 | 0 | 0 | 0 |
+| expressions/path | 7 | 3 | 2 | 2 | 0 |
+| expressions/pattern | 50 | 18 | 19 | 13 | 0 |
+| expressions/precedence | 104 | 102 | 0 | 2 | 0 |
+| expressions/quantifier | 604 | 576 | 12 | 16 | 0 |
 | expressions/string | 32 | 29 | 0 | 3 | 0 |
-| expressions/temporal | 1004 | 923 | 0 | 31 | 50 |
+| expressions/temporal | 1004 | 943 | 0 | 11 | 50 |
 | expressions/typeConversion | 47 | 25 | 17 | 5 | 0 |
-| useCases/countingSubgraphMatches | 11 | 3 | 0 | 8 | 0 |
-| useCases/triadicSelection | 19 | 1 | 0 | 9 | 9 |
+| useCases/countingSubgraphMatches | 11 | 11 | 0 | 0 | 0 |
+| useCases/triadicSelection | 19 | 10 | 0 | 9 | 0 |
 
 The refusals, by what they name (the larger buckets): the write clauses `CREATE`, `SET`, `MERGE`, `REMOVE`, `DELETE`
-(208, out of the island's scope); `collect` (45, the database owner's aggregate, waiting); `rand()` and the clock
-functions (50, never reproducible); `UNWIND` over lists of lists, maps or mixed types (64, Variant rows); a label or a
-property the model does not declare (53, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns that need
-node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an undirected
-self-association, nodes among grouping keys or under `DISTINCT`, nodes compared: 72); variable-length relationships
-(13); a stored list ordered, concatenated or under `count(DISTINCT ...)` (18, the Variant's text); the rest (72) is
-small buckets of one to nine, each named in the ledger.
+and `DETACH DELETE` (241, the platform's `write` first: `docs/BI_AND_ETL_PLAN_2026_09_29.md` F1); the functions the
+table lacks, `rand()` and the clock functions among them (50, never reproducible); a label, a property or a
+relationship type the model does not declare (52, C4's decided rule, `docs/SEMANTICS_REGISTER.md` S58); the patterns
+that need node identity, which the values do not carry (a `MATCH` or `OPTIONAL MATCH` after rows, both ends bound, an
+undirected self-association, nodes among grouping keys, nodes compared: 88, the study's C5); variable-length
+relationships without an upper bound, past two hops in all, or under a predicate (25); a value the database holds
+as a Variant of no known shape, comprehended, ordered or compared (49: a list comprehension over a Variant list of
+no known element kind, `ORDER BY` a Variant, two Variants compared; a member or an index reads by type where the
+shape travelled, the study's §12.43); a pattern predicate or comprehension over rows, from no bound node or over
+more than one hop, and `COUNT { }` (20); a list holding a value that may be null, read by the database (8); `%`
+inside a comprehension the database computes (8); an untyped relationship in an OPTIONAL MATCH (7); the rest (118)
+is small buckets of one to seven, each named in the
+ledger.

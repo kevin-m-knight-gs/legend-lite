@@ -1479,19 +1479,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case ATAN2 -> writer.function("ATAN2", c.args());
             case CBRT -> writer.function("CBRT", c.args());
             case CHR -> writer.function("CHR", c.args());
-            // a text operand beside a JSON one is parsed, as Trino's json_parse (BigQuery's COALESCE takes one type:
-            // "No matching signature for function COALESCE | Argument types: JSON, STRING", an instance canon's empty
-            // key '[]' beside a nested instance's canon object; the zips of Pairs of Pairs, measured on the lane
-            // 2026-10-21)
-            case COALESCE -> a.stream().anyMatch(BigQuery::isJson) && a.stream().anyMatch(BigQuery::isText)
-                    ? writer.append("COALESCE(").join(a, ", ", (w, e) -> {
-                        if (isText(e)) {
-                            w.append("PARSE_JSON(").expr(e, 0).append(")");
-                        } else {
-                            w.expr(e, 0);
-                        }
-                    }).append(")")
-                    : writer.function("COALESCE", c.args());
+            case COALESCE -> coalesceArm(writer, c);
             case COS -> writer.function("COS", c.args());
             case COSH -> writer.function("COSH", c.args());
             case COT -> writer.function("COT", c.args());
@@ -1580,6 +1568,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case SHA1 -> writer.append("TO_HEX(SHA1(").piece(asText(a.get(0))).append("))");
             case SHA256 -> writer.append("TO_HEX(SHA256(").piece(asText(a.get(0))).append("))");
             case GUID -> writer.append("GENERATE_UUID()");
+            case RANDOM -> writer.append("RAND()");
             // printf-like as DuckDB's: %d takes an INT64, %s a STRING on both (measured)
             case FORMAT -> format(writer, a);
             case JARO_WINKLER -> throw wall(c.fn(), "BigQuery has no Jaro-Winkler similarity");
@@ -1634,15 +1623,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             // NULL ++ xs is xs, as DuckDB's list_concat (measured)
             case LIST_CONCAT -> writer.append("ARRAY_CONCAT(").join(a, ", ", (w, x) -> w.append("IFNULL(").expr(x, 0)
                     .append(", ").append(emptyList(listElement(x) != null ? x : c)).append(")")).append(")");
-            // 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract, measured)
-            // a NULL list's element is its type's NULL: a bare NULL is an INT64 here, which takes no subscript
-            // ([]->head(): "Subscript access using [SAFE_OFFSET()] is not supported on values of type INT64",
-            // testHeadOnEmptySet on the lane, 2026-10-21)
-            case LIST_GET -> nullList(a.get(0))
-                    ? writer.append(nullOf(typeOf(c)))
-                    : writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
-                    .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
-                    .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
+            case LIST_GET -> listGet(writer, c);
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS NOT DISTINCT FROM
             // (measured)
             case LIST_POSITION -> writer.append("(SELECT MIN(" + param("__o") + ") + 1 FROM ")
@@ -1688,17 +1669,54 @@ public final class BigQuery extends AnsiSqlRenderer {
                     maps(writer, c);
 
             // ---- variant
-            // in DuckDB's json_type vocabulary, which the lowering compares against: a whole number is a BIGINT,
-            // any other a DOUBLE (JSON_TYPE answers lowercase names, 'number' for both, measured)
-            case JSON_TYPE -> writer.append("(CASE JSON_TYPE(").expr(a.get(0), 0)
-                    .append(") WHEN 'null' THEN 'NULL' WHEN 'string' THEN 'VARCHAR' WHEN 'boolean' THEN 'BOOLEAN'")
-                    .append(" WHEN 'array' THEN 'ARRAY' WHEN 'object' THEN 'OBJECT' WHEN 'number' THEN CASE WHEN")
-                    .append(" REGEXP_CONTAINS(TO_JSON_STRING(").expr(a.get(0), 0)
-                    .append("), " + stringLit("^-?[0-9]+$") + ") THEN 'BIGINT' ELSE 'DOUBLE' END END)");
+            case JSON_TYPE -> jsonType(writer, c);
             case JSON_ARRAY_LENGTH -> writer.append("ARRAY_LENGTH(JSON_QUERY_ARRAY(").expr(a.get(0), 0).append("))");
             case JSON_PRETTY -> throw wall(c.fn(), "BigQuery has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "BigQuery has no JSON merge patch");
         };
+    }
+
+    /** COALESCE: a text operand beside a JSON one is parsed, as Trino's json_parse (BigQuery's COALESCE takes one type:
+     *  "No matching signature for function COALESCE | Argument types: JSON, STRING", an instance canon's empty key
+     *  '[]' beside a nested instance's canon object; the zips of Pairs of Pairs, measured on the lane 2026-10-21). Out
+     *  of {@link #call} since 2026-10-22, its length. */
+    private SqlWriter coalesceArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.stream().anyMatch(BigQuery::isJson) && a.stream().anyMatch(BigQuery::isText))) {
+            return writer.function("COALESCE", c.args());
+        }
+        return writer.append("COALESCE(").join(a, ", ", (w, e) -> {
+            if (isText(e)) {
+                w.append("PARSE_JSON(").expr(e, 0).append(")");
+            } else {
+                w.expr(e, 0);
+            }
+        }).append(")");
+    }
+
+    /** LIST_GET: 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract, measured); a NULL
+     *  list's element is its type's NULL: a bare NULL is an INT64 here, which takes no subscript ([]->head():
+     *  "Subscript access using [SAFE_OFFSET()] is not supported on values of type INT64", testHeadOnEmptySet on the
+     *  lane, 2026-10-21). */
+    private SqlWriter listGet(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (nullList(a.get(0))) {
+            return writer.append(nullOf(typeOf(c)));
+        }
+        return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
+                .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
+                .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
+    }
+
+    /** JSON_TYPE, in DuckDB's json_type vocabulary, which the lowering compares against: a whole number is a BIGINT,
+     *  any other a DOUBLE (JSON_TYPE answers lowercase names, 'number' for both, measured). */
+    private SqlWriter jsonType(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        return writer.append("(CASE JSON_TYPE(").expr(a.get(0), 0)
+                .append(") WHEN 'null' THEN 'NULL' WHEN 'string' THEN 'VARCHAR' WHEN 'boolean' THEN 'BOOLEAN'")
+                .append(" WHEN 'array' THEN 'ARRAY' WHEN 'object' THEN 'OBJECT' WHEN 'number' THEN CASE WHEN")
+                .append(" REGEXP_CONTAINS(TO_JSON_STRING(").expr(a.get(0), 0)
+                .append("), " + stringLit("^-?[0-9]+$") + ") THEN 'BIGINT' ELSE 'DOUBLE' END END)");
     }
 
     /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #call}. */
@@ -3004,9 +3022,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                 case BIT -> "BOOL";
                 case TIMESTAMP -> "DATETIME";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
                 case JSON -> "JSON";
                 case VARCHAR -> "STRING";
-                case OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("a " + p.kind()
+                // a nanosecond timestamp column: BigQuery's DATETIME keeps microseconds
+                case TIMESTAMP_NS, OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("a " + p.kind()
                         + " column reached BigQuery's DDL");
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")

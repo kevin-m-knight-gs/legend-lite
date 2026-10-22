@@ -1,11 +1,11 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -92,7 +92,7 @@ class UnionJoinMappedPropertyTest {
     @Test
     @DisplayName("a class-typed property join-mapped on one member only: the other member's rows read it as empty")
     void joinMappedOnOneMemberOnly() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("create table T (id varchar(10) primary key, kind varchar(10), name varchar(20), ref_id varchar(10))");
                 stmt.execute("create table RT (id varchar(10) primary key)");

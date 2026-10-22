@@ -28,6 +28,13 @@ import java.util.Set;
  * type -- and guarded against the cases, so the file cannot silently fall behind them: a run with no answer is
  * UNSNAPPED, an answer whose {@code sqlSha} is not its run's is STALE, an answer of no live run is GONE; each fails the
  * lane. Re-snap with {@code tools/iq-oracle/snap.sh --write}.
+ *
+ * <p>IQ island, landing 4 (WP1), 2026-10-14: the file holds a second oracle's answers too -- a real SAP IQ 17.1's (the
+ * user's HANA Cloud data lake), snapped by {@code snap.sh --oracle iq} for the {@code iq17-*} runs, each marked
+ * {@code "oracle":"iq"} with the server's version and database properties. Such an answer is IQ's own, never a
+ * decision's rows ({@link #expected}), and stamped without the case's decision ({@link #sqlSha(IqParity.Run, byte[])});
+ * a run real IQ cannot judge here (a database property or PUBLIC option other than the server's, a SET at the user's
+ * or PUBLIC's level, a statement that hangs IQ) is answered {@code not_judged} with the reason, and counted SKIP.
  */
 public final class IqAnswers {
 
@@ -38,7 +45,16 @@ public final class IqAnswers {
      *  error. */
     public record Snap(String key, String profile, String sqlSha, List<String> columns, List<String> types,
             @com.legend.base.Nullable List<List<@com.legend.base.Nullable String>> rows,
-            @com.legend.base.Nullable String error, List<Integer> scales) {
+            @com.legend.base.Nullable String error, List<Integer> scales, String judge,
+            @com.legend.base.Nullable String notJudged) {
+
+        /** SQL Anywhere's answer (IQ island, landing 4: {@code judge}, the oracle that answered, {@code sa} or
+         *  {@code iq}, and {@code notJudged}, why the live IQ could not judge the run, are the live IQ's answers'). */
+        public Snap(String key, String profile, String sqlSha, List<String> columns, List<String> types,
+                @com.legend.base.Nullable List<List<@com.legend.base.Nullable String>> rows,
+                @com.legend.base.Nullable String error, List<Integer> scales) {
+            this(key, profile, sqlSha, columns, types, rows, error, scales, "sa", null);
+        }
 
         /** An answer of no recorded scales (a test's). */
         public Snap(String key, String profile, String sqlSha, List<String> columns, List<String> types,
@@ -63,11 +79,16 @@ public final class IqAnswers {
             String profile = ((Json.Str) o.get("profile")).value();
             String sha = ((Json.Str) o.get("sqlSha")).value();
             Json.Node error = o.getOr("error", null);
+            String judge = o.getOr("oracle", null) instanceof Json.Str by ? by.value() : "sa";
             Snap snap;
-            if (error instanceof Json.Obj err) {
+            if (o.getOr("not_judged", null) instanceof Json.Str why) {
+                // IQ island, landing 4 (WP1): a run the live IQ cannot judge, and why
+                snap = new Snap(key, profile, sha, List.of(), List.of(), null, null, List.of(), judge, why.value());
+            } else if (error instanceof Json.Obj err) {
                 snap = new Snap(key, profile, sha, List.of(), List.of(), null, "SQLCODE "
                         + ((Json.Num) err.get("sqlcode")).longValue() + ", SQLSTATE "
-                        + ((Json.Str) err.get("sqlstate")).value() + ": " + ((Json.Str) err.get("message")).value());
+                        + ((Json.Str) err.get("sqlstate")).value() + ": " + ((Json.Str) err.get("message")).value(),
+                        List.of(), judge, null);
             } else {
                 List<String> columns = new ArrayList<>();
                 List<String> types = new ArrayList<>();
@@ -78,7 +99,7 @@ public final class IqAnswers {
                     types.add(((Json.Str) c.get(1)).value());
                     scales.add(c.size() > 3 ? (int) ((Json.Num) c.get(3)).longValue() : 0);
                 }
-                snap = new Snap(key, profile, sha, columns, types, cells(o.get("rows")), null, scales);
+                snap = new Snap(key, profile, sha, columns, types, cells(o.get("rows")), null, scales, judge, null);
             }
             answers.put(key + "@" + profile, snap);
         }
@@ -101,7 +122,14 @@ public final class IqAnswers {
     /** What the run's judge says: SQL Anywhere's snapped answer, or the decided rows of the case's decision, read by
      *  the snapped answer's column types. */
     public static SqlParity.Answer expected(IqParity.Run run, Snap snap) {
-        String expect = run.c().expect();
+        // IQ island, landing 4 (WP1): real IQ judges an iq17-* run by its own answer, never a decision's rows
+        String expect = IqParity.liveIq(run.profile()) ? null : run.c().expect();
+        if (expect != null && own(expect)) {
+            Snap decided = judged(run, snap);
+            return decided.error() != null ? new SqlParity.Rejected("", java.util.Objects.requireNonNull(decided.error()))
+                    : new SqlParity.Rows(grid(decided.columns(), decided.types(),
+                            java.util.Objects.requireNonNull(decided.rows())));
+        }
         if (expect != null) {
             if (snap.rows() == null) {
                 throw new IllegalStateException(run.key() + ": a decided case whose snapped answer is an error has no"
@@ -113,6 +141,44 @@ public final class IqAnswers {
             return new SqlParity.Rejected("", java.util.Objects.requireNonNull(snap.error()));
         }
         return new SqlParity.Rows(grid(snap.columns(), snap.types(), java.util.Objects.requireNonNull(snap.rows())));
+    }
+
+    /** IQ island, 2026-10-15 (windows): whether a decision's {@code expect} is written with its own columns or as an
+     *  error ({@link #judged}). */
+    private static boolean own(String expect) {
+        return expect.strip().startsWith("{");
+    }
+
+    /**
+     * IQ island, 2026-10-15 (windows): the answer that judges a run whose decision is written in full -- {@code expect}
+     * a JSON object, {@code {"columns": [[name, type, scale], ...], "rows": [[cell, ...], ...]}} (IQ's own column types,
+     * where SQL Anywhere types the run otherwise or rejects it: IQ's LAG and LEAD, which SQL Anywhere 17 does not know),
+     * or {@code {"error": "SQLCODE n, SQLSTATE s: message"}} (IQ's error, where SQL Anywhere answers) -- as a snapped
+     * answer; {@code snap} itself for any other run. The answers file still holds SQL Anywhere's answer to the run, for
+     * the record.
+     */
+    public static Snap judged(IqParity.Run run, Snap snap) {
+        // IQ island, landing 4 (WP1): never a live IQ run's
+        String expect = IqParity.liveIq(run.profile()) ? null : run.c().expect();
+        if (expect == null || !own(expect)) {
+            return snap;
+        }
+        Json.Obj o = (Json.Obj) Json.parse(expect);
+        if (o.getOr("error", null) instanceof Json.Str error) {
+            return new Snap(snap.key(), snap.profile(), snap.sqlSha(), List.of(), List.of(), null, error.value(),
+                    List.of(), snap.judge(), null);
+        }
+        List<String> columns = new ArrayList<>();
+        List<String> types = new ArrayList<>();
+        List<Integer> scales = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) o.get("columns")).items()) {
+            List<Json.Node> c = ((Json.Arr) n).items();
+            columns.add(((Json.Str) c.get(0)).value());
+            types.add(((Json.Str) c.get(1)).value());
+            scales.add((int) ((Json.Num) c.get(2)).longValue());
+        }
+        return new Snap(snap.key(), snap.profile(), snap.sqlSha(), columns, types, cells(o.get("rows")), null, scales,
+                snap.judge(), null);
     }
 
     private static SqlParity.Grid grid(List<String> columns, List<String> types,
@@ -141,6 +207,11 @@ public final class IqAnswers {
      *  BigDecimal ({@code .01} as written), a double a Double, a timestamp in SqlParity's spelling (no zeros ending its
      *  fraction), anything else text. */
     static Object cell(String v, String type) {
+        if (v.equals("?") && !type.contains("char") && !type.equals("string") && !type.contains("text")) {
+            // SQL Anywhere's "a value it cannot show": tools/iq-oracle never snaps one (review 8, m3)
+            throw new IllegalStateException("a snapped '?' cell in a " + type + " column: SQL Anywhere could not show"
+                    + " the value; skip the case (tools/iq-oracle refuses to snap it)");
+        }
         if (INTEGER_TYPES.contains(type)) {
             return new BigInteger(v);
         }
@@ -167,12 +238,24 @@ public final class IqAnswers {
      *  part; a case without them keeps its sha). */
     public static String sqlSha(String sql, String profile, @com.legend.base.Nullable String decision,
             @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params, byte[] schema) {
+        return sqlSha(sql, profile, decision, expect, params, null, schema);
+    }
+
+    /** {@link #sqlSha}, IQ island, 2026-10-14 (the options framework): with the case's {@code settings} (IQ's settings
+     *  by level, {@code database.<name>=<value>, query.<name>=<value>}), when it has any, as one more part {@code settings=<text>} after the params' (a case without them keeps
+     *  its sha). */
+    public static String sqlSha(String sql, String profile, @com.legend.base.Nullable String decision,
+            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params,
+            @com.legend.base.Nullable String settings, byte[] schema) {
         try {
             MessageDigest d = MessageDigest.getInstance("SHA-256");
             List<String> parts = new ArrayList<>(List.of(sql, profile, decision == null ? "" : decision,
                     expect == null ? "" : expect));
             if (params != null) {
                 parts.add(params);
+            }
+            if (settings != null) {
+                parts.add("settings=" + settings);
             }
             for (String part : parts) {
                 d.update(part.getBytes(StandardCharsets.UTF_8));
@@ -183,6 +266,14 @@ public final class IqAnswers {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /** The {@code sqlSha} a run's answer is stamped with: its case's SQL, the profile, the decision and its rows (none
+     *  for an iq17-* run, which real IQ judges: IQ island, landing 4, WP1), its params and settings, schema.yaml. */
+    public static String sqlSha(IqParity.Run r, byte[] schema) {
+        boolean liveIq = IqParity.liveIq(r.profile());
+        return sqlSha(r.c().sql(), r.profile().spelling(), liveIq ? null : r.c().decision(),
+                liveIq ? null : r.c().expect(), r.c().params(), r.c().settings(), schema);
     }
 
     /** The answers file against the runs: UNSNAPPED (a run with no answer), STALE (an answer whose sqlSha is not its
@@ -196,13 +287,17 @@ public final class IqAnswers {
             }
             live.add(r.key());
             Snap snap = answers.get(r.key());
+            boolean liveIq = IqParity.liveIq(r.profile());
             if (snap == null) {
                 problems.add("UNSNAPPED: " + r.key() + " has no answer in iq-answers.jsonl (tools/iq-oracle/snap.sh"
-                        + " --write)");
-            } else if (!snap.sqlSha().equals(sqlSha(r.c().sql(), r.profile().spelling(), r.c().decision(),
-                    r.c().expect(), r.c().params(), schema))) {
+                        + (liveIq ? " --oracle iq" : "") + " --write)");
+            } else if (!snap.sqlSha().equals(sqlSha(r, schema))) {
                 problems.add("STALE: " + r.key() + "'s answer was snapped for other SQL, profile, decided rows or"
                         + " schema");
+            } else if (!snap.judge().equals(liveIq ? "iq" : "sa")) {
+                // IQ island, landing 4 (WP1): an iq17-* run is judged by the live IQ only, any other by SQL Anywhere
+                problems.add("ORACLE: " + r.key() + "'s answer is " + snap.judge() + "'s, and its judge is "
+                        + (liveIq ? "the live IQ's (snap.sh --oracle iq)" : "SQL Anywhere's (snap.sh)"));
             }
         }
         for (String k : answers.keySet()) {

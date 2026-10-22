@@ -75,7 +75,7 @@ public final class SystemMetamodel {
      * idiom for a hierarchy over one table); the seed writes the same
      * spelling in {@code dt_kind} ({@code OpSeeds.kindOf}). */
     static final String[] DATA_TYPE_KINDS = {"BigInt", "SmallInt", "TinyInt",
-        "Integer", "Float", "Double", "Real", "Bit", "Timestamp", "Date", "Distinct",
+        "Integer", "Float", "Double", "Real", "Bit", "Timestamp", "Date", "Time", "TimestampNs", "Distinct",
         "Other", "SemiStructured", "Varchar", "Char", "Binary", "Varbinary",
         "Decimal", "Numeric", "Array", "Object"};
 
@@ -876,6 +876,19 @@ public final class SystemMetamodel {
             )
 
             ###Pure
+            // A time of day: lite's extension of the store grammar (RelationalDataType.Time, the Cypher island's stored
+            // times of day; legend-engine's grammar has no TIME column type, docs/SEMANTICS_REGISTER.md S64). Declared
+            // here, the platform's own elements, not in the generated prelude (2026-10-17, the spec guards' repair).
+            Class meta::relational::metamodel::datatype::Time extends meta::relational::metamodel::datatype::CoreDataType
+            {
+            }
+
+            // A date-time of nanosecond precision: lite's extension of the store grammar (RelationalDataType.TimestampNs,
+            // the Cypher island's stored nanosecond times and date-times; legend-engine's grammar has no TIMESTAMP_NS).
+            Class meta::relational::metamodel::datatype::TimestampNs extends meta::relational::metamodel::datatype::CoreDataType
+            {
+            }
+
             Class meta::lite::metamodel::MappingVisibility
             {
                 includeRank: Integer[1];
@@ -1033,12 +1046,12 @@ public final class SystemMetamodel {
                 $_this->meta::pure::mapping::_classMappingByClass($class)->filter(s|$s.root == true)->last()
             }
 
-            function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:String[1]):meta::pure::mapping::EnumerationMapping[0..1]
+            function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:String[1]):meta::pure::mapping::EnumerationMapping<meta::pure::metamodel::type::Any>[0..1]
             {
                 $_this.visibility->sortBy(v|$v.includeRank).visible.enumerationMappings->filter(em|$em.name == $name)->first()
             }
 
-            function meta::pure::mapping::toDomainValue(_this:meta::pure::mapping::EnumerationMapping[1], sourceValue:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1]
+            function meta::pure::mapping::toDomainValue<T>(_this:meta::pure::mapping::EnumerationMapping<T>[1], sourceValue:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1]
             {
                 $_this.enumValueMappings->filter(m|$m.sources.value->contains($sourceValue))->toOne().enum
             }
@@ -1112,6 +1125,8 @@ public final class SystemMetamodel {
                     d : meta::relational::metamodel::datatype::Decimal[1] | format('DECIMAL(%%d, %%d)', [$d.precision, $d.scale]),
                     t : meta::relational::metamodel::datatype::Timestamp[1] | 'TIMESTAMP',
                     d : meta::relational::metamodel::datatype::Date[1] | 'DATE',
+                    t : meta::relational::metamodel::datatype::Time[1] | 'TIME',
+                    t : meta::relational::metamodel::datatype::TimestampNs[1] | 'TIMESTAMP_NS',
                     b : meta::relational::metamodel::datatype::BigInt[1] | 'BIGINT',
                     s : meta::relational::metamodel::datatype::SmallInt[1] | 'SMALLINT',
                     t : meta::relational::metamodel::datatype::TinyInt[1] | 'TINYINT',
@@ -1490,7 +1505,7 @@ public final class SystemMetamodel {
     /** Parsed once at class load — fails loudly if the source rots
      * (the {@code Pure} native-catalog discipline). */
     private static final List<PackageableElement> ELEMENTS =
-            com.legend.parser.ElementParser.parse(SOURCE,
+            com.legend.door.ModelFromText.parse(SOURCE,
                     com.legend.parser.Dialect.LEGEND_LITE).elements();
 
     /** The system elements as parsed — THE BOOT LAYER's input (user

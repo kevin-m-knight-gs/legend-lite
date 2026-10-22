@@ -17,8 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Tables and a schema named by reserved words (PARK-16, docs/PARKED_WORK_LEDGER.md): their model, rows, and a seed that
- * must answer a query over each. {@code ReservedNamesSeedTest} runs them on DuckDB and H2, {@code PostgresArmTest} on
- * Postgres.
+ * must answer a query over each. {@code ReservedNamesSeedTest} runs them on every in-process database,
+ * {@code PostgresArmTest} on Postgres.
  */
 public final class ReservedNames {
 

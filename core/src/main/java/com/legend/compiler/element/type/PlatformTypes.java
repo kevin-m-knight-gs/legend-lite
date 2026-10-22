@@ -22,13 +22,13 @@ public final class PlatformTypes {
      */
     public static final String ROWS_MARKER = "rows";
     /** The Class metaclass FQN — type VALUES at the lowering boundary
-     * travel as their paths (register S82). */
+     * travel as their paths (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). */
     public static final String CLASS_METACLASS =
             "meta::pure::metamodel::type::Class";
 
     /** The metamodel TYPE classifiers — a value of one of these is a TYPE
      * value ({@code String}, {@code Car}, {@code $col.type}); it travels
-     * as its path ({@link #typeValuePath}, register S82) and compares by it. */
+     * as its path ({@link #typeValuePath}, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) and compares by it. */
     public static boolean isTypeClassifier(String fqn) {
         return fqn.equals(CLASS_METACLASS)
                 || fqn.equals("meta::pure::metamodel::type::Type")
@@ -285,6 +285,10 @@ public final class PlatformTypes {
     public static final String DATATYPE_BIT = "meta::relational::metamodel::datatype::Bit";
     public static final String DATATYPE_TIMESTAMP = "meta::relational::metamodel::datatype::Timestamp";
     public static final String DATATYPE_DATE = "meta::relational::metamodel::datatype::Date";
+    /** A time of day, lite's extension of the store grammar (RelationalDataType.Time, 2026-10-17). */
+    public static final String DATATYPE_TIME = "meta::relational::metamodel::datatype::Time";
+    /** A nanosecond timestamp, lite's extension of the store grammar (RelationalDataType.TimestampNs, 2026-10-17). */
+    public static final String DATATYPE_TIMESTAMP_NS = "meta::relational::metamodel::datatype::TimestampNs";
     public static final String DATATYPE_DISTINCT = "meta::relational::metamodel::datatype::Distinct";
     public static final String DATATYPE_OTHER = "meta::relational::metamodel::datatype::Other";
     public static final String DATATYPE_SEMI_STRUCTURED = "meta::relational::metamodel::datatype::SemiStructured";
@@ -431,16 +435,19 @@ public final class PlatformTypes {
     public static final String EQUALITY_PROFILE = "meta::pure::profiles::equality";
     public static final String TEMPORAL_PROFILE = "meta::pure::profiles::temporal";
     public static final String PCT_PROFILE = "meta::pure::test::pct::PCT";
+    /** The property-graph profile (the library project {@code projects/graph}, docs/CYPHER_STUDY_2026_10_15.md
+     * §5.6): a class carrying {@code <<graph.Edge>>} is a relationship type with properties, its two ends the
+     * to-one class-typed properties carrying {@code <<graph.from>>} and {@code <<graph.to>>}, its type the
+     * enumeration value a derived property carrying {@code <<graph.type>>} spells. Read in phase F by
+     * {@code GraphEdges}, the way {@link #EQUALITY_PROFILE} is read for {@code <<equality.Key>>}. */
+    public static final String GRAPH_PROFILE = "graph::graph";
 
-    /** Whether a stereotype's RESOLVED profile name is {@code profileFqn}.
-     * The resolver qualifies a bare profile name through the file's
-     * imports and the core-import group when the profile is declared in
-     * the model; a model that does not declare it keeps the bare spelling
-     * — that spelling is the same profile (the m3 profiles are the only
-     * ones the compiler reads). */
+    /** Whether a stereotype's RESOLVED profile name is {@code profileFqn}: the resolver qualifies a profile's name
+     * through the file's imports and the core-import group, and the platform's profiles are declared (the prelude
+     * carries legend-pure's, 2026-10-21), so a bare spelling is a profile the model has not -- refused by the
+     * integrity pass, never taken for the platform's. */
     public static boolean isProfile(String resolvedName, String profileFqn) {
-        return profileFqn.equals(resolvedName)
-                || profileFqn.substring(profileFqn.lastIndexOf(':') + 1).equals(resolvedName);
+        return profileFqn.equals(resolvedName);
     }
 
 
@@ -703,13 +710,12 @@ public final class PlatformTypes {
         return t instanceof Type.ClassType c && c.fqn().equals(ANY);
     }
 
-    /** The bottom type (the []-born element type). */
     /** Whether {@code g} is the metaclass {@code Class<...>} (a class referenced as a value). */
     public static boolean isClassMetaclass(Type.GenericType g) {
         return g.rawFqn().equals(CLASS_METACLASS);
     }
 
-    /** A type VALUE's wire form (register S82, 2026-10-20): its path as Pure's {@code elementToPath} spells it -- a base
+    /** A type VALUE's wire form (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): its path as Pure's {@code elementToPath} spells it -- a base
      *  primitive's is its name ({@code String}, {@code Integer}: top-level elements of the metamodel), every other
      *  element's its package-qualified path, so the reader resolves it whatever its namesakes. */
     public static String typeValuePath(String fqn) {
@@ -722,6 +728,7 @@ public final class PlatformTypes {
         return t instanceof Type.Primitive p ? p.typeName() : typeValuePath(t.typeName());
     }
 
+    /** The bottom type (the []-born element type). */
     public static boolean isNil(Type t) {
         return t instanceof Type.ClassType c && c.fqn().equals(NIL);
     }

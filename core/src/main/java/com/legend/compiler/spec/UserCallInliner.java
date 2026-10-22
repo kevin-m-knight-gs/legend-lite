@@ -120,7 +120,7 @@ public final class UserCallInliner {
     // inside a lambda once per use of the lambda; a let's value is stamped where it is bound, before it is spliced.
 
     /** The instantiations around the walk's point, inside its innermost lambda (from the root outside every one). */
-    private List<Integer> instantiation = new ArrayList<>();
+    private final List<Integer> instantiation = new ArrayList<>();
     private int instantiations;
     /** How many lambdas are around the walk's point: a construction inside one is completed where it is used. */
     private int lambdaDepth;
@@ -201,15 +201,15 @@ public final class UserCallInliner {
         // 2026-10-18): dissolved here, the database computing the value where it is read. KNOWN TRADE (audit): a
         // let used twice EVALUATES twice in SQL — for a non-deterministic row set (limit with no total order) the
         // two splices may disagree where real pure's single-evaluation binding could not; CTE sharing is the
-        // future fix. A value the database computes anew at each call (generateGuid), read more than once, is no
-        // trade but a wrong answer, so it is refused by name until materialization is built (refuseUndissolvable).
+        // future fix. A value the database draws anew where it is written (random(), generateGuid()), read more
+        // than once, is no trade but a wrong answer, so it is refused by name until materialization is built
+        // (readOnce; the branch's generateGuid-only refusal of 2026-10-18 folded into it at main's merge, 2026-10-22).
         try (Scope scope = new Scope()) {
             for (int i = 0; i < body.size() - 1; i++) {
                 if (!(body.get(i) instanceof TypedLet let)) {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
-                refuseUndissolvable(let, body.subList(i + 1, body.size()));
                 scope.put(let.name(), reduce(let.value(), scope));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
@@ -217,9 +217,63 @@ public final class UserCallInliner {
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            return List.of(finish(last instanceof TypedLet let
+            TypedSpec result = last instanceof TypedLet let
                     ? reduce(let.value(), scope)
-                    : reduce(last, scope), List.of(), List.of(), false));
+                    : reduce(last, scope);
+            readOnce(scope.terms, result);
+            return List.of(finish(result, List.of(), List.of(), false));
+        }
+    }
+
+    /**
+     * A term that draws afresh where it is written ({@code random()}, {@code generateGuid()}: the database draws at
+     * each place, SqlFn.RANDOM and GUID) bound to a name read more than once, or read under a lambda the binding
+     * stands outside (once per row), in {@code reduced}: refused by name. Pure's let and parameter bind one value;
+     * the substitution above writes the term at each read, so each would draw again ({@code let r = random(); $r ==
+     * $r} false; the independent review, 2026-10-18). A term is found by reference: the substitution places the one
+     * bound term at each read. A draw written at each place in the source is the program's own, and stays.
+     */
+    private static void readOnce(Map<String, TypedSpec> bound, TypedSpec reduced) {
+        for (Map.Entry<String, TypedSpec> e : bound.entrySet()) {
+            if (!drawsAfresh(e.getValue())) {
+                continue;
+            }
+            int[] reads = {0};
+            boolean[] perRow = {false};
+            countReads(reduced, e.getValue(), false, reads, perRow);
+            if (reads[0] > 1 || perRow[0]) {
+                throw new NotImplementedException("$" + e.getKey() + " holds a value drawn afresh where it is"
+                        + " written (random(), generateGuid()) and is read " + (perRow[0] ? "once per row"
+                        : reads[0] + " times") + ": each reading would draw again, where the binding is one value;"
+                        + " not supported yet");
+            }
+        }
+    }
+
+    /** Whether {@code t} holds a call that draws afresh at each place it is written. */
+    private static boolean drawsAfresh(TypedSpec t) {
+        if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
+                || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
+            return true;
+        }
+        for (TypedSpec k : t.children()) {
+            if (drawsAfresh(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The places {@code term} stands in {@code t} (by reference), and whether one is under a lambda. */
+    private static void countReads(TypedSpec t, TypedSpec term, boolean underLambda, int[] reads, boolean[] perRow) {
+        if (t == term) {
+            reads[0]++;
+            perRow[0] |= underLambda;
+            return;
+        }
+        boolean lambda = underLambda || t instanceof TypedLambda;
+        for (TypedSpec k : t.children()) {
+            countReads(k, term, lambda, reads, perRow);
         }
     }
 
@@ -555,6 +609,7 @@ public final class UserCallInliner {
                 List<TypedSpec> calleeBody = body;
                 reduced = instantiate(deepFoldInlined(
                         instantiated(call, () -> reduceStatements(calleeBody, callEnv))), call, args);
+                readOnce(callEnv.terms, reduced);
                 if (call.untracked()) {
                     reduced = com.legend.compiler.spec.typed.Evaluation.untrackAll(reduced);
                 }
@@ -949,44 +1004,6 @@ public final class UserCallInliner {
      * FORWARD (their values see the bindings so far); the last statement is
      * the value. One expression comes out.
      */
-    /** A let over a value the database computes anew at each call ({@code generateGuid}; a clock read -- {@code now},
-     *  {@code today} -- is one value for the statement on every database), read more than once in {@code rest}, cannot
-     *  be dissolved (each read would be a new value) and must be materialized in the database, which is not built:
-     *  refused by name (docs/PLAN_PATH_PROGRAM_2026_10_17.md §5). */
-    private static void refuseUndissolvable(TypedLet let, List<TypedSpec> rest) {
-        int reads = 0;
-        for (TypedSpec t : rest) {
-            reads += reads(let.name(), t);
-        }
-        if (reads > 1 && computedAnewAtEachCall(let.value())) {
-            throw new NotImplementedException("the let '" + let.name() + "' binds a value the database computes anew"
-                    + " at each call (generateGuid) and is read " + reads + " times: dissolving it would read " + reads
-                    + " values; materializing it in the database is not built yet"
-                    + " (docs/PLAN_PATH_PROGRAM_2026_10_17.md §5)");
-        }
-    }
-
-    private static int reads(String name, TypedSpec t) {
-        int n = t instanceof TypedVariable v && v.name().equals(name) ? 1 : 0;
-        for (TypedSpec c : t.children()) {
-            n += reads(name, c);
-        }
-        return n;
-    }
-
-    private static boolean computedAnewAtEachCall(TypedSpec t) {
-        if (t instanceof TypedNativeCall nc
-                && com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(nc.callee().id())) {
-            return true;
-        }
-        for (TypedSpec c : t.children()) {
-            if (computedAnewAtEachCall(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private TypedSpec reduceStatements(List<TypedSpec> body, Scope env) {
         try (Scope scope = new Scope(env)) {
             for (int i = 0; i < body.size() - 1; i++) {
@@ -1014,16 +1031,17 @@ public final class UserCallInliner {
                                             + " of " + sc.args().get(0).getClass().getSimpleName() : "") : "")
                             + ") in an inlined function body is not supported");
                 }
-                refuseUndissolvable(let, body.subList(i + 1, body.size()));
                 scope.put(let.name(), reduce(let.value(), scope));
             }
             // A TRAILING let IS its value (real pure: the let statement yields
             // it) — `{ let r = $x + 100 }` returns the sum, and no let node
             // survives into H/I.
             TypedSpec last = body.get(body.size() - 1);
-            return last instanceof TypedLet let
+            TypedSpec value = last instanceof TypedLet let
                     ? reduce(let.value(), scope)
                     : reduce(last, scope);
+            readOnce(scope.terms, value);
+            return value;
         }
     }
 
@@ -1559,9 +1577,9 @@ public final class UserCallInliner {
         List<String> guard = new ArrayList<>(l.parameters());
         l.parameters().forEach(p -> bound.merge(p, 1, Integer::sum));
         // its body is evaluated where the lambda is used: the instantiations inside it count from it
-        List<Integer> outer = instantiation;
+        List<Integer> outer = List.copyOf(instantiation);
         Object outerFrame = frame;
-        instantiation = new ArrayList<>();
+        instantiation.clear();
         frame = new Object();
         lambdaDepth++;
         try {
@@ -1576,7 +1594,8 @@ public final class UserCallInliner {
             return sameRefs(body, l.body()) ? l
                     : new TypedLambda(l.parameters(), body, l.info(), l.quoted());
         } finally {
-            instantiation = outer;
+            instantiation.clear();
+            instantiation.addAll(outer);
             frame = outerFrame;
             lambdaDepth--;
             guard.forEach(g -> bound.compute(g,

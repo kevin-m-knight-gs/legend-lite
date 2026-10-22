@@ -114,7 +114,7 @@ final class GenericTypeReflection {
         }
         // the column IS a type value (M3: GenericType.rawType : Type) — its
         // cell holds the class's path (the type-value wire convention,
-        // register S82) and judges as a type, never as a string
+        // docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) and judges as a type, never as a string
         Type typeValue = new Type.ClassType("meta::pure::metamodel::type::Type");
         TypedLambda lam = new TypedLambda(List.of(v), List.of(body),
                 new ExprType(new Type.FunctionType(

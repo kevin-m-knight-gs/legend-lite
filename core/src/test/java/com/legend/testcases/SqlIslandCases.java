@@ -3,6 +3,8 @@
 
 package com.legend.testcases;
 
+import com.legend.testbackend.TestBackend;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -21,26 +23,30 @@ public final class SqlIslandCases {
     /** The island's source table, as {@code tb(...)} names it. */
     public static final String SOURCE = "tb('store::HR.EMP')";
 
-    /** The model: the table, a connection of the given {@code type}/{@code specification} lines, and a runtime. Its
-     *  mixed-case columns are declared QUOTED, as the Postgres table spells them: a name declared bare is folded on
-     *  Postgres (decision D8, as legend-engine does), and reaches only a column a bare declaration made. */
-    public static String model(String connection) {
-        return """
-                ###Relational
-                Database store::HR
+    /** The table's store. Its mixed-case columns are declared QUOTED: a name declared bare is folded on Postgres
+     *  (decision D8, as legend-engine does), and reaches only a column a bare declaration made. */
+    private static final String STORE = """
+            ###Relational
+            Database store::HR
+            (
+                Table EMP
                 (
-                    Table EMP
-                    (
-                        "ID" INTEGER PRIMARY KEY,
-                        "firstName" VARCHAR(100),
-                        "LAST_NAME" VARCHAR(100),
-                        dept VARCHAR(20),
-                        salary DOUBLE,
-                        bonus DECIMAL(10,2),
-                        age INTEGER,
-                        hired DATE
-                    )
+                    "ID" INTEGER PRIMARY KEY,
+                    "firstName" VARCHAR(100),
+                    "LAST_NAME" VARCHAR(100),
+                    dept VARCHAR(20),
+                    salary DOUBLE,
+                    bonus DECIMAL(10,2),
+                    age INTEGER,
+                    hired DATE
                 )
+            )
+            """;
+
+    /** The model: the table's store, a connection of the given {@code type}/{@code specification} lines, and a
+     *  runtime. */
+    public static String model(String connection) {
+        return STORE + """
                 ###Connection
                 RelationalDatabaseConnection store::Conn
                 {
@@ -66,15 +72,21 @@ public final class SqlIslandCases {
             + "(5,'Eve','Ito',NULL,90.0,1.00,35,DATE '2018-11-11'),"
             + "(6,'Fay','Lee','eng',100.0,0.00,30,DATE '2020-01-15')";
 
-    /** The table on DuckDB (its names keep the case they are written in). */
-    public static final String DUCKDB_TABLE = "CREATE TABLE EMP (ID INTEGER PRIMARY KEY, firstName VARCHAR(100),"
-            + " LAST_NAME VARCHAR(100), dept VARCHAR(20), salary DOUBLE, bonus DECIMAL(10,2), age INTEGER, hired DATE)";
-
-    /** The table on Postgres: made bare (Postgres folds it to {@code emp}, as it folds the model's bare table name), its
-     *  mixed-case columns quoted, so Postgres keeps them as the model's quoted declarations spell them. */
-    public static final String POSTGRES_TABLE = "CREATE TABLE EMP (\"ID\" INTEGER PRIMARY KEY, \"firstName\""
-            + " VARCHAR(100), \"LAST_NAME\" VARCHAR(100), dept VARCHAR(20), salary DOUBLE PRECISION,"
-            + " bonus DECIMAL(10,2), age INTEGER, hired DATE)";
+    /** The table as {@link #STORE} declares it, created as the product creates a declared table on {@code backend}'s
+     *  database: its dialect renders the store's declaration ({@code setup.Ddl.createTable}), each name quoted as the
+     *  store declared it, so a database that folds a bare name keeps the quoted ones as the model spells them. */
+    public static String table(TestBackend backend) {
+        for (var element : com.legend.Compiler.parseModel(STORE).elements()) {
+            if (element instanceof com.legend.model.DatabaseDefinition db) {
+                for (var table : db.tables()) {
+                    if (table.name().equals("EMP")) {
+                        return backend.dialect().render(com.legend.setup.Ddl.createTable(table, null));
+                    }
+                }
+            }
+        }
+        throw new IllegalStateException("the store declares no table EMP");
+    }
 
     /** A query, whether its rows are ordered, and Postgres's answer: the column names and the rows, each cell as
      *  {@link #cell} spells it. */
@@ -85,8 +97,8 @@ public final class SqlIslandCases {
             return "#SQL{" + sql + "}#";
         }
 
-        /** The query as plain Postgres SQL over the Postgres table. */
-        public String postgres() {
+        /** The query as plain SQL over the table: what Postgres ran for the case's answer. */
+        public String plain() {
             return sql.replace(SOURCE, "EMP");
         }
     }
@@ -362,5 +374,16 @@ public final class SqlIslandCases {
                     List.of()),
             new Case("select \"ID\" from tb('store::HR.EMP') where dept is not distinct from null order by \"ID\"",
                     true, List.of("ID"),
-                    List.of(List.of("5"))));
+                    List.of(List.of("5"))),
+            // 2026-10-18 (IQ landing 5's review): a scalar subquery an item computes for every row is computed once, a
+            // column before the item (SqlToPure.output), in the Postgres front end too
+            new Case("select \"ID\", age - (select min(age) from tb('store::HR.EMP')) as d, (select max(age) from"
+                    + " tb('store::HR.EMP') e where e.dept = t.dept) * 2 as m from tb('store::HR.EMP') t order by \"ID\"",
+                    true, List.of("ID", "d", "m"),
+                    List.of(List.of("1", "5", "80"),
+                            List.of("2", "15", "80"),
+                            List.of("3", "0", "50"),
+                            List.of("4", "null", "50"),
+                            List.of("5", "10", "null"),
+                            List.of("6", "5", "80"))));
 }

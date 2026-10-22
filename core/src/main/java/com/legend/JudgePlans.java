@@ -8,7 +8,6 @@ import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.database.Databases;
 import com.legend.exec.Column;
 import com.legend.exec.ExecutionResult;
 import com.legend.exec.PlanRunner;
@@ -45,7 +44,7 @@ final class JudgePlans {
     /**
      * The target a judge's plan names: the body's runtime's database (its first declared connection: every
      * connection of a runtime is of one database type, the one fact a given session is checked against) with the
-     * server versions narrowed to the body's session's ({@code Databases.serversFor}: the env's dialect is the one
+     * server versions narrowed to the body's session's ({@code PlanMaker.serversFor}: the env's dialect is the one
      * the legacy seam chose for that session, {@code SqlDialect.forServer}, so the plan is written for the session
      * it runs on; found 2026-10-19 by channel B's H2 judge, every case refused "written for H2 [2.1, 2.2], and the
      * session is H2 2.4"); no session statements and no setup -- the body's session was established by the runner
@@ -59,7 +58,7 @@ final class JudgePlans {
                     new ExecutionPlan.Database.Declared(d.connections().get(0));
         };
         return new ExecutionPlan.Target(database,
-                Databases.serversFor(decided.type(), com.legend.exec.Sessions.version(env.connection())),
+                PlanMaker.serversFor(decided.type(), com.legend.exec.Sessions.version(env.connection())),
                 List.of(), List.of());
     }
 

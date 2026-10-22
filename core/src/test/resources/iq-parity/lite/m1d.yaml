@@ -1,7 +1,7 @@
 # M1d for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.6): IQ's string, number and date functions and
 # CAST and CONVERT, as far as each is exact with Pure's natives (IqFunctions), the rest refused by name. Each is
 # judged by SQL Anywhere 17's answer in iq-answers.jsonl unless it names a decision (D-S1: a CHAR(n) value padded
-# under the IQ engine; D-F5: ABS of an integer keeps its type under the IQ engine; D-F9: the IQ engine raises outside
+# under the IQ engine; D-F5 (replaced by IQ 17.1's measured ABS, 2026-10-16); D-F9: the IQ engine raises outside
 # a function's domain), whose expect is the decided rows (SQL Anywhere's rows, padded where D-S1 pads). A case without
 # FROM, or over sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa); one over tables in the IQ engine,
 # unless its profile is a sqla17 one. tools/iq-oracle's README.md has the keys.
@@ -27,8 +27,12 @@ tests:
   - id: length_of_a_char_in_sql_anywhere
     sql: "SELECT id, LENGTH(ch) AS n FROM t ORDER BY id"
     profile: sqla17-default
+  # IQ island, 2026-10-15 (checklist 1.10, D-S7, measured on IQ 17.1): under IQ's engine an integer column's LENGTH is
+  # its storage width, where SQL Anywhere's front end counts its digits
   - id: length_of_integers
     sql: "SELECT id, LENGTH(sm) AS a, CHAR_LENGTH(it) AS b, LEN(bg) AS c, LENGTH(bt) AS d FROM t ORDER BY id"
+    decision: D-S7
+    expect: '[["1","2","4","8","1"],["2","2","4","8","1"],["3","2","4","8","1"],["4","2","4","8","1"],["5",null,null,null,null],["6","2","4","8","1"],["7","2","4","8","1"]]'
   - id: length_of_repeats_and_spaces
     sql: "SELECT id, LENGTH(REPEAT('ab', id)) AS n, LENGTH(SPACE(sm)) AS s FROM t WHERE id <> 1 ORDER BY id"
   - id: length_in_where
@@ -37,8 +41,9 @@ tests:
     sql: "SELECT LENGTH(nm) AS n FROM t WHERE id = 1"
   - id: length_of_a_double_is_refused
     sql: "SELECT LENGTH(dbl) AS n FROM t WHERE id = 1"
-  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from length_of_a_date_is_refused
-  - id: length_of_a_date
+  # IQ island, 2026-10-14 (M1e): answered (IqDateTime); IQ island, 2026-10-15 (checklist 1.10, D-S7, measured on IQ
+  # 17.1): IQ's engine answers a date's storage length (3 here), refused again, so renamed from length_of_a_date
+  - id: length_of_a_date_is_refused
     sql: "SELECT LENGTH(dt) AS n FROM t WHERE id = 1"
   - id: length_of_two_arguments
     sql: "SELECT LENGTH('a', 'b') AS n"
@@ -62,10 +67,16 @@ tests:
     engine: sa
   - id: substring_positions_of_columns
     sql: "SELECT id, SUBSTRING('mnopqrst', sm, id) AS a, SUBSTRING('mnopqrst', it, id) AS b, SUBSTRING('mnopqrst', id, 3) AS c FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1","",null,"mno"],["2",null,null,"nop"],["3","mno","mno","opq"],["4","mnop","t","pqr"],["5",null,null,"qrs"],["6","","","rst"],["7","t","st","st"]]'
   - id: substring_lengths_of_columns
     sql: "SELECT id, SUBSTRING('mnopqrst', -1, id) AS a, SUBSTRING('mnopqrst', 3, id) AS b, SUBSTRING('mnopqrst', 0, id) AS c FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1","t","o","m"],["2","t","op","mn"],["3","t","opq","mno"],["4","t","opqr","mnop"],["5","t","opqrs","mnopq"],["6","t","opqrst","mnopqr"],["7","t","opqrst","mnopqrs"]]'
   - id: substring_without_length_of_columns
     sql: "SELECT id, SUBSTR('abcdef', id) AS a, SUBSTR('abcdef', sm) AS b, SUBSTRING('abcdef', it) AS c FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1","abcdef","",null],["2","bcdef",null,null],["3","cdef","abcdef","abcdef"],["4","def","abcdef","f"],["5","ef",null,null],["6","f","",""],["7","","f",""]]'
   - id: substring_negative_length
     sql: "SELECT SUBSTRING('mnopqrst', 3, -1) AS s"
     engine: sa
@@ -91,8 +102,12 @@ tests:
     sql: "SELECT id, SUBSTRING(vc, 1, sm) AS s FROM t WHERE sm >= 0 ORDER BY id"
   - id: substring_from_an_integer_column
     sql: "SELECT id, SUBSTRING(vc, it, 2) AS s FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1",null],["2",null],["3","Ré"],["4","E"],["5",null],["6",""],["7",""]]'
   - id: substring_from_an_integer_column_without_length
     sql: "SELECT id, SUBSTRING(vc, it) AS s FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1",null],["2",null],["3","Résumé"],["4","E"],["5",null],["6",""],["7",""]]'
   - id: substring_negative_length_of_a_column
     sql: "SELECT id, SUBSTRING(vc, 1, sm) AS s FROM t ORDER BY id"
   - id: substring_in_where
@@ -100,12 +115,14 @@ tests:
   - id: substring_in_sql_anywhere
     sql: "SELECT id, SUBSTRING(vc, -1, 4) AS s FROM t ORDER BY id"
     profile: sqla17-default
-  - id: substring_by_a_bigint_is_refused
+  - id: substring_by_a_bigint
     sql: "SELECT SUBSTRING(vc, bg, 1) AS s FROM t WHERE id = 3"
-  - id: substring_by_a_rowgenerator_value_is_refused
+    decision: D-F18
+    expect: '[["R"]]'
+  - id: substring_by_a_rowgenerator_value
     sql: "SELECT row_num, LEFT('mnopqrst', row_num) AS s FROM sa_rowgenerator(0, 3)"
     engine: sa
-  - id: substring_by_computed_position_is_refused
+  - id: substring_by_a_computed_position
     sql: "SELECT row_num, SUBSTRING('mnopqrst', row_num - 3, 4) AS s FROM sa_rowgenerator(0, 3)"
     engine: sa
   - id: substring_by_a_numeric_is_refused
@@ -124,7 +141,7 @@ tests:
     engine: sa
   - id: substring_under_a_row_limit
     sql: "SELECT TOP 2 id, SUBSTRING(vc, 1, 2) AS s FROM t ORDER BY id"
-  - id: substring_of_a_negative_length_under_a_row_limit_is_refused
+  - id: substring_of_a_negative_length_under_a_row_limit
     sql: "SELECT TOP 2 id, SUBSTRING(vc, 1, sm) AS s FROM t ORDER BY id"
 
   # ---- LEFT and RIGHT: a negative count is '', a count past the end the whole string
@@ -331,10 +348,10 @@ tests:
     engine: sa
   - id: patindex_over_columns
     sql: "SELECT id, PATINDEX('%l%', vc) AS a, PATINDEX('h%', vc) AS b, PATINDEX('%e', vc) AS c FROM t ORDER BY id"
-  - id: patindex_of_a_single_character_wildcard_is_refused
+  - id: patindex_of_a_single_character_wildcard
     sql: "SELECT PATINDEX('%b_', 'abc') AS a"
     engine: sa
-  - id: patindex_of_a_set_is_refused
+  - id: patindex_of_a_set
     sql: "SELECT PATINDEX('%[0-9]%', 'ab1') AS a"
     engine: sa
   - id: patindex_of_percents_alone_under_iq_is_refused
@@ -355,6 +372,8 @@ tests:
   - id: stuff_in_sql_anywhere
     sql: "SELECT id, STUFF(vc, 2, 1, '#') AS s FROM t ORDER BY id"
     profile: sqla17-default
+  # IQ island, 2026-10-17 (D-F3, measured on IQ 17.1): read under IQ's engine too (stuff_under_iqs_engine in
+  # corpus_gaps), the id kept from when it was refused
   - id: stuff_under_the_iq_engine_is_refused
     sql: "SELECT STUFF(vc, 2, 1, '#') AS s FROM t WHERE id = 1"
 
@@ -382,7 +401,7 @@ tests:
   - id: char_of_a_numeric_is_refused
     sql: "SELECT CHAR(65.7) AS c"
     engine: sa
-  - id: ascii_in_sql_anywhere_is_refused
+  - id: ascii_in_sql_anywhere
     sql: "SELECT ASCII(vc) AS a FROM t WHERE id = 1"
     profile: sqla17-default
   - id: char_below_128_in_sql_anywhere
@@ -398,7 +417,8 @@ tests:
     sql: "SELECT id, STRING(vc, '/', sm, '/', bt) AS s FROM t ORDER BY id"
   - id: string_of_all_null_columns
     sql: "SELECT id, STRING(vc, it) AS s FROM t WHERE id IN (5, 6) ORDER BY id"
-  - id: string_of_a_numeric_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C8): answered under IQ's engine, so renamed from string_of_a_numeric_is_refused
+  - id: string_of_a_numeric
     sql: "SELECT STRING(nm, 'a') AS s FROM t WHERE id = 1"
   - id: string_of_no_argument
     sql: "SELECT STRING() AS s"
@@ -426,10 +446,15 @@ tests:
   - id: abs_of_columns_in_sql_anywhere
     sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c, ABS(nm) AS d, ABS(dbl) AS e, ABS(bt) AS f FROM t ORDER BY id"
     profile: sqla17-default
+  # IQ island, 2026-10-16 (measured on IQ 17.1, replacing the research's D-F5, which raised -158 at a type's smallest
+  # value): under IQ's engine ABS takes the smallest type that holds it -- a SMALLINT column's an INTEGER, an INTEGER's
+  # a BIGINT, a BIGINT's a NUMERIC(20,0); judged by the live IQ
   - id: abs_of_columns_under_the_iq_engine
-    sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c FROM t WHERE id <> 2 ORDER BY id"
-    decision: D-F5
-    expect: '[["1","32767","2147483647","9223372036854775807"],["3","0","0","0"],["4","1","1","1"],["5",null,null,null],["6","100","100","100"],["7","1","7","7"]]'
+    sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c, ABS(sm + 1) AS d, ABS(bt) AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: abs_of_aggregates_under_the_iq_engine
+    sql: "SELECT bt, ABS(MIN(sm)) AS a, ABS(MIN(it)) AS b, ABS(SUM(sm)) AS c, ABS(COUNT(*)) AS d FROM t GROUP BY bt ORDER BY bt"
+    profile: iq17-default
   - id: abs_of_a_numeric_and_a_double
     sql: "SELECT id, ABS(nm) AS a, ABS(dbl) AS b FROM t ORDER BY id"
   - id: abs_of_a_string_is_refused
@@ -438,8 +463,11 @@ tests:
   - id: sign_of_constants
     sql: "SELECT SIGN(-5) AS a, SIGN(0) AS b, SIGN(2.5) AS c, SIGN(NULL) AS d, SIGN(-0.0) AS e"
     engine: sa
+  # IQ island, 2026-10-15 (checklist 0.5, D-F19, measured on IQ 17.1): under IQ's engine SIGN is of its argument's type
   - id: sign_of_columns
     sql: "SELECT id, SIGN(sm) AS a, SIGN(bg) AS b, SIGN(nm) AS c, SIGN(dbl) AS d FROM t ORDER BY id"
+    decision: D-F19
+    expect: '{"columns": [["id", "integer", 0], ["a", "smallint", 0], ["b", "bigint", 0], ["c", "numeric", 2], ["d", "double", 0]], "rows": [["1", "1", "1", "1.00", "1.0"], ["2", "-1", "-1", "-1.00", "-1.0"], ["3", "0", "0", "0.00", "0.0"], ["4", "1", "1", "1.00", "1.0"], ["5", null, null, null, null], ["6", "1", "1", "1.00", "1.0"], ["7", "-1", "-1", "-1.00", "-1.0"]]}'
   - id: sign_of_a_string_is_refused
     sql: "SELECT SIGN('1') AS s"
     engine: sa
@@ -457,8 +485,10 @@ tests:
   - id: floor_of_15_digit_numerics
     sql: "SELECT FLOOR(0.999999999999999) AS a, CEILING(-0.999999999999999) AS b, FLOOR(99999999999999.9) AS c"
     engine: sa
-  - id: ceiling_under_the_iq_engine_is_refused
+  - id: ceiling_under_the_iq_engine
     sql: "SELECT CEILING(nm) AS c FROM t WHERE id = 1"
+    decision: D-F2
+    expect: '{"columns": [["c", "numeric", 2]], "rows": [["12345679.00"]]}'
   - id: floor_of_a_numeric_of_more_than_15_digits_is_refused
     sql: "SELECT FLOOR(0.99999999999999999999) AS a"
     engine: sa
@@ -488,7 +518,7 @@ tests:
   - id: round_of_a_double_is_refused
     sql: "SELECT ROUND(dbl, 2) AS r FROM t WHERE id = 1"
     profile: sqla17-default
-  - id: round_under_the_iq_engine_is_refused
+  - id: round_under_the_iq_engine
     sql: "SELECT ROUND(nm, 1) AS r FROM t WHERE id = 1"
   - id: round_of_one_argument
     sql: "SELECT ROUND(1.5) AS r"
@@ -499,8 +529,11 @@ tests:
   - id: truncnum_of_constants
     sql: "SELECT TRUNCNUM(2.59, 1) AS a, TRUNCNUM(-2.59, 1) AS b, TRUNCNUM(655.348, 2) AS c, TRUNCNUM(1259, -2) AS d, TRUNCNUM(-1259, -2) AS e, TRUNCNUM(NULL, 1) AS f"
     engine: sa
+  # IQ island, 2026-10-15 (checklist 0.5, D-F19, measured on IQ 17.1): under IQ's engine TRUNCNUM of an integer keeps its type
   - id: truncnum_of_columns
     sql: "SELECT id, TRUNCNUM(nm, 1) AS a, TRUNCNUM(nm, -3) AS b, TRUNCNUM(sm, -2) AS c, TRUNCNUM(bg, -1) AS d, TRUNCNUM(it, 3) AS e FROM t ORDER BY id"
+    decision: D-F19
+    expect: '{"columns": [["id", "integer", 0], ["a", "numeric", 2], ["b", "numeric", 2], ["c", "smallint", 0], ["d", "bigint", 0], ["e", "integer", 0]], "rows": [["1", "12345678.90", "12345000.00", "32700", "9223372036854775800", "2147483647"], ["2", "-99999999.90", "-99999000.00", "-32700", "-9223372036854775800", "-2147483648"], ["3", "0.00", "0.00", "0", "0", "0"], ["4", "0.00", "0.00", "0", "0", "-1"], ["5", null, null, null, null, null], ["6", "100.50", "0.00", "100", "100", "100"], ["7", "-.50", "0.00", "0", "0", "7"]]}'
   - id: truncnum_of_a_double_is_refused
     sql: "SELECT TRUNCNUM(dbl, 1) AS t FROM t WHERE id = 1"
 
@@ -517,7 +550,7 @@ tests:
   - id: mod_of_a_numeric
     sql: "SELECT MOD(7.5, 2) AS m"
     engine: sa
-  - id: mod_under_a_row_limit_is_refused
+  - id: mod_under_a_row_limit
     sql: "SELECT TOP 2 id, MOD(it, sm) AS m FROM t ORDER BY id"
 
   # ---- SQRT, EXP, LN, LOG (natural) and LOG10: NULL outside the domain in SQL Anywhere's front end (D-F9 under IQ)
@@ -639,8 +672,10 @@ tests:
   - id: datepart_iso_parts_in_sql_anywhere
     sql: "SELECT id, DATEPART(cdw, dt) AS a, DATEPART(cwk, dt) AS b, DATEPART(cyr, dt) AS c FROM t ORDER BY id"
     profile: sqla17-default
-  - id: datepart_iso_parts_under_the_iq_engine_are_refused
+  - id: datepart_calendar_weekday_under_the_iq_engine
     sql: "SELECT DATEPART(cdw, dt) AS a FROM t WHERE id = 1"
+    decision: D-T10
+    expect: '[["4"]]'
   - id: datepart_delimited_parts
     sql: "SELECT DATEPART(\"dd\", '2026-03-04') AS a, DATEPART([month], '2026-03-04') AS b, DATEPART(`yy`, '2026-03-04') AS c"
     engine: sa
@@ -687,8 +722,10 @@ tests:
   - id: dateadd_dayofyear_and_weekday
     sql: "SELECT DATEADD(dy, 1, '2026-03-04') AS a, DATEADD(dw, 2, '2026-03-04') AS b"
     engine: sa
-  - id: dateadd_under_the_iq_engine_is_refused
+  - id: dateadd_under_the_iq_engine
     sql: "SELECT DATEADD(day, 1, dt) AS d FROM t WHERE id = 1"
+    decision: D-T2
+    expect: '{"columns": [["d", "date", 0]], "rows": [["2026-03-05"]]}'
   - id: dateadd_millisecond_is_refused
     sql: "SELECT DATEADD(ms, 1, '2026-03-04 00:00:00.123456') AS d"
     engine: sa
@@ -716,7 +753,7 @@ tests:
   - id: datediff_of_null
     sql: "SELECT DATEDIFF(day, NULL, '2026-03-04') AS a, DATEDIFF(day, '2026-03-04', NULL) AS b"
     engine: sa
-  - id: datediff_under_the_iq_engine_is_refused
+  - id: datediff_under_the_iq_engine
     sql: "SELECT DATEDIFF(day, dt, ts) AS d FROM t WHERE id = 1"
   - id: datediff_weekday_is_refused
     sql: "SELECT DATEDIFF(dw, '2026-03-01', '2026-03-09') AS d"
@@ -783,7 +820,7 @@ tests:
     sql: "SELECT CAST(dt AS INT) AS a FROM t WHERE id = 1"
   - id: cast_to_int_in_where
     sql: "SELECT id FROM t WHERE CAST(nm AS INT) = 0 ORDER BY id"
-  - id: cast_to_int_under_a_row_limit_is_refused
+  - id: cast_to_int_under_a_row_limit
     sql: "SELECT TOP 1 id, CAST(nm AS INT) AS a FROM t ORDER BY id"
 
   # ---- CAST to NUMERIC(p, s): rounded half away from zero; more whole digits than p - s is -158
@@ -793,10 +830,15 @@ tests:
   - id: cast_strings_to_numeric
     sql: "SELECT CAST('1.5' AS NUMERIC(5,2)) AS a, CAST('1e2' AS NUMERIC(5,1)) AS b, CAST(' -1.25 ' AS NUMERIC(5,1)) AS c, CAST('' AS NUMERIC(5,2)) AS d, CAST('.5' AS NUMERIC(3,2)) AS e"
     engine: sa
+  # IQ island, 2026-10-15 (checklist 0.5, D-N6, measured on IQ 17.1): under IQ's engine a narrower scale truncates
   - id: cast_numeric_column_to_numeric
     sql: "SELECT id, CAST(nm AS NUMERIC(12,1)) AS a, CAST(nm AS NUMERIC(15,4)) AS b, CAST(nm AS DECIMAL(10)) AS c FROM t ORDER BY id"
+    decision: D-N6
+    expect: '[["1","12345678.9","12345678.9900","12345678"],["2","-99999999.9","-99999999.9900","-99999999"],["3","0.0","0.0000","0"],["4","0.0",".0100","0"],["5",null,null,null],["6","100.5","100.5000","100"],["7","-.5","-.5000","0"]]'
+  # IQ island, 2026-10-15 (checklist 0.5): CAST(it AS NUMERIC) is a NUMERIC(126,38) under IQ's engine, refused
+  # (iq_engine_casts.yaml), so this reads a precision
   - id: cast_integer_column_to_numeric
-    sql: "SELECT id, CAST(sm AS NUMERIC(7,2)) AS a, CAST(it AS NUMERIC) AS b, CAST(bg AS DECIMAL(20,0)) AS c FROM t ORDER BY id"
+    sql: "SELECT id, CAST(sm AS NUMERIC(7,2)) AS a, CAST(it AS NUMERIC(10,0)) AS b, CAST(bg AS DECIMAL(20,0)) AS c FROM t ORDER BY id"
   - id: cast_to_numeric_out_of_range
     sql: "SELECT id, CAST(nm AS NUMERIC(5,1)) AS a FROM t ORDER BY id"
   - id: cast_to_numeric_rounding_up_out_of_range
@@ -812,9 +854,12 @@ tests:
   - id: cast_string_to_numeric_without_precision_is_refused
     sql: "SELECT CAST('1' AS DECIMAL) AS a"
     engine: sa
-  - id: cast_double_to_numeric_is_refused
-    sql: "SELECT CAST(dbl AS NUMERIC(10,2)) AS a FROM t WHERE id = 1"
-  - id: cast_string_column_to_numeric_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-N6): answered under IQ's engine, so renamed from cast_double_to_numeric_is_refused
+  - id: cast_double_to_numeric
+    sql: "SELECT id, CAST(dbl AS NUMERIC(10,2)) AS a FROM t WHERE id <> 6 ORDER BY id"
+  # IQ island, 2026-10-15 (checklist 0.5): read under IQ's engine ('Hello' is its error), so renamed from
+  # cast_string_column_to_numeric_is_refused
+  - id: cast_string_column_to_numeric_is_iqs_error
     sql: "SELECT CAST(vc AS NUMERIC(10,2)) AS a FROM t WHERE id = 1"
   - id: cast_to_numeric_of_precision_0
     sql: "SELECT CAST(1 AS NUMERIC(0,0)) AS a"
@@ -829,6 +874,7 @@ tests:
     engine: sa
   - id: cast_columns_to_double
     sql: "SELECT id, CAST(sm AS DOUBLE) AS a, CAST(bg AS DOUBLE) AS b, CAST(nm AS DOUBLE) AS c, CAST(dbl AS DOUBLE) AS d FROM t ORDER BY id"
+  # IQ island, 2026-10-15: read now (lite/iq_reals.yaml); the ids are kept, the answers keyed by them
   - id: cast_to_real_is_refused
     sql: "SELECT CAST(1 AS REAL) AS a"
     engine: sa
@@ -867,8 +913,14 @@ tests:
   - id: cast_varchar_column_to_char_in_sql_anywhere
     sql: "SELECT id, CAST(vc AS CHAR(22)) || '|' AS a FROM t ORDER BY id"
     profile: sqla17-default
-  - id: cast_varchar_column_to_a_shorter_varchar_is_refused
-    sql: "SELECT CAST(vc AS VARCHAR(3)) AS a FROM t WHERE id = 1"
+  # IQ island, 2026-10-15 (checklist 0.5, D-C2, measured on IQ 17.1): under IQ's engine a longer string is cut, to n bytes
+  # (n characters in this ISO-8859-1 database; the live IQ's UTF-8 cut is iq_engine_casts.yaml's), where SQL Anywhere
+  # raises -638; renamed from cast_varchar_column_to_a_shorter_varchar_is_refused
+  - id: cast_varchar_column_to_a_shorter_varchar
+    sql: "SELECT id, CAST(vc AS VARCHAR(3)) AS a, CAST(vc AS CHAR(2)) || '|' AS b FROM t ORDER BY id"
+    decision: D-C2
+    expect: '{"columns": [["id", "integer", 0], ["a", "varchar", 0], ["b", "varchar", 0]], "rows": [["1", "Hel", "He|"], ["2", "hel", "he|"], ["3", "Rés", "Ré|"], ["4", "ÉCO", "ÉC|"], ["5", null, "|"], ["6", "x  ", "x |"], ["7", "app", "ap|"]]}'
+
   - id: cast_varchar_column_to_a_shorter_varchar_in_sql_anywhere_is_refused
     sql: "SELECT CAST(vc AS VARCHAR(3)) AS a FROM t WHERE id = 1"
     profile: sqla17-default
@@ -886,12 +938,20 @@ tests:
   - id: cast_numeric_constants_to_text
     sql: "SELECT CAST(-0.50 AS VARCHAR(10)) AS a, CAST(0.01 AS VARCHAR(10)) AS b, CAST(10.5 AS VARCHAR(10)) AS c, CAST(-3 AS VARCHAR(5)) AS d"
     engine: sa
-  - id: cast_numeric_to_short_text_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C1, measured on IQ 17.1): IQ's engine raises for a row whose text is too long,
+  # where SQL Anywhere cuts it; renamed from cast_numeric_to_short_text_is_refused
+  - id: cast_numeric_to_short_text_is_iqs_error
     sql: "SELECT CAST(nm AS VARCHAR(4)) AS a FROM t WHERE id = 1"
+    decision: D-C1
+    expect: '{"error": "SQLCODE -1009145, SQLSTATE QFA2E: Data type conversion is not possible"}'
   - id: cast_date_to_text
     sql: "SELECT id, CAST(dt AS VARCHAR(20)) AS a, CAST(dt AS VARCHAR(10)) AS b FROM t ORDER BY id"
-  - id: cast_date_to_short_text_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C1, measured on IQ 17.1): as a NUMERIC's; renamed from
+  # cast_date_to_short_text_is_refused
+  - id: cast_date_to_short_text_is_iqs_error
     sql: "SELECT CAST(dt AS VARCHAR(5)) AS a FROM t WHERE id = 1"
+    decision: D-C1
+    expect: '{"error": "SQLCODE -1009145, SQLSTATE QFA2E: Data type conversion is not possible"}'
   - id: cast_double_to_text_is_refused
     sql: "SELECT CAST(dbl AS VARCHAR(30)) AS a FROM t WHERE id = 1"
   # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from cast_timestamp_to_text_is_refused
@@ -996,13 +1056,18 @@ tests:
     engine: sa
   - id: convert_of_columns
     sql: "SELECT id, CONVERT(INT, nm) AS a, CONVERT(VARCHAR(20), it) AS b, CONVERT(DATE, ts) AS c FROM t ORDER BY id"
-  - id: convert_date_to_text_is_refused
+  - id: convert_date_to_text
     sql: "SELECT CONVERT(VARCHAR(30), dt) AS a FROM t WHERE id = 1"
+    decision: D-C6
+    expect: '{"columns": [["a", "varchar", 0]], "rows": [["2026-03-04"]]}'
   - id: convert_date_to_text_in_sql_anywhere_is_refused
     sql: "SELECT CONVERT(VARCHAR(30), CAST('2026-03-04' AS DATE)) AS a"
     engine: sa
-  - id: convert_with_a_style_is_refused
+  - id: convert_with_a_style
     sql: "SELECT CONVERT(VARCHAR(30), dt, 112) AS a FROM t WHERE id = 1"
+  - id: convert_with_a_style_on_the_front_end_is_refused
+    sql: "SELECT CONVERT(VARCHAR(30), DATE('2026-03-04'), 106) AS a"
+    engine: sa
   - id: convert_with_a_default_style
     sql: "SELECT CONVERT(VARCHAR(30), 1, DEFAULT) AS a"
     engine: sa

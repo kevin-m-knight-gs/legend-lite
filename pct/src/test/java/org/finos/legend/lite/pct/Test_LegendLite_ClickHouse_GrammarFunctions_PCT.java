@@ -31,7 +31,7 @@ public class Test_LegendLite_ClickHouse_GrammarFunctions_PCT extends PCTReportCo
     // First measured 2026-10-12 (ClickHouse 25.8, the pinned server).
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // getAll's testBasic passes through the harness's connection, not the dialect: the system store's tables
-            // are a session's own, so PctBackend.openSystem opens a session (EmbeddedClickHouse.sessionJdbcUrl). The
+            // are a session's own, so its test backend's openSystem opens a session (EmbeddedClickHouse.sessionJdbcUrl). The
             // ClickHouse connector owns it (the dialect plan's P5), and with it the session's idle expiry and its
             // one-statement-at-a-time lock (PR #34's review, 2026-10-13)
             // INSTANCE IDENTITY (as on DuckDB): the asserts want the interpreter's ORIGINAL instances back, or eq/==
@@ -49,7 +49,7 @@ public class Test_LegendLite_ClickHouse_GrammarFunctions_PCT extends PCTReportCo
             // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
             // per run, so the pin is the class), as on the DuckDB lane
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
-            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.
     );

@@ -636,7 +636,7 @@ class NameResolverTest {
     @Test
     void connectionStoreNameResolved() {
         var cd = new ConnectionDefinition("connection::C", "DB",
-                ConnectionDefinition.DatabaseType.H2,
+                com.legend.database.Databases.PLATFORM,
                 new ConnectionSpecification.InMemory(),
                 new AuthenticationSpec.NoAuth());
         var r = (ConnectionDefinition) resolveOne(cd, WILDCARD_STORE, FQNS);
@@ -729,7 +729,7 @@ class NameResolverTest {
     void enumDefinitionPassesThrough() {
         var en = new EnumDefinition("model::Status", List.of("ACTIVE", "INACTIVE"));
         var r = resolveOne(en);
-        assertSame(en, r, "EnumDefinition has no cross-element refs; same instance");
+        assertSame(en, r, "an enumeration without annotations names no other element; same instance");
     }
 
     @Test

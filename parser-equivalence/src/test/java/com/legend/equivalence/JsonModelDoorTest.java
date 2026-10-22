@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -37,18 +38,47 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ol>
  * Together: equal input to the compiler, so the same model and the same errors.
  *
+ * <p>Where the two dialects read a text differently, they may only do so by the user's rule A
+ * (docs/SEMANTICS_REGISTER.md S89, 2026-10-21): text the engine's grammar accepts and its parser drops, which lite's
+ * dialect keeps. Such a text's records at lite's dialect, written as JSON, are then either refused by name (the
+ * construct the engine's JSON cannot carry as written: counted per construct, pinned) or written whole and read back to
+ * the same records and the same compiler input (lite's own JSON round trip: counted, pinned). Anything else is a
+ * FAILURE.
+ *
  * <p>Counted apart, never as a pass: a text lite's parser refuses, or whose JSON lite does not write (nothing to
  * compare). Anything else is a FAILURE, listed by kind. The counts are pinned per input: matched up-only, failed
- * down-only.
+ * down-only, and the rule-A counts exactly.
  */
 class JsonModelDoorTest {
 
     /** {min matched, max failed} per input: matched up-only, failed down-only. Measured 2026-10-11 (leg 8, step 2's
-     *  first part landed: the engine collection's 401 failures are step 2's remaining work list). */
+     *  first part landed: the engine collection's failures are step 2's remaining work list; 401 -> 363 with a
+     *  relation column's [0..1]; 363 -> 267 with a relation shape read as the parser reads it; 267 -> 149 with
+     *  persistence spans as the JSON has them, a graphFetch partition's key read back, a let's TDS value's position
+     *  out of equality, a reference body read as the parser reads it, and two engine-dialect refusals). Measured
+     *  2026-10-21 (rule A, S89; rebased on main, lite's projects 167): 149 -> 4 -- the dropped text read at the engine's
+     *  dialect as the engine reads it (rule A's counts below), a model store's -1 one literal, a service store's
+     *  description, a path's prop() its property. The 4 left: two quoted trees over a let-bound string
+     *  (compileLegendValueSpecification($treeString)), which the parser folds and a JSON model cannot carry (the fold
+     *  belongs after the door, in name resolution: docs/PROTOCOL_PROGRAM_2026_10_05.md leg 8's as-built note), and
+     *  two variables typed meta::pure::mapping::Result, which legend-engine's own reader brings up to
+     *  Result<Any|1..*> (ProtocolUpgrade; its print measured in PureV1ApiTest), so its own JSON hop changes them.
+     *  7099 -> 7085 (2026-10-21, the reference checks): a function's constraints are the compiler's now, and the
+     *  engine's parser drops them (rule A), so the 14 texts holding them (AbstractTestConstraints 5, TestNestedCollection
+     *  2, TestPureRuntimeFunction_Constraint 7, by name in the GATES entry) are rule A's, written whole, below. */
     private static final Map<String, int[]> PINS = Map.of(
-            "engine corpus", new int[]{6817, 401},
-            "lite projects", new int[]{166, 0},
+            "engine corpus", new int[]{7085, 4},
+            "lite projects", new int[]{167, 0},
             "showcase projects", new int[]{123, 0});
+
+    /** Rule A's counts, exact (they move only with a corpus or a rule): the texts lite's dialect keeps and writes whole,
+     *  and those whose JSON it refuses, by construct. Measured 2026-10-21; 102 -> 116 the same day (the 14 texts with
+     *  a function's constraints, from matched above). */
+    private static final Map<String, Integer> RULE_A_WRITTEN = Map.of("engine corpus", 116);
+    private static final Map<String, Map<String, Integer>> RULE_A_REFUSED = Map.of("engine corpus", Map.of(
+            "a dotted key (the engine keys addr.city = .. by addr)", 1,
+            "a supertype's type arguments", 1,
+            "an include's several store substitutions", 8));
 
     private static final class Tally {
         final String name;
@@ -56,7 +86,14 @@ class JsonModelDoorTest {
         int failed;
         int textRefused;
         int jsonRefused;
+        /** rule A: lite's dialect keeps what the engine's drops, and lite's JSON refuses it by name, per construct */
+        final Map<String, Integer> engineDrops = new TreeMap<>();
+        /** rule A: lite's dialect keeps what the engine's drops, and lite's JSON carries it whole, exactly */
+        int liteWritten;
         final List<String> failures = new ArrayList<>();
+        /** rule A's texts by id, each with what differed: the exact set, not a count (2026-10-21, the independent
+         *  audit: a count let one text swap for another unseen) */
+        final List<String> ruleA = new ArrayList<>();
         final Map<String, Integer> categories = new TreeMap<>();
         final List<String> all = new ArrayList<>();
 
@@ -89,7 +126,8 @@ class JsonModelDoorTest {
         for (Tally t : List.of(corpus, lite, showcase)) {
             out.append("[json-door] ").append(t.name).append(": matched=").append(t.matched)
                     .append(" failed=").append(t.failed).append(" text-refused=").append(t.textRefused)
-                    .append(" json-refused=").append(t.jsonRefused).append(' ').append(t.categories).append('\n');
+                    .append(" json-refused=").append(t.jsonRefused).append(" rule-A-written=").append(t.liteWritten)
+                    .append(" rule-A-refused=").append(t.engineDrops).append(' ').append(t.categories).append('\n');
             for (String f : t.failures) {
                 out.append("  FAILED ").append(f).append('\n');
             }
@@ -100,12 +138,35 @@ class JsonModelDoorTest {
             every.addAll(t.all);
         }
         Files.write(TestOutputs.file("json-model-door-all.tsv"), every);
+        List<String> ruleA = new ArrayList<>();
+        for (Tally t : List.of(corpus, lite, showcase)) {
+            ruleA.addAll(t.ruleA);
+        }
+        java.util.Collections.sort(ruleA);
+        Files.write(TestOutputs.file(RULE_A_FILE), ruleA);
         System.out.print(out.substring(0, Math.min(out.length(), 20_000)));
         for (Tally t : List.of(corpus, lite, showcase)) {
             int[] pin = PINS.get(t.name);
             assertTrue(t.matched >= pin[0], t.name + ": matched " + t.matched + " < " + pin[0]);
             assertTrue(t.failed <= pin[1], t.name + ": failed " + t.failed + " > " + pin[1] + "\n"
                     + String.join("\n", t.failures));
+            assertEquals(RULE_A_WRITTEN.getOrDefault(t.name, 0), t.liteWritten, t.name + ": rule A's texts written whole");
+            assertEquals(RULE_A_REFUSED.getOrDefault(t.name, Map.of()), t.engineDrops,
+                    t.name + ": rule A's texts refused, by construct");
+        }
+        assertEquals(committedRuleA(), ruleA, "rule A's texts, each with what differed, moved: review the test output "
+                + RULE_A_FILE + " and commit it as src/test/resources/com/legend/equivalence/" + RULE_A_FILE);
+    }
+
+    /** Rule A's texts, committed: every one by id, the field its dialects differ at and how its JSON went. */
+    private static final String RULE_A_FILE = "json-door-rule-a.tsv";
+
+    private static List<String> committedRuleA() throws IOException {
+        try (java.io.InputStream in = JsonModelDoorTest.class.getResourceAsStream(RULE_A_FILE)) {
+            if (in == null) {
+                return List.of();
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8).lines().filter(l -> !l.isBlank()).toList();
         }
     }
 
@@ -145,32 +206,75 @@ class JsonModelDoorTest {
             t.textRefused++;
             return;
         }
-        ParsedModel fromRecords = ModelFromProtocol.of(records);
+        String differs = modelDifference(fromText, ModelFromProtocol.of(records));
+        if (differs == null) {
+            t.matched++;
+            return;
+        }
+        // 3. RULE A: the dialects read the text differently -- only by what the engine's parser drops and lite's dialect
+        // keeps. Lite's records, written as JSON, are refused by name, or carry it whole and read back exactly.
+        com.legend.protocol.Protocol.PureModelContextData liteRecords =
+                PmcdParser.parse(text, com.legend.parser.Dialect.LEGEND_LITE).model();
+        String liteJson;
+        try {
+            liteJson = com.legend.protocol.ProtocolEmitter.emit(liteRecords);
+        } catch (UnsupportedOperationException e) {
+            String message = String.valueOf(e.getMessage());
+            int at = message.indexOf(" is not written as legend-engine's JSON");
+            if (at < 0) {
+                fail(t, id, "dialect: lite's JSON unwritten", message + " -- where " + differs);
+                return;
+            }
+            t.engineDrops.merge(message.substring(0, at), 1, Integer::sum);
+            t.ruleA.add(t.name + "\t" + id + "\trefused: " + message.substring(0, at) + "\t" + field(differs));
+            return;
+        }
+        com.legend.protocol.Protocol.PureModelContextData liteRead;
+        try {
+            liteRead = ModelReader.read(liteJson);
+        } catch (RuntimeException e) {
+            fail(t, id, "lite hop: unread " + e.getClass().getSimpleName(), "lite's reader refuses its own JSON: " + e);
+            return;
+        }
+        if (!liteRead.elements().equals(liteRecords.elements())) {
+            String meaning = difference(liteRecords.elements(), liteRead.elements(), "records", false);
+            String where = meaning != null ? meaning
+                    : difference(liteRecords.elements(), liteRead.elements(), "records", true);
+            fail(t, id, "lite hop " + (meaning != null ? "meaning " : "position ") + field(where),
+                    "lite's records differ at " + where + " (the dialects first differed at " + differs + ")");
+            return;
+        }
+        String liteDiffers = modelDifference(fromText, ModelFromProtocol.of(liteRead));
+        if (liteDiffers != null) {
+            fail(t, id, "dialect " + field(liteDiffers), liteDiffers + " -- against the engine's records: " + differs);
+            return;
+        }
+        t.liteWritten++;
+        t.ruleA.add(t.name + "\t" + id + "\twritten\t" + field(differs));
+    }
+
+    /** Where two parsed models first differ -- an element set, an element, or an element's imports -- or null. */
+    private static @com.legend.base.Nullable String modelDifference(ParsedModel fromText, ParsedModel fromRecords) {
         Map<String, List<PackageableElement>> a = byKey(fromText);
         Map<String, List<PackageableElement>> b = byKey(fromRecords);
         if (!a.keySet().equals(b.keySet())) {
-            fail(t, id, "dialect: element sets differ",
-                    "elements: lite's only " + minus(a, b) + "; the engine's only " + minus(b, a));
-            return;
+            return "element sets: lite's only " + minus(a, b) + "; the records' only " + minus(b, a);
         }
         for (String key : a.keySet()) {
             if (!a.get(key).equals(b.get(key))) {
+                // "meaning <path>: <values> (<element>)": the kind and the field first, for counting kinds together
                 String meaning = difference(a.get(key), b.get(key), a.get(key).get(0).getClass().getSimpleName(), false);
-                String where = meaning != null ? meaning
-                        : difference(a.get(key), b.get(key), a.get(key).get(0).getClass().getSimpleName(), true);
-                fail(t, id, "dialect " + (meaning != null ? "meaning " : "position ") + field(where),
-                        "element " + key + " differs at " + where);
-                return;
+                return (meaning != null ? "meaning " + meaning
+                        : "position " + difference(a.get(key), b.get(key), a.get(key).get(0).getClass().getSimpleName(),
+                                true)) + " (" + key + ")";
             }
             ImportScope ia = fromText.elementImports().getOrDefault(key, ImportScope.empty());
             ImportScope ib = fromRecords.elementImports().getOrDefault(key, ImportScope.empty());
             if (!ia.equals(ib)) {
-                fail(t, id, "dialect: imports differ",
-                        "element " + key + "'s imports differ: lite " + ia.wildcards() + ", the engine " + ib.wildcards());
-                return;
+                return "imports: lite " + ia.wildcards() + ", the records " + ib.wildcards() + " (" + key + ")";
             }
         }
-        t.matched++;
+        return null;
     }
 
     /** A difference's place, its indices dropped: the field it is in, for counting kinds together. */

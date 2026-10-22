@@ -1073,6 +1073,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case JARO_WINKLER -> MongoJson.guarded(writer, a, MongoJson.text(jaroWinkler()));
             // no uuid operator: thirty-two random hexadecimal digits ($rand, one per step of a reduce), in a
             // uuid's five groups
+            // the database's draw in [0, 1), per document it is spelled for (main's RANDOM, 2026-10-18)
+            case RANDOM -> writer.append("{\"$rand\": {}}");
             case GUID -> writer.append("{\"$let\": {\"vars\": {\"h\": {\"$reduce\": {\"input\": {\"$range\": [0, 32]},"
                     + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", {\"$substrCP\": [\"0123456789abcdef\","
                     + " {\"$toInt\": {\"$floor\": {\"$multiply\": [{\"$rand\": {}}, 16]}}}, 1]}]}}}}, \"in\": {\"$concat\":"
@@ -2569,6 +2571,11 @@ public final class MongoDb extends AnsiSqlRenderer {
                 case FLOAT, DOUBLE, REAL -> "double";
                 case BIT -> "bool";
                 case TIMESTAMP, DATE -> "date";
+                // main's column kinds of 2026-10-17 (the Cypher line's temporal legs): a BSON date keeps milliseconds
+                // and no time of day apart from a day
+                case TIME -> throw new DialectCapability("a TIME column: MongoDB has no time-of-day type");
+                case TIMESTAMP_NS -> throw new DialectCapability("a TIMESTAMP_NS column: MongoDB's dates keep"
+                        + " milliseconds");
                 case VARCHAR -> "string";
                 case JSON, OBJECT -> "object";
                 case ARRAY -> "array";
@@ -2676,6 +2683,12 @@ public final class MongoDb extends AnsiSqlRenderer {
     }
 
     /** MongoDB has no temporary collection: a plan's metamodel tables are its pipeline's own documents. */
+    /** {@inheritDoc} No: an aggregation pipeline, which a {@code MongoDBConnection} declares (D4). */
+    @Override
+    public boolean relational() {
+        return false;
+    }
+
     @Override
     public boolean temporaryTables() {
         return false;
@@ -2683,7 +2696,7 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     /** MongoDB: a dynamic pivot's probe plan reads the keys and then the body, two commands with no transaction
      *  across them on a server that is no replica set (a key written between the two is not the body's: register
-     *  S84). */
+     *  S103). */
     @Override
     public KeysSnapshot keysSnapshot() {
         return KeysSnapshot.NONE;

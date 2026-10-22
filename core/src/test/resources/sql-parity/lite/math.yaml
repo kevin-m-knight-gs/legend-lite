@@ -54,3 +54,39 @@ tests:
     sql: "SELECT float_val % 2 AS a FROM numbers WHERE id = 1"
   - id: log10_of_integers_and_numerics
     sql: "SELECT id, log10(int_val) AS a, log10(numeric_val) AS b FROM numbers WHERE int_val > 0 AND numeric_val > 0 ORDER BY id"
+  # a select item computed past LIMIT and OFFSET (2026-10-16, measured on Postgres 16): Postgres computes a cheap item
+  # (a division) for every row before its sort and limit, so a zero divisor on a row the limit drops is still its
+  # error; it puts an item its planner costs as expensive off until after the sort, for the rows its LIMIT reads (its
+  # OFFSET's skipped ones too). The island's translation computes the item before the limit, as Postgres's order has
+  # it, but its division checks its divisor, which Postgres costs as expensive: on Postgres the island answers the first
+  # case (BUG, pinned in the ledger), on DuckDB it raises. The IQ island differs by IQ's rule (lite/corpus_gaps.yaml)
+  - id: a_division_by_zero_past_the_limit_is_an_error
+    sql: "SELECT id, 100 / (id - 3) AS q FROM numbers ORDER BY id LIMIT 2"
+  - id: a_division_by_zero_before_the_offset_is_an_error
+    sql: "SELECT id, 100 / (id - 3) AS q FROM numbers ORDER BY id LIMIT 2 OFFSET 4"
+  - id: a_division_past_the_limit_of_no_zero
+    sql: "SELECT id, 100 / (id - 3) AS q FROM numbers WHERE id <> 3 ORDER BY id LIMIT 2"
+  # integer arithmetic over constants, in its Postgres type (2026-10-17, the regression-suite corpus): past the type's
+  # range Postgres raises, within it answers, and a step that may pass it part-way is refused
+  - id: smallint_arithmetic_of_constants_past_its_type_is_an_error
+    sql: "SELECT (-32768)::int2 * (-1)::int2 AS a FROM numbers WHERE id = 1"
+  - id: bigint_arithmetic_of_constants_past_its_type_is_an_error
+    sql: "SELECT '9223372036854775800'::int8 + '9223372036854775800'::int8 AS a FROM numbers WHERE id = 1"
+  - id: integer_arithmetic_of_constants_past_its_type_is_an_error
+    sql: "SELECT 2147483647 + 1 AS a FROM numbers WHERE id = 1"
+  - id: negation_of_the_least_bigint_is_an_error
+    sql: "SELECT -('-9223372036854775808'::int8) AS a FROM numbers WHERE id = 1"
+  - id: integer_arithmetic_of_constants_at_its_types_edges
+    sql: "SELECT 2147483646 + 1 AS a, (-32767)::int2 - 1::int2 AS b, '9223372036854775806'::int8 + 1 AS c, (-2147483647)::int4 / (-1)::int4 AS e FROM numbers WHERE id = 1"
+  - id: integer_arithmetic_of_constants_past_its_type_part_way_is_refused
+    sql: "SELECT (32767::int2 + 1::int2) * 0::int2 AS a FROM numbers WHERE id = 1"
+  - id: a_double_precision_constant_past_its_range_is_an_error
+    sql: "SELECT '10e-400'::float8 AS a FROM numbers WHERE id = 1"
+  # a smallint keeps its width through a VALUES column, abs and a subquery (the review of 2026-10-17): refused where
+  # the database would compute it as a smallint, answered beside a wider constant
+  - id: smallint_column_of_values_read_twice_is_refused
+    sql: "SELECT x * x AS a FROM (VALUES (int2 '300')) v(x)"
+  - id: smallint_through_abs_is_refused
+    sql: "SELECT abs(id::int2) AS a FROM numbers WHERE id = 1"
+  - id: smallint_beside_a_wider_constant
+    sql: "SELECT x::int2 + 1 AS a FROM (VALUES (32767)) v(x)"

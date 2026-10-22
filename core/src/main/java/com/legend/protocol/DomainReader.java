@@ -17,8 +17,8 @@ import java.util.List;
  *
  * <p>What the wire does not carry comes back as the record's absent value, as the parser produces it
  * for text without the clause: a class's type parameters and type variables (the emitter writes
- * neither), a function's pre-constraints (always written empty), and a realization's function
- * reference (the wire carries only the body: a {@link Realization.Inline}).
+ * neither) and a function's pre-constraints (always written empty). A realization is told from its body
+ * as the parser tells it ({@link Realization#of}: the wire carries only the body).
  *
  * <p>Older JSON reads as the engine reads it (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 2 step 2): a list it
  * leaves out is empty wherever the engine's class starts it empty ({@code Class}, {@code Association},
@@ -145,8 +145,14 @@ final class DomainReader {
         List<ParameterDefinition> params = w.listOrEmpty("parameters", DomainReader::parameter);
         TypeExpression returnType = typeOrName(w, "returnGenericType", "returnType", null);
         Multiplicity returnMult = ProtocolReader.multiplicity(w.take("returnMultiplicity"));
-        w.emptyOrAbsent("preConstraints");
-        w.emptyOrAbsent("postConstraints");
+        // a function's constraints, as legend-engine's compiler reads them (HelperModelBuilder.processConstraints):
+        // each predicate's lambda over the function's parameters (a post-condition's over `return` too), as
+        // legend-pure builds it, or over none (lite's JSON before 2026-10-21)
+        List<String> names = params.stream().map(ParameterDefinition::name).toList();
+        List<String> postNames = new java.util.ArrayList<>(names);
+        postNames.add(ConstraintDefinition.RETURN);
+        List<ConstraintDefinition> pre = w.listOrEmpty("preConstraints", n -> condition(n, names));
+        List<ConstraintDefinition> post = w.listOrEmpty("postConstraints", n -> condition(n, postNames));
         String pkg = w.str("package");
         String wireName = w.str("name");
         List<ValueSpecification> body = w.listOrEmpty("body", ProtocolReader::valueSpec);
@@ -154,14 +160,14 @@ final class DomainReader {
         List<PStereotype> stereotypes = stereotypes(w);
         List<PTaggedValue> taggedValues = taggedValues(w);
         String mangling = new Protocol.PFunction(pkg, "", List.of(), List.of(), params, returnType, returnMult,
-                body, List.of(), tests, stereotypes, taggedValues, null).mangledName();
+                body, List.of(), List.of(), tests, stereotypes, taggedValues, null).mangledName();
         if (wireName.equals(mangling)) {
             throw Wire.refuse("function name '" + wireName + "' is its signature's mangling alone");
         }
         String declared = wireName.endsWith(mangling) ? wireName.substring(0, wireName.length() - mangling.length())
                 : wireName;
         return new Protocol.PFunction(pkg, declared, List.of(),
-                List.of(), params, returnType, returnMult, body, List.of(), tests, stereotypes, taggedValues,
+                List.of(), params, returnType, returnMult, body, pre, post, tests, stereotypes, taggedValues,
                 w.span());
     }
 
@@ -233,7 +239,7 @@ final class DomainReader {
             declared.add(parameter(p));
         }
         return q.done(new DerivedPropertyDefinition(q.str("name"), declared,
-                new Realization.Inline(q.listOrEmpty("body", ProtocolReader::valueSpec)),
+                Realization.of(q.listOrEmpty("body", ProtocolReader::valueSpec)),
                 typeOrName(q, "returnGenericType", "returnType", null),
                 ProtocolReader.multiplicity(q.take("returnMultiplicity")),
                 stereotypes(q), taggedValues(q), q.span()));
@@ -263,8 +269,51 @@ final class DomainReader {
             }
             message = m.get(0);
         }
-        return c.done(new ConstraintDefinition(c.str("name"), new Realization.Inline(body), message,
+        return c.done(new ConstraintDefinition(c.str("name"), Realization.of(body), message,
                 c.optStr("enforcementLevel"), c.optStr("externalId"), c.optStr("owner"), c.span()));
+    }
+
+    /** A function's condition: its predicate's lambda over {@code parameters} (by name, in order) or over none, its
+     *  message's over none (legend-pure's transfer removes them) -- never over a {@code $this} (2026-10-21, the
+     *  independent audit: a class constraint's lambda was read here, and legend-pure's own refused). */
+    private static ConstraintDefinition condition(Json.Node node, List<String> parameters) {
+        Wire c = Wire.of(node, "function constraint");
+        List<ValueSpecification> body = conditionLambda(c.take("functionDefinition"), parameters);
+        Json.Node msg = c.opt("messageFunction");
+        ValueSpecification message = null;
+        if (msg != null) {
+            List<ValueSpecification> m = conditionLambda(msg, List.of());
+            if (m.size() != 1) {
+                throw Wire.refuse("a constraint message of " + m.size() + " statements");
+            }
+            message = m.get(0);
+        }
+        return c.done(new ConstraintDefinition(c.str("name"), Realization.of(body), message,
+                c.optStr("enforcementLevel"), c.optStr("externalId"), c.optStr("owner"), c.span()));
+    }
+
+    private static List<ValueSpecification> conditionLambda(Json.Node node, List<String> parameters) {
+        Wire l = Wire.of(node, "function constraint lambda");
+        l.constant("_type", "lambda");
+        List<ValueSpecification> body = l.list("body", ProtocolReader::valueSpec);
+        List<Json.Node> written = l.arrOrEmpty("parameters");
+        if (written.isEmpty()) {
+            return l.done(body);
+        }
+        if (written.size() != parameters.size()) {
+            throw Wire.refuse("a function constraint lambda over " + written.size() + " parameters, where the"
+                    + " function's condition has " + parameters.size());
+        }
+        for (int i = 0; i < written.size(); i++) {
+            Wire p = Wire.of(written.get(i), "function constraint parameter");
+            p.constant("_type", "var");
+            p.constant("name", parameters.get(i));
+            // the types are the function's own: the lambda's are read as written, never trusted over them
+            p.take("genericType");
+            p.take("multiplicity");
+            p.done(parameters.get(i));
+        }
+        return l.done(body);
     }
 
     private static List<ValueSpecification> thisLambda(Json.Node node) {

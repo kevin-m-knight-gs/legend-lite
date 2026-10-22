@@ -6,7 +6,7 @@ package com.legend.generators;
 import com.legend.model.Function;
 import com.legend.model.PackageableElement;
 import com.legend.parser.Dialect;
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import com.legend.model.FunctionId;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ final class UpstreamDeclarations {
                 out.files++;
                 List<PackageableElement> elements;
                 try {
-                    elements = ElementParser.parse(Files.readString(f, StandardCharsets.UTF_8),
+                    elements = ModelFromText.parse(Files.readString(f, StandardCharsets.UTF_8),
                             Dialect.LEGEND_PLATFORM).elements();
                 } catch (RuntimeException e) {
                     out.unreadable.add(root.relativize(f) + "\t" + SpecBodyCensusTest.first(e.getMessage()));

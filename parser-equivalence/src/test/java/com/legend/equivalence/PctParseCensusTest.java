@@ -48,7 +48,7 @@ class PctParseCensusTest {
                 // type/mult parameters, PCT stereotypes) — channel B's
                 // front door is LEGEND_PLATFORM, the dialect that already
                 // parses every native signature at class-load
-                com.legend.parser.ElementParser.parse(text,
+                com.legend.door.ModelFromText.parse(text,
                         com.legend.parser.Dialect.LEGEND_PLATFORM);
                 parsed++;
             } catch (RuntimeException e) {

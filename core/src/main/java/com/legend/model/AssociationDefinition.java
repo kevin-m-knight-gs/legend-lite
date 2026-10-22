@@ -34,7 +34,10 @@ public record AssociationDefinition(
         String qualifiedName,
         AssociationEndDefinition property1,
         AssociationEndDefinition property2,
-        List<DerivedPropertyDefinition> derivedProperties)
+        List<DerivedPropertyDefinition> derivedProperties,
+        /** the association's own stereotypes and tagged values (their profiles are references the compiler checks) */
+        List<StereotypeApplication> stereotypes,
+        List<TaggedValue> taggedValues)
         implements PackageableElement {
 
     public AssociationDefinition {
@@ -42,6 +45,14 @@ public record AssociationDefinition(
         Objects.requireNonNull(property1, "Property1 cannot be null");
         Objects.requireNonNull(property2, "Property2 cannot be null");
         derivedProperties = derivedProperties == null ? List.of() : List.copyOf(derivedProperties);
+        stereotypes = List.copyOf(stereotypes);
+        taggedValues = List.copyOf(taggedValues);
+    }
+
+    /** An association with qualified properties and no annotations of its own. */
+    public AssociationDefinition(String qualifiedName, AssociationEndDefinition property1,
+            AssociationEndDefinition property2, List<DerivedPropertyDefinition> derivedProperties) {
+        this(qualifiedName, property1, property2, derivedProperties, List.of(), List.of());
     }
 
     /** The common two-end form (no qualified properties). */
@@ -59,17 +70,34 @@ public record AssociationDefinition(
      *
      * @param propertyName property name on the source side
      * @param targetClass  the class this property points to, as a structured AST
-     * @param lowerBound   lower multiplicity bound
-     * @param upperBound   upper multiplicity bound ({@code null} = unbounded)
+     * @param multiplicity the end's multiplicity
+     * @param stereotypes  the stereotypes written on the end (the parser reads an end as an ordinary wire property,
+     *                     annotations and all; the property-graph profile marks an edge class's ends here,
+     *                     docs/CYPHER_STUDY_2026_10_15.md §5.6)
      */
     public record AssociationEndDefinition(
             String propertyName,
             TypeExpression targetClass,
-            Multiplicity multiplicity) {
+            Multiplicity multiplicity,
+            List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues) {
         public AssociationEndDefinition {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(targetClass, "Target class cannot be null");
             Objects.requireNonNull(multiplicity, "End multiplicity cannot be null");
+            stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
+
+        /** An end with stereotypes and no tagged value. */
+        public AssociationEndDefinition(String propertyName, TypeExpression targetClass, Multiplicity multiplicity,
+                List<StereotypeApplication> stereotypes) {
+            this(propertyName, targetClass, multiplicity, stereotypes, List.of());
+        }
+
+        /** An end with no stereotype. */
+        public AssociationEndDefinition(String propertyName, TypeExpression targetClass, Multiplicity multiplicity) {
+            this(propertyName, targetClass, multiplicity, List.of());
         }
 
         /**

@@ -8,8 +8,6 @@ import com.legend.testcases.PlanCases;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -88,12 +86,19 @@ class ObjectIdentityTest {
     };
 
     @Test
-    void everyEvaluationMakesAnObject_aLetNamesOne_everyDatabase() throws Exception {
+    void everyEvaluationMakesAnObject_aLetNamesOne_onThePlatform() throws Exception {
+        assertEveryEvaluationMakesAnObject(com.legend.testbackend.TestBackends.platform());    // SQLite: its own test
+    }
+
+    /** {@link #everyEvaluationMakesAnObject_aLetNamesOne_onThePlatform} on {@code backend} (main's merge, 2026-10-22:
+     *  one test named DuckDB and SQLite; each database's run is its own test's). */
+    static void assertEveryEvaluationMakesAnObject(com.legend.testbackend.TestBackend backend) throws Exception {
         List<String> wrong = new ArrayList<>();
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.SQLite)) {
+        {
+            DatabaseType type = backend.type();
             String model = com.legend.test.StorelessRuntime.with(MODEL, type);
             for (String[] c : CASES) {
-                try (Connection connection = fresh(type)) {
+                try (Connection connection = backend.open()) {
                     String text = PlanCases.run(Compiler.query(Compiler.compileModel(model), c[1])
                             .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT),
                             connection);
@@ -113,13 +118,13 @@ class ObjectIdentityTest {
      *  identity raises by name: never an answer from an id shared by every row, iteration or copy. */
     @Test
     void anUntrackedObjectsIdentityIsRefusedByName() throws Exception {
-        String model = com.legend.test.StorelessRuntime.with(MODEL, DatabaseType.DuckDB);
+        String model = com.legend.test.StorelessRuntime.with(MODEL, com.legend.database.Databases.PLATFORM);
         String[] queries = {
             // a lambda body's let read inside a nested lambda: Pure's 2, a use per inner element here
             "|[1, 2]->map(i | let a = ^s::P(n=$i); [3, 4]->map(j | $a);)->removeDuplicates()->size()",
         };
         for (String q : queries) {
-            try (Connection connection = fresh(DatabaseType.DuckDB)) {
+            try (Connection connection = com.legend.testbackend.TestBackends.platform().open()) {
                 var plan = Compiler.query(Compiler.compileModel(model), q)
                         .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT);
                 RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
@@ -140,7 +145,8 @@ class ObjectIdentityTest {
     /** A map's result is the concatenation of its mapper's values: a mapper whose value is a list flattens. */
     @Test
     void aMapConcatenatesItsMappersValues() throws Exception {
-        String model = com.legend.test.StorelessRuntime.with("Class s::Q { xs: Integer[*]; }", DatabaseType.DuckDB);
+        String model = com.legend.test.StorelessRuntime.with("Class s::Q { xs: Integer[*]; }",
+                com.legend.database.Databases.PLATFORM);
         String[][] cases = {
             {"3", "|[^s::Q(xs=[1, 2]), ^s::Q(xs=[3])]->map(q | $q.xs)->size()"},
             {"4", "|[1, 2]->map(i | [3, 4]->map(j | $i + $j))->size()"},
@@ -148,20 +154,12 @@ class ObjectIdentityTest {
             {"2", "|[^s::Q(xs=[1, 2]), ^s::Q(xs=[3])]->map(q | $q.xs->size())->size()"},
         };
         for (String[] c : cases) {
-            try (Connection connection = fresh(DatabaseType.DuckDB)) {
+            try (Connection connection = com.legend.testbackend.TestBackends.platform().open()) {
                 String text = PlanCases.run(Compiler.query(Compiler.compileModel(model), c[1])
                         .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT),
                         connection);
                 assertEquals(c[0], text.substring(text.indexOf('\n') + 1), c[1]);
             }
         }
-    }
-
-    private static Connection fresh(DatabaseType type) throws SQLException {
-        return switch (type) {
-            case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
-            case SQLite -> DriverManager.getConnection("jdbc:sqlite::memory:");
-            default -> throw new IllegalArgumentException(type.name());
-        };
     }
 }

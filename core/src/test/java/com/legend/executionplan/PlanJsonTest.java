@@ -3,6 +3,7 @@
 
 package com.legend.executionplan;
 
+import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan.Column;
 import com.legend.executionplan.ExecutionPlan.Database;
 import com.legend.executionplan.ExecutionPlan.Format;
@@ -20,7 +21,6 @@ import com.legend.executionplan.ExecutionPlan.TextResult;
 import com.legend.executionplan.ExecutionPlan.Value;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.ConnectionSpecification;
 import org.junit.jupiter.api.Test;
 
@@ -31,36 +31,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The lite plan format reads back what it writes: every node kind, every connection specification and authentication. */
+/** The lite plan format reads back what it writes: every node kind (every connection specification and authentication:
+ *  the model's codec, {@code model.ConnectionWireTest}, since the dialect program's Phase 6, 2026-10-16). */
 class PlanJsonTest {
 
-    private static final List<ConnectionSpecification> SPECIFICATIONS = List.of(
-            new ConnectionSpecification.InMemory(),
-            new ConnectionSpecification.LocalFile("/tmp/x.duckdb"),
-            new ConnectionSpecification.LocalH2(null),
-            new ConnectionSpecification.LocalH2("jdbc:h2:mem:x", "default\nT\nID\n1", List.of("create table T(ID INT)")),
-            new ConnectionSpecification.EmbeddedH2("db", "/tmp", true),
-            new ConnectionSpecification.StaticDatasource("127.0.0.1", 5432, "postgres"),
-            new ConnectionSpecification.Trino("127.0.0.1", 8080, "memory", "default", null, false),
-            new ConnectionSpecification.Trino("h", 443, null, null, "tag", true),
-            new ConnectionSpecification.Snowflake("DB", "acct", "wh", "us-east-1", null, "aws", true, null, "ROLE"),
-            new ConnectionSpecification.Spanner("p", "i", "d"),
-            new ConnectionSpecification.Databricks("host", "443", "https", "/sql/1"),
-            new ConnectionSpecification.BigQuery("p", "ds"));
-
-    private static final List<AuthenticationSpec> AUTHENTICATIONS = List.of(
-            new AuthenticationSpec.NoAuth(), new AuthenticationSpec.DefaultH2(), new AuthenticationSpec.TestAuth(),
-            new AuthenticationSpec.GCPApplicationDefaultCredentials(),
-            new AuthenticationSpec.UsernamePassword("u", "vault/p"),
-            new AuthenticationSpec.DelegatedKerberos("svc@REALM", null, true),
-            new AuthenticationSpec.VaultUserNamePassword(null, "vault/u", "vault/p"),
-            new AuthenticationSpec.SnowflakePublic("u", "vault/k", "vault/pp"),
-            new AuthenticationSpec.ApiToken("t"), new AuthenticationSpec.MiddleTierUserNamePassword("vault/m"),
-            new AuthenticationSpec.OAuth("k", "s"),
-            new AuthenticationSpec.GcpWorkloadIdentityFederation("sa@x", List.of("scope")));
-
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
-        return new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB", DatabaseType.H2,
+        return new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
                 spec, auth)), new Servers.Versions(List.of("2.1", "2.2")), List.of(),
                 List.of(new SetupStep.Statement("create table T(ID INT)")));
     }
@@ -111,7 +87,7 @@ class PlanJsonTest {
     @Test
     void bothSetupStepKindsReadBack_aNullCellStaysNull() {
         Target t = new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB",
-                DatabaseType.DuckDB, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())),
+                Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())),
                 new Servers.Every(), List.of("SET TimeZone='UTC'"),
                 List.of(new SetupStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
                         new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
@@ -126,7 +102,7 @@ class PlanJsonTest {
 
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
-        Target t = new Target(new Database.Platform(DatabaseType.DuckDB), new Servers.Every(),
+        Target t = new Target(new Database.Platform(Databases.PLATFORM), new Servers.Every(),
                 List.of("SET TimeZone='UTC'"), List.of());
         ExecutionPlan plan = new ExecutionPlan(List.of(), new TextResult(Format.JSON,
                 new Relation(List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null))), new Sql("select 1", List.of(), t, null)));
@@ -144,17 +120,6 @@ class PlanJsonTest {
         var refused = assertThrows(IllegalArgumentException.class, () -> new SetupStep.Rows("s", "c", "i", "d",
                 List.of(List.of("1", "a"), List.of("2"))));
         assertTrue(refused.getMessage().contains("a row of 1 cells among rows of 2"), refused.getMessage());
-    }
-
-    @Test
-    void everyConnectionSpecificationAndAuthenticationReadsBack() {
-        for (ConnectionSpecification spec : SPECIFICATIONS) {
-            for (AuthenticationSpec auth : AUTHENTICATIONS) {
-                ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(List.of(),
-                        new Sql("select 1", List.of(), target(spec, auth), null)));
-                assertEquals(plan, PlanJson.read(PlanJson.write(plan)), spec + " / " + auth);
-            }
-        }
     }
 
     @Test

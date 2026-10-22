@@ -3,12 +3,12 @@
 
 package com.legend.normalizer;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -52,7 +52,7 @@ class AssociationSetIdTest {
     @Test
     @DisplayName("an end written with a set id navigates to that set")
     void explicitTargetSetIdNavigates() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE TA (ID INTEGER)");
                 st.execute("CREATE TABLE TB1 (ID INTEGER, AID INTEGER)");

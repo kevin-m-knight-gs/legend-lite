@@ -672,9 +672,13 @@ records, and the records mirroring the engine's JSON where it was cut so far -- 
 `compiler/` with the Compiler Rewrite line's review: `spec/Typer.java` (the zero-argument qualified-property lift
 takes a parameterized class), `spec/GraphFetchChecker.java`, `spec/typed/TypedGraphTree.java` and
 `resolver/GraphEmission.java` (no `qualified` mark), `NameResolver.java` and `normalizer/` (the mapping's dead
-`testSuitesSource`). Step 2 continues on `leg8-records`: a relation column's `[0..1]`, a decimal decided by its kind,
-the operator spelling (each with the Compiler Rewrite line, judged as before), and the dropped-text rule, the user's
-to decide first. Then leg 9, imports and comments
+`testSuitesSource`). **Built 2026-10-11 to 2026-10-13 on the Mac, and stranded there (the session's pushes were
+refused from 2026-10-11): a relation column's `[0..1]`, a decimal as its value, a relation cast read as parsed**, with
+the Compiler Rewrite line's review -- in `compiler/`, `spec/Typer.java` (a decimal by its value; its rounding past
+DECIMAL(38) is PARK-27) and `spec/TypeAnnotations.java` (the parsed column multiplicity read as it is);
+`NameResolver.java` unchanged, but its resolved columns now keep the written multiplicity; then `leg8-step2b`
+(persistence spans, a reference body, value equality without position) and `leg8-tds`. All three rebased on main and
+judged again 2026-10-21 on the branch `studio-program` (the note below; GATES 2026-10-21). Then leg 9, imports and comments
 (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
@@ -694,6 +698,62 @@ fast-forward), after the user decides the order. **Overlap to watch:** the compi
 (`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`, names resolved once) changes how call nodes (`protocol.spec`
 `AppliedFunction`) are built, and the protocol program changes the same records (nullable spans, the `list` factory);
 whichever lands second merges, and the two should agree before either starts on those files.
+
+**2026-10-21: the Studio line resumes in a cloud session** (session_01FAGeqrwQFYg5GrctquLuEy; the Mac session is
+unreachable). The Mac session's last work was stranded there (its pushes to `main` and `ci/*` were refused from
+2026-10-11); the user pushed its branches on 2026-10-21. This session's pushes to `main` are refused too, and **the
+user, 2026-10-21: everything is built on one branch, `studio-program`, kept up to date with main** (main merged in,
+never a rebase or a force-push: rule 1), landing on main when the user says. On it, in order: the Query fix (a mapping
+maps its includes' classes) and Studio's Data panel naming a refused file; the protocol program's leg 8 step 2 from the
+Mac's three branches, rebased and judged again; then leg 8's rest -- the dropped-text rule (the user's rule A,
+2026-10-21: `docs/SEMANTICS_REGISTER.md` S89), the operator spelling, step 3 (the routes take a PureModelContextData;
+execute compiles once) and the last step (the parser returns protocol only) -- and then leg 9's design, with the user.
+**Files beyond the line's own:** `core/src/main/java/com/legend/{parser,protocol,model}/` (rule A at the engine's
+dialect; the readers and emitters); `compiler/spec/{Typer,Overloads}.java` (an operator run by its shape -- the Compiler
+Rewrite line's area; that session is offline too, so the change is judged as its changes are: the six corpus passes,
+PCT, the reference lane); `server/{PureV1Api,QueryService,ModelInput}.java`, `Execution.java`, `Compiler.java` (step 3:
+the seam agreed with the Plan Gen / Exec Split line on 2026-10-10, `boundParameters` untouched); `core/BUILD.bazel`
+(one file in `:pure_v1`, and the last step's new `//core:door`: `door/ModelFromText.java`, the text's door, with
+`tools/deps/core-layers.txt` and ArchitectureTest's rule 7c losing `model..`); the callers of the parser's old
+model entry (`builtin/{Pure,Prelude,SystemMetamodel}.java`, `ide/ModelOrchestrator.java`, the spec module's
+generators, parser-equivalence's harness); parser-equivalence's oracle and ratchet. Each judged in GATES before the
+next.
+
+**Then the compiler's missing reference checks (the user, 2026-10-21, after an honest account of what leg 8 had
+shortcut: "def fix arithmetic, def need real tests, definitely need to fix function constraints and fake extends and
+fakes profiles/stereotypes")**, built on `reference-checks` (from `studio-program`'s d170f3eb0) and squashed onto
+`studio-program` once judged (two commits; `reference-checks` keeps the working history). A probe of 64 broken models through both doors found what lite accepted that the engine
+refuses: a supertype that is no class, a generic's wrong arity, a profile, stereotype or tag that does not exist, a
+runtime's mapping, a service's or data space's mapping and runtime, a database's or mapping's
+include, an Operation's member set, an optional property with a default; and two messages that misled. Each is now
+refused with the engine's (or legend-pure's) words, a case each in `ReferenceIntegrityTest`; defaults and a function's
+pre/post-conditions are compiled (lifted as synthesized functions and typed, as derived properties are); an operator run
+is decided by the resolved declaration (`NativeFn.OperatorRun`), never a spelling. The element kinds lite carries by
+name (diagrams, bindings, activators, ...) are the roadmap's, not this change's: PARK-38 and PARK-39 (the user: "we
+have to do 11 eventually, can put it on roadmap for later"). **Files beyond the line's own** (the Compiler Rewrite
+line's area, judged as its changes are): `compiler/element/{ModelIntegrity,TypeClassifier,TypedClass,ClassCompiler,
+type/PlatformTypes}.java`, `compiler/{NameResolver,ModelBuilder,KnowledgeLayer,DerivedProps,SynthFqn}.java`,
+`compiler/spec/{Typer,Overloads,InferenceKernel,TableReferenceChecker}.java`, `normalizer/{ModelNormalizer,
+MappingClosures,MappingValidation,MappingPrePass}.java`, `builtin/{NativeFn,Prelude,SystemMetamodel}.java` and the
+regenerated `prelude.pure` (its generator in `spec/`: the platform's profiles join it), `Compiler.java`
+(`withoutPreludeShadows`: a platform profile yields to the prelude's), `model/{ClassDefinition,EnumDefinition,
+AssociationDefinition,FunctionDefinition,FromProtocol,SynthHat}.java`; in `pct/`, `ModelPacker` (it injected a
+primitive as a class: `Class Integer extends Number`) and the standard suite's model roots (the module's own
+dependency, the relation functions' qualifier profile); guards `FallbackLedgerTest` (floor 10 -> 6) and
+`IdentityGuardrailTest` (NAME_CUTTING 108 -> 107), each dated. And what the stricter compiler found in the
+repository's own inputs: the stress corpus's generator and layout (`scripts/corpus/build.py`, `core/stress.bzl`, three
+comments in `core/BUILD.bazel` and `scripts/corpus/BUILD.bazel` -- the build line's files: the three services over the
+excluded `55-canonical-store.pure` generated apart into `94-canonical-services.pure`, which lite excludes with it),
+two hand-written stress fixtures, `StressExclusions` and `LegendLiteGapTest`; parser-equivalence's pins
+(`JsonModelDoorTest`, `OwnCorpusConformanceTest`, `OwnDialectCensusTest`, `FixtureAdjudicationTest`) and
+`JavaEvalLedgerTest`'s ModelPacker row, each dated. **Then the independent audit (2026-10-21, three reviewers, GATES
+"the independent audit"),** fixed on `reference-checks` and squashed onto `studio-program` again: files beyond the
+above -- `parser/SpecParser.java` (a binding's first expression; ModelStore data), `server/PureV1Api.java` (the
+request depth), `Compiler.java` (the JSON door's refusal), `compiler/spec/SpecCompiler.java` (a default's new
+instances; a condition's message), `normalizer/ImplicitInheritance.java` (a missing association, FallbackLedger 6 -> 5),
+`protocol/{DomainReader,ProtocolEmitter}.java` (a condition's lambda), the prelude generator (the engine's profiles),
+`pct/.../ModelPacker.java` (a precise primitive's values), the stress corpus (`74-path-surface.pure`, excluded),
+parser-equivalence's `JsonModelDoorTest` (rule A's texts listed, `json-door-rule-a.tsv`).
 
 ## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
 
@@ -842,6 +902,106 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `query/demo/config*.json` and `datacube/demo/config.json` (one `vendor` key each); `MODULE.bazel` (the `wasm_mvp`
   extension pins removed; the lock unchanged) and `engine-client/BUILD.bazel`; `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`
   (that note).
+- **Python asks DataCube: the other twins (announced 2026-10-15, before the first edit; the program:
+  `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, its order agreed with this line the same day).** Every place Python
+  repeats DataCube's logic moves behind a call to DataCube's own code (the headless bundle) or a generated artifact,
+  one commit per item, in one PR: 4 (type families), 10 (the planner protocol's side lists), 8 (the snap's limit), 3
+  (layout editing), 1 (reading and writing a page), 5 (a calculated column), 6 (a filter), 7 (a class's sample), then 2
+  (a new grid's defaults). Branch `claude/epic-rubin-ay7upl`, from main; this line reviews each commit that changes
+  behaviour before CI. Files: `engine-client/tools/typefacts/TypeFacts.java` and `engine-client/BUILD.bazel` (Python's
+  copy of the fact table, generated), `BUILD.bazel` (its diff test in `//:generated`), `python/BUILD.bazel`,
+  `python/legend_lite/` (`_type_facts.py` generated, `_types.py` new, `page.py`, `frames.py` typing only, `engine.py`'s
+  side lists only), `python/tests/`; `engine-client/src/legend/planner-protocol.ts` (the side lists, pinned by
+  DataCube's vocabulary test: the engine runs without V8, so Python cannot read them from the bundle); `datacube/src/`
+  `layout/bands.ts`, `page-document.ts`, `cube-document.ts`, `headless/` (new calls), `query.ts`, `calc.ts`, a pure
+  module each for a filter's operand check and a class's sample (out of `ui/filter-editor.ts` and `model-actions.ts`),
+  `app/sources.ts` (`rawRows` and `rebuilt` moved out, by agreement with D5b's owner, who rebases over it), their tests,
+  `datacube/test/python-vocabulary.test.ts` (it reads `engine.py` and `_planner.py` too), `datacube/BUILD.bazel` and
+  `test_imports.bzl`. The BUILD files go to the Compiler Rewrite line. Not touched: the rest of D5b's files, core, the
+  SQL relays this line's runner plan would rewrite (`engine.py` snap, `frames.py` loading, `projects.py`,
+  `upstream.py`, `_headless._query`) beyond item 4's typing and item 8's pin. Also touched, past this list (noted
+  2026-10-15): `docs/GENERATORS.md` (item 4's generator row), `datacube/src/snapshot.ts` (`COLUMN_KINDS`, item 5),
+  `python/legend_lite/_planner.py` (a comment, item 10), and `_headless._query`'s Arrow writer, factored out unchanged
+  as `arrow_text` so item 7 hands its rows to DataCube through it (this line's ask); `docs/PARKED_WORK_LEDGER.md`
+  (PARK-30's row names items 5's and 6's checks, text only: the audit's review).
+  **Expanded, 2026-10-15 (the user: no remote planner on Python, and every weak row done properly, in this PR; the
+  design agreed with this line the same day).** Python plans in process only: `planner=`, `server=`, `ll.planner()` and
+  `upstream.py` removed, with the server paths of `engine.py`, `frames.py`, `page.py`, `datacube.py` and the Python
+  host's branch of `datacube/src/services/python-host.ts` (the browser app's own server planner stays); PARK-30 and
+  PARK-31 closed by removal; the program doc's §1.1, §1.4 and §7 reworded. Then: a class's sample planned by DataCube
+  again; the column editor's and the filter editor's cores shared with headless (`datacube/src/ui/column-editor.ts`,
+  `ui/filter-editor.ts`, `filter-operators.ts`, a new DOM-free module); one default aggregate for a measure
+  (`datacube/src/query.ts`, its three copies); the cap rule in DataCube (`datacube/src/app/datacube-app.ts`,
+  `page-document.ts`); the page-on-Python tunnel (`planner.json`) retired for legend-engine's own routes and the host's
+  compute (`/plan.json`; `engine-client/src/legend/planner-protocol.ts` back to main's), the snap limit Python's own;
+  one name rule (`page-names.ts givenName`, new, `layout/band-board.ts`, `page/page-app.ts`, `page/cube-page.ts`). (The
+  generator and the two corpora first planned here were dropped with the user, 2026-10-15.) More files: their tests,
+  `docs/PARKED_WORK_LEDGER.md`, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`, `test_upstream.py` and its lane (the BUILD
+  edits to the Compiler Rewrite line). Declared after the audit (2026-10-15): `core/BUILD.bazel` (`//core:server`'s
+  visibility for the removed `//python:upstream_test`, the one core edit); `datacube/src/cube.ts`
+  (`CubeController.compile` types the cube first; D5b touches only `run`); `datacube/src/planner.ts` (`readServerPlan`,
+  left with no caller, removed; comments) with `datacube/test/upstream-plans.test.ts` and its fixture;
+  `docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md` (§15.2 amended, §15.10 added); `datacube/demo/verify-cubes.mjs` (the
+  cap's case in the app); `engine.py`'s warehouse plan-and-run (its runtime rule asked of the table, `refused_runtime`,
+  which `/plan.json` asks too) and its docstrings' words. Still not touched: `engine.py`'s snap, frames and project-data
+  paths, `_headless._query` (but the `arrow_text` fold back), `warehouse.py`, the planner kinds that answer SQL -- the
+  SQL plan's ground -- but for one forced line in `_warehouse_snap` (`_on_planner_threads()`, the planner switch gone)
+  and one in `frames.py reading_file` (58e807c: a file's table named as `register` names a frame, so `True` is an
+  identifier; this line's OK).
+  **Round 2, 2026-10-16 (the user, reading what #47 left: "fix the bad stuff, that was the point of this PR"; "lets fix
+  datacube where we find bugs").** In this PR, each reviewed by this line before push (rewritten after the round's
+  audit to what landed):
+  - a grid's grouping, pivot, measures and sorts through DataCube's code (headless `gridQuery`), Python's own rules and
+    its `AGGREGATES`/`DIRECTIONS` gone: `datacube/src/headless/grid.ts`, `snapshot.ts`, `offers.ts` (one measure-offer
+    rule), `ui/panel-kit.ts` with `ui/editor.ts`, `ui/panel-column.ts`, `ui/panel-general.ts` (their sort options built
+    from `snapshot.ts`'s directions), `python/legend_lite/page.py`;
+  - DataCube's bugs found doing it, fixed: the grouped level's measures and sorts and the measure name rule
+    (`query.ts`, `calc.ts`), the charts' stand-in for the bug gone (`chart-spec.ts`); a saved cube reopened without a
+    measure that no longer fits, said, and Python taking the cube DataCube opens (`cube-document.ts`, `page.py`);
+  - a class's sample refusing a NaN or an infinity on every path (`sample-rows.ts`, `create-class.ts`); the empty page's
+    hint (`page-document.ts`, `headless/page.ts`); the engine making its own planner (`engine.py`'s constructor alone);
+  - Python repeats no DataCube list: a new page, a new sheet and the first tile laid out by DataCube's code
+    (`page-document.ts`, `layout/bands.ts`, `page/cube-page.ts`, `app.ts`, `app/datacube-app.ts`, `headless/layout.ts`,
+    `headless/entry.ts`), the export kinds DataCube's (`export-render.ts`); `datacube/test/python-vocabulary.test.ts`
+    retired with its wiring (`datacube/BUILD.bazel`, `python/BUILD.bazel`, `datacube/test_imports.bzl`: the Compiler
+    Rewrite line's OK); doc carries (`docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, `docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`);
+  - not done, by the user's ruling (2026-10-16): one planner dispatcher in the compiler. Built and measured, then
+    dropped: `planner-answer.ts`'s switch and `_planner.py`'s table are each host's binding to the same `Boundary`
+    functions -- glue, not a rule, held alike by the start-up check -- and one generic request cost every call a JSON
+    envelope around the model's text. Shrinking the protocol toward legend-engine's own `pure/v1` API is the follow-up.
+  Still not touched: the SQL plan's ground (`engine.py`'s snap, frames and project-data paths, `_headless._query`,
+  `warehouse.py`, `_warehouse_snap`).
+  **Round 3, 2026-10-17 (the user: one implementation of editing a grid, the screen's, in #47 before merge).** The
+  design is `docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md`: a grid's aggregates are its Column Properties, and the
+  screen and Python edit a grid through one module. Announced files: `datacube/src/grid-edits.ts` (new, no DOM),
+  `ui/editor.ts`, `ui/menu.ts`, `ui/panel-kit.ts`, `ui/panel-column.ts`, `ui/panel-dimensions.ts` (their offers moved,
+  not changed), `cube-document.ts` (saved measures converted on open; a grid with measures never written),
+  `page/cube-page.ts` (Open in Grid), `chart-spec.ts` (`firstMeasure`, `followCube`), `examples/charts-dashboard.ts`,
+  `offers.ts`, `headless/grid.ts` (`gridEdit` for `gridQuery`), `headless/entry.ts`, `python/legend_lite/page.py`,
+  their tests, `datacube/test_imports.bzl` (regenerated), `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`. Still not
+  touched: the SQL plan's ground, as above. Declared after it landed locally (2026-10-17), past that list: the grid's
+  type and the builder's own input (`snapshot.ts`, `query.ts`, `calc.ts`, `cube.ts`, `shown-columns.ts`, `adhoc/outline.ts`,
+  `adhoc/query.ts`); the screen's edit path and the host's configuration rule (`app.ts`, `config.ts withConfiguration`);
+  the demos and tools that build a grid (`demo/boot.ts`, `demo/stress.ts`, `tools/link-dictionary/make.ts`,
+  `tools/offer-facts/emit.ts`); `datacube/BUILD.bazel` (`grid-edits` in `_HEADLESS_TESTS`: the Compiler Rewrite
+  line's OK asked); `datacube/test/bundle-budget.test.ts` (281,000 -> 283,500, its dated note); and one line outside
+  DataCube, `query/src/app/cube.ts` (the Query app's grid wrote `measures: []`, which no longer type-checks). The
+  command-API homework that followed (four read-only surveys, the user's ask) is
+  `docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md`: the next program, after #47 merges (the user, 2026-10-17). Then
+  the browser harnesses that built a grid with a list (`demo/verify-cubes.mjs`, `demo/verify-calc-vocabulary.mjs`,
+  `demo/verify-wasm-browser.mjs`), and the round's audit fixes, in files already declared and `ui/menu.ts` (its Add
+  sort by `grid-edits.ts addSort`) and `cube.ts` (a grid's measures list refused). Then the tests' DuckDB (the user,
+  2026-10-17: every test runs in the container): `tools/js/defs.bzl` (a test that takes DuckDB-WASM takes the pinned
+  extensions too, named in `DUCKDB_EXTENSIONS`: the Compiler Rewrite line's OK asked), `engine-client/src/node-require.ts`
+  (`startNodeDuckDb`), `engine-client/BUILD.bazel` (`node_duckdb_test`), the engine-client tests that start DuckDB
+  (`arrow-ipc`, `model-data`, `snap`), `datacube/BUILD.bazel` (the two remote harnesses' `bazel run` targets), the
+  harnesses themselves (`demo/verify-remote.mjs`, `demo/verify-real-data.mjs`), and `docs/CLOUD_SESSIONS.md`, `docs/GATES.md`.
+  Then main merged in (137c702) and the clean audit (four auditors, the user's ask before the push): its fixes in files
+  already declared, and, by the user's ruling that no older document be read ("remove ALL backward compatibility";
+  "you can break saved links"), `page-document.ts` (a page before version 4 refused), `layout/bands.ts` (`fromCells`
+  gone), `chart-spec.ts` (a version 1 spec refused), `config.ts` (the settings' lists configure checks names against),
+  `tools/link-dictionary/make.ts` (the next dictionary's chart at CHART_VERSION), their tests, and
+  `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` (a dated note).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
@@ -1158,6 +1318,24 @@ by target against main's run 38729604540. The review is right: #46's own run was
 the seventh line called it ready without comparing the lanes #44 had not measured. Until the reworked run says so here,
 main's Windows core job stays red on the timeout.
 
+**#46 closed unmerged, 2026-10-16 (04:34 UTC, by the user).** The per-target JIT choice is not on main: `junit_test`
+takes no `jit`, and CI's test JVMs keep C2. Its measurements stay on the closed PR's branch (`claude/loving-euler-gjta59`,
+GitHub's refs/pull/46/head): main's Windows `core_tests_integration` took 262.6 s against its 300 s limit on run
+38729604540 (C2) and 106.8 / 149.9 s on #46's two runs. Nothing of it is in flight now.
+
+**Announced 2026-10-17 -- the corpus program: `#SQL{}` over the compatibility and real-world corpora, SELECTs only**
+(the seventh line; the user: "we should try to do all the compatibility tests and real world tests we can"). One
+harness, the embedded Postgres 16 the oracle, live: each corpus's setup on Postgres, each read-only statement on Postgres
+and through `#SQL{}`, rows compared, wrong answers held at zero, refusals counted and ranked by reason. The order:
+(1) the PostgreSQL regression suite's read-only statements (REL_16_STABLE, 222 files, 15,963 of its 44,218
+statements; PostgreSQL License), the yardstick Postgres-compatible projects publish; (2) SQLite's sqllogictest;
+(3) TPC-H's 22 and TPC-DS's 99; (4) SQLStorm's PostgreSQL set (18,251) and BIRD Mini-Dev's PostgreSQL version (500),
+judged on samples of their data, the corpora and data outside this repository (MIT / CC BY-SA), as the IQ line's corpus
+lane keeps its own (`IqCorpusTest`, whose shape the runner follows); (5) JOB; (6) a SQLancer-style generator.
+Each step lands as its own PR, the first the harness with the regression suite. Files: a new runner beside
+`IqCorpusTest` in `core/src/test/java/com/legend/integration/`, its manual target in `core/BUILD.bazel`, the island's own
+files where a corpus finds a fault, and this line's GATES entries.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
@@ -1403,7 +1581,7 @@ pause for the user's review after Phase 1.
   and a vocabulary owner names no specific `DatabaseType`, dialect, driver or URL. The leak ratchet now counts only
   what no owner holds: 1,964 lines.
 - **For the compiler line (D10, the user's decision of 2026-10-15; `builtin/` is that line's, so this program does not
-  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 17
+  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 18
   databases (175 of the leak ratchet's lines). It splits in two:
   - the engine's table stays as reference data, generated from or verified against the engine's source (spec by
     verification, the reference-checkout tenet);
@@ -1411,6 +1589,14 @@ pause for the user's review after Phase 1.
     generated matrix), so the matrix and `DynaFn` cannot disagree.
 
   The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
+  - **Taken over, 2026-10-18 (the user: the compiler line is parked, and the absolute ban needs it).** This program
+    does it now, with Phase 7 (#56; done the same day). `DynaFn.java` keeps each name, its inference flag and the
+    platform's resolution (`DynaFnDecisions`, unchanged), and names no database. The engine's table, which engine
+    dialect extension registers each name, becomes a generated reference ledger, `docs/engine-dynafunctions.tsv`,
+    written by the same generator from the pinned engine tree and held by `//docs:update_generated`'s diff test. Its
+    one reader in the product, `RelOpTranslator`'s refusal of an UNSUPPORTED name, points at that table instead of
+    printing the engine's dialect list. No other behaviour changes. Files: `builtin/DynaFn.java` (generated),
+    `spec`'s `DynaFnGenerator` and BUILD, `docs/BUILD.bazel`, `normalizer/RelOpTranslator.java`.
 - **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**
   - The owner guard (`core/src/test/java/com/legend/DatabaseOwners.java`, `DialectOwnerExclusivityTest`), and the
     dialect package's foreign names removed:
@@ -1459,7 +1645,101 @@ pause for the user's review after Phase 1.
     properties keep their names). A branch that names any of these classes needs the rename when it merges.
   - Three locals the H2/DB2 pattern read as a database, renamed for what they hold: `SeedSqlForms.java`,
     `compiler/element/RelationalTypeInference.java`, `resolver/GraphEmission.java`.
-- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move after #43 and #48 land** (D11:
+- **Landed 2026-10-16: Phase 3** (neema2/legend-lite#49, merged as 59b547a).
+- **Announced 2026-10-16, Phase 5: the connectors** (branch `claude/gracious-edison-jcsvzm`; the plan's Phase 5 and its
+  record there). Each database's sessions move into a connector of its own, and `Databases` shrinks to type to
+  dialect. No behaviour change. The files outside `sql/dialect`:
+  - `exec/`: `DatabaseConnector.java`, `Connectors.java` and the eleven `<Db>Connector.java` files are new.
+    `Sessions.java` and `PlanSessions.java` ask them. `H2Settings.java` is deleted: its settings are
+    `H2Connector.SETTINGS`, and every test that read them reads that now (core, `spec/`'s `MinimalCorpus` and
+    `H2Verify`, `pct/`'s `PctBackend`).
+  - `server/ConnectionResolver.java`: the openings carry their connector.
+  - `test/StorelessRuntime.java`: its specification text is the connector's.
+  - `model/`: `AuthenticationSpec.credentialFree()`, and `ConnectionWire.java` (new), the lite plan format's connection
+    codec moved out of `executionplan/PlanJson.java`.
+  - `database/Databases.java`: its facts move to `SqlDialect.serverVersions` and `loadsRowsInBulk`, and to
+    `EngineText.inListTempTables`, read by `PlanMaker.java`, `PlanEnvelope.java` and `plan/InProtocol.java`.
+  - Two layer edges removed: `core/BUILD.bazel` and `tools/deps/core-layers.txt`.
+  - The guards' registers: `DatabaseOwners`, `DialectOwnerExclusivityTest`, `DialectBoundaryTest`,
+    `JdbcSurfaceCensusTest`, `JavaEvalLedgerTest`, `SqlTextRatchetTest` and the ledger. `SqlTextRatchetTest` now
+    strips comments outside literals.
+  - `NOTICE`: the H2 settings' path.
+
+  A branch that calls `Sessions.openNamed`, `openKept` or `joinKept`, or that builds an `Opening`, now passes the
+  opening. A branch that reads `H2Settings.SETTINGS` reads `H2Connector.SETTINGS`.
+- **Announced 2026-10-16, Phase 6 part 1: the tests' databases are test backends** (branch
+  `claude/gracious-edison-jcsvzm`, after Phase 5 landed as #51; the plan's Phase 6 and its record there). Test code only,
+  plus `Databases.implemented()` in main. No product behaviour changes.
+  - New: `core/src/test/java/com/legend/testbackend/` (`//core:test_backends`, one backend per database and the
+    `TestBackends` registry), and the tests named for a database that took one database's assertions out of a shared
+    test (`PlanMaker<Db>Test`, `PlanRunner<Db>Test`, `RowLoad<Db>Test`, `StoreTypes<Db>Test`,
+    `SqlCanonConformanceH2Test`, `ConnectionLeaseH2Test`, `model/ConnectionWireTest`).
+  - Renamed: `RowLoadTest` to `RowLoadDuckDbTest` (`//core:duckdb_load_test` selects it), `ExecuteInDbTest`,
+    `RawGridSchemaTest` (each to `...DuckDbTest`), `DynamicPivotKeyLiteralTest`, `DeclaredQuotedTableTest` (each to
+    `...H2Test`); `setup/SeedSpellingTest` moved to `sql/dialect/`.
+  - `pct/`: `PctBackend` reads its lane's backend; `CloudLane` is deleted; `PctCensusGate` is a per-lane table;
+    `ChannelBEssentialTest`'s engine exclusions renamed.
+  - About 150 of core's test files open the platform's or every in-process backend instead of a JDBC URL;
+    `AbstractDatabaseTest` and its 28 subclasses take a `backend()` in place of `getDatabaseType()`/`getJdbcUrl()`.
+  - `StressSuites.Config` takes a backend; `StressTool --backend` takes a backend's name. `tools/census/RenderCensus`
+    renders with every implemented database's dialect, each named by its declared type. One comment in main code
+    (`ConnectionLets.java`, a renamed test).
+  - Guards: `DatabaseOwners` (BACKEND and NAMED_TEST kinds; the vocabulary's tests), `DialectOwnerExclusivityTest`
+    (walks the tests), `DialectBoundaryTest`, the ledger; parser-equivalence's `ratchets.tsv` (own corpus 2862 ->
+    2847).
+
+  A branch that subclasses `AbstractDatabaseTest` overrides `backend()`, if anything. A branch that opens
+  `jdbc:duckdb:` in a new core test opens `TestBackends.platform()`. **Part 2** (the corpus harness:
+  `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee`, `DuckWorkspaces`, `ServerWorkspaces`; and the SQL, IQ and Cypher
+  islands' tests) is next: #43 and #50, which it waited for, landed on 2026-10-17.
+- **Announced 2026-10-17, Phase 6 part 2: the corpus's databases, the islands' tests and what part 1 left are test
+  backends** (branch `claude/gracious-edison-jcsvzm`, after #52; the plan's Phase 6 and its record there). Test code
+  and test data only; no product behaviour changes.
+  - `core/src/test/java/com/legend/testbackend/`: `TestBackend` gains `openWorkspace()`, `setFixtureAside()` (a
+    `FixtureAside`) and `readerOn()`; new `RefereeBackend` (H2's), `DuckDbWorkspaces`, `DuckDbWarehouseBackend`
+    (the warehouse lane, `-Drcorpus.backend=warehouse`, `legend.warehouse.server/library/data`), `WorkspaceCensus`;
+    `H2ExtensionFunctions` moved in from spec. The server backends' sessions (Postgres, MariaDB, MySQL) open at the
+    URL the product's connector makes from their declared coordinates; Trino's and ClickHouse's keep their
+    launchers' (the product opens none on them).
+  - `spec/`: `H2Verify` is `RefereeVerify`, `H2VerifyNormTest` `RefereeVerifyNormTest`; `rcorpus/DuckWorkspaces` and
+    `ServerWorkspaces` are deleted; `MinimalCorpus`, `MinimalCorpusTest`, `ReplayReferee` and `CorpusOne` take the
+    lane's backend.
+  - `core/src/test/java/com/legend/testcases/`: `SqlParity.seed(backend, ...)` and `IqParity.seed(backend, ...)`
+    render the tables through the lane's dialect; new `PostgresSeed` (upstream's Postgres fixture, verbatim);
+    `SqlIslandCases.table(backend)` and `Case.plain()` (was `postgres()`); `SqlStress` is `SqlStressOnPostgres`, which
+    needs `-Dstress.pg.url` (`core/src/test/resources/sql-stress/run.sh` passes it).
+  - New `resolver/ResolvedSql` (the resolver tests' one `sqlOf`). `CorpusDifferentialTest` runs each service on its
+    runtime's database; `scripts/corpus/differential.py` writes `diff/seed.json` in place of `diff/seed.sql`.
+    `StoreTypesTest.on` takes a `DatabaseType`. `LowerRelationTest` and `ScaleCostsTest` are
+    `LowerRelationDuckDbTest` and `ScaleCostsDuckDbTest`; `SqlParity.fill` takes the table as the session spells it.
+
+  A branch that calls `SqlParity.seed` or `IqParity.seed` passes the backend; one that reads `diff/seed.sql` reads
+  `diff/seed.json`; one that runs the corpus on the warehouse passes `-Drcorpus.backend=warehouse`.
+- **Announced 2026-10-18, Phase 7: the warehouse, the model writer, the planner boundary and the dead code** (branch
+  `claude/gracious-edison-jcsvzm`, after Phase 6 landed as #54; the plan's Phase 7 and its record there). Files other
+  lines also edit:
+  - `warehouse/` (the second line's, which touches `WarehouseServer` and `Statements`): `Attachment` gains the command
+    line's option and URL, the password prompt and libpq's words (`Postgres`); `WarehouseServer.Config.postgres` and
+    `withPostgres` are `attached` and `withAttached` (a `Catalogs.Attach` per catalog: `Attachment.POSTGRES` and its
+    connection string); `Statements.classify` reads `DuckException.parse`/`bind`; `Sessions` names `DuckLibrary.NAME`.
+    Tests: `TestServer.start` takes attached catalogs; `PostgresUrlTest` (new) takes `AppModeTest`'s Postgres URL tests.
+    A branch that calls `withPostgres` or reads `config().postgres()` calls `withAttached` and reads `attached()`.
+  - `core/.../server/CreateClass.java` (the model writer) asks `SqlDialect.inMemoryPath`; `//core:pure_v1` gains
+    `:database`.
+  - `wasm/src/main/java/planner/Boundary.java` (the DataCube and Python lines' boundary): `testDataSql` and
+    `catalogColumnsSql` keep their signatures and ask the platform's dialect; `DuckDb.CATALOG_COLUMNS_SQL` is private,
+    `SqlDialect.catalogColumnsQuery` its reader. `warehouse/`, `native/` and `testing/` each gain a `main_java`
+    filegroup (wasm: `planner_java`) that the census reads; `tools/deps/core-layers.txt` lets `pure_v1` reach
+    `database`.
+  - Deleted (D6): `tools/spikes`, `tools/metamodel-census`, `tools/reference/{join,source_drift}.py`,
+    `scripts/corpus`'s codemods and `refdata`, `scripts/{census_gate,generate_pure_constants,outstanding,walldepth}.py`
+    and `docs/{corpus-coverage,census-baseline}.json` (39 files). **To the build rebuild's script review (End-1):** the
+    sheet's rows for these files are done; 26 of them were "keep as history", and D6 (the user's, 2026-10-13) deletes
+    them. PHASE_8's Short-22 cites `coverage.py`, `mutate.py` and `census_gate.py`, which are gone. `run.py` and the
+    probes, `scripts/projects`, `tools/{untangle,wrongrows}`, `tools/{native-axes,upstream-drift}.py` and
+    `scripts/parser` are not deleted: D6 and old D3 conflict on them. The user (2026-10-18): keep them for now, to be
+    gone through later.
+- **To the seventh, tenth and Cypher lines: the SQL translator's Postgres rules move: #43 and #48 have landed** (D11:
   "to move into `PostgresDialect` with the seventh and tenth lines, whose code it is"). `SqlToPure` holds about 3,000
   lines only Postgres's reading reaches (its operators and predicates, cast, the function catalog, the aggregate
   fallback, dates, jsonb, and `postgresName`'s type names in messages). They move to Postgres-owned files in
@@ -1467,6 +1747,47 @@ pause for the user's review after Phase 1.
   defaults (each input language states its own: a message's type names become `InputDialect.typeName(Kind)`). This
   program does the move itself, on main after both PRs land, so neither has to rebase over it; until then a new input
   language (Cypher, #48) that extends `postgresName` or a Postgres default is extending what moves.
+- **To the seventh line and the corpus program, 2026-10-18: the D11 move is next, and we want to schedule it with
+  you.** #53 has landed, so both landings D11 waited on are in.
+  - **What moves:** every rule in `SqlToPure` that only Postgres's reading reaches (its operators and predicates,
+    cast, the function catalog, the aggregate fallback, dates, jsonb, `postgresName`'s type names in messages) goes
+    to Postgres-owned files in `protocol/sql/` (`PostgresDialect`, `PostgresDateTime`, new `Postgres*` classes).
+    The translator keeps the framework IQ and Cypher share. `InputDialect`'s Postgres defaults become
+    `PostgresDialect`'s: each input language states its own, and a message's type names come from
+    `InputDialect.typeName(Kind)`. The translator's tests (`SqlParserTest`, `SqlToPureTest`) name the language they
+    test, and `PgRegressCorpusTest` opens Postgres through `TestBackends` (or is named for it).
+  - **How:** one mechanical PR: moves and delegations, no rule rewritten. Every `#SQL{}`, `#IQ{}` and `#Cypher{}`
+    lane's SQL dump, the parity lanes and the regression corpus's verdicts must be byte-identical before and after.
+  - **When:** `SqlToPure` is 7,961 lines and changed eight times in the last two days, and we would rather not make
+    you rebase over a move that size. So tell us here when you reach a quiet point between your landings, and we do
+    it then and land it fast. If you would rather move it yourselves, say so, and we review.
+  - **Until then:** please put a new Postgres-only rule in `PostgresDialect` or `PostgresDateTime`, not in
+    `SqlToPure` or `InputDialect`. The leak ratchet already counts their lines (`SqlToPure` 47, `InputDialect` 6,
+    `SqlIslands` 2), and a new one fails it.
+  - **After it** the ledger is empty (D10, taken over by this program above, is done) and the leak ratchet becomes an
+    absolute ban.
+  - **Done, 2026-10-18 (#56)**, at the quiet point the seventh line named (after #53). The SQL front end now reads so:
+    - Postgres's rules are Postgres's files in `protocol/sql/`: `PostgresOperators`, `PostgresCasts`,
+      `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and `PostgresAggregates`, beside `PostgresDialect` and
+      `PostgresDateTime`. `SqlToPure` keeps the framework (4,852 lines, from 7,961). A new Postgres rule goes in one of
+      these files: the translator names no database, and a name there now fails `//core:census` (the ratchet is a
+      ban, its ledger deleted).
+    - `InputDialect`: `unary`, `between`, `inList`, `isDistinct`, `quantifiedTest`, `isAggregate` and `aggregate` are
+      abstract (the translator has no aggregate fallback); new `readString`, `typeName`, `operator` and `subscript`.
+      IQ refuses `readString` by name: a simple CASE comparing a string constant with a non-string value, which the
+      translator read by Postgres's rules until now (no IQ test reached it).
+    - `SqlToPure.translate(sql, sources)` is gone: pass `PostgresDialect.INSTANCE`. An island's language to its
+      dialect is `InputLanguages`.
+    - The tests: `PostgresToPureTest` (was `SqlToPureTest`), `PostgresParserTest` (`SqlParserTest`),
+      `PostgresRegressCorpusTest` (`PgRegressCorpusTest`; the target is still `//core:pg_regress_corpus_test`).
+    - Not moved: the translator's window functions and FROM set-returning functions stay its own reading.
+    - Proof: every translation the tests make, dumped before and after, identical but for the inputs the regression
+      suite writes from live values and one IQ test's `Set.of`-ordered second call; the regression corpus identical in
+      every row's status (the plan's Phase 7 record).
+    - **To the tenth line:** the IQ corpus lane (`//core:iq_corpus_test`) was not run here (its corpora are not in this
+      container). A simple CASE comparing a string constant with a number or a date, which the translator read by
+      Postgres's rules, is now `IqDialect.readString`'s refusal by name; IQ's own reading (`dateConstant`, the number
+      rules of its comparisons) can replace it when you want it.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
@@ -1578,7 +1899,7 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     settings).
   - **Build:** `core/BUILD.bazel`, the IQ case glob reads `lite/**/*.yaml`.
   - **The tenth line's own test harness and docs:** `testcases/IqParity.java`, `IqAnswers.java`, the two Iq parity
-    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S57.
+    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S74 (S57 when it was written).
 - **Next (landing 4): conformance to real SAP IQ 17.1.** The user now has a real IQ (a HANA Cloud data lake), reached
   locally through a session the user opens. Plan:
   - It becomes the oracle for the IQ profiles; CI still judges from the committed answers.
@@ -1586,6 +1907,141 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     error codes; unaliased names; INTERSECT/EXCEPT and the other IQ restrictions.
   - The most-used features and their scale come first, including CTEs and window functions.
   - The refusal of an outer column in a subquery's select list goes now that 9bc695885 has landed.
+- **Announced 2026-10-16: landing 4's cross-area edits of the corpus lane's round** (`claude/iq-island-4-scale`;
+  one PR and one CI run after review, the user's merge). Each was found by the corpus lane against the live IQ 17.1
+  and is judged by both `iq-parity` and both `sql-parity` ledgers:
+  - `lowering/Lowerer.java`: a correlated read of an enclosing row's window column. It was a wrong answer, then a
+    crash; now fixed. `tryWindowPredicate` takes only its own lambda's columns, and `predicateOrThrow` reports an
+    enclosing miss.
+  - `protocol/sql/InputDialect.java`: `ordersByOutput` (Postgres's default: any output name). In
+    `protocol/sql/SqlToPure.java`, `sortKey` reads it. Under DISTINCT a name the dialect reads as no output is
+    resolved in the FROM scope first, for its ambiguity error only.
+  - `protocol/sql/SqlToPure.java`, also:
+    - `computedColumns`: a one-row LATERAL query without FROM is an extend of the left relation;
+    - a flattened column (`generate_series`, `unnest`) is nullable, as Pure's typer types it.
+    The Postgres island's `lateral_select_without_from` and `lateral_reads_the_item_before_it_twice` went from refused
+    to PASS on both lanes.
+  - **Inline views, both SQL islands (the user's decision, 2026-10-16).** `Fold.filterSlot` composes an extend and a
+    later filter as Pure does (legend-engine's PCT `testExtendFilterOutNull`): the filter folds into the window's
+    WHERE. A SQL derived table's windows are computed over all of its rows, so a WHERE over a windowed derived table
+    was a wrong answer in both islands (proven on the Postgres island by 4 Postgres-judged cases). The fix leaves Pure's
+    relation semantics alone; the SQL islands mark the view:
+    - `builtin/Pure.java`: a new lite-internal native, `meta::legend::lite::inlineView<T>(Relation<T>[1])`
+      (`INTERNAL_DESUGAR` 16 to 17, within the governance ceiling; census row in `docs/LITE_INVENTION_CENSUS.md`);
+    - `platform/CoreFn.java`: its form, `INLINE_VIEW`;
+    - `compiler/spec/Typer.java` and the new `compiler/spec/InlineViewChecker.java`: typed as its relation, each window
+      inside stamped `extentBoundary` (the rule `ClassSources` applies to a class extent), the marker erased;
+    - `compiler/spec/SqlIslands.java`: supplies the marker through `SqlToPure.Sources.inlineView` (identity by
+      default, so the protocol layer names no catalog function);
+    - `protocol/sql/SqlToPure.java`: a derived table or CTE whose own query computes windows is an inline view.
+    The lowerer is unchanged; the plans gain one subquery level where a view computes windows.
+  - **A computed column after a limit, all islands and Pure (the user's decision, 2026-10-16).** IQ computes the items
+    of a TOP statement's select list its ORDER BY does not read for the rows it keeps (measured on IQ 17.1 and SQL
+    Anywhere 17), so an item that raises for a dropped row raises nowhere. The IQ island refused 114 corpus queries.
+    The lowering merged an extend after a limit into the truncated select (`Fold.extendFolds`, "extend commutes with
+    truncation", true of values, not of errors); DuckDB then computed the column for every row before its top-N:
+    - `lowering/Fold.java`: `extendFolds` refuses a select with LIMIT or OFFSET (as `projectionFolds` already did);
+      `lowering/Sorts.java`'s new `isolateOrdered` carries the subselect's ORDER BY out by output name, and
+      `lowering/Lowerer.java`'s extend and flatten use it. Pure's `limit(n)->extend(...)` now computes the column for
+      the n rows; plans gain one subquery level there. No plan golden moved but the pinned rule in `FoldTest` and
+      `LowerRelationTest` (moved, dated);
+    - `protocol/sql/InputDialect.java`: `rowLimitItems` (Postgres's default: every row, before the sort; measured on
+      Postgres 16 for a division) and `protocol/sql/SqlToPure.java`'s `assemble`: the items ORDER BY does not read are
+      computed after the sort and the limit when the dialect says so. IQ's engine: the rows up to the limit's last,
+      START AT's skipped ones too, dropped after; SQL Anywhere: the rows returned;
+    - `protocol/sql/SqlToPure.java`, also: the names a relation's columns take are compared without regard to case
+      (`taken()`), as DuckDB binds `ID` beside `id` to the first (measured: a wrong answer the new nesting exposed);
+      a computed column takes a fresh name there, its own given back last;
+    - the Postgres island keeps Postgres's order. A known gap, pinned BUG in `sql-parity`: Postgres puts an item its
+      planner costs as expensive off until after its sort, and the island's checked division is one, so on Postgres
+      the island answers a zero divisor past the limit where plain Postgres raises (`lite/math.yaml`).
+  - **The local gate's drift, fixed with the above:** the generated `builtin/Pure.java` and `native-claims.tsv`
+    regenerated for `inlineView`; the ladder and `docs/dialect-capability/` regenerated for checklist 0.5's
+    `padWithSpaceToInteger` (3dce0286a); the spec ratchet's `Form` 217 to 218 and `CatalogUpstreamDiffTest`'s
+    `NOT_UPSTREAM_MAX` 43 to 44 (`inlineView`, dated); `IqCorpusTest` fails naming its missing input instead of
+    skipping (`SkipCensusTest`'s rule), runs in its manual `:iq_corpus_test` alone (`core/BUILD.bazel` excludes it from
+    `core_tests_lib`), and its database names are pinned in `dialect-leaks/ledger.tsv` (dated).
+  - **The landing's independent review (three reviewers, 2026-10-16) and its fixes**, each pinned by a test or a
+    case measured on IQ 17.1 and SQL Anywhere 17:
+    - `lowering/`: an extend after a limit isolates only where the isolation keeps the select's names apart without
+      regard to case (DuckDB binds a subselect's `ID` beside `id` to the first, even quoted) and its whole order
+      (`Fold.namesApartWithoutCase`, `Sorts.keepsOrder`); elsewhere it folds, as before the landing.
+      `Sorts.isolateOrdered` carries an ORDER BY whole or not at all (a part of an order is another order) by the
+      names the select shows its keys under. An enclosing row's miss is a flag on `UnfoldableRef`, not a count
+      (`CodeShapeGuardrailTest` loses its `Lowerer.enclosingMisses` entry), and only where an enclosing scope is: with
+      none (a plan's open variable, `let name = 'ok'; ...filter(f|$f.legalName == $name)`) it stays the loud
+      `IllegalStateException` the plan's fallback catches -- the relational corpus's 8 executionPlan tests the
+      2026-10-15 correlated-window fix (1e461f809) had broken on both lanes, found by running `//spec:corpus_duckdb`
+      and `//spec:corpus_h2` locally. `flatCase` keeps an enum's decode its own CASE where the CASE around it is no
+      part of it (`tdsWithEnumReturn`'s plan column type).
+    - `protocol/sql/SqlToPure.java`: every set of names a relation's columns take compares without regard to case
+      (`taken()`: joins renamed apart, renames, set operations, APPLY's computed columns); the island's own result is
+      an inline view too (a Pure filter after it folded under its windows). `InputDialect.ordersNothing`: IQ's ORDER
+      BY integer past an INT's range is a constant (measured), Postgres's every integer a position.
+    - `compiler/spec/InlineViewChecker.java`: only a view's outermost windows are boundaries (a level a window
+      passed DuckDB's expression depth at 1,100 windows).
+    - The IQ island: NUMBER(*) one ROW_NUMBER, the statement's last sort key (tied rows were numbered otherwise than
+      shown on large data), with no ORDER BY or a constant one too; ROLLUP's repeated key grouped where a copy is
+      (IQ's engine: its -1001030), a key written two ways or a subquery beside ROLLUP refused by name, the alias
+      facts carried over the rewrite; a named window matched without regard to case, quoted or not; window MIN/MAX of
+      strings packed as the aggregate's (escaped); a nested WITH of one name no stack overflow (`CteDef` by
+      identity); computed date strings: an upper-case month marker, one `t` before a time, a run-time refusal by
+      name for a spelling not read and for a time after 7910; every name of `NO_SUCH_FUNCTION` measured (-265).
+    - Recorded, not fixed: ROLLUP with TOP computes its items before the limit (the union's), so it may raise where
+      IQ answers; an APPLY's query reading the left side by an unqualified name its own FROM lacks may bind an
+      enclosing query's column (the parser knows no columns); `rename`'s frame carries no ORDER BY (the subselect's
+      order rides alone, as before the landing: carried, the relational corpus's ordered compare of
+      testRenameColumnsAfterGroupBy moved), so on a database that does not keep a subselect's order a later LIMIT
+      may keep other rows.
+- **Announced 2026-10-17: landing 5's cross-area edits** (`claude/iq-island-5`; one PR and one CI run after review,
+  the user's merge). The corpus lane was rebuilt (the session scratchpad that held it was wiped; the private repo
+  neema2/iq-sql-research's `corpus-lane/` keeps its scripts) and its refusals the live IQ 17.1 answers were worked
+  top-down; each edit is judged by both `iq-parity` lanes, both `sql-parity` lanes and the corpus judge:
+  - **An integer quotient, a lite native.** `builtin/Pure.java`: `meta::legend::lite::quotient(Integer[1],
+    Integer[1]):Integer[1]` (`INTERNAL_DESUGAR` 21 to 22, `NOT_UPSTREAM` 48 to 49, both with dated notes; census row in
+    `docs/LITE_INVENTION_CENSUS.md`); `lowering/Scalars.java`: its rule, MIR's `INT_DIVIDE` with rem's zero-divisor
+    raise; `protocol/sql/SqlToPure.java`: `wholeQuotient`, used where both operands are integers (the function-FQN
+    literal ratchet 324 to 325, the Cypher translator's precedent). The Float estimate it replaces read each operand
+    about fourteen times.
+  - `sql/dialect/StringCountsAsInt.java` (new, Postgres): a string function's 64-bit count cast to its 32-bit integer.
+  - `sql/dialect/OuterJoinSubqueryFilters.java` (new, DuckDB): a LEFT JOIN condition's scalar subquery of the
+    null-supplying side filters that side first, which DuckDB cannot plan otherwise.
+  - `sql/dialect/ConstantKeysAsExpressions.java`: on DuckDB's GROUP BY integers too (`groupByOnly`), and a NULL key
+    grouped by as an integer's NULL.
+  - `protocol/sql/SqlToPure.java`, also: `*` in a grouped query shows its group keys; a scalar subquery a select item
+    reads on every path is computed once, a column before the item (`Output.pre`, in the item's phase), where it was
+    written once per check of each checked operation around it.
+  - Later the same day (follow-on branch `claude/iq-island-5-next`, the same landing):
+    - `lowering/Fold.java`, `lowering/Lowerer.java`: a large computed column that later columns read twice is written
+      once in its own select (`Fold.rereadsLarge`; removed 2026-10-18 in the landing's review: main's `Fold.Budget`
+      does it since the merge, and the lowering is main's again).
+    - `protocol/sql/SqlToPure.java`:
+      - an item past the size bound computes its long operands once, a column before it
+        (`SqlTranslationException.pastSizeBound`);
+      - a dialect's group guard (`Aggregation.guard`), each grouping's own;
+      - `Scope.enclosing`, a window's correlated-reference check that no longer asks a grouped scope to resolve a
+        column that is no group key;
+      - `SELECT DISTINCT t.*` ordered by a column the `*` shows;
+      - joins read by `InputDialect.joinType`.
+    - `protocol/sql/InputDialect.java`: `joinType`, a dialect's reading of an outer join as the inner one it is (the
+      IQ island's, under a WHERE that rejects the null-supplying side's NULLs).
+    - `protocol/sql/InputDialect.java`, also: `Problem.NESTED_AGGREGATE`, whose wording is the dialect's (Postgres's
+      unchanged; the IQ island's its -156); the shared translator's seven nested-aggregate refusals read it.
+    - `protocol/sql/InputDialect.java`, `protocol/sql/SqlToPure.java`: `translated()`, called once a statement is
+      translated, where a dialect raises an error it held while translating (the IQ island's -1001013 for a string
+      compared with a number, which IQ raises after any -157 of the statement and after a missing column's -143);
+      and `failed(e)`, the error to raise when a statement fails to translate (the IQ island's held placement error,
+      which comes after the statement's names, grouping and functions).
+    - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
+      alone but past `medium`'s 300 s in `//gates:local`.
+  - 2026-10-18, the landing's review and gate (the user's request: the flaky case fixed to be deterministic):
+    - `cypher-parity/lite/grouping.yaml`: `with_distinct_node_then_counted` sorts before its collect (`WITH DISTINCT a
+      ORDER BY a.name`). A collect's list has no order of its own; DuckDB's came back either way over the DISTINCT
+      (two passes and two failures on one head). Re-snapped from Neo4j 2026.09.0 (`[2, ['a', 'c']]`), the other 17
+      grouping answers reproduced unchanged first.
+    - `protocol/sql/PostgresOperators.java`: Postgres's integer division keeps its exact estimate (Snowflake's
+      INT_DIVIDE rounds to six places before it cuts); `sql/dialect/ConstantKeysAsExpressions.java` names its database.
+
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):
@@ -1624,6 +2080,15 @@ repros will be in the study's §9.
     uncast.
   - Postgres folds every branch of a CASE over constants, so an untaken branch that would raise (a DOUBLE underflow
     guard, or an overflow check over an outer column in a correlated subquery's comparison) raises at plan time.
+  - Postgres plans a FROM function's argument before any row is read: `toOne`'s raise inside
+    `jsonb_array_elements(CASE WHEN x IS NULL THEN <raise> ELSE x END)` fires for a row whose `x` holds a value
+    (the Cypher island's `size` of a Variant list that may be null, 2026-10-17; the island now tests the list and
+    reads it as a collection without `toOne`).
+  - `project` of a to-many navigation mapped to a constant (`~[c: a | $a.friends->map(f | 1)]`) stays one row
+    per root where Pure's semantics give one value per element; the rows multiply only through a navigated
+    column. The Cypher island refuses by name a pattern that fans out to a node of a class without a property
+    (21 TCK scenarios, the study's §12.16 and §12.44; measured 2026-10-15, recorded 2026-10-17): with a column of
+    the far table read the join fans out, with none the lowering drops the join.
   - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
     intermediate overflow and underflow.
 - **The compiler and stamp program:**
@@ -1956,16 +2421,34 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (`strftime(make_timestamp(...))` concatenated), so a comparison or `date_part` over it fails ("Cannot compare values
   of type TIMESTAMP and type VARCHAR"); a date-time literal with a fraction and `adjust(..., MILLISECONDS)` are
   TIMESTAMPs. The Cypher translator writes whole seconds and adds the fraction by `adjust`.
-- **Announced to the database owner, 2026-10-16 (for `collect`, the Cypher island's PR2b):** a collection-valued
-  relation aggregate — `->aggregate(~[xs: x|$x.a : y|$y])` with the reduce returning `T[*]` (the database's
-  `array_agg` / `list`), which the typer refuses today ("multiplicity [*] is not compatible with result [0..1]"), or
-  `toVariant` registered as an aggregate lowering. Cypher's `collect(x)` (30 TCK cases, plus Precedence1's 15 over
-  the collected list) waits on it; the translator refuses it by name.
+- **Withdrawn, 2026-10-16 (the Cypher island's §12.41):** the ask to the database owner for a collection-valued
+  relation aggregate (`->aggregate(~[xs: x|$x.a : y|$y])` with a `T[*]` reduce, or `toVariant` as an aggregate
+  lowering), announced earlier the same day for `collect`. The island spells `collect(x)` with the string aggregate
+  it has: each value's JSON text joined by `joinStrings`, read as a Variant between brackets; the element kind
+  travels with the list as a mark, so an unwound or quantified collected list reads its elements by type.
 - **Not touched by PR1 to PR4:** `lowering/`, `sql/dialect/`, `builtin/`, `Typer.java`, `NameResolver.java`,
   `SqlToPure.java`, `InputDialect.java`. **Announced to the database owner for PR3:** the identity half of
   `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's
   identity over keyless classes needs (the study's C5). **For PR5:** the recursion native, `meta::legend::lite::recurse`,
   in the database owner's files, after its design is agreed (the study's §6.3).
+- **Announced, 2026-10-16 (the Cypher island's PR3, step 1: the edge class, the study's §5.6):** four edits outside the
+  island. `AssociationDefinition.AssociationEndDefinition` gains the end's stereotypes (the parser read them, the
+  record dropped them; `FromProtocol` and `NameResolver.resolveAssocEnd` carry them). `NameResolver.resolveDerivedProperty`
+  kept a rebuilt derived property's stereotypes, tagged values and span (it rebuilt with the five-argument constructor
+  and dropped them, so a `<<graph.type>>` whose body names an enumeration lost its marker). Phase F runs
+  `compiler/element/GraphEdges` (`ModelIntegrity.check`: the property-graph profile's rule over the edge classes, an
+  error under the class's name). The library project `projects/graph` (one profile) joins `PROJECT_DEPS` at layer 0,
+  and the projects-wide compile test is `//projects:every_project_test` (its old name, `graph_test`, is the new
+  project's own).
+- **Found by this line in the resolver, 2026-10-16 (the edge class leg):** the resolver's nested navigation does not
+  read an association end past a second association step on two shapes: a to-one chain of three association ends
+  rooted at the first node, `MATCH (a:A)-[:T]->(b:B)-[:U]->(c:C)-[:V]->(d:D) RETURN d.name` over the harness's
+  model (`$a.T.U.V.name`: "property 'V' of nested navigation 'T.U' is not mapped in mapping 'g::Map'"; the same
+  pattern with `T` to-many passes), and a hop after a hop over an edge class, `(a:Actor)-[:ACTED_IN]->(m:Movie)-[:MADE_BY]->(s:Studio)`
+  (`$a.ACTED_IN_out.to.MADE_BY.name`: "property 'MADE_BY' of nested navigation 'ACTED_IN_out.to' is not mapped";
+  the edge's `to` end is `[1]`, the association form's ends `[0..1]`, which may be the difference). The island
+  refuses the edge shape by name (`CypherToPure.reachedThroughEdge`); the to-one chain no TCK case spells. The
+  resolver line's (`AssociationJoins.collectTargetTails`, `Substitution.rewriteMultiHop`).
 - **Found by this line in other lines' code, 2026-10-15:** lite does not check a stereotype or profile reference
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
@@ -2057,7 +2540,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   DateTime's text landed 2026-10-18** (GATES "step 2, the DateTime's text"): one owner in `LiteralSpelling`, the last
   44 pins deleted, the matrix all Pure's text; `DateFmt.CSV_DATETIME` and `ISO_PURE_UTC` deleted. **`pure/v1`'s text landed 2026-10-18**
   (GATES "step 2, `pure/v1`'s text"): `WireRender.Spelling` at the two engine-API seams, `floatPrintJava` and
-  `dateTimeTextEngine`, register S76 and S77; step 2 complete, PARK-24 closed. **Step 3 announced 2026-10-18: the
+  `dateTimeTextEngine`, register S97 and S98; step 2 complete, PARK-24 closed. **Step 3 announced 2026-10-18: the
   text carrier** (the program's §4; its §9 names the files): `lowering/LiteralSpelling.java` (`pureValueText`),
   `lowering/Render.java` (the cell arm; `timed` moved to the owner), `lowering/TdsTextWrap.java` (the layouts),
   `PlanMaker.java`, `StatementExecutor.java` (handing them), the PCT adapter `pct_adapter.pure` and its module
@@ -2104,7 +2587,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   execution (D2), the streaming gate. **The pivot homework landed 2026-10-18** (GATES "The pivot homework";
   `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md`): `lowering/Render.java` (the wires' names as the engine labels them,
   the dynamic pivot's JSON wire from its cells, `PivotKeys`), `lowering/WireRender.java`, `PlanMakerTest`, register
-  S78 to S80. **Step 9 announced and begun 2026-10-18: the DuckDB PCT lane on the plan route** (the user's
+  S99 to S101. **Step 9 announced and begun 2026-10-18: the DuckDB PCT lane on the plan route** (the user's
   "flip and let's fix everything"): `pct/.../extension/PctBackend.java` (`throughThePlan`), then whatever the
   first run's failures name in the plan path (`lowering/`, `exec/`, the adapter `pct_adapter.pure`); the five
   DuckDB suites' pins move only with a named residue, shrink-only.  **First landing 2026-10-18** (GATES "step 9, first landing"): `lowering/LiteralSpelling.java`
@@ -2124,7 +2607,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `SqlPostProcessors`, `SubselectPrune`, `DynamicPivot`, `MirJson`), `executionplan/PlanJson.java` (format 7),
   `lowering/Lowerer.java` (`castOverDynamicPivot` names the keys), `lowering/Pivots.java`, the emulations
   (`CarrierStrategies`, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Databricks`, `MongoDbPipeline`), `PlanMakerTest`,
-  register S83. The siblings pin pivots by name; the merge removes the four cast cases' pins. **The second shared
+  register S102. The siblings pin pivots by name; the merge removes the four cast cases' pins. **The second shared
   item, 2026-10-19: the system metamodel store on a server engine** (`Class.all()`, pinned on every server lane):
   `database/Databases.java` (`inProcess`, from `exec/Sessions.java`), `PlanMaker.java` (`Metamodel`: the session's
   temporary tables and the query's renames on a server), `PlanMakerTest`; the merge removes the `testBasic` pins.
@@ -2186,7 +2669,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `TypedUserCall.java` (`origin`, `untracked`), `Typer.java`, `SourceSubst.java`, `Overloads.java`,
   `LambdaBodies.java`, `UserCallInliner.java`, `lowering/Lowerer.java`, `CanonicalRenderSql.java`,
   `InstanceEquality.java`, `Scalars.java` (an untracked object's identity is refused by name, §4); the register
-  (S81, S82 removed; S85). **Merge gate (the user, 2026-10-20):** channel B green on every lane; the lane sessions
+  (S81, S82 removed; S104). **Merge gate (the user, 2026-10-20):** channel B green on every lane; the lane sessions
   measure it test by test against the merge-base. **Met at b37af2b9, landed 2026-10-21** (GATES "channel B against
   the merge-base on every lane"): 0 lost on every lane measured, channel A exact on each; Snowflake and BigQuery
   unmeasured (the environment has no credentials). Its files: `sql/dialect/{ClickHouse,Databricks,Trino,MySql}.java`,
@@ -2199,3 +2682,54 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   (regenerated). Every other database's SQL is byte-identical. **Proposed, not ratified:**
   `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (one plan, one result, output formats as host renderers; awaiting the
   user). Nothing in it is built.
+  **Landed 2026-10-22 — main (bff1c703f) merged into this branch** (GATES "main (bff1c703f ...) merged into the plan
+  path branch"): MongoDB and Trino onto main's connectors (`exec/{Connectors,DatabaseConnector,TrinoConnector}`,
+  `core/src/main/mongodb/.../MongoDbConnector`), the plan facts on the dialect (`SqlDialect.inProcess`, `relational`),
+  the PCT harness onto main's test backends (`PctBackend`, `testbackend/{CloudBackend,MongoDbBackend}`), the branch's
+  tests under the database-name ban (per-database tests split out), register rows S76-S80 and S83-S85 renumbered
+  S97-S104. Local gate green; the lanes re-measure on the merged head.
+
+- **Announced here as landed, 2026-10-17 and 2026-10-18 (the TCK-to-zero program, `docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md`;
+  each landing's record is its GATES entry, the forty-second to the eighty-ninth): the other lines' files this line touched** — the
+  dialects: `sql/dialect/Postgres.java` (the orderability key, the list encodings, the W7 casts, a `concat` of more than
+  100 arguments nested, the exact double-precision `REM`, §12.90), `AnsiSqlRenderer.java` (`maxFunctionArguments`),
+  `DuckDb.java`, `CarrierStrategies.java`, `SqlWriter.java`, and every dialect for `random()` (W3) and the `TIME` and
+  `TIMESTAMP_NS` column types' DDL (W5); the MIR (`sql/SqlFn.java`, `SqlTyping.java`, `SqlExpr.java`, `SqlDdl.java`);
+  the lowering (`Scalars.java`, `Lowerer.java`, `MatchFold.java` (an ISO year of four digits), `Fold.java`,
+  `Render.java`, `ListEncodings.java`, `CastPolicy.java`, `CollectionLanes.java`, `Aggregates.java`); the natives
+  (`builtin/Pure.java`: `random`, `recurse`, the governance ceiling moved with dated comments; `NativeFn.java`,
+  `SystemMetamodel.java`, `platform/CoreFn.java`); the compiler (`compiler/spec/RecurseChecker.java`, `Typer.java`,
+  `TdsChecker.java`, `CastChecker.java`, `typed/TypedRecurse.java`; `compiler/element/StoreCompiler.java`,
+  `GraphEdges.java`, `RelationalOpRows.java`, `type/PlatformTypes.java`; `compiler/RelationalKinds.java`); the resolver
+  (`resolver/StoreResolver.java`); the grammar and model (`parser/DatabaseProtocolParser.java`,
+  `model/RelationalDataType.java`, `model/FromProtocol.java`, `protocol/DatabaseComposer.java`); the plan and
+  execution (`plan/PlanText.java`, `plan/PreciseTypes.java`, `StatementExecutor.java`, `exec/Executor.java`,
+  `setup/Ddl.java`, `testdatagen/TestDataGenerator.java`). **Not touched since 2026-10-17: `protocol/sql/`** (no edit to
+  `SqlToPure.java` or `InputDialect.java`; the island implements no `InputDialect` and calls no `postgresName`, so
+  nothing of it extends what the ninth line's D11 moves; told to the ninth line, 2026-10-18). The lanes: DuckDB and
+  Postgres the same census (PASS 3976 of 5041), the TCK at 3597 of 3880 on both; left the write clauses, 3 setups Neo4j
+  refuses and 2 years past every database's dates. Next on this line: one PR of the branch (origin/main merged), then
+  the write clauses.
+  Later, 2026-10-18: the 3 setups were the oracle's, not Neo4j's (it ran the TCK's openCypher 9 setups under Cypher 25,
+  which narrows `CREATE`; a setup now runs under `CYPHER 5`, `tools/neo4j-oracle/snap.py`): all three pass on both
+  lanes, PASS 3979 of 5041 on both, the TCK at 3600 of 3880. Left outside the write clauses: the 2 signed years.
+- **Announced here as landed, 2026-10-18 (the independent review of the branch before its PR, the study's §12.93;
+  the user: "Fix them before PR"): the other lines' files these fixes touched** — `compiler/spec/UserCallInliner.java`
+  (a bound `random()` or `generateGuid()` read twice, or once per row, is refused by name: the substitution writes the
+  term at each read and the database draws at each place; a call whose parameter binds one stands, as a recursive
+  call does), `sql/dialect/Postgres.java` (the exact float `REM` written inline, its NULL arm, so it runs under a
+  grouped computed key: a scalar subquery cannot read an ungrouped column), `H2.java` (`TIME(9)`: H2's `TIME` keeps no
+  fraction of a second, measured 2.1.214), `SQLite.java` and `Snowflake.java` (`random()` in `[0, 1)`: SQLite's
+  shifted formula answered exactly 1.0 within 1024 of the top, measured; Snowflake's `UNIFORM` is inclusive),
+  `lowering/Render.java` (the streamed JSON rows carry a hidden sort key, as the snapshot's hoist does),
+  `lowering/Scalars.java` and `MatchFold.java` (a partial date in date arithmetic written with a year of four digits),
+  `resolver/StoreResolver.java` (the to-many `elementId` lambda typed by its function type), `model/RelationalDataType.java`
+  (`fromName` reads `TIMESTAMP_NS`), `compiler/element/GraphEdges.java` (the exact profile check kept, its reason
+  written). `docs/dialect-capability/` regenerated.
+- **Found by this line in other lines' code, 2026-10-18 (the database owner's):** Postgres has no year zero, so a date
+  before the year 1 reads apart by lane: `EXTRACT(YEAR FROM DATE '0001-01-01' - 1)` is -1 on Postgres and 0 on DuckDB
+  (and in Neo4j's and Java's proleptic count), so Pure's `year()` of such a date, and any text built from it, differs
+  by lane. The Cypher island raises by name where its text would spell a year before 1 (S88). And Postgres reads a date
+  literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
+  line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
+  by `Scalars`' cell reader would still be written as Pure spells it.

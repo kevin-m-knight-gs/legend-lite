@@ -3,13 +3,13 @@
 
 package com.legend.resolver;
 
+import com.legend.testbackend.TestBackends;
 import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.List;
 
@@ -45,7 +45,7 @@ class RuntimeIfClassQueryTest {
     }
 
     private static List<Object> run(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE FIRM (ID INTEGER, NAME VARCHAR)");
                 st.execute("INSERT INTO FIRM VALUES (1, 'Acme'), (2, 'Default')");

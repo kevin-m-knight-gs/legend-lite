@@ -837,7 +837,9 @@ public final class Databricks extends AnsiSqlRenderer {
                 case DATE -> "DATE";
                 case JSON -> "JSON";
                 case VARCHAR -> "STRING";
-                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+                // a time of day: Databricks has no TIME type (the TIME scalar's own wall); a nanosecond timestamp: its
+                // TIMESTAMP keeps microseconds
+                case TIME, TIMESTAMP_NS, OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
@@ -1122,6 +1124,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case DECODE_BASE64 -> writer.append("CAST(unbase64(").expr(a.get(0), 0).append(") AS STRING)");
             case SHA256 -> writer.append("sha2(").expr(a.get(0), 0).append(", 256)");
             case GUID -> writer.append("uuid()");
+            case RANDOM -> writer.append("rand()");
             // format_string is Java's formatter over Spark's values, and its %f takes no Spark Decimal: a Float
             // literal, written as its decimal digits (NUMERIC CHARTER Rule 1), is handed over as the double it is
             // (channel B's testFormatFloatWithRounding and its siblings, 2026-10-20)

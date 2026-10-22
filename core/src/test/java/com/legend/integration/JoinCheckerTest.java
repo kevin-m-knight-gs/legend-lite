@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,16 +31,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class JoinCheckerTest extends AbstractDatabaseTest {
 
-    @Override
-    protected String getDatabaseType() {
-        return "DuckDB";
-    }
-
-    @Override
-    protected String getJdbcUrl() {
-        return "jdbc:duckdb:";
-    }
-
     @Test
     @Timeout(value = 60, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @DisplayName("a chain of 40 joins types each input once (it typed the innermost 2^40 times)")
@@ -61,7 +50,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = DriverManager.getConnection(getJdbcUrl());
+        connection = backend().open();
         setupDatabase();
     }
 

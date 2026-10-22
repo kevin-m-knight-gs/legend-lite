@@ -61,7 +61,7 @@ class CatalogModelTest {
 
     /**
      * A table of every type, created in a real DuckDB and read back through its STRUCTURED catalog
-     * ({@link DuckDb#CATALOG_COLUMNS_SQL}): no type string parsed.
+     * ({@link DuckDb#catalogColumnsQuery}): no type string parsed.
      */
     static List<CatalogModel.Column> readCatalog(java.util.Collection<String> types) throws java.sql.SQLException {
         try (java.sql.Connection conn = java.sql.DriverManager.getConnection("jdbc:duckdb:");
@@ -79,7 +79,7 @@ class CatalogModelTest {
     /** A table's columns, read by THE catalog question. */
     static List<CatalogModel.Column> columnsOf(java.sql.Statement st, String schema, String table) throws java.sql.SQLException {
         List<CatalogModel.Column> out = new java.util.ArrayList<>();
-        String sql = DuckDb.CATALOG_COLUMNS_SQL.replace("{schema}", "'" + schema + "'").replace("{table}", "'" + table + "'");
+        String sql = new DuckDb().catalogColumnsQuery(schema, table);
         try (java.sql.ResultSet rs = st.executeQuery(sql)) {
             while (rs.next()) {
                 out.add(new CatalogModel.Column(rs.getString(1), rs.getString(2), rs.getString(3),

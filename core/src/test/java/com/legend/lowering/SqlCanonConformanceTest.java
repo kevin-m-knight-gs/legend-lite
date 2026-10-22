@@ -10,11 +10,10 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
-import com.legend.sql.dialect.DuckDb;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
@@ -27,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * (CANONICAL_FORM_SPEC §2) implemented twice — this pin holds them
  * byte-identical over a value battery that includes the magnitudes the
  * old DECIMAL(38,18) unfold silently zeroed (1e-30, 1e300). The DB
- * computes its text; the host computes its text; they must agree.
+ * computes its text; the host computes its text; they must agree. Here
+ * on the platform's engine; H2's battery is {@code SqlCanonConformanceH2Test}'s.
  */
 class SqlCanonConformanceTest {
 
@@ -38,7 +38,7 @@ class SqlCanonConformanceTest {
                 -5.59, 5.59, 1.5e-30, 1e300, -2.5e-15, 123456.789,
                 9007199254740993.0, 1e16,
         };
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             for (double d : battery) {
                 assertEquals(hostText(d), dbCanon(c, d, Type.Primitive.FLOAT),
                         "float canon diverged for " + d);
@@ -46,68 +46,9 @@ class SqlCanonConformanceTest {
         }
     }
 
-    /** The same battery on H2 2.1.214, whose DOUBLE prints as Java does
-     * ({@code 1.3421E-8}, {@code 1.0E7}): the unfold reads both exponent
-     * spellings and the dialect spells the group extraction
-     * ({@code REGEXP_SUBSTR}) and the epoch ({@code EXTRACT(EPOCH FROM)}).
-     * Over a COLUMN, as the canon runs — H2 folds constant expressions at
-     * prepare time, branch-blind, so a literal battery would cast the
-     * untaken exponent branch's '' before any row is read. */
-    @Test
-    void floatCanonAgreesWithHostOnH2() throws Exception {
-        double[] battery = {
-                3.14, 17.000, 1.3421e8, 134.21e-10, .01, 0.0, -0.0,
-                -5.59, 5.59, 1.5e-30, 1e300, -2.5e-15, 123456.789, 1e7, 12345678.9,
-        };
-        com.legend.sql.dialect.H2 h2 = new com.legend.sql.dialect.H2();
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:canon" + System.nanoTime())) {
-            try (Statement st = c.createStatement()) {
-                for (String setup : h2.sessionSetup()) {
-                    st.execute(setup);
-                }
-                st.execute("CREATE TABLE B(\"k\" INT, \"v\" DOUBLE PRECISION)");
-                for (int i = 0; i < battery.length; i++) {
-                    st.execute("INSERT INTO B VALUES (" + i + ", CAST('" + battery[i] + "' AS DOUBLE PRECISION))");
-                }
-            }
-            OutputCol v = new OutputCol("v", SqlType.Scalar.DOUBLE, true);
-            OutputCol k = new OutputCol("k", SqlType.Scalar.INTEGER, false);
-            SqlSource.Table b = new SqlSource.Table("B", "b", List.of(k, v), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
-            for (int i = 0; i < battery.length; i++) {
-                SqlExpr canon = CanonicalRenderSql.scalarCanon(
-                        SqlExpr.Column.of("b", "v", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.DERIVED),
-                        Type.Primitive.FLOAT);
-                SqlSelect q = new SqlSelect(
-                        List.of(new SqlSelect.Projection(java.util.Objects.requireNonNull(canon), "canon", null)),
-                        false, b, SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
-                                SqlExpr.Column.of("b", "k", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED),
-                                new SqlExpr.IntLit(i)),
-                        List.of(), null, null, List.of(), null, null,
-                        List.of(new OutputCol("canon", SqlType.Scalar.VARCHAR, true)));
-                try (Statement st = c.createStatement();
-                        ResultSet rs = st.executeQuery(h2.render(q))) {
-                    rs.next();
-                    assertEquals(hostText(battery[i]), rs.getString(1),
-                            "H2 float canon diverged for " + battery[i]);
-                }
-            }
-            SqlSelect epoch = new SqlSelect(
-                    List.of(new SqlSelect.Projection(SqlExpr.Call.of(com.legend.sql.SqlFn.EPOCH_SECONDS,
-                            new SqlExpr.TimestampLit("2014-12-04T15:22:23.123")), "canon", null)),
-                    false, new SqlSource.Dual(), null, List.of(), null, null,
-                    List.of(), null, null,
-                    List.of(new OutputCol("canon", SqlType.Scalar.VARCHAR, true)));
-            try (Statement st = c.createStatement();
-                    ResultSet rs = st.executeQuery(h2.render(epoch))) {
-                rs.next();
-                assertEquals("1417706543.123", rs.getString(1));
-            }
-        }
-    }
-
     @Test
     void otherKindsAgree() throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             assertEquals("42", dbCanon(c, new SqlExpr.IntLit(42),
                     Type.Primitive.INTEGER));
             assertEquals("true", dbCanon(c, new SqlExpr.BoolLit(true),
@@ -124,7 +65,7 @@ class SqlCanonConformanceTest {
         }
     }
 
-    private static String hostText(double d) {
+    static String hostText(double d) {
         return switch (CanonicalForm.render(d)) {
             case CanonicalForm.Result.Text t -> t.value();
             case CanonicalForm.Result.Residue r -> "residue:" + r.reason();
@@ -146,7 +87,7 @@ class SqlCanonConformanceTest {
                 List.of(), null, null,
                 List.of(new OutputCol("canon", SqlType.Scalar.VARCHAR, true)));
         try (Statement st = c.createStatement();
-                ResultSet rs = st.executeQuery(new DuckDb().render(q))) {
+                ResultSet rs = st.executeQuery(TestBackends.platform().dialect().render(q))) {
             rs.next();
             return rs.getString(1);
         }
@@ -175,7 +116,7 @@ class SqlCanonConformanceTest {
                         new SqlExpr.StringLit("a, b"))));
         SqlExpr canon = java.util.Objects.requireNonNull(
                 CanonicalRenderSql.instanceCanon(v, keys, layout));
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             assertEquals("{\"_type\":\"meta::pure::functions::collection"
                     + "::Pair\",\"first\":\"1\",\"second\":\"'a, b'\"}",
                     dbText(c, new SqlExpr.Cast(canon,
@@ -197,7 +138,7 @@ class SqlCanonConformanceTest {
         SqlExpr canon = java.util.Objects.requireNonNull(
                 CanonicalRenderSql.instanceCanon(v, keys,
                         new SqlType.Array(SqlType.Scalar.BIGINT)));
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection c = TestBackends.platform().open()) {
             assertEquals("{\"_type\":\"meta::pure::functions::collection"
                     + "::List\",\"values\":[\"1\",\"2\"]}",
                     dbText(c, new SqlExpr.Cast(canon,
@@ -213,7 +154,7 @@ class SqlCanonConformanceTest {
                 List.of(), null, null,
                 List.of(new OutputCol("t", SqlType.Scalar.VARCHAR, true)));
         try (Statement st = c.createStatement();
-                ResultSet rs = st.executeQuery(new DuckDb().render(q))) {
+                ResultSet rs = st.executeQuery(TestBackends.platform().dialect().render(q))) {
             rs.next();
             return rs.getString(1);
         }

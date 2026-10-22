@@ -102,11 +102,6 @@ public final class FunctionActivatorSectionGrammar
         return new ParsedSection(elements, imports);
     }
 
-    @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
     /** {@code XDeploymentConfiguration qn { activationConnection: qn; }}
      *  — the walkers treat these strangely (probed 2026-08-14): the
      *  Snowflake config is parsed then DROPPED (no element, no section

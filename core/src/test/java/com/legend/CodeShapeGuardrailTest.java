@@ -66,6 +66,11 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // a writer's depth inside a set function's arguments the database evaluates when it plans (2026-10-17,
+            // the Cypher island's range of a bound that may be null, docs/CYPHER_STUDY_2026_10_15.md §12.73):
+            // raised and lowered around the write (SqlWriter.planned), one writer per statement; Postgres's raise
+            // reads it so no planner pre-evaluates a raise there
+            "SqlWriter.planned",
             // a LAZY value (2026-09-23): an execute() call's activity rows
             // carry a second render of its chain, computed on the first
             // read and kept — set once, never reassigned after
@@ -122,6 +127,9 @@ class CodeShapeGuardrailTest {
             // lambdas the database computes (a comprehension's or predicate's over a collection), raised and lowered
             // around their reading, scoped to one translation (the fresh-name counter's lifecycle)
             "CypherToPure.databaseLambdas",
+            // the Cypher translator's let (2026-10-19, the parity lanes' exponential temporal SQL): Shares' count of
+            // the hidden columns it has named, scoped to one translation (the CypherToPure.fresh shape)
+            "Shares.next",
             // the island's reader of a date's or a timestamp's text (2026-10-13, Postgres's date spellings,
             // docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4): PostgresDateTime.Decoder is datetime.c's DecodeDateTime,
             // these its struct pg_tm and the field mask it fills field by field -- scoped to one constant's read,
@@ -181,6 +189,11 @@ class CodeShapeGuardrailTest {
             // builder-flag, same lifecycle as engineExistsJoinForm: set
             // once by the driver before lower(), read during the lowering
             "Lowerer.streamingGraphRoot",
+            // object identity (2026-10-20, docs/OBJECT_IDENTITY_2026_10_20.md §3.1, §3.4; allowlisted at main's merge,
+            // 2026-10-22, the first run of this guard on the branch): builder flags, same lifecycle as
+            // streamingGraphRoot -- whether every object carries its identity, and whether a scalar root shows its
+            // objects' declared properties alone; set once before lower()
+            "Lowerer.objectIdentity", "Lowerer.declaredEgress",
             // JSON source frames (XStore §1): the execution context's
             // JsonModelConnection map, set per from()-scope — same
             // per-resolution frame lifecycle as `temporal`
@@ -199,6 +212,11 @@ class CodeShapeGuardrailTest {
             // property user calls stand for structural extraction —
             // same lifecycle as a parser cursor, scoped to one rewrite
             "UserCallInliner.configMode",
+            // object identity step 2 (2026-10-20, docs/OBJECT_IDENTITY_2026_10_20.md §3.2; allowlisted at main's merge,
+            // 2026-10-22, the first run of this guard on the branch): the walk's instantiation counter, its lambda depth
+            // and the frame of its point -- the same lifecycle as a parser cursor, scoped to one rewrite (the path of
+            // instantiations around the point is a final list, saved and restored around each lambda)
+            "UserCallInliner.instantiations", "UserCallInliner.lambdaDepth", "UserCallInliner.frame",
             // §4AD slice 1: filter-predicate nesting depth during the
             // one liftFilteredHeads walk (value-position scope gate) —
             // same lifecycle as a parser cursor
@@ -326,12 +344,14 @@ class CodeShapeGuardrailTest {
     private static final int CLASS_NAME_LOGIC_SITES = 0;
 
     /** The set-id default spelling ({@code ::} as {@code _}) has ONE owner,
-     * {@code model/SetId.java} (audit 2026-09-15 P2-1: sixteen sites spelled
-     * it, one spelled a different rule). The two files listed spell the
-     * same substitution for OTHER names (a plan's enum-map label, an
-     * expression alias) and are not set ids. */
+     * {@code protocol/SetIds.java} (audit 2026-09-15 P2-1: sixteen sites spelled
+     * it, one spelled a different rule; it moved from {@code model/SetId.java},
+     * which delegates to it, 2026-10-21 with the protocol program's leg 8 last
+     * step: the parser, which builds records only, needs the rule too). The two
+     * other files listed spell the same substitution for OTHER names (a plan's
+     * enum-map label, an expression alias) and are not set ids. */
     private static final Set<String> SET_ID_SPELLING_OWNERS = Set.of(
-            "SetId.java", "PlanText.java", "CallShapes.java");
+            "SetIds.java", "PlanText.java", "CallShapes.java");
 
     @Test
     void setIdSpellingHasOneOwner() throws IOException {
@@ -344,8 +364,8 @@ class CodeShapeGuardrailTest {
                 strays.add(p.getFileName().toString());
             }
         }
-        assertTrue(strays.isEmpty(), () -> "the set-id default spelling is SetId.of /"
-                + " SetId.defaultFor — never spelled in place; strays: " + strays);
+        assertTrue(strays.isEmpty(), () -> "the set-id default spelling is SetIds.of /"
+                + " SetIds.defaultFor — never spelled in place; strays: " + strays);
     }
 
     @Test

@@ -7,7 +7,6 @@ import com.legend.testcases.PlanCases;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +60,7 @@ class TextCarrierTest {
         List<String> wrong = new java.util.ArrayList<>();
         for (Map.Entry<String, String> c : cases.entrySet()) {
             String cell;
-            try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+            try (Connection conn = com.legend.testbackend.TestBackends.platform().open()) {
                 ExecutionPlan plan = Compiler.query(ctx, c.getKey()).executionPlan("s::RT", TypedQuery.Output.TDS_TEXT);
                 com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, c.getKey());
                 String text = PlanCases.run(plan, conn);

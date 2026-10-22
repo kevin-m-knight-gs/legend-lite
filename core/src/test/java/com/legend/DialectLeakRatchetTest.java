@@ -34,19 +34,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The owners are not counted ({@link DatabaseOwners}): the dialect package and its tests, the DuckDB-only sources,
  * {@code com.legend.database.Databases}, which maps a declared type to its dialect, and since 2026-10-15 (the user's
  * decisions D9 and D11) the model language's vocabulary (the lexer, the parser, the protocol, the model) and the SQL
- * input languages; {@link DialectOwnerExclusivityTest} holds each to its own database. Every other file's count is
- * pinned in {@code core/src/test/resources/dialect-leaks/ledger.tsv}, shrink-only: a count above its pin fails, and a
- * count below it prints the pin to lower (the run writes the whole table to its outputs, {@code dialect-leaks.tsv}).
- * When the program ends every pin is zero and this becomes a ban.
+ * input languages; {@link DialectOwnerExclusivityTest} holds each to its own database. Since 2026-10-18 (the program's
+ * close: D11 moved the last counted lines, the SQL translator's Postgres rules, into Postgres's own files) this is a
+ * BAN: no file outside the owners names a database, and its ledger of pins ({@code dialect-leaks/ledger.tsv}, shrink
+ * only since Phase 0) is deleted. A new leak fails here; its fix is to move the decision into its owner, never a pin.
+ * The run writes what it counted to its outputs, {@code dialect-leaks.tsv} (empty while the ban holds).
  */
 @Tag("census")
 class DialectLeakRatchetTest {
 
-    private static final String LEDGER = "core/src/test/resources/dialect-leaks/ledger.tsv";
-
-    /** The Java sources the census target declares (core, and the modules that test it). */
+    /** The Java sources the census target declares: core, the modules that test it, and since 2026-10-18 (the program's
+     *  Phase 7) every other module that plans, renders or runs SQL on a database: the warehouse (a host owner:
+     *  DatabaseOwners), the tab's and Python's planner boundary (wasm's planner, native) and the test databases'
+     *  launchers (testing). Not read: the build's tools, wasm's conformance harness (it tests the JDK's classes) and
+     *  the other products (sdlc-server, depot-server, query-store, json, base, site, datacube's tools), whose hits,
+     *  measured that day, were three false positives ({@code Sha1}'s {@code h2}, {@code Bump}'s {@code engineArchive},
+     *  a {@code jdbc:postgresql:} string the conformance harness parses as a URI), the census renderer (a census tool,
+     *  naming every dialect by design) and a tool named for Postgres ({@code AppPostgres}). */
     private static final List<String> ROOTS = List.of("core/src", "pct/src", "spec/src", "parser-equivalence/src",
-            "warehouse/src/test/java");
+            "warehouse/src/main/java", "warehouse/src/test/java", "wasm/src/main/java/planner", "native/src/main/java",
+            "testing/src/main/java");
 
     private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2Modern|H2|Postgres|Snowflake|Databricks|BigQuery"
             + "|SQLite|MariaDb|MySql|Trino|ClickHouse|MongoDb|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";
@@ -108,7 +115,13 @@ class DialectLeakRatchetTest {
     }
 
     @Test
-    void databaseNamesOutsideTheirOwnersOnlyShrink() throws IOException {
+    void noDatabaseIsNamedOutsideItsOwners() throws IOException {
+        // the ban is only as wide as what it reads (the review of D11, 2026-10-18): every root must yield Java sources,
+        // so a root the census target stops declaring (core/BUILD.bazel's _CENSUS_READS) fails here, not silently
+        for (String root : ROOTS) {
+            assertTrue(SourceFiles.under(root).stream().anyMatch(f -> f.toString().endsWith(".java")),
+                    "the ban read no Java source under " + root + ": declare it in the census target's files");
+        }
         TreeMap<String, Integer> counts = new TreeMap<>();
         for (Path f : SourceFiles.under(ROOTS.get(0), ROOTS.subList(1, ROOTS.size()).toArray(String[]::new))) {
             String rel = SourceFiles.path(f);
@@ -136,35 +149,8 @@ class DialectLeakRatchetTest {
         Files.createDirectories(com.legend.testing.TestOutputs.dir());
         Files.write(com.legend.testing.TestOutputs.file("dialect-leaks.tsv"), table);
 
-        Map<String, Integer> pins = new TreeMap<>();
-        for (String line : Files.readAllLines(SourceFiles.file(LEDGER))) {
-            if (line.isBlank() || line.startsWith("#")) {
-                continue;
-            }
-            int cut = line.lastIndexOf('\t');
-            pins.put(line.substring(0, cut), Integer.parseInt(line.substring(cut + 1)));
-        }
-        List<String> grew = new ArrayList<>();
-        List<String> shrank = new ArrayList<>();
-        for (var e : counts.entrySet()) {
-            int pin = pins.getOrDefault(e.getKey(), 0);
-            if (e.getValue() > pin) {
-                grew.add(e.getKey().replace('\t', ' ') + ": " + pin + " -> " + e.getValue());
-            }
-        }
-        for (var e : pins.entrySet()) {
-            int now = counts.getOrDefault(e.getKey(), 0);
-            if (now < e.getValue()) {
-                shrank.add(e.getKey().replace('\t', ' ') + ": " + e.getValue() + " -> " + now);
-            }
-        }
-        if (!shrank.isEmpty()) {
-            System.out.println("[dialect-leaks] lower these pins in " + LEDGER + ": " + shrank);
-        }
-        System.out.println("[dialect-leaks] " + counts.size() + " file-kinds, "
-                + counts.values().stream().mapToInt(Integer::intValue).sum() + " lines outside the owners");
-        assertTrue(grew.isEmpty(), "a database named outside its owners (dialect, connector, Databases) — move the"
-                + " decision into its dialect; a pin rises only with a dated reason in " + LEDGER + ": " + grew
+        assertTrue(counts.isEmpty(), "a database named outside its owners (DatabaseOwners: a dialect, a connector, a test"
+                + " backend, an input language, the registries) -- move the decision into its owner: " + table
                 + " (the whole table is the run's dialect-leaks.tsv)");
     }
 

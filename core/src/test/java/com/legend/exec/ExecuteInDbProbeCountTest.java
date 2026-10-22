@@ -3,7 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Execution;
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,13 +38,13 @@ class ExecuteInDbProbeCountTest {
 
     private static final String CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
-                    + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
+                    + "type=meta::relational::runtime::DatabaseType." + Databases.PLATFORM.name() + ");\n";
 
     private static Connection real;
 
     @BeforeAll
     static void open() throws Exception {
-        real = DriverManager.getConnection("jdbc:duckdb:");
+        real = TestBackends.platform().open();
     }
 
     @AfterAll
@@ -87,7 +87,7 @@ class ExecuteInDbProbeCountTest {
 
     private static ExecutionResult run(String tail) throws Exception {
         executed = new ArrayList<>();
-        return Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
+        return Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
     }
 
     @Test

@@ -205,7 +205,10 @@ public final class Boundary {
      */
     public static String testDataSql(String model, String database, String tablesJson) {
         com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
-        com.legend.sql.dialect.DuckDb duckDb = new com.legend.sql.dialect.DuckDb();
+        // the tab's engine is the platform's own (the dialect program's Phase 7, 2026-10-18: constructed by its class
+        // until then)
+        com.legend.sql.dialect.SqlDialect host =
+                com.legend.database.Databases.dialect(com.legend.database.Databases.PLATFORM);
         if (!(com.legend.json.Json.parse(tablesJson) instanceof com.legend.json.Json.Arr tables)) {
             throw new IllegalArgumentException("test data: the tables are not a JSON array");
         }
@@ -226,15 +229,15 @@ public final class Boundary {
                             "test data: the Database " + database + " declares no table " + schema + "." + table));
             java.util.Map<String, Object> seed = new java.util.LinkedHashMap<>();
             seed.put("sql", new java.util.ArrayList<>(com.legend.setup.CsvSeed.sqls(
-                    schema + "\n" + table + "\n" + csvNode.value(), database, ctx, duckDb)));
-            seed.put("table", defaultSchema ? duckDb.physicalName(table)
-                    : duckDb.physicalName(schema) + "." + duckDb.physicalName(table));
-            seed.put("drop", duckDb.render(com.legend.setup.Ddl.dropTable(defaultSchema ? null : schema, table)));
+                    schema + "\n" + table + "\n" + csvNode.value(), database, ctx, host)));
+            seed.put("table", defaultSchema ? host.physicalName(table)
+                    : host.physicalName(schema) + "." + host.physicalName(table));
+            seed.put("drop", host.render(com.legend.setup.Ddl.dropTable(defaultSchema ? null : schema, table)));
             java.util.List<Object> columns = new java.util.ArrayList<>();
             for (com.legend.model.DatabaseDefinition.ColumnDefinition c : def.columns()) {
                 java.util.Map<String, Object> column = new java.util.LinkedHashMap<>();
                 column.put("name", c.name());
-                column.put("sql", duckDb.physicalName(c.name()));
+                column.put("sql", host.physicalName(c.name()));
                 columns.add(column);
             }
             seed.put("columns", columns);
@@ -315,19 +318,13 @@ public final class Boundary {
     }
 
     /**
-     * THE CATALOG QUESTION for one table of a DuckDB (DuckDb.CATALOG_COLUMNS_SQL), its schema and table filled in as
-     * SQL string literals: run it, and its rows are what {@link #tableModel} reads.
+     * THE CATALOG QUESTION for one table of the tab's engine, the platform's own
+     * ({@code SqlDialect.catalogColumnsQuery}), its schema and table filled in as SQL string literals: run it, and its
+     * rows are what {@link #tableModel} reads.
      */
     public static String catalogColumnsSql(String schema, String table) {
-        // each placeholder filled by its place in the template, so a name holding "{table}" stays a name
-        String template = com.legend.sql.dialect.DuckDb.CATALOG_COLUMNS_SQL;
-        int s = template.indexOf("{schema}");
-        int t = template.indexOf("{table}");
-        if (s < 0 || t < s) {
-            throw new IllegalStateException("the catalog question names no {schema} before {table}");
-        }
-        return template.substring(0, s) + sqlLiteral(schema) + template.substring(s + "{schema}".length(), t)
-                + sqlLiteral(table) + template.substring(t + "{table}".length());
+        return com.legend.database.Databases.dialect(com.legend.database.Databases.PLATFORM)
+                .catalogColumnsQuery(schema, table);
     }
 
     /**
@@ -378,7 +375,7 @@ public final class Boundary {
         return n instanceof com.legend.json.Json.Num num ? Integer.valueOf((int) num.longValue()) : null;
     }
 
-    /** A table's catalog rows, structured as the catalog question answers them (DuckDb.CATALOG_COLUMNS_SQL): no type
+    /** A table's catalog rows, structured as the catalog question answers them ({@link #catalogColumnsSql}): no type
      *  string parsed. */
     private static java.util.List<com.legend.sql.dialect.CatalogModel.Column> catalogColumns(com.legend.json.Json.Obj in) {
         java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = new java.util.ArrayList<>();
@@ -421,10 +418,6 @@ public final class Boundary {
                 + ";\n    specification: DuckDB { };\n    auth: Test;\n}\n\n###Runtime\nRuntime " + pkg + "::" + runtime
                 + "\n{\n    mappings: [];\n    connections:\n    [\n        " + pkg + "::DB: [ c1: " + pkg + "::" + connection
                 + " ]\n    ];\n}\n";
-    }
-
-    private static String sqlLiteral(String text) {
-        return "'" + text.replace("'", "''") + "'";
     }
 
     // ---- warming and probes

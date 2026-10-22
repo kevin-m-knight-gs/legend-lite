@@ -62,7 +62,7 @@ public final class ModelFromProtocol {
             if (e instanceof Protocol.PSectionIndex) {
                 continue;
             }
-            PackageableElement el = refusingUnsupported(e);
+            PackageableElement el = element(e);
             elements.add(el);
             String key = ParsedModel.keyOf(el);
             Protocol.PSection section = sectionOf.get(pathOf(e));
@@ -153,10 +153,14 @@ public final class ModelFromProtocol {
         }
     }
 
-    /** {@link #element}, a shape the model cannot represent refused as {@link Unrepresentable}. */
-    private static PackageableElement refusingUnsupported(Protocol.Element e) {
+    /**
+     * One element record as the compiler's model: its kind's converter, a shape the model cannot represent refused as
+     * {@link Unrepresentable}. A section index is not an element. The text's door ({@code door.ModelFromText}) calls
+     * this for an element the IDE parses alone.
+     */
+    public static PackageableElement element(Protocol.Element e) {
         try {
-            return element(e);
+            return converted(e);
         } catch (FromProtocol.UnsupportedConnectionShape u) {
             throw unrepresentable(e, u.reason());
         } catch (MappingFromProtocol.UnsupportedMappingShape u) {
@@ -170,11 +174,8 @@ public final class ModelFromProtocol {
                 span == null ? null : new ParsedModel.Position(span.startLine(), span.startColumn()));
     }
 
-    /**
-     * One element record as the compiler's model: its kind's converter. The parser calls this same function for
-     * every kind (directly, or through its section grammars' {@code toModel}). A section index is not an element.
-     */
-    public static PackageableElement element(Protocol.Element e) {
+    /** One element record as the compiler's model: its kind's converter, whose refusals {@link #element} names. */
+    private static PackageableElement converted(Protocol.Element e) {
         return switch (e) {
             case Protocol.PClass c -> FromProtocol.toClassDefinition(c);
             case Protocol.PAssociation a -> FromProtocol.toAssociationDefinition(a);

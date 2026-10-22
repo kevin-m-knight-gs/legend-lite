@@ -147,8 +147,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  "does minify buy anything if already zipped?" -- it does, about a third): the same code, a third smaller gzipped,
  *  and about half the text the browser parses (the page's script 764,104 bytes at 2d24022, 411,165 minified). Measured
  *  278,151; unminified, the same tree 405,798 (the chart rules written once -- chart-spec.ts readChart and chartFrom --
- *  at startup with the spec's reader). */
-const BUDGET = 281_000;
+ *  at startup with the spec's reader).
+ *  281,000 -> 283,500 (2026-10-17, PR neema2/legend-lite#47 round 3, docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md):
+ *  one way to edit a grid -- grid-edits.ts, the screen's grouping, pivot, sort and Column Properties rules in one module
+ *  the panels, the header menu, the drag zones and Python all call, with their refusals in words, and measuresAsColumns
+ *  (a cube saved with a measures list converted on open; Open in Grid's values as Column Properties). Measured 282,270;
+ *  278,151 on 2026-10-15, before #47's rounds 2 and 3. */
+const BUDGET = 283_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -169,8 +174,11 @@ const BUDGET = 281_000;
  *  388,000 -> 391,000 (2026-10-14, batch 3 step 1): as the grid's. Measured 389,154.
  *  391,000 -> 270,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
  *  "does minify buy anything if already zipped?" -- it does, about a third). Measured 266,978; unminified, the same
- *  tree 390,443. */
-const ENGINE_BUDGET = 270_000;
+ *  tree 390,443.
+ *  270,000 -> 271,000 (2026-10-18, neema2/legend-lite#57 and its audit: a header click sorts (grid-edits.ts clickSort,
+ *  clickTreeSort), the header's marks from the order the query applies (headerSorts), and a child group's aggregate
+ *  refused as a sort). Measured 270,114. */
+const ENGINE_BUDGET = 271_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

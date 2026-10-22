@@ -18,12 +18,14 @@ import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
 import com.legend.protocol.spec.NewInstance;
 import com.legend.protocol.spec.ValueSpecification;
+import com.legend.testbackend.FixtureAside;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -192,7 +194,8 @@ public final class MinimalCorpus {
         return List.copyOf(libraryWalls);
     }
 
-    private static final java.util.concurrent.atomic.AtomicInteger SESSION_IDS =
+    /** The referee's mirrors, named apart ({@code c2Mirror<N>}). */
+    private static final java.util.concurrent.atomic.AtomicInteger MIRROR_IDS =
             new java.util.concurrent.atomic.AtomicInteger();
 
     /** The product's discovery over the corpus world, and its runner. */
@@ -301,7 +304,7 @@ public final class MinimalCorpus {
                 .withExecutionOverlay(
                         new com.legend.model.RuntimeDefinition(RUNTIME, List.of(),
                                 dbBindings, List.of()),
-                        new com.legend.model.ConnectionDefinition(CONNECTION, null, databaseType(),
+                        new com.legend.model.ConnectionDefinition(CONNECTION, null, BACKEND.type(),
                                 new com.legend.model.ConnectionSpecification.InMemory(),
                                 new com.legend.model.AuthenticationSpec.NoAuth()));
         discovery = PureTests.discover(parsed.model(), libraryElements);
@@ -339,7 +342,7 @@ public final class MinimalCorpus {
             default -> throw new IllegalArgumentException("legend.judge.mode='"
                     + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
         };
-        runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openSession, sharedSetups,
+        runner = new PureTestRunner(ctx, RUNTIME, BACKEND::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(), judgeMode);
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
@@ -472,59 +475,23 @@ public final class MinimalCorpus {
 
     // ---- SESSION (the harness's connection kinds) ---------------------------
 
-    /** {@code -Drcorpus.backend=h2}: the PORTABILITY lane — every session is
-     * a fresh in-memory H2 with the engine's session settings instead of a
-     * DuckDB workspace; the platform's dialect follows the connection. */
-    static final boolean H2_BACKEND =
-            "h2".equalsIgnoreCase(System.getProperty("rcorpus.backend", ""));
+    /** {@code -Drcorpus.backend}: the lane's database, its test backend by name ({@code TestBackends.named}): the
+     *  platform's own (the default, and the reference lane), the referee's (the PORTABILITY lane: every session a
+     *  fresh referee session, the golden run on the session itself, the platform's dialect following the connection),
+     *  or a lane on another database or on the warehouse (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20). Each
+     *  session is a workspace of the backend's ({@code TestBackend.openWorkspace}); a backend with none is refused by
+     *  name at the first. */
+    static final TestBackend BACKEND = backend();
 
-    /** {@code -Drcorpus.backend}: duckdb (the default, and the reference lane), h2, or a lane on another database
-     *  (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20) -- postgres. */
-    static final String BACKEND = backend();
-
-    /** A lane on another database: its sessions are its own, and MinimalCorpusTest holds it to its own fail roster
-     *  alone (the reference lanes' censuses are DuckDB's and H2's). */
-    static final boolean OTHER_LANE = !BACKEND.equals("duckdb") && !BACKEND.equals("h2");
-
-    private static String backend() {
-        String b = System.getProperty("rcorpus.backend", "").trim().toLowerCase(java.util.Locale.ROOT);
-        String lane = b.isEmpty() ? "duckdb" : b;
-        if (!java.util.Set.of("duckdb", "h2", "postgres").contains(lane)) {
-            throw new IllegalArgumentException("-Drcorpus.backend=" + b + ": no such corpus lane (duckdb, h2,"
-                    + " postgres)");
-        }
-        return lane;
+    private static TestBackend backend() {
+        String lane = System.getProperty("rcorpus.backend", "").trim().toLowerCase(java.util.Locale.ROOT);
+        return lane.isEmpty() ? TestBackends.platform() : TestBackends.named(lane);
     }
 
-    private static com.legend.model.ConnectionDefinition.DatabaseType databaseType() {
-        return switch (BACKEND) {
-            case "h2" -> com.legend.model.ConnectionDefinition.DatabaseType.H2;
-            case "postgres" -> com.legend.model.ConnectionDefinition.DatabaseType.Postgres;
-            default -> com.legend.model.ConnectionDefinition.DatabaseType.DuckDB;
-        };
-    }
-
-    private static Connection openSession() throws SQLException {
-        if (H2_BACKEND) {
-            Connection h2 = DriverManager.getConnection("jdbc:h2:mem:c2s"
-                    + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
-                    "sa", "");
-            // the engine's H2 test database carries its extension functions;
-            // on this lane the golden runs on THIS session (same-session
-            // referee), so the session carries them too (Phase 0.6: a golden
-            // calling legend_h2_extension_lpad was a referee FAULT here)
-            try (java.sql.Statement st = h2.createStatement()) {
-                for (String alias : com.legend.harness.H2ExtensionFunctions.aliases()) {
-                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                    st.execute(alias);
-                }
-            }
-            return h2;
-        }
-        if (BACKEND.equals("postgres")) {
-            return ServerWorkspaces.postgres();
-        }
-        return DuckWorkspaces.open();
+    /** Whether the lane's database is the referee's: its golden runs on the session itself, and no mirror replays
+     *  beside it. */
+    static boolean refereeLane() {
+        return BACKEND == TestBackends.referee();
     }
 
     public void endSession() {
@@ -573,7 +540,7 @@ public final class MinimalCorpus {
             // the referee's declines and verdict roster name the test they
             // belong to (display attribution only, no verdict flows through it)
             currentTest = t.fqn();
-            com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
+            com.legend.harness.RefereeVerify.CURRENT_TEST.set(t.fqn());
             // the byte-channel census attributes its disagreement samples
             // (leg 3.0: database mode's bug list) to the running test
             com.legend.exec.CanonicalDivergence.attributeTo(t::fqn);
@@ -586,12 +553,10 @@ public final class MinimalCorpus {
 
         @Override
         public void sessionBegan(String pkg, Connection conn) throws SQLException {
-            // the referee's H2 mirror replays goldens beside a DuckDB session; an
-            // H2 session IS the referee's engine and needs no mirror
-            if (!H2_BACKEND && com.legend.harness.H2Verify.ready()) {
-                mirrorConn = DriverManager.getConnection("jdbc:h2:mem:c2Mirror"
-                        + SESSION_IDS.getAndIncrement() + com.legend.exec.H2Settings.SETTINGS,
-                        "sa", "");
+            // the referee's mirror replays goldens beside the session; on the referee's
+            // own lane the session IS the referee's engine and needs no mirror
+            if (!refereeLane() && com.legend.harness.RefereeVerify.ready()) {
+                mirrorConn = TestBackends.referee().openReferee("c2Mirror" + MIRROR_IDS.getAndIncrement());
                 com.legend.harness.ReplayReferee.mirrorBegin(mirrorConn);
             }
             seedLedger.clear();
@@ -599,7 +564,6 @@ public final class MinimalCorpus {
 
         @Override
         public void sessionEnding() {
-            h2Asides.clear();
             com.legend.harness.ReplayReferee.mirrorEnd();
             if (mirrorConn != null) {
                 try {
@@ -673,7 +637,7 @@ public final class MinimalCorpus {
                     }
                 }
             }
-            com.legend.harness.H2Verify.CURRENT_TEST.remove();
+            com.legend.harness.RefereeVerify.CURRENT_TEST.remove();
         }
 
         @Override
@@ -682,70 +646,39 @@ public final class MinimalCorpus {
             textDecided.merge(reason + " " + currentTest, 1, Integer::sum);
         }
 
-        /** A clashing fixture gets an ASIDE catalog of the workspace
-         * (DuckWorkspaces): names stay as written, the session's own
-         * tables keep winning, the fixture's tables resolve last. */
-        private @com.legend.base.Nullable Connection asideConn;
+        /** A clashing fixture set aside in the workspace by its backend ({@code TestBackend.setFixtureAside}): names
+         * stay as written, the session's own tables keep winning, the fixture's tables resolve last. A backend that
+         * cannot set one aside refuses by name: no fixture runs over the session's tables (the plan's defect 5). */
+        private @com.legend.base.Nullable FixtureAside aside;
 
         @Override
-        public @com.legend.base.Nullable Connection isolateFixture(Connection conn, String setupFqn)
-                throws SQLException {
-            String aside = DuckWorkspaces.isolateBegin(conn);
-            if (aside == null) {
-                if (!H2_BACKEND) {
-                    return null;
+        public Connection isolateFixture(Connection conn, String setupFqn) throws SQLException {
+            FixtureAside set = BACKEND.setFixtureAside(conn);
+            aside = set;
+            System.err.println("[fixture-aside] " + setupFqn + " -> " + set.name()
+                    + (set.connection() == conn ? " (" + BACKEND.name() + ")" : "") + " during " + currentTest);
+            // the referee's MIRROR replays the seed ledger: it sets the same aside
+            // its own way -- the fixture's DDL lands there, the golden SQL resolves
+            // the mirror's own tables first (fixtureIsolated)
+            if (recorder != null && !refereeLane()) {
+                for (String s : TestBackends.referee().replayAside(set.name())) {
+                    recorder.recordExecuted(s, false);
                 }
-                // H2: a SCHEMA aside on the session itself (no ATTACH, no
-                // per-transaction write limit) — the fixture's unqualified
-                // DDL lands there; the session resolves PUBLIC first after
-                aside = "ASIDE_" + h2Asides.size();
-                h2Asides.add(aside);
-                try (java.sql.Statement st = conn.createStatement()) {
-                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                    st.execute("CREATE SCHEMA IF NOT EXISTS " + aside);
-                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                    st.execute("SET SCHEMA " + aside);
-                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                    st.execute("SET SCHEMA_SEARCH_PATH " + aside);
-                }
-                System.err.println("[fixture-aside] " + setupFqn + " -> " + aside + " (h2) during " + currentTest);
-                return conn;
             }
-            System.err.println("[fixture-aside] " + setupFqn + " -> " + aside + " during " + currentTest);
-            asideConn = DuckWorkspaces.asideConnection(aside);
-            // the H2 MIRROR replays the seed ledger: it isolates the same
-            // way, as a schema — the fixture's DDL lands there, the golden
-            // SQL resolves PUBLIC first (fixtureIsolated)
-            if (recorder != null) {
-                recorder.recordExecuted("CREATE SCHEMA IF NOT EXISTS " + aside, false);
-                recorder.recordExecuted("SET SCHEMA " + aside, false);
-            }
-            return asideConn;
+            return set.connection();
         }
-
-        private final List<String> h2Asides = new ArrayList<>();
 
         @Override
         public void fixtureIsolated(Connection conn) {
+            FixtureAside done = java.util.Objects.requireNonNull(aside,
+                    "fixtureIsolated without isolateFixture: the runner balances a set-aside fixture");
+            aside = null;
             try {
-                if (H2_BACKEND && !h2Asides.isEmpty()) {
-                    try (java.sql.Statement st = conn.createStatement()) {
-                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                        st.execute("SET SCHEMA PUBLIC");
-                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-                        st.execute("SET SCHEMA_SEARCH_PATH PUBLIC, " + String.join(", ", h2Asides));
+                done.restore();
+                if (recorder != null && !refereeLane()) {
+                    for (String s : TestBackends.referee().replayRestore(done.held())) {
+                        recorder.recordExecuted(s, false);
                     }
-                    return;
-                }
-                if (asideConn != null) {
-                    asideConn.close();
-                    asideConn = null;
-                }
-                DuckWorkspaces.isolateEnd(conn);
-                if (recorder != null) {
-                    recorder.recordExecuted("SET SCHEMA PUBLIC", false);
-                    recorder.recordExecuted("SET SCHEMA_SEARCH_PATH PUBLIC, "
-                            + String.join(", ", DuckWorkspaces.asidesOf(conn)), false);
                 }
             } catch (SQLException e) {
                 throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);

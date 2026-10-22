@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * MongoDB's connector (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): beside the JDBC drivers, found as they
- * are ({@link DatabaseConnector}), it opens a session on a {@code MongoDBConnection} -- its one server, its database,
+ * are ({@link Connectors}, by {@link java.util.ServiceLoader}), it opens a session on a {@code MongoDBConnection} -- its one server, its database,
  * its user and the password the connection's vault reference names -- whose statements ({@link MongoDbStatements})
  * run the pipelines the MongoDb dialect writes. The driver is the client library alone: the platform's own code
  * decides nothing by it, and core compiles against none of it (this source set rides with {@code //core:drivers}).
@@ -31,6 +31,45 @@ public final class MongoDbConnector implements DatabaseConnector {
     @Override
     public ConnectionDefinition.DatabaseType type() {
         return ConnectionDefinition.DatabaseType.MongoDB;
+    }
+
+    /** {@inheritDoc} Yes: a MongoDB speaks no JDBC. */
+    @Override
+    public boolean ownSessions() {
+        return true;
+    }
+
+    /** {@inheritDoc} None (D12, D14): a JDBC session handed for MongoDB is refused here by name. */
+    @Override
+    public String jdbcProduct() {
+        throw new com.legend.error.NotImplementedException("sessions on MongoDB are not JDBC: its connector opens them,"
+                + " through the plan runner");
+    }
+
+    /** {@inheritDoc} None: no JDBC opening reaches a MongoDB ({@link #open} does). */
+    @Override
+    public Sessions.Opening opening(ConnectionDefinition def) {
+        throw new com.legend.error.NotImplementedException("connection '" + def.qualifiedName() + "' declares MongoDB,"
+                + " which no JDBC opening reaches: its connector opens it, through the plan runner");
+    }
+
+    /** {@inheritDoc} No: a MongoDB is a server. */
+    @Override
+    public boolean inProcess() {
+        return false;
+    }
+
+    /** {@inheritDoc} Never asked: no JDBC session is a MongoDB's ({@link #ownSessions}). */
+    @Override
+    public @com.legend.base.Nullable String raisedMessage(Connection session) {
+        throw new IllegalStateException("a MongoDB session holds no JDBC raise");
+    }
+
+    /** {@inheritDoc} None: a server, whose connection is the engine's MongoDBConnection. */
+    @Override
+    public String storelessDeclaration() {
+        throw new IllegalArgumentException(type() + " is a server, and its connection is the engine's"
+                + " MongoDBConnection: its storeless runtime declares the session's coordinates (onMongo)");
     }
 
     @Override

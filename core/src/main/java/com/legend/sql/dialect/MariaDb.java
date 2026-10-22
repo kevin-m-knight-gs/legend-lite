@@ -1975,6 +1975,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             // UUID() is of the UUID type (11.x): its text
             case GUID -> writer.append("CAST(UUID() AS CHAR)");
+            case RANDOM -> writer.append("RAND()");
             case FORMAT -> format(writer, a);
             case CURRENT_USER_FN -> writer.append("SUBSTRING_INDEX(CURRENT_USER(), '@', 1)");
 
@@ -2105,7 +2106,7 @@ public class MariaDb extends AnsiSqlRenderer {
      *  and any other is refused, measured), branch taken or not. So the message is kept in the session's user
      *  variable {@code @legend_raise} and a run-time error follows, raised only when evaluated (a CASE branch not
      *  taken raises nothing, measured): a scalar subquery of two rows, "Subquery returns more than 1 row". The
-     *  platform reads the message back from the session it failed on ({@code Sessions.raisedMessage}). */
+     *  platform reads the message back from the session it failed on ({@code exec.MariaDbConnector.raisedMessage}). */
     private SqlWriter.Piece raise(List<SqlExpr> a) {
         return raise(a, null);
     }
@@ -3467,6 +3468,9 @@ public class MariaDb extends AnsiSqlRenderer {
                 case FLOAT, DOUBLE, REAL -> "DOUBLE";
                 case TIMESTAMP -> "DATETIME(6)";
                 case DATE -> "DATE";
+                case TIME -> "TIME(6)";
+                // a nanosecond timestamp column: MariaDB's DATETIME keeps microseconds
+                case TIMESTAMP_NS -> throw new DialectCapability("a TIMESTAMP_NS column: MariaDB keeps microseconds");
                 case JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT -> "LONGTEXT";
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")

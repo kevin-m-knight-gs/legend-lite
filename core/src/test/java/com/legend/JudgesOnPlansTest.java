@@ -7,24 +7,20 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * BOTH JUDGES ON PLANS (the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md §6): every assert body
- * below runs under the agreement gate ({@link ExecuteOptions.JudgeMode#BOTH}) on DuckDB and on H2 -- the host judge
+ * below runs under the agreement gate ({@link ExecuteOptions.JudgeMode#BOTH}) on every in-process database -- the host judge
  * reading each side as a plan's result decoded by its declared types, the database judge's verdict a plan whose one
  * row is the verdict -- and holds with the two judges in agreement, every assert judged twice (a kind the database
  * judge left UNJUDGED would be named here, with the host deciding; none is, measured 2026-10-18).
  */
 class JudgesOnPlansTest {
-    private static final AtomicInteger H2_NAMES = new AtomicInteger();
 
     /** A table of three rows, for the sides that read a store. */
     private static final String MODEL = """
@@ -48,16 +44,17 @@ class JudgesOnPlansTest {
 
     private static final String T = "#>{s::DB.T}#";
 
-    /** A body, whether the database judge is expected to judge it (false: a shape it names UNJUDGED today), and the
-     *  databases it runs on (a list value and a class instance need a list encoding H2's dialect has not: a dialect
-     *  capability, not a judge's matter). */
-    private record Case(String body, boolean judgedTwice, List<DatabaseType> on) {
+    /** A body, whether the database judge is expected to judge it (false: a shape it names UNJUDGED today), and
+     *  whether it runs on every in-process database or on the platform's engine alone (a list value and a class
+     *  instance need a list encoding H2's dialect has not: a dialect capability, not a judge's matter). */
+    private record Case(String body, boolean judgedTwice, boolean everyDatabase) {
         Case(String body, boolean judgedTwice) {
-            this(body, judgedTwice, List.of(DatabaseType.DuckDB, DatabaseType.H2));
+            this(body, judgedTwice, true);
         }
     }
 
-    private static final List<DatabaseType> DUCKDB = List.of(DatabaseType.DuckDB);
+    /** A case the platform's engine alone runs. */
+    private static final boolean PLATFORM_ONLY = false;
 
     private static final List<Case> CASES = List.of(
             // primitives: a literal against a computed value of each kind
@@ -71,7 +68,7 @@ class JudgesOnPlansTest {
             new Case("assertEquals(%2024-01-02T10:30:00.123, %2024-01-02T10:30:00.123)", true),
             new Case("assertEquals(t::Kind.CITY, t::Kind.CITY)", true),
             new Case("assertEquals('a', ['a', 'b']->head())", true),
-            new Case("assertEquals([1, 2, 3], [3, 1, 2]->sort())", true, DUCKDB),
+            new Case("assertEquals([1, 2, 3], [3, 1, 2]->sort())", true, PLATFORM_ONLY),
             new Case("assertSameElements([1, 2, 3], [3, 1, 2])", true),
             new Case("assertSize([1, 2], 2)", true),
             new Case("assertEmpty([])", true),
@@ -98,22 +95,29 @@ class JudgesOnPlansTest {
             // class instances: the host judge decodes each instance's structure and judges by Pure's rule -- two
             // keyless instances are distinct (identity), keyed instances equal on their keys -- and the database
             // judge judges the same pairs by their identity and key canons (measured 2026-10-18: both agree)
-            new Case("assertNotEquals(^t::P(name='a', age=1), ^t::P(name='a', age=1))", true, DUCKDB),
-            new Case("assertEquals(^t::K(id=1, other='x'), ^t::K(id=1, other='y'))", true, DUCKDB));
+            new Case("assertNotEquals(^t::P(name='a', age=1), ^t::P(name='a', age=1))", true, PLATFORM_ONLY),
+            new Case("assertEquals(^t::K(id=1, other='x'), ^t::K(id=1, other='y'))", true, PLATFORM_ONLY));
 
     @Test
-    void everyBodyHoldsUnderBothJudges_onDuckDbAndH2() throws Exception {
+    void everyBodyHoldsUnderBothJudges_onThePlatform() throws Exception {
+        assertEveryBodyHolds(com.legend.testbackend.TestBackends.platform());    // and on H2: JudgesOnPlansH2Test
+    }
+
+    /** {@link #everyBodyHoldsUnderBothJudges_onThePlatform} on {@code backend} (main's merge, 2026-10-22: one test named
+     *  DuckDB and H2; each database's run is its own test's). */
+    static void assertEveryBodyHolds(com.legend.testbackend.TestBackend backend) throws Exception {
         List<String> failures = new ArrayList<>();
         List<String> table = new ArrayList<>();
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        {
+            DatabaseType type = backend.type();
             var ctx = Compiler.compileModel(MODEL.formatted(type.name()));
             for (Case c : CASES) {
-                if (!c.on().contains(type)) {
+                if (!c.everyDatabase() && backend != com.legend.testbackend.TestBackends.platform()) {
                     continue;
                 }
                 List<String> told = new ArrayList<>();
                 String outcome;
-                try (Connection conn = fresh(type)) {
+                try (Connection conn = backend.open()) {
                     com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery("|" + c.body() + ";");
                     List<com.legend.protocol.spec.ValueSpecification> statements =
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body();
@@ -161,8 +165,8 @@ class JudgesOnPlansTest {
 
     @Test
     void aFailingAssertFailsUnderBothJudges_withTheHostsMessage() throws Exception {
-        var ctx = Compiler.compileModel(MODEL.formatted("DuckDB"));
-        try (Connection conn = fresh(DatabaseType.DuckDB)) {
+        var ctx = Compiler.compileModel(MODEL.formatted(com.legend.database.Databases.PLATFORM.name()));
+        try (Connection conn = com.legend.testbackend.TestBackends.platform().open()) {
             com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery("|assertEquals(1, 1 + 1);");
             var failed = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.AssertFailed.class,
                     () -> Execution.executeResolved(Compiler.resolveQuery(
@@ -177,14 +181,5 @@ class JudgesOnPlansTest {
 
     private static String whole(@com.legend.base.Nullable String s) {
         return s == null ? "" : s.strip().replaceAll("\\s*\\R\\s*", " | ");
-    }
-
-    private static Connection fresh(DatabaseType type) throws SQLException {
-        return switch (type) {
-            case DuckDB -> DriverManager.getConnection("jdbc:duckdb:");
-            case H2 -> DriverManager.getConnection("jdbc:h2:mem:judges" + H2_NAMES.incrementAndGet()
-                    + com.legend.exec.H2Settings.SETTINGS);
-            default -> throw new IllegalArgumentException(type.name());
-        };
     }
 }

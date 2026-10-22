@@ -80,7 +80,7 @@ public final class PlanSessions {
                     // a database with a connector (MongoDB's; docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17) is
                     // opened by it, for the run: it is the user's, so a plan sets none up
                     DatabaseConnector connector = Connectors.of(d.connection().databaseType());
-                    if (connector != null) {
+                    if (connector.ownSessions()) {
                         refuseSetup(target, d, "a database its connector opens");
                         yield connector.open(d.connection());
                     }
@@ -94,15 +94,15 @@ public final class PlanSessions {
                             // server's sessions connect to it too), and outlives its connections: only a LocalH2
                             // connection declares test data, so a plan sets none up
                             refuseSetup(target, d, "an in-memory database the user named ('" + usersName + "')");
-                            yield owned(Sessions.openNamed(usersName));
+                            yield owned(Sessions.openNamed(n, usersName));
                         }
                         // the source names it, afresh at each attempt, and it lives while its keeper is open: one
                         // whose setup failed is gone with its keeper, and never connected to again
                         Named named = NAMED.getOrOpenSlowly(key, held -> dead(held.keeper()), () -> {
                             String name = "plan_" + key.hex().substring(0, 16) + "_" + ATTEMPTS.incrementAndGet();
-                            return new Named(setUpOpened(Sessions.openKept(name), target), name);
+                            return new Named(setUpOpened(Sessions.openKept(n, name), target), name);
                         });
-                        yield owned(Sessions.joinKept(named.name()));
+                        yield owned(Sessions.joinKept(n, named.name()));
                     }
                     case Sessions.Opening.Url u -> {
                         // a database reached by a URL is the user's: only an in-memory connection declares test
@@ -147,11 +147,11 @@ public final class PlanSessions {
     private static Connection runSetup(Connection c, ExecutionPlan.Target target) throws SQLException {
         try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
             // the loader, found before any statement runs: a plan writes rows for one only where its database has one
-            // (Databases.loadsRowsInBulk), so none is a mismatch, refused untouched
+            // (SqlDialect.loadsRowsInBulk), so none is a mismatch, refused untouched
             BulkLoad bulk = BulkLoads.of(c);
             if (bulk == null && target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)) {
                 throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
-                        + " database has none (" + c.getMetaData().getDatabaseProductName() + ")");
+                        + " database has none (" + Connectors.product(c) + ")");
             }
             for (ExecutionPlan.SetupStep step : target.setup()) {
                 switch (step) {

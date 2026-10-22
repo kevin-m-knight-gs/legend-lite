@@ -116,7 +116,7 @@ public final class ProtocolReader {
             Map.entry("boolean", w -> new CBoolean(w.bool("value"), w.span())),
             Map.entry("integer", w -> integer(w.take("value"), w.span())),
             Map.entry("float", ProtocolReader::floating),
-            Map.entry("decimal", w -> new CDecimal(w.decimal("value"), null, w.span())),
+            Map.entry("decimal", w -> new CDecimal(w.decimal("value"), w.span())),
             Map.entry("strictDate", w -> date(w, true)),
             Map.entry("dateTime", w -> date(w, false)),
             Map.entry("latestDate", w -> new CLatestDate(w.span())),
@@ -411,7 +411,7 @@ public final class ProtocolReader {
     private static TypeExpression.Column column(Json.Node node) {
         Wire c = Wire.of(node, "relation column");
         return c.done(new TypeExpression.Column(c.str("name"), genericType(c.take("genericType")),
-                multiplicity(c.take("multiplicity")), true, c.span()));
+                multiplicity(c.take("multiplicity")), c.span()));
     }
 
     /**

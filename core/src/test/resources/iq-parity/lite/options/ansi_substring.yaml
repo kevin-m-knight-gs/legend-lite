@@ -1,0 +1,35 @@
+# ansi_substring, every value (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework):
+# On, SUBSTRING's positions below 1 are virtual and a negative length is IQ's error -1090; Off, a negative start counts
+# from the end, 0 is the first position (the last for a negative length), and a negative length takes the characters
+# ending at the start -- measured on SQL Anywhere 17 over every start from -10 to 10 and length from -3 to 10. Judged by
+# SQL Anywhere 17's answers. The SQL in YAML double quotes.
+tests:
+  - id: off_negative_starts
+    sql: "SELECT SUBSTRING('mnopqrst', -3) AS a, SUBSTRING('mnopqrst', -3, 2) AS b, SUBSTRING('mnopqrst', -1, 10) AS c, SUBSTRING('mnopqrst', -10, 3) AS d, SUBSTRING('mnopqrst', -10) AS e"
+    settings: "query.ansi_substring='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_negative_lengths
+    sql: "SELECT SUBSTRING('mnopqrst', 1, -3) AS a, SUBSTRING('mnopqrst', 2, -1) AS b, SUBSTRING('mnopqrst', 8, -3) AS c, SUBSTRING('mnopqrst', 9, -3) AS d, SUBSTRING('mnopqrst', -3, -3) AS e"
+    settings: "query.ansi_substring='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_start_zero
+    sql: "SELECT SUBSTRING('mnopqrst', 0) AS a, SUBSTRING('mnopqrst', 0, 3) AS b, SUBSTRING('mnopqrst', 0, -3) AS c, SUBSTRING('mnopqrst', 0, 0) AS d"
+    settings: "query.ansi_substring='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_past_the_end
+    sql: "SELECT SUBSTRING('mnopqrst', 9) AS a, SUBSTRING('mnopqrst', 10, 3) AS b, SUBSTRING('mnopqrst', 10, -3) AS c, SUBSTR('mnopqrst', 2, 3) AS d"
+    settings: "query.ansi_substring='Off'"
+  - id: off_over_columns
+    sql: "SELECT id, SUBSTRING(vc, -2) AS a, SUBSTRING(vc, 2, -2) AS b, SUBSTRING(vc, -3, id) AS c FROM t ORDER BY id"
+    settings: "query.ansi_substring='Off'"
+    profile: iq16-default, sqla17-default
+  - id: off_null_arguments
+    sql: "SELECT SUBSTRING(NULL, 1, 2) AS a, SUBSTRING('abc', NULL) AS b, SUBSTRING('abc', 1, NULL) AS c"
+    settings: "query.ansi_substring='Off'"
+  - id: on_negative_start
+    sql: "SELECT SUBSTRING('mnopqrst', -3) AS a, SUBSTRING('mnopqrst', -1, 3) AS b, SUBSTRING('mnopqrst', 0, 3) AS c"
+    settings: "query.ansi_substring='On'"
+    profile: iq16-default, sqla17-default
+  - id: on_negative_length_is_1090
+    sql: "SELECT SUBSTRING('mnopqrst', 2, -1) AS a"
+    settings: "query.ansi_substring='On'"

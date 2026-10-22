@@ -89,13 +89,13 @@ final class SideOrdinal {
         } else {
             return null;
         }
-        SqlSelect over = s.withFrom(from);
         SqlExpr ord = SqlExpr.Column.of(alias, ORD_OUT);
         if (s.projections().isEmpty()) {
-            List<OutputCol> outs = new ArrayList<>(s.outputs());
-            outs.add(ORD_OUT);
-            return over.withOutputs(outs);
+            // a star frame reads its source's outputs, the ordinal among them (no clause here orders, groups or limits)
+            return new SqlSelect(List.of(), false, from, s.where(), List.of(), null, s.qualify(), List.of(), null, null,
+                    from.outputs());
         }
+        SqlSelect over = s.withFrom(from);
         List<SqlSelect.Projection> ps = new ArrayList<>(s.projections());
         ps.add(new SqlSelect.Projection(ord, ORD, ORD_OUT));
         return over.withProjections(ps);

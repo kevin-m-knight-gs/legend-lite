@@ -3,27 +3,17 @@
 // (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5) -- and a value outside its kind refused by its row.
 
 import assert from 'node:assert/strict';
-import path from 'node:path';
 import { before, describe, it } from 'node:test';
 
 import { arrowIpcStream } from '../src/arrow-ipc.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
-import { engineClientRequire } from '../src/node-require.ts';
+import { startNodeDuckDb } from '../src/node-require.ts';
+import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 
 let engine: DuckDbEngine;
 
 before(async () => {
-  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
-  const db = await duckdb.createDuckDB(
-    {
-      mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
-      eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
-    },
-    new duckdb.VoidLogger(),
-    duckdb.NODE_RUNTIME,
-  );
-  await db.instantiate();
+  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
 });
 

@@ -46,6 +46,11 @@ final class SqlWriter {
     private record OpenRegion(int start, int firstBind, List<Integer> counters) {
     }
 
+    /** How deep the writer is inside the arguments of a set function the database evaluates when it plans
+     *  ({@link #planned}): Postgres estimates generate_series's rows from its arguments, raises and all
+     *  (2026-10-17, the Cypher island's range of a bound that may be null, docs/CYPHER_STUDY_2026_10_15.md §12.73). */
+    private int planned;
+
     SqlWriter(Expressions expressions) {
         this.expressions = java.util.Objects.requireNonNull(expressions, "expressions");
     }
@@ -107,6 +112,23 @@ final class SqlWriter {
     SqlWriter piece(Piece piece) {
         piece.writeTo(this);
         return this;
+    }
+
+    /** Writes {@code piece} here as an argument the database evaluates when it plans: a raise within it is written
+     *  so no planner can evaluate it before a row asks for it ({@link #inPlanned}). */
+    SqlWriter planned(Piece piece) {
+        planned++;
+        try {
+            piece.writeTo(this);
+        } finally {
+            planned--;
+        }
+        return this;
+    }
+
+    /** Whether the writer is inside an argument the database evaluates when it plans ({@link #planned}). */
+    boolean inPlanned() {
+        return planned > 0;
     }
 
     /** Writes a placeholder and records the parameter it binds, at this place in the statement. */

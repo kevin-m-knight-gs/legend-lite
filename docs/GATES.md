@@ -27,7 +27,7 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `pct_channel_b` | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
 | (heavy) | 9 | `//pct:pct_channel_b_<lane>` | Channel B on each other database (h2, postgres, sqlite, mariadb, mysql, databricks, snowflake, bigquery, trino, clickhouse), judged against that lane's own channel A ledger (2026-10-11, `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §16); manual, in `//gates:heavy` |
 | `parser_equivalence` | 8 | `//parser-equivalence:parser_parity`, `//parser-equivalence:round_trip_proof`, `//wasm:round_trip_test` | byte parity with legend-engine's parser; text to JSON to text to JSON over the corpus, lite's projects and the upstream showcase projects, in the JVM and in the tab (the WebAssembly build held to the JVM's answers; the protocol program's leg 5) |
-| `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, MIN_PASS_H2; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
+| `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, `StressServiceSuitesH2Test.MIN_PASS`, `StressServiceSuitesTest.MIN_PASS_H2` until 2026-10-16; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
 | `warehouse` (also Linux arm64) | — | `//warehouse:tests`, `//warehouse:sqlapi_wasm_build_test`, `//warehouse:tests_native`, `//warehouse:postgres_live`, `//warehouse:postgres_live_native` | the warehouse's suite on the JVM, and its SQL API compiled to WebAssembly (P3-24); the suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the launchers and their test went with the build rebuild's L1c (2026-10-07: the server runs as built, nothing of Bazel in it; the app as a plain folder is `//datacube:verify_app_test`'s, in `datacube`); the two tests against a live Postgres, in a lane for the first time on 2026-10-07. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03; the warehouse's reference session) |
 | `datacube` | — | `//datacube:tests`, `//datacube:verify_app_test`, `//datacube:package_test`, `//datacube:verify_smoke_test`, `//wasm:differential_test`, `//wasm:zone_test` | DataCube's suite and typecheck, with every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (`live_snap_test`, plus receipts, sign-in again, token refresh); the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); the smoke harness as a test on the pinned Chromium (since 2026-10-04, P1-14); the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database. The other harnesses (features, page, charts, cubes, real data, upload, remote, wasm-browser, stress) join as tests in the next landing (L1b); until then the transitional `browser` suite and the workflow's `bazel run` loop run them, Linux only |
 | `ui` | — | `//studio:tests`, `//query:tests`, `//query-store:wasm_test`, `//query-store:share_test`, `//query-store:lite_test` | Studio's and Query's suites and typechecks; the saved-query store's one suite against the page's own store and against legend-lite's server (started by the test), and a saved query's share link round trip. Their browser harnesses (`//studio:verify_test`, `//query:verify`, `//site:verify`) join in L1b |
@@ -55,11 +55,13 @@ Claude Code cloud container). Three things differ from CI, and each has its own 
    `$HOME/.pki/nssdb`, and a test's `HOME` is its `TEST_TMPDIR`, which has none. Pass the bundle and a home whose NSS
    store trusts the proxy's CA (made once with `certutil -A -t "C,," ...` as that user):
    `--test_env=NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt --test_env=HOME=/home/ubuntu`. With these, 11 of the 13
-   passed.
+   passed. **Since 2026-10-17 neither flag is needed:** a Node test starts DuckDB with engine-client's
+   `startNodeDuckDb`, which answers its extension requests from the pinned files `node_test` gives it, so no test asks
+   the network (docs/CLOUD_SESSIONS.md); the full local set passed in the container without them (the Postgres tests
+   as `ubuntu`, item 1).
 3. *Two tests write into their working directory*, the runfiles tree, which root owns: `//datacube:upload_test` and
    `//engine-client:model_data_test` (DuckDB-WASM's `COPY ... TO 'nested.json'`, `'tmp_made.parquet'`). As `ubuntu`
-   they fail with `EACCES`. Run those two as root, without `--run_under`, with item 2's
-   `NODE_EXTRA_CA_CERTS`: both passed.
+   they fail with `EACCES`. Run those two as root, without `--run_under`: both passed.
 
 So all 347 tests passed in this container. The two hazards are the tests' own: an extension fetched from the
 network at run time, and a scratch file written outside `TEST_TMPDIR`. CI doesn't see them because it has direct
@@ -9817,6 +9819,88 @@ it two to three times slower than it runs alone (the seventh line's diagnosis, P
 Bazel program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
 `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
 
+## 2026-10-16 — `#IQ{...}#`: the fourth landing's relational corpus, run locally before its one CI run
+
+The fourth landing (with the third, one PR) changes plans every island and plain Pure share, so `//spec:corpus_duckdb`
+and `//spec:corpus_h2` ran locally before the push. They found two of its regressions, both fixed: eight
+`meta::pure::executionPlan::tests` (a plan's open variable in a filter, `let name = 'ok'; ...filter(f|$f.legalName ==
+$name)`) failed on both lanes since the correlated-window fix (1e461f809: an enclosing row's miss, with no enclosing
+scope, escaped as `UnfoldableRef` past the plan's `IllegalStateException` fallback), and `tdsWithEnumReturn` (the
+if-chain flattening merged an enum's decode into the CASE around it, so the plan printer read no decode of one
+column). Both fail rosters are main's again.
+
+The ord registers (`rcorpus/duckdb-ord-register.txt`, `rcorpus/h2-ord-register.txt`) lose
+`meta::relational::tests::query::sort::testSortByLambdaWithIfElseValue` on both lanes: its ordered compare holds
+strictly now, so it no longer rides the multiset verdict. One lenient row fewer, no verdict lost.
+
+The cause, measured against main ac946cf85 with every referee outcome named: the landing's one CASE of an if-chain's
+WHENs (725c712cf) writes the engine's own flat ORDER BY CASE (`case when ... then 0 when ... then 10 ... else 30 end`),
+byte-equal to the golden for testSortByLambdaWithIfElseValue and testSortByLambda_QueryWithParameters_Plan, so the
+text decides both and the referee is not appealed to. The strength floors move with it (MinimalCorpusTest, dated):
+DuckDB differential 1011 -> 1009 (LITERAL 1411 -> 1413), H2 946 -> 944 (LITERAL 1228 -> 1230); every assert's
+verdict identical on both lanes.
+
+## 2026-10-15 — `#IQ{...}#`: the third landing — the M1 gaps, IQ's options by IQ's own names, IQ's SET statements (the tenth line)
+
+Announced in `docs/IN_FLIGHT.md` (a231c07ec, the cross-area edits listed). Branch `claude/iq-island-3`, 8 commits over
+main 895184f82 (PR #41, the seventh line's stress fixes, included). The study's §9.16 and §9.17 hold what reads, what is
+refused and why, and each review's findings.
+
+1. **What lands.**
+   - **The M1 gaps:**
+     - select-list aliases read in WHERE, ON, the select list, GROUP BY and HAVING;
+     - unaliased names over line breaks and comments;
+     - `owner.table.column` and `dbo.`/`sys.` owners of the model's tables;
+     - duplicate output names where nothing reads them;
+     - LIKE with a computed pattern;
+     - LIST of a group key and LIST(DISTINCT);
+     - an aggregate read in IF/CASE/COALESCE/HAVING;
+     - TOP in a subquery under SQL Anywhere's front end;
+     - a subquery without FROM;
+     - IQ's error codes for the three formerly Postgres-worded refusals.
+   - **IQ's options as one settings vector**, named by IQ's own names: the database properties `CaseSensitive`,
+     `BlankPadding`, `Collation`, `CharSet` and `AccentSensitive`, the options as `SET OPTION` names them, and
+     `CommProtocol`. The five profiles are its presets. IQ's precedence and errors are kept, every Tier 1 value is
+     read exactly or refused by name, and the database properties are independent knobs.
+   - **IQ's own `SET [TEMPORARY] OPTION …;`** and the T-SQL SET forms before a SELECT, read by the island's IQ reader.
+     There is no Legend syntax (the user's ruling); settings will come from Pure tagged values in a later landing.
+   - **A determinism lint over every IQ case:** TOP/FIRST must reach a unique ordering, and LIST must be ordered.
+   - Declared in `docs/SEMANTICS_REGISTER.md`: S51, S53, S56 extended; S74 new (S57 when it was written; renumbered 2026-10-16, the merge with the Cypher island's S57 to S71).
+2. **The seam's judge.**
+   - The Postgres generated-Pure dump of 2,394 cases is byte-identical to main's own (sha256 `8041208c…`; main's
+     changed with PR #41, and this landing adds nothing to it).
+   - Both `sql-parity` ledgers are main's.
+3. **The IQ parity corpus**, identical in both lanes: 4,030 runs, PASS 2,586, REFUSED 896, BOTH_ERROR 544, SKIP 4;
+   FAIL, BUG and ERROR 0.
+   - Answers: `snap.sh --check` is clean: 3,485 cases and 4,026 answers from SQL Anywhere 17.0.11, including the
+     options framework's extra databases.
+   - The syntax ratchet: accept PARSED 2,687.
+4. **Judges.**
+   - The battery on the final tree: both IQ lanes, `//core:iq_syntax_cases_test`, both `sql-parity` lanes,
+     `//core:core_tests` (guardrails included), `//gates:checks`, `//parser-equivalence:diagnostics`: 167 pass, 2
+     skipped (platform-gated). `//sdlc-server:page` and `//wasm:planner` build.
+   - **Reviews:**
+     - Review 7, of the M1 gaps: 2 BLOCKER, 2 MAJOR, 5 MINOR.
+     - Review 8, of the whole landing: 1 BLOCKER, 3 MAJOR, 7 MINOR.
+
+     Every blocker and major is fixed or refused by name, each pinned. Review 7's TOP-tie finding is settled by the
+     user's ruling: committed cases are deterministic, and a user's query returns its database's answer where IQ's is
+     the plan's choice.
+   - **Measured on the user's real SAP IQ 17.1** (a HANA Cloud data lake, reached locally through a session the user
+     opens; nothing of it in CI):
+     - the research's D-Q2 is refuted (`60.8` and `'60.0'` are -201);
+     - an integer option's string is read as IQ reads it;
+     - the per-option error for a level an option lacks;
+     - `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED` is accepted, where SQL Anywhere raises -676.
+   - Guard entries: `syntax-pins.tsv` only, with dated notes.
+   - Hygiene: no SAP manual text and no private paths. IqOption's Tier 4 table holds option names only.
+   - CI: run <pending> on the PR.
+5. **Next (landing 4):**
+   - real IQ 17.1 becomes the oracle for the IQ profiles;
+   - the core features first, then their scale, then CTEs and window functions;
+   - the differences real IQ shows: integer widening under the IQ engine, IQ's error codes, unaliased names, the IQ
+     engine's restrictions.
+
 ## 2026-10-15 — `#Cypher{...}#`: the first landing — Cypher over the class model inside any Pure query (the eleventh line)
 
 Announced in `docs/IN_FLIGHT.md` ("An eleventh line", 5143554). Branch `claude/keen-noether-v5mis0`, after the
@@ -9849,6 +9933,828 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
 3. **Next.** PR1b: `tools/neo4j-oracle/` (Neo4j Community, local only, through the Apache 2.0 Python driver), the
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-second landing — the temporal tail, leg 1
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5 tail); the record is the study's §12.74. A duration
+multiplied by a float or divided by a number, Neo4j's approximation spelled for the database; a zoned value's text
+parsed back in its scope as the value itself.
+
+1. **What lands.** Temporal8/[7] (three examples) on both lanes, Temporal6/[3] and [5] on DuckDB (nanosecond values,
+   which Postgres refuses by name); the 8 cases of `lite/temporaltail.yaml`; DuckDB PASS 3,731 → 3743, Postgres
+   3,327 → 3337; TCK agreement DuckDB 3537 → 3542, Postgres 3157 → 3160.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3743
+   / REFUSED 310 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3337 / REFUSED 716 / BOTH_ERROR 750 / SKIP 57, of 4860
+   cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Refused by name, recorded.** A printed zoned text parsed after a WITH; logged as out of the databases' reach
+   (§5): nanosecond values outside 1678-2261, years beyond the databases' dates.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-first landing — the expression tail
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the expression tail); the record is the study's
+§12.73. UNION (distinct) over nodes and relationships by the identities their values carry; `%` of floats; a SKIP or
+LIMIT the database computes once, the rows kept by their number; two paths compared by their elements' identities;
+range of a computed step or a bound that may be null; toString of lists, maps, nodes, relationships and paths. The
+Postgres dialect writes a raise inside generate_series's arguments so its planner does not evaluate it (SqlWriter's
+planned depth), and casts a computed `->>` index to an integer.
+
+1. **What lands.** ReturnSkipLimit1/[3], ReturnSkipLimit2/[6], Union1/[4], Comparison1/[14], List11/[3],
+   TypeConversion4/[10] (five examples) on both lanes, Precedence2/[2] (three examples) on DuckDB; the 16 cases of
+   `lite/exprtail.yaml`; DuckDB PASS 3,704 → 3731, Postgres 3,302 → 3327; TCK agreement DuckDB 3526 → 3537, Postgres
+   3147 → 3157.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3731
+   / REFUSED 315 / BOTH_ERROR 749 / SKIP 57; Postgres PASS 3327 / REFUSED 719 / BOTH_ERROR 749 / SKIP 57, of 4852
+   cases); the oracle check 0 problems. (A first run had five Postgres ERRORs: a range's raise its planner evaluated,
+   now written volatile there, and `->>` by a BIGINT index, now cast.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   writer's depth allowlisted with its date and reason), `//core:core_tests_sql` (`PostgresDialectTest`'s new pin),
+   and the Postgres suites the dialect reaches: `//core:sql_parity_postgres_test`, `//core:iq_parity_postgres_test`,
+   `//core:sql_island_postgres_test`, `//core:postgres_arm_test`.
+4. **Refused by name, recorded.** A float remainder on Postgres (its dialect's refusal); toString of a graph's node
+   in a WHERE over the graph; UNION (distinct) over a relationship whose value carries no identity.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventieth landing — pattern comprehensions over rows
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the comprehension bucket); the record is the
+study's §12.72. A pattern comprehension the navigations do not read (over rows; over a graph with a named path, an
+outer node in the expression, a bound end, more than one hop, a variable-length relationship; in an ORDER BY) is a
+list column of the rows: the pattern read as its own rows, each match's text grouped by the identities it shares
+with them and left-joined back (register S86). A first OPTIONAL MATCH that finds nothing is one row of nulls (it
+answered no row over a model with classes), and `keys()` of what it may not find is null there.
+
+1. **What lands.** Pattern2/[1], Pattern2/[2], Pattern2/[3], Pattern2/[8], Pattern2/[9], Pattern2/[11] (6 TCK rows,
+   [1] and [2] back after the sixty-ninth landing's identities sent them to a refusal); the 15 cases of
+   `lite/patternlists.yaml`, 7 new cases of `lite/optional.yaml`; DuckDB PASS 3,671 → 3704, Postgres 3,269 → 3302;
+   TCK agreement DuckDB 3520 → 3526, Postgres 3141 → 3147.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3704
+   / REFUSED 328 / BOTH_ERROR 747 / SKIP 57; Postgres PASS 3302 / REFUSED 730 / BOTH_ERROR 747 / SKIP 57, of 4836
+   cases); the oracle check 0 problems. (A first run had three ERRORs, the null row's one column named as a no-way
+   pattern's one row already names it, now fresh; a second lost Graph8/[4] and [7] to a refusal of `keys()` of an
+   optional node, now spelled.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Refused by name, recorded.** Pattern2/[7] (a comprehension inside a list comprehension reading its variable)
+   keeps its refusal; the nested EXISTS subqueries stay W12's.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-ninth landing — identities in values
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the MATCH-after-rows bucket's second half); the
+record is the study's §12.71. Node and relationship values carry their identities under `"@id"` (register S85), so a
+node read back from a Variant re-anchors, a variable-length relationship bound to a list matches its identities, and
+lists of nodes or relationships group by identity; the lowering keeps a Variant grouping key's grouped select apart
+from a later computation that reads it.
+
+1. **What lands.** Match4/[8], Match7/[22], Match9/[6], Match9/[7], Unwind1/[12], Quantifier1/[9], Quantifier2/[9], Quantifier3/[9], Quantifier4/[9] (9 TCK rows); the 7 cases of `lite/heldvalues.yaml`; DuckDB PASS
+   3,655 → 3671, Postgres 3,253 → 3269; TCK agreement DuckDB 3513 → 3520, Postgres 3134 → 3141.
+2. **The ledger.** Both lanes in update mode (the showcase too), FAIL/BUG/ERROR at zero (DuckDB PASS 3671 / REFUSED
+   339 / BOTH_ERROR 747 / SKIP 57; Postgres PASS 3269 / REFUSED 741 / BOTH_ERROR 747 / SKIP
+   57, of 4814 cases); the oracle check 0 problems. (A first run had one lite FAIL, a tie its ORDER BY left
+   open, now ordered fully, and five Postgres ERRORs, a grouped Variant read through a subquery, now isolated.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_lowering`, `//core:core_tests_compiler`, `//core:core_tests_root` green before it (the
+   lowering's isolation rule).
+4. **Refused by name, recorded.** Nothing new.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-eighth landing — several patterns joined on identity
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, the MATCH-after-rows bucket); the record is the
+study's §12.70. A MATCH of several patterns as rows joined on the identities they share (or their product), with
+relationship uniqueness across them; re-anchored patterns that find nothing; named paths re-anchored after rows; a
+label-less start read against its stored way as arms; the static scan's list kind.
+
+1. **What lands.** MatchWhere2/[1], MatchWhere4/[2], Match3/[10], Match3/[20], Match3/[21], Match3/[29], Match4/[7], Match7/[17], Match7/[20], Match7/[26], Match7/[4], Match7/[7], Match7/[8], Match9/[9], WithSkipLimit2/[3], WithWhere2/[1], WithWhere4/[2], With1/[2], Graph8/[5] (19 TCK rows); the 12 cases of `lite/multipattern.yaml`; DuckDB PASS
+   3,623 → 3655, Postgres 3,221 → 3253; TCK agreement DuckDB 3494 → 3513, Postgres 3115 → 3134.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3655 / REFUSED 348 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3253 / REFUSED 750 / BOTH_ERROR 747 / SKIP 57, of
+   4807 cases); the oracle check 0 problems. (A first run turned Match3/[30] into a BUG: Neo4j's static
+   VariableTypeConflict over a list named as a node, which the static scan's list kind now raises.)
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the routes and the list conflicts.
+4. **Refused by name, recorded.** An OPTIONAL MATCH whose WHERE reads the rows beside its pattern (MatchWhere6/[5],
+   Match7/[11]; the plan's §5).
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-seventh landing — the variable-length remainder
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, its remainder); the record is the study's §12.69. A
+bounded variable-length relationship after another clause re-anchored; a WHERE's variable-length pattern predicate
+over a graph read over the rows as a flag; the nodes reached through an edge class scoped to the arm that reached
+them.
+
+1. **What lands.** Match4/[6], Match7/[14], Pattern1/[10], Pattern1/[13], Pattern1/[7], Pattern1/[8], Pattern1/[9] (7 TCK rows); the 6 new cases of `lite/varlen.yaml`; DuckDB PASS
+   3,610 → 3623, Postgres 3,208 → 3221; TCK agreement DuckDB 3487 → 3494, Postgres 3108 → 3115.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3623 / REFUSED 368 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3221 / REFUSED 770 / BOTH_ERROR 747 / SKIP 57, of
+   4795 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the two new routes.
+4. **Refused by name, recorded.** Nothing new.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-sixth landing — the walk the data bounds (W10 leg 2b)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 2b); the record is the study's §12.68. A
+variable-length relationship without an upper bound (or with one past the unroll's) spelled as lite's recursion over
+the hop's rows: the start node's rows joined to the walk on its identity, the far node's on the node reached, the
+depth within the bounds, relationship uniqueness spelled at every step (S75 revised), the relationship's list and a
+named path assembled from the texts the walk carries; after rows, in an OPTIONAL MATCH and as a pattern predicate
+through the re-anchoring; the path functions of a path carried as its value; the resolver's `TypedRecurse` arm.
+
+1. **What lands.** Match4/[2], Match4/[4], Match4/[5], Match6/[15], Match6/[20], Match7/[12], Match7/[13], Match9/[5], Match9/[8], ReturnOrderBy2/[12], Return6/[13], Return6/[8], With6/[4], List12/[4], List12/[5], Pattern1/[16], Pattern1/[17] (17 TCK rows, the unbounded variable-length refusal lifted);
+   the 21 new cases of `lite/varlen.yaml`; DuckDB PASS 3,573 → 3610, Postgres 3,171 → 3208; TCK
+   agreement DuckDB 3470 → 3487, Postgres 3091 → 3108.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3610 / REFUSED 375 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3208 / REFUSED 777 / BOTH_ERROR 747 / SKIP
+   57, of 4789 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_resolver`, `//core:core_tests_compiler`, `//core:core_tests_lowering` green before it
+   (the resolver's new arm); `CypherToPureTest` pins the walk's spelling and its refusals; the oracle check 0
+   problems over the lite cases snapped (`tools/neo4j-oracle/snap.sh --write --only 'lite/varlen/*'`; the answer of
+   the case the leg renamed, `an_unbounded_variable_length_is_refused`, removed). `PlatformNamesGuardrailTest`'s
+   function-FQN literal ceiling 331 → 332 with its dated justification (the translator spells lite's `recurse`).
+4. **Refused by name, recorded.** A variable-length relationship bound to a list of relationships (Match4/[8],
+   Match9/[6], [7]; the plan's §5); other relationships beside the walk in one pattern; an OPTIONAL MATCH over the
+   walk as the first clause; the path functions of a nullable carried path.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-fifth landing — the recursion native (W10 leg 2a)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 2a); the record is the study's §12.67. The
+platform's `meta::legend::lite::recurse(base, r | step)`: a relation operator typed by the generic check (the step a
+lambda over a relation of the base's type) and lowered to the database's recursive common table expression
+(`WITH RECURSIVE`, UNION ALL) as a derived table; the island's unbounded variable-length patterns spell over it in
+leg 2b.
+
+1. **What lands.** The native alone: no TCK row moves (the island emits it in leg 2b); DuckDB PASS 3,573 → 3573, Postgres
+   3,171 → 3171; TCK agreement DuckDB 3470 → 3470, Postgres 3091 → 3091.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3573 / REFUSED 392 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3171 / REFUSED 794 / BOTH_ERROR 747 / SKIP
+   57, of 4769 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `LowerRelationTest.aRecursionWalksUntilItsStepYieldsNoRow` pins the lowering and its execution on
+   DuckDB; the native is in `Pure.INTERNAL_DESUGAR` (the lite-internal names, emitted by translators only; the
+   governance test's ceiling 26 → 27 with its dated justification) and the platform table (`CoreFn.RECURSE`);
+   `//core:core_tests` green (the whole unit suite, run before the chain: the native touches builtin, platform,
+   compiler and lowering). `Lowerer.relation` back under the 250-line guardrail by moving the `lateral` arm's body
+   out along its seam, the guardrail unchanged.
+4. **Refused by name, recorded.** Nothing new: the island's unbounded patterns stay refused until leg 2b.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-fourth landing — the tail, leg 5 (extreme floats, an unbound parameter)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, leg 5); the record is the study's §12.66. The
+island's stale guard against extreme float literals lifted (the dialects cast `toFloat` of one to a double now,
+measured), and a parameter the text did not bind raised as Neo4j's ParameterMissing.
+
+1. **What lands.** Literals5/[5], [6], [11], [12], [25], [26] (extreme float literals), Call1/[11] (a procedure's implicit
+   argument whose parameter is missing: ParameterMissing); the 2 new cases of `lite/tail.yaml`; DuckDB PASS
+   3,565 → 3573, Postgres 3,163 → 3171; TCK agreement DuckDB 3463 → 3470, Postgres 3084 → 3091.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3573 / REFUSED 392 / BOTH_ERROR
+   747 / SKIP 57; Postgres PASS 3171 / REFUSED 794 / BOTH_ERROR 747 / SKIP
+   57, of 4769 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the extreme literals' spelling (`toFloat(1.0E308)`, the negation folded) and
+   the parameter's error (`Expected parameter(s): name`, where it pinned the refusal).
+4. **Refused by name, recorded.** `range` over a nullable bound or a step of the row; `toString` of a list, map,
+   node, relationship or path (Neo4j 2026's own texts); a signed year beyond the database's dates; a duration divided
+   by a number.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-third landing — stored zoned times and date-times (W5 leg 2b)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 2b); the record is the study's §12.65. A stored
+zoned value is an embedded instance of a value class (`g::values::ZonedTime`, `g::values::ZonedDateTime`: the
+instant and its offset in seconds); the island reads the instant and carries no zone, so ordering, comparison,
+arithmetic and node values go by the instant (S65, S66, S68) and an operation reading the zone refuses by name.
+
+1. **What lands.** WithOrderBy1/[37], [38] (a zoned time projected from a property, ordered, the node returned), WithOrderBy2/[15],
+   [16] (ordered by the time plus a duration) on DuckDB, REFUSED on Postgres (the nanosecond instant's column);
+   Temporal5/[4], [6] SKIP → REFUSED by name (the zone, a named zone); the 8 new cases of `lite/stored.yaml`; DuckDB
+   PASS 3,556 → 3565, Postgres 3,162 → 3163; TCK agreement DuckDB 3458 → 3463, Postgres 3084 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3565 / REFUSED 399 / BOTH_ERROR
+   746 / SKIP 57; Postgres PASS 3163 / REFUSED 801 / BOTH_ERROR 746 / SKIP
+   57, of 4767 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest.aStoredZonedValueIsItsInstantWithNoZoneCarried` pins the instant's read, the
+   comparison with a zoned literal and the refusals of the zone's fields and text;
+   `aMarkedDateTimeIsANanosecondTimeOfDayOrDateTime` re-pinned with the node's zoned property; the decision for
+   `a_stored_zoned_time_compared_with_a_zoned_literal` (S66) in `decisions.tsv`.
+4. **Refused by name, recorded.** The zone of a stored zoned value (its fields, offset and text: leg 2c, the
+   island's Zone carrying a column); a nanosecond zoned date-time outside 1678 to 2261 (the harness's skip); a
+   named zone (Temporal5/[6]); a duration or zoned value on a relationship.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-second landing — stored nanosecond times and date-times (W5 leg 2a)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 2a); the record is the study's §12.64. A
+`TIMESTAMP_NS` column type (lite's extension of the relational grammar, as `TIME` was), the graph profile's
+`timeOfDay` and `nanoseconds` marks on a DateTime property, the harness declaring and seeding them, the island
+reading a marked property as its nanosecond time of day or date-time.
+
+1. **What lands.** WithOrderBy1/[35], [36] (a nanosecond local time projected from a property, ordered), WithOrderBy2/[13],
+   [14] (ordered by the time plus a duration), Temporal5/[3], [5] (a nanosecond time's and date-time's accessors) on
+   DuckDB, REFUSED on Postgres; the 9 new cases of `lite/stored.yaml`; DuckDB PASS 3,535 → 3556, Postgres 3,162 → 3162; TCK agreement DuckDB
+   3446 → 3458, Postgres 3084 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3556 / REFUSED 388 / BOTH_ERROR
+   746 / SKIP 69; Postgres PASS 3162 / REFUSED 782 / BOTH_ERROR 746 / SKIP
+   69, of 4759 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest.aMarkedDateTimeIsANanosecondTimeOfDayOrDateTime` pins the island's read of the
+   marks (the nanosecond field, a comparison with a time, toString of a nanosecond date-time, the node's value);
+   `GraphEdgesTest`, `CypherIslandIntegrationTest` and the showcase models pin the profile's eight stereotypes
+   (`GraphEdges.STEREOTYPES` moved with this leg, dated); `TypeSpellingParityTest` the column type's spellings;
+   `LowerRelationTest` unchanged. The DDL arms of every dialect spell or refuse the new kind (javac's
+   exhaustiveness, invariant 3).
+4. **Refused by name, recorded.** A stored zoned time or date-time (leg 2b); a nanosecond date-time of a year
+   outside 1678 to 2261 (the harness's skip, named); the Postgres lane's TIMESTAMP_NS column (the dialect's refusal,
+   REFUSED).
+
+## 2026-10-17 — `#Cypher{...}#`: the sixty-first landing — the static variable errors before any clause (W10 leg 1)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10, leg 1); the record is the study's §12.63. Neo4j's
+VariableAlreadyBound and VariableTypeConflict raised over the whole statement before any clause is read, so an error
+scenario is the error and never a refusal a clause meets first (an unbounded variable-length pattern, which W10's
+second leg lifts).
+
+1. **What lands.** No TCK row moves: the 250 error scenarios of Match1/[7]-[11], Match2/[9]-[13] and Match6/[21]-[25] agreed
+   by the refusal of the unbounded or deep pattern they hold and agree by Neo4j's error, raised first; the 16
+   cases of `lite/varkinds.yaml`; DuckDB PASS 3,533 → 3535, Postgres 3,160 → 3162; TCK agreement DuckDB
+   3446 → 3446, Postgres 3084 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3535 / REFUSED 388 / BOTH_ERROR
+   746 / SKIP 81; Postgres PASS 3162 / REFUSED 761 / BOTH_ERROR 746 / SKIP
+   81, of 4750 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherToPureTest` pins the scan (a relationship, a path and a literal named as a node, a node named
+   as a relationship, a node named as a path, a path bound again, an UNWIND over a bound name: each over an
+   unbounded pattern, the error raised and not the refusal; a value named as a node reads on).
+4. **Refused by name, recorded.** None new: the scan raises errors; what it does not type (an expression's kind) the
+   clauses' own reads keep refusing or raising as before.
+
+## 2026-10-17 — `#Cypher{...}#`: the sixtieth landing — a property typed two ways (W7)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W7); the record is the study's §12.62. A property whose
+values differ in kind is a Variant: the harness's column per class, the island's union across the classes a
+label-less node reads (the root's read, a carried node's columns, a variable-length pattern's chains); a Variant
+of no known shape compared with a string, a boolean or a number is ordered by kind and null across kinds (Cypher's).
+
+1. **What lands.** Comparison2/[1], [2] (a string and an integer under one label compared with a string in an AND'd and an OR'd
+   predicate), MatchWhere5/[4], WithWhere5/[4] (a text node and an integer node under a label-less pattern, the
+   comparison OR'd with IS NOT NULL, the node returned), the 15 cases of `lite/twoways.yaml`; DuckDB PASS
+   3,513 → 3533, Postgres 3,140 → 3160; TCK agreement DuckDB 3442 → 3446, Postgres 3080 → 3084.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3533 / REFUSED 387 / BOTH_ERROR
+   733 / SKIP 81; Postgres PASS 3160 / REFUSED 760 / BOTH_ERROR 733 / SKIP
+   81, of 4734 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `TypeCheckerTest.anEmptyCastToAClassIsTheTypedEmptyNotNil` pins the typer's fix (an empty cast to a
+   class is the typed empty, never Nil), `LowerRelationTest` and `CastNoReWrapTest.anEmptyCastToAVariantIsTheTypedNull`
+   the lowering's (an empty typed as the Variant, and a NULL cast to it, are the typed null) and
+   `NullVariantCastTest` the dialects' (`CAST(NULL AS JSONB)` on Postgres, `CAST(NULL AS JSON)` on DuckDB), and
+   `LowerRelationTest`'s `ELEMENTS` spelling DuckDB's `variantElements` (the wildcard's list cast to `JSON[]`: a
+   constant NULL input binds the wildcard as JSON, not a list); the translator's pins unchanged (the Variant
+   conversions apply only where kinds differ); the showcase's hard pins re-rendered (`showcase/hard/duckdb.sql`,
+   `snowflake.sql`, docs/CYPHER_SHOWCASE.md: an absent node's NULL is typed, `CAST(NULL AS JSON)` and
+   `TO_VARIANT(NULL)`).
+4. **Refused by name, recorded.** A temporal or a duration beside another kind (the Variant would hold its text);
+   two Variants of no known shape ordered still by their keys (§12.58), never null across kinds (S81).
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-ninth landing — nodes with several labels (W6)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W6); the record is the study's §12.61. A node of several
+labels is an instance of an anonymous class (`<<graph.Anonymous>>`, the graph profile's sixth stereotype: its name is
+no label) extending each label's class; a label reads its class and the subclasses, one arm per class; `labels(n)` is
+the class's label set; a backticked path reads its class alone.
+
+1. **What lands.** Match1/[3], Match3/[7], [26], Match7/[23], Graph3/[6], Graph5/[1], [3], [4] #1-#5 (a node of several
+   labels matched by one, by several in any order and with repeats, by a label predicate, through a typed hop, an
+   untyped hop and an OPTIONAL MATCH, re-matched after a WITH; `labels()` of such a node), Graph3/[8], [9] as Neo4j's
+   errors, the 17 cases of `lite/labelsets.yaml`; DuckDB PASS 3,484 → 3513, Postgres 3,111 → 3140; TCK agreement
+   DuckDB 3428 → 3442, Postgres 3066 → 3080; the harness's SKIP 103 → 85.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3513 / REFUSED 388 / BOTH_ERROR
+   733 / SKIP 85; Postgres PASS 3140 / REFUSED 761 / BOTH_ERROR 733 / SKIP
+   85, of 4719 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:core_tests_integration`,
+   `//core:guardrails` green (the chain's); `CypherToPureTest` pins a label's arms, a path's class alone, two labels'
+   one class, `labels(m)` over a subclass and over an anonymous class, the anonymous name naming no class, a label
+   set no class carries; `GraphEdgesTest` and the showcase models declare the profile's six stereotypes.
+4. **Refused by name, recorded.** Labels reading several classes at a place of the pattern that reads one (a hop's
+   far end on the to-one route); the writes among the bucket (Merge1/[10], Remove2/[2], [3]: W4) and the unbounded
+   variable-length pattern (Match4/[5]: W10). Logged for the resolver (the plan's §5): an inherited association end
+   navigated from a subclass mapped on its own table joins against the subclass's table.
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-eighth landing — procedures (W8)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W8); the record is the study's §12.60. A procedure is a
+Pure function of the model over a typed TDS literal of its rows; `CALL name(args) [YIELD items]` is the function's
+relation, standalone, or the rows in hand laterally joined to it; the harness declares the TCK's procedures and judges
+a procedure case by the TCK's own table (Neo4j runs none); the TDS literal's brace form reads its grid.
+
+1. **What lands.** Call1/[1]-[16] but [11] (standalone and in-query calls, VOID procedures, STRING procedures, the static
+   errors), Call2/[1]-[6] (explicit and implicit arguments, the wrong kind), Call3/[1]-[6] (NUMBER and FLOAT inputs
+   taking integers), Call4/[1]-[2] (null arguments), Call5/[1]-[8] (yields, renames, YIELD *), Call6/[1]-[3] (CALL
+   among WITH and RETURN), the 10 cases of `lite/procedures.yaml`; DuckDB PASS 3,425 → 3484, Postgres 3,052 → 3111;
+   TCK agreement DuckDB 3379 → 3428, Postgres 3017 → 3066.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3484 / REFUSED 384 / BOTH_ERROR
+   731 / SKIP 103; Postgres PASS 3111 / REFUSED 757 / BOTH_ERROR 731 / SKIP
+   103, of 4702 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `CypherParserTest` pins the read CALL clause, `CypherToPureTest` the call's relation, the lateral join,
+   the swap-safe renames and Neo4j's static errors, `RelationApiIntegrationTest` the brace-form TDS literal.
+4. **Refused by name, recorded.** A procedure call with implicit arguments the scenario's parameters do not provide
+   (the island reads no parameter); a `CALL { ... }` subquery; a procedure declaring an input or output of a kind
+   beyond Integer, Float, Number, String and Boolean.
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-seventh landing — stored times of day and durations (W5 leg 1)
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5, leg 1); the record is the study's §12.59. A time
+of day is a TIME store column (lite's extension of the relational grammar: `RelationalDataType.Time`, StrictTime,
+every dialect's DDL arm, the protocol's `Time`, the metamodel's datatype class; S64 revised), a stored duration an
+embedded instance of the model's Duration value class over four columns, read as the island's own instance; a
+date moved by a duration takes the whole days of its seconds.
+
+1. **What lands.** Temporal8/[1]-[6] and Temporal5/[7] (a stored duration added to and subtracted from a date, a local time, a
+   time, a local date-time and a date-time, durations added and subtracted, its accessors), the 12 stored-temporal
+   cases of `lite/stored.yaml` and the date-plus-duration day rule of `lite/temporal.yaml`; DuckDB PASS 3,386 → 3425,
+   Postgres 3,025 → 3052; TCK agreement DuckDB 3354 → 3379, Postgres 3004 → 3017.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3425 / REFUSED 383 / BOTH_ERROR
+   731 / SKIP 153; Postgres PASS 3052 / REFUSED 756 / BOTH_ERROR 731 / SKIP
+   153, of 4692 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `TypeSpellingParityTest` pins the TIME column's two engine spellings, `CypherToPureTest` the stored
+   duration's instance and the node value's time text; the broad unit suites (model, compiler, sql, builtin, parser,
+   lowering, setup, server, exec, resolver) green on the TIME type and the prelude's datatype class.
+4. **Refused by name, recorded.** A stored time of sub-microsecond precision, a stored zoned time or date-time, a
+   stored date-time of sub-microsecond precision (the harness, by name: leg 2); a duration multiplied or divided
+   by a number (the island's, as before).
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-sixth landing — Cypher's orderability over Variants
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W11); the record is the study's §12.58. One text key
+per Variant orders values as Cypher does (a type rank, then the value, lists element by element); ORDER BY,
+`min` and `max` (two lite natives over a text key, the lowering's ARG_MIN and ARG_MAX), `<` and `=` across
+Variants read it; spelled lists of lists, of several kinds or with nulls read as Variants; a list beside a
+Variant concatenates by its kind.
+
+1. **What lands.** ReturnOrderBy1 (lists, mixed values, nodes before lists), WithOrderBy1 (sort order consistent with comparisons over
+   lists and strings, mixed values, descending with a limit), Aggregation5/[13]-[22] (`min`/`max` over mixed values
+   and lists), Comparison1-4 and List11 (comparisons across kinds, lists element-wise), Quantifier1-12's and
+   ListComprehension's mixed lists, Graph7/[1] (`n['name']`), the 23 lite cases of `lite/rank.yaml`; DuckDB PASS
+   3,322 → 3386, Postgres 2,961 → 3025; TCK agreement DuckDB 3314 → 3354, Postgres 2964 → 3004.
+2. **The ledger.** Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3386 / REFUSED 380 / BOTH_ERROR
+   731 / SKIP 181; Postgres PASS 3025 / REFUSED 741 / BOTH_ERROR 731 / SKIP
+   181, of 4678 cases); the oracle check 0 problems. The Postgres lane's three ERROR families of the first
+   chain (a key's raise folded at plan time in a comprehension's WHERE, the literal-variant fold's mistyped elements,
+   a text key cast to an integer) are the study's §12.58 lessons; the fixes are the key's `trustOne`, the strategy
+   pass's JSON-cast elements, and `variantGet`'s cast by the index's type.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `NativeCatalogGovernanceTest`'s INTERNAL_DESUGAR ceiling 24 → 26 with its dated justification (lite's
+   `minBy` and `maxBy` over a text key).
+4. **Refused by name, recorded.** NaN or an infinity (a float divided by a zero literal) inside a list or map; a
+   list of dates the database holds as a Variant read back as values; ORDER BY a node.
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-fifth landing — named paths over the cut, variable-length chains as rows
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 4, steps 2 and 3); the record is the study's
+§12.56 and §12.57. A named path deeper than the cut is read as partial paths whose relationships carry their stored
+directions, the path assembled over the rows; a variable-length pattern a chain of which runs past two steps reads
+every chain as rows of its own (the long ones cut), projected to the pattern's variables under the same columns and
+concatenated; a list or map of scalars is a grouping key; a Variant of no known shape compares with a scalar by its
+kind; a list predicate whose condition may be null is counted three ways; a comprehension producing nullable values
+is the list's JSON.
+
+1. **What lands.** Match6/[3], [10], [11] (named paths over two and three untyped hops, undirected among them),
+   Match6/[14] (a named path with an undirected variable-length of three hops), Match6/[16] (a variable-length named
+   path over edges), Match9/[2]-[4] and Path2/[1], [2] (`-[r:REL*2..2]-` over edges, `r` and `relationships(p)`),
+   Pattern1/[18] (a pattern predicate with a variable-length of two), Quantifier1-4/[8] (`none`, `single`, `any`,
+   `all` over `tail(nodes(p))`, `x.name = 'a'` on a node the database holds); fifteen more lite cases in
+   `lite/depth.yaml` (named paths over the cut, variable-length hops over edges past two steps, lists as grouping
+   keys, a Variant property beside a scalar) and two refusal pins turned positive (`lite/uniqueness`,
+   `lite/varlen`).
+2. **The ledger.** DuckDB PASS 3,291 → 3,322 (REFUSED 437 → 421; FAIL, BUG, ERROR 0), Postgres PASS 2,930 → 2,961 (REFUSED
+   798 → 782); TCK agreement 3,299 → 3,314 of 3,880 on DuckDB and 2,949 → 2,964 on Postgres (none lost); 29 lite
+   cases in `lite/depth.yaml`, all PASS on both lanes but the designed refusal, judged by Neo4j (`snap.sh --check`:
+   0 problems over 4572 cases); `docs/CYPHER_SHOWCASE.md` regenerated where the showcase cases' SQL moved.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_resolver`, `//core:core_tests_lowering`, `//core:core_tests_sql` green on the leg
+   before, untouched since.
+4. **Refused by name, recorded.** A variable-length relationship after another clause, in an OPTIONAL MATCH or
+   beside another pattern; one without an upper bound (W10); a list holding nodes or relationships as a grouping
+   key (S79); a property typed differently across the classes a label-less node reads (W11).
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-fourth landing — the cut under the arms' route
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 4, step 1); the record is the study's §12.55.
+The translator cuts a pattern with an untyped hop whose arms run past two steps around its hops (an untyped hop a
+segment of its own, read over the rows before it), and carries one identity column for a relationship the arms
+read as several types or edge classes, so relationship uniqueness and `count(DISTINCT r)` hold across the union.
+
+1. **What lands.** The nine triadic selections TriadicSelection1/[7]-[11] and [16]-[19] (`(a:A)-[:KNOWS]->(b)-->(c)`, an
+   OPTIONAL MATCH after the cut), Match7/[9] (a longer pattern with bound nodes), Match8/[3] (`()-[r1]->()<--()`,
+   `sum(r1.times)` over one relationship's identity across arms), ReturnSkipLimit2/[8], Return4/[11] and With4/[6]
+   (`(a)-->(b)-->(c)` reusing variable names); four more lite cases in `lite/depth.yaml` (two untyped hops with an
+   edge among the ways, a triadic selection with an OPTIONAL MATCH after the cut, an untyped chain from a
+   label-less node with uniqueness, an incoming untyped hop then a named incoming relationship).
+2. **The ledger.** DuckDB PASS 3,273 → 3,291 (REFUSED 451 → 437; FAIL, BUG, ERROR 0), Postgres PASS 2,912 → 2,930 (REFUSED
+   812 → 798); TCK agreement 3,285 → 3,299 of 3,880 on DuckDB and 2,935 → 2,949 on Postgres (none lost); 14 lite
+   cases in `lite/depth.yaml`, all PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems over 4557
+   cases); `docs/CYPHER_SHOWCASE.md` unchanged.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green (the
+   chain's); `//core:core_tests_resolver`, `//core:core_tests_lowering`, `//core:core_tests_sql` green on the leg
+   before, untouched since.
+4. **Refused by name, recorded.** An untyped relationship in a MATCH of several patterns; a named path over more
+   than two steps; a variable-length chain past two hops; a cut whose relationships carry no identity.
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-third landing — deep patterns cut at two steps
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 leg 3, routing around W9's depth-two limit); the
+record is the study's §12.54. The translator cuts a pattern navigating more than two association steps (an edge
+hop counting two) into segments of at most two, the first read as a graph and materialized, each next one a MATCH
+over the rows re-anchored on the cut node by identity, relationship uniqueness and the WHERE over the whole; the
+resolver gates every instance's identity on its key's presence (an absent far node read as present under its
+class's prefix, `concat` skipping the null key).
+
+1. **What lands.** MatchWhere2/[2], WithWhere2/[2] (three typed hops from a label-less node), Return6/[16] (two edge
+   hops from a label-less node, `count(DISTINCT r)` over rows); the 10 lite cases of `lite/depth.yaml` (three hops
+   over three classes, three of one type with uniqueness, a cycle closing across the cut, a hop after an edge hop,
+   four hops, a WHERE and a property map on the far end, after a WITH, over a first MATCH's graph, counted,
+   distinct relationships alike counted over rows).
+2. **The ledger.** DuckDB PASS 3,259 → 3,273 (REFUSED 455 → 451; FAIL, BUG, ERROR 0), Postgres PASS 2,898 → 2,912 (REFUSED
+   816 → 812); TCK agreement 3,282 → 3,285 of 3,880 on DuckDB and 2,932 → 2,935 on Postgres (none lost); 10 lite
+   cases in `lite/depth.yaml`, all PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems);
+   `docs/CYPHER_SHOWCASE.md` §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_resolver`, `//core:core_tests_lowering`,
+   `//core:core_tests_sql`, `//core:guardrails`, `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A deep pattern with an untyped hop (the arms' route), a named path over more
+   than two steps, a variable-length chain unrolling past two hops, a deep OPTIONAL MATCH; the resolver's own limit
+   (an existence filter past a second association step) stays W9's.
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-second landing — the tail's small shapes
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12, leg 2); the record is the study's §12.53. The
+lowering's result render gives an ordered relation a hidden output per sort key its projection dropped
+(`Render.withSortOutputs`), so an ORDER BY on an expression the query does not return renders without a SKIP or
+LIMIT; a lite native `isKind` (the governance ceiling 23 → 24, the census's row), the database's reading of a
+Variant's JSON kind, under the translator's string predicates (`STARTS WITH`, `ENDS WITH`, `CONTAINS`: null on a
+value that is not a string, as Neo4j answers); `collect(DISTINCT x)` as the distinct texts joined (register row
+S78); a duration text in the date-time form.
+
+1. **What lands.** ReturnOrderBy2/[8], ReturnOrderBy4/[1] and their kin (4), String8-10/[8] and Precedence4/[4]
+   (4), Aggregation5/[2] and Aggregation8/[3], [4] (3), Temporal2/[7] #7 (1).
+2. **The ledger.** DuckDB PASS 3,232 → 3,259 (REFUSED 470 → 455; FAIL, BUG, ERROR 0), Postgres PASS 2,871 → 2,898 (REFUSED
+   831 → 816); TCK agreement 3,270 → 3,282 of 3,880 on DuckDB (ReturnOrderBy2, 4, 5: 4; String8-10, Precedence4: 4;
+   Aggregation5, 8: 3; Temporal2: 1; none lost) and 2,920 → 2,932 on Postgres; 12 lite cases in `lite/tail.yaml`
+   (11 PASS on both lanes, the `toString` probe REFUSED by name) and `lite/collect`'s `collect_distinct_is_refused`
+   renamed `collect_distinct_counts_the_distinct_values` (the order-free form: the old pin ran as `[2, 1]` on
+   DuckDB the moment the refusal went, S78's case), judged by Neo4j (`snap.sh --check`: 0 problems);
+   `docs/CYPHER_SHOWCASE.md` §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_lowering`, `//core:core_tests_sql`,
+   `//core:guardrails`, `//core:core_tests_integration` green (the integration suite executes the hidden sort key
+   on DuckDB; the guardrail refused a regex in the translator, so the duration text is read by hand).
+4. **Refused by name, recorded.** `toString` of a list, a map or a node (Neo4j's own texts, probed); SKIP with a
+   variable-free expression (the MIR's constant bounds); the time of a date-time in a named zone; an untyped
+   relationship in a MATCH of several patterns; ORDER BY and min/max over Variants by Cypher's type rank (W11).
+
+## 2026-10-17 — `#Cypher{...}#`: the fifty-first landing — pattern predicates over rows, comprehensions over lists the database holds
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12); the record is the study's §12.52. The translator:
+a pattern predicate or EXISTS subquery in a WHERE over rows is a flag column the rows carry (the pattern read as its
+own graph, its matches' identities deduplicated and left-joined back), a list the database holds as a Variant reads
+as the collection of its kind in a comprehension, a quantifier (`single` too), `reverse`, `tail`, `+`, CASE and
+coalesce; a node carried as one of several classes re-anchors from every class; the lowering spells no
+divide-by-zero guard for a literal divisor (`%` inside a database lambda).
+
+1. **What lands.** `MATCH (n), (m) WHERE (n)-[]->(m)` (Pattern1/[12], [14], [15]), the Quantifier9-12 identities
+   over `rand()`-filtered lists (25), List12/[3], [6], the lite predicates refused since §12.40 (3).
+2. **The ledger.** DuckDB PASS 3,141 → 3,232 (REFUSED 545 → 470; FAIL, BUG, ERROR 0), Postgres PASS 2,780 → 2,871 (REFUSED
+   906 → 831); TCK agreement 3,201 → 3,270 of 3,880 on DuckDB (Quantifier11 20, Quantifier12 15, Quantifier9 15,
+   Quantifier10 5, Pattern1 3, List12 2, Quantifier5-8 2 each, Match7 1; none lost) and 2,851 → 2,920 on Postgres;
+   16 lite cases in `lite/overrows.yaml`, all PASS on both lanes, judged by Neo4j (`snap.sh --check`: 0 problems);
+   `docs/CYPHER_SHOWCASE.md` §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_lowering`, `//core:guardrails`,
+   `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A pattern comprehension over rows (a collect per row); a comprehension producing
+   values that may be null; a hop from a node read out of a list; `nodes(x)` of a path held in a list; a
+   comprehension over a literal list beside a node value (the resolver's object-space lambda, the plan's §5).
+
+## 2026-10-17 — `#Cypher{...}#`: the fiftieth landing — rand() and the statement clocks
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W3); the record is the study's §12.51. A lite native
+`random()` (the governance ceiling 22 → 23, the census's row), `SqlFn.RANDOM` with a render arm in every dialect,
+the lowering's rule that a projection holding a non-deterministic call is computed once (`Fold.nondeterministic`),
+and the translator's `rand()`, `randomUUID()` and the statement clocks (`date()`, `localtime()`, `time()`,
+`localdatetime()`, `datetime()`, their `.transaction`/`.statement`/`.realtime` forms; register row S77).
+
+1. **What lands.** `rand()` in a WHERE, a WITH and a RETURN; `WITH rand() AS r RETURN r = r` true; `count(rand())`
+   Neo4j's error; `duration.inSeconds(datetime(), datetime())` `PT0S` (Temporal10/[12]); `date.realtime(null)` null
+   (Temporal4/[13]).
+2. **The ledger.** DuckDB PASS 3,110 → 3,141 (REFUSED 565 → 545; FAIL, BUG, ERROR 0), Postgres PASS 2,749 → 2,780 (REFUSED
+   926 → 906); TCK agreement 3,181 → 3,201 of 3,880 (Temporal4 15, Temporal10 5); 12 lite cases in
+   `lite/clock.yaml`, 11 PASS and one BOTH_ERROR (Neo4j's error, matched), judged by Neo4j (`snap.sh --check`: 0
+   problems); `docs/CYPHER_SHOWCASE.md` §20 and `docs/dialect-capability/` regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails` (`NativeCatalogGovernanceTest` 23,
+   `PlatformNamesGuardrailTest` 326, each with its dated justification), `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** `timestamp()`; a clock with a time zone argument.
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-ninth landing — cycles, the optional fallbacks, the undirected self-association
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 5); the record is the study's §12.50. The
+translator alone: a node named again within one pattern reads under a fresh name equal to the first by identity;
+an OPTIONAL MATCH the optional hop cannot read (an untyped relationship, a property map, a bound far node)
+re-anchors over the graph's rows; an undirected relationship over a self-association reads both directions as
+arms, the rows deduped by identity so a loop matches once.
+
+1. **What lands.** `MATCH (n:A)-[r:T]->(n)`, `MATCH (a:A)-[:T]->(b:A)-[:T]->(a)`, `MATCH (a:A)-[:T]->()-[:U]->(a)`,
+   `MATCH (a:A)-[:T]->(b:B), (b)-[:U]->(a)`, `OPTIONAL MATCH (b)-[u:U]->(a)` over a graph, `OPTIONAL MATCH (a)-->(x)`,
+   `MATCH (x:A)-[r:T]-(y:A)` and `MATCH ()-[r]-()` over a self-loop, `MATCH (n)-[r]-(n)`, `MATCH (x:A)-[r1]->(y)-[r2]-(z)`
+   through a looper.
+2. **The ledger.** DuckDB PASS 3,068 → 3,110 (REFUSED 597 → 565; FAIL, BUG, ERROR 0), Postgres PASS 2,707 → 2,749 (REFUSED
+   958 → 926); TCK agreement 3,149 → 3,181 of 3,880 (Match3 (8), CountingSubgraphMatches1 (8), Match6 (3), Match7 (3), MatchWhere6 (2), Graph8 (2), MatchWhere1 (1), Match2 (1), Match9 (1), WithWhere1 (1), With7 (1), Aggregation1 (1)); 10 lite cases in `lite/cycles.yaml`, all
+   PASS, judged by Neo4j (`snap.sh --check`: 0 problems over 4,503 cases); `docs/CYPHER_SHOWCASE.md` §20
+   regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pins that refused both ends bound now pin the cycle's condition.
+4. **Refused by name, recorded.** An undirected typed relationship from a label-less node; an OPTIONAL MATCH from
+   no node the graph binds.
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-eighth landing — re-anchoring: a pattern after rows joined back by identity
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 4); the record is the study's §12.49. The
+translator alone: a MATCH or OPTIONAL MATCH after rows whose pattern names a node or relationship the rows hold
+is read as a graph of its own (from the carried node's class), materialized, and joined to the rows on the
+identity of every shared variable; an OPTIONAL MATCH a left join, its WHERE over the pattern's rows first. The
+fan-out to a class without a property is lifted (the identity column navigates the path).
+
+1. **What lands.** `MATCH (a:A) WITH a, a.name AS n MATCH (a)-[:T]->(b:B)`, `WITH a, count(*) AS c MATCH
+   (a)-[:T]->(b:B)`, `OPTIONAL MATCH (a)-[:T]->(b:B)` after rows (with a WHERE over the pattern), `WHERE b.name <>
+   n` over the joined rows, both ends bound, a pattern ending at the carried node, a bound relationship matched
+   again, re-anchoring twice, `MATCH (a:A)-[:T]->(b:B) RETURN count(*), count(DISTINCT b)` over property-less
+   classes.
+2. **The ledger.** DuckDB: 4576 cases; PASS 3068 (from 3,020); FAIL 0; BUG 0; ERROR 0; REFUSED 597; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2707 (from 2,659); FAIL 0; BUG 0; ERROR 0; REFUSED 958; BOTH_ERROR 730; SKIP 181. 14
+   lite cases in `lite/anchor.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems). The
+   TCK's agreement 3149 of 3880 (from 3,115); the showcase's §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pins that refused a MATCH after a projecting WITH now pin the join on identity, the refusal of a node
+   carried as one of several classes, and the refusal of a scalar matched as a node.
+4. **Refused by name, recorded.** A MATCH after rows from a node of several classes, a named path or a
+   variable-length relationship after rows, an OPTIONAL MATCH's WHERE reading the rows' values, a scalar matched
+   as a node (Neo4j's error).
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-seventh landing — a relationship over an association is the pair of its ends; relationship uniqueness
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 3); the record is the study's §12.48. The
+translator alone: a relationship over a property or an association is identified by its type and the ordered
+pair of its ends' identities (S74), spelled in the graph over to-one hops and as two carried columns over
+to-many ones; with it, comparisons, DISTINCT, grouping and `count(DISTINCT r)` over such relationships, and
+Neo4j's relationship uniqueness within one MATCH (S75 overturned there): the relationships of a repeated type
+pairwise distinct, an unnamed one named for it.
+
+1. **What lands.** `MATCH ()-[a]->() WITH a MATCH ()-[b]->() WHERE a = b RETURN count(b)`, `RETURN DISTINCT r`
+   and `WITH r, count(*)` over an association, `count(DISTINCT r)`, `r = r` (null for an absent one), `MATCH
+   (a:A)-[:T]->(b:A)-[:T]->(c:A)` over a self-loop (nothing), a chain back and forth over one relationship
+   (nothing), a two-node cycle walked round and back (nothing), `(x:A)-->(y:B)<--(z:A)`, `(y)<-[:T]-(x)-[:T]->(z)`,
+   two relationships of different types sharing their ends, the product of two patterns of one MATCH.
+2. **The ledger.** DuckDB: 4562 cases; PASS 3020 (from 2,997); FAIL 0; BUG 0; ERROR 0; REFUSED 631; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2659 (from 2,636); FAIL 0; BUG 0; ERROR 0; REFUSED 992; BOTH_ERROR 730; SKIP 181. 16
+   lite cases in `lite/uniqueness.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   The TCK's agreement 3115 of 3880 (from 3,112); the showcase's §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
+   `//core:core_tests_integration` green; the unit pins that refused two relationships of one type in one MATCH
+   now pin the uniqueness condition (the graph form over to-one hops, the row form over to-many), and the pins
+   that refused DISTINCT or a grouping over an association relationship now pin the pair's columns among the keys.
+4. **Refused by name, recorded.** Uniqueness along a variable-length chain (the unroll's hidden relationships) and
+   within an OPTIONAL MATCH's chain (two relationships of one type there); `collect(DISTINCT ...)`; ORDER BY a node.
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-sixth landing — nodes told apart by identity under DISTINCT and grouping
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, leg 2); the record is the study's §12.47. The
+translator alone: a returned node or relationship under DISTINCT or a grouping is carried as its columns (its
+identity among them), the DISTINCT or the grouping keys over them, its JSON rebuilt from them last;
+`count(DISTINCT x)` as Pure's distinct-then-count, `count(DISTINCT n)` over identities.
+
+1. **What lands.** `MATCH (n:A) RETURN DISTINCT n ORDER BY n.num`, `MATCH (a)-->(b) RETURN DISTINCT b ORDER BY
+   b.name`, `MATCH (n) RETURN DISTINCT n` over a label-less pattern's arms, `WITH DISTINCT a RETURN count(*)`,
+   `RETURN n, count(*)`, `RETURN a, b, count(*)`, `WITH a, count(*) AS c WHERE c > 1 RETURN a`, an absent node among
+   the keys, `RETURN a, count(a) + 3`, `count(DISTINCT n.num)`, `count(DISTINCT a)`, `RETURN DISTINCT r` and `RETURN
+   r, count(*)` over an edge class.
+2. **The ledger.** DuckDB: 4546 cases; PASS 2997 (from 2,965); FAIL 0; BUG 0; ERROR 0; REFUSED 638; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2636 (from 2,604); FAIL 0; BUG 0; ERROR 0; REFUSED 999; BOTH_ERROR 730; SKIP 181. 18
+   lite cases in `lite/grouping.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   The TCK's agreement 3112 of 3880 (from 3,098); the showcase's §20 regenerated.
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pins that refused DISTINCT and grouping over a node now pin the carry, the distinct and the rebuilt JSON,
+   and the refusal of DISTINCT or a grouping over a relationship without identity.
+4. **Refused by name, recorded.** DISTINCT over, or a grouping by, a relationship over a property or an association
+   (no identity until S74's ordered pair, W2 leg 3); `collect(DISTINCT ...)`; ORDER BY a node.
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-fifth landing — identity: a node is its row's key
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's Phase 1, W2's first leg); the record is the study's
+§12.46. The product: one native, `meta::legend::lite::elementId`, the identity of a mapped instance as text
+(`'<class>:<key>'`: the class mapping's `~primaryKey`, else the main table's `PRIMARY KEY`, else a compile error
+naming the class; `<<equality.Key>>` is value equality, never identity), resolved by `StoreResolver` through the
+class source's key pseudo-bindings, null for an absent instance. The island: a node carries its identity as a
+column beside its labels and properties, and `a = b` / `a <> b` on nodes compares identities with Cypher's null
+rules; nodes of different classes never compare equal.
+
+1. **What lands.** `MATCH (a:A), (b:A) WHERE a = b`, `WHERE a <> b`, `MATCH (a), (b) WHERE a <> b RETURN a, b`,
+   `MATCH (a) WITH a MATCH (b) WHERE a = b RETURN count(b)`, `MATCH (a), (b) WITH a, b WHERE a <> b`, `RETURN a = a,
+   a <> a`, `OPTIONAL MATCH (a)-[:T]->(b:B) RETURN b = b` (null for an absent b), `MATCH (a:A)-[:T]->(b:B), (c:B)
+   WHERE b = c`, `MATCH (a:A)-[r:T]->() MATCH (b:A)-[s:T]->() WHERE r = s` over an edge class, and in one MATCH
+   the two relationships distinct (Neo4j's relationship uniqueness, spelled over the product for relationships
+   carrying an identity); in Pure, `$p->meta::legend::lite::elementId()`.
+2. **The ledger.** DuckDB: 4528 cases; PASS 2965 (from 2,945); FAIL 0; BUG 0; ERROR 0; REFUSED 652; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2604 (from 2,584); FAIL 0; BUG 0; ERROR 0; REFUSED 1013; BOTH_ERROR 730; SKIP 181. 16
+   lite cases in `lite/identity.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   The TCK's agreement 3098 of 3880 (from 3,093); the showcase's §20 regenerated (its pinned examples return
+   values, not nodes: their Pure and SQL unchanged).
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:core_tests_builtin`,
+   `//core:guardrails`, `//core:core_tests_integration` green; `NativeCatalogGovernanceTest`'s ceiling 21 → 22
+   and `PlatformNamesGuardrailTest`'s function-FQN ceiling 324 → 325, each with its dated justification; the
+   integration test `theIdentityOfAMappedInstanceIsItsKey` (the key's precedence, the null of an absent
+   navigation, the keyless class's error).
+4. **Refused by name, recorded.** A relationship over an association compared (no row of its own; S74's ordered
+   pair of node identities is the next step; one over an edge class compares by the edge row's identity, carried
+   through WITH like a node's), a path compared, a composite key as an identity, DISTINCT, grouping and ORDER BY
+   over a node (the next leg). The engine's default to the main table's key is to be verified against
+   its compiler source when a reference checkout is on the machine (the plan's §5).
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-fourth landing — open and closed graphs
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's Phase A, W1); the record is the study's §12.45. The
+graph profile's fifth stereotype, `Open`: a class of an OPEN graph (GQL's, one no graph type constrains); every
+class open, the graph is open and the island reads it as Neo4j does (a label or a relationship type the model has
+nothing of as no rows, a hop no way of the class reads likewise, a property no class declares as null); a closed
+graph (no stereotype) keeps C4's compile errors. The parity harness's graphs are open.
+
+1. **What lands.** `MATCH (n:Nope) RETURN n`, `OPTIONAL MATCH (n:Nope) RETURN n IS NULL`, `MATCH (a:A)
+   MATCH (a)-[:T]->(x:Nope)`, `MATCH (a:A)-[:NOPE]->(b)`, `MATCH (a:A)-[:U]->(x)` where only `B` has `U`,
+   `RETURN n.nope`, `WHERE n.nope = 'a'`, `(n {nope: 'a'})`, `coalesce(n.nope, n.name)`, `[(a)-[:NOPE]->(x) |
+   x.name]`, `exists((a)-[:T]->(:Nope))`.
+2. **The ledger.** DuckDB: 4513 cases; PASS 2945 (from 2,854); FAIL 0; BUG 0; ERROR 0; REFUSED 657; BOTH_ERROR 730;
+   SKIP 181. Postgres: PASS 2584 (from 2,504); FAIL 0; BUG 0; ERROR 0; REFUSED 1018; BOTH_ERROR 730; SKIP 181. 29
+   lite cases in `lite/open.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems). The
+   TCK's agreement 3093 of 3880 (from 3,031); the showcase's pinned model carries the stereotype.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
+   `//core:core_tests_integration` green; a unit test pins the open readings beside the closed pins.
+4. **Decided.** `docs/SEMANTICS_REGISTER.md` S58 rewritten as the two readings. The declaration site moved on the
+   user's direction after step 1 (the study's §12.45): the graph a Cypher island reads is the DataSpace its leading
+   `USE` names (`USE g::Graph MATCH ...`), open by `<<graph::graph.Open>>` on the DataSpace, not on the classes;
+   `ModelContext.findDataSpace`, `DataSpaceDefinition.stereotypes`, `CypherIslands.graphOf`; the integration test
+   `theGraphAUseNamesIsADataSpaceOpenByItsStereotype`.
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-third landing — a MATCH after rows whose pattern is new
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.44. The translator alone: a MATCH
+after rows (a WITH that projected its variables, an UNWIND) whose one pattern names no variable of the rows is the
+product of the rows and the pattern's rows (§12.28's cartesian machinery), the WHERE over the pairs.
+
+1. **What lands.** `MATCH (a:Begin) WITH a.num AS property MATCH (b:End) WHERE property = b.num RETURN b`,
+   `UNWIND [1, 2] AS i MATCH (p:P) RETURN i, p.name`, `WITH collect([0, 0.0]) AS numbers UNWIND numbers AS arr
+   WITH arr[0] AS expected MATCH (n) WHERE toInteger(n.id) = expected RETURN n`, `WITH 1 AS x MATCH ()-[r]->()
+   RETURN count(r), x`.
+2. **The ledger.** DuckDB: 4484 cases; PASS 2854 (from 2,840); FAIL 0; BUG 0; ERROR 0; REFUSED 720; BOTH_ERROR 729;
+   SKIP 181. Postgres: PASS 2504 (from 2,490); FAIL 0; BUG 0; ERROR 0; REFUSED 1070; BOTH_ERROR 729; SKIP 181. 11
+   lite cases in `lite/rows.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused a MATCH after a projecting WITH now pins the product's join, and the refusal of a
+   pattern binding a projected variable again.
+4. **Refused by name, recorded.** A MATCH after rows naming a variable of the rows that is not a carried node's
+   continuation (identity, or Neo4j's static error), a MATCH of several patterns after rows; `collect(DISTINCT
+   x)`, tried and withdrawn (the database's order of the distinct values is not Neo4j's, nor the same twice).
+
+## 2026-10-17 — `#Cypher{...}#`: the forty-second landing — a property or an index of a value the database holds as a Variant
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.43. The translator alone: a property
+or an index of a value the database holds as a Variant is the platform's `get` by the key or the place, read by
+type through `to(@T)` where the Variant's shape says it (a spelled map's entries, a list of one kind's elements, a
+spelled list of several kinds' places), else a Variant the judge reads as the value it holds; the shape travels as
+the Variant's mark through WITH, `collect` and UNWIND; `type`, `labels`, `properties` and `length` over values
+raise Neo4j's type errors in Neo4j's words.
+
+1. **What lands.** `UNWIND [{a: 1, b: 'x'}] AS m RETURN m.a, m.b`, `m['b']`, `m[k]`, `l[-1]`, `l[i]`,
+   `(list[1]).name`, `n['na' + 'me']`, `WITH [r, 1] AS l RETURN type(l[0])`, a collected node's property and
+   labels, `size(m.l)` on Postgres; `type(n)` of a node, `length(r)`, `properties(1)` as Neo4j's errors.
+2. **The ledger.** DuckDB: 4473 cases; PASS 2840 (from 2,802); FAIL 0; BUG 0; ERROR 0; REFUSED 724; BOTH_ERROR 728;
+   SKIP 181. Postgres: PASS 2490 (from 2,452); FAIL 0; BUG 0; ERROR 0; REFUSED 1074; BOTH_ERROR 728; SKIP 181. 35
+   lite cases in `lite/variants.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; two
+   unit tests pin the `get`/`to` spellings, the tuple's places, the type errors and the unknown-mark refusal.
+4. **Found and recorded.** Postgres plans a FROM function's argument before any row is read, so `toOne`'s raise
+   inside `jsonb_array_elements(...)` fires for a row that holds a value (`docs/IN_FLIGHT.md`, the ninth line); the
+   island's `size` of a Variant that may be null tests it instead of reading it as one.
+5. **Refused by name, recorded.** A comprehension or predicate over a Variant list of no known element kind, `ORDER
+   BY` a Variant, two Variants compared, `properties` of a Variant node or relationship, `type`/`labels` of a
+   Variant of no known mark.
+
+## 2026-10-16 — `#Cypher{...}#`: the forty-first landing — variable-length relationships with an upper bound
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.42. The translator alone: a
+variable-length relationship with an upper bound unrolled into the chains of each length, read as arms by the
+pattern machinery, the unroll's own nodes and relationships hidden from the carried columns, a zero-length hop
+binding the far node to the near one, the relationship's variable the list of the chain's relationships, a path's
+length, nodes and relationships carried beside it over rows.
+
+1. **What lands.** `MATCH (a)-[:T*1..2]->(b)`, `(a)-[r:T*2]->(b) RETURN r`, `(a)-[*0..1]->(b)`,
+   `p = (a)-[:KNOWS*0..1]->(b)-[:FRIEND*0..1]->(c) RETURN p`, `length(p)` over the arms; Neo4j's missing lower
+   bound is 1.
+2. **The ledger.** DuckDB: 4438 cases; PASS 2802 (from 2,784); FAIL 0; BUG 0; ERROR 0; REFUSED 738; BOTH_ERROR 717;
+   SKIP 181. Postgres: PASS 2452 (from 2,434); FAIL 0; BUG 0; ERROR 0; REFUSED 1088; BOTH_ERROR 717; SKIP 181. 16
+   lite cases in `lite/varlen.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused a bounded variable-length relationship now pins its unroll and the two refusals.
+4. **Declared.** `docs/SEMANTICS_REGISTER.md` S75: relationship uniqueness along a chain is not spelled (identity,
+   C5); a graph that loops a chain back over one relationship answers rows Neo4j does not.
+5. **Refused by name, recorded.** No upper bound, a bound beyond 4, more than 16 chains, a property map on the
+   relationship, more than two hops in all, after another clause, beside another pattern, in an OPTIONAL MATCH.
+
+## 2026-10-16 — `#Cypher{...}#`: the fortieth landing — `collect`, and lists the database holds
+
+Branch `claude/keen-noether-v5mis0` (PR #50); the record is the study's §12.41. The translator alone: `collect(x)`
+as the JSON array the database builds (each value's JSON text joined by `joinStrings`, read as a Variant), the
+element kind travelling with a list (a mark on the Variant), UNWIND over a Variant list and over spelled lists of
+lists, maps or mixed kinds, a known-kind list read as the collection the database computes wherever a collection
+already is (a list predicate, `IN`, an index, a comprehension), `size` of a Variant list.
+
+1. **What lands.** `MATCH (p:Person) RETURN p.name, collect(m.title)`, `WITH collect(x) AS xs UNWIND xs AS y`,
+   `all(x IN collected WHERE x)`, `UNWIND [[1, 2], [3]] AS l`, `UNWIND [1, 'a', true] AS v`, `size(collect(x))`.
+2. **The ledger.** DuckDB: 4422 cases; PASS 2784 (from 2,718); FAIL 0; BUG 0; ERROR 0; REFUSED 740; BOTH_ERROR 717;
+   SKIP 181. Postgres: PASS 2434 (from 2,368); FAIL 0; BUG 0; ERROR 0; REFUSED 1090; BOTH_ERROR 717; SKIP 181. 22
+   lite cases in `lite/collect.yaml` and 5 in `lite/withlists.yaml` (a list or map of row values through WITH),
+   each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green; the
+   unit pin that refused `collect` now pins its spelling.
+4. **Refused by name, recorded.** `min`/`max` over Variants, `UNWIND` of a node or path, `ORDER BY` a Variant,
+   `single` over a computed collection, `collect(DISTINCT x)`, `collect` of a time or a duration.
+5. **Withdrawn.** The ask to the database owner for a collection-valued aggregate (IN_FLIGHT, 2026-10-16): the island
+   spells `collect` with the string aggregate it has.
+
+## 2026-10-16 — `#Cypher{...}#`: the thirty-ninth landing — a pattern as a predicate, `EXISTS { ... }`
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.40. The parser (two expression nodes) and the
+translator (the hop's existence over the pattern comprehension's resolution, gated to conditions as Neo4j gates it).
+
+1. **What lands.** `WHERE (n)-[:T]->()`, `NOT (n)<-[]-(:B)`, `(n)-[:T|U]->() AND ...`, and `EXISTS { [MATCH] pattern
+   [WHERE ...] [RETURN ...] }` over one hop from a bound node; a pattern expression outside a condition errors with
+   Neo4j's words.
+2. **The ledger.** DuckDB: 4381 cases; PASS 2712 (from 2,690); FAIL 0; BUG 0; ERROR 0; REFUSED 774; BOTH_ERROR 714;
+   SKIP 181. Postgres: PASS 2362 (from 2,340); FAIL 0; BUG 0; ERROR 0; REFUSED 1124; BOTH_ERROR 714; SKIP 181. 12 lite
+   cases in `lite/predicates.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`: 0 problems).
+   After the review (item 5): DuckDB 4395 cases, PASS 2718, REFUSED 779, BOTH_ERROR 717, SKIP 181; Postgres PASS 2368,
+   REFUSED 1129, BOTH_ERROR 717, SKIP 181; FAIL, BUG and ERROR 0 on both.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler`, `//core:guardrails`,
+   `//core:core_tests_integration`, `//projects:every_project_test` green. The PR's CI (`checks` lane) caught one
+   ratchet the three landings moved: `//parser-equivalence:update_ratchets_test`, `own_corpus.matched` 2856 to 2891,
+   the landings' test snippets (`GraphEdgesTest`'s models, the harness's edge-class text in `CypherGraph`, the
+   integration test's) 35 more own-corpus elements the oracle matches; regenerated with
+   `bazel run //parser-equivalence:update_ratchets`. After the merge of main (#49, whose own move was 2856 to 2862)
+   the regeneration on the merged tree reads 2897, main's 2862 plus this branch's 35 (commit 17df891).
+4. **Refused by name, recorded.** A pattern predicate over rows, with both ends bound, with a property map, over
+   more than one hop; an EXISTS subquery with several patterns or further clauses; `COUNT { }`, `COLLECT { }`.
+5. **The review.** Two independent reviews of the three landings (the study's §12.40.2): nine findings in the reader,
+   twelve in the translator, parser and harness, five of them wrong answers, every one verified by a probe and fixed
+   (commits 294a783 and 0bca012), then the Postgres lane's one catch after them (a property an arm's class lacks,
+   read as its column where the known null folds) and the gap beside it (a tried root's property map read against no
+   candidate class; the study's §12.40.2); 14 lite cases and 28 unit tests pin them.
+
+## 2026-10-16 — `#Cypher{...}#`: the thirty-eighth landing — a relationship type joining several class pairs (PR3, step 2)
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.39. The harness (`CypherGraph`: one edge class
+per class pair a type joins) and the translator (a type naming several edge classes read as arms, a relationship
+carried across arms as the union of its edge classes' properties).
+
+1. **What lands.** `(:A)-[:T]->(:B)` and `(:D)-[:T]->(:B)` in one graph are two edge classes of the type `T`; a
+   pattern `(a:A)-[:T]->(x)` reads one arm per edge class the start class allows, the far label choosing; the
+   harness's largest SKIP bucket (117 cases) runs.
+2. **The ledger.** DuckDB: 4369 cases; PASS 2690 (from 2,671); FAIL 0; BUG 0; ERROR 0; REFUSED 785; BOTH_ERROR 713;
+   SKIP 181 (from 298). Postgres: PASS 2340 (from 2,321); FAIL 0; BUG 0; ERROR 0; REFUSED 1135; BOTH_ERROR 713;
+   SKIP 181. 6 more lite cases in `lite/edges.yaml`, each judged by Neo4j (`tools/neo4j-oracle/snap.sh --check`:
+   0 problems).
+3. **The guards.** `//core:core_tests_protocol`, `//core:guardrails`, `//core:core_tests_integration` green.
+4. **Refused by name, recorded.** A type naming several edge classes in an OPTIONAL MATCH's hop or a pattern
+   comprehension's (the ways stay several outside the arms).
+
+## 2026-10-16 — `#Cypher{...}#`: the thirty-seventh landing — the edge class, a relationship type with properties (PR3, step 1; the twelfth line)
+
+Branch `claude/keen-noether-v5mis0`, after PR #48 merged; the record is the study's §12.38 and the design its §5.6
+(`docs/CYPHER_STUDY_2026_10_15.md`). The library project `projects/graph` (one profile), `PlatformTypes.GRAPH_PROFILE`,
+the phase-F reader `compiler/element/GraphEdges` (run by `ModelIntegrity`), the association end's stereotypes on the
+model record, the resolver keeping a rebuilt derived property's annotations, the island's model adapter
+(`CypherIslands`), the translator, and the harness (`CypherGraph`, `CypherParity`).
+
+1. **What lands.** A class carrying `<<graph.Edge>>` with one `<<graph.from>>` and one `<<graph.to>>` end (own,
+   inherited or association-injected, each `[1]` and class-typed) and a `<<graph.type>>` enumeration value is a
+   relationship type with properties; phase F refuses a misdeclared one under the class's name. A pattern over it
+   navigates the start node's inverse end to the edge instance and the edge's far end on; `r.prop`, `r` as a value,
+   `properties(r)`, `keys(r)`, a property map on the relationship, a relationship carried through `WITH`, a path's
+   relationship and a pattern comprehension's hop read the edge instance. The harness declares the association form
+   for every relationship type whose relationships carry properties, over a bridge table, and its SKIP for those
+   cases is gone.
+2. **The ledger.** DuckDB: 4363 cases; PASS 2671 (from 2,649); FAIL 0; BUG 0; ERROR 0; REFUSED 683; BOTH_ERROR 711;
+   SKIP 298 (from 348: the relationship-property skips lifted). Postgres: PASS 2321 (from 2,299); FAIL 0; BUG 0;
+   ERROR 0; REFUSED 1033; BOTH_ERROR 711; SKIP 298. 18 lite cases in `lite/edges.yaml`, each judged by Neo4j
+   (`tools/neo4j-oracle/snap.sh --check`: 0 problems over 4280 cases).
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_compiler` (the reader's `GraphEdgesTest`),
+   `//core:guardrails`, `//core:core_tests_integration`, `//projects:graph_test` and `//projects:every_project_test`
+   (the projects-wide compile, renamed apart from the new project's own test) green.
+4. **Refused by name, recorded.** An edge class as a label; the compact form read from the node side (no inverse end
+   to navigate); an undirected pattern over a self-typed edge; a type naming both an edge class and a property; an
+   end's name used as a type; a hop from a node reached through an edge class (the resolver's nested navigation
+   reads no association end past the edge's end: refused by the translator, the finding reported to the resolver
+   line in `docs/IN_FLIGHT.md`).
 
 ## 2026-10-16 — `#Cypher{...}#`: the thirty-sixth landing — a stored list as a Variant, a parenthesized label predicate, a first-clause OPTIONAL MATCH over no way (the eleventh line)
 
@@ -10653,6 +11559,83 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-22 — main (bff1c703f, PR #65 and the dialect program's Phases 5 to 7) merged into the plan path branch
+
+The Studio session relayed the user's word, "Merged, tell parity": PR #65 is on main, and this branch merges main
+before it goes there. 39 files conflicted. The resolution keeps main's designs and moves the branch onto them:
+
+- **Connectors (main's Phase 5).** MongoDB joins main's registry. `Connectors.of(MongoDB)` finds its connector beside
+  the drivers by ServiceLoader (core compiles against no Mongo jar); with none on the class path it is an `Unbuilt`
+  that refuses by name. `DatabaseConnector` gains `ownSessions()` and `open(def)` for a database whose sessions are not
+  JDBC's, and `PlanSessions` asks them before `Sessions.openingFor`. The branch's Trino opening (step 9: the URL, the
+  test user, `explicitPrepare=false`) is `TrinoConnector`'s. Its user comes from the model (`AuthenticationSpec.testUser`),
+  so the connector names no other database. The Trino specification's codec is `ConnectionWire`'s.
+- **Plan facts (main's Phase 5).** The branch's `Databases.inProcess` is the dialect's (`SqlDialect.inProcess`), as
+  main made server versions and bulk loading. `ConnectorsTest` holds it equal to the connector's. `serversFor` moved to
+  `PlanMaker`, since the database owner no longer reaches the plan's types.
+- **Test backends (main's Phase 6).** The PCT harness's lane enum and `CloudLane` are gone. `PctBackend` keeps the
+  branch's plan route (`planSessions`, `serverVersion`, `throughThePlan`) over `TestBackend`. The held cloud system
+  session (eee1e560) is `CloudBackend.heldSystem`. MongoDB has `MongoDbBackend`, which owns its storeless runtime's text
+  (`StorelessRuntime` names no database).
+- **Every type with a dialect is implemented.** That includes MongoDB, so tests that declare a
+  `RelationalDatabaseConnection` on every database iterate `Databases.relational()`. That is the implemented types whose
+  dialect is relational (`SqlDialect.relational`, false for MongoDB's aggregation pipeline).
+- **The absolute database-name ban (main's D11).** The branch's tests that named databases now take the platform's
+  engine, every in-process database, every relational database, or a dialect's fact (`needsStaticPivot`, `inProcess`,
+  `temporaryTables`). A case that is one database's moved to a test named for it:
+  - `PlanMakerH2Test` (NaN);
+  - `JudgesOnPlansH2Test`;
+  - `ObjectIdentitySqliteTest`;
+  - `OutputMatrixH2Test`;
+  - `JdbcDecodeDuckDbTest` and `JdbcDecodeH2Test`;
+  - `SeamBenchmarkDuckDbTest` and `SeamBenchmarkH2Test`.
+
+  `DatabaseOwners` registers `core/src/main/postgres` as Postgres's own source set, as the DuckDB and MongoDB ones are.
+- **Kept from both sides.**
+  - `readOnce` (main) replaces the branch's narrower `refuseUndissolvable`: a draw read twice, random or GUID, is
+    refused by name.
+  - Main's `withSortOutputs` is applied in the renderers beside the branch's `liftOrder`.
+  - `ModelPacker` skips only the platform's primitives (`Type.Primitive`). A test's own primitive is declared.
+  - Main's `typeVariableValues` stays.
+- **The register.** The branch's rows S76 to S80 and S83 to S85 took numbers main had used. They are now S97 to S104,
+  with every citation renumbered. The branch's retired S81 and S82 are named in a note under the table.
+
+Guards: each pin moved with a dated reason in its file.
+- Ledger: `StatementExecutor` 2326; `ModelPacker` 318.
+- Exec into planning: `InstanceIds` 1, `JdbcStatements` 2, `Sessions` 3 -> 2.
+- JDBC accessor sites: 21.
+- `DialectBoundaryTest`: Databases 15, Connectors 13, ConnectionWire 5.
+- `NAME_COMPARE`: 204.
+- Function-FQN literals: 338.
+- `SqlFn.LIST_`: 149.
+- `PlanMakerTest`'s register: 35 rows. Eight are SQLite list refusals on the TDS text output. The Decimal JSON rows
+  moved (S97). Four date rows were removed because SQLite now answers as today.
+
+Fixed in code rather than re-pinned:
+- `SideOrdinal`'s star frame reads its source's outputs (withOutputs back to 3).
+- `InstanceEquality` takes the canon's empty array (ArrayLit back to 40).
+- `UserCallInliner`'s instantiation path is a final list.
+- `Lowerer.scalarValueTailArms`, `Postgres.call` and `BigQuery.call` are under the shape limit, by arms moved into named
+  methods. The SQL is byte-identical.
+
+Main's `PostgresDialectTest` unnest case now reads a list the database computes, because a literal list's filter and
+size unroll to CASEs on this branch. `ConnectorsTest` gained rows for the Trino specification and MongoDB.
+
+Found, not fixed: on SQLite the judges' store read of a `BIT` column hands back the text `false`, which the typed seam
+refuses ("a java.lang.String false"). The judges test never ran there before: it named DuckDB and H2, as its H2 test
+now does.
+
+Local gate: `bazel test --lockfile_mode=error //gates:local`, 375 of 385 passed and 1 skipped. Every one of the other 9 then
+passed on its own: the eight Postgres-backed targets and `//datacube:verify_app_test`, run as an unprivileged user
+(`tools/postgres/as_unprivileged.sh`, the container is root and initdb refuses root), and
+`//docs:update_dialect_capability_test`, after its files were regenerated. Generated files regenerated:
+- `//core:update_generated` and `update_ladder`;
+- `//docs:update_dialect_capability` and `update_generated`;
+- `//parser-equivalence:update_generated` and `update_ratchets` (own corpus 2,993 matched).
+
+`//spec:update_reference_lane_test` was not re-blessed: it is red on main already. The lanes re-measure channels A and
+B on the merged head next: Snowflake, BigQuery, Databricks, MongoDB and the warehouse.
+
 ## 2026-10-22 — Snowflake and BigQuery: the Float's print forms read once
 
 The user, 2026-10-21: "2-3x timing cannot go to main". Snowflake's channel A ran its grammar suite in 304 s against
@@ -10833,7 +11816,7 @@ The user, 2026-10-20, on the branch's audit ("Yes fix all those"), and the merge
 
 **Landed:**
 - **No identity answers from an id the product does not track** (docs/OBJECT_IDENTITY_2026_10_20.md §4, register
-  S85). Where the evaluations are not tracked, the plan path mints no id (`Lowerer.objectId`) and reading the object's
+  S104). Where the evaluations are not tracked, the plan path mints no id (`Lowerer.objectId`) and reading the object's
   identity raises by name in the database (`CanonicalRenderSql.trackedId`: every identity comparison, `toString`'s
   `@_` name, a key canon's JSON-carried object): an object the resolver builds from a store's rows (one construction
   for every row), one built in a lambda of a fold the database runs (`UserCallInliner.finish`), and a lambda body's let
@@ -10940,7 +11923,7 @@ inside the plan-route parity work on DuckDB (`docs/PLAN_PATH_PROGRAM_2026_10_17.
   in a lambda's body (spliced before typing), and a let built outside a map its positions.
 - **A map flattens a mapper whose value is a list** (`ListEncodings.map`): `[1, 2]->map(i | [3, 4]->map(j | $i + $j))`
   had two elements, `$qs->map(q | $q.xs)` a list of lists; the flatten read only a spelled collection.
-- Where the product's identity is not yet Pure's: register **S85** (an object per relation row refused by name; a store
+- Where the product's identity is not yet Pure's: register **S104** (an object per relation row refused by name; a store
   row's object one id per construction; a fold's accumulator; a lambda's let read in a nested map).
 
 **Measured** (this container, the branch head): `ObjectIdentityTest` (23 cases on DuckDB and SQLite, each Pure's
@@ -10968,7 +11951,7 @@ the first batch's next items.
   per-key columns are per-key regions, each field named by the key's position (`MongoDb.GroupField`,
   `MongoDbPipeline.group`/`projection`); a star with excluded columns is the row with those fields unset
   (`$unsetField`, the composite key's source); the keys and the body are two commands with no transaction across
-  them (`KeysSnapshot.NONE`, register S84) and no column limit (a document's 16 MB is). The plan carries the names
+  them (`KeysSnapshot.NONE`, register S103) and no column limit (a document's 16 MB is). The plan carries the names
   each statement writes its cells under (`ExecutionPlan.Keyed.keyFields`, each output's `field`, a per-key cell's
   `_pk<position>_<field>`; plan JSON v9), which a session reading by name needs and JDBC, reading by place, ignores.
   Ten pins.
@@ -11124,7 +12107,7 @@ their own containers, and a pin that starts passing there fails loudly).
 
 The program: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §9 (the user's decision of 2026-10-20 after the pivot discussion:
 "What if I just want the output of a pivot as a relation?"; the cross-join form announced and withdrawn the same day);
-register S84.
+register S103.
 
 **What it is.** A pivot no cast names has columns its data names. SQL fixes a result's columns when it prepares the
 statement, so the plan reads the keys first. `ExecutionPlan.Keyed` carries a KEYS probe (the ON column's distinct non-null
@@ -11159,7 +12142,7 @@ output origin into DERIVED, which a per-key name must survive (`SqlSelect.Projec
 3.47.1 2,000, DuckDB 70,000 without a limit; H2 and SQLite take REPEATABLE READ and SERIALIZABLE, DuckDB refuses to set an
 isolation (every transaction there is one snapshot). DuckDB's own PIVOT is the FILTER form (a count's empty cell 0, a
 list's null) and names no column for a null key, its row kept: the CASE form matches it for every aggregate that skips
-nulls (S84 names the list).
+nulls (S103 names the list).
 
 **Verdicts:**
 - `PlanMakerTest.aDynamicPivotsPlanReadsItsKeysFirst_everyOutputEveryDatabase` (DuckDB, H2, SQLite: the TDS text, the CSV, the JSON and the streamed rows, the TDS text judged whole against the legacy probe route's on DuckDB, every plan round-tripping with its regions) and `aDynamicPivotsProbePlanAnswersForTheKeysItsRunFinds` (no key: the fixed columns alone); `PlanJsonTest` at format 8.
@@ -11174,7 +12157,7 @@ merged"), written while the trino-h2 branch was still out.
 
 **The trino-h2 branch merged (`1616963`; its head `37296e9`).** Trino 5 of 5 exact on its pins (1,249: essential 345,
 grammar 137, relation 469, standard 205, unclassified 93); H2 469 of 469 with the ten uncast dynamic pivots pinned by
-name (the four cast pivots' pins removed once `870f051` was in, S83). The harness's Trino session sends a prepared
+name (the four cast pivots' pins removed once `870f051` was in, S102). The harness's Trino session sends a prepared
 statement as one `EXECUTE IMMEDIATE` (`EmbeddedTrino.jdbcUrl`, `explicitPrepare=false`, the platform's own opening's
 form): through `PREPARE` the 689 KB statement of `format('%s %f', ['fox', 1.5])` filled the coordinator's heap (§7's
 residue on `%f`). Trino's `testBasic` is pinned with Trino's own refusal of the session's metamodel tables ("no
@@ -11365,7 +12348,7 @@ cloud database (snowflake, bigquery, databricks), trino with h2, postgres with s
 and clickhouse; each on its own branch `claude/step9-<container>`, fixing at the root or pinning by name, channel B as
 the regression, reporting to this session. Their landing is a later entry.
 
-**The shared item, landed here: a cast over a dynamic pivot on a dialect without a dynamic PIVOT (register S83).**
+**The shared item, landed here: a cast over a dynamic pivot on a dialect without a dynamic PIVOT (register S102).**
 H2's and SQLite's four "static" failures (`test_Pivot_Filter`, `test_Extend_Filter_Select_ComplexGroupBy_Pivot`,
 `test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort`, `test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit`;
 "pivot reached a dialect without a PIVOT strategy", "a pivot reached SQLite unemulated") were dynamic pivots
@@ -11379,7 +12362,7 @@ it (`CarrierStrategies` PV1, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Data
 `CarrierStrategies.generatedSlot`). No row is pinned by them (a static IN filters its rows at the lowering,
 `Pivots.lower`; the named values do not): a group whose key the cast does not name keeps its row with its named cells
 null, as DuckDB's dynamic form answers through the same cast. DuckDB reads `in()` alone and keeps the dynamic form
-(engine-exact; a named key no row has stays its error there, a null column elsewhere: S83). The plan JSON carries
+(engine-exact; a named key no row has stays its error there, a null column elsewhere: S102). The plan JSON carries
 `named` (format 7; `PlanJsonTest`'s two version pins moved with the reason).
 `PlanMakerTest.aCastOverADynamicPivotAnswersOnADatabaseWithoutADynamicPivot`: the same text on DuckDB (its PIVOT) and
 H2 (`CASE WHEN ... = 2011`, no PIVOT), the plan round-tripping.
@@ -11463,7 +12446,7 @@ legacy route (R8).
 
 The note: `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md` (the user's question after step 7's first landing: "do we
 need more homework for pivot on upstream real code?"; "do the homework"). The reading is its §1, with every citation
-into the pinned engine checkout (spec input only); the findings its §2; the register rows S78 to S80.
+into the pinned engine checkout (spec input only); the findings its §2; the register rows S99 to S101.
 
 **What was found.** The engine's generated column name carries the single quotes everywhere (`'2000__|__newCol'`:
 DuckDB's `concat('''', year, '''')` and the static form's aliases, the interpreter's `PivotColumnInfo`, the PCT's
@@ -11486,8 +12469,8 @@ engine does not have either (`~[year]` with values); the engine's form types and
    templates (a switch over the format, no default).
 3. `PlanMakerTest.aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt`: the CSV and JSON pins moved to
    the engine's names with the reason; a static pivot's CSV and JSON added.
-4. `docs/SEMANTICS_REGISTER.md`: S78 (an uncast pivot answers here, not in the engine), S79 (the name's physical
-   spelling bare, presented as the engine's), S80 (H2: a static pivot answers, a dynamic one is refused by the
+4. `docs/SEMANTICS_REGISTER.md`: S99 (an uncast pivot answers here, not in the engine), S100 (the name's physical
+   spelling bare, presented as the engine's), S101 (H2: a static pivot answers, a dynamic one is refused by the
    row-JSON capability).
 
 **Verdicts (this tree).** `//core:core_tests_root` (54.8s) and `//core:core_tests_lowering` (22.4s) pass -- the pivot cases of
@@ -11503,7 +12486,7 @@ pivot, so the wires' change there is the name rule's identity on every separator
 equal-output factoring.
 
 **Not changed, recorded.** The physical and typed spelling (the homework note's §5); the H2 dynamic refusal's wording
-(S80).
+(S101).
 
 ## 2026-10-18 — The plan path program, step 7, first landing: the judges onto the typed seam, the dynamic pivot's two holes, the Float that is no number
 
@@ -11947,7 +12930,7 @@ What changed:
    abstract Date keeps the time-of-day rule; a text-carried date on the engine's wire is refused by name (the
    engine's API answers no value root).
 3. **The values stay Pure's**: a Decimal keeps its scale (`2.50`, `5.00`, where the engine answers `2.5` and
-   `5.0000000000000000`: register S76, new) and `3 * 1.1` is `3.3` (the engine's `3.3000000000000003`: S77, new).
+   `5.0000000000000000`: register S97, new) and `3 * 1.1` is `3.3` (the engine's `3.3000000000000003`: S98, new).
 4. `PureV1ApiTest.e8_execute_writesTheEnginesText_overPuresValues` (new): 21 cases on the engine's own H2 model --
    the engine's recorded texts (`probes/engine-reference/results.txt` §2) and, for the Float layout beyond them,
    `Double.toString` as the oracle (`12345678.5`, `1234567.0`, `1.0e7`, `0.001`, `1.0e-4`, `100.0`, `-2.5e-7`,
@@ -12288,3 +13271,971 @@ source set walked; the accessor count unchanged at 15), `ArchitectureTest` (the 
 driver funnelled), `CoreClosureTest` (the four jars), `CodeShapeGuardrailTest` (the pipeline's stage counter),
 `DatabaseOwners` (the connector's source set an owner). The semantics register: S72 to S75.
 
+## 2026-10-16 — The dialect program's Phase 5: each database's sessions in a connector of its own (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 59b547a (#49): 8664e99 (the connectors) and 01cf198 (the audit's
+findings). The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 5, "Done, 2026-10-16"). No behaviour
+change is intended.
+- **What moved:**
+  - Each database's sessions moved to `exec/<Db>Connector.java`: its driver's product name, a declared connection's
+    URL, its private in-memory instance, MariaDB's held raise and the storeless declaration. `exec/Connectors` is the
+    registry. `H2Settings` is deleted (`H2Connector.SETTINGS`).
+  - `Databases` is type to dialect: `SqlDialect.serverVersions` and `loadsRowsInBulk`, and
+    `EngineText.inListTempTables`.
+  - The lite plan format's connection codec is `model/ConnectionWire`.
+  - The dialect-leak ledger loses 9 main-code rows (118 lines). Main code keeps only `DynaFn` (D10) and the SQL
+    translator's three files, which wait for neema2/legend-lite#43.
+- **One message changed.** A plan whose declared connection names an unknown database type is refused as "unknown
+  database type 'X'", the plan format's wording; before, it surfaced `DatabaseType.valueOf`'s text. Same exception
+  class.
+- **Guards:**
+  - `SqlTextRatchetTest` stripped `//...` to the end of a line even inside a string. `jdbc:mariadb://` cut its line,
+    the literal scan fell out of step, and it read the next literal's SQL as none. It now strips comments outside
+    literals; the counts over every other file are unchanged (the audit re-ran the old and new stripping over
+    `core/src/main/java`).
+  - The owner guard's new CONNECTOR kind holds each connector to its own database, in its strings as well as its
+    code (the audit's blocking finding: nothing read a connector's strings).
+  - `exec/ConnectorsTest` pins every type with every specification and authentication against the pre-connector
+    `Sessions`, and fails on a specification or authentication its table lacks.
+- **The independent audit of 8664e99** (an agent that wrote none of it):
+  - Blocking: the string hole above. Fixed in 01cf198.
+  - Should-fix, fixed in 01cf198:
+    - no default for `inProcess` or `raisedMessage`;
+    - the table test;
+    - `H2Modern.serverVersions` refused;
+    - `PlanSessions`' `SQLException` path kept;
+    - the text-block escape in the new stripping;
+    - docs and comments that overstated.
+  - Answered, not taken: an exhaustive specification switch in each connector. It would name other databases'
+    specifications, which the owner guard forbids; the table test forces the same decision. Every other case the
+    audit compared (every type, specification and authentication; product names; private URLs; the settings string;
+    storeless texts; server versions; bulk loading; IN-list facts; the plan JSON) was identical.
+- **Proof:**
+  - `bazel test //core:all //spec:corpus_h2 //spec:corpus_duckdb` (root container): 84 of 84 on 8664e99.
+  - `bazel build //...` (`--jobs=2`): every target, the browser planner included, on 01cf198. At full parallelism one
+    corpus judge action (`//spec:judge_database_h2`) was OOM-killed.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 369 of 369 on 01cf198.
+- **The measurement round, 59b547a (main) against 01cf198, every target with `dump-sql`:**
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits. Digests, census lines and
+    channel B are byte-identical. Each session was accepted under its connector's product name ("Snowflake",
+    "SparkSQL", "Google BigQuery").
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): all pass, and the 60 digests, the census
+    lines and the 25 channel B lines are identical. MariaDB's and MySQL's ten targets were diffed log for log, with
+    run times, heap figures, UUIDs and byte-array identity hashes normalized, and are line-for-line identical: every
+    raise read back through `MariaDbConnector` gives the same outcome as through `Sessions`.
+  - Trino, H2 and the corpus (12 lanes): all pass on both commits, and every digest and channel B line is identical.
+    The corpus's 12 targets pass on both. Its roster and register files are byte-identical, so every
+    `update_rcorpus_*` target was a cache hit. The judge logs' failures agree test by test once trace IDs are
+    stripped: host H2 359, host DuckDB 108, database H2 353, database DuckDB 108. So H2's sessions behave the same
+    under `H2Connector.SETTINGS`.
+  - Found on the way, not this branch's: main's baseline moved between 0d0e5e1 (Phase 3's last measured commit) and
+    59b547a, in 8 of those 60 lanes. The moves are #48's (the Cypher island), and every test still passes:
+    - Postgres casts a string literal to VARCHAR before parsing it: ec902e07, "numbers from texts".
+    - DuckDB casts a struct's integer field to BIGINT under a BIGINT slot: 6852139b, the duration leg.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-third landing — the temporal tail, leg 2: zones the database reads
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W5 leg 2c and tail); the record is the study's §12.75.
+A zone whose offset the database reads: a stored zoned value's offset slot, a stored date-time's region slot, a
+named zone's offset at an instant; carried through a WITH as hidden columns.
+
+1. **What lands.** On DuckDB WithOrderBy2/[15] (three examples) and [16] (two), Temporal3/[3] #16 to #20,
+   Temporal5/[4] and [6], Temporal6/[7]; on Postgres Temporal3/[3] #16 to #20 (the rest are nanosecond values, which
+   Postgres refuses by name); the 18 cases of `lite/zones.yaml` and eight earlier lite cases; DuckDB PASS 3,743 →
+   3782, Postgres 3,337 → 3365; TCK agreement DuckDB 3542 → 3555, Postgres 3160 → 3165.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3782
+   / REFUSED 289 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3365 / REFUSED 706 / BOTH_ERROR 750 / SKIP 57, of 4878
+   cases); the oracle check 0 problems (its dump now spells a named zone's date-time with the zone's name:
+   Temporal5's re-snap).
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration` (with
+   `RelationalMappingIntegrationTest`'s new case: an embedded value on an association's target, the resolver's
+   hop walk stopping at a segment the target binds), `//core:guardrails` green.
+4. **Refused by name, recorded.** A zoned property read after a step that renames a carried node's columns (a
+   re-anchoring, a variable-length chain).
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-fourth landing — temporal values inside lists, nested EXISTS
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.76 and §12.77.
+A temporal held by a Variant read back as the value (the database's parse of the oracle's spelling); an EXISTS
+subquery nested in another, of more than one hop, or counting its matches.
+
+1. **What lands.** On DuckDB WithOrderBy1/[45] #6 to #8, ExistentialSubquery3/[1], [2], [3] and
+   ExistentialSubquery2/[2]; on Postgres WithOrderBy1/[45] #6 and the four EXISTS rows; the 14 cases of
+   `lite/temporallists.yaml` and the 11 of `lite/existsnested.yaml`; DuckDB PASS 3,782 → 3817, Postgres 3,365 → 3394;
+   TCK agreement DuckDB 3555 → 3562, Postgres 3165 → 3170.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3817
+   / REFUSED 279 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3394 / REFUSED 702 / BOTH_ERROR 750 / SKIP 57, of 4903
+   cases); the oracle check 0 problems. Twelve lite cases named for a refusal that now pass renamed (their answers
+   carried to the new keys).
+3. **The guards.** `//core:core_tests_protocol` (two pinned refusals of a list of times turned into translation
+   checks), `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Fixed in passing.** An UNWIND of a Variant list of dates read the oracle's text as a date (the database's
+   error, no case reached it); `toString` of a minute-precision local date-time literal (Pure's minute literal has
+   no second). The judge compares two local date-times by value (`CypherValues.sameLocalDateTime`).
+5. **Refused by name, recorded.** `collect(DISTINCT ...)` of a zoned value; a duration inside a list or map; an
+   EXISTS subquery's WITH other than its scope's variables and one `count(*)`.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-fifth landing — an OPTIONAL MATCH whose WHERE reads the rows
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.78. An OPTIONAL
+MATCH re-anchored over the rows whose WHERE reads a value of the rows beside its pattern: the WHERE is the left
+join's condition, over the row and the match together.
+
+1. **What lands.** Match7/[11] and MatchWhere6/[5] on both lanes; the 6 cases of `lite/optrows.yaml`; a WHERE over
+   a fanning optional hop read through the rows; a named optional path. DuckDB PASS 3,817 → 3827, Postgres 3,394 →
+   3404; TCK agreement DuckDB 3562 → 3564, Postgres 3170 → 3172.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3827
+   / REFUSED 275 / BOTH_ERROR 750 / SKIP 57; Postgres PASS 3404 / REFUSED 698 / BOTH_ERROR 750 / SKIP 57, of 4909
+   cases); the oracle check 0 problems. Two lite cases named for the lifted refusals renamed (their answers carried
+   to the new keys).
+3. **The guards.** `//core:core_tests_protocol` (the pinned refusal of a WHERE over a fanning optional hop turned
+   into translation checks, one more for the join's condition), `//core:core_tests_integration`,
+   `//core:guardrails` green.
+4. **Refused by name, recorded.** Such a WHERE holding a pattern or an aggregate of its own; one in a pattern
+   predicate or a comprehension over rows. Logged (plan §5): a variable-length relationship beside another in one
+   pattern (Match7/[19]).
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-sixth landing — floats that are not finite inside lists, a relationship's label
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W11 and W12 tail); the record is the study's §12.79. A
+float divided by a zero literal inside a list, a map or a `collect` (NaN or an infinity in Neo4j) as the database's
+own Variant of it, ordered as Cypher orders numbers; `r:T` of a relationship; two relationship types differing only
+in case.
+
+1. **What lands.** ReturnOrderBy1/[11], [12], WithOrderBy1/[21], [22] and Graph5/[2] on DuckDB; on Postgres the four
+   NaN rows decided by S60 (Postgres's division raises on a zero divisor) and Graph5/[2]; the 8 cases of
+   `lite/nonfinite.yaml` and the 5 of `lite/rellabels.yaml`. DuckDB PASS 3,827 → 3846, Postgres 3,404 →
+   3423; TCK agreement DuckDB 3564 → 3569, Postgres 3172 → 3177.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS
+   3846 / REFUSED 270 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3423 / REFUSED 693 /
+   BOTH_ERROR 750 / SKIP 56, of 4922 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol` (the pinned refusal of NaN in a list turned into a translation
+   check; one for a relationship's label), `//core:core_tests_integration`, `//core:guardrails` green.
+4. **The harness.** A DuckDB JSON cell read by the JSON grammar and DuckDB's tokens for a double that is not finite
+   (`DuckJson`, the parity grid's and the judge's); the product's JSON library unchanged. Relationship types
+   differing only in case named apart in SQL (`CypherGraph.RelType.sql`).
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-seventh landing — a comprehension over a path's parts
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.80. A list
+comprehension over a fixed-length named path's parts read per part; EXISTS among a projection's items over rows.
+
+1. **What lands.** Pattern2/[7] moves to PASS on both lanes; the 8 cases of `lite/pathunroll.yaml`. DuckDB PASS
+   3,846 → 3855, Postgres 3,423 → 3432; TCK agreement DuckDB 3569 → 3570, Postgres 3177 → 3178.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS
+   3855 / REFUSED 269 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3432 / REFUSED 692 /
+   BOTH_ERROR 750 / SKIP 56, of 4930 cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails` green.
+4. **Tried and withdrawn.** A null grouping key cast for Postgres and a statically empty `toOne`'s raise typed, in
+   the lowering (the study's §12.80): the gate's core suite caught the second breaking the IQ corpus (125 cases on
+   Postgres, 29 on DuckDB); both withdrawn, the eleven Postgres rows refused by name as before (plan §5).
+5. **Found, not this leg's.** The same run found `//spec:spec_tests` red on the branch's last commit (a8ef726),
+   from earlier legs (lite natives without a claim or a ratchet line, two store types hand-written into the
+   generated prelude); the next leg repairs it, and the chain runs the spec and parity suites from now on.
+
+## 2026-10-17 — `#Cypher{...}#`: the seventy-eighth landing — the spec guards' repair
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W2, W3, W5, W10 and W11 legs, repaired); the record is
+the study's §12.81. `//spec:spec_tests` and the generated files' diff tests green again, after earlier legs left
+them red unnoticed.
+
+1. **What lands.** Time and TimestampNs (the store's data types, S64) declared in the system metamodel, the prelude
+   the generator's again byte for byte (its carriage returns restored); elementId claimed as a resolver form
+   (`NativeFn.ResolverForm.ELEMENT_ID`), the resolver dispatching on it; rand() as upstream's
+   `meta::pure::functions::math::random` (legend-pure declares it; lite's twin left, INTERNAL_DESUGAR 27 → 26); the
+   pins moved with dated reasons (NOT_UPSTREAM 48 → 54) and the ratchets re-measured.
+2. **The ledger.** Both Cypher lanes in update mode (the showcase too), unchanged: FAIL/BUG/ERROR at zero (DuckDB
+   PASS 3855 / REFUSED 269 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3432 / REFUSED 692 / BOTH_ERROR 750 / SKIP 56,
+   of 4930 cases); TCK agreement DuckDB 3570, Postgres 3178 of 3880; the oracle check 0 problems.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **The chain from now on** runs `//core:core_tests`, `//spec:spec_tests`, the generated files' and the ratchets'
+   diff tests, and the IQ and SQL parity lanes on both databases, besides the Cypher lanes.
+
+## 2026-10-18 — `#Cypher{...}#`: the seventy-ninth landing — keys null on every row
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.82. A grouping
+key null on every row typed by its plan for Postgres; such a column read back as the null it is; a sort key null on
+every row ordering nothing.
+
+1. **What lands.** Return6/[3], [6], [18], [19], ReturnOrderBy6/[2], [3], [5], WithOrderBy4/[17], [18], With6/[6],
+   [7] move to PASS on Postgres; the 10 cases of `lite/nullkeys.yaml`. DuckDB PASS 3,855 → 3865, Postgres 3,432 →
+   3453; TCK agreement DuckDB 3570, Postgres 3178 → 3189.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3865 /
+   REFUSED 269 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3453 / REFUSED 681 / BOTH_ERROR 750 / SKIP 56, of 4940
+   cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **Found in the run.** A sort key dropped in one arm of a label-less read only broke the arms' union
+   (`lite/twoways/across_the_classes_of_a_labelless_node`): the marks and the drops hold over one arm only. And a
+   snap run while the chain's oracle check ran shared the one Neo4j database (both empty it and seed their graphs):
+   the check reported a drift and the snap an empty graph; both re-run alone, clean.
+
+## 2026-10-18 — `#Cypher{...}#`: the eightieth landing — a walk beside single hops
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W10 tail); the record is the study's §12.83. A
+variable-length relationship without an upper bound in a pattern of single hops, the pattern cut at the walk.
+
+1. **What lands.** Match7/[19] moves to PASS on both lanes; the 11 cases of `lite/walkbeside.yaml`, and
+   `lite/varlen/an_unbounded_walk_then_a_hop` (renamed from the refusal it was). DuckDB PASS 3,865 → 3878, Postgres
+   3,453 → 3466; TCK agreement DuckDB 3570 → 3571, Postgres 3189 → 3190.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3878 /
+   REFUSED 267 / BOTH_ERROR 750 / SKIP 56; Postgres PASS 3466 / REFUSED 679 / BOTH_ERROR 750 / SKIP 56, of 4951
+   cases); the oracle check 0 problems.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **Found in the run.** `//core:guardrails` held `CypherToPure.walk` to 250 lines (it grew to 267): the uniqueness
+   across the cut is its own method, `uniqueAcrossTheWalk`, and the chain re-ran over the split.
+5. **What the DuckDB lane has left outside the writes** (the plan's §5): nanosecond values outside TIMESTAMP_NS's
+   years (26 rows, a design decision), years beyond the databases' dates (2, out of the types' reach), three
+   setups Neo4j refuses; the Postgres lane besides holds S71's nanoseconds by the user's decision and `%` of floats.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-first landing — Neo4j's own errors where the island refused
+
+Branch `claude/keen-noether-v5mis0` (the TCK-to-zero plan's W12 tail); the record is the study's §12.84. 23 TCK rows
+counted BOTH_ERROR only because the island refused by name what Neo4j rejects; 22 now raise Neo4j's error.
+
+1. **What lands.** Conversions of values they do not take as the database's raise (Neo4j's TypeError), `toBoolean`
+   of an integer and `toInteger` of a boolean, `size()` of a pattern, a property of a path and an update inside
+   EXISTS as Neo4j's static errors, an unknown function as Neo4j's (`CypherFunctions`, the snapped list of its
+   functions, checked by the oracle and held by CypherParityTest); the 19 cases of `lite/errors.yaml`. DuckDB
+   PASS 3,878 → 3885, Postgres 3,466 → 3473; TCK agreement unchanged (DuckDB 3571, Postgres 3190): the rows
+   were BOTH_ERROR before and are now.
+2. **The ledger.** Both lanes in update mode (the showcase too, unchanged), FAIL/BUG/ERROR at zero (DuckDB PASS 3885 / REFUSED 267 / BOTH_ERROR 762 / SKIP 56; Postgres PASS 3473 / REFUSED 679 /
+   BOTH_ERROR 762 / SKIP 56, of 4970 cases); the
+   oracle check 0 problems, the function list among them.
+3. **The guards.** `//core:core_tests`, `//core:guardrails`, `//spec:spec_tests`, `//core:update_generated_tests`,
+   `//spec:update_ratchets_tests`, the IQ and SQL parity lanes on DuckDB and on Postgres,
+   `//core:iq_syntax_cases_test` and `//core:corpus_differential_test` green (40 targets).
+4. **Left.** A percentile read from the rows (Aggregation6/[5], the plan's §5).
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-second landing — two crashes behind BOTH_ERROR
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.84. `size()` of a path (List6/[5]) threw a
+NullPointerException and a float literal beyond the largest double (Literals5/[27]) a NumberFormatException, both
+counted BOTH_ERROR beside Neo4j's errors; now Neo4j's type mismatch and FloatingPointOverflow. Three cases join
+`lite/errors.yaml` (22). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3886 / REFUSED 267 /
+BOTH_ERROR 764 / SKIP 56; Postgres PASS 3474 / REFUSED 679 / BOTH_ERROR 764 / SKIP 56, of 4973 cases), TCK agreement
+unchanged (DuckDB 3571, Postgres 3190); the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-third landing — nanosecond values as a date and a time of day, the spike
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.85, the plan's W13 (the user's decision of
+2026-10-18: §12.12's `TIMESTAMP_NS` carriage replaced by one every dialect computes, S71 overturned, the egress
+row S87). A local time of nanosecond precision is its nanoseconds since midnight and a local date-time its date and
+those: literals, construction, selection, fields, `toString`, comparison, ordering, CASE and coalesce, carriage
+through WITH, grouping and DISTINCT, all integer and date arithmetic the database computes, over every year its DATE
+holds; a returned value is the ISO text the database writes, carried by two lite natives (`dateTimeOfText`,
+`timeOfText`: the `TEMPORAL_TEXT` label) and read by the executor as the value (a time of day by the column's Pure
+type). What the leg does not re-spell takes the old carriage through a bridge. Neo4j's checks of a temporal value's
+components, found by the leg's own cases, raised as Neo4j raises them. `lite/nanoparts.yaml` (16 cases). Both lanes
+in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3900 / REFUSED 266 / BOTH_ERROR 767 / SKIP 56; Postgres PASS 3518
+/ REFUSED 648 / BOTH_ERROR 767 / SKIP 56, of 4989 cases), TCK agreement DuckDB 3571 (unchanged), Postgres 3190 → 3220;
+the oracle check 0 problems; the chain's 40 guard targets green (the pins moved with dated notes: INTERNAL_DESUGAR
+26 → 28, NOT_UPSTREAM 54 → 56, the FQN literals 332 → 334; the generated catalog, claims and ratchets regenerated,
+with them two generated files earlier legs left stale: the dialect-capability tables' `LIST_DISTINCT` row and
+parser-equivalence's measured `own_corpus.matched`).
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-fourth landing — nanosecond values as their parts, leg 2: durations, truncation, between
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.86, the plan's W13 leg 2. Over §12.85's parts (a
+time of day its nanoseconds since midnight, a date-time its date and those): a duration added or subtracted (the
+months and days on the date, the seconds and nanoseconds on the clock, its whole days carried), truncation to every
+unit with fields written over, `duration.between` and its `in` forms of two local values (the days' and the clocks'
+distances apart, so a span of 9998 years overflows nothing). Found by the leg's cases and fixed: the lowering's date
+and timestamp literals write a year below 1000 in ISO's four digits (Postgres read `DATE '1-01-01'` as 2001), and
+the judge's duration slots no longer sum nanoseconds in a long. `lite/nanoparts.yaml` (22 cases, 6 new);
+`lite/temporal`'s year-1 case renamed `nanos_in_the_year_one`. Both lanes in update mode, FAIL/BUG/ERROR at zero
+(DuckDB PASS 3906 / REFUSED 266 / BOTH_ERROR 767 / SKIP 56; Postgres PASS 3602 / REFUSED 570 / BOTH_ERROR 767 / SKIP
+56, of 4995 cases), TCK agreement DuckDB 3571 (unchanged), Postgres 3220 → 3296 (Temporal9's local truncations,
+Temporal8's local arithmetic); the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-fifth landing — nanosecond values as their parts, leg 3: the zoned values
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.87, the plan's W13 leg 3. A zoned date-time of
+nanosecond precision is its instant's parts (the UTC date and the UTC nanoseconds since midnight), a zoned time its
+UTC nanoseconds from the epoch day's midnight, the zone beside: conversions between wall time and instant over the
+parts (a spelled offset a sum, a read one the database's, a region's the database's reading of the instant's
+microseconds), construction, fields, offset and epoch fields, `toString`, comparison and order, carriage through
+WITH, the egress, arithmetic, truncation and `between`; a printed local nanosecond value parsed back. Found by the
+leg's cases and fixed at either precision: a wall time a region shows twice read as java.time reads it (the
+earlier instant; the database reads the later), a zoned time converted to another offset as java.time converts it,
+`fromepoch`'s nanoseconds past a second as Neo4j's error. Neo4j's equality and order of one instant in two zones
+measured and left to the user's S66 (the plan's §5). `lite/nanozones.yaml` (14 cases); CypherToPureTest's
+`aZonedNanosecondValueIsItsInstantsParts`. Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3918 /
+REFUSED 266 / BOTH_ERROR 769 / SKIP 56; Postgres PASS 3868 / REFUSED 316 / BOTH_ERROR 769 / SKIP 56, of 5009 cases),
+TCK agreement DuckDB 3571 (unchanged), Postgres 3296 → 3540; the oracle check 0 problems; the chain's 40 guard
+targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-sixth landing — nanosecond values as their parts, leg 4: lists, maps and aggregates
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.88, the plan's W13 leg 4. A temporal of
+nanosecond precision in a list or a map is the oracle's text the database writes of its parts, read back as the
+parts where it is read (an index, `head`, `last`, a comprehension, a map's entry, an UNWIND's rows); `IN` over the
+parts; `collect` of the texts; `min` and `max` of the sortable texts, read back or returned as the value; a returned
+grouping key grouped by its egress text; CASE and coalesce among zoned values part by part; a nanosecond component
+the row computes. The bridge to §12.12's carriage is gone, and with it the refusal of a year outside 1678 to 2261.
+Found by the leg's cases: Postgres's 100 arguments to a function, past which the dialect nests `concat`. `lite/
+nanolists.yaml` (11 cases). Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3936 / REFUSED 259 /
+BOTH_ERROR 769 / SKIP 56; Postgres PASS 3896 / REFUSED 299 / BOTH_ERROR 769 / SKIP 56, of 5020 cases), TCK agreement
+DuckDB 3571 → 3577, Postgres 3540 → 3552; the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-seventh landing — nanosecond values as their parts, leg 5: stored values
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.89, the plan's W13 leg 5. A node's stored temporal
+value of nanosecond precision is an embedded instance of a value class of its parts (`LocalDateTime`, `LocalTime`;
+a zoned value's instant's UTC parts beside its offset, `ZonedDateTime`, `ZonedTime`), read by the island as the split
+value its slots spell, carried with its node through WITH (a second WITH, a label-less node's arms, an OPTIONAL
+MATCH, a variable-length pattern's chains) and spelled in the node's value as the oracle's text of its parts; the
+harness declares the classes and seeds the parts, so a node of any year is seeded on both lanes (a `DATE` bound as
+the JDK's proleptic `LocalDate`). Found by the leg's cases: a date-time text without its time, which Neo4j reads at
+midnight. `lite/nanostored.yaml` (12 cases); the S66 decision of `lite/stored/a_stored_zoned_time_compared_with_a_
+zoned_literal` now on the Postgres lane too, which seeds it; the showcase's pinned models declare the two parts
+classes. Both lanes in update mode, FAIL/BUG/ERROR at zero (DuckDB PASS 3968 / REFUSED 259 / BOTH_ERROR 769 / SKIP
+36; Postgres PASS 3966 / REFUSED 261 / BOTH_ERROR 769 / SKIP 36, of 5032 cases), TCK agreement DuckDB 3577 → 3597,
+Postgres 3552 → 3596; the oracle check 0 problems; the chain's 40 guard targets green. What the TCK still holds
+outside the write clauses (and the control queries of their scenarios) on either lane: the 2 signed years past every
+database's dates, 3 setups Neo4j refuses, and on Postgres one remainder of a float.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-eighth landing — the remainder of floats, exact on every lane
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.90. Cypher's `%` of floats is Java's exact
+remainder; Postgres has no remainder of doubles and casts a double to the shortest decimal, so its dialect refused one
+by name (§12.73). It now spells it exactly: each operand an integer times a power of two, the NUMERIC remainder of the
+two integers, scaled back (each operand written once, in a scalar subquery; one holding a window function refused by
+name), measured equal to `fmod` over 4,000 pairs of doubles. Found by the cases: by zero the island raised Pure's
+`rem` error where Neo4j answers NaN (a Float divisor, a spelled zero); now NaN there, the error for an Integer zero of
+the row. `lite/exprtail.yaml` (3 cases). Both lanes in update mode, FAIL/BUG/ERROR at zero, and for the first time the
+same census on both (PASS 3970 / REFUSED 259 / BOTH_ERROR 770 / SKIP 36, of 5035 cases); TCK agreement DuckDB 3597 →
+3597, Postgres 3596 → 3597 (Precedence2/[2] #3); the oracle check 0 problems; the chain's 40 guard targets green.
+What the TCK holds outside the write clauses (and the control queries of their scenarios) on either lane: the 2
+signed years past every database's dates and 3 setups Neo4j refuses.
+
+## 2026-10-18 — `#Cypher{...}#`: the eighty-ninth landing — nanosecond values as their parts, leg 6: relationships
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.91, the plan's W13 leg 6. A relationship's
+duration, zoned value and nanosecond value are embedded instances of their value classes, as a node's (the harness's
+edge classes declare them; its refusal of such a value on a relationship and its `TIMESTAMP_NS` edge column go);
+carried through WITH as a node's (parts and zone columns, kept when carried again). A model's `TIMESTAMP_NS` column
+under the profile's marks is read into the parts at the property, so nothing past the read holds §12.12's epoch
+carriage: each place that minted it is a check that fails loudly, green on both lanes. `lite/edgevalues.yaml` (6
+cases); CypherToPureTest's marked-model pins re-spelled over the parts. Both lanes in update mode, FAIL/BUG/ERROR at
+zero, the same census on both (PASS 3976 / REFUSED 259 / BOTH_ERROR 770 / SKIP 36, of 5041 cases); TCK agreement
+3597 on both, unchanged; the oracle check 0 problems; the chain's 40 guard targets green.
+
+## 2026-10-18 — `#Cypher{...}#`: the ninetieth landing — the three setups "Neo4j refused" were the oracle's version
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.92. Three TCK scenarios (WithSkipLimit1/[1],
+WithSkipLimit2/[2], With2/[1]) were SKIP as "Neo4j refused the setup". Their setups are openCypher 9's text, which
+reads a node created earlier in a `CREATE` in a later node's property map of the same `CREATE`; the oracle ran every
+statement under lite's default Cypher 25, which refuses that, and Cypher 5 reads it as written (measured). Neo4j
+passes the three: under `CYPHER 5` its answers are the TCK's expected rows. The oracle now runs a setup statement
+under `CYPHER 5` unless it names its version (`tools/neo4j-oracle/snap.py`'s `SETUP_CYPHER`; the query keeps its
+own); the drift check over all 5041 cases moved these three answers and no other. All three pass on both lanes as
+the island stands. Both lanes in update mode, FAIL/BUG/ERROR at zero, the same census on both (PASS 3979 / REFUSED
+259 / BOTH_ERROR 770 / SKIP 33, of 5041 cases); TCK agreement 3597 → 3600 on both; the oracle check 0 problems; the
+chain's 40 guard targets green. What the TCK holds outside the write clauses (and the control queries of their
+scenarios) on either lane: the 2 signed years past every database's dates.
+
+## 2026-10-18 — `#Cypher{...}#`: the ninety-first landing — the independent review's findings, fixed before the PR
+
+Branch `claude/keen-noether-v5mis0`; the record is the study's §12.93. Before the branch's PR two review agents read
+it apart from the lanes (the platform outside the island; W13's parts and the Postgres remainder); each finding was
+measured, then fixed and pinned (the user: "Fix them before PR"). The island: a split nanosecond value keeps its parts
+around an aggregate expression, `count(DISTINCT)`, an ORDER BY after a grouping or a DISTINCT, a comprehension, an
+UNWIND with a null and a UNION across precisions; a year past 9999 spelled `+YYYYY` in a text, a year before 1
+raised (S88, decided ERROR on both lanes); truncation with written fields; `duration.between` as Java's `until`;
+row clocks range-checked; a CASE choosing a split value by `rand()` refused by name (`lite/review.yaml`, 21 cases
+judged by Neo4j). The platform: `UserCallInliner` refuses a bound `random()` or `generateGuid()` read twice or per
+row; Postgres's exact float `REM` inline with its NULL arm; H2's `TIME(9)`; `random()` in `[0, 1)` on SQLite
+(measured: the old formula reached 1.0) and Snowflake; the streamed JSON rows carry a hidden sort key; a partial
+date's year of four digits in date arithmetic (Postgres read `DATE '5-01-01'` as 2001-05-01); the to-many
+`elementId` lambda typed by its function type; procedure overloads refused; `fromName` reads `TIMESTAMP_NS`. Both
+lanes in update mode, FAIL/BUG/ERROR at zero, the same census on both (PASS 3997 / REFUSED 260 / BOTH_ERROR 772 /
+SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on both; the oracle check 0 problems;
+the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
+regenerated; the local gate below.
+
+## 2026-10-17 — The dialect program's Phase 6, part 1: the tests' databases are test backends (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 6f2a0f8 (#51); PR neema2/legend-lite#52. Commits:
+- 29acb386, the backends and core's tests;
+- 53cebdfc, PCT's census ceilings per lane and the record;
+- e6800ae0, the independent review's findings;
+- c5c73749, the layering guard's line;
+- the ceilings measured, below.
+
+The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Done in two parts"). Test code only, plus
+`Databases.implemented()` in main. No product behaviour change is intended, and none was measured.
+- **What moved:**
+  - Each database is a test backend (`core/src/test/java/com/legend/testbackend`, `//core:test_backends`), and
+    `TestBackends` is the registry.
+  - PCT's lanes look up their backend by name. `CloudLane` is gone, and a cloud backend holds one session per cloud.
+  - Core's tests open the platform's backend, every in-process backend, or the database they are about. One
+    database's assertions moved into a test named for it.
+  - `AbstractDatabaseTest` takes a `backend()`, which fixes the plan's defect 6.
+  - The stress harness takes a backend. H2's floor is `StressServiceSuitesH2Test.MIN_PASS`, the same 4676.
+  - The dialect-leak ledger loses about 440 test rows. Core's test rows left are in files open in #43 and #50
+    (part 2).
+- **Found on the way (defect 11):** `PlanMakerTest` now runs on SQLite too, and SQLite's plan path answers
+  differently from today's path in 31 cases.
+  - 24 cases: a list parameter's plan is refused by name ("binds no array").
+  - 7 cases: a Decimal comes back `2.500000000000000000` in CSV and `"2.50"` in JSON, and a Date or DateTime with
+    nine fraction digits.
+  - No lane runs SQLite's plans. Each case is pinned exactly in `plan-maker/differences.tsv`, at most 31 rows.
+- **Guards:**
+  - DatabaseOwners NAMED_TEST: a test source named for a database owns it, held to it in its code and its strings.
+    Four crossings are registered, each with its reason.
+  - The vocabulary's own tests are vocabulary owners, and `ArchitectureTest` is a guard owner.
+  - `PctCensusGate` holds a per-lane table and refuses a lane with none. Each lane's ceilings are now what it
+    measured: duckdb's int-null-empty 20/20/4 and postgres's diverge 14/6, as before; every other lane's are zero,
+    where seven lanes had carried the platform lane's numbers.
+  - `//core:test_backends` is named among core's non-layers.
+  - parser-equivalence `own_corpus.matched` went 2862 → 2847: four literal test models became
+    backend-parameterised.
+- **The independent review of 53cebdfc**, by an agent that wrote none of it. Its findings were fixed in e6800ae0.
+  - Blocking: `PlanOnJavaBase` had lost Postgres's checks; every dialect is now held to its own read of the table
+    and its QUALIFY. A test named for a database had not been held in its strings.
+  - Should-fix:
+    - two output file names a rename changed;
+    - the SQLite register matched a substring, and now matches the exact answer, with a ceiling;
+    - the shared cloud session;
+    - a loop that could check nothing;
+    - LocalH2's runner coverage;
+    - the record's omissions.
+- **Proof:**
+  - `bazel test //core:all //spec:corpus_h2 //spec:corpus_duckdb` (root container): 84 of 84 on 53cebdfc.
+  - `bazel build //...` (`--jobs=2`): green on 53cebdfc.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 369 of 369 on c5c73749.
+- **The measurement round, 6f2a0f8 (main) against e6800ae0, every target with `dump-sql`:** nothing moved on any
+  database, and the baseline equals Phase 5's 01cf198 on every lane.
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits. Digests, census lines and
+    channel B are byte-identical, and the sessions open through `CloudBackend` from the same properties file.
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): all pass, and the 60 digests, the census
+    lines and the 25 channel B lines are identical. Every one of the 60 test logs is line-for-line identical after
+    normalization, so the server lanes' session URLs, storeless runtimes, system connections and raise texts are
+    unchanged.
+  - Trino, H2 and the corpus (12 + 12): all pass with identical digests and channel B. The rosters and registers
+    are byte-identical, and the judge logs' failures agree test by test (host H2 359, host DuckDB 108, database H2
+    353, database DuckDB 108).
+  - Stress: `//core:stress_suites` 4705 and `//core:stress_suites_h2` 4676 on both commits, with identical fail
+    buckets and the same ledger names.
+  - Each lane's per-suite census counts on the head are the ceilings above.
+
+## 2026-10-17 — `#SQL{...}#`: the corpus program's first corpus, the PostgreSQL regression suite, and its wrong answers (the seventh line)
+
+Announced in `docs/IN_FLIGHT.md` (86bbe71eb, the corpus program: the compatibility and real-world corpora, SELECTs
+only). Branch `claude/loving-euler-gjta59`; the record is `docs/LEGEND_SQL_STUDY_2026_10_11.md` §9.5.
+
+1. **The harness.** `//core:pg_regress_corpus_test` (manual, in `//gates:heavy`, outside `core_tests_integration`;
+   `PgRegressCorpusTest`) replays the PostgreSQL repository's `src/test/regress` (github.com/postgres/postgres,
+   REL_16_STABLE at 8e928803020e; its `sql/`, `data/` and `parallel_schedule`; PostgreSQL License, kept outside this
+   repository, `-Dsql.corpus.regress`) on the embedded Postgres 16. It runs its schedule's files in order, each on a fresh session,
+   through `Psql`, a script reader with psql's statement splitting, variables and meta-commands. Each read-only
+   statement is judged live, before the script sends it as written:
+   - Postgres's answer, twice, under Postgres's default DateStyle (the island's);
+   - the tables the statement names, declared as a `###Relational` database from the catalog;
+   - the statement as `#SQL{...}#` on the same session, and `SqlParity`'s verdict.
+
+   Statuses beyond SqlParity's: NAMES, UNMODELED, CATALOG, REGISTERED (register row S49's ruled difference), KNOWN
+   (the harness's named ledger: four rows, each with its status, a mark of its detail and its reason),
+   NONDETERMINISTIC and HARNESS. What writes outside the transaction (`nextval`, advisory locks) is not judged. The
+   report (`-Dsql.corpus.report`) ranks each status's reasons and carries legend-lite's SQL for a wrong answer.
+2. **The first run's wrong answers** (FAIL 41, BUG 48, NAMES 86), each traced and fixed:
+   - The reference's reads (`SqlParity.grid`): a Postgres date or timestamp is read as java.time, not java.sql's (a
+     BC year lost its era, and `infinity` was the year 292278994). The snapped `postgres-answers.jsonl` moved for its
+     three BC and infinity cases alone.
+   - `Executor.fetch`: a DATE cell is re-fetched as `LocalDate`, as timestamps were; a BC date had answered its AD
+     twin. It uses the same dialect hook, `SqlDialect.refetchesTimestampAsJavaTime`, so Databricks and Snowflake keep
+     theirs, and `PostgresArmTest` pins it.
+   - Constant integer arithmetic is held to its Postgres type (int2/int4/int8), where the planner's fold had answered
+     past it. A step that may pass its type part-way is refused by name. `StaticFold`'s long sum and difference wrapped
+     and now decline past a long (`StaticFoldTest`); the lowering's negation of the least long wrapped to itself and
+     is now exact (`Scalars`).
+   - The island: a float8 constant past a double's range, two WINDOW definitions of one name (Postgres's error; SQL
+     Anywhere's island keeps the first), `char(n)` to text, a string read with a `real` (refused by name, through
+     `InputDialect.padded`/`singlePrecision`), and FigureColname's naming strengths.
+3. **The independent review** (an agent that wrote none of it) found and the branch fixed:
+   - a unary plus whose operand went untested;
+   - an unsound bound (a product with 0, a divisor's subtree);
+   - NAMES and REGISTERED decided from truncated details;
+   - `count(*)` taken for a select-list star;
+   - a failing judge that left its savepoint open;
+   - KNOWN matched by text alone;
+   - side-effecting statements re-run by the judge;
+   - `SET LOCAL datestyle` sent as a session setting;
+   - the real refusal's other paths (IN, CASE, COALESCE, ANY, lag's default).
+
+   Left as found, recorded:
+   - nested casts of constant arithmetic still write their tests per level (constants only);
+   - a quoted `"char"` is named `bpchar`;
+   - a `(SELECT * ...)` is named `?column?`;
+   - the DATE re-fetch on the cloud drivers is first measured in their lanes.
+4. **The guards it met, dated.** The dialect-leak ledger gets `PgRegressCorpusTest product-name 2` (the embedded
+   Postgres it runs on); SqlToPure's pin is unchanged at 47. Nine lite parity cases were snapped from Postgres and
+   added to both lanes' ledgers, each PASS or BOTH_ERROR on both.
+5. **The run after** (15,493 statements judged, 231 s): PASS 2,637 (from 2,509), FAIL 0, BUG 0, NAMES 0, KNOWN 4,
+   REGISTERED 6, REFUSED 7,219, ERROR 510, UNMODELED 1,452, CATALOG 1,237, BOTH_ERROR 2,259, NONDETERMINISTIC 160,
+   SKIP 7, HARNESS 2.
+6. **The first easy refusal families** (713f7a711, f297bcc17):
+   - A typed constant (`int2 '7'`, `bool 't'`, `float8 '1.5'`) is its string cast to the type. A typed integer
+     constant takes its width in the constant-arithmetic rule.
+   - `E'...'` strings read Postgres's escapes, and `U&'...'` its code points and `UESCAPE`. A byte past ASCII is
+     refused by name; a zero byte and a lone surrogate are Postgres's errors.
+   - Integer arithmetic of a smallint constant beside a value that is not a constant is refused by name. Postgres
+     computes a smallint there; the run after typed constants found `i.f1 * int2 '2'` answering where Postgres raises.
+   - `VALUES (...), (...)` is what Postgres defines it as: a `UNION ALL` of one-row SELECTs naming `column1..N`,
+     built as a balanced tree. There is no new AST node. Rows of different lengths, `DEFAULT` and a set-returning
+     function in a row are Postgres's errors.
+   - Postgres's UNION resolution in `PostgresDialect`'s set-operation hooks:
+     - an untyped NULL takes the other side's type (a UNION's only);
+     - an integer or a numeric beside a double precision becomes a double precision;
+     - an integer beside a numeric, and a NULL beside a numeric, stay refused by name. The typer unites no two
+       Decimal precisions, and a cast to Decimal is the database's DECIMAL (measured: DuckDB rounded 2.5 to 3).
+   - The harness:
+     - a temporary table and public's of the same name are two relations (the 41 "duplicate column" errors);
+     - a statement ordered only inside a subquery is compared unordered;
+     - LIMIT with no ORDER BY joins the KNOWN ledger, now five rows.
+
+   Upstream's parity cases `union_with_agg` and `union_dedup_null` went REFUSED to PASS on both lanes. Six lite VALUES
+   cases were added and snapped. The run after: PASS 2,823 (from 2,637), FAIL 0, BUG 0, NAMES 0, KNOWN 5,
+   REGISTERED 6, REFUSED 7,024, ERROR 518, the rest unchanged. Of the 10,376 statements the island is judged on, 27.2%
+   answer Postgres's rows and none answers wrong.
+7. **The second round, and the review's findings** (60d604f33, 4a3ab1218, d6c7f11b6):
+   - A subquery without FROM (IN, EXISTS, scalar; correlated or not) is no longer refused. It was refused on
+     2026-10-12, when the lowering could not read an enclosing row there.
+   - Read now:
+     - `TABLE name` (or `TABLE tb('...')`);
+     - a table name's `*` (its descendants, which a table read includes anyway);
+     - `U&"..."` identifiers.
+   - Refused by name where the parser had raised a syntax error:
+     - `:=` named arguments;
+     - VARIADIC in a later argument;
+     - TABLESAMPLE after an alias;
+     - CURRENT_USER and the session's other identity values.
+   - The harness:
+     - `SqlParity.rewrite` reads a parenthesized join's tables, TABLE's name and a table's star;
+     - `PgRegressCorpusTest` models another schema's tables;
+     - the judge runs Postgres's reference under `standard_conforming_strings` on, as the island reads strings
+       (`strings.sql` turns it off; the round's two BUGs were that).
+   - The independent review of 713f7a711 and f297bcc17 found 11 wrong answers and 9 crashes on its 108 probes;
+     after the fixes it finds 0 and 0:
+     - **A smallint's width**, lost through abs, coalesce, CASE, min/max, a subquery or a VALUES column.
+       `InputDialect.narrowInteger` marks such a value's column. Integer arithmetic, a negation or abs that the
+       database would compute as a smallint is refused by name.
+     - **VALUES rows.** An aggregate or a window function in a VALUES row is now Postgres's error.
+     - **NULL typing.** An untyped NULL takes a set operation's type only as a bare NULL in a plain SELECT branch.
+       A NULL Postgres had already typed as text now reads as text: a subquery's, a nested set operation's, a
+       DISTINCT's, a VALUES column of NULLs alone (`untypedNullIsText`).
+     - **Escapes.** Malformed ones are rejected: a code point past an int, a surrogate's low half, a UESCAPE
+       character of two bytes.
+     - **Crashes.** A NULL beside a boolean in a set operation, and raw Java exceptions from the lexer.
+
+     The first NULL fix refused 11 statements the corpus had passed. Postgres types a VALUES list's rows together,
+     so the parser now marks a VALUES list's set operations (`SqlAst.SetOperation#values`), and a pair of NULL rows
+     is no branch of its own.
+   - Left as found, recorded:
+     - decimals of two scales in one column fail in the typer, not refused by name (`VALUES (1.5), (2.25)`);
+     - a set operation's column of a smallint and an integer is refused, though Postgres's is an integer.
+   - Parity: 14 lite cases snapped and added to both lanes. Upstream's two `crcs_g5` nested-join cases went
+     REFUSED to PASS. The ClickHouse pin: `testAdjustByDaysBigNumber`'s pinned text keeps the BC era now
+     (`%-1474327-10-18`). The dialect program's siblings 1a and 1b found the lane red on f297bcc17 for it.
+   - The run after (15,493 judged): PASS 2,905, FAIL 0, BUG 0, NAMES 0, KNOWN 5, REGISTERED 6, REFUSED 7,038,
+     ERROR 420. Of the 10,374 statements the island is judged on, 28.0% answer Postgres's rows; none answers wrong.
+8. **Proof.** In the root container (`tools/postgres/as_unprivileged.sh`):
+   - `//gates:core //gates:checks //gates:stress` on 303caa078: 180 of 187 pass. The 6 that failed are the breaks
+     above (the integration shard, the IQ window, the snapped dates, census, guardrails), and
+     `//tools/guards:classpath_test` was skipped (arm64 only).
+   - On 71dd0b482, every target the fixes touch is green: `core_tests_protocol`, `core_tests_compiler`,
+     `core_tests_integration`, `postgres_arm_test`, `sql_parity_test`, `sql_parity_postgres_test`,
+     `sql_island_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `census`, `guardrails`. So are
+     `//gates:stress` and `//core:core_tests` (27 of 27).
+   - Not run here, so CI's: the relational corpus, PCT, warehouse, DataCube, UI and SDLC lanes. The planner change
+     (`StaticFold`, `Scalars`) and the DATE re-fetch reach them.
+   - On f297bcc17, the same eleven targets: ten pass. `census` failed on the dialect-leak pin
+     (`SqlParserTest product-name 3 -> 4`), a test method named for the product. The next commit renames it, and
+     `census` and `core_tests_protocol` pass.
+   - The cloud lanes (`//gates:heavy`, not CI's): the dialect program's sibling sessions measured base 86bbe71eb
+     against f297bcc17 lane by lane. They compared pass/fail, SQL digests, census and channel B lines, and whole test
+     logs with only durations masked. BigQuery's 10 targets: all pass on both, every SQL digest the same, census and
+     channel B identical. Three log lines differ: two are an unordered result's row order, one is generated UUIDs. No
+     DATE cell's text changed, though the re-fetch is exercised (`wire-delivered[BigQuery] TIMESTAMP <- DATE`).
+   - Siblings 1b and 1a measured the rest of the heavy lanes:
+     - 60 targets for DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres, channels A and B;
+     - 32 for Trino, H2, ClickHouse and Postgres;
+     - `//spec:corpus_duckdb` and `//spec:corpus_h2`.
+
+     Every SQL digest was the same. Census and channel B lines were identical. The whole logs were the same, but for
+     run ids. The relational corpora's rosters and registers were byte-identical. One red: `pct_clickhouse_essential`,
+     whose `testAdjustByDaysBigNumber` pin expected the era-less text. The pin moved in 4a3ab1218. On 4f704880e,
+     sibling 1a re-ran the lane: 345 of 345, the SQL digest and the census lines as base's, and the whole log the
+     same line for line.
+   - On the second round's last commit, the eleven targets above, all green:
+     - `core_tests_protocol`, `core_tests_compiler`, `core_tests_integration`, `guardrails`;
+     - `postgres_arm_test`, `sql_island_postgres_test`;
+     - `sql_parity_test`, `sql_parity_postgres_test`, `iq_parity_test`, `iq_parity_postgres_test`, `census`.
+
+     Before that commit, three were red. Census read a product-named call (`SqlToPure product-name 47 -> 48`), now
+     the set it reads. The two IQ lanes flagged nine IQ cases the IQ line had pinned REFUSED, which now PASS on
+     both lanes: the FROM-less subqueries this round reads, in an IN list, EXISTS or a count (`lite/m1a`,
+     `lite/m1gaps`, their ids still saying "refused"). Their ledger rows moved.
+9. **Next.** The refusals, ranked:
+   - functions in FROM, 635 (mostly functions the suite defines);
+   - jsonpath, about 450;
+   - text search, about 500;
+   - duplicate output names, 160;
+   - ROW constructors, 180;
+   - ranges, about 260;
+   - arrays, 190;
+   - the island's syntax errors, 350.
+
+   Then the corpus program's step 2, sqllogictest.
+
+## 2026-10-17 — The dialect program's Phase 6, part 2: the corpus's databases and the islands' tests are test backends (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main 86bbe71e (after #52), 12 commits, 86cae665 to d12474f5. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 6, "Part 2"). Test code, test data and docs only. No
+product behaviour change was intended, and none was measured.
+- **What moved:**
+  - The relational corpus's harness takes its lane's backend: workspaces, fixture asides, the referee (`RefereeBackend`),
+    `readerOn`, and the warehouse lane as a backend of its own. `DuckWorkspaces` and `ServerWorkspaces` are deleted;
+    `H2Verify` is `RefereeVerify`.
+  - The SQL, IQ and Cypher islands' tests and the lowering tests run on the platform's backend or, where they pin
+    DuckDB's own rendering, on DuckDB's by name (`LowerRelationDuckDbTest`, `ScaleCostsDuckDbTest`). The parity lanes'
+    tables are made by the lane's dialect; Postgres keeps upstream's fixture (`PostgresSeed`).
+  - The resolver tests' 29 `sqlOf` copies are one harness (`resolver/ResolvedSql`).
+  - Defect 4: `CorpusDifferentialTest` runs each service on its runtime's database, seeded from neutral data
+    (`differential.py`'s `seed.json`) through that database's dialect. Verdict unchanged: 178 agree, 1 known
+    divergence, 0 unexpected, 179 services.
+  - Defect 5, for a fixture's unqualified names: Postgres's on-demand fixtures run in a schema aside, on a session of
+    their own, so a failed body's rollback cannot take the aside away.
+  - The server backends' sessions (Postgres, MariaDB, MySQL) open at the URL the product's connector makes from their
+    declared coordinates. `StoreTypesTest` reads `OTHER` on every implemented database. `PostgresArmTest` runs on
+    Postgres's backend.
+- **Guards:** the dialect-leak ledger loses 37 rows (19 files, 271 lines): 11 rows and 267 lines are left, of which 13
+  lines are in core's tests (the SQL translator's two tests, D11) and 24 in the warehouse's (Phase 7). parser-equivalence's
+  `own_corpus.matched` 2882 -> 2875 (seven elements of test models now take the backend's connection).
+  `HarnessDisciplineTest` scans the test backends. New: `//core:fixture_aside_postgres_test`, in `//gates:local`.
+- **The independent review of 0f4685e8**, by an agent that wrote none of it: nothing blocking. Its findings, each
+  checked against the code, were fixed in d69878bb and d12474f5:
+  - Postgres's fixture aside did not survive a failed body's rollback (Postgres's DDL and `SET` are transactional).
+    The new test fails on 0f4685e8's aside (`relation "u" does not exist`) and passes on d12474f5.
+  - `StoreTypesTest` compared each dialect with itself; the differential read a non-text cell as NULL and skipped
+    any undeclared table; four failure paths leaked a connection; the record overstated defect 5 and the referee's
+    routing.
+  - Not changed, with the reason in the record: the parser-equivalence ratchet's reason stays in its commit
+    (`ratchets.tsv` is generated); the product runner's unisolated fallback is main code's.
+- **Proof:**
+  - `bazel test //core:all` 73 of 73, `//spec:corpus_h2` 6 of 6, `//spec:corpus_duckdb` 6 of 6 (root container),
+    on d12474f5.
+  - `bazel build //...` (`--jobs=2`): green on d12474f5.
+  - `bazel test //gates:local`, less the four targets the container cannot run: 371 of 371 on d12474f5, with
+    `//datacube:verify_layout_test` passing on its one re-run (a drag's task took 115 ms against a 100 ms budget on
+    the first; this branch touches no DataCube code).
+  - The Postgres corpus lane (`bazel run //spec:corpus_on_postgres`) on its one on-demand fixture's test: the
+    fixture runs in `aside_0`, and the test passes.
+- **The measurement round, main 86bbe71e against d12474f5, every target with `dump-sql`:**
+  - Snowflake, Databricks and BigQuery (10 targets each): all pass on both commits, every digest the same, census and
+    channel B lines identical; sessions open through `CloudBackend` from the same properties file. BigQuery's only
+    differing log lines are the container's proxy port, one unordered result's row order and fresh UUIDs.
+    (Snowflake's and Databricks' essential and relation digests moved between e6800ae0 and 86bbe71e on main itself:
+    a nested `CASE` in an `ELSE` is now one `CASE`, six equivalent statements.)
+  - DuckDB, SQLite, MariaDB, MySQL, ClickHouse and Postgres (60 lanes): 60 of 60 pass on both commits, the 60 digests,
+    the census lines and the 25 channel B lines identical. Every test log, normalised for time, heap, UUIDs, array hashes
+    and DuckDB's row order, differs only in the JVM's proxy-port banner: every statement, error, raise text and result
+    on the Postgres, MariaDB and MySQL lanes, whose sessions now open at the connector's URL, is the same. The logs print
+    no session URL, so the URL itself is checked through that effect.
+  - Stress: `//core:stress_suites` pass=4705 fail=15 and `//core:stress_suites_h2` pass=4676 fail=44 (of 4736) on both
+    commits, every fail bucket and exclusion identical.
+  - The Postgres corpus lane, every test (`bazel run //spec:corpus_on_postgres`): pass=1883 fail=716 skipped=14 of 2613
+    on both commits, every FAIL, SKIP, referee, origin and census line identical. The head sets one fixture aside
+    (`testGroupByWithWindowSubset`, `aside_0`); main ran it over the workspace. Its verdict, a pass, is the same.
+  - Trino and H2 (12 targets): all pass on both commits, digests, census, channel B and test counts identical; every
+    test log, normalised, identical line for line.
+  - The corpus (`//spec:corpus_h2`, `//spec:corpus_duckdb`, 12 targets): all pass on both; the ten roster tests re-ran
+    on the head (the harness changed) and the rosters and registers are byte-identical to the committed ones. The
+    judge logs' failures agree test by test: host H2 359, host DuckDB 108, database H2 353, database DuckDB 108.
+  - The warehouse lane (`//spec:corpus_warehouse`, manual, its native server built): passes on both commits, with
+    `-Drcorpus.backend=warehouse` and `legend.warehouse.*` on the head. Host pass 2471/108/14, database pass
+    2473/108/14 of 2613 on both, the failures identical between the commits and equal to the DuckDB lane's, test by
+    test.
+
+## 2026-10-18 — The dialect program's Phase 7: the warehouse, the model writer, the planner boundary and the dead code (the ninth line)
+
+Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with main's #53 merged in (7a7a0096). The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "Done, 2026-10-18"; §3 defects 7 and 8; §6 D4 and D6).
+- **What moved:**
+  - The warehouse's Postgres knowledge is behind `Attachment`: its command line (`--postgres`, a `postgresql://` URL),
+    the password prompt and libpq's words. `WarehouseServer.Config` carries attached catalogs of any kind. DuckDB's
+    error kinds and engine name are the DuckDB binding's (`duck/`). Behaviour is unchanged but for two command-line
+    refusals' wording (`NAME=CONNECTION`; "an attached catalog needs --duckdb-extensions").
+  - Defects 7 and 8 were never reachable: a session, and so a JDBC connection, exists only on a native catalog.
+    `WarehousePostgresLiveTest.aJdbcConnectionToTheAttachedCatalogIsRefusedByName` pins the refusal.
+  - `server/CreateClass` asks the declared database's dialect for the path an in-memory specification is written with
+    (`SqlDialect.inMemoryPath`); `//core:pure_v1` reaches `//core:database` (`tools/deps/core-layers.txt`).
+  - The planner boundary (`wasm` `Boundary`, the tab's and Python's) seeds the tab with the platform's dialect and asks
+    the catalog question of it (`SqlDialect.catalogColumnsQuery`), its signatures unchanged.
+  - D6: 39 dead files deleted (18,499 lines); the rest of D6's list is left for the build program's script review,
+    whose old D3 decided to repair or wire it (the record).
+  - D10, taken over from the parked compiler line (the user's): `builtin/DynaFn.java` names no database; the engine's
+    dialect-by-dialect table is generated reference data, `docs/engine-dynafunctions.tsv`, which no build reads. The
+    232 names and every decision are unchanged; the refusal of an UNSUPPORTED name points at the table. The ledger
+    after it: 6 rows, 70 lines, all D11's (the SQL translator's Postgres rules, scheduled with the SQL line).
+- **Guards:** the warehouse is a host owner (`DatabaseOwners`' HOST kind); the leak ratchet and the owner guard read
+  the warehouse's main code, wasm's planner, native and testing; `Attachment` names an attached database only in its
+  rows and one-line arms (a new pin); `EmbeddedMySql`'s MariaDB driver is a registered crossing; the warehouse's two
+  crossings are gone. The ledger loses the warehouse's 5 rows (24 lines) and gains #53's `PgRegressCorpusTest` (2): 7
+  rows, 245 lines, all D10's or D11's.
+- **The independent review of the branch**, by an agent that wrote none of it, against the code, without Bazel:
+  - Blocking: the layering policy did not allow `pure_v1` to reach `database` (`//tools/deps:core_layering_test`,
+    which the first local gate run failed on, 370 of 371). Fixed.
+  - Fixed as well: `CreateClass` would have thrown for a declared database with no dialect (now written as it is,
+    pinned by a test); the password prompt asked before learning that a URL cannot carry the password (now refused
+    first, as on main); `Attachment` was a registry no guard read (now pinned); the D6 record misstated which
+    deletions the script review had kept as history; three files only the deleted ones used; stale `join.py` pointers.
+  - Checked and found equal to main: the command line's parsing and duplicate rules, `AttachFailed`, the error
+    classification (`DuckException.parse`/`bind`, read from its kind or its message's lead), the catalog question's
+    text, `testDataSql`'s output, the guards' counts (a Python replica: 7 rows, 245 lines; 4 crossings).
+- **Proof:**
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 372 of 372 on
+    the final tree (from a clean build: `bazel clean` freed the disk first).
+  - D10: `//core:census` (6 rows, 70 lines), `//core:core_tests_normalizer`, `//core:core_tests_builtin`,
+    `//core:core_tests_root`, `//spec:spec_tests`, `//core:update_generated_tests` (`DynaFn.java` regenerated) and
+    `//docs:update_generated_tests` (the new table): all pass.
+  - Not re-measured locally: the PCT, corpus and stress lanes. No SQL any of them renders or reads changed (the two
+    new `SqlDialect` methods render no statement a lane runs); the branch's CI runs every lane.
+
+## 2026-10-18 — The dialect program's D11 and the absolute ban: the SQL translator names no database (the ninth line)
+
+The same branch (neema2/legend-lite#56), at the seventh line's quiet point after #53. The record:
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (Phase 7, "D11 and the absolute ban"; status DONE).
+- **What moved, no rule rewritten:** Postgres's rules leave `SqlToPure` (7,961 lines to 4,852) for six Postgres files in
+  `protocol/sql/`: `PostgresOperators`, `PostgresCasts`, `PostgresFunctions`, `PostgresDates`, `PostgresJsonb` and
+  `PostgresAggregates`. An instance method became a static one taking the translator first; the text is otherwise the
+  same. `AGGREGATES` and `SMALL_INTEGERS` stay in `SqlToPure`, which shared code reads (`SqlParser`'s VALUES check, the
+  `narrowInteger`-gated smallint check).
+- **The seam:** `InputDialect` loses the defaults that called Postgres's rules (`unary`, `between`, `inList`,
+  `isDistinct`, `quantifiedTest`, `isAggregate`) and the aggregate fallback (`aggregate` is abstract). It gains
+  `readString`, `typeName`, `operator` and `subscript`. IQ refuses `readString` by name (a simple CASE comparing a
+  string with a non-string, read by Postgres's rules until now; no IQ test reached it). `InputLanguages` maps an
+  island's language to its dialect; `SqlToPure.translate(sql, sources)` is gone.
+- **Named, not moved:** the translator's window functions and FROM set-returning functions stay its own reading.
+- **Tests:** `PostgresToPureTest`, `PostgresParserTest` and `PostgresRegressCorpusTest` (renamed, for the language they
+  test; the corpus target is still `//core:pg_regress_corpus_test`).
+- **Guards:** `DatabaseOwners` lists the six files as Postgres's input language and `InputLanguages` among the
+  registries. `DialectLeakRatchetTest` is a ban (`noDatabaseIsNamedOutsideItsOwners`), and
+  `dialect-leaks/ledger.tsv` is deleted (6 rows, 70 lines before D11, none after).
+- **Proof:**
+  - A dump of every translation the tests make (the statement, its dialect, the Pure or the refusal), taken through a
+    hook that was never committed. It covered `//core:core_tests`, the SQL, IQ and Cypher parity lanes on DuckDB and
+    Postgres, `//core:iq_syntax_cases_test`, `//core:sql_island_postgres_test`, `//core:postgres_arm_test` and
+    `//core:pg_regress_corpus_test`, before the move and after each of its two steps: 37,378 translations, all 35
+    targets passing each time. The IQ corpus lane (`//core:iq_corpus_test`, manual) was not run: its corpora are not in
+    the container, and a simple CASE comparing a string constant with a number or a date there is refused by name now
+    where it was read by Postgres's rules. The dumps are identical apart from two kinds of input:
+    - the statements the regression suite writes from live values (OIDs, timestamps);
+    - one IQ test that calls the translator once or twice by a `Set.of` order.
+  - The regression corpus (PostgreSQL REL_16_STABLE 8e928803020e under `tools/postgres/as_unprivileged.sh`), row by
+    row, status and message: identical, but for five statements whose text carries a live timestamp. Its counts,
+    before and after: PASS 2,905, REFUSED 7,038, BOTH_ERROR 2,260, UNMODELED 1,453, CATALOG 1,237, ERROR 420,
+    NONDETERMINISTIC 160, SKIP 7, REGISTERED 6, KNOWN 5, HARNESS 2. These are the seventh line's numbers for main
+    after #53.
+  - `//core:census` (the ban, the owner guard), the protocol, compiler and architecture tests.
+  - `bazel test //gates:local //warehouse:postgres_live`, less the four targets the container cannot run: 373 of 373
+    on the D11 commit.
+  - An independent review, by an agent that wrote none of it, against the code: no drift found (the aggregates' side
+    effects in order, the operator and subscript refusals word for word, `readString` and `typeName` equal to the old
+    helpers for Postgres, no static-initialisation cycle, no overload rebound by the static imports). Fixed from it:
+    - `dateArithmetic` and `numberConstant` moved to `PostgresDates` and `PostgresFunctions`;
+    - nine members made private again;
+    - stale comments;
+    - the ban fails when a root it reads yields no source;
+    - the records' wording.
+
+## 2026-10-21 — the protocol program's leg 8, finished: the Mac's stranded step 2 rebased and judged again, rule A, an operator by its shape, step 3, and the parser returning protocol only (the Studio / SDLC / Depot line)
+
+Built on the branch `studio-program` (the user, 2026-10-21: "build everything on a branch here that is up to date on
+main"; this cloud session's pushes to `main` are refused, as the Mac session's were from 2026-10-11). Its base is main
+adcb420b7 throughout. The plan's record is `docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 8 ("Built next on the user's
+Mac", "The dropped-text rule, decided", and the three "As built" paragraphs).
+
+1. **The Mac's branches, rebased** (`leg8-records` at cc7ec535d, `leg8-step2b`, `leg8-tds`; tip ba230daed): a relation
+   column without a multiplicity is `[0..1]`; a decimal keeps no spelling (PARK-27); a relation cast read from JSON as
+   its text is; persistence spans, a reference body, every value specification's equality without its position; a
+   `#TDS{...}#` literal's table between its delimiters, from either door (`TdsLiteral.of`). The rebase's own change:
+   main's five later makers of a TDS literal (`SqlToPure`, `IqDialect`, `CypherToPure` three times) pass the table, and
+   main's brace strip in `TdsChecker` (61ff4872d) gives way to the same rule; `SqlIsland`'s position-free equality
+   compares its language and profile. Judged on ba230daed: the six corpus passes' result files identical to main's,
+   PCT 17 of 17, the reference lane equal to main's own build, `//gates:parser_equivalence` green.
+2. **Step 2's rest** (f8e84a261, 5ac60f452): an operator run is its shape (`Typer.markOperatorRun`), the compiler no
+   longer reading the parser's infix mark; rule A (`docs/SEMANTICS_REGISTER.md` S89), the user's: the engine's dialect
+   reads what legend-engine's parser drops as it does, lite's keeps it, and its JSON writes it or refuses it by name
+   (`ProtocolEmitter.placeless`); `EngineDropsTest` holds one case of each construct. Guards answered by restructuring:
+   `SpecParser`'s instance-data flag a final constructor argument; NAME_COMPARE_REVERSED 79 -> 78 (the emitter's
+   negation fold deleted with its `"minus"` test).
+3. **Step 3** (f6b17df89): the `pure/v1` routes that take a model read a PureModelContextData as well as a text
+   (`server/ModelInput`, registered in `JavaEvalLedgerTest`'s server row); execute compiles once; a plan's connection
+   is found in the records by `Protocol.pathOf` and written by the emitter.
+4. **Measured on f6b17df89** (steps 2 and 3, against main adcb420b7):
+   - `bazel test //gates:local`: 374 of 384 pass; the eight Postgres targets refuse root here and pass through
+     `tools/postgres/as_unprivileged.sh ubuntu` (8 of 8); `//datacube:verify_layout_test` missed its 100 ms task budget
+     once (160 ms on a tile dropped onto a sheet's tab, four tests running beside it) and passes alone (16 of 16; no
+     DataCube code in the change).
+   - the six corpus passes (`//spec:judge_{host,database}_{duckdb,h2,warehouse}`): no result file differs from main's
+     (`compare_judges.py`).
+   - PCT: `//pct:pct_duckdb`, `//pct:pct_h2`, `//pct:pct_channel_b`, and `//pct:pct_postgres` unprivileged, all green.
+   - the reference lane: equal to main's own build (0 lines differ; the committed `core_relational.txt` is stale on main
+     itself, 53 lines, not this change's).
+   - `//gates:parser_equivalence` (not in `//gates:local`: run apart): green. The oracle (`JsonModelDoorTest`, in
+     `:round_trip_proof`): the engine collection 7,099 matched, 4 failed (149 on ba230daed), rule A 102 written whole
+     and 10 refused by name (8 an include's several substitutions, 1 a dotted key, 1 a supertype's arguments); lite's
+     projects 167 of 167; the showcase 123 of 123. The 4: two quoted trees over a let-bound string (the fold belongs in
+     name resolution, after the door), two variables typed `Result` that the engine's own reader upgrades. Own corpus:
+     2,892 matched, its pin.
+5. **The last step** (the parser returns protocol only; ArchitectureTest 7c's `model..` deleted; `//core:door`):
+   measured on its commit with these docs (b3f8ef3d6), against main adcb420b7 -- every number as on f6b17df89:
+   - `bazel test //gates:local`: 375 of 384 pass (1 skipped); the eight Postgres targets pass unprivileged (8 of 8).
+   - the six corpus passes: no result file differs from main's.
+   - PCT: DuckDB, H2 and channel B (12 of 12), Postgres unprivileged (5 of 5).
+   - the reference lane: equal to main's own build (0 lines).
+   - `//gates:parser_equivalence`: 3 of 3. The oracle and the own corpus unchanged: the engine collection 7,099
+     matched and the same 4 failed, rule A 102 written and the same 10 refused; lite's projects 167 of 167; the
+     showcase 123 of 123; own corpus 2,892 matched.
+   - `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test` (the door's layer, the parser's without
+     `model`) green before the run; ArchitectureTest's 46 rules among them.
+
+## 2026-10-21 — the compiler's missing reference checks, defaults and a function's conditions compiled, an operator run by its declaration (the Studio / SDLC / Depot line)
+
+The user, after an account of what leg 8 had shortcut: "def fix arithmetic, def need real tests, definitely need to fix
+function constraints and fake extends and fakes profiles/stereotypes - what other things like this did we not fix?",
+and of the twelfth item, the element kinds lite carries by name: "we have to do 11 eventually, can put it on roadmap for
+later" (PARK-38, PARK-39; `docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 10). Built on `reference-checks` from
+`studio-program`'s d170f3eb0 (main adcb420b7 throughout), then landed on `studio-program`. The record:
+`docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 8's "As built after it, the reference checks".
+
+1. **What changed.** A probe of 64 broken models through both doors (now `ReferenceIntegrityTest`, through the text and,
+   where the engine's grammar reads it, the JSON) found lite accepting what the engine refuses; each is refused in the
+   engine's words (legend-pure's where the engine defers to it): a supertype that is no class (S91), a generic's wrong
+   type or multiplicity arity (a class's multiplicity parameters their own list), a profile, stereotype or tag that
+   does not exist (every annotated element; a profile resolves among profiles; the platform's 13 in the prelude), a
+   runtime's mapping, a connection's store, a service's and a data space's mapping and runtime, a database's and a
+   mapping's include, an Operation's member set, a default on an optional property (S90). Defaults and a function's
+   pre/post-conditions are lifted and typed as derived properties are; the conditions cross the door and are written as
+   the engine's JSON (S89). An operator run is the resolved declaration's (`NativeFn.OperatorRun`).
+2. **What the stricter compiler found in the repository's own inputs** (each fixed at its source, none by loosening):
+   - PCT's model packer injected primitives as classes (`Class Integer extends Number {}`): a primitive is now judged by
+     its M3 kind (`ModelPacker`; JavaEvalLedger 266 -> 261).
+   - PCT's standard suite lacked its own module dependency, the relation functions (their `PCTRelationQualifier`
+     profile); a graph copy of a platform profile now yields to the prelude's (`Compiler.withoutPreludeShadows`).
+     Channel B standard discovery stays 205.
+   - the stress corpus: a defaulted `[*]` list (now `[1..*]`); a function returning legend-pure's `Path`, a type lite
+     does not declare (S92; now `Any`); and three generated services (M1, M2, MU0) over the excluded
+     `55-canonical-store.pure`'s mappings and runtimes, now generated apart into `94-canonical-services.pure`
+     (`scripts/corpus/build.py`, `core/stress.bzl`), which lite excludes with 55 (`StressExclusions`,
+     `LegendLiteGapTest`) and the engine's run reads.
+   - integration fixtures naming an undeclared `store::TestDb` (`JsonM2M*IntegrationTest`).
+3. **Pins moved, each dated in its file:** FallbackLedgerTest floor 10 -> 6; IdentityGuardrailTest NAME_CUTTING
+   108 -> 107; JavaEvalLedgerTest ModelPacker 266 -> 261; JsonModelDoorTest engine corpus 7,099 -> 7,085 matched and
+   rule A written 102 -> 116 (the 14 texts holding a function's constraints, from matched to rule A: AbstractTestConstraints
+   #5 #8 #12 #16 #98, TestNestedCollection #46 #50, TestPureRuntimeFunction_Constraint #5 #14 #21 #28 #32 #35 #39 --
+   listed against d170f3eb0's run, none left rule A); own corpus 2,892 -> 2,964 (the new tests' models);
+   OwnCorpusConformanceTest PURE-DIALECT-generics 6 -> 7 and OwnDialectCensusTest's host `ReferenceIntegrityTest`
+   (its generic class); FixtureAdjudicationTest's over-strict row `ModelFromTextTest` (S93).
+4. **Measured on 2cfb820bf** against main adcb420b7:
+   - `bazel test //gates:local`: 375 of 385 pass (1 skipped); the eight Postgres targets pass unprivileged (8 of 8);
+     the one other failure, `LegendLiteGapTest` (the new exclusion had no case), fixed in f62752773.
+   - the six corpus passes: no result file differs from main's.
+   - PCT: DuckDB, H2 and channel B (12 of 12), Postgres unprivileged (5 of 5).
+   - the stress suites: 4,705 of 4,733, the pin (4,736 less the three services moved apart, which could not run in
+     lite: their mapping was never in its model).
+   - the reference lane: 9 lines from main's own build, all the lifted defaults of the engine's own classes -- 49 more
+     functions, 50 more bodies typed, and one more failing: `meta::pure::router::preeval::State`'s
+     `debug = ^DebugContext()`, a new instance missing its required properties, which legend-pure refuses in a body
+     and does not check in a default (S90).
+   - `//gates:parser_equivalence`: the JSON door 7,085 matched and the same 4 failed, rule A 116 written and the same
+     10 refused; lite's projects 167 of 167; the showcase 123 of 123; own corpus 2,964 matched.
+5. **On the final commit** (b56d9b04b; after 2cfb820bf only tests and docs changed -- the gap test's case, a default
+   checked as a body, S90's words, the own-corpus ratchet -- so the corpus passes, PCT and the reference lane stand):
+   `bazel test //gates:local //gates:parser_equivalence`: 379 of 388 pass (1 skipped); the eight Postgres targets pass
+   unprivileged (8 of 8); `//core:census`, `//core:guardrails` and parser equivalence (3 of 3, own corpus 2,964) among
+   the passes.
+
+## 2026-10-21 — the independent audit of `studio-program` (leg 8 and the reference checks), and its fixes (the Studio / SDLC / Depot line)
+
+The user asked, before a pull request: "did we do our own independent audit?" It had not been done. Three reviewers,
+each with no part in the work and reading the code against the pinned legend-engine and legend-pure trees, audited the
+branch's 21 commits against main adcb420b7: leg 8 (the parser returning records, the doors, rule A, the routes), the
+compiler's reference checks, and the evidence (every pin, fixture, test and claim). Their findings were verified one by
+one against the code and the references before anything changed; what follows is what was real. Fixed on
+`reference-checks`, then squashed onto `studio-program`.
+
+1. **Where the reference checks were stricter than both references** (each now follows them; a case each in
+   `ReferenceIntegrityTest`):
+   - a relational connection naming a database the model has not: the engine gives it an empty one
+     (`HelperRelationalDatabaseConnectionBuilder.addDatabaseConnectionProperties`) -- no longer refused; a runtime
+     binding a store it has not still is ("The store 'x' can't be found.");
+   - a bare generic supertype (`extends Pair` -- every engine-dialect and engine-JSON supertype, its grammar dropping
+     the arguments): the engine resolves a supertype by its path alone -- its arity is checked only where written;
+   - a bare `Result`: the engine's `Result<Any|1..*>` (S95);
+   - a mapping include's substitution: any store, as the engine resolves it (`resolveStore`), in its words;
+   - the engine's own profiles (`meta::pure::profiles::enterprise`, `cipher`, the data space's, java generation's, ...):
+     the prelude declares every profile the engine's main sources ship outside a test package (13 -> 43);
+   - a default's new instance without its required properties (the engine's own `State.debug = ^DebugContext()`):
+     legend-pure checks a default's type and multiplicity alone, so lite no longer checks more (S90 corrected).
+2. **Defects found and fixed:**
+   - a post-condition's JSON was written over no parameter, so the engine could not compile its `$return`: each
+     condition's lambda is now over the function's parameters (and `return`), legend-pure's own lambda, and the reader
+     reads that shape and refuses a `$this` (S89);
+   - at the engine's dialect, `^P(b = $x == 1)` bound `$x`: the walker's first expression keeps its own `==` -- read as
+     parsed now (`SpecParser.parseKeyValue`), not cut from the finished tree;
+   - ModelStore data: `+=` was written as `=` (refused at every dialect now); a dotted key, an operator or a call were
+     accepted at the engine's dialect, whose data grammar reads none (refused); `+1` is one literal, as `-1` was;
+   - the JSON door dropped an unrepresentable element's position and changed its kind: the text door's error now,
+     word for word, at the same place;
+   - a model sent as data was refused past 1,024 levels of JSON where its text compiled (the request bound is now the
+     model reader's 4,096);
+   - `Class a::B<T> extends T` crashed (no type of that name): "Invalid supertype ... not a class";
+   - an association mapping of a missing association crashed in `ImplicitInheritance` (a "never fired" default):
+     "Can't find association 'x'" (FallbackLedger floor 6 -> 5);
+   - two conditions of one name, or two overloads differing in their return alone, lifted to one name: lifted by the
+     function's id and the condition's place now;
+   - messages: the engine's arity words ("Wrong type arguments count (N) for type: G<T>", `CompileContext`) and its
+     supertype wording (the class by its name); a default's or a condition's error names what was written, not a
+     synthesized function;
+   - the PCT packer dropped a precise primitive's values (`Varchar(200)` injected as `Varchar`): rendered, or refused
+     loudly (JavaEvalLedger 261 -> 281); the standard suite's model gains its other dependency (the variant functions);
+   - `NativeFn.OperatorRun` claimed the family contract it is not (a classification, not an implementer).
+3. **Evidence made honest:**
+   - the JSON door's rule A counted any difference: its texts are now listed one by one, each with the field its
+     dialects differ at (`json-door-rule-a.tsv`, 126 rows: 116 written, 10 refused), so one text swapped for another
+     fails;
+   - `ReferenceIntegrityTest.refused` skipped the JSON door silently when the engine's grammar refused the text: it
+     now asserts the grammar reads it, and a lite-dialect case says so by name (`refusedAsText`);
+   - the stress fixture loosened to `Any` (a function returning legend-pure's `Path`, which lite does not declare)
+     is restored and moved to its own file, `74-path-surface.pure`, excluded with a `LegendLiteGapTest` case (S92) --
+     the earlier "none by loosening" was not true of it; `94-canonical-services.pure`'s exclusion is tied to 55's;
+   - registered: S94 (a function's conditions are typed, never evaluated when it runs, as on the engine's query path),
+     S95, S96; S89, S90 and S93 corrected; `docs/PROTOCOL_PROGRAM_2026_10_05.md` no longer calls leg 8's oracle done
+     (its 4 failures and rule A's texts are named).
+   - corrections to the earlier entries: the reference checks' "379 of 388" was `//gates:local` and
+     `//gates:parser_equivalence` together; b3f8ef3d6, 2cfb820bf and b56d9b04b are on `reference-checks` (or were
+     amended away) with trees equal to the branch's commits; the landing on `studio-program` was a squash.
+4. **Not fixed, recorded:** `mentionsReturn` splits by the variable where legend-pure reads the text (S89's note);
+   profile resolution takes the first hit where the engine refuses an ambiguous name (lenient only); a user name
+   containing `$` cannot lift a default or a condition (the synthesized names' sigil, as before).
+5. **Measured on fbcc2bfe9** (on `reference-checks`; its tree is `studio-program`'s code commit) against main adcb420b7:
+   - `bazel test //gates:local`: 376 of 385 pass (1 skipped); the eight Postgres targets pass unprivileged (8 of 8).
+   - the six corpus passes: no result file differs from main's; `//spec:corpus_duckdb` and `//spec:corpus_h2` (their
+     verdicts and roster diffs) green.
+   - PCT: DuckDB, H2 and channel B 12 of 12 -- `//pct:pct_duckdb_relation` killed once by the container's memory
+     cgroup (exit 137, a JVM at 4.4 GB beside the other lanes; `dmesg`) and green alone (65.8 s); Postgres
+     unprivileged 5 of 5.
+   - the stress suites: 4,705 of 4,733 on DuckDB and 4,676 on H2, each its pin.
+   - the reference lane: 6 lines from main's own build -- 50 more functions and 50 more bodies typed (the lifted
+     defaults of the engine's own classes); the failing bodies as main's (State.debug compiles again).
+   - `//gates:parser_equivalence`: 3 of 3. The JSON door: the engine collection 7,085 matched and the same 4 failed,
+     rule A 116 written and the same 10 refused, now listed text by text (126 rows); lite's projects 167 of 167; the
+     showcase 123 of 123. Own corpus 2,976 matched (the new tests' models).

@@ -59,11 +59,11 @@ final class PlanMaker {
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Servers servers = Databases.serversFor(decided.type(), serverVersion);
+        ExecutionPlan.Servers servers = serversFor(decided.type(), serverVersion);
         if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
             dialect = dialect.forServer(serverVersion);
         }
-        Metamodel metamodel = metamodel(l, decided.type(), dialect);
+        Metamodel metamodel = metamodel(l, dialect);
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect, servers,
                 metamodel);
         ExprType root = l.root().info();
@@ -210,9 +210,9 @@ final class PlanMaker {
             return null;
         }
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
-        Metamodel metamodel = metamodel(l, decided.type(), dialect);
+        Metamodel metamodel = metamodel(l, dialect);
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect,
-                Databases.serversFor(decided.type(), serverVersion), metamodel);
+                serversFor(decided.type(), serverVersion), metamodel);
         SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
         return new ExecutionPlan(List.of(), keyed(lowered, java.util.Objects.requireNonNull(
                 com.legend.lowering.KeyedPivot.dynamic(lowered)), rowSchema, out, dialect, target, l.ctx(), spelling));
@@ -298,6 +298,24 @@ final class PlanMaker {
         return new ExecutionPlan.Value(root.type().typeName(), new ExecutionPlan.Multiplicity(m.lower(), m.upper()));
     }
 
+    /** The servers a plan written for a session of {@code serverVersion} names: where {@code type}'s dialect is written
+     *  for given versions ({@link SqlDialect#serverVersions}: H2's 2.1 and 2.2 the engine-parity dialect, 2.3 and later
+     *  the modern one), that version's {@code major.minor} alone ({@link Databases#majorMinor}), so the plan's runner
+     *  accepts the session the plan was written for (the dialect is {@code SqlDialect.forServer}'s); else the
+     *  dialect's declared servers. A null version is the declared target (the plan path program's step 9, 2026-10-19:
+     *  the H2 PCT lane and channel B's H2 judge run the modern H2, and a plan for the declared target was refused on
+     *  every case). Here, not in {@code Databases}, since main's dialect program Phase 5 (2026-10-16): the database
+     *  owner does not reach the plan's types. */
+    static ExecutionPlan.Servers serversFor(ConnectionDefinition.DatabaseType type,
+            @com.legend.base.Nullable String serverVersion) {
+        List<String> versions = Databases.dialect(type).serverVersions();
+        if (versions == null) {
+            return new ExecutionPlan.Servers.Every();
+        }
+        return new ExecutionPlan.Servers.Versions(
+                serverVersion == null ? versions : List.of(Databases.majorMinor(serverVersion)));
+    }
+
     /** Where the plan runs: the database {@code decided}, the server versions and session statements of its dialect,
      *  and the setup its runtime's connections declare, every statement final for that database. */
     private static ExecutionPlan.Target target(com.legend.database.Target decided, String runtime,
@@ -307,7 +325,7 @@ final class PlanMaker {
             case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
         };
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
-                setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), decided.type(), dialect));
+                setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), dialect));
         steps.addAll(metamodel.setup());
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
@@ -358,8 +376,7 @@ final class PlanMaker {
      * literal. A query reading no such table adds nothing; a table of no rows is created empty (inline: a relation of
      * its columns with no row).
      */
-    private static Metamodel metamodel(Compiler.LoweredQuery l, ConnectionDefinition.DatabaseType type,
-            SqlDialect dialect) {
+    private static Metamodel metamodel(Compiler.LoweredQuery l, SqlDialect dialect) {
         java.util.Set<String> tables = new java.util.TreeSet<>();
         collectSystemTables(l.root(), tables);
         if (tables.isEmpty()) {
@@ -368,8 +385,8 @@ final class PlanMaker {
         com.legend.model.DatabaseDefinition store = l.ctx()
                 .findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
-        boolean inProcess = Databases.inProcess(type);
-        boolean bulk = Databases.loadsRowsInBulk(type);
+        boolean inProcess = dialect.inProcess();
+        boolean bulk = dialect.loadsRowsInBulk();
         List<ExecutionPlan.SetupStep> setup = new ArrayList<>();
         List<String> session = new ArrayList<>();
         Map<String, String> renames = new java.util.LinkedHashMap<>();
@@ -494,12 +511,11 @@ final class PlanMaker {
     /**
      * A target's setup as the plan's steps, final for {@code type}: each statement of a connection's SQL (written in
      * H2's spelling, as legend-engine's test data is) adapted to the database, and each table's rows either for the
-     * database's bulk loader ({@link Databases#loadsRowsInBulk}) with the statements that stage them, or as the one
+     * database's bulk loader ({@link SqlDialect#loadsRowsInBulk}) with the statements that stage them, or as the one
      * INSERT the database runs. A table of no rows is no step.
      */
-    private static List<ExecutionPlan.SetupStep> setup(List<CsvSeed.Step> steps, ConnectionDefinition.DatabaseType type,
-            SqlDialect dialect) {
-        boolean bulk = Databases.loadsRowsInBulk(type);
+    private static List<ExecutionPlan.SetupStep> setup(List<CsvSeed.Step> steps, SqlDialect dialect) {
+        boolean bulk = dialect.loadsRowsInBulk();
         List<ExecutionPlan.SetupStep> out = new ArrayList<>(steps.size());
         for (CsvSeed.Step step : steps) {
             switch (step) {

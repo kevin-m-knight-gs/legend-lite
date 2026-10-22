@@ -664,7 +664,7 @@ public final class Executor {
      * declared layout is a contract violation — loud, never zipped short.
      */
     /**
-     * Typed cell retrieval. TIMESTAMP columns fetch through {@code java.time}:
+     * Typed cell retrieval. TIMESTAMP (and DATE) columns fetch through {@code java.time}:
      * the driver's {@code java.sql.Timestamp} construction DROPS the BC era
      * (year -21457 surfaces as +21458 — irrecoverably, the epoch itself is
      * wrong). Timestamp stays the carrier where it is faithful (AD years);
@@ -709,6 +709,12 @@ public final class Executor {
                     ? java.time.LocalDateTime.class : java.time.LocalTime.class;
             Object t = rs.getObject(i, carrier);
             return t != null ? t : o;
+        }
+        if (o instanceof java.sql.Date && dialect.refetchesTimestampAsJavaTime()) {
+            // a DATE cell as java.time too: java.sql.Date drops a BC date's era as Timestamp does (pgjdbc's 2040-04-10
+            // BC read as 2040-04-10 AD: 2026-10-17, the #SQL{} island's regression-suite corpus)
+            Object d = rs.getObject(i, java.time.LocalDate.class);
+            return d != null ? d : o;
         }
         return o;
     }
@@ -972,8 +978,14 @@ public final class Executor {
         List<Object> cells = new ArrayList<>(n);
         boolean lateBound = schema.isLateBound();
         for (int i = 1; i <= n; i++) {
-            Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1, lateBound), dialect),
-                    sqlTypeOf(plan, i - 1, lateBound), dialect);
+            com.legend.sql.SqlType sqlType = sqlTypeOf(plan, i - 1, lateBound);
+            Object fetched = fetch(rs, i, sqlType, dialect);
+            // a time of day in text carriage (lite's timeOfText, the Cypher island's nanosecond times, 2026-10-18):
+            // the TEMPORAL_TEXT label read by the column's Pure type, as the label's contract says -- a StrictTime
+            // column's text is a time of day's print form, never a date's
+            Object cell = sqlType == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
+                    && columns.get(i - 1).pureType() == Type.Primitive.STRICT_TIME && fetched instanceof String text
+                    ? com.legend.values.PureTimeLiteral.parse(text.trim()) : unwrap(fetched, sqlType, dialect);
             // E2 (JAVA_EVICTION_PLAN): the host-side row explosion is
             // DEAD — the scalar-stream projection explodes IN SQL
             // (LEFT LATERAL UNNEST at project lowering; probe: zero

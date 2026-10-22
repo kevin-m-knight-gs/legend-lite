@@ -44,7 +44,7 @@ class ServerSessionsTest {
             """;
 
     @Test
-    void aRuntimeBindingOnlyModelDataRunsOnThePlatformDuckDb() throws Exception {
+    void aRuntimeBindingOnlyModelDataRunsOnThePlatformsEngine() throws Exception {
         String model = PEOPLE + """
                 ###Runtime
                 Runtime test::JsonOnly

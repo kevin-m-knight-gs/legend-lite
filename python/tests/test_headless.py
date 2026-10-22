@@ -11,6 +11,7 @@ from pathlib import Path
 from decimal import Decimal
 
 import pandas as pd
+import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite import datacube
@@ -59,6 +60,25 @@ class Grids(unittest.TestCase):
         self.assertIn('groupBy', view.query)
         self.assertIn('GROUP BY', view.sql.upper())
 
+    def test_a_pivot_totals_heatmap_is_its_own_set_and_cleared_by_configure(self):
+        # a total's heatmap is its own (export-render.ts heatmapSetting; the audit of neema2/legend-lite#57): Python sets
+        # and clears it by the total's own column, as the screen's menu does, and its kind and Aggregation are its
+        # measure's, refused on the total
+        import pandas as pd
+        frame = pd.DataFrame({'region': ['EMEA', 'EMEA', 'APAC'], 'desk': ['A', 'B', 'A'], 'qty': [1200, 34, 5000]})
+        grid = self.page.grid(frame, name='trades_totals', rows=['region'], columns=['desk'], measures={'qty': 'sum'})
+        total = '__pivot_total____|__qty'
+        red = r'background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))'
+        self.assertNotRegex(grid.export('html').lower(), red)
+        grid.configure({'columns': {total: {'heatmap': {'from': '#ffffff', 'to': '#ff0000'}}}})
+        self.assertRegex(grid.export('html').lower(), red)
+        grid.configure({'columns': {total: {'heatmap': None}}})
+        self.assertNotRegex(grid.export('html').lower(), red)
+        with self.assertRaisesRegex(ValueError, "is the pivot total of 'qty'"):
+            grid.configure({'columns': {total: {'aggregateFn': 'max'}}})
+        with self.assertRaisesRegex(ValueError, "is not a column of the grid"):
+            grid.configure({'columns': {'__pivot_total____|__nope': {'hidden': True}}})
+
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap
@@ -82,7 +102,9 @@ class Grids(unittest.TestCase):
         self.assertRegex(html.lower(), r'background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))')
         self.assertTrue(grid.export('excel').startswith(b'PK'), 'a workbook is a zip')
         self.assertTrue(grid.export('pdf').startswith(b'%PDF'))
-        with self.assertRaisesRegex(ValueError, "'csv', 'excel', 'html', 'text' or 'pdf'"):
+        # the kinds its Export menu offers, judged by DataCube (export-render.ts EXPORT_KINDS), in its words
+        with self.assertRaisesRegex(ValueError,
+                                    "a grid exports as one of 'csv', 'excel', 'html', 'text', 'pdf', not \"docx\""):
             grid.export('docx')
         import tempfile
         with tempfile.TemporaryDirectory() as folder:
@@ -134,6 +156,16 @@ class Grids(unittest.TestCase):
         out = self.page.grid(frame, name='trades_wide', rows=['k'], measures={'n': 'sum'}).view().to_pandas()
         self.assertEqual(out.n.tolist()[-1], 2 * (2 ** 63 - 1))
 
+    def test_a_grid_edited_over_a_frame_whose_columns_moved_says_what_opening_it_changed(self):
+        # a function frame read again at the edit: its new column comes in hidden, written with the edit and said, in
+        # DataCube's words, as a load says it
+        now = {'frame': TRADES}
+        grid = self.page.grid(lambda: now['frame'], name='trades_moving', rows=['desk'])
+        now['frame'] = TRADES.assign(extra=1)
+        with self.assertWarnsRegex(UserWarning, 'new column since this cube was saved, hidden: extra'):
+            grid.group('region')
+        self.assertIn('extra', [c['name'] for c in grid._query['columns']])
+
     def test_its_rows_read_a_live_frame_once(self):
         # one query, one read of the frame as it is then: a function frame called once (Frames.serving holds it still)
         calls = []
@@ -162,6 +194,43 @@ class Grids(unittest.TestCase):
         self.assertIn('max()', grouped.relation)
         rows = grouped.to_pandas().set_index('desk').qty.to_dict()
         self.assertEqual(rows, TRADES.groupby('desk').qty.max().to_dict())
+        # set as DataCube sets a host's settings, then folded: after an edit wrote its query (a row cap and an Aggregation
+        # folded in), the setting still holds; each column's merged into what it has; None clears one
+        edited = self.page.grid(TRADES, name='trades_edited', rows=['desk'], measures={'qty': 'sum'},
+                                sort=[('qty', 'desc')])
+        edited.configure({'columns': {'qty': {'aggregateFn': 'max'}}})
+        self.assertEqual(groups(edited.view(), 'qty'), TRADES.groupby('desk').qty.max().to_dict())
+        edited.configure({'maxRows': 2})
+        self.assertEqual(edited._query['maxRows'], 2, 'folded into the query, as the screen folds it')
+        edited.configure({'columns': {'qty': {'hidden': True}}})
+        self.assertEqual(edited._cube['configuration']['columns']['qty'], {'aggregateFn': 'max', 'hidden': True})
+        self.assertEqual(edited._cube['configuration']['maxRows'], 2)
+        edited.configure({'maxRows': None, 'columns': {'qty': {'hidden': None}}})
+        self.assertEqual(edited._cube['configuration']['columns']['qty'], {'aggregateFn': 'max'})
+        self.assertNotIn('maxRows', edited._cube['configuration'], 'the cap cleared')
+        self.assertNotIn('maxRows', edited._query, 'and out of the query')
+
+    def test_an_aggregation_set_reaches_the_view_and_a_measure_of_no_grouping_shows_the_rows(self):
+        # an aggregate that is not the column's default, set as grid.measure and Column Properties set it, reaches the
+        # grid's rows; cleared, the column is on its default again
+        grid = self.page.grid(TRADES, name='trades_max', rows=['desk'])
+        grid.measure('qty', 'max')
+        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.max().to_dict())
+        grid.column('qty', aggregate='min')
+        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.min().to_dict())
+        grid.column('qty', aggregate=None)
+        self.assertEqual(groups(grid.view(), 'qty'), TRADES.groupby('desk').qty.sum().to_dict())
+        # a weighted average with its weight, and the weight cleared with it
+        grid.column('notional', aggregate='wavg', weight='qty')
+        weighted = (TRADES.notional * TRADES.qty).groupby(TRADES.desk).sum() / TRADES.qty.groupby(TRADES.desk).sum()
+        for desk, value in groups(grid.view(), 'notional').items():
+            self.assertAlmostEqual(value, weighted[desk])
+        grid.column('notional', aggregate=None, weight=None)
+        self.assertNotIn('notional', grid._cube['configuration'].get('columns', {}))
+        # with nothing grouped, a measure shows the rows as they are, as the screen does: no one-row total
+        flat = self.page.grid(TRADES, name='trades_flat_measure')
+        flat.measure('qty', 'max')
+        self.assertEqual(len(flat.view().rows), len(TRADES))
 
     def test_a_grid_read_while_another_thread_registers_frames_does_not_wait_on_it(self):
         # the session's lock and the frames' lock, taken in one order by both: a grid read beside frames registered
@@ -274,6 +343,16 @@ class Files(unittest.TestCase):
         self.assertEqual(self.frames.connection.execute('SELECT count(*) FROM files_data_2').fetchone()[0], 2)
         with self.frames.serving() as models:
             self.assertIn('files_data_2', models)
+
+    def test_a_files_table_named_False_is_read_by_a_query(self):
+        # Pure's literals are `true` and `false` as spelled: `False` names a file's table (frames.reading_file), and
+        # SQL's FALSE, a keyword in any case, is quoted where a query planned over the file's model reads it
+        said = self.read('f.csv', 'a\n1\n2\n', 'False')
+        self.assertEqual(said['table'], 'False')
+        query = json.dumps({'_type': 'lambda', 'body': [said['source']], 'parameters': []})
+        answer = self.send('/plan-and-run.json', {'lambda': query, 'model': said['model'], 'runtime': said['runtime']})
+        self.assertEqual(answer.status, 200, answer.body[:300])
+        self.assertEqual(sorted(pyarrow.ipc.open_stream(answer.body).read_all()['a'].to_pylist()), [1, 2])
 
     def test_a_file_comes_a_part_at_a_time_however_large(self):
         # a CSV larger than any one call may be (16 MiB), in the page's 4 MiB parts; and one in parts of three bytes,

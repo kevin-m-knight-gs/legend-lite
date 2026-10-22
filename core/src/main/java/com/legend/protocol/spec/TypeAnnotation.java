@@ -130,8 +130,8 @@ public sealed interface TypeAnnotation
 
     /**
      * Inline relation type literal. Each column carries a name (or
-     * wildcard), a column-type annotation, and an optional
-     * multiplicity.
+     * wildcard), a column-type annotation, and a multiplicity
+     * ({@code [0..1]} when none is written).
      *
      * <p>An empty column list is structurally legal in the parser
      * (e.g. {@code @Relation<()>}); any rejection lives in the
@@ -153,6 +153,13 @@ public sealed interface TypeAnnotation
         /** Span-free convenience constructor (tests, synthesis). */
         public RelationShape(List<Column> columns) {
             this(columns, null, null, null);
+        }
+
+        /** Whether a type name as written spells a relation shape's {@code Relation<(...)>}: its simple name is
+         *  {@code Relation}, qualified or not. The one test for the parser and the JSON reader (leg 8 step 2). */
+        public static boolean spelledRelation(String name) {
+            int cut = name.lastIndexOf("::");
+            return "Relation".equals(cut < 0 ? name : name.substring(cut + 2));
         }
 
         /** Wire metadata (spelled name, spans) is excluded from equality. */
@@ -179,31 +186,33 @@ public sealed interface TypeAnnotation
          * the {@code name:?} form, matching engine-pure's
          * {@code mayColumnType: QUESTION | type} grammar.
          *
-         * <p>The {@code multiplicity} is {@code null} when no
-         * {@code [mult]} annotation is present in source. We
-         * preserve it (rather than parse-and-discard like
-         * engine-lite) because engine-pure's M3 metamodel keeps
-         * column multiplicities on the structural type and a future
-         * relation-type-checker will need them.
+         * <p>The {@code multiplicity} is {@code [0..1]} when no
+         * {@code [mult]} annotation is present in source, as
+         * legend-pure and legend-engine read it (leg 8 step 2). It is
+         * kept (rather than parsed and discarded) because legend-pure's
+         * M3 metamodel keeps column multiplicities on the structural
+         * type.
          *
          * @param name         column name; {@code null} for wildcard
          * @param type         column type annotation; never null;
          *                     may be {@link Wildcard}
-         * @param multiplicity declared multiplicity, or {@code null}
-         *                     when absent
+         * @param multiplicity its multiplicity; never null: {@code [0..1]} when
+         *                     none is written, as the engine and legend-pure
+         *                     read it (leg 8 step 2)
          */
         public record Column(
                 @com.legend.base.Nullable String name,
                 TypeAnnotation type,
-                @com.legend.base.Nullable Multiplicity multiplicity,
+                Multiplicity multiplicity,
                 @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
             public Column {
                 Objects.requireNonNull(type, "type");
+                Objects.requireNonNull(multiplicity, "multiplicity");
             }
 
             /** Span-free convenience constructor. */
             public Column(@com.legend.base.Nullable String name, TypeAnnotation type,
-                          @com.legend.base.Nullable Multiplicity multiplicity) {
+                          Multiplicity multiplicity) {
                 this(name, type, multiplicity, null);
             }
 

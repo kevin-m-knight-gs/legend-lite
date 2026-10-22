@@ -75,6 +75,7 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 import com.legend.sql.SqlUnion;
+import com.legend.sql.SqlWith;
 import com.legend.values.PureDateLiteral;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -628,6 +629,80 @@ public final class Lowerer {
                 ? new SqlExpr.CheckedOne(op) : null;
     }
 
+    /** The recursions being lowered, by the step's parameter name: the expression the parameter reads
+     *  ({@code recurse}, 2026-10-17). */
+    private final Map<String, SqlSource.Cte> recursions = new java.util.HashMap<>();
+
+    /** {@code recurse(base, r | step)} as the database's recursive common table expression ({@code WITH RECURSIVE
+     *  name AS (base UNION ALL step)}), read as a derived table where the relation stands: the step's parameter
+     *  lowers to the expression's own name, so the step reads the previous round's rows; the database stops when a
+     *  round yields none. The expression's columns are the base's. */
+    private SqlSelect recurse(com.legend.compiler.spec.typed.TypedRecurse r) {
+        SqlSelect base = relation(r.source());
+        String name = "__walk" + recursions.size();
+        List<OutputCol> outputs = base.outputs().stream().map(o -> new OutputCol(o.name(), o.type(), o.nullable(),
+                OutputCol.Origin.DERIVED)).toList();
+        String param = r.step().parameters().get(0);
+        SqlSource.Cte self = new SqlSource.Cte(name, name, outputs);
+        SqlSource.Cte before = recursions.put(param, self);
+        SqlSelect step;
+        try {
+            step = relation(LambdaBinding.last(r.step()));
+        } finally {
+            if (before == null) {
+                recursions.remove(param);
+            } else {
+                recursions.put(param, before);
+            }
+        }
+        SqlQuery expression = SqlWith.prepend(List.of(new SqlWith.Cte(name, new SqlUnion(List.of(base, step), true,
+                outputs))), SqlSelect.starOf(new SqlSource.Cte(name, nextAlias(), outputs)), true);
+        return SqlSelect.starOf(new SqlSource.Subselect(expression, nextAlias(), null));
+    }
+
+    /** Inside a recursion's step, the step's parameter: the expression's own rows, read by name. */
+    private SqlSelect recursionSelf(TypedVariable v) {
+        SqlSource.Cte self = Objects.requireNonNull(recursions.get(v.name()));
+        return SqlSelect.starOf(new SqlSource.Cte(self.name(), nextAlias(), self.outputs()));
+    }
+
+    /** {@code lateral(rel, {row | relationOf(row)})}: the lambda's relation body lowers with the row parameter
+     *  CORRELATED to the left alias (the enclosing-resolver channel); the database joins it per row via
+     *  {@code CROSS JOIN LATERAL}. Schema = T+V (the checker's schema algebra). (The arm's body, moved out of
+     *  {@link #relation} at the method-length guardrail, 2026-10-17.) */
+    private SqlSelect lateral(TypedNativeCall nc, TypedLambda lam) {
+        SqlSelect left = relation(nc.args().get(0));
+        SqlSource leftSide = asLeftJoinSide(left);
+        String param = lam.parameters().get(0);
+        ColumnResolver leftCols = (v, name) ->
+                (v == null || v.equals(param))
+                        ? resolveOrThrow(SqlSelect.starOf(leftSide), name)
+                        : null;
+        enclosing.push((v, name) -> {
+            SqlExpr r = leftCols.resolve(v, name);
+            if (r == null) {
+                // NOT this scope's variable: the UnfoldableRef SIGNAL
+                // lets scopedResolver continue outward (a hard throw
+                // severed the whole enclosing chain behind lateral).
+                throw new UnfoldableRef(
+                        name == null ? "<whole variable>" : name);
+            }
+            return r;
+        });
+        SqlSelect right;
+        try {
+            right = relation(lam.body().get(lam.body().size() - 1));
+        } finally {
+            enclosing.pop();
+        }
+        SqlSource.Join join = new SqlSource.Join(leftSide,
+                new SqlSource.Subselect(right, nextAlias(), null),
+                SqlSource.Join.Kind.CROSS_LATERAL,
+                null);   // CROSS JOIN takes no ON clause
+        // star frame: the join's own outputs (left ++ lateral)
+        return SqlSelect.starOf(join);
+    }
+
     String nextAlias() {
         return "t" + aliasCounter++;
     }
@@ -699,6 +774,10 @@ public final class Lowerer {
 
             case TypedFilter f -> filter(f);
 
+            // a recursion and, inside its step, the expression its parameter reads (recurse, 2026-10-17)
+            case com.legend.compiler.spec.typed.TypedRecurse r -> recurse(r);
+            case TypedVariable v when recursions.containsKey(v.name()) -> recursionSelf(v);
+
             case TypedSelect sel -> Fold.restrictOverWholeRowDistinct(sel) != null
                     ? distinctNarrowTo(relation(Objects.requireNonNull(
                             Fold.restrictOverWholeRowDistinct(sel)).source()),
@@ -713,38 +792,7 @@ public final class Lowerer {
             case TypedNativeCall nc when com.legend.builtin.NativeFn.LowererForm
                     .of(nc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.LowererForm.LATERAL
                     && nc.args().size() == 2
-                    && nc.args().get(1) instanceof TypedLambda lam -> {
-                SqlSelect left = relation(nc.args().get(0));
-                SqlSource leftSide = asLeftJoinSide(left);
-                String param = lam.parameters().get(0);
-                ColumnResolver leftCols = (v, name) ->
-                        (v == null || v.equals(param))
-                                ? resolveOrThrow(SqlSelect.starOf(leftSide), name)
-                                : null;
-                enclosing.push((v, name) -> {
-                    SqlExpr r = leftCols.resolve(v, name);
-                    if (r == null) {
-                        // NOT this scope's variable: the UnfoldableRef SIGNAL
-                        // lets scopedResolver continue outward (a hard throw
-                        // severed the whole enclosing chain behind lateral).
-                        throw new UnfoldableRef(
-                                name == null ? "<whole variable>" : name);
-                    }
-                    return r;
-                });
-                SqlSelect right;
-                try {
-                    right = relation(lam.body().get(lam.body().size() - 1));
-                } finally {
-                    enclosing.pop();
-                }
-                SqlSource.Join join = new SqlSource.Join(leftSide,
-                        new SqlSource.Subselect(right, nextAlias(), null),
-                        SqlSource.Join.Kind.CROSS_LATERAL,
-                        null);   // CROSS JOIN takes no ON clause
-                // star frame: the join's own outputs (left ++ lateral)
-                yield SqlSelect.starOf(join);
-            }
+                    && nc.args().get(1) instanceof TypedLambda lam -> lateral(nc, lam);
             // relation::variant::flatten(collection, ~col): the collection
             // UNNESTs as the single column (real flatten.pure semantics).
             // (the body moved to CollectionRelations at the file guardrail)
@@ -937,7 +985,14 @@ public final class Lowerer {
                     : resolveOrThrow(base, k.column());
             // an enum-DECODE key groups on its RAW source (C1.4, engine
             // parity); the projection keeps the decoded name
-            keys.add(com.legend.sql.DecodeShapes.sourceExpr(e).orElse(e));
+            SqlExpr key = com.legend.sql.DecodeShapes.sourceExpr(e).orElse(e);
+            // a NULL key (a typed empty: a property no class declares) groups
+            // as a value of the contract's declared type, CAST(NULL AS t): a
+            // constant key is an expression only where it is typed (Postgres,
+            // ConstantKeysAsExpressions), and the type is the plan's own
+            keys.add(key instanceof SqlExpr.NullLit
+                    ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type())
+                    : key);
             // a self-aliased key drops the alias (view-frame goldens) —
             // EXCEPT reads of a union frame's outputs, which keep it
             // ("unionalias_0"."lastName" as "lastName")
@@ -1508,8 +1563,24 @@ public final class Lowerer {
     /** extend(~cols): existing projections stay, computed columns APPEND. */
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
-        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        SqlSelect base = Fold.extendFolds(src) ? src : extendOver(src);
         return computedColumns(base, columns, info, true, false);
+    }
+
+    /** The select an extend that does not fold computes its columns in: {@code src} isolated. Over a truncated
+     *  {@code src} (IQ island, 2026-10-16, the landing's review) only when the isolation keeps {@code src}'s rows as
+     *  they are read: its names apart without regard to case (a database that reads names so, DuckDB even quoted,
+     *  binds two of them to the first) and its whole order carried out ({@link Sorts#keepsOrder}). Else
+     *  the extend folds into {@code src} as before that day: the same values, computed for every row its limit
+     *  reads. */
+    private SqlSelect extendOver(SqlSelect src) {
+        if (src.distinct()) {
+            return Sorts.isolateOrdered(this, src);
+        }
+        if (!Fold.namesApartWithoutCase(src)) {
+            return src;
+        }
+        return Sorts.keepsOrder(src) ? Sorts.isolateOrdered(this, src) : src;
     }
 
     /** project(~cols): the computed columns REPLACE the projection list.
@@ -1568,6 +1639,7 @@ public final class Lowerer {
         }
         SqlSelect target = base;
         List<OutputCol> contract = outputsOf(info);
+        java.util.Map<String, OutputCol> byContract = Fold.byName(contract);
         // one fold budget for the pass (Fold.Budget): a computed projection written into the columns' reads more
         // than the budget allows makes the pass unfoldable, and the retry over the isolated base reads it by name
         Fold.Budget budget = new Fold.Budget();
@@ -1626,11 +1698,11 @@ public final class Lowerer {
                                 SqlExpr.Column.of(lat, "elem",
                                         PureSql.type(elemT), true,
                                         com.legend.sql.OutputCol.Origin.DERIVED),
-                                c.name(), Fold.named(contract, c.name())));
+                                c.name(), Fold.named(byContract, contract, c.name())));
                         continue;
                     }
                     ps.add(new SqlSelect.Projection(r.expr(), c.name(),
-                            Fold.named(contract, c.name())));
+                            Fold.named(byContract, contract, c.name())));
                 }
                 case Resolution.Unfoldable u -> {
                     miss[0] = c.name();
@@ -1752,6 +1824,10 @@ public final class Lowerer {
     private SqlExpr predicateOrThrow(SqlSelect isolated, TypedLambda lambda, String op) {
         return switch (tryPredicate(isolated, lambda)) {
             case Resolution.Resolved r -> r.expr();
+            // IQ island, 2026-10-15 (the corpus lane): a miss of an ENCLOSING row's read (its column computed over its
+            // row set, a window's, which no scope may write in place) is the enclosing boundary's to cure: it isolates
+            // its select, the column becomes a plain one, and the correlated read resolves
+            case Resolution.Unfoldable u when u.enclosing() -> throw new UnfoldableRef(u.column(), true);
             case Resolution.Unfoldable u -> throw new IllegalStateException(
                     op + " predicate references column '" + u.column()
                             + "', unresolvable even after isolation [param="
@@ -1785,7 +1861,16 @@ public final class Lowerer {
     /** Resolve refs via projections, noting whether any substituted a window call. */
     private @com.legend.base.Nullable WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
         var saw = new AtomicBoolean();
+        String own = lambda.parameters().isEmpty() ? null : lambda.parameters().get(0);
         return switch (attempt(() -> scalar(LambdaBinding.last(lambda), (v, name) -> {
+            if (v != null && own != null && !v.equals(own)) {
+                // IQ island, 2026-10-15 (the corpus lane's judged runs: sede-18206): only the lambda's own row reads
+                // this select's projections; an enclosing row's read here (a correlated subquery's filter, $r.rn
+                // beside the own row's window column $r1.rn) was resolved against this select by name -- the inner
+                // window in the outer row's place, ROW_NUMBER() <= ROW_NUMBER(), every row counted. A miss: the
+                // caller isolates and resolves it as the enclosing row's
+                throw new UnfoldableRef(name == null ? "<whole variable>" : name);
+            }
             SqlExpr resolved = projectionExprOrThrow(select, name);
             if (resolved instanceof SqlExpr.WindowCall) {
                 saw.set(true);
@@ -1827,6 +1912,16 @@ public final class Lowerer {
         return resolved;
     }
 
+    /** Whether {@code name} of {@code select} is a computed grouping key typed as a Variant (its expression one of the
+     *  select's GROUP BY items; a plain column read is never one). */
+    private static boolean groupedVariantKey(SqlSelect select, String name, SqlExpr expr) {
+        if (select.groupBy().isEmpty() || expr instanceof SqlExpr.Column || !select.groupBy().contains(expr)) {
+            return false;
+        }
+        return select.outputs().stream().anyMatch(o -> o.name().equals(name)
+                && o.type() == com.legend.sql.SqlType.Scalar.JSON);
+    }
+
     /** {@code read}, made on an enclosing row's behalf (see {@link #correlatedReads}); a flatten's outer reads
      *  (CollectionRelations) come through here too. */
     <T> T correlated(java.util.function.Supplier<T> read) {
@@ -1863,6 +1958,14 @@ public final class Lowerer {
                 // a whole-variable read (no name) spends nothing: isolation could not cure its refusal, the
                 // isolated base having no projection to read whole
                 if (correlatedReads == 0 && name != null) {
+                    if (groupedVariantKey(select, name, o.expr())) {
+                        // a Variant grouping key read into a computation over its grouped select (2026-10-17,
+                        // docs/CYPHER_STUDY_2026_10_15.md §12.71): unfoldable, so the read goes through the isolated
+                        // select by name; a dialect may spell a read into a Variant as a subquery, and a subquery
+                        // over a grouped expression's columns is no grouped value (Postgres: "subquery uses
+                        // ungrouped column")
+                        throw new UnfoldableRef(name);
+                    }
                     budget.spend(name, o.expr());
                 }
                 return o.expr();
@@ -1886,8 +1989,13 @@ public final class Lowerer {
             // the silent self-correlation resolved an outer row's read
             // against a same-named INNER column (the two regressions in
             // this method's doc-comment). A genuine miss takes the
-            // designed UnfoldableRef route (isolate-or-loud).
-            throw new UnfoldableRef(name == null ? "<whole variable>" : name);
+            // designed UnfoldableRef route (isolate-or-loud). It is an
+            // enclosing row's only where an enclosing scope is (2026-10-16,
+            // the relational corpus: with none, a plan's open variable --
+            // let name = 'ok'; ...filter(f|$f.legalName == $name) -- escaped
+            // predicateOrThrow as the signal, past the plan's IllegalState
+            // fallback that binds it as a parameter)
+            throw new UnfoldableRef(name == null ? "<whole variable>" : name, !outers.isEmpty());
         };
     }
 
@@ -2612,6 +2720,23 @@ public final class Lowerer {
         }
     }
 
+    /** A CASE whose ELSE is a CASE, as one CASE of both's WHENs: {@code CASE WHEN a THEN x ELSE CASE WHEN b THEN y
+     *  ELSE z END END} is {@code CASE WHEN a THEN x WHEN b THEN y ELSE z END} in every SQL (2026-10-15). Not where the
+     *  ELSE is an enum's decode the CASE around it is no part of (2026-10-16, the relational corpus's
+     *  tdsWithEnumReturn: {@code if(c, |$p.e, |$p.e)} over an enum, flattened, read as no decode of one column, so its
+     *  plan's column type went unspelled): the decode keeps its own CASE. */
+    private static SqlExpr flatCase(SqlExpr e) {
+        if (e instanceof SqlExpr.Case c && c.otherwise() instanceof SqlExpr.Case inner
+                && (com.legend.sql.DecodeShapes.flattenDecode(inner).isEmpty()
+                        || com.legend.sql.DecodeShapes.flattenDecode(e).isPresent())) {
+            List<SqlExpr.Case.When> whens = new ArrayList<>(c.whens().size() + inner.whens().size());
+            whens.addAll(c.whens());
+            whens.addAll(inner.whens());
+            return new SqlExpr.Case(whens, inner.otherwise());
+        }
+        return e;
+    }
+
     /**
      * Literal Integer args (ntile n, lag/lead offset) ride along; variable
      * refs are the window params; anything else is LOUD, never dropped.
@@ -2676,8 +2801,13 @@ public final class Lowerer {
                             com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT);
             // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
             // NULL — a [0] value has no cell representation other than null
-            // (the mapping enum decode chain's tail: CASE ... ELSE NULL).
-            case TypedCollection c when c.elements().isEmpty() -> new SqlExpr.NullLit();
+            // (the mapping enum decode chain's tail: CASE ... ELSE NULL). An empty typed as the Variant
+            // ([]->cast(@Variant), the cast folded into the literal's type before lowering) keeps its type on the
+            // wire: Postgres's jsonb operators over an untyped NULL are ambiguous (2026-10-17, the Cypher island's
+            // arm of a class lacking a property typed two ways, docs/CYPHER_STUDY_2026_10_15.md §12.62)
+            case TypedCollection c when c.elements().isEmpty() ->
+                    c.info().type() instanceof Type.ClassType ct && PlatformTypes.isVariant(ct)
+                            ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.JSON) : new SqlExpr.NullLit();
             // A HETEROGENEOUS literal — element LUB Any ([1, 'a']) or a class
             // LUB with NO canonical layout (mixed instance kinds meeting at
             // an abstract ancestor): each element wraps as variant JSON, the
@@ -2728,7 +2858,7 @@ public final class Lowerer {
                     }
                 }
                 // instances meeting at a model class with no layout carry
-                // their own class (register S81; an Any collection's do not)
+                // their own class (the instance carrier, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9; an Any collection's do not)
                 boolean classed = !PlatformTypes.isAny(ct);
                 java.util.function.Function<TypedSpec, SqlExpr> element = e -> classed
                         ? MixedEncoding.withClass(e, scalar(e, columns)) : scalar(e, columns);
@@ -3072,20 +3202,23 @@ public final class Lowerer {
 
             case TypedSpec js when JsonEmission.owns(js) -> JsonEmission.lower(this, js, columns);
             // if(cond, {|then}, {|else}) — scalar position: CASE WHEN.
-            // If-chains (the mapping enum decode emission) render as NESTED
-            // CASE expressions in the otherwise slot — correct; single-CASE
-            // flattening is a cosmetic peephole if ever demanded.
+            // If-chains (the mapping enum decode emission, a SQL island's CASE
+            // of many WHENs) render as ONE CASE (flatCase): nested in the
+            // otherwise slot they were correct, but DuckDB refuses a CASE
+            // nested past its max_expression_depth (1,000), which one CASE of
+            // 1,000 WHENs is not (2026-10-15, the IQ island's census scale
+            // suite: Tableau falls back to "large IN or CASE expressions").
             case TypedIf i -> {
                 TypedSpec thenB = PureSql.thunkBody(i.thenBranch());
                 TypedSpec elseB = i.elseBranch()
                         .map(PureSql::thunkBody).orElse(null);
                 // Any-LUB branch alignment (variant carrier) lives in
                 // MixedEncoding.lubCase — the mixed-kind discipline.
-                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB,
+                yield flatCase(MixedEncoding.lubCase(i.info().type(), thenB, elseB,
                         scalar(i.condition(), columns),
                         scalar(thenB, columns),
                         elseB == null ? new SqlExpr.NullLit()
-                                : scalar(elseB, columns));
+                                : scalar(elseB, columns)));
             }
 
             // An enum VALUE in scalar position renders as its name string
@@ -3101,7 +3234,7 @@ public final class Lowerer {
                     scalarStructural(pa.source(), columns);
 
             // a TYPE written as a value ([String, Integer] vs columns.type;
-            // Car): type VALUES travel as their PATHS (register S82,
+            // Car): type VALUES travel as their PATHS (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9,
             // 2026-10-20; a base primitive's is its name), as do a TDS's
             // column types and an instance's rawType, so equality compares
             // paths and the text carrier's reader resolves a namesake; a
@@ -3186,6 +3319,56 @@ public final class Lowerer {
 
     /** Scalar lowering, tail arm group (same chain — see
      * {@link #scalarRelationalArms}; sequential order preserved). */
+    /** {@code relation->map(row|scalar)} consumed as a VALUE COLLECTION (makeString/joinStrings tails): the projected
+     *  column aggregated to a LIST value by a scalar subquery ({@link #scalarValueTailArms}' arm, its own method since
+     *  2026-10-22: the arm grew the method past the shape limit). */
+    private SqlExpr mapAsValueCollection(TypedMap m2, TypedLambda ml2, ColumnResolver columns) {
+        Multiplicity colMult2 = ml2.functionType().result().multiplicity();
+        // the source correlates with the row in hand, as the
+        // relation-valued arm below and the EXISTS family do
+        enclosing.push(enclosingOf(columns));
+        SqlSelect proj;
+        try {
+            proj = relation(ValueCollections.valueColumnProject(
+                    m2.source(), ml2, m2.info().type(), colMult2));
+        } finally {
+            enclosing.pop();
+        }
+        // pure map FLATTENS collection-valued mappers ($r.values):
+        // the list-of-cell-arrays flattens one level
+        boolean collMapper = ValueCollections.isCollectionMapper(ml2);
+        // C2-i (STAMP_DISCIPLINE_PROGRAM): a PROVABLY single-row
+        // source (a LIMIT<=1 chain or Dual) with a scalar mapper
+        // reads its cell as a PLAIN scalar subquery — the LIST
+        // collect was the census's shape lie; zero rows stay SQL
+        // NULL in both forms, and the scalar form carries the
+        // DB-native single-row semantics.
+        // ALSO requires the node's OWN stamp scalar: many-stamps
+        // keep the LIST-box carrier (loose [*] over one value).
+        if (!collMapper && Fold.provablySingleRow(proj)
+                && m2.info().multiplicity()
+                        instanceof Multiplicity.Bounded mb2
+                && mb2.upper() != null && mb2.upper() <= 1) {
+            return new SqlExpr.ScalarSubquery(proj);
+        }
+        // COLLECTION-MAPPER cells with scalar per-cell STAMPS lower
+        // as true scalars (C1); the flatten contract needs list-of-
+        // lists, so the collect re-boxes each cell BY STAMP.
+        boolean scalarCells = collMapper
+                && ml2.body().get(ml2.body().size() - 1).info()
+                        .multiplicity()
+                        instanceof Multiplicity.Bounded cellB
+                && cellB.upper() != null && cellB.upper() <= 1;
+        SqlExpr collected = ValueCollections.collectAsList(proj,
+                collMapper, scalarCells, nextAlias());
+        // NULL-DROP (audit §5): LIST() keeps NULL cells, so an
+        // optional-cell collect COMPACTS (order untouched).
+        return m2.info().multiplicity().isMany() && !collMapper
+                && Fold.optionalScalarCell(colMult2)
+                ? new SqlExpr.CompactList(collected)
+                : collected;
+    }
+
     private SqlExpr scalarValueTailArms(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // makeString/joinStrings over the $r.values TDSRow-cells
@@ -3297,52 +3480,7 @@ public final class Lowerer {
             case TypedMap m2
                     when CollectionRelations.rowSource(m2.source())
                     && m2.mapper() instanceof TypedLambda ml2
-                    && !Type.isRelation(ml2.functionType().result().type()) -> {
-                Multiplicity colMult2 = ml2.functionType().result().multiplicity();
-                // the source correlates with the row in hand, as the
-                // relation-valued arm below and the EXISTS family do
-                enclosing.push(enclosingOf(columns));
-                SqlSelect proj;
-                try {
-                    proj = relation(ValueCollections.valueColumnProject(
-                            m2.source(), ml2, m2.info().type(), colMult2));
-                } finally {
-                    enclosing.pop();
-                }
-                // pure map FLATTENS collection-valued mappers ($r.values):
-                // the list-of-cell-arrays flattens one level
-                boolean collMapper = ValueCollections.isCollectionMapper(ml2);
-                // C2-i (STAMP_DISCIPLINE_PROGRAM): a PROVABLY single-row
-                // source (a LIMIT<=1 chain or Dual) with a scalar mapper
-                // reads its cell as a PLAIN scalar subquery — the LIST
-                // collect was the census's shape lie; zero rows stay SQL
-                // NULL in both forms, and the scalar form carries the
-                // DB-native single-row semantics.
-                // ALSO requires the node's OWN stamp scalar: many-stamps
-                // keep the LIST-box carrier (loose [*] over one value).
-                if (!collMapper && Fold.provablySingleRow(proj)
-                        && m2.info().multiplicity()
-                                instanceof Multiplicity.Bounded mb2
-                        && mb2.upper() != null && mb2.upper() <= 1) {
-                    yield new SqlExpr.ScalarSubquery(proj);
-                }
-                // COLLECTION-MAPPER cells with scalar per-cell STAMPS lower
-                // as true scalars (C1); the flatten contract needs list-of-
-                // lists, so the collect re-boxes each cell BY STAMP.
-                boolean scalarCells = collMapper
-                        && ml2.body().get(ml2.body().size() - 1).info()
-                                .multiplicity()
-                                instanceof Multiplicity.Bounded cellB
-                        && cellB.upper() != null && cellB.upper() <= 1;
-                SqlExpr collected = ValueCollections.collectAsList(proj,
-                        collMapper, scalarCells, nextAlias());
-                // NULL-DROP (audit §5): LIST() keeps NULL cells, so an
-                // optional-cell collect COMPACTS (order untouched).
-                yield m2.info().multiplicity().isMany() && !collMapper
-                        && Fold.optionalScalarCell(colMult2)
-                        ? new SqlExpr.CompactList(collected)
-                        : collected;
-            }
+                    && !Type.isRelation(ml2.functionType().result().type()) -> mapAsValueCollection(m2, ml2, columns);
             // A COLUMN READ over a relation chain in scalar position
             // ($tds.rows.id — the TDS getter desugar): narrow to the one
             // column and take the single-column relation route below.
@@ -3480,7 +3618,7 @@ public final class Lowerer {
      */
     private SqlSelect flatten(TypedFlatten fl) {
         SqlSelect src = relation(fl.source());
-        SqlSelect base = Fold.extendFolds(src) ? src : isolate(src);
+        SqlSelect base = Fold.extendFolds(src) ? src : Sorts.isolateOrdered(this, src);
         return foldOrIsolate(base, "flatten", b -> buildFlatten(b, fl));
     }
 

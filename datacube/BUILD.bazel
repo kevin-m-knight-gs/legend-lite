@@ -39,12 +39,11 @@ exports_files(
     ],
 )
 
-# the shared cases of a server planning for a page (G1), which Python's twin is held to as the tab's planner is
+# DataCube's fixtures Python's tests read too
 exports_files(
     [
         # DataCube's chart rules, which Python's page.py is held to as well (//python:engine_test)
         "test/fixtures/chart-rules.json",
-        "test/fixtures/upstream-plans.json",
     ],
     visibility = ["//python:__pkg__"],
 )
@@ -123,8 +122,6 @@ _SCANNED = {
         "//wasm:differential",
     ],
     "menu-ids": [":src"],
-    # the vocabularies Python's ll.Page writes (python/legend_lite/page.py) against DataCube's own
-    "python-vocabulary": [":src", "//python:page_source"],
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],
@@ -189,7 +186,7 @@ _EXTRA_ENV = {
         # the trading rows' other two copies, held equal to its Data: the warehouse's fixture and the H2 connection's
         "TRADING_COPIES": "$(rlocationpath :trading_copies)",
     },
-    # the shared cases of a server planning for a page, which Python's twin reads too (//python:upstream_test)
+    # the shared cases of the tab's planner on a server: its requests written, its plans read
     "upstream-plans": {
         "UPSTREAM_PLANS": "$(rlocationpath test/fixtures/upstream-plans.json)",
     },
@@ -251,6 +248,7 @@ _EXTRA_DATA = {
     "multi-cube": ["test/cube-fixture.ts", "test/gate.ts"],
     "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts"],
     "page-app": ["test/cube-fixture.ts", "test/gate.ts"],
+    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts"],
     # the headless lane's stand-ins for node:assert and node:test, held to Node's own here
     "headless-assert": ["test/headless/node-assert.ts"],
     "headless-test-runner": [
@@ -368,10 +366,12 @@ _HEADLESS_TESTS = [
     "calc",
     "calc-fix",
     "cancel",
+    "chart-rules-more",
     "child-groups",
     "column-kind",
     "columns-selector",
     "config",
+    "config-fold",
     "create-class",
     "cube-document",
     "cube-state",
@@ -393,12 +393,14 @@ _HEADLESS_TESTS = [
     "format-scale",
     "fuzz",
     "grid",
+    "grid-edits",
     "group-derived",
     "host",
     "infer",
     "json-shape",
     "lite-planner",
     "menu",
+    "menu-more",
     "model-join",
     "model-route",
     "offer-facts",
@@ -414,6 +416,7 @@ _HEADLESS_TESTS = [
     "remote",
     "runner",
     "sample",
+    "saved-documents",
     "screen-colours",
     "selection",
     "share-link",
@@ -1604,6 +1607,8 @@ _HARNESSES = [
     "run-stress",
     "shots",
     "torture",
+    # the screenshot tour (docs/DATACUBE_TOUR.md): each step checked and shot, a gallery beside the pictures
+    "tour",
     "verify-calc-vocabulary",
     "verify-charts",
     "verify-class",
@@ -1619,6 +1624,12 @@ _HARNESSES = [
     "verify-smoke",
     "verify-upload",
     "verify-wasm-browser",
+]
+
+# the harnesses that start DuckDB in Node (engine-client's startNodeDuckDb)
+_NODE_DUCKDB_HARNESSES = [
+    "verify-real-data",
+    "verify-remote",
 ]
 
 # THE MECHANICAL HARNESSES AS TESTS (Bazel workplan P4-02): each against the pinned Chromium, with a result and a
@@ -1648,10 +1659,15 @@ _BROWSER_TESTS = {
         "//tools/js:runfiles",
     ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
         # it imports pinned-chromium.mjs first, a no-op under bazel run
-        ["//tools/browser:pinned_chromium"] if h in ["verify-smoke", "verify-remote", "verify-real-data", "verify-features"] or h in _BROWSER_TESTS else []
+        ["//tools/browser:pinned_chromium"] if h in ["tour", "verify-smoke", "verify-remote", "verify-real-data", "verify-features"] or h in _BROWSER_TESTS else []
+    ) + (
+        # DuckDB in Node builds their fixture, its extensions the pinned ones (as node_test gives a test that takes it)
+        ["//engine-client:duckdb_extensions"] if h in _NODE_DUCKDB_HARNESSES else []
     ),
     entry_point = "demo/" + h + ".mjs",
-    env = {} if h == "make-sample" else _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}),
+    env = {} if h == "make-sample" else _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}) | (
+        {"DUCKDB_EXTENSIONS": "$(rlocationpaths //engine-client:duckdb_extensions)"} if h in _NODE_DUCKDB_HARNESSES else {}
+    ),
     node_options = [
         "--experimental-strip-types",
         "--experimental-wasm-exnref",
@@ -1735,6 +1751,25 @@ browser_test(
     entry_point = "demo/verify-features.mjs",
     env = _SITE_ENV | {"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"},
     tags = ["ci-linux-only"],
+    wasm = True,
+)
+
+# THE SCREENSHOT TOUR AS A TEST (the user, 2026-10-17; docs/DATACUBE_TOUR.md): every flow a person meets, each step
+# checked and shot, the gallery (index.html and a picture per step) in the test's outputs. Manual, in //gates:heavy:
+# run from time to time, and by hand before a DataCube change lands; the checks it makes are verify-*'s own, so no lane
+# loses a check by its being manual.
+browser_test(
+    name = "tour_test",
+    size = "large",
+    data = _HARNESS_HELPERS + [
+        "demo/index.html",
+        ":node_modules/playwright",
+        ":site",
+        ":src",
+    ],
+    entry_point = "demo/tour.mjs",
+    env = _SITE_ENV,
+    tags = ["manual"],
     wasm = True,
 )
 

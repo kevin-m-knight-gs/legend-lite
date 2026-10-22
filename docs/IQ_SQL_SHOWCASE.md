@@ -206,8 +206,10 @@ and DuckDB SQL and answers the same five rows: the island is sugar for this Pure
               && !(($r.vc->toOne()->startsWith($skip) || $skip->startsWith($r.vc->toOne()))
                    && ($r.vc->toOne()->replace(' ', '') == $skip->replace(' ', ''))))
              || $r.vc->isEmpty())
+  ->extend(~['Row Id':r|$r.id])
+  ->sort([~'Row Id'->descending(meta::pure::functions::relation::NullOrder.LAST)])
+  ->limit((2 - 1) + 5)
   ->extend(~[
-      'Row Id':r|$r.id,
       Tag:r|if($r.vc->isEmpty(), |[], |$r.vc->toOne()->left(if(3 < 0, |0, |3)))->coalesce('') + ':' + $r.labels,
       Labels:r|$r.n,
       'Last u':r|$r.last_u,
@@ -227,10 +229,8 @@ and DuckDB SQL and answers the same five rows: the island is sugar for this Pure
           |if(if($r.dt->isEmpty(), |[], |$r.dt->toOne()->dayOfWeekNumber(meta::pure::functions::date::DayOfWeek.Sunday))->toOne() == 5, |'Thursday',
           |if(if($r.dt->isEmpty(), |[], |$r.dt->toOne()->dayOfWeekNumber(meta::pure::functions::date::DayOfWeek.Sunday))->toOne() == 6, |'Friday',
           |'Saturday')))))))])
-  ->sort([~'Row Id'->descending(meta::pure::functions::relation::NullOrder.LAST)])
   ->select(~['Row Id', Tag, Labels, 'Last u', 'Is x', 'First l', Day])
-  ->drop(2 - 1)
-  ->limit(5);
+  ->drop(2 - 1);
 ```
 
 ## 6. How the IQ semantics land in the SQL
@@ -244,7 +244,7 @@ Each row names an IQ rule, then the SQL for Snowflake (§7) and for DuckDB (§8)
 | **An owner-qualified table** is the model's table. | `FROM "u"` | `FROM u` |
 | **`IF ... ENDIF` is three-valued**: NULL on an UNKNOWN condition. | `CASE WHEN c THEN 'Y' ELSE CASE WHEN NOT c (with an explicit vc IS NOT NULL) THEN 'N' ELSE NULL END END` | the same |
 | **String `+` treats a NULL operand as `''`.** | `COALESCE(...,'') \|\| ':' \|\| COALESCE(labels,'')`: Snowflake's `\|\|` is NULL when an operand is, so each is coalesced | `concat(coalesce(...,''), ':', labels)`: DuckDB's `concat` skips NULLs |
-| **`TOP 5 START AT 2`** | `LIMIT 5 OFFSET 1` | the same |
+| **`TOP 5 START AT 2`**, its items computed for the rows up to the last it keeps (IQ's engine computes the items its ORDER BY does not read for those rows only, START AT's skipped one too: since 2026-10-16) | the sorted rows cut to `LIMIT 6` in a subquery, the items computed over it, re-sorted, then `OFFSET 1` | the same |
 | **NULL sorts lowest** | `ORDER BY "t0"."id" DESC NULLS LAST` | the same |
 | **`LIST(x, ',' ORDER BY x)`** skips NULL and `''`, is `''` for an empty group, and orders by the binary collation | `CASE WHEN COUNT(x') = 0 THEN NULL ELSE LISTAGG(x', ',') WITHIN GROUP (ORDER BY lbl ASC) END`: the dialect guards `LISTAGG` with a COUNT so that a group of NULLs is NULL (Pure's empty `joinStrings`), which the island maps to `''` one level up | `STRING_AGG(x', ',' ORDER BY lbl ASC)`, mapped to `''` one level up |
 | **`MAX` of an INTEGER** is NULL for an empty group | `MAX("t4"."v_id")` | `MAX(t4.v_id)` |
@@ -263,65 +263,44 @@ for whitespace, its string and identifier literals byte for byte.
 
 ```sql
 SELECT
-  "t0"."id" AS "Row Id",
-  (COALESCE(coalesce(CASE WHEN "t0"."vc" IS NULL THEN NULL
-                          ELSE left("t0"."vc", CASE WHEN FALSE THEN 0 ELSE 3 END) END, ''), '')
-     || ':' || COALESCE("t6"."labels", '')) AS "Tag",
-  "t6"."n" AS "Labels",
-  "t6"."last_u" AS "Last u",
-  CASE WHEN "t0"."vc" IS NOT NULL
-             AND (startswith("t0"."vc", 'x') OR startswith('x', "t0"."vc"))
-             AND replace("t0"."vc", ' ', '') = replace('x', ' ', '')
-       THEN 'Y'
-       ELSE CASE WHEN "t0"."vc" IS NOT NULL
-                      AND NOT ((startswith("t0"."vc", 'x') OR startswith('x', "t0"."vc"))
-                               AND replace("t0"."vc", ' ', '') = replace('x', ' ', ''))
-                 THEN 'N'
-                 ELSE NULL END END AS "Is x",
-  coalesce(CASE WHEN "t0"."vc" IS NULL THEN NULL ELSE CHARINDEX('l', "t0"."vc") END, -1) AS "First l",
-  CASE WHEN CASE WHEN "t0"."dt" IS NULL THEN NULL ELSE MOD(MOD(DAYOFWEEKISO("t0"."dt"), 7) + 7, 7) + 1 END IS NULL THEN NULL
-  ELSE CASE WHEN CASE WHEN "t0"."dt" IS NULL THEN NULL ELSE MOD(MOD(DAYOFWEEKISO("t0"."dt"), 7) + 7, 7) + 1 END = 1 THEN 'Sunday'
-  ELSE CASE WHEN CASE WHEN "t0"."dt" IS NULL THEN NULL ELSE MOD(MOD(DAYOFWEEKISO("t0"."dt"), 7) + 7, 7) + 1 END = 2 THEN 'Monday'
-  ELSE CASE WHEN CASE WHEN "t0"."dt" IS NULL THEN NULL ELSE MOD(MOD(DAYOFWEEKISO("t0"."dt"), 7) + 7, 7) + 1 END = 3 THEN 'Tuesday'
-  ELSE CASE WHEN CASE WHEN "t0"."dt" IS NULL THEN NULL ELSE MOD(MOD(DAYOFWEEKISO("t0"."dt"), 7) + 7, 7) + 1 END = 4 THEN 'Wednesday'
-  ELSE CASE WHEN CASE WHEN "t0"."dt" IS NULL THEN NULL ELSE MOD(MOD(DAYOFWEEKISO("t0"."dt"), 7) + 7, 7) + 1 END = 5 THEN 'Thursday'
-  ELSE CASE WHEN CASE WHEN "t0"."dt" IS NULL THEN NULL ELSE MOD(MOD(DAYOFWEEKISO("t0"."dt"), 7) + 7, 7) + 1 END = 6 THEN 'Friday'
-  ELSE 'Saturday' END END END END END END END AS "Day"
-FROM "t" AS "t0"
-JOIN (
-  SELECT
-    "t5"."id" AS "tid",
-    "t5"."n" AS "n",
-    "t5"."last_u" AS "last_u",
-    CASE WHEN "t5"."_sql_1" IS NULL THEN '' ELSE "t5"."_sql_1" END AS "labels"
-  FROM (
-    SELECT
-      "t1"."id" AS "id",
-      COUNT("t4"."v_id") AS "n",
-      MAX("t4"."v_id") AS "last_u",
-      (CASE WHEN COUNT(CASE WHEN "t4"."lbl" IS NULL THEN NULL ELSE CASE WHEN "t4"."lbl" = '' THEN NULL ELSE "t4"."lbl" END END) = 0
-            THEN NULL
-            ELSE LISTAGG(CASE WHEN "t4"."lbl" IS NULL THEN NULL ELSE CASE WHEN "t4"."lbl" = '' THEN NULL ELSE "t4"."lbl" END END, ',')
-                   WITHIN GROUP (ORDER BY "t4"."lbl" ASC) END) AS "_sql_1"
-    FROM "t" AS "t1"
-    LEFT OUTER JOIN (
-      SELECT "t3"."id" AS "v_id", "t3"."t_id" AS "t_id", "t3"."lbl" AS "lbl"
-      FROM (
-        SELECT "t2"."id" AS "id", "t2"."t_id" AS "t_id",
-               CASE WHEN "t2"."label" IS NULL THEN NULL
-                    ELSE REGEXP_REPLACE("t2"."label", '(\\n|[\\t-\\r ])+$', '', 1, 1, 'c') END AS "lbl"
-        FROM "u" AS "t2"
-      ) AS "t3"
-    ) AS "t4" ON "t4"."t_id" IS NOT NULL AND "t1"."id" IS NOT NULL AND "t4"."t_id" = "t1"."id"
-    GROUP BY "t1"."id"
-  ) AS "t5"
-) AS "t6" ON "t6"."tid" IS NOT NULL AND "t0"."id" IS NOT NULL AND "t6"."tid" = "t0"."id"
-WHERE "t0"."vc" IS NOT NULL
-      AND NOT ((startswith("t0"."vc", 'hello') OR startswith('hello', "t0"."vc"))
-               AND replace("t0"."vc", ' ', '') = replace('hello', ' ', ''))
-   OR "t0"."vc" IS NULL
-ORDER BY "t0"."id" DESC NULLS LAST
-LIMIT 5
+  "t7"."Row Id" AS "Row Id",
+  (COALESCE(coalesce(CASE WHEN "t7"."vc" IS NULL THEN NULL ELSE left("t7"."vc", CASE WHEN FALSE THEN 0 ELSE 3 END) END, ''), '') || ':' || COALESCE(coalesce("t7"."labels", ''), '')) AS "Tag",
+  "t7"."n" AS "Labels",
+  "t7"."last_u" AS "Last u",
+  CASE WHEN "t7"."vc" IS NOT NULL AND (startswith("t7"."vc", 'x') OR startswith('x', "t7"."vc")) AND replace("t7"."vc", ' ', '') = replace('x', ' ', '') THEN 'Y' WHEN "t7"."vc" IS NOT NULL AND NOT ((startswith("t7"."vc", 'x') OR startswith('x', "t7"."vc")) AND replace("t7"."vc", ' ', '') = replace('x', ' ', '')) THEN 'N' ELSE NULL END AS "Is x",
+  coalesce(CASE WHEN "t7"."vc" IS NULL THEN NULL ELSE CHARINDEX('l', "t7"."vc") END, -1) AS "First l",
+  CASE WHEN "t7"."dt" IS NULL THEN NULL WHEN MOD(MOD(DAYOFWEEKISO("t7"."dt"), 7) + 7, 7) + 1 = 1 THEN 'Sunday' WHEN MOD(MOD(DAYOFWEEKISO("t7"."dt"), 7) + 7, 7) + 1 = 2 THEN 'Monday' WHEN MOD(MOD(DAYOFWEEKISO("t7"."dt"), 7) + 7, 7) + 1 = 3 THEN 'Tuesday' WHEN MOD(MOD(DAYOFWEEKISO("t7"."dt"), 7) + 7, 7) + 1 = 4 THEN 'Wednesday' WHEN MOD(MOD(DAYOFWEEKISO("t7"."dt"), 7) + 7, 7) + 1 = 5 THEN 'Thursday' WHEN MOD(MOD(DAYOFWEEKISO("t7"."dt"), 7) + 7, 7) + 1 = 6 THEN 'Friday' ELSE 'Saturday' END AS "Day"
+FROM (
+  SELECT *, "t0"."id" AS "Row Id"
+  FROM "t" AS "t0"
+  JOIN (
+    SELECT "t5"."id" AS "tid", "t5"."n" AS "n", "t5"."last_u" AS "last_u", "t5"."_sql_1" AS "labels"
+    FROM (
+      SELECT
+        "t1"."id" AS "id",
+        COUNT("t4"."v_id") AS "n",
+        MAX("t4"."v_id") AS "last_u",
+        (CASE WHEN COUNT(CASE WHEN "t4"."lbl" IS NULL THEN NULL ELSE REGEXP_REPLACE("t4"."lbl", ' +$', '', 1, 1, 'c') END) = 0 THEN NULL ELSE LISTAGG(CASE WHEN "t4"."lbl" IS NULL THEN NULL ELSE REGEXP_REPLACE("t4"."lbl", ' +$', '', 1, 1, 'c') END, ',') WITHIN GROUP (ORDER BY "t4"."lbl" ASC) END) AS "_sql_1"
+      FROM "t" AS "t1"
+      LEFT OUTER JOIN (
+        SELECT "t3"."id" AS "v_id", "t3"."t_id" AS "t_id", "t3"."lbl" AS "lbl"
+        FROM (
+          SELECT
+            "t2"."id" AS "id",
+            "t2"."t_id" AS "t_id",
+            CASE WHEN "t2"."label" IS NULL THEN NULL ELSE REGEXP_REPLACE("t2"."label", '(\\n|[\\t-\\r ])+$', '', 1, 1, 'c') END AS "lbl"
+          FROM "u" AS "t2"
+        ) AS "t3"
+      ) AS "t4" ON "t4"."t_id" IS NOT NULL AND "t1"."id" IS NOT NULL AND "t4"."t_id" = "t1"."id"
+      GROUP BY "t1"."id"
+    ) AS "t5"
+  ) AS "t6" ON "t6"."tid" IS NOT NULL AND "t0"."id" IS NOT NULL AND "t6"."tid" = "t0"."id"
+  WHERE "t0"."vc" IS NOT NULL AND NOT ((startswith("t0"."vc", 'hello') OR startswith('hello', "t0"."vc")) AND replace("t0"."vc", ' ', '') = replace('hello', ' ', '')) OR "t0"."vc" IS NULL
+  ORDER BY "t0"."id" DESC NULLS LAST
+  LIMIT 6
+) AS "t7"
+ORDER BY "t7"."Row Id" DESC NULLS LAST
+LIMIT NULL
 OFFSET 1
 ```
 
@@ -332,62 +311,43 @@ statement the DuckDB lane runs. Formatted here likewise.
 
 ```sql
 SELECT
-  t0.id AS "Row Id",
-  concat(coalesce(CASE WHEN t0.vc IS NULL THEN NULL
-                       ELSE left(t0.vc, CASE WHEN FALSE THEN 0 ELSE 3 END) END, ''), ':', t6.labels) AS Tag,
-  t6.n AS Labels,
-  t6.last_u AS "Last u",
-  CASE WHEN t0.vc IS NOT NULL
-             AND (starts_with(t0.vc, 'x') OR starts_with('x', t0.vc))
-             AND replace(t0.vc, ' ', '') = replace('x', ' ', '')
-       THEN 'Y'
-       ELSE CASE WHEN t0.vc IS NOT NULL
-                      AND NOT ((starts_with(t0.vc, 'x') OR starts_with('x', t0.vc))
-                               AND replace(t0.vc, ' ', '') = replace('x', ' ', ''))
-                 THEN 'N'
-                 ELSE NULL END END AS "Is x",
-  coalesce(CASE WHEN t0.vc IS NULL THEN NULL ELSE strpos(t0.vc, 'l') END, -1) AS "First l",
-  CASE WHEN CASE WHEN t0.dt IS NULL THEN NULL ELSE MOD(MOD(date_part('isodow', t0.dt), 7) + 7, 7) + 1 END IS NULL THEN NULL
-  ELSE CASE WHEN CASE WHEN t0.dt IS NULL THEN NULL ELSE MOD(MOD(date_part('isodow', t0.dt), 7) + 7, 7) + 1 END = 1 THEN 'Sunday'
-  ELSE CASE WHEN CASE WHEN t0.dt IS NULL THEN NULL ELSE MOD(MOD(date_part('isodow', t0.dt), 7) + 7, 7) + 1 END = 2 THEN 'Monday'
-  ELSE CASE WHEN CASE WHEN t0.dt IS NULL THEN NULL ELSE MOD(MOD(date_part('isodow', t0.dt), 7) + 7, 7) + 1 END = 3 THEN 'Tuesday'
-  ELSE CASE WHEN CASE WHEN t0.dt IS NULL THEN NULL ELSE MOD(MOD(date_part('isodow', t0.dt), 7) + 7, 7) + 1 END = 4 THEN 'Wednesday'
-  ELSE CASE WHEN CASE WHEN t0.dt IS NULL THEN NULL ELSE MOD(MOD(date_part('isodow', t0.dt), 7) + 7, 7) + 1 END = 5 THEN 'Thursday'
-  ELSE CASE WHEN CASE WHEN t0.dt IS NULL THEN NULL ELSE MOD(MOD(date_part('isodow', t0.dt), 7) + 7, 7) + 1 END = 6 THEN 'Friday'
-  ELSE 'Saturday' END END END END END END END AS Day
-FROM t AS t0
-JOIN (
-  SELECT
-    t5.id AS tid,
-    t5.n,
-    t5.last_u,
-    CASE WHEN t5._sql_1 IS NULL THEN '' ELSE t5._sql_1 END AS labels
-  FROM (
-    SELECT
-      t1.id,
-      COUNT(t4.v_id) AS n,
-      MAX(t4.v_id) AS last_u,
-      STRING_AGG(CASE WHEN t4.lbl IS NULL THEN NULL ELSE CASE WHEN t4.lbl = '' THEN NULL ELSE t4.lbl END END, ','
-                 ORDER BY t4.lbl ASC) AS _sql_1
-    FROM t AS t1
-    LEFT OUTER JOIN (
-      SELECT t3.id AS v_id, t3.t_id, t3.lbl
-      FROM (
-        SELECT t2.id, t2.t_id,
-               CASE WHEN t2.label IS NULL THEN NULL
-                    ELSE regexp_replace(t2.label, '(\n|[\t-\r ])+$', '', '') END AS lbl
-        FROM u AS t2
-      ) AS t3
-    ) AS t4 ON t4.t_id IS NOT NULL AND t1.id IS NOT NULL AND t4.t_id = t1.id
-    GROUP BY t1.id
-  ) AS t5
-) AS t6 ON t6.tid IS NOT NULL AND t0.id IS NOT NULL AND t6.tid = t0.id
-WHERE t0.vc IS NOT NULL
-      AND NOT ((starts_with(t0.vc, 'hello') OR starts_with('hello', t0.vc))
-               AND replace(t0.vc, ' ', '') = replace('hello', ' ', ''))
-   OR t0.vc IS NULL
-ORDER BY t0.id DESC NULLS LAST
-LIMIT 5
+  t7."Row Id",
+  concat(coalesce(CASE WHEN t7.vc IS NULL THEN NULL ELSE left(t7.vc, CASE WHEN FALSE THEN 0 ELSE 3 END) END, ''), ':', coalesce(t7.labels, '')) AS Tag,
+  t7.n AS Labels,
+  t7.last_u AS "Last u",
+  CASE WHEN t7.vc IS NOT NULL AND (starts_with(t7.vc, 'x') OR starts_with('x', t7.vc)) AND replace(t7.vc, ' ', '') = replace('x', ' ', '') THEN 'Y' WHEN t7.vc IS NOT NULL AND NOT ((starts_with(t7.vc, 'x') OR starts_with('x', t7.vc)) AND replace(t7.vc, ' ', '') = replace('x', ' ', '')) THEN 'N' ELSE NULL END AS "Is x",
+  coalesce(CASE WHEN t7.vc IS NULL THEN NULL ELSE strpos(t7.vc, 'l') END, -1) AS "First l",
+  CASE WHEN t7.dt IS NULL THEN NULL WHEN MOD(MOD(date_part('isodow', t7.dt), 7) + 7, 7) + 1 = 1 THEN 'Sunday' WHEN MOD(MOD(date_part('isodow', t7.dt), 7) + 7, 7) + 1 = 2 THEN 'Monday' WHEN MOD(MOD(date_part('isodow', t7.dt), 7) + 7, 7) + 1 = 3 THEN 'Tuesday' WHEN MOD(MOD(date_part('isodow', t7.dt), 7) + 7, 7) + 1 = 4 THEN 'Wednesday' WHEN MOD(MOD(date_part('isodow', t7.dt), 7) + 7, 7) + 1 = 5 THEN 'Thursday' WHEN MOD(MOD(date_part('isodow', t7.dt), 7) + 7, 7) + 1 = 6 THEN 'Friday' ELSE 'Saturday' END AS Day
+FROM (
+  SELECT *, t0.id AS "Row Id"
+  FROM t AS t0
+  JOIN (
+    SELECT t5.id AS tid, t5.n, t5.last_u, t5._sql_1 AS labels
+    FROM (
+      SELECT
+        t1.id,
+        COUNT(t4.v_id) AS n,
+        MAX(t4.v_id) AS last_u,
+        STRING_AGG(CASE WHEN t4.lbl IS NULL THEN NULL ELSE regexp_replace(t4.lbl, ' +$', '', '') END, ',' ORDER BY t4.lbl ASC) AS _sql_1
+      FROM t AS t1
+      LEFT OUTER JOIN (
+        SELECT t3.id AS v_id, t3.t_id, t3.lbl
+        FROM (
+          SELECT
+            t2.id,
+            t2.t_id,
+            CASE WHEN t2.label IS NULL THEN NULL ELSE regexp_replace(t2.label, '(\n|[\t-\r ])+$', '', '') END AS lbl
+          FROM u AS t2
+        ) AS t3
+      ) AS t4 ON t4.t_id = t1.id
+      GROUP BY t1.id
+    ) AS t5
+  ) AS t6 ON t6.tid IS NOT NULL AND t0.id IS NOT NULL AND t6.tid = t0.id
+  WHERE t0.vc IS NOT NULL AND NOT ((starts_with(t0.vc, 'hello') OR starts_with('hello', t0.vc)) AND replace(t0.vc, ' ', '') = replace('hello', ' ', '')) OR t0.vc IS NULL
+  ORDER BY t0.id DESC NULLS LAST
+  LIMIT 6
+) AS t7
+ORDER BY t7."Row Id" DESC NULLS LAST
 OFFSET 1
 ```
 

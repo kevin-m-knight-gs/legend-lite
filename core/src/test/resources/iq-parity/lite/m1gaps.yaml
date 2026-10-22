@@ -1,0 +1,813 @@
+# The third landing's first part: SELECT features that were refused but needed no decision, each read as SQL
+# Anywhere 17 reads it (docs/IQ_SQL_STUDY_2026_10_13.md §9.16; IQ island, 2026-10-14). Judged by SQL Anywhere 17's
+# answers in iq-answers.jsonl; the near misses that stay refused, or that are IQ's own errors, are pinned beside them.
+#  1. a select-list alias read where IQ reads it -- WHERE, ON, the select list (a later alias too), inside ORDER BY --
+#     as its expression written there, before a column of its name; its own name is the column inside its definition,
+#     a definition through itself is IQ's -831, an aggregate's alias in WHERE -150, an ON reading an item outside its
+#     join -824. Inside a subquery an enclosing query's alias comes after the subquery's own columns and before the
+#     enclosing query's: that read is refused by name (it answered the enclosing column before).
+#  2. the name SQL Anywhere gives an unaliased item: an alias it reads written as written; an item written over several
+#     lines or with comments, each line break marked as SQL Anywhere marks it (a space, and two for each CASE or IF
+#     value it is inside); what it marks otherwise (LEFT's arguments, a chain's parentheses, an ELSE after an END it
+#     marked) and its folding of a constant test over a table stay unnamed.
+#  3. owner.table.column bound to the FROM item its table names (IQ's -845 and -142 otherwise); an owner of IQ's own
+#     that is no catalog name's read as the model's schema of that name (unit-tested: the parity model has none).
+#  4. two output columns of one name where no one reads the names (EXISTS, a later set-operation branch, a derived
+#     table's full column list); the result shows a relation, whose names are distinct: refused there.
+#  5. LIKE with a pattern the database computes: the regular expression built there, every character itself, % and _
+#     IQ's; a [ (IQ's set class) or a pattern of more than 126 characters raises. Refused: ESCAPE, a profile that
+#     matches without case, CHAR(n) under IQ's engine (D-S5).
+#  6. LIST of a GROUP BY key, in any order (its values are one), DISTINCT (the key once).
+#  7. a checked SUM (D-E3) read for every group: a CASE's or an IF's first test, the first argument of COALESCE, ISNULL
+#     or IFNULL, both of NULLIF's, a NOT's operand, BETWEEN's and IN's tested value.
+#  8. TOP or FIRST in a subquery or a derived table, ordered (or under EXISTS), in SQL Anywhere's front end; IQ's
+#     engine restricts it (D-R1), so it stays refused there.
+#  9. a subquery without FROM: its one item's value (a whole select item under every engine, anywhere in SQL
+#     Anywhere's front end).
+# 10. IQ's codes where lite answered in Postgres's words, INTO after FROM refused as INTO, DATEDIFF's argument count.
+# A case over sa_rowgenerator, or with a sqla17 profile, runs in SQL Anywhere's front end. The SQL in YAML double
+# quotes. tools/iq-oracle's README.md has the keys.
+tests:
+  # ---- 1. a select-list alias read where IQ reads it: WHERE, ON, the select list, inside ORDER BY
+  - id: alias_read_in_where
+    sql: "SELECT id + 1 AS x FROM t WHERE x > 3 ORDER BY id"
+  - id: alias_before_a_column_of_its_name_in_where
+    sql: "SELECT id AS sm FROM t WHERE sm = 1 ORDER BY id"
+  - id: alias_before_a_column_of_its_name_in_the_select_list
+    sql: "SELECT sm AS id, id AS k FROM t ORDER BY 2"
+  - id: alias_defined_later_in_the_list
+    sql: "SELECT x + 1 AS y, id AS x FROM t ORDER BY x"
+  - id: later_alias_before_a_column_of_its_name
+    sql: "SELECT sm AS a, id AS sm FROM t ORDER BY sm"
+  - id: alias_of_an_alias_of_an_alias
+    sql: "SELECT id AS a, a AS b, b + 1 AS c FROM t WHERE c > 3 ORDER BY 1"
+  - id: alias_chain_read_in_where
+    sql: "SELECT id + 1 AS x, x + 1 AS y, y + 1 AS z FROM t WHERE z > 5 ORDER BY 1"
+  - id: alias_chain_written_backwards
+    sql: "SELECT y + 1 AS z, x + 1 AS y, id + 1 AS x FROM t WHERE z > 5 ORDER BY 1"
+  - id: alias_pair_compared_in_where
+    sql: "SELECT id + 1 AS x, x + 1 AS y FROM t WHERE y > x ORDER BY 1"
+  - id: alias_defined_through_a_later_alias
+    sql: "SELECT id AS a, b AS c, a AS b FROM t ORDER BY 1"
+  - id: own_name_inside_its_definition_is_the_column
+    sql: "SELECT id + 1 AS id FROM t WHERE id > 3 ORDER BY 1"
+  - id: own_name_is_the_column_and_others_read_the_alias
+    sql: "SELECT id + 1 AS id, id + 2 AS z FROM t ORDER BY 1"
+  - id: qualified_column_beside_an_alias_of_its_name
+    sql: "SELECT t.id AS id, id + 1 AS z FROM t ORDER BY 1"
+  - id: alias_read_by_a_later_item
+    sql: "SELECT id AS k, k + 1 AS k2 FROM t WHERE k2 > 5 ORDER BY k"
+  - id: alias_shadowing_a_column_read_by_an_expression
+    sql: "SELECT id AS sm, sm + 1 AS z FROM t WHERE z > 3 ORDER BY 1"
+  - id: own_name_minus_one_read_in_where
+    sql: "SELECT id - 1 AS id FROM t WHERE id > 3 ORDER BY id"
+  - id: qualified_name_is_the_column
+    sql: "SELECT id AS sm FROM t WHERE t.sm = 1"
+  - id: qualified_name_beside_an_alias_of_its_name
+    sql: "SELECT id + 1 AS sm FROM t WHERE t.sm > 0 ORDER BY 1"
+  - id: alias_of_a_scalar_subquery_read_in_where
+    sql: "SELECT (SELECT MAX(t_id) FROM u) AS m, id FROM t WHERE id < m ORDER BY id"
+  - id: alias_of_a_scalar_subquery_compared
+    sql: "SELECT id AS k, (SELECT MAX(u.id) FROM u) AS m FROM t WHERE k < m ORDER BY 1"
+  - id: alias_read_in_a_grouped_where
+    sql: "SELECT k AS kk, COUNT(*) AS n FROM g WHERE kk > 1 GROUP BY k ORDER BY 1"
+  - id: alias_read_in_where_grouped_by_its_column
+    sql: "SELECT id AS k, COUNT(*) AS n FROM t WHERE k > 2 GROUP BY id ORDER BY 1"
+  - id: alias_read_in_where_and_grouped_by_column
+    sql: "SELECT sm AS k, COUNT(*) AS n FROM t WHERE k > 0 GROUP BY sm ORDER BY 1"
+  - id: alias_read_in_where_and_grouped_by_alias
+    sql: "SELECT sm AS k, COUNT(*) AS n FROM t WHERE k > 0 GROUP BY k ORDER BY 1"
+  - id: alias_read_in_where_over_a_join
+    sql: "SELECT u.id AS t_id FROM t, u WHERE t_id = 1 AND t.id = u.id ORDER BY 1"
+  - id: alias_of_a_joined_column_in_where
+    sql: "SELECT u.id AS id FROM t, u WHERE id = 1 AND t.id = u.t_id ORDER BY 1"
+  - id: aliases_of_a_self_join_compared
+    sql: "SELECT a.id AS k, b.id AS j FROM t a, t b WHERE k = j + 1 ORDER BY 1"
+  - id: alias_read_in_a_distinct_where
+    sql: "SELECT DISTINCT id % 3 AS r FROM t WHERE r = 1"
+  - id: alias_read_in_a_derived_tables_where
+    sql: "SELECT * FROM (SELECT id + 1 AS x FROM t WHERE x > 5) d ORDER BY x"
+  - id: alias_over_a_derived_column_of_its_name
+    sql: "SELECT d.x + 1 AS x FROM (SELECT id AS x FROM t) d WHERE x > 3 ORDER BY 1"
+  - id: alias_read_inside_and_outside_a_derived_table
+    sql: "SELECT d.x AS y FROM (SELECT id + 1 AS x FROM t WHERE x > 3) d WHERE y < 7 ORDER BY 1"
+  - id: alias_read_by_an_item_of_a_derived_table
+    sql: "SELECT * FROM (SELECT id AS k, k + 1 AS k2 FROM t) d WHERE k2 > 5 ORDER BY 1"
+  - id: alias_matched_without_case
+    sql: "SELECT id + 1 AS X FROM t WHERE x > 5 ORDER BY 1"
+  - id: quoted_alias_read_unquoted
+    sql: "SELECT id + 1 AS \"x\" FROM t WHERE x > 5 ORDER BY 1"
+  - id: alias_read_in_a_subquerys_own_where
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id AS id2 FROM u WHERE id2 > 1) ORDER BY id"
+  - id: alias_read_inside_an_aggregate
+    sql: "SELECT v AS x, SUM(x) AS s FROM g GROUP BY v ORDER BY 1"
+  - id: alias_read_in_each_union_branch
+    sql: "SELECT id + 1 AS x FROM t WHERE x > 6 UNION ALL SELECT id FROM u WHERE id < 2"
+  - id: alias_read_in_a_later_union_branch
+    sql: "SELECT id FROM u UNION ALL SELECT id + 10 AS x FROM t WHERE x > 15"
+  - id: alias_read_in_union_order_by
+    sql: "SELECT id AS x FROM t WHERE x > 3 UNION SELECT id FROM u ORDER BY 1"
+  - id: aliases_read_in_two_union_branches
+    sql: "SELECT id AS k FROM t WHERE k > 3 UNION ALL SELECT id AS k FROM u WHERE k < 3 ORDER BY 1"
+  - id: alias_of_a_constant_read_in_where
+    sql: "SELECT 5 AS id FROM t WHERE id = 5"
+  - id: alias_read_by_like
+    sql: "SELECT vc AS x FROM t WHERE x LIKE 'h%' ORDER BY 1"
+  - id: alias_read_by_is_null
+    sql: "SELECT id AS x FROM t WHERE x IS NULL"
+  - id: nullable_alias_read_by_is_null
+    sql: "SELECT sm AS x FROM t WHERE x IS NULL"
+  - id: alias_read_by_in_and_not_in
+    sql: "SELECT id AS x FROM t WHERE x IN (1, 2) AND x NOT IN (2) ORDER BY 1"
+  - id: alias_read_by_is_not_null_and_between
+    sql: "SELECT sm AS k FROM t WHERE k IS NOT NULL AND k BETWEEN -1 AND 1 ORDER BY 1"
+  - id: alias_read_under_or
+    sql: "SELECT id AS k FROM t WHERE k = 3 OR k = 5 ORDER BY 1"
+  - id: alias_read_beside_its_column_under_and
+    sql: "SELECT id AS k FROM t WHERE k > 3 AND id < 6 ORDER BY 1"
+  - id: alias_read_twice_under_and
+    sql: "SELECT id AS x FROM t WHERE x > 3 AND x < 6 ORDER BY x DESC"
+  - id: alias_read_by_an_in_subquery
+    sql: "SELECT id AS k FROM t WHERE k IN (SELECT t_id FROM u) ORDER BY 1"
+  - id: alias_read_by_an_in_subquery_beside_a_test
+    sql: "SELECT id AS k, vc FROM t WHERE k IN (SELECT t_id FROM u) AND vc IS NOT NULL ORDER BY 1"
+  - id: alias_compared_with_a_scalar_subquery
+    sql: "SELECT id AS k FROM t WHERE k = (SELECT MAX(id) FROM t)"
+  - id: alias_read_inside_case_in_where
+    sql: "SELECT id AS k FROM t WHERE CASE WHEN k > 3 THEN 1 ELSE 0 END = 1 ORDER BY 1"
+  - id: alias_read_inside_if_in_the_select_list
+    sql: "SELECT id AS k, IF k > 4 THEN k ELSE -k ENDIF AS z FROM t ORDER BY 1"
+  - id: alias_read_by_isnull
+    sql: "SELECT id AS k, ISNULL(sm, k) AS z FROM t ORDER BY 1"
+  - id: alias_of_a_constant_pattern_read_by_like
+    sql: "SELECT 'h%' AS p, vc FROM t WHERE vc LIKE p ORDER BY 2"
+  - id: alias_read_in_on
+    sql: "SELECT t.id AS k, u.label FROM t JOIN u ON u.t_id = k ORDER BY u.id"
+  - id: alias_read_in_two_ons
+    sql: "SELECT t.id AS k FROM t JOIN u ON u.id = k JOIN g ON g.id = k ORDER BY 1"
+  - id: alias_of_the_right_side_read_in_on
+    sql: "SELECT u.id AS k FROM t JOIN u ON t.id = k ORDER BY 1"
+  - id: alias_read_in_on_after_a_comma
+    sql: "SELECT t.id AS k FROM g, t JOIN u ON u.t_id = k WHERE g.id = 1 ORDER BY 1"
+  - id: unqualified_alias_read_in_on
+    sql: "SELECT sm AS k FROM t JOIN u ON u.t_id = k ORDER BY 1"
+  - id: alias_of_a_self_join_read_in_on
+    sql: "SELECT a.id AS k FROM t a JOIN t b ON k = b.id + 1 ORDER BY 1"
+  - id: alias_read_in_where_after_a_join
+    sql: "SELECT u.label AS k, t.vc FROM t JOIN u ON t.id = u.t_id WHERE k <> 'uno' ORDER BY 1"
+  - id: alias_read_in_where_between_two_bounds
+    sql: "SELECT id AS k, vc FROM t WHERE k BETWEEN 2 AND 4 ORDER BY k"
+    profile: sqla17-default
+  - id: alias_read_in_where_under_top
+    sql: "SELECT TOP 2 id AS k FROM t WHERE k > 2 ORDER BY k DESC"
+  - id: alias_read_in_a_distinct_where_over_a_remainder
+    sql: "SELECT DISTINCT sm % 2 AS r FROM t WHERE r IS NOT NULL ORDER BY r"
+  - id: alias_read_inside_an_order_by_expression
+    sql: "SELECT id + 1 AS x FROM t ORDER BY x * -1"
+  - id: alias_read_inside_order_by_desc
+    sql: "SELECT id AS k FROM t ORDER BY k + 1 DESC"
+  - id: alias_negated_in_order_by
+    sql: "SELECT id AS k FROM t ORDER BY -k"
+  - id: alias_of_its_own_name_read_in_order_by
+    sql: "SELECT id - 1 AS id FROM t ORDER BY id + 0"
+  - id: aggregate_alias_read_by_another_item
+    sql: "SELECT COUNT(*) AS n, n + 1 AS m FROM t"
+  - id: aggregate_alias_read_in_order_by
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k ORDER BY n * -1, k"
+  - id: aggregate_alias_read_in_having
+    sql: "SELECT MAX(id) AS m FROM t HAVING m > 1"
+  - id: aggregate_aliases_read_in_having
+    sql: "SELECT COUNT(*) AS n, n + 1 AS m FROM t HAVING m > 1"
+  - id: aggregate_alias_read_by_an_unaliased_item
+    sql: "SELECT COUNT(*) AS n, n + 1 FROM t"
+  - id: key_alias_read_in_having
+    sql: "SELECT id AS k FROM t GROUP BY id HAVING k > 5 ORDER BY 1"
+  - id: count_alias_read_in_having
+    sql: "SELECT COUNT(*) AS n FROM t GROUP BY sm HAVING n > 0 ORDER BY 1"
+  - id: alias_read_in_group_by
+    sql: "SELECT id AS k, COUNT(*) FROM t GROUP BY k ORDER BY 1"
+  - id: alias_of_an_alias_grouped_by_the_first
+    sql: "SELECT k AS a, a + 1 AS b, COUNT(*) AS n FROM g GROUP BY a ORDER BY 1"
+  - id: sum_overflow_through_alias_widens
+    sql: "SELECT SUM(v) AS s, s + 1 FROM g ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["s", "numeric", 0], ["s+1", "bigint", 0]], "rows": [["2147483661", "2147483662"]]}'
+  - id: grouped_sum_overflow_through_alias_widens
+    sql: "SELECT k, SUM(v) AS s, s + 1 FROM g GROUP BY k ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0], ["s+1", "bigint", 0]], "rows": [[null, "3", "4"], ["1", "12", "13"], ["2", "2", "3"], ["3", "-4", "-3"], ["4", "2147483648", "2147483649"]]}'
+  - id: overflow_through_an_alias_widens
+    sql: "SELECT sm + 1 AS sm FROM t WHERE sm > 0 ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["sm", "integer", 0]], "rows": [["1"], ["2"], ["101"], ["32768"]]}'
+  - id: alias_read_by_between_and_in
+    sql: "SELECT id AS x FROM t WHERE x BETWEEN 3 AND 5 AND x IN (3, 4) ORDER BY 1"
+  - id: alias_of_a_quotient_read_in_where_reads_its_digits
+    sql: "SELECT id, nm / 3 AS x FROM t WHERE x = -0.17 ORDER BY id"
+    profile: sqla17-default
+  - id: quotient_in_where_reads_its_digits
+    sql: "SELECT id, nm / 3 AS x FROM t WHERE nm / 3 = -0.17 ORDER BY id"
+    profile: sqla17-default
+  - id: alias_of_a_quotient_compared_below
+    sql: "SELECT id, nm / 3 AS x FROM t WHERE x < -0.166 ORDER BY id"
+    profile: sqla17-default
+  - id: alias_of_a_quotient_shown
+    sql: "SELECT id, nm / 3 AS x FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: alias_of_a_quotient_read_by_a_product
+    sql: "SELECT id, nm / 3 AS x, x * 3 AS y FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: quotient_times_three
+    sql: "SELECT id, nm / 3 * 3 AS y FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: alias_read_beside_a_host_variable_under_ansinull_off
+    sql: "SELECT sm AS k FROM t WHERE NOT (k = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: alias_holding_a_variable_read_in_where_under_ansinull_on
+    sql: "SELECT sm + @lo AS k FROM t WHERE k > 1 ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-default
+  # ---- 1. IQ's errors, and the reads refused by name
+  - id: aggregate_alias_in_where_is_iq_error_150
+    sql: "SELECT COUNT(*) AS n FROM t WHERE n > 1"
+  - id: alias_cycle_is_iq_error_831
+    sql: "SELECT sm AS id, id AS sm FROM t ORDER BY 1"
+  - id: alias_cycle_through_an_expression_is_iq_error_831
+    sql: "SELECT id AS a, a + 1 AS id FROM t ORDER BY 1"
+  - id: alias_cycle_written_backwards_is_iq_error_831
+    sql: "SELECT a + 1 AS id, id AS a FROM t ORDER BY 1"
+  - id: alias_cycle_of_renames_is_iq_error_831
+    sql: "SELECT id AS id2, id2 AS id FROM t ORDER BY 1"
+  - id: alias_cycle_of_no_column_is_iq_error_831
+    sql: "SELECT x AS y, y AS x FROM t"
+  - id: alias_cycle_of_two_columns_is_iq_error_831
+    sql: "SELECT id AS x, x AS id FROM t ORDER BY 1"
+  - id: alias_read_in_on_outside_the_join_is_iq_error_824
+    sql: "SELECT g.id AS k FROM t JOIN u ON u.id = k JOIN g ON g.id = t.id ORDER BY 1"
+  - id: qualified_alias_read_in_on_outside_the_join_is_iq_error_824
+    sql: "SELECT u.label AS k FROM t JOIN g ON g.s = k JOIN u ON u.id = t.id"
+  - id: unqualified_alias_read_in_on_outside_the_join_is_refused
+    sql: "SELECT label AS k FROM t JOIN g ON g.s = k JOIN u ON u.id = t.id"
+  - id: enclosing_alias_read_in_a_scalar_subquery_is_refused
+    sql: "SELECT id AS k, (SELECT COUNT(*) FROM u WHERE u.t_id = k) AS c FROM t ORDER BY id"
+  - id: enclosing_alias_read_in_exists_is_refused
+    sql: "SELECT id AS k FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = k) ORDER BY id"
+  - id: enclosing_alias_before_an_enclosing_column_is_refused
+    sql: "SELECT id AS it, (SELECT COUNT(*) FROM u WHERE u.t_id = it) AS c FROM t ORDER BY 1"
+  - id: enclosing_alias_before_an_enclosing_column_in_exists_is_refused
+    sql: "SELECT id AS it FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = it) ORDER BY 1"
+  - id: enclosing_alias_read_in_a_subquerys_select_list_is_refused
+    sql: "SELECT id AS k, (SELECT k FROM u WHERE u.id = 1) AS z FROM t ORDER BY 1"
+  - id: enclosing_alias_read_in_an_in_subquery_is_refused
+    sql: "SELECT id AS k FROM t WHERE k IN (SELECT t_id FROM u WHERE t_id = k) ORDER BY 1"
+  - id: enclosing_alias_read_by_a_correlated_in_is_refused
+    sql: "SELECT id AS x FROM t WHERE x IN (SELECT t_id FROM u WHERE t_id = x) ORDER BY 1"
+  - id: enclosing_alias_read_in_a_select_list_subquery_is_refused
+    sql: "SELECT t_id AS x, (SELECT COUNT(*) FROM t WHERE t.id = x) AS c FROM u ORDER BY 1"
+  - id: aggregate_of_an_enclosing_alias_is_refused
+    sql: "SELECT id AS x FROM t WHERE x > (SELECT MIN(x) FROM t) ORDER BY 1"
+  - id: subquerys_own_column_before_an_enclosing_alias
+    sql: "SELECT id AS t_id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.id = t_id) ORDER BY 1"
+  - id: subquerys_own_column_read_in_its_select_list
+    sql: "SELECT id AS t_id, (SELECT COUNT(*) FROM u WHERE label = 'one' AND t_id = 1) AS c FROM t ORDER BY 1"
+  - id: subquerys_own_column_in_an_in_subquery
+    sql: "SELECT sm AS id FROM t WHERE id IN (SELECT t_id FROM u WHERE u.id = id) ORDER BY 1"
+  - id: subquerys_own_column_before_an_alias_of_its_name
+    sql: "SELECT t.id AS id, (SELECT COUNT(*) FROM u WHERE u.t_id = id) AS c FROM t ORDER BY 1"
+  - id: alias_read_bare_is_a_duplicate_name_refused
+    sql: "SELECT id + 1 AS x, x FROM t ORDER BY 1"
+  - id: alias_read_in_parentheses_is_a_duplicate_name_refused
+    sql: "SELECT id + 1 AS x, (x) FROM t ORDER BY 1"
+  - id: alias_shadowing_a_column_read_bare_is_refused
+    sql: "SELECT id AS sm, sm FROM t ORDER BY 1"
+  - id: bare_column_read_as_a_later_alias_is_refused
+    sql: "SELECT sm, id AS sm FROM t ORDER BY 2"
+  - id: alias_read_bare_by_name_is_refused
+    sql: "SELECT id AS k, k FROM t ORDER BY 1"
+  - id: string_alias_read_bare_is_refused
+    sql: "SELECT vc AS id, id FROM t ORDER BY 2"
+  - id: select_distinct_ordered_by_an_alias_expression_is_refused
+    sql: "SELECT DISTINCT id AS k FROM t ORDER BY k + 1"
+  - id: alias_holding_a_variable_read_in_where_under_ansinull_off_is_refused
+    sql: "SELECT sm + @lo AS k FROM t WHERE k > 1 ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: alias_read_by_a_cast_item_is_refused_unnamed
+    sql: "SELECT id AS k, CAST(k AS VARCHAR(5)) FROM t ORDER BY 1"
+  - id: not_grouped_through_an_alias_is_refused
+    sql: "SELECT k AS a, a + 1 AS b, COUNT(*) AS n FROM g GROUP BY b ORDER BY 2"
+  # ---- 2. an unaliased item read through an alias, named as SQL Anywhere writes it
+  - id: unaliased_item_over_an_alias_is_named_as_written
+    sql: "SELECT id + 1 AS x, x * 2 FROM t ORDER BY 1"
+  - id: unaliased_sum_of_alias_and_constant
+    sql: "SELECT id + 1 AS x, x + 0 FROM t ORDER BY 1"
+  - id: unaliased_item_over_an_alias_named_tight
+    sql: "SELECT id AS x, x + 1 FROM t ORDER BY 1"
+  - id: unaliased_parenthesized_item_over_an_alias
+    sql: "SELECT id AS x, (x + 1) * 2 FROM t ORDER BY 1"
+  - id: unaliased_concatenation_over_an_alias
+    sql: "SELECT id AS x, x || 'a' FROM t ORDER BY 1"
+  - id: unaliased_item_over_an_alias_of_a_qualified_column
+    sql: "SELECT t.id AS x, x + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_a_qualified_column_and_an_alias
+    sql: "SELECT id AS x, t.id + x FROM t ORDER BY 1"
+  - id: unaliased_grouped_item_over_an_alias
+    sql: "SELECT k AS kk, COUNT(*), kk + 1 FROM g GROUP BY k ORDER BY 1"
+  - id: unaliased_item_over_an_alias_shadowing_a_column
+    sql: "SELECT id AS sm, sm + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_reads_an_alias_as_written
+    sql: "SELECT id AS x, X + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_a_quoted_alias
+    sql: "SELECT id AS \"my x\", \"my x\" + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_an_alias_of_the_column_of_its_name
+    sql: "SELECT id AS id, id + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_an_alias_of_a_qualified_column_of_its_name
+    sql: "SELECT t.id AS id, id + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_no_alias_is_qualified
+    sql: "SELECT id, id + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_an_upper_case_alias
+    sql: "SELECT id AS ID, id + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_a_quoted_regular_alias
+    sql: "SELECT id AS \"x\", x + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_a_bracketed_alias
+    sql: "SELECT id AS [x y], [x y] + 1 FROM t ORDER BY 1"
+  - id: unaliased_item_over_an_alias_read_quoted
+    sql: "SELECT id AS x, \"x\" + 1 FROM t ORDER BY 1"
+  - id: unaliased_grouped_item_over_a_key_alias
+    sql: "SELECT k AS kk, COUNT(*) AS n, kk + 1 FROM g GROUP BY kk ORDER BY 1"
+  - id: unaliased_grouped_item_over_an_alias_of_a_key
+    sql: "SELECT k AS kk, kk + 1 FROM g GROUP BY k ORDER BY 1"
+  - id: unaliased_grouped_product_over_a_key_expression
+    sql: "SELECT k + 1 AS kk, kk * 2 FROM g GROUP BY k ORDER BY 1"
+  - id: unaliased_grouped_product_grouped_by_the_alias
+    sql: "SELECT k + 1 AS kk, kk * 2 FROM g GROUP BY kk ORDER BY 1"
+  - id: unaliased_grouped_product_grouped_by_the_expression
+    sql: "SELECT k + 1 AS kk, kk * 2 FROM g GROUP BY k + 1 ORDER BY 1"
+  - id: unaliased_coalesce_over_an_alias
+    sql: "SELECT id AS k, COALESCE(sm, k) FROM t ORDER BY 1"
+  - id: unaliased_grouped_item_over_a_key_of_its_name
+    sql: "SELECT k AS k, k + 1 FROM g GROUP BY k ORDER BY 1"
+  - id: unaliased_grouped_item_over_a_key
+    sql: "SELECT k, k + 1 FROM g GROUP BY k ORDER BY 1"
+  - id: unaliased_product_over_an_alias_of_its_column
+    sql: "SELECT id AS id, id * 2 FROM t ORDER BY 1"
+  - id: unaliased_item_over_a_reserved_word_alias
+    sql: "SELECT id AS \"select\", \"select\" + 1 FROM t ORDER BY 1"
+  - id: unaliased_abs_over_an_alias
+    sql: "SELECT id AS x, ABS(x) FROM t ORDER BY 1"
+    profile: sqla17-default
+  # ---- 2. an unaliased item written over several lines or with comments, named as SQL Anywhere marks its line breaks
+  - id: multi_line_item_named_01
+    sql: "SELECT id, vc || 'x' ||\n  ', ' || TRIM(vc) FROM t ORDER BY id"
+  - id: multi_line_item_named_02
+    sql: "SELECT id, CASE\r\n\tWHEN id = 2 THEN UPPER(vc)\r\nELSE SUBSTRING(vc, 1, 2)\nEND FROM t ORDER BY id"
+  - id: multi_line_item_named_03
+    sql: "SELECT id, IF id\n  IS NULL THEN id ELSE id ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_04
+    sql: "SELECT id, ISNULL(\r\n\tvc,\n  'x'\r\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_05
+    sql: "SELECT id, CASE id\n  WHEN 2\nTHEN 'x'\n    END FROM t ORDER BY id"
+  - id: multi_line_item_named_06
+    sql: "SELECT id, CASE id WHEN 1\n  THEN vc\nEND FROM t ORDER BY id"
+  - id: multi_line_item_named_07
+    sql: "SELECT id, SUBSTRING(\n\tvc,\r\n\t1,\r\n    2\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_08
+    sql: "SELECT id, IF id IN (1, 2) THEN id\n\t\tELSE 1 ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_09
+    sql: "SELECT id, SUBSTRING(vc, 1, 2) ||\n    ', ' || UPPER(vc) FROM t ORDER BY id"
+  - id: multi_line_item_named_10
+    sql: "SELECT id, CASE WHEN id\nIN (1, 2) THEN 1 END FROM t ORDER BY id"
+  - id: multi_line_item_named_11
+    sql: "SELECT id, UPPER(vc) ||\n    ', ' || 'x' FROM t ORDER BY id"
+  - id: multi_line_item_named_12
+    sql: "SELECT id, TRIM(vc) ||\r\n\t', ' || vc || 'x' FROM t ORDER BY id"
+  - id: multi_line_item_named_13
+    sql: "SELECT id, IF id\n  < id\n    THEN vc\n  ELSE\n  'x' ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_14
+    sql: "SELECT id, SUBSTRING(vc, 1, 2) ||\n', ' ||\n\t\tvc || 'x' FROM t ORDER BY id"
+  - id: multi_line_item_named_15
+    sql: "SELECT id, SUBSTRING(\n\t\tvc,\r\n\t\t1,\r\n\t\t2\r\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_16
+    sql: "SELECT id, SUBSTRING(\r\nvc,\n    1,\n  2\r\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_17
+    sql: "SELECT id, vc ||\n    ', ' || UPPER(vc) FROM t ORDER BY id"
+  - id: multi_line_item_named_18
+    sql: "SELECT id, t.id\r\n+ id * 2 FROM t ORDER BY id"
+  - id: multi_line_item_named_19
+    sql: "SELECT id, CASE WHEN vc\nLIKE 'h%' THEN 1 END FROM t ORDER BY id"
+  - id: multi_line_item_named_20
+    sql: "SELECT id, CASE vc WHEN 'a'\r\n\tTHEN vc || 'x'\nEND FROM t ORDER BY id"
+  - id: multi_line_item_named_21
+    sql: "SELECT id, CASE vc WHEN 'a' THEN vc || 'x'\r\nELSE vc || 'x' END FROM t ORDER BY id"
+  - id: multi_line_item_named_22
+    sql: "SELECT id, IF id IS NULL THEN COALESCE\n  (id, 2) ELSE id + 1 ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_23
+    sql: "SELECT id, t.id\n  + id * 2 FROM t ORDER BY id"
+  - id: multi_line_item_named_24
+    sql: "SELECT id, CASE WHEN id = id THEN 1 WHEN id < id\n  THEN\n    id ELSE\nCOALESCE (id, 2)\n    END FROM t ORDER BY id"
+  - id: multi_line_item_named_25
+    sql: "SELECT id, IF id = 1 THEN 'x'\n    ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_26
+    sql: "SELECT id, ISNULL(\n\t\tvc,\n  'x'\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_27
+    sql: "SELECT id, IF id > 1 THEN 1\nELSE\n2 ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_28
+    sql: "SELECT id, CASE WHEN vc LIKE 'h%' THEN 1\n  WHEN id = 2 THEN id * 2\n    ELSE id END FROM t ORDER BY id"
+  - id: multi_line_item_named_29
+    sql: "SELECT id, CASE WHEN vc LIKE 'h%' THEN COALESCE(id, 0)\n  WHEN vc IS NULL THEN 1\n\tELSE t.id END FROM t ORDER BY id"
+  - id: multi_line_item_named_30
+    sql: "SELECT id, CASE id WHEN 1 THEN 1\nWHEN 2 THEN 2 END FROM t ORDER BY id"
+  - id: multi_line_item_named_31
+    sql: "SELECT id, vc ||\n\t\t', ' ||\r\nvc || 'x' FROM t ORDER BY id"
+  - id: multi_line_item_named_32
+    sql: "SELECT id, CASE WHEN id = 2\n\t\tTHEN id + 1\r\n\t\tELSE\n\t\t1\r\nEND FROM t ORDER BY id"
+  - id: multi_line_item_named_33
+    sql: "SELECT id, CASE\nid WHEN 2 THEN 1 WHEN 1 THEN\n    COALESCE (id, 2) END FROM t ORDER BY id"
+  - id: multi_line_item_named_34
+    sql: "SELECT id, IF id\n>\n1 AND id <\n5\n  THEN id +\n1\n  ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_35
+    sql: "SELECT id, SUBSTRING(vc, 1, 2) ||\n\t', ' || UPPER(vc) FROM t ORDER BY id"
+  - id: multi_line_item_named_36
+    sql: "SELECT id, CASE\n\tWHEN id = 2 THEN 'x'\n  ELSE vc || 'x'\nEND FROM t ORDER BY id"
+  - id: multi_line_item_named_37
+    sql: "SELECT id, SUBSTRING(\n    vc,\n\t1,\n2\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_38
+    sql: "SELECT id, IF id = id THEN 1\n    ELSE 1\n  ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_39
+    sql: "SELECT id, CASE WHEN id > 1 AND id < 5 THEN id * 2\n\t\tWHEN id > 1 AND id < 5 THEN id + 1\n\t\tWHEN NOT id = 3 THEN CASE WHEN vc LIKE 'h%' THEN 2 END END FROM t ORDER BY id"
+  - id: multi_line_item_named_40
+    sql: "SELECT id, IF id <\nid THEN 'x' ELSE vc ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_41
+    sql: "SELECT id, CASE WHEN id > 1 THEN CASE WHEN id > 2 THEN 1\nEND END FROM t ORDER BY id"
+  - id: multi_line_item_named_42
+    sql: "SELECT id, vc ||\r\n\t\t', ' || TRIM(vc) FROM t ORDER BY id"
+  - id: multi_line_item_named_43
+    sql: "SELECT id, ISNULL(\n\t\tvc,\n\t\t'x'\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_44
+    sql: "SELECT id, CASE WHEN id BETWEEN\n1 AND 3 THEN 1 END FROM t ORDER BY id"
+  - id: multi_line_item_named_45
+    sql: "SELECT id, UPPER(vc) ||\n  ', ' ||\r\n\t\t'x' FROM t ORDER BY id"
+  - id: multi_line_item_named_46
+    sql: "SELECT id, vc ||\n', ' || vc || 'x' FROM t ORDER BY id"
+  - id: multi_line_item_named_47
+    sql: "SELECT id, SUBSTRING(\nvc,\n1,\n    2\r\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_48
+    sql: "SELECT id, ISNULL(\r\n  vc,\n\t\t'x'\r\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_49
+    sql: "SELECT id, IF id < 2 THEN\n  id + 1 ELSE COALESCE\n    (id, 2) ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_50
+    sql: "SELECT id, id + 1\n    + id * 2 FROM t ORDER BY id"
+  - id: multi_line_item_named_51
+    sql: "SELECT id, CASE WHEN id\n  < 2 THEN vc END FROM t ORDER BY id"
+  - id: multi_line_item_named_52
+    sql: "SELECT id, CASE WHEN (\nid > 1) THEN 1 END FROM t ORDER BY id"
+  - id: multi_line_item_named_53
+    sql: "SELECT id, IF id < 2 THEN\n  1 ELSE COALESCE (id,\n    2) ENDIF FROM t ORDER BY id"
+  - id: multi_line_item_named_54
+    sql: "SELECT id, 'x' ||\n  ', ' || UPPER(vc) FROM t ORDER BY id"
+  - id: multi_line_item_named_55
+    sql: "SELECT id, CASE\n  WHEN vc LIKE 'h%' THEN t.id\r\n\t\tELSE 2\nEND FROM t ORDER BY id"
+  - id: multi_line_item_named_56
+    sql: "SELECT id, SUBSTRING(\r\n\tvc,\n  1,\n\t2\n) FROM t ORDER BY id"
+  - id: multi_line_item_named_57
+    sql: "SELECT id, vc ||\n  ', ' ||\n'x' FROM t ORDER BY id"
+  - id: multi_line_item_named_58
+    sql: "SELECT id, t.id\n\t\t+ 1 FROM t ORDER BY id"
+  - id: multi_line_item_named_59
+    sql: "SELECT id, CASE id WHEN 2 THEN COALESCE\n    (id, 2) WHEN 1 THEN 1 ELSE id + 1 END FROM t ORDER BY id"
+  - id: multi_line_item_named_60
+    sql: "SELECT id, CASE WHEN\nid = id THEN id\n  WHEN id > 1 THEN\n  1 END FROM t ORDER BY id"
+  - id: comment_without_a_line_break_leaves_no_mark
+    sql: "SELECT id, id /* c */ + 1 FROM t ORDER BY id"
+  - id: line_comment_is_a_line_break
+    sql: "SELECT id, id -- c\n + 1 FROM t ORDER BY id"
+  - id: block_comment_holding_a_line_break_is_one
+    sql: "SELECT id, id /* a\nb */ + 1 FROM t ORDER BY id"
+  - id: carriage_return_alone_is_a_line_break
+    sql: "SELECT id, id\r+ 1 FROM t ORDER BY id"
+  - id: tab_and_spaces_leave_no_mark
+    sql: "SELECT id, id\t+        1 FROM t ORDER BY id"
+  - id: case_over_lines_indents_its_value
+    sql: "SELECT id, CASE WHEN id > 3\nTHEN 1\nELSE 0\nEND FROM t ORDER BY id"
+  - id: if_over_lines_indents_its_value
+    sql: "SELECT id, IF id > 3\nTHEN 1 ELSE 0 ENDIF FROM t ORDER BY id"
+  - id: call_arguments_over_lines
+    sql: "SELECT id, COALESCE(\n  sm,\n  0\n) FROM t ORDER BY id"
+  - id: concatenation_over_lines
+    sql: "SELECT id, vc ||\n  '|' ||\n  vc FROM t ORDER BY id"
+  - id: nested_case_over_lines_indents_twice
+    sql: "SELECT id, CASE WHEN id > 3\nTHEN CASE WHEN id > 5\n  THEN 2\n  ELSE 1\n  END\nELSE 0\nEND FROM t ORDER BY id"
+  - id: constant_test_over_a_table_is_refused_unnamed
+    sql: "SELECT id, IF 1 = 3 THEN vc ELSE 'x' ENDIF FROM t ORDER BY id"
+  - id: constant_test_over_a_table_named_is_read
+    sql: "SELECT id, IF 1 = 3 THEN vc ELSE 'x' ENDIF AS z FROM t ORDER BY id"
+  - id: left_over_lines_is_refused_unnamed
+    sql: "SELECT id, LEFT(vc,\n2) FROM t ORDER BY id"
+  - id: chain_with_parentheses_over_lines_is_refused_unnamed
+    sql: "SELECT id, (id\n) + 1 FROM t ORDER BY id"
+  # ---- 3. owner.table.column, and an owner of IQ's own read as a schema of the model
+  - id: owner_table_column_over_an_unqualified_table
+    sql: "SELECT DBA.t.id FROM t ORDER BY 1"
+  - id: owner_table_column_over_an_owned_table
+    sql: "SELECT DBA.t.id FROM DBA.t ORDER BY 1"
+  - id: owner_table_column_over_an_aliased_table_is_iq_error_142
+    sql: "SELECT DBA.t.id FROM t a ORDER BY 1"
+  - id: owner_table_column_matched_without_case
+    sql: "SELECT dba.T.ID FROM t ORDER BY 1"
+  - id: owner_table_column_of_another_owner_is_iq_error_845
+    sql: "SELECT x.t.id FROM t ORDER BY 1"
+  - id: owner_table_columns_of_two_tables
+    sql: "SELECT DBA.t.id, DBA.u.label FROM t, u WHERE DBA.t.id = DBA.u.t_id ORDER BY 1, 2"
+  - id: correlation_column_over_an_owned_table
+    sql: "SELECT t.id FROM DBA.t ORDER BY 1"
+  - id: owner_table_column_in_order_by
+    sql: "SELECT id FROM t ORDER BY DBA.t.id DESC"
+  - id: owner_table_column_of_an_enclosing_query
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = DBA.t.id) ORDER BY 1"
+  - id: owner_table_column_of_dummy
+    sql: "SELECT SYS.DUMMY.dummy_col FROM SYS.DUMMY"
+  - id: table_column_of_dummy
+    sql: "SELECT DUMMY.dummy_col FROM DUMMY"
+  - id: owner_table_column_of_unqualified_dummy
+    sql: "SELECT SYS.DUMMY.dummy_col FROM DUMMY"
+  - id: owner_table_column_named_as_written
+    sql: "SELECT DBA.t.id + 1 FROM t ORDER BY 1"
+  - id: owner_table_star_is_refused
+    sql: "SELECT DBA.t.* FROM t ORDER BY 1"
+  - id: owner_table_column_in_group_by
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY DBA.g.k ORDER BY 1"
+  - id: owner_table_column_in_a_grouped_select_list
+    sql: "SELECT DBA.g.k, COUNT(*) FROM g GROUP BY k ORDER BY 1"
+  - id: owner_table_columns_in_on
+    sql: "SELECT DBA.t.id FROM t JOIN u ON DBA.t.id = DBA.u.t_id ORDER BY 1"
+  - id: owner_table_column_over_a_derived_table_is_iq_error_845
+    sql: "SELECT DBA.t.id FROM (SELECT id FROM t) t ORDER BY 1"
+  - id: owner_table_column_not_found_is_iq_error_143
+    sql: "SELECT DBA.t.idx FROM t"
+  - id: owner_table_column_of_no_table_is_iq_error_142
+    sql: "SELECT DBA.v.id FROM t"
+  - id: dbo_column_of_a_dba_table_is_iq_error_845
+    sql: "SELECT dbo.t.id FROM t"
+  - id: owner_table_column_aliased_and_in_where
+    sql: "SELECT DBA.t.id AS z FROM t WHERE DBA.t.id > 5 ORDER BY 1"
+  - id: owner_table_column_quoted
+    sql: "SELECT \"DBA\".\"t\".\"id\" FROM t ORDER BY 1"
+  - id: owner_table_column_beside_its_column_is_a_duplicate_refused
+    sql: "SELECT DBA.t.id, id FROM t ORDER BY 1"
+  - id: owner_table_column_beside_a_second_alias
+    sql: "SELECT DBA.t.id FROM t, t b ORDER BY 1"
+  - id: catalog_owner_table_column_is_iq_error_142
+    sql: "SELECT SYS.SYSTAB.table_id FROM t"
+  - id: dbo_catalog_owner_table_column_is_iq_error_142
+    sql: "SELECT dbo.sysobjects.id FROM t"
+  - id: dbo_table_not_in_the_model_stays_refused
+    sql: "SELECT id FROM dbo.t ORDER BY id"
+  - id: sys_catalog_table_stays_refused
+    sql: "SELECT table_id FROM SYS.SYSTAB"
+  # ---- 4. two output columns of one name where no one reads them; refused where the result shows them
+  - id: duplicate_names_shown_by_a_derived_tables_star_is_iq_error_144
+    sql: "SELECT * FROM (SELECT id, id FROM t) d"
+  - id: duplicate_names_of_a_derived_table_beside_the_one_read_are_refused
+    sql: "SELECT d.sm FROM (SELECT id, id, sm FROM t) d ORDER BY 1"
+  - id: duplicate_names_in_exists
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT id, id FROM u WHERE u.t_id = t.id) ORDER BY 1"
+  - id: duplicate_names_in_a_later_union_branch
+    sql: "SELECT id, sm FROM t UNION ALL SELECT id, id FROM u ORDER BY 1, 2"
+  - id: duplicate_names_of_the_first_union_branch_are_refused
+    sql: "SELECT id, id FROM t UNION ALL SELECT id, t_id FROM u"
+  - id: duplicate_name_read_from_a_derived_table_is_iq_error_144
+    sql: "SELECT d.id FROM (SELECT id, id FROM t) d"
+  - id: duplicate_names_in_not_exists
+    sql: "SELECT id FROM t WHERE NOT EXISTS (SELECT t_id, t_id FROM u WHERE u.t_id = t.id) ORDER BY 1"
+  - id: duplicate_names_under_a_column_list
+    sql: "SELECT d.a FROM (SELECT id, id FROM t) d(a, b) ORDER BY 1"
+  - id: duplicate_names_in_a_later_except_branch
+    sql: "SELECT id, sm FROM t EXCEPT SELECT id, id FROM u ORDER BY 1"
+  - id: duplicate_constant_names_are_refused
+    sql: "SELECT 1, 1 FROM t"
+  - id: duplicate_aggregate_names_in_exists
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT COUNT(*), COUNT(*) FROM u WHERE u.t_id = t.id) ORDER BY 1"
+  - id: duplicate_names_counted_by_star_are_refused
+    sql: "SELECT COUNT(*) FROM (SELECT id, id FROM t) d"
+  - id: duplicate_aliases_are_iq_error_830
+    sql: "SELECT x FROM (SELECT id AS x, sm AS x FROM t) d"
+  - id: duplicate_names_in_a_later_union_distinct_branch
+    sql: "SELECT id, sm FROM t UNION SELECT id, id FROM u ORDER BY 1, 2"
+  # ---- 5. LIKE with a pattern the database computes
+  - id: like_patterns_from_a_derived_table
+    sql: "SELECT n, CASE WHEN x LIKE p THEN 1 WHEN NOT x LIKE p THEN 0 END AS m FROM (SELECT 0 AS n, 'a.c' AS x, 'a.c' AS p FROM DUMMY UNION ALL SELECT 1 AS n, 'abc' AS x, 'a.c' AS p FROM DUMMY UNION ALL SELECT 2 AS n, 'a+c' AS x, 'a+c' AS p FROM DUMMY UNION ALL SELECT 3 AS n, 'aac' AS x, 'a+c' AS p FROM DUMMY UNION ALL SELECT 4 AS n, 'a*' AS x, 'a*' AS p FROM DUMMY UNION ALL SELECT 5 AS n, 'aa' AS x, 'a*' AS p FROM DUMMY UNION ALL SELECT 6 AS n, '(x)' AS x, '(x)' AS p FROM DUMMY UNION ALL SELECT 7 AS n, 'x' AS x, '(x)' AS p FROM DUMMY UNION ALL SELECT 8 AS n, 'a\\b' AS x, 'a\\b' AS p FROM DUMMY UNION ALL SELECT 9 AS n, 'a\\\\b' AS x, 'a\\\\b' AS p FROM DUMMY UNION ALL SELECT 10 AS n, 'ab' AS x, 'a\\b' AS p FROM DUMMY UNION ALL SELECT 11 AS n, 'a$' AS x, 'a$' AS p FROM DUMMY UNION ALL SELECT 12 AS n, '^a' AS x, '^a' AS p FROM DUMMY UNION ALL SELECT 13 AS n, 'a|b' AS x, 'a|b' AS p FROM DUMMY UNION ALL SELECT 14 AS n, 'a' AS x, 'a|b' AS p FROM DUMMY UNION ALL SELECT 15 AS n, '{1}' AS x, '{1}' AS p FROM DUMMY UNION ALL SELECT 16 AS n, 'a]' AS x, 'a]' AS p FROM DUMMY UNION ALL SELECT 19 AS n, 'a?' AS x, 'a?' AS p FROM DUMMY UNION ALL SELECT 20 AS n, 'a' AS x, 'a?' AS p FROM DUMMY UNION ALL SELECT 21 AS n, 'abc' AS x, 'a%' AS p FROM DUMMY UNION ALL SELECT 22 AS n, 'abc' AS x, '%c' AS p FROM DUMMY UNION ALL SELECT 23 AS n, 'abc' AS x, 'a_c' AS p FROM DUMMY UNION ALL SELECT 24 AS n, 'ac' AS x, 'a_c' AS p FROM DUMMY UNION ALL SELECT 25 AS n, 'a\nc' AS x, 'a_c' AS p FROM DUMMY UNION ALL SELECT 26 AS n, 'abc ' AS x, 'abc' AS p FROM DUMMY UNION ALL SELECT 27 AS n, 'abc' AS x, 'abc ' AS p FROM DUMMY UNION ALL SELECT 28 AS n, 'abc ' AS x, 'abc ' AS p FROM DUMMY UNION ALL SELECT 29 AS n, '' AS x, '%' AS p FROM DUMMY UNION ALL SELECT 30 AS n, '' AS x, '_' AS p FROM DUMMY UNION ALL SELECT 31 AS n, 'x' AS x, '' AS p FROM DUMMY) d ORDER BY n"
+  - id: like_pattern_built_by_concatenation
+    sql: "SELECT id FROM t WHERE vc LIKE '%' || 'l' || '%' ORDER BY id"
+  - id: like_pattern_from_a_joined_column
+    sql: "SELECT t.id AS ti, u.id AS ui FROM t, u WHERE t.vc LIKE u.label || '%' ORDER BY 1, 2"
+  - id: like_pattern_from_a_substring_of_the_operand
+    sql: "SELECT id FROM t WHERE vc LIKE SUBSTRING(vc, 1, 2) || '%' ORDER BY id"
+  - id: like_its_own_value
+    sql: "SELECT id FROM t WHERE vc LIKE vc ORDER BY id"
+  - id: not_like_its_own_value
+    sql: "SELECT id FROM t WHERE NOT vc LIKE vc ORDER BY id"
+  - id: like_a_nullable_pattern
+    sql: "SELECT id, CASE WHEN vc LIKE NULLIF(vc, 'hello') THEN 1 WHEN NOT vc LIKE NULLIF(vc, 'hello') THEN 0 END FROM t ORDER BY id"
+  - id: constant_char_like_a_pattern
+    sql: "SELECT id FROM t WHERE 'h' LIKE LEFT(vc, 1) ORDER BY id"
+  - id: like_a_repeated_wildcard
+    sql: "SELECT id FROM t WHERE vc LIKE REPEAT('_', 5) ORDER BY id"
+  - id: integer_like_a_computed_pattern
+    sql: "SELECT id FROM t WHERE id LIKE '%' || '1' ORDER BY id"
+  - id: like_a_host_variable_inside_wildcards
+    sql: "SELECT id FROM t WHERE vc LIKE '%' || :s || '%' ORDER BY id"
+    params: "s = 'l'"
+  - id: like_a_tsql_variable_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE @s || '%' ORDER BY id"
+    params: "s = 'h'"
+  - id: not_like_a_computed_pattern
+    sql: "SELECT id FROM t WHERE vc NOT LIKE '%' || 'l' || '%' ORDER BY id"
+  - id: computed_pattern_with_escape
+    sql: "SELECT id FROM t WHERE vc LIKE '%' || 'l' || '%' ESCAPE '!' ORDER BY id"
+  - id: computed_pattern_without_case_is_refused
+    sql: "SELECT id FROM t WHERE vc LIKE '%' || 'L' || '%' ORDER BY id"
+    profile: sqla17-default
+  - id: char_like_char
+    sql: "SELECT id FROM t WHERE ch LIKE ch ORDER BY id"
+  - id: varchar_like_a_char_pattern
+    sql: "SELECT id FROM t WHERE vc LIKE ch ORDER BY id"
+  - id: like_a_computed_pattern_over_u
+    sql: "SELECT u.id FROM u WHERE label LIKE '%' || 'n' || '%' ORDER BY 1"
+  - id: like_a_date_pattern_is_refused
+    sql: "SELECT id FROM t WHERE vc LIKE dt ORDER BY id"
+  # ---- 6. LIST of a GROUP BY key, in any order and DISTINCT; LIST(DISTINCT) of anything else refused
+  - id: list_distinct_ordered_by_its_value_is_refused
+    sql: "SELECT k, LIST(DISTINCT v ORDER BY v) FROM g GROUP BY k ORDER BY 1"
+  - id: list_distinct_unordered_is_refused
+    sql: "SELECT k, LIST(DISTINCT v) FROM g GROUP BY k ORDER BY 1"
+    nondeterministic: "tests the refusal of a LIST(DISTINCT) of no GROUP BY key without ORDER BY"
+  - id: list_of_a_group_key_unordered
+    sql: "SELECT k, LIST(k) FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(g.k)", "varchar", 0]], "rows": [[null, null], ["1", "1,1,1"], ["2", "2,2"], ["3", "3,3"], ["4", "4,4"]]}'
+  - id: list_distinct_of_a_group_key
+    sql: "SELECT k, LIST(DISTINCT k) FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(distinct g.k)", "varchar", 0]], "rows": [[null, null], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]]}'
+  - id: list_of_a_group_key_with_a_delimiter
+    sql: "SELECT k, LIST(k, '/') FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(g.k,''/'')", "varchar", 0]], "rows": [[null, null], ["1", "1/1/1"], ["2", "2/2"], ["3", "3/3"], ["4", "4/4"]]}'
+  - id: list_distinct_descending_is_refused
+    sql: "SELECT k, LIST(DISTINCT v ORDER BY v DESC) FROM g GROUP BY k ORDER BY 1"
+  - id: list_distinct_ungrouped_is_refused
+    sql: "SELECT LIST(DISTINCT j ORDER BY j) FROM g"
+  - id: list_distinct_with_a_delimiter_is_refused
+    sql: "SELECT k, LIST(DISTINCT v, '|' ORDER BY v) FROM g GROUP BY k ORDER BY 1"
+  - id: list_distinct_ordered_by_another_column_is_refused
+    sql: "SELECT k, LIST(DISTINCT v ORDER BY w) FROM g GROUP BY k ORDER BY 1"
+  - id: list_of_an_integer_group_key
+    sql: "SELECT j, LIST(j) FROM g GROUP BY j ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["j", "integer", 0], ["LIST(g.j)", "varchar", 0]], "rows": [[null, null], ["10", "10,10,10"], ["20", "20,20"], ["30", "30,30"], ["40", "40,40"]]}'
+  - id: list_of_one_of_two_group_keys
+    sql: "SELECT k, j, LIST(j) FROM g GROUP BY k, j ORDER BY 1, 2"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["j", "integer", 0], ["LIST(g.j)", "varchar", 0]], "rows": [[null, null, null], [null, "10", "10"], ["1", "10", "10,10"], ["1", "20", "20"], ["2", null, null], ["2", "20", "20"], ["3", "30", "30,30"], ["4", "40", "40,40"]]}'
+  - id: list_distinct_of_strings_is_refused
+    sql: "SELECT k, LIST(DISTINCT s ORDER BY s) FROM g GROUP BY k ORDER BY 1"
+  - id: list_distinct_filtered_is_refused
+    sql: "SELECT LIST(DISTINCT v) FROM g WHERE k = 1"
+    nondeterministic: "tests the refusal of a LIST(DISTINCT) of no GROUP BY key without ORDER BY"
+  - id: list_of_a_group_key_ordered_by_another_column
+    sql: "SELECT k, LIST(k ORDER BY v) FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(g.k order by g.v asc)", "varchar", 0]], "rows": [[null, null], ["1", "1,1,1"], ["2", "2,2"], ["3", "3,3"], ["4", "4,4"]]}'
+  - id: list_distinct_of_a_constant_is_refused
+    sql: "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1"
+  # ---- 7. a checked SUM read for every group: a CASE's first test, a NULL-reading function's first argument, NOT
+  - id: sum_in_a_case_test_widens
+    sql: "SELECT k, CASE WHEN SUM(v) > 0 THEN 1 ELSE 0 END AS c FROM g GROUP BY k ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["c", "smallint", 0]], "rows": [[null, "1"], ["1", "1"], ["2", "1"], ["3", "0"], ["4", "1"]]}'
+  - id: sum_in_a_case_test
+    sql: "SELECT k, CASE WHEN SUM(v) > 0 THEN 1 ELSE 0 END AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_as_coalesces_first_argument
+    sql: "SELECT k, COALESCE(SUM(v), 0) AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_in_an_if_test_of_strings_of_two_lengths
+    sql: "SELECT k, IF SUM(v) > 5 THEN 'big' ELSE 'small' ENDIF AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_as_isnulls_first_argument
+    sql: "SELECT k, ISNULL(SUM(v), -1) AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_in_having_inside_coalesce
+    sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING COALESCE(SUM(v), 0) > 3 ORDER BY 1"
+  - id: sum_inside_nullif
+    sql: "SELECT k, NULLIF(SUM(v), 12) AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_as_a_case_value
+    sql: "SELECT k, CASE WHEN k = 4 THEN 0 ELSE SUM(v) END AS c FROM g GROUP BY k ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["c", "numeric", 0]], "rows": [[null, "3"], ["1", "12"], ["2", "2"], ["3", "-4"], ["4", "0"]]}'
+  - id: sum_as_a_simple_case_operand
+    sql: "SELECT k, CASE SUM(v) WHEN 12 THEN 'x' ELSE 'y' END AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_inside_coalesce_widens
+    sql: "SELECT k, COALESCE(SUM(v), 0) AS c FROM g GROUP BY k ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["c", "numeric", 0]], "rows": [[null, "3"], ["1", "12"], ["2", "2"], ["3", "-4"], ["4", "2147483648"]]}'
+  - id: sum_in_having_between
+    sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING SUM(v) BETWEEN 1 AND 20 ORDER BY 1"
+  - id: sum_in_having_under_not
+    sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING NOT SUM(v) > 5 ORDER BY 1"
+  - id: sum_as_a_case_value_after_a_count_test_is_refused
+    sql: "SELECT k, CASE WHEN COUNT(*) > 2 THEN SUM(v) ELSE 0 END AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_in_a_first_and_a_later_case_test
+    sql: "SELECT k, CASE WHEN SUM(v) > 100 THEN 'a' WHEN SUM(v) > 5 THEN 'b' ELSE 'c' END AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_in_having_in_a_list
+    sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING SUM(v) IN (12, -4) ORDER BY 1"
+  # ---- 8. TOP or FIRST in a subquery or a derived table, ordered, in SQL Anywhere's front end
+  - id: top_one_in_a_correlated_scalar_subquery
+    sql: "SELECT id, (SELECT TOP 1 u.label FROM u WHERE u.t_id = t.id ORDER BY u.id DESC) AS l FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: top_in_a_derived_table
+    sql: "SELECT d.id FROM (SELECT TOP 3 id FROM t ORDER BY id DESC) d ORDER BY 1"
+    profile: sqla17-default
+  - id: top_in_a_derived_table_without_order_by
+    sql: "SELECT d.c FROM (SELECT TOP 3 'row' AS c FROM t) d"
+    profile: sqla17-default
+  - id: top_in_exists_needs_no_order
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT TOP 1 1 FROM u WHERE u.t_id = t.id) ORDER BY id"
+    profile: sqla17-default
+  - id: top_in_an_in_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT TOP 2 t_id FROM u ORDER BY id) ORDER BY id"
+    profile: sqla17-default
+  - id: top_start_at_in_a_derived_table
+    sql: "SELECT d.id FROM (SELECT TOP 2 START AT 2 id FROM t ORDER BY id) d ORDER BY 1"
+    profile: sqla17-default
+  - id: first_in_a_derived_table
+    sql: "SELECT d.id FROM (SELECT FIRST id FROM t ORDER BY sm, id) d"
+    profile: sqla17-default
+  - id: top_in_a_derived_table_under_iqs_engine_is_refused_d_r1
+    sql: "SELECT d.id FROM (SELECT TOP 3 id FROM t ORDER BY id DESC) d ORDER BY 1"
+  - id: top_over_an_overflowing_item_is_refused
+    sql: "SELECT d.x FROM (SELECT TOP 2 sm + 1 AS x FROM t ORDER BY id) d ORDER BY 1"
+    profile: sqla17-default
+  - id: top_start_at_in_exists
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT TOP 1 START AT 2 1 FROM u WHERE u.t_id = t.id) ORDER BY id"
+    profile: sqla17-default
+  - id: top_in_a_union_branch_is_refused
+    sql: "SELECT id FROM t UNION ALL SELECT TOP 1 id FROM u ORDER BY 1"
+    nondeterministic: "tests the refusal of a TOP in a set operation's branch, which has no ORDER BY of its own"
+    profile: sqla17-default
+  - id: top_in_a_scalar_subquery_over_sa_rowgenerator
+    sql: "SELECT (SELECT TOP 1 row_num FROM sa_rowgenerator(1, 5) ORDER BY row_num DESC) AS m"
+  - id: top_in_a_derived_table_over_sa_rowgenerator
+    sql: "SELECT d.row_num FROM (SELECT TOP 2 row_num FROM sa_rowgenerator(1, 9) ORDER BY row_num DESC) d ORDER BY 1"
+  # ---- 9. a subquery without FROM: its one item's value
+  - id: query_without_from_as_an_aliased_item
+    sql: "SELECT id, (SELECT id + 1) AS z FROM t ORDER BY 1"
+  - id: query_without_from_as_an_item_named_as_its_item
+    sql: "SELECT id, (SELECT id + 1) FROM t ORDER BY 1"
+  - id: query_without_from_in_where
+    sql: "SELECT id FROM t WHERE (SELECT id) > 3 ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: query_without_from_in_an_in_list_is_refused
+    sql: "SELECT id FROM t WHERE id IN (SELECT 3) ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: query_without_from_in_exists_is_refused
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1) ORDER BY 1"
+  - id: constant_query_without_from_as_an_item
+    sql: "SELECT (SELECT 5) AS z FROM t ORDER BY 1"
+  - id: if_query_without_from_as_an_item
+    sql: "SELECT id, (SELECT IF sm > 0 THEN 'p' ELSE 'n' ENDIF) AS z FROM t ORDER BY 1"
+  - id: count_query_without_from_is_refused
+    sql: "SELECT (SELECT COUNT(*)) AS z FROM t"
+  - id: filtered_query_without_from_is_refused
+    sql: "SELECT id, (SELECT id WHERE id > 3) AS z FROM t ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: column_query_without_from_as_an_item
+    sql: "SELECT id, (SELECT sm) AS z FROM t ORDER BY 1"
+  - id: concatenation_query_without_from_as_an_item
+    sql: "SELECT id, (SELECT 'x' || vc) AS z FROM t ORDER BY 1"
+  - id: query_without_from_inside_one_without_from
+    sql: "SELECT (SELECT 5)"
+  - id: overflowing_query_without_from_widens
+    sql: "SELECT id, (SELECT sm + 1) AS z FROM t ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["id", "integer", 0], ["z", "integer", 0]], "rows": [["1", "32768"], ["2", "-32767"], ["3", "1"], ["4", "2"], ["5", null], ["6", "101"], ["7", "0"]]}'
+  # ---- 10. IQ's codes for errors lite raised in Postgres's words, INTO after FROM, DATEDIFF's arguments
+  - id: distinct_ordered_by_another_column_is_iq_error_854
+    sql: "SELECT DISTINCT id FROM t ORDER BY sm"
+  - id: union_of_a_star_and_one_column_is_iq_error_153
+    sql: "SELECT * FROM t UNION SELECT id FROM u"
+  - id: column_neither_grouped_nor_aggregated_is_iq_error_149
+    sql: "SELECT k, v FROM g GROUP BY k"
+  - id: datediff_of_two_arguments_is_iq_error_154
+    sql: "SELECT DATEDIFF(day, dt) FROM t"
+  - id: union_of_a_qualified_star_and_one_column_is_iq_error_153
+    sql: "SELECT u.* FROM u UNION ALL SELECT t.id FROM t"
+  - id: datediff_of_one_argument_is_iq_error_154
+    sql: "SELECT DATEDIFF(day) FROM t"
+  - id: datediff_of_four_arguments_is_iq_error_154
+    sql: "SELECT DATEDIFF(day, dt, dt, dt) FROM t"
+  - id: into_after_from_is_refused_as_into
+    sql: "SELECT id FROM t INTO x"
+  - id: into_after_where_is_refused_as_into
+    sql: "SELECT id FROM t WHERE id > 1 INTO x"
+  - id: datediff_of_a_column_and_a_date_is_iq_error_154
+    sql: "SELECT DATEDIFF(id, dt) FROM t"
+  - id: grouped_order_by_a_column_not_grouped_is_iq_error_854
+    sql: "SELECT k FROM g GROUP BY k ORDER BY j"

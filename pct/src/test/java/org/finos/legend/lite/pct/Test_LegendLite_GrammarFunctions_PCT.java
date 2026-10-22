@@ -62,7 +62,7 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
             // lets, object identity); its assertIs then needs the interpreter's own object back, as the two above
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
-            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.
     );

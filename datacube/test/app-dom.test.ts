@@ -14,6 +14,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
+import { TREE_COLUMN } from '../src/treeview.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
@@ -29,7 +30,6 @@ const SNAPSHOT: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: [],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -39,7 +39,7 @@ function result(epoch: number): ResultTable {
   return {
     columns: [
       { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
-      { name: 'total', type: 'Float', values: [600, 400] },
+      { name: 'notional', type: 'Float', values: [600, 400] },
     ],
     rowCount: 2,
     epoch,
@@ -111,7 +111,6 @@ const PIVOTED: CubeSnapshot = {
   ...SNAPSHOT,
   rows: ['region'],
   pivotOn: ['desk'],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
 };
 
 /** An engine that answers in the shape a pivot produces. */
@@ -136,8 +135,8 @@ class PivotEngine extends FakeEngine {
     return {
       columns: [
         { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
-        { name: 'A__|__total', type: 'Float', values: [1, 2] },
-        { name: 'B__|__total', type: 'Float', values: [3, 4] },
+        { name: 'A__|__notional', type: 'Float', values: [1, 2] },
+        { name: 'B__|__notional', type: 'Float', values: [3, 4] },
       ],
       rowCount: 2,
       epoch,
@@ -224,8 +223,7 @@ describe('the app', () => {
     /**
      * A measure shown under its OWN column's name -- how every uploaded
      * file's measures appear -- so the menu knows its type and would
-     * offer a value filter. (A measure named apart from its column, as
-     * `total` above, has no type to offer operators for.)
+     * offer a value filter.
      */
     class OwnNameEngine extends FakeEngine {
       readonly name = 'own-name';
@@ -243,10 +241,7 @@ describe('the app', () => {
     beforeEach(async () => {
       host = dom.window.document.createElement('div');
       dom.window.document.body.append(host);
-      const own = new CubeApp(host, {
-        ...SNAPSHOT,
-        measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
-      }, { engine: new OwnNameEngine(), planner });
+      const own = new CubeApp(host, SNAPSHOT, { engine: new OwnNameEngine(), planner });
       await own.open();
     });
     /** The grid cell showing `text`, right-clicked. */
@@ -640,9 +635,42 @@ describe('the app', () => {
     );
   });
 
+  it('a header click sorts a number from the largest, then up, then off; Ctrl chains; the tree header orders the groups (2026-10-18)', async () => {
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const head = (name: string): HTMLElement => root.querySelector(`.dc-th[data-column="${name}"]`) as HTMLElement;
+    const click = async (name: string, ctrlKey = false): Promise<void> => {
+      head(name).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, ctrlKey }));
+      await settle();
+    };
+    // the tree header says the groups' order, A first, with no place number
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2191');
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }]);
+    assert.equal(head('notional').querySelector('.dc-sort-mark')?.textContent, '\u2193');
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'asc' }]);
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, []);
+    // a measure orders the groups: its header says so, and the tree's says nothing (the audit of #57)
+    await click('notional');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark'), null);
+    // a chained click on the tree chains the first group after it, and the tree shows its place
+    await click(TREE_COLUMN, true);
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+    assert.equal(head('notional').querySelector('.dc-sort-mark')?.textContent, '\u21931');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u21912');
+    // a plain click on the tree header: the groups alone, the other way from what it showed
+    await click(TREE_COLUMN);
+    assert.deepEqual(app.snapshot.sorts, []);
+    assert.equal(app.configuration.treeColumnSort, 'desc');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2193');
+  });
+
   it('adds and removes a heatmap from the menu', () => {
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Add Heatmap to total');
+    pick('Add Heatmap to notional');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
@@ -736,7 +764,8 @@ describe('the app', () => {
     assert.ok(doc);
     assert.equal(doc.kind, 'datacube.cube');
     assert.deepEqual(doc.query.rows, ['region']);
-    assert.deepEqual(doc.query.measures, SNAPSHOT.measures);
+    // a grid's aggregates are its Column Properties: a saved cube carries no measures list
+    assert.equal('measures' in doc.query, false);
     assert.equal(doc.configuration['maxRows'], 123, 'what the user set');
     assert.equal(doc.configuration['showTitleBar'], undefined, 'a default is not written down');
     assert.equal('source' in doc.query, false, 'the relation is derived from the source on open');
@@ -798,18 +827,18 @@ describe('the app', () => {
   });
 
   it('Properties... from a HEADER opens Column Properties on that column', () => {
-    rightClick('.dc-th[data-column="total"]');
+    rightClick('.dc-th[data-column="notional"]');
     pick('Properties...');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
-    // `total` is a measure over `notional`: the panel shows the column.
+    // an aggregated column is its own column's name: the panel shows the column
     // the column shown: the one marked in Column Properties' list
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
   });
 
   it('Properties... from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
-    rightClick('.dc-row [data-column="total"]');
+    rightClick('.dc-row [data-column="notional"]');
     pick('Properties...');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
@@ -924,7 +953,7 @@ describe('the app', () => {
         planner,
         configuration: {
           ...DEFAULT_CONFIGURATION,
-          columns: { total: { heatmap: { from: '#ffffff', to: '#ff0000' } } },
+          columns: { notional: { heatmap: { from: '#ffffff', to: '#ff0000' } } },
         },
       },
     );
@@ -933,6 +962,47 @@ describe('the app', () => {
       (c) => (c as HTMLElement).style.backgroundColor !== '',
     );
     assert.ok(painted.length > 0, 'no cell was painted');
+  });
+
+  it('a pivot total\'s menu turns on the total\'s own heatmap: the total painted, its measure\'s cells left alone (2026-10-18)', async () => {
+    // the total's right-click menu greyed out Add Heatmap ("a pivot total is no column of the cube"); and a total is a
+    // column of its own (the user: "shouldn't the default be just for the column itself?"), so its heatmap is its own
+    const total = pivotTotalColumn('notional');
+    class TotalEngine extends PivotEngine {
+      override async answer(sql: string, epoch: number): Promise<ResultTable> {
+        const t = await super.answer(sql, epoch);
+        if (sql.includes('"function":"distinct"')) return t;
+        return { ...t, columns: [...t.columns, { name: total, type: 'Float', values: [4, 6] }] };
+      }
+    }
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const app = new CubeApp(host, PIVOTED, { engine: new TotalEngine(), planner: new EchoPlanner() });
+    await app.open();
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const cells = (column: string): HTMLElement[] => [...host.querySelectorAll<HTMLElement>(`.dc-cell[data-column="${column}"]`)];
+    const pickOnTotal = async (label: string): Promise<void> => {
+      cells(total)[0]!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+      const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role="menuitem"]')]
+        .find((i) => i.querySelector('.dc-menu-label')?.textContent === label);
+      assert.ok(entry, `the total offers "${label}"`);
+      assert.notEqual(entry.getAttribute('aria-disabled'), 'true', label);
+      entry.click();
+      await settle();
+    };
+    assert.ok(cells(total).length > 0, 'the total is on screen');
+    assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
+    await pickOnTotal('Add Heatmap to Total / notional');
+    assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
+    assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
+    assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
+    assert.ok(cells('A__|__notional').every((c) => c.style.backgroundColor === ''), 'the cells are not');
+    await pickOnTotal('Remove Heatmap');
+    assert.equal(app.configuration.columns[total]?.heatmap, undefined);
+    assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'taken off');
+    app.dispose();
   });
 
   it('lists a pivoted measure as the columns the pivot MADE of it', async () => {
@@ -961,7 +1031,7 @@ describe('the app', () => {
     // default configuration shows it; it is a column of the same query).
     assert.deepEqual(
       children.map((c) => [c.column, c.label]),
-      [['A__|__total', 'A'], ['B__|__total', 'B'], [pivotTotalColumn('total'), 'Total']],
+      [['A__|__notional', 'A'], ['B__|__notional', 'B'], [pivotTotalColumn('notional'), 'Total']],
     );
     // And the pivot KEY is not in this list at all: its values ARE
     // the column headers, so it cannot also be a column. It is in
@@ -975,7 +1045,7 @@ describe('the app', () => {
   });
 
   it('hiding a pivoted column does not take it out of the QUERY', async () => {
-    // Unticking `A__|__total` once narrowed the next query (the cast was
+    // Unticking `A__|__notional` once narrowed the next query (the cast was
     // read off the leaves the grid was SHOWING), so the column left the
     // data as well as the screen. The columns come from the values
     // query now, whatever is hidden.
@@ -987,18 +1057,18 @@ describe('the app', () => {
       planner: new EchoPlanner(),
       configuration: {
         ...DEFAULT_CONFIGURATION,
-        columns: { 'A__|__total': { hidden: true } },
+        columns: { 'A__|__notional': { hidden: true } },
       },
     });
     await pivoted.open();
     const level = engine.sql.find((s) => s.includes('"function":"groupBy"')) ?? '';
-    assert.match(level, /"A__\|__total"/, 'the hidden column is still asked for');
-    assert.match(level, /"B__\|__total"/);
+    assert.match(level, /"A__\|__notional"/, 'the hidden column is still asked for');
+    assert.match(level, /"B__\|__notional"/);
     // Hidden on screen, all the same.
     const shown = [...host.querySelectorAll('.dc-th[data-column]')]
       .map((e) => (e as HTMLElement).dataset['column']);
-    assert.equal(shown.includes('A__|__total'), false);
-    assert.equal(shown.includes('B__|__total'), true);
+    assert.equal(shown.includes('A__|__notional'), false);
+    assert.equal(shown.includes('B__|__notional'), true);
   });
 
   it('the grid header carries the column name, so the menu knows what was clicked', () => {

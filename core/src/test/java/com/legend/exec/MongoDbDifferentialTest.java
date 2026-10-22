@@ -7,7 +7,6 @@ import com.legend.Compiler;
 import com.legend.TypedQuery;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.testing.EmbeddedMongoDb;
 import org.junit.jupiter.api.Test;
 
 import java.io.StringWriter;
@@ -31,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class MongoDbDifferentialTest {
 
-    private static final String PASSWORD_PROPERTY = "legend.mongodb.pct.password";
 
     private record Case(String name, String expression, TypedQuery.Output output) {
         Case(String name, String expression) {
@@ -353,11 +351,9 @@ class MongoDbDifferentialTest {
 
     @Test
     void differential() throws Exception {
-        EmbeddedMongoDb db = EmbeddedMongoDb.shared();
-        System.setProperty(PASSWORD_PROPERTY, EmbeddedMongoDb.PASSWORD);
-        String duck = com.legend.test.StorelessRuntime.with(CLASSES, DatabaseType.DuckDB);
-        String mongo = com.legend.test.StorelessRuntime.onMongo(CLASSES, "127.0.0.1", db.port(), EmbeddedMongoDb.DATABASE,
-                EmbeddedMongoDb.USER, PASSWORD_PROPERTY);
+        // the reference is the platform's engine, the subject this test's database (their test backends' runtimes)
+        String duck = com.legend.testbackend.TestBackends.platform().withStorelessRuntime(CLASSES);
+        String mongo = com.legend.testbackend.TestBackends.of(DatabaseType.MongoDB).withStorelessRuntime(CLASSES);
         List<String> lines = new ArrayList<>();
         Map<String, Integer> counts = new TreeMap<>();
         List<String> referenceFailures = new ArrayList<>();
@@ -377,7 +373,7 @@ class MongoDbDifferentialTest {
             try {
                 String answer = run(mongo, c.expression(), c.output());
                 verdict = answer.equals(reference) ? "EQUAL" : "DIFFERENT";
-                detail = verdict.equals("EQUAL") ? "" : "duckdb=" + flat(reference) + " mongodb=" + flat(answer);
+                detail = verdict.equals("EQUAL") ? "" : "reference=" + flat(reference) + " mongodb=" + flat(answer);
             } catch (com.legend.sql.dialect.DialectCapability e) {
                 verdict = "REFUSED";
                 detail = first(e.getMessage());
@@ -403,7 +399,7 @@ class MongoDbDifferentialTest {
         for (String line : lines) {
             System.out.println("[mongodb-differential] " + line);
         }
-        assertTrue(referenceFailures.isEmpty(), "the reference (DuckDB) did not run: " + referenceFailures);
+        assertTrue(referenceFailures.isEmpty(), "the reference (the platform's engine) did not run: " + referenceFailures);
     }
 
     /** The case's pipeline text, or the refusal that stood in its way. */

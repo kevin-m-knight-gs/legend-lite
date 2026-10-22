@@ -12,10 +12,10 @@ import java.nio.file.Path;
 
 /**
  * Our side of the reference differential as a file ({@link OurResolutions}), for one module. The gated form of the
- * differential is {@code //spec:reference_lane} ({@link ReferenceLaneTest}); this dump stays for ad-hoc joins
- * ({@code tools/reference/join.py}). A program, not a test (Bazel workplan P3-17):
- * {@code bazel run //spec:our_resolutions -- <module> [--out FILE]}, by default {@code our-resolutions-<module>.txt}
- * where it is run.
+ * differential is {@code //spec:reference_lane} ({@link ReferenceLaneTest}); this dump stays for ad-hoc reading
+ * ({@link ReferenceJoin} is the join; its Python original, {@code tools/reference/join.py}, was deleted 2026-10-18). A
+ * program, not a test (Bazel workplan P3-17): {@code bazel run //spec:our_resolutions -- <module> [--out FILE]}, by
+ * default {@code our-resolutions-<module>.txt} where it is run.
  */
 public final class OurResolutionsDump {
 

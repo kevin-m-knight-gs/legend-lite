@@ -49,7 +49,7 @@ public class Test_LegendLite_Postgres_GrammarFunctions_PCT extends PCTReportConf
             // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
             // per run, so the pin is the class), as on the DuckDB lane
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
-            // NOTE 2026-10-20 (plan-route parity, register S82): testLetChainedWithAnotherFunction passes again: a type
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.
     );

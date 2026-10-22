@@ -20,6 +20,49 @@ public sealed interface AuthenticationSpec
         AuthenticationSpec.GcpWorkloadIdentityFederation,
                 AuthenticationSpec.OAuth {
 
+    /** Whether opening a session with it needs no credential: no authentication, the engine's test default and the
+     *  test harness's. Every other carries one (a password, a token, a key), which no session the platform opens reads
+     *  yet (exec.Sessions refuses it by name). Each flavour answers (the dialect program's Phase 5, 2026-10-16: until
+     *  then exec.Sessions switched on them). */
+    default boolean credentialFree() {
+        return switch (this) {
+            case NoAuth a -> true;
+            case DefaultH2 a -> true;
+            case TestAuth a -> true;
+            case UsernamePassword a -> false;
+            case DelegatedKerberos a -> false;
+            case VaultUserNamePassword a -> false;
+            case SnowflakePublic a -> false;
+            case GCPApplicationDefaultCredentials a -> false;
+            case ApiToken a -> false;
+            case MiddleTierUserNamePassword a -> false;
+            case OAuth a -> false;
+            case GcpWorkloadIdentityFederation a -> false;
+        };
+    }
+
+    /** The user a session opened with it names where a server's session names one even unauthenticated (Trino's):
+     *  the test authentications' {@code sa} (legend-engine's DefaultH2AuthenticationStrategy, which its
+     *  TestDatabaseAuthenticationStrategy extends, names it); null for no authentication, which names none, and for
+     *  one that carries a credential, whose user its credential names (refused before a session opens). Each flavour
+     *  answers (main's merge, 2026-10-22: the Trino opening switched on them). */
+    default @com.legend.base.Nullable String testUser() {
+        return switch (this) {
+            case DefaultH2 a -> "sa";
+            case TestAuth a -> "sa";
+            case NoAuth a -> null;
+            case UsernamePassword a -> null;
+            case DelegatedKerberos a -> null;
+            case VaultUserNamePassword a -> null;
+            case SnowflakePublic a -> null;
+            case GCPApplicationDefaultCredentials a -> null;
+            case ApiToken a -> null;
+            case MiddleTierUserNamePassword a -> null;
+            case OAuth a -> null;
+            case GcpWorkloadIdentityFederation a -> null;
+        };
+    }
+
     /** No authentication. Used for in-memory databases and local development. */
     record NoAuth() implements AuthenticationSpec {}
 

@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -17,7 +18,7 @@ class StressTestDense {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterEach
@@ -250,7 +251,7 @@ class StressTestDense {
         long normMs = (System.nanoTime() - t2) / 1_000_000;
         System.out.println("Phase 2 (normalize " + N + " mappings): " + normMs + " ms");
 
-        var dialect = new com.legend.sql.dialect.DuckDb();
+        var dialect = TestBackends.platform().dialect();
 
         // ---- Same 100 query patterns as sparse test ----
         var queries = new java.util.ArrayList<String>();

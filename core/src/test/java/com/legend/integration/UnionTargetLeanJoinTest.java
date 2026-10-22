@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.integration;
 
+import com.legend.resolver.ResolvedSql;
+import com.legend.testbackend.TestBackends;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.legend.server.QueryService;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -99,12 +100,7 @@ class UnionTargetLeanJoinTest {
     }
 
     private static String sqlOf(String query) {
-        var ctx = com.legend.Compiler.compileModel(MODEL);
-        var specs = new com.legend.compiler.spec.SpecCompiler(ctx);
-        var body = specs.typeQueryBody(com.legend.compiler.NameResolver.resolveQuery(
-                com.legend.testing.Own.spec(query + "->from(ul::m, ul::rt)")));
-        var resolved = new com.legend.resolver.StoreResolver(ctx, specs).resolve(body, null);
-        return new com.legend.sql.dialect.DuckDb().render(new com.legend.lowering.Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        return ResolvedSql.of(MODEL, query + "->from(ul::m, ul::rt)");
     }
 
     /**
@@ -132,7 +128,7 @@ class UnionTargetLeanJoinTest {
     @Test
     @DisplayName("routes sharing one condition into a union target: one equi-join, outer semantics kept")
     void leanUnionJoinKeepsRows() throws Exception {
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
+        try (Connection connection = TestBackends.platform().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("create table FIRM (ID int primary key, NAME varchar(20))");
                 stmt.execute("create table P1 (ID int primary key, LAST varchar(20), FIRM_ID int)");

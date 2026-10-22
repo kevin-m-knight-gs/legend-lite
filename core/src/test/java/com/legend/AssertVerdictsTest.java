@@ -3,7 +3,8 @@
 
 package com.legend;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.database.Databases;
+import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.exec.ExecutionResult;
@@ -13,7 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,7 +55,7 @@ class AssertVerdictsTest {
 
     @BeforeAll
     static void open() throws Exception {
-        conn = DriverManager.getConnection("jdbc:duckdb:");
+        conn = TestBackends.platform().open();
     }
 
     @AfterAll
@@ -64,7 +64,7 @@ class AssertVerdictsTest {
     }
 
     private static ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
+        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
     }
 
     @Test
@@ -128,7 +128,7 @@ class AssertVerdictsTest {
 
     /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
     private static ExecutionResult runBoth(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, null,
+        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, null,
                 StorelessRuntime.RUNTIME, conn, ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH));
     }
 

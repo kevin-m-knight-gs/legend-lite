@@ -227,11 +227,21 @@ public final class SpecParser implements TokenStreamCursor {
      *  {@link IslandScan}); shares this parser's tokens and error anchor. */
     private final IslandScan islandScan;
 
+    /** A model store's instances ({@link #parseInstanceData}), which legend-engine reads with its model-data
+     *  walker, not its expression walker. */
+    private final boolean instanceData;
+
     private SpecParser(TokenStream tokens, String spanSourceId,
             Dialect dialect) {
+        this(tokens, spanSourceId, dialect, false);
+    }
+
+    private SpecParser(TokenStream tokens, String spanSourceId,
+            Dialect dialect, boolean instanceData) {
         this.tokens = Objects.requireNonNull(tokens, "tokens");
         this.spanSourceId = spanSourceId;
         this.dialect = dialect;
+        this.instanceData = instanceData;
         this.islandScan = new IslandScan(this);
         constStrings.push(new java.util.HashMap<>());
     }
@@ -361,7 +371,20 @@ public final class SpecParser implements TokenStreamCursor {
     /** As above with a span source id (mapping test-suite lambdas). */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
             String spanSourceId, Dialect dialect) {
-        SpecParser parser = new SpecParser(tokens, spanSourceId, dialect);
+        return parseCodeBlock(new SpecParser(tokens, spanSourceId, dialect));
+    }
+
+    /**
+     * A model store's instances ({@code ModelStore #{ my::T: [^my::T(...)] }#}): parsed as a code block, but read
+     * as legend-engine's model-data walker reads them ({@code ModelStoreDataParseTreeWalker}), not its expression
+     * walker -- a binding's value is never cut to its first expression here ({@link #parseKeyValue}).
+     */
+    public static List<ValueSpecification> parseInstanceData(TokenStream tokens,
+            String spanSourceId, Dialect dialect) {
+        return parseCodeBlock(new SpecParser(tokens, spanSourceId, dialect, true));
+    }
+
+    private static List<ValueSpecification> parseCodeBlock(SpecParser parser) {
         List<ValueSpecification> stmts = parser.parseCodeBlockUntil(null);
         if (!parser.atEnd()) {
             throw parser.error("trailing tokens after code block: "
@@ -550,7 +573,11 @@ public final class SpecParser implements TokenStreamCursor {
      * {@code and(lessThan(or(1,2), 3), 4)}).
      */
     private ValueSpecification parseCombinedExpression() {
-        ValueSpecification expr = parseExpression();
+        return parseCombinedParts(parseExpression());
+    }
+
+    /** The combined expression's parts after its first {@code expression}, folded as above. */
+    private ValueSpecification parseCombinedParts(ValueSpecification expr) {
         // engine invariant: arth and bool are never both non-empty — one is
         // flushed the moment a part of the other kind arrives
         List<OperatorParts.ArithPart> arth = new ArrayList<>();
@@ -666,6 +693,15 @@ public final class SpecParser implements TokenStreamCursor {
             if (t == TokenType.MINUS) {
                 int opTok = pos;
                 pos++;
+                if (instanceData && (peek() == TokenType.INTEGER || peek() == TokenType.FLOAT
+                        || peek() == TokenType.DECIMAL)) {
+                    // a model store's -1: legend-engine's model-data walker reads a signed number as ONE literal, its
+                    // span the sign and the digits (ModelStoreDataParseTreeWalker.visitInstanceLiteral; probe
+                    // neg-literals); the ###Pure walker keeps a minus call
+                    ValueSpecification n = peek() == TokenType.INTEGER ? parseInteger()
+                            : peek() == TokenType.FLOAT ? parseFloat() : parseDecimal();
+                    return signedLiteral(n, true, spanOf(opTok, pos - 1));
+                }
                 // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
                 // func (no collection) spanning just the operator token.
                 // -5 RomanLength~Pes: the sign belongs to the NUMBER of a unit
@@ -683,11 +719,42 @@ public final class SpecParser implements TokenStreamCursor {
             if (t == TokenType.PLUS) {
                 int opTok = pos;
                 pos++;
+                if (instanceData && (peek() == TokenType.INTEGER || peek() == TokenType.FLOAT
+                        || peek() == TokenType.DECIMAL)) {
+                    // a model store's +1, as its -1: one literal (ModelStoreDataParseTreeWalker.visitInstanceLiteral's
+                    // PLUS arms; 2026-10-21, the independent audit)
+                    ValueSpecification n = peek() == TokenType.INTEGER ? parseInteger()
+                            : peek() == TokenType.FLOAT ? parseFloat() : parseDecimal();
+                    return signedLiteral(n, false, spanOf(opTok, pos - 1));
+                }
                 return new AppliedFunction("plus", List.of(parseExpression()),
                         List.of(), spanOf(opTok, opTok), false, false, true);
             }
         }
         return parsePrimary();
+    }
+
+    /** A number literal negated, as one literal at {@code span} (a model store's {@code -1}). */
+    /** A signed number literal, its span the sign and the digits: negated when {@code negative}; a float keeps its
+     *  exact digits, and an integer that fits a long is a long (-9223372036854775808 too), as a reader of its JSON
+     *  gives it back (2026-10-21, the independent audit: both were lost). */
+    private static ValueSpecification signedLiteral(ValueSpecification n, boolean negative,
+            com.legend.protocol.SourceInfo span) {
+        return switch (n) {
+            case com.legend.protocol.spec.CInteger c -> {
+                java.math.BigInteger v = c.value() instanceof java.math.BigInteger big ? big
+                        : java.math.BigInteger.valueOf(c.value().longValue());
+                java.math.BigInteger signed = negative ? v.negate() : v;
+                yield new com.legend.protocol.spec.CInteger(
+                        signed.bitLength() < 64 ? (Number) signed.longValue() : signed, span);
+            }
+            case com.legend.protocol.spec.CFloat c -> new com.legend.protocol.spec.CFloat(
+                    negative ? -c.value() : c.value(),
+                    c.exact() == null || !negative ? c.exact() : c.exact().negate(), span);
+            case com.legend.protocol.spec.CDecimal c -> new com.legend.protocol.spec.CDecimal(
+                    negative ? c.value().negate() : c.value(), span);
+            default -> throw new IllegalStateException("a number literal is an integer, a float or a decimal: " + n);
+        };
     }
 
     /**
@@ -1752,7 +1819,11 @@ public final class SpecParser implements TokenStreamCursor {
                 && tokens.type(pos + 1) == TokenType.EQUAL) {
             String key = text();
             pos += 2;                               // name + '='
-            ValueSpecification value = parseCombinedExpression();
+            int valueTok = pos;
+            ValueSpecification value = parseKeyValue();
+            if (instanceData && dialect.refusesLiteExtensions()) {
+                requireDataValue(value, valueTok);
+            }
             properties.add(new com.legend.protocol.spec.NewInstance
                     .KeyBinding(key, new KeyExpression(value, false, false)));
             return;
@@ -1787,10 +1858,79 @@ public final class SpecParser implements TokenStreamCursor {
                 "expected '" + (isAdd ? "+=" : "=")
                 + "' after property name '" + key
                 + "' in ^NewInstance binding");
-        ValueSpecification value = parseCombinedExpression();
+        if (instanceData && isAdd) {
+            // the engine's data grammar binds with '=' alone (ModelStoreDataParserGrammar instancePropertyAssignment)
+            // and its data JSON keeps no add: refused at every dialect rather than dropped (2026-10-21, the
+            // independent audit: it was written as an assignment)
+            throw error("'+=' is not model store data's: a data instance binds '" + key + "' with '='");
+        }
+        if (instanceData && dialect.refusesLiteExtensions() && key.indexOf(".") >= 0) {
+            throw error("a dotted key is not model store data's: '" + key + "'");
+        }
+        int valueTok = pos;
+        ValueSpecification value = parseKeyValue();
+        if (instanceData && dialect.refusesLiteExtensions()) {
+            requireDataValue(value, valueTok);
+        }
+        if (dialect.refusesLiteExtensions() && !instanceData) {
+            // the engine's walker keys a binding by its FIRST identifier (`val.identifier(0)`: addr.city = .. keys
+            // addr) and never sets KeyExpression.add (`+=` reads as `=`); lite's dialect keeps both
+            // (docs/SEMANTICS_REGISTER.md S89, the user's rule A, 2026-10-21)
+            int dot = key.indexOf(".");
+            if (dot >= 0) {
+                key.setLength(dot);
+            }
+            isAdd = false;
+        }
         properties.add(new com.legend.protocol.spec.NewInstance
                 .KeyBinding(key.toString(),
                         new KeyExpression(value, isAdd, false)));
+    }
+
+    /**
+     * A data binding's value at the engine's dialect: what its data grammar reads (ModelStoreDataParserGrammar
+     * {@code instanceRightSide}) -- a literal (a signed number one literal), an instance, an enumeration value, or a
+     * list of those -- and nothing else (2026-10-21, the independent audit: an operator or a call was accepted there).
+     */
+    private void requireDataValue(ValueSpecification value, int valueTok) {
+        List<ValueSpecification> atoms = value instanceof com.legend.protocol.spec.PureCollection c
+                && tokens.type(valueTok) == TokenType.BRACKET_OPEN ? c.values() : List.of(value);
+        for (ValueSpecification a : atoms) {
+            boolean atomic = switch (a) {
+                case com.legend.protocol.spec.CString x -> true;
+                case com.legend.protocol.spec.CInteger x -> true;
+                case com.legend.protocol.spec.CFloat x -> true;
+                case com.legend.protocol.spec.CDecimal x -> true;
+                case com.legend.protocol.spec.CBoolean x -> true;
+                case com.legend.protocol.spec.CDate x -> true;
+                case com.legend.protocol.spec.CTime x -> true;
+                case com.legend.protocol.spec.EnumValue x -> true;
+                // an enumeration value as written (qualifiedName.identifier) and a ^New(...) instance
+                case AppliedProperty p -> p.receiver() instanceof PackageableElementPtr;
+                case AppliedFunction f -> f.parameters().size() == 2 && f.parameters().get(1) instanceof NewInstance;
+                default -> false;
+            };
+            if (!atomic) {
+                throw new com.legend.parser.ParseException("model store data takes a literal, an instance or an"
+                        + " enumeration value (or a list of them), as legend-engine's data grammar reads it",
+                        tokens.startLine(valueTok), tokens.startColumn(valueTok));
+            }
+        }
+    }
+
+    /**
+     * A binding's value as the dialect reads it. The engine's walker keeps only the FIRST {@code expression} of the
+     * right side ({@code processRightSide}: {@code combinedExpression().expression()}) -- an expression with its own
+     * trailing {@code ==} or {@code !=} (the grammar's {@code expression: ... (equalNotEqual)?}, which
+     * {@link #parseExpression} mirrors) -- so at its dialect {@code s = 'a' + 'b' + $v} binds {@code 'a'},
+     * {@code h = $a || $b} binds {@code $a}, and {@code b = $x == 1 && $c} binds {@code $x == 1} (2026-10-21, the
+     * independent audit: a cut of the finished tree took that to {@code $x}); lite's dialect binds what was written
+     * (S89, rule A). The rest is parsed either way, so the text's end is the same.
+     */
+    private ValueSpecification parseKeyValue() {
+        ValueSpecification first = parseExpression();
+        ValueSpecification whole = parseCombinedParts(first);
+        return dialect.refusesLiteExtensions() && !instanceData ? first : whole;
     }
 
     /**
@@ -2530,16 +2670,12 @@ public final class SpecParser implements TokenStreamCursor {
             name = name + "~" + text();
             pos++;
         }
-        String simple = name.contains("::")
-                ? name.substring(name.lastIndexOf("::") + 2)
-                : name;
-
         // @Relation<(col:Type, ...)> — structural relation shape.
         // The lookahead must check BOTH '<' and the following '(' to
         // distinguish from @Relation<T> (a hypothetical generic
         // application of a class named 'Relation'). Engine grammar
         // reserves the structural form for the parenthesised inner.
-        if ("Relation".equals(simple)
+        if (TypeAnnotation.RelationShape.spelledRelation(name)
                 && !atEnd()
                 && peek() == TokenType.LESS_THAN
                 && pos + 1 < tokens.count()
@@ -2657,10 +2793,9 @@ public final class SpecParser implements TokenStreamCursor {
             type = new TypeAnnotation.Named(parseType());
         }
 
-        Multiplicity multiplicity = null;
-        if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {
-            multiplicity = parseMultiplicity();
-        }
+        // undeclared is [0..1], as the engine's walker and legend-pure read a relation column (leg 8 step 2)
+        Multiplicity multiplicity = !atEnd() && peek() == TokenType.BRACKET_OPEN
+                ? parseMultiplicity() : Multiplicity.range(0, 1);
         // wire span = name .. type end, extended through a DECLARED multiplicity
         return new TypeAnnotation.RelationShape.Column(name, type, multiplicity,
                 spanOf(nameTokIdx, pos - 1));
@@ -2850,6 +2985,16 @@ public final class SpecParser implements TokenStreamCursor {
             boolean isDatedSeg = open > 0 && seg.endsWith(")")
                     && isWord(seg.substring(0, open))
                     && seg.indexOf(')') == seg.length() - 1;
+            if (isDatedSeg && seg.substring(open + 1, seg.length() - 1).strip().isEmpty()
+                    && dialect().refusesPlatformDialect()) {
+                // prop(): no argument -- at the engine's and lite's dialects the property itself, as $x.f() is $x.f
+                // (leg 8 step 2); a segment's JSON carries no parentheses (PropertyPathElement's parameters empty)
+                String name = seg.substring(0, open);
+                pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
+                        name, cursor, cursor + lead + seg.length() - 1, List.of(), false));
+                body = new AppliedProperty(body, name);
+                continue;
+            }
             if (isDatedSeg) {
                 String datedName = seg.substring(0, open);
                 String datedArgs = seg.substring(open + 1, seg.length() - 1);
@@ -3038,24 +3183,30 @@ public final class SpecParser implements TokenStreamCursor {
         String raw = text();
         int tok = pos;
         pos++;
-        // the wire's tdsString is the INNER text — after the '{', before
-        // the '}#', UNTRIMMED (ZTailProbe "tds-accessor"); the desugared
-        // tds(...) application keeps the verbatim token text the compiler
-        // has always consumed
-        int open = raw.indexOf('{');
-        int close = raw.lastIndexOf('}');
         // The BRACE form (#TDS{...}#) is the ENGINE's own xt-tds grammar;
         // the BRACE-LESS form (#TDS ... #) is legend-pure's
         // platform_dsl_tds spelling, which the engine REFUSES
         // (adjudication probe 2026-08-14: brace form ACCEPT, brace-less
         // refuse — the earlier "#TDS is real everywhere" note conflated
         // the two). Drop-in refuses brace-less; PLATFORM/LITE keep it.
-        if (!(open >= 0 && close > open) && dialect().refusesLiteExtensions()) {
+        boolean braced = raw.startsWith("#TDS{") && raw.endsWith("}#");
+        // a braced literal the input ends, or a section cuts, before its "}#": refused in its own words, never read
+        // as brace-less with its '{' for a header (the Compiler Rewrite line's review, 2026-10-13)
+        if (!braced && raw.startsWith("#TDS{")) {
+            throw error("unterminated #TDS{ literal: no }# closes it");
+        }
+        if (!braced && dialect().refusesLiteExtensions()) {
             throw error("brace-less #TDS literal is not supported");
         }
-        String inner = open >= 0 && close > open
-                ? raw.substring(open + 1, close) : raw;
-        return com.legend.protocol.spec.TdsLiteral.of(inner, raw, spanOf(tok, tok));
+        // the table is the text between the delimiters, UNTRIMMED: the
+        // wire's tdsString for the brace form (ZTailProbe "tds-accessor"),
+        // and what the desugared tds(...) application hands the compiler in
+        // either form (the lexer ends a brace-less token at its first '#',
+        // so one cut by a section boundary has none to drop)
+        String inner = braced
+                ? raw.substring("#TDS{".length(), raw.length() - "}#".length())
+                : raw.substring("#TDS".length(), raw.endsWith("#") ? raw.length() - 1 : raw.length());
+        return com.legend.protocol.spec.TdsLiteral.of(inner, spanOf(tok, tok));
     }
 
     // -------------------------------------------------------------------
@@ -3424,7 +3575,17 @@ public final class SpecParser implements TokenStreamCursor {
         // tree has parameters and no mark for the parentheses; leg 8 step 2)
         List<ValueSpecification> args = List.of();
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
+            int open = pos;
             args = parseArgList();
+            for (int t = open; t < pos && dialect().refusesLiteExtensions(); t++) {
+                if (tokens.type(t) == TokenType.LATEST_DATE) {
+                    // the engine's grammar admits %latest here and its walker reads it as a literal, which it is
+                    // not (GraphFetchTreeParseTreeWalker.visitScalarParameterContext fails), so no JSON carries
+                    // one (leg 8 step 2)
+                    throw TokenStreamCursor.throwAt(tokens, t,
+                            "%latest as a graph fetch argument is not supported in Legend Engine");
+                }
+            }
         }
         // prop->subType(@Sub) { ... } — the PROPERTY-LEVEL subtype view
         // (simpleObject corpus family): the node's children read Sub's properties

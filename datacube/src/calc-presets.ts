@@ -27,6 +27,7 @@ import {
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import type { Bins, LayerStat, ShowAs, ShowAsKind, TimeGrain } from './chart-spec.ts';
+import { isNumeric } from '../../engine-client/src/types.ts';
 import type { DerivedColumn, FilterNode, SortSpec, WindowSpec } from './snapshot.ts';
 
 const x = (): ValueSpecification => variable('x');
@@ -337,7 +338,8 @@ export function ringTotalColumn(measure: string, across: string): DerivedColumn 
 /**
  * A period or a bin as conditions on the cube's own column: from its start to `upper`, the database's end of it
  * (exclusive: the next period's first day, the next bin's edge). A literal is written by the column's type: a day for
- * a StrictDate, a timestamp for a DateTime, the number for a number -- another type has no range here, and is refused.
+ * a StrictDate, a timestamp for a DateTime, the number for a number (a big integer's digits as they are, which the
+ * literal writer spells by the type) -- another type has no range here, and is refused.
  */
 export function rangeConditions(
   column: string,
@@ -349,6 +351,7 @@ export function rangeConditions(
     if (typeof v !== 'string') return v;
     if (type !== undefined && /StrictDate$/.test(type)) return v.slice(0, 10);
     if (type !== undefined && /(DateTime|Timestamp)$/.test(type)) return v.length <= 10 ? `${v}T00:00:00` : v;
+    if (isNumeric(type) && /^-?\d+$/.test(v)) return v;
     throw new Error(`a range of '${column}' (${type ?? 'untyped'}) has no literal for ${JSON.stringify(v)}`);
   };
   return [

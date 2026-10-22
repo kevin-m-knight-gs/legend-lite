@@ -50,7 +50,7 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
             // column was a double -- and is removed
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
-            // NOTE 2026-10-20 (plan-route parity, register S81): testConcatenateTypeInference passes again: an instance
+            // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
             // MixedEncoding.withClass), and the text carrier spells the subclass it names
             // (LiteralSpelling.jsonInstanceText).

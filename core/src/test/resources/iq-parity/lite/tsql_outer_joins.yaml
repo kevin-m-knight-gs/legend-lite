@@ -1,0 +1,81 @@
+# The T-SQL outer joins, *= and =* (IQ island, 2026-10-15, checklist 0.6, measured on the live IQ 17.1, whose PUBLIC
+# tsql_outer_joins is On): a *= b keeps a's rows, NULL-extending b's; a condition of the WHERE that reads the
+# NULL-extended table (alone, with the table that keeps it, or with a constant or a subquery) is part of the join, the
+# rest filters its rows. A chain is IQ's -680, a table NULL-extended by two tables its -136, an ANSI join beside them its
+# -681, tsql_outer_joins Off its -1099. Judged by the live IQ, but the iq16 case of the option Off (SQL Anywhere's
+# default too). Every case is deterministic.
+tests:
+  - id: left_outer
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: right_outer
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id =* u.t_id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: right_outer_written_the_other_way
+    sql: "SELECT t.id, u.label FROM t, u WHERE u.t_id =* t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: a_condition_on_the_inner_table_joins
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id AND u.label <> 'one' ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: a_condition_on_the_outer_table_filters
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id AND t.id < 4 ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: two_predicates_one_join
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id AND t.id *= u.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: is_null_of_the_inner_table_joins
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id AND u.qty IS NULL ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: a_constant_condition_on_the_inner_table_joins
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id AND u.t_id = 1 ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: a_condition_on_both_tables_joins
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id AND t.id < u.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: unqualified_columns
+    sql: "SELECT t.id, label FROM t, u WHERE t.id *= t_id AND label <> 'one' ORDER BY t.id, label"
+    profile: iq17-default
+  - id: an_expression_side
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id + 0 *= u.t_id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: a_third_table_inner_joined
+    sql: "SELECT t.id, u.label, g.id AS gid FROM t, u, g WHERE t.id *= u.t_id AND g.id = t.id ORDER BY 1, 2, 3"
+    profile: iq17-default
+  - id: two_inner_tables_of_one_outer
+    sql: "SELECT t.id, u.label, g.id AS gid FROM t, u, g WHERE t.id *= u.t_id AND t.id *= g.k ORDER BY 1, 2, 3"
+    profile: iq17-default
+  - id: the_inner_table_listed_first
+    sql: "SELECT t.id, u.label FROM u, t WHERE t.id *= u.t_id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: qualified_stars
+    sql: "SELECT u.*, t.sm FROM t, u WHERE t.id *= u.t_id ORDER BY t.sm, u.id"
+    profile: iq17-default
+  - id: counted_and_grouped
+    sql: "SELECT t.id, COUNT(u.id) AS n, COUNT(*) AS m FROM t, u WHERE t.id *= u.t_id GROUP BY t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: counted
+    sql: "SELECT COUNT(*) AS n, COUNT(u.id) AS m FROM t, u WHERE t.id *= u.t_id"
+    profile: iq17-default
+  - id: star_with_the_inner_table_first_is_refused
+    sql: "SELECT * FROM u, t WHERE t.id *= u.t_id"
+    profile: iq17-default
+  - id: a_chain_is_iqs_error
+    sql: "SELECT t.id FROM t, u, g WHERE t.id *= u.t_id AND u.id *= g.id"
+    profile: iq17-default
+  - id: a_cycle_is_iqs_error
+    sql: "SELECT t.id FROM t, u, g WHERE t.id *= u.t_id AND g.id *= u.id"
+    profile: iq17-default
+  - id: beside_an_ansi_join_is_iqs_error
+    sql: "SELECT t.id FROM t JOIN g ON g.id = t.id, u WHERE t.id *= u.t_id"
+    profile: iq17-default
+  - id: under_or_is_refused
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id OR t.id = 1 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: off_is_iqs_error
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id"
+    settings: "query.tsql_outer_joins='Off'"
+    profile: iq17-default
+  # off in IQ 16 (and SQL Anywhere), its default; on in the live IQ 17.1, its PUBLIC value
+  - id: off_in_iq16_on_in_iq17
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id ORDER BY t.id, u.label"
+    profile: iq16-default

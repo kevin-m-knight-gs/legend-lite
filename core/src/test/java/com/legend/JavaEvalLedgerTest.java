@@ -112,7 +112,16 @@ class JavaEvalLedgerTest {
             // (verbatim injection, probed) and the silent property-drop
             // channels became LOUD WALLS (generic classes, no-path
             // types) — wall growth, zero evaluation
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 266),
+            // 266 -> 261 (2026-10-21, the reference checks): primitivePureName deleted -- a primitive is judged by
+            // its M3 kind (the name match missed 'Integer' and injected the primitive as a class)
+            // 261 -> 281 (the same day, the independent audit): typeVariableValues -- a precise primitive's values
+            // (Varchar(200)) rendered as written or refused loudly, never dropped: wall growth, zero evaluation
+            // 281 -> 318 (2026-10-22, main's merge into the plan path branch, measured): the branch's own extraction of
+            // 2026-10-20 -- a test's own primitive declared (renderPrimitiveDef: Primitive my::P extends Integer, a
+            // parameterised one refused by name), a platform primitive skipped by the catalog (Type.Primitive), and a
+            // property's <<equality.Key>> stereotype carried (equalityKey, object identity step 3): model text
+            // extracted, zero evaluation
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 318),
             // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
             // Float shape (FloatCoreInstance IS BigDecimal-backed)
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),
@@ -147,7 +156,10 @@ class JavaEvalLedgerTest {
             // 882 -> 860 (2026-10-16, the dialect program's Phase 3): the three H2-defaulting single() overloads
             // collapsed into one taking the runtime's connection, and the scalar select item is the plan text's
             // dialect's select list (EngineTextDialect.selectList), not cut out of the rendered text
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 860),
+            // 860 -> 862 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
+            // plan printer's exhaustive store-type spelling gains the relational grammar's TIME and TIMESTAMP_NS column
+            // types (one arm each); a type's name, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 862),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
@@ -705,7 +717,11 @@ class JavaEvalLedgerTest {
             // judges, planHostSide -- the let prefix, the inliner's splice, the natives' staging, the store
             // resolution, the wire reconciliation -- so both judges' sides take the one road; nothing evaluated;
             // the executor is deleted by the program's step 11; measured 2026-10-19 at step 9's merge)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2323),
+            // 2296 -> 2298 on main (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its
+            // PR): the datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types
+            // (one entry each); a type mapped, nothing evaluated. -> 2326 at main's merge into the plan path branch
+            // (2026-10-22, measured): both sides' lines, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2326),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1053,8 +1069,8 @@ class JavaEvalLedgerTest {
                     "PlanRunner.java", "PlanParameters.java", "PlanSessions.java", "BulkLoads.java",
                     // the Statements seam (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): what a session does
                     // with a plan's text -- JdbcStatements is the runner's JDBC moved whole (prepare, bind, run,
-                    // the one getString: carriage); DatabaseConnector is the seam a database with no JDBC joins
-                    // through, beside the drivers, Connectors finding them as BulkLoads finds the loaders. No value
+                    // the one getString: carriage); DatabaseConnector (main's Phase 5, listed below since its merge,
+                    // 2026-10-22) is also the seam a database with no JDBC joins through, beside the drivers. No value
                     // is computed or compared: the database executes
                     // the typed seam (2026-10-18, the plan path program's step 7,
                     // docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3 and §4): JdbcDecode reads a row's cells from
@@ -1062,7 +1078,7 @@ class JavaEvalLedgerTest {
                     // and unwrap rules, the slot first); nothing computed, nothing compared. RowDecode (step 6)
                     // stays for a document's row and a JSON-carried cell
                     "JdbcDecode.java",
-                    "Statements.java", "JdbcStatements.java", "DatabaseConnector.java", "Connectors.java",
+                    "Statements.java", "JdbcStatements.java",
                     "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",
                     // leg 3.4 (2026-09-20): the body's DEFERRED verdict
@@ -1088,6 +1104,16 @@ class JavaEvalLedgerTest {
                     // session's product checked, a declared connection or a private
                     // in-memory database opened; reads names, computes nothing
                     "Sessions.java",
+                    // the dialect program's Phase 5 (2026-10-16, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md):
+                    // each database's sessions in a connector of its own -- its driver's product name, the URL a
+                    // declared connection opens, its private in-memory instance -- and Connectors the one place
+                    // a declared type finds its connector; Sessions asks them. Names, URLs and openings, and
+                    // MariaDbConnector's one fixed read and reset of a session's held raise (its two statements,
+                    // moved from Sessions): nothing is evaluated, produced or compared
+                    "DatabaseConnector.java", "Connectors.java", "H2Connector.java", "DuckDbConnector.java",
+                    "SqliteConnector.java", "PostgresConnector.java", "MariaDbConnector.java",
+                    "MySqlConnector.java", "SnowflakeConnector.java", "DatabricksConnector.java",
+                    "BigQueryConnector.java", "TrinoConnector.java", "ClickHouseConnector.java",
                     // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
                     // construction — the statements the effect natives would have
                     // sent, collected (text + the ledger's text + a statically
@@ -1127,8 +1153,9 @@ class JavaEvalLedgerTest {
                     // TestAssertions became delegations to it. It compares
                     // two produced sides and never produces a value.
                     "Equality.java",
-                    "H2Settings.java",
-                    "ColumnProbe.java",   // ColumnProbe, renamed for what it does (2026-10-17)
+                    // (H2Settings.java: H2's URL settings, DELETED 2026-10-16 -- into H2Connector.SETTINGS,
+                    // the dialect program's Phase 5)
+                    "ColumnProbe.java",   // PctProbe, renamed ColumnProbe for what it does (2026-10-17)
                     // leg 3.3 (2026-09-19): the wire-decided kinds of a
                     // store-reading verdict side are the DATABASE's — one
                     // prepare (no row fetched), the reported type cast
@@ -1369,6 +1396,9 @@ class JavaEvalLedgerTest {
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
                             "PureV1Api.java",
+                            // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
+                            // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
+                            "ModelInput.java",
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
                             // the rules over a records interface, one implementation for the server, Python and the page)
                             "QueryService.java"),

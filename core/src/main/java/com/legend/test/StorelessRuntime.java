@@ -49,36 +49,20 @@ public final class StorelessRuntime {
         return runtime(type, specificationAndAuth(type));
     }
 
-    /** {@code model} with the storeless runtime on a MongoDB server (2026-10-16, docs/MONGODB_PLAN_2026_10_16.md D4):
-     *  an empty {@code ###MongoDB} store and legend-engine's own {@code MongoDBConnection} naming the server, its
-     *  database and a user whose password the system property {@code passwordProperty} holds (the engine's
-     *  {@code SystemPropertiesSecret}; a MongoDBConnection always declares an authentication). */
-    public static String onMongo(String model, String host, int port, String database, String username,
-            String passwordProperty) {
-        return model + "\n" + String.format(java.util.Locale.ROOT, """
-                ###MongoDB
-                Database storeless::Store ( )
-                ###Connection
-                MongoDBConnection storeless::Connection
-                {
-                  database: %s;
-                  store: storeless::Store;
-                  serverURLs: [%s:%d];
-                  authentication: # UserPassword {
-                    username: '%s';
-                    password: SystemPropertiesSecret
-                    {
-                      systemPropertyName: '%s';
-                    };
-                  }#;
-                }
+    /** {@code model} with the storeless runtime over an empty store of the section {@code storeSection}, its connection
+     *  {@code connection}'s declaration (a store and a connection that are not relational: a MongoDB's, whose test
+     *  backend owns their text since main's merge, 2026-10-22, docs/MONGODB_PLAN_2026_10_16.md D4). The connection is
+     *  named {@code storeless::Connection} and reads {@code storeless::Store}. */
+    public static String declaringConnection(String model, String storeSection, String connection) {
+        return model + "\n###" + storeSection + "\nDatabase storeless::Store ( )\n###Connection\n" + connection + """
+
                 ###Runtime
                 Runtime storeless::Runtime
                 {
                   mappings: [];
                   connections: [ storeless::Store: [ session: storeless::Connection ] ];
                 }
-                """, database, host, port, username, passwordProperty);
+                """;
     }
 
     private static String runtime(DatabaseType type, String specificationAndAuth) {
@@ -101,21 +85,9 @@ public final class StorelessRuntime {
                 """.formatted(type, specificationAndAuth);
     }
 
-    /** The connection's specification and authentication, as the in-process session on {@code type} is opened. */
+    /** The connection's specification and authentication, as the in-process session on {@code type} is opened: its
+     *  connector's ({@code exec.DatabaseConnector.storelessDeclaration}). */
     private static String specificationAndAuth(DatabaseType type) {
-        return switch (type) {
-            case DuckDB -> "specification: DuckDB { };\n  auth: Test";
-            case H2 -> "specification: LocalH2 { };\n  auth: DefaultH2";
-            case SQLite -> "specification: SQLite { };\n  auth: Test";
-            case Postgres, MariaDB, MySQL -> throw new IllegalArgumentException(type + " is a server: its storeless runtime"
-                    + " declares the session's coordinates (onServer)");
-            case MongoDB -> throw new IllegalArgumentException(type + " is a server, and its connection is the"
-                    + " engine's MongoDBConnection: its storeless runtime declares the session's coordinates"
-                    + " (onMongo)");
-            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
-                    throw new IllegalArgumentException("no storeless runtime on " + type
-                            + ": the platform does not execute on it");
-        };
+        return com.legend.exec.Connectors.of(type).storelessDeclaration();
     }
 }

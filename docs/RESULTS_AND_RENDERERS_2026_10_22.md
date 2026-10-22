@@ -83,7 +83,7 @@ second planner), made for results.
   carriage site in `JavaEvalLedgerTest`. This is the charter clause.
 - **D4. Legacy compatibility is a renderer, not an executor.** legend-engine's API is one renderer, judged byte for
   byte against measured legend-engine output (`OutputMatrixTest`); a deliberate difference is a row in
-  `SEMANTICS_REGISTER.md`, as S76 is today. PCT and the corpus go through `ValueBridge`. Execution is never forked.
+  `SEMANTICS_REGISTER.md`, as S97 is today. PCT and the corpus go through `ValueBridge`. Execution is never forked.
 - **D5. The database keeps all meaning:** kinds A, B and C of §0.2. The SQL that exists only to write output text is
   retired (§7).
 
@@ -112,7 +112,7 @@ there must be one implementation, the database's. For carriage there is nothing 
 
 **legend-engine's API.** Its envelope (`builder`, `activities`, `result`) is already Java (`PureV1Api`). The rows
 become Java too: a Float by `Double.toString`, a DateTime by legend-engine's nine-digit `+0000` form, a Decimal at its
-own scale (S76). It is judged by bytes: `OutputMatrixTest` stays the gate, and must pass unchanged when the route
+own scale (S97). It is judged by bytes: `OutputMatrixTest` stays the gate, and must pass unchanged when the route
 switches. The SQL emulations go: `LiteralSpelling.floatPrintJava` (now `SqlFn.FLOAT_PRINT_ENGINE`),
 `dateTimeTextEngine`, `WireRender`'s JSON and CSV wires. So do MySQL's and MariaDB's megabyte statements.
 
@@ -132,7 +132,7 @@ To be completed in the first step, one row per kind, each with its round-trip te
 |---|---|---|---|---|
 | Integer | BIGINT; HUGEINT past 64 bits | `getLong` / `getBigDecimal` | the slot | an Integer past 64 bits has no Arrow type |
 | Float | DOUBLE | `getDouble` (exact bits) | none | none: the 22 Snowflake tests came from text, not the read |
-| Decimal | DECIMAL(p, s) | `getBigDecimal` | the value's scale (S76) | BigQuery's BIGNUMERIC drops a value's scale |
+| Decimal | DECIMAL(p, s) | `getBigDecimal` | the value's scale (S97) | BigQuery's BIGNUMERIC drops a value's scale |
 | String, Boolean | VARCHAR, BOOLEAN | exact | none | none |
 | StrictDate, DateTime | DATE, TIMESTAMP | `getObject` per driver | the precision | time zones; Snowflake refuses java.time re-fetch |
 | year-only, year-month dates | text | text | the precision | carried as data today (kind B) |

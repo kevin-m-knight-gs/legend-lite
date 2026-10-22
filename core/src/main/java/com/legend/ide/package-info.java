@@ -18,14 +18,15 @@
  *       finds element boundaries without parsing bodies.</li>
  *   <li>{@link com.legend.ide.ModelOrchestrator} &mdash; demand-driven
  *       parser facade. Given an FQN, slices the token range out of the
- *       parent stream and runs {@code ElementParser.parseSingle(slice)}.
+ *       parent stream and runs {@code ElementParser.parseSingle(slice)} (the element's record, which the
+ *       text's door, {@code ModelFromText.element}, makes the compiler's model).
  *       Memoizes results.</li>
  * </ul>
  *
  * <h2>What does NOT live here</h2>
  * The batch compiler (parser, name resolver, model builder, type
  * checker, lowerer, dialect, executor) parses eagerly via
- * {@link com.legend.parser.ElementParser#parseLegendLite(String)} and does not
+ * {@link com.legend.door.ModelFromText#parse} and does not
  * consult this package. Compiler layers must not import
  * {@code com.legend.ide.*}.
  *

@@ -1327,6 +1327,228 @@ Recorded, not fixed:
   `lite/dates.yaml` 44, `lite/windows.yaml` 65): PASS 344, REFUSED 58, BOTH_ERROR 75;
 - 0 FAIL, 0 BUG, 0 ERROR.
 
+### 9.5 The corpus program, step 1: the PostgreSQL regression suite (run 2026-10-17, on the branch)
+
+The user, after the stress corpus: "stick to selects but we should try to do all the compatibility tests and real world
+tests we can". The order (IN_FLIGHT, 2026-10-17): the PostgreSQL regression suite, sqllogictest, TPC-H and TPC-DS,
+SQLStorm's and BIRD's PostgreSQL sets, JOB, a SQLancer-style generator. Each step is one PR; this is the first.
+
+**The harness.** `//core:pg_regress_corpus_test` (manual, in `//gates:heavy`) replays the suite's own scripts on the
+embedded Postgres 16: the PostgreSQL repository's `src/test/regress` (https://github.com/postgres/postgres,
+REL_16_STABLE at 8e928803020e; its `sql/`, `data/` and `parallel_schedule`, not `expected/`; the PostgreSQL License),
+kept outside the repository and named by `-Dsql.corpus.regress`. The run:
+- One database, `regression` (UTF8, collation C). The schedule's files run in order, one at a time, each on a fresh
+  session, so each file's setup (`CREATE`, `INSERT`, `COPY ... FROM stdin`, its `\set` variables) is Postgres's.
+- `Psql` (`core/src/test/java/com/legend/testcases/`) splits a script as psql does: quotes, `E''` and dollar quoting,
+  nested comments, `BEGIN ATOMIC` bodies, and the meta-commands that matter here (`\set`, `\unset`, `\getenv`, `\gset`,
+  `\gexec`, `\if`, `\c`). `COPY ... FROM stdin` is sent as a server-side COPY of a temporary file. A `SET` of DateStyle
+  keeps the ISO output pgjdbc needs, so only the input order changes; IntervalStyle and client_encoding are not sent,
+  since pgjdbc closes the session on them.
+- Each read-only statement (a SELECT, WITH, VALUES or TABLE with no INSERT, UPDATE, DELETE, MERGE or INTO) is judged
+  before it is sent as the script means it. It runs under a savepoint, so a statement Postgres rejects is judged and
+  then still aborts the script's transaction.
+- The judge: Postgres's answer, twice (rows that differ between the two runs are NONDETERMINISTIC); the relations the
+  statement names, read from the catalog and declared as a `###Relational` database of their modeled columns; the
+  statement as `#SQL{...}#` over that database, run on the same session (`QueryService.execute`); `SqlParity`'s
+  verdict.
+- Statuses beyond `SqlParity`'s:
+  - NAMES: the values agree, a column's name does not.
+  - UNMODELED: a table or column of a type the model cannot declare (oid, the geometric types, arrays, ranges).
+  - CATALOG: a read of `pg_*` or `information_schema`.
+  - REGISTERED: a difference the register rules (S49).
+  - KNOWN: a wrong answer the harness's ledger names, with why.
+  - HARNESS: the harness itself failed.
+- A wrong answer's report row carries the SQL legend-lite ran.
+
+**The first full run** (15,714 statements, 208 s) found 41 FAIL, 48 BUG and 86 NAMES. Each was traced:
+
+- **The harness's own reads (15 FAIL, 15 BUG).** The reference read Postgres's dates and timestamps through
+  `java.sql.Date` and `Timestamp`, so a BC year lost its era and `infinity` became a date in the year 292278994; and
+  the script's `SET datestyle TO ymd` changed how Postgres read a date's text, where the island reads Postgres's
+  default (ISO, MDY, §9.4). `SqlParity.grid` now reads a Postgres date or timestamp as its java.time value, and under
+  a DateStyle the script set, the judge's reference is Postgres's answer under the default.
+- **The executor (3 FAIL).** It read a DATE cell through `java.sql.Date` too, so a BC date came back as the AD date:
+  re-fetched as `LocalDate`, as timestamps already were.
+- **Constant integer arithmetic (28 BUG).** `(-32768)::int2 * (-1)::int2` and
+  `'9223372036854775800'::int8 + '9223372036854775800'::int8` answered, because the planner folds constants exactly
+  where Postgres raises past the type. The island now holds integer arithmetic over constants to the Postgres type it
+  has (int2 with int2 is int2, else the wider; a constant is int4 where it fits, a minus before one is its value).
+  The test is written once, at the outermost arithmetic of constants, and only where the constants as written could
+  reach past the range, so `1 + 2` gains nothing. A step inside that may pass its own type's range part-way, which
+  the outer test cannot see (`(32767::int2 + 1::int2) * 0::int2`, `2147483647 + 1 - 1`), is refused by name. Two
+  folds wrapped on their own: `StaticFold`'s long sum and difference, and the lowering's negation of the least long.
+  Both now decline, or answer exactly.
+- **Smaller faults (11).** A float8 constant past a double's range (`'10e-400'::float8`) is Postgres's error. Two
+  WINDOW definitions of one name are Postgres's error (SQL Anywhere's island keeps the first). A `char(n)` cast to
+  `text` or `varchar` drops its padding. A string read with a `real` (a comparison, IN, BETWEEN, ANY, CASE,
+  COALESCE, lag's default) is refused by name: Postgres reads it as a float4, which Pure's Float is not. Both store
+  types reach the translator as the Postgres dialect's own detail of a column (`InputDialect.padded`,
+  `singlePrecision`).
+- **Names (86 NAMES, 13 more inside FAILs).** The island follows FigureColname's strengths. A cast's type or `case`
+  names an item only where what it holds has no name of its own. So `'1'::float8::int2` is `int2`, `date '...'` is
+  `date`, `CASE ... ELSE b END` is `b`, and `(SELECT max(x) ...)` is `max`. Type names are the grammar's: `int4`,
+  `float8`, `bpchar`.
+- **Ruled or left to the plan (10).** Six are register S49's ruled difference: a `json` value's object or array is
+  written as `jsonb` writes it, and Postgres's `json` keeps the text as written. The judge counts them REGISTERED.
+  Four are named in the harness's KNOWN ledger, each with its reason:
+  - a LIMIT that cuts through rows whose ORDER BY key ties;
+  - `last_value` over a partition with no window ORDER BY;
+  - Postgres folding a branch's constant `1/0` that no row reaches (its documented caveat, and the suite's own
+    comment);
+  - USING over an int and a bigint column, whose merged column is a cast Postgres's GROUP BY tells apart.
+
+**The independent review** (an agent that wrote none of it) found, and the branch fixed:
+- the corpus test inside the integration shard;
+- the duplicate-window error under SQL Anywhere;
+- a unary plus whose operand went untested;
+- an unsound bound (a product with 0, a divisor's subtree);
+- NAMES and REGISTERED decided from SqlParity's truncated details (now from the whole grids);
+- `count(*)` read as a select-list star;
+- a failing judge that left its savepoint open (now undone in a `finally`);
+- KNOWN entries matched by text alone (now by status and detail too);
+- statements that write outside their transaction (`nextval`, advisory locks), now left unjudged;
+- `SET LOCAL datestyle` sent as a session setting.
+
+The review's tests were added: `StaticFoldTest`, `PostgresArmTest`'s BC date, and nine lite parity cases on both lanes
+(constant overflow and its edges, the part-way refusal, a float8 past its range, two windows of one name, the names).
+The run after the fixes: PASS 2,637, FAIL 0, BUG 0, NAMES 0, KNOWN 4, REFUSED 7,219, ERROR 510.
+
+**The first easy refusal families** came next. The user: "We should fix the "easy" ones first".
+- **Typed constants (269).** `int2 '7'`, `bool 't'`, `float8 '1.5'` and `text 'x'` are Postgres's string cast to
+  the type, so the island reads them as that cast. A typed integer constant takes its width in the
+  constant-arithmetic rule. The run after them found a new wrong answer: `i.f1 * int2 '2'` answered where Postgres
+  raises. The cause is that Postgres computes a smallint over a smallint column, and the island's constant is an
+  integer. Integer arithmetic of a smallint constant beside a value that is not a constant is now refused by name.
+- **Strings (49).** `E'...'` reads Postgres's escapes: `\b \f \n \r \t`, octal and hex bytes, `\uXXXX`,
+  `\UXXXXXXXX`. `U&'...'` reads its code points and `UESCAPE`. A byte past ASCII is refused by name, since its
+  meaning is the client encoding's. A zero byte and a lone surrogate are Postgres's errors.
+- **VALUES lists (315).** Postgres defines `VALUES (...), (...)` as a `UNION ALL` of one-row SELECTs naming
+  `column1..N`, and the parser builds exactly that. The rows are combined as a balanced tree, so the plan's depth is
+  log n. There is no new AST node, and VALUES goes anywhere a query goes: a FROM item with column aliases, a CTE, a
+  set operation, the statement itself. Rows of different lengths, `DEFAULT` and a set-returning function in a row
+  are Postgres's errors.
+- **UNION's types.** For VALUES to answer, the set operations needed Postgres's resolution (`select_common_type`),
+  added in `PostgresDialect`'s set-operation hooks:
+  - an untyped NULL takes the other side's type (a UNION's only; an INTERSECT or EXCEPT of one stays refused by
+    name);
+  - an integer or a numeric beside a double precision becomes a double precision.
+
+  An integer beside a numeric, and a NULL beside a numeric, stay refused by name. The typer unites no two Decimal
+  precisions, and a cast to Decimal lowers to the database's DECIMAL; DuckDB, measured, rounded 2.5 to 3.
+- **The harness:**
+  - The relation a name reads is tracked by schema. A temporary table and public's of the same name had been read as
+    one relation of both their columns (the 41 "duplicate column" errors).
+  - A statement ordered only inside a subquery is compared unordered.
+  - LIMIT with no ORDER BY is the KNOWN ledger's fifth row.
+
+Six lite VALUES cases were snapped and added to both lanes. Upstream's `union_with_agg` and `union_dedup_null` went
+REFUSED to PASS on both.
+
+The run after:
+
+| Status | n |
+|---|---|
+| PASS | 2,823 |
+| NAMES | 0 |
+| FAIL | 0 |
+| BUG | 0 |
+| KNOWN | 5 |
+| REGISTERED | 6 |
+| REFUSED | 7,024 |
+| ERROR | 518 |
+| UNMODELED | 1,452 |
+| CATALOG | 1,237 |
+| BOTH_ERROR | 2,259 |
+| NONDETERMINISTIC | 160 |
+| SKIP | 7 |
+| HARNESS | 2 |
+
+15,493 statements were judged. 221 more write outside their transaction and were left to the script alone. The island
+is judged on 10,376 statements: PASS, KNOWN, REGISTERED, REFUSED and ERROR, where a model declares their tables and
+Postgres does not reject them where the island does too. Of these, 2,823 (27.2%) answer Postgres's rows, and none
+answers wrong. The suite tests Postgres's own types and catalogs more than ordinary queries do, so it measures
+breadth. The real-world corpora (step 4) will measure everyday SQL.
+
+**The cloud lanes.** The DATE re-fetch and the planner's folds reach the dialect program's lanes (`//gates:heavy`,
+which CI does not run). The program's sibling sessions measured base 86bbe71eb against f297bcc17 lane by lane. They
+compared pass/fail, SQL digests, census and channel B lines, and the whole test logs, masking durations only.
+BigQuery's 10 targets all pass on both, with every digest the same. Three log lines differ: an unordered result's row
+order twice, and generated UUIDs. No DATE cell's text changed, and the re-fetch is exercised there
+(`wire-delivered[BigQuery] TIMESTAMP <- DATE`). Siblings 1b and 1a measured the rest:
+- 92 PCT targets: DuckDB, SQLite, MariaDB, MySQL, ClickHouse, Postgres, Trino and H2;
+- both relational corpora.
+
+Every digest, census line and channel B line was the same, and the whole logs differed only in run ids. One target
+went red. ClickHouse's Date32 overflows `testAdjustByDaysBigNumber` to 1474328 BC, which its pin had recorded without
+the era; read as java.time, the cell keeps it (`%-1474327-10-18`), and the pin moved with a dated reason.
+
+**The largest refusals left:**
+- functions in FROM: 635, mostly functions the suite defines;
+- jsonpath: about 450;
+- text search (`@@` and the ts functions): about 500;
+- ranges: about 260;
+- arrays beyond unnest: 190;
+- ROW constructors: 180;
+- a duplicate output name: 160;
+- jsonb read out of a jsonb constant: 150;
+- `pg_input_is_valid`: 128;
+- `timestamptz` casts and constants: 140;
+- COLLATE: 100;
+- `to_char`: 90;
+- grouping sets: 77;
+- regular-expression operators: 70;
+- named arguments: 64.
+
+The ERRORs are mostly the island's parser (350 syntax errors). Then come Postgres's system columns, which a model does
+not declare (`ctid` 36, `tableoid` 6, `xmin` 3), GROUP BY's functional dependency on a key (22), and untyped strings in
+a VALUES column of numbers (12).
+
+**The second round.** More families from the same ranking:
+- A subquery without FROM (IN, EXISTS, scalar; correlated or not) is no longer refused. It was refused on 2026-10-12,
+  when the lowering could not read an enclosing row through a one-row relation, and it can now.
+- `TABLE name` is `SELECT * FROM name`.
+- A table name's `*` (its descendants, which a table read includes anyway) is read.
+- `U&"..."` identifiers are read.
+- What had been the parser's syntax errors are refused by name: `:=` named arguments, VARIADIC in a later argument,
+  TABLESAMPLE after an alias, and the session's identity values.
+
+Two of the gaps were the harness's own. Its rewrite of table names to `tb('...')` missed the tables inside a
+parenthesized join, and its model held only the search path's relations. A third was the reference, read under the
+script's `standard_conforming_strings = off`, where Postgres refuses `U&'...'`. The island reads strings as the
+default has them, so the judge runs Postgres's answer with it on.
+
+**The independent review** of the first round (713f7a711, f297bcc17), by an agent that wrote none of it, probed 108
+statements on Postgres 16. It found 11 wrong answers and 9 crashes. After the fixes, the same probes give 0 of each.
+- **A smallint's width.** Postgres computes smallint arithmetic as a smallint and raises past 32767; the island's
+  integer is wider. The constant rule saw only a smallint written as an operand, so `f1 + abs(int2 '1')` and a VALUES
+  column of `int2 '30000'` read twice answered. A cast to smallint or an int2 constant is now marked
+  (`InputDialect.narrowInteger`), and so is what keeps its type:
+  - a sign, or abs;
+  - coalesce, greatest, least or CASE of such values;
+  - min, max and the window functions of one;
+  - a scalar subquery of one;
+  - a select item's column, read by a later query.
+
+  Arithmetic the database would compute at that width is refused by name.
+- **VALUES rows.** An aggregate or a window function in a VALUES row is Postgres's error; they had answered.
+- **NULL typing.** An untyped NULL takes the other side's type only as a bare NULL in a plain SELECT branch of the
+  operation. Postgres has already typed every other NULL as text: a subquery's, a nested set operation's, a
+  DISTINCT's, a VALUES column of NULLs alone. Those read as text now, and `x + 1` over them is an error, as in
+  Postgres. A VALUES list's rows are typed together, where a written UNION ALL's are typed a pair at a time, so the
+  parser marks the set operations it builds for one (`SqlAst.SetOperation#values`). The first fix without the mark
+  refused 11 statements the corpus had passed.
+- **Escapes and crashes.** Malformed escapes are rejected: an eight-digit code point past an int, a surrogate pair's
+  low half not checked, an escape character of two bytes. The crashes were a NULL beside a boolean in a set
+  operation, and raw Java exceptions from the lexer.
+
+Left as found: decimals of two scales in one VALUES column fail in the typer rather than being refused by name; a set
+operation's column of a smallint and an integer is refused, though Postgres's is an integer. Fourteen lite parity
+cases were snapped and added to both lanes.
+
+The run after both rounds: PASS 2,905, FAIL 0, BUG 0, NAMES 0, KNOWN 5, REGISTERED 6, REFUSED 7,038, ERROR 420,
+UNMODELED 1,453, CATALOG 1,237, BOTH_ERROR 2,260, NONDETERMINISTIC 160, SKIP 7, HARNESS 2. Of the 10,374 statements
+the island is judged on, 2,905 (28.0%) answer Postgres's rows, and none answers wrong.
+
 ## 10. Sources
 
 - **Upstream code:** `finos/legend-engine` `e60ab67a`, sparse checkout of `legend-engine-xts-sql/`,

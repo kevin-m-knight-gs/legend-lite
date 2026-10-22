@@ -26,12 +26,14 @@ import {
   totalOrderSorts,
   WINDOW_FUNCTIONS,
   type AggregateFn,
+  askedMeasures,
   type ColumnKind,
   type CubeSnapshot,
   type DerivedColumn,
   type FilterNode,
   type FilterValue,
   type Measure,
+  type QuerySnapshot,
   type SortSpec,
   type WindowSpec,
 } from './snapshot.ts';
@@ -39,7 +41,7 @@ import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { isBoolean, isNumeric, isVariant, plainType } from '../../engine-client/src/types.ts';
-import { columnRef } from './calc.ts';
+import { columnRef, measureNameProblem } from './calc.ts';
 
 // ---- literals: typed by the column's COMPILER type, never by the value ----
 
@@ -309,7 +311,7 @@ export function extendWindow(rel: Relation, name: string, w: WindowSpec): Relati
 // ---- the cube's queries ----
 
 /** The source with the cube's row-stage calculated columns: what step 0 types. */
-export function sourceWithDerived(s: CubeSnapshot): Relation {
+export function sourceWithDerived(s: QuerySnapshot): Relation {
   let rel = from(s.source.query);
   for (const d of s.derived) rel = extendDerived(rel, d);
   return rel;
@@ -322,7 +324,7 @@ export const TOTAL_ROWS_COLUMN = '__rows__';
  * How many rows a FLAT cube has, its filter applied: asked only when the row cap cut it, so the
  * status can say "the first 1,000 of 48,213" rather than only that it was cut.
  */
-export function countLambda(s: CubeSnapshot): Lambda {
+export function countLambda(s: QuerySnapshot): Lambda {
   let rel = sourceWithDerived(s);
   if (s.filter) rel = rel.filter(lambda(['x'], filterNode(s.filter, 'x', (c) => columnType(s, c))));
   return rel.extend([derive(ROOT_COLUMN, lambda(['x'], lit.string(ROOT_VALUE)))])
@@ -331,7 +333,7 @@ export function countLambda(s: CubeSnapshot): Lambda {
 }
 
 /** Step 1 of a pivot: its value combinations, in the pivot's order, one past the cap. */
-export function pivotValuesLambda(s: CubeSnapshot): Lambda | null {
+export function pivotValuesLambda(s: QuerySnapshot): Lambda | null {
   const on = s.pivotOn;
   if (on.length === 0 || (s.pivotValues !== undefined && s.pivotValues.length > 0)) return null;
   refuseUnpivotable(s);
@@ -348,14 +350,14 @@ export function pivotValuesLambda(s: CubeSnapshot): Lambda | null {
 }
 
 /** The condition a pivot cell's rows meet. */
-function tupleCondition(s: CubeSnapshot, tuple: readonly GroupKey[]): ValueSpecification {
+function tupleCondition(s: QuerySnapshot, tuple: readonly GroupKey[]): ValueSpecification {
   const conditions = memberConditions(s, s.pivotOn, tuple);
   return filterNode(conditions.length === 1 ? conditions[0]! : { kind: 'and', children: conditions },
     'x', (c) => columnType(s, c));
 }
 
 /** One level's query: the source, calculated columns, filter, grouping, pivot, sorts and cap. */
-export function levelLambda(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: PivotFacts): Lambda {
+export function levelLambda(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: PivotFacts): Lambda {
   return levelRelation(snapshot, scope, pivot).lambda();
 }
 
@@ -363,14 +365,11 @@ export function levelLambda(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: 
  * A CLASS'S ROWS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.1, Create a Class…): the cube's rows at its finest
  * level, as the grid shows them -- a flat cube's rows (its calculated columns, its filter, the columns it shows), a
  * grouped cube's groups (one row per group, its measures beside its keys) -- in no order and uncapped: a class's
- * instances have neither. Refused in words: a pivot (its columns are its values, and a class's properties are fixed),
- * and a total with no group (one row, of no name).
+ * instances have neither. Refused in words: a pivot (its columns are its values, and a class's properties are
+ * fixed). A grid asks no aggregate of its own (snapshot.ts QuerySnapshot), so one grouped by nothing is its rows.
  */
 export function classLambda(snapshot: CubeSnapshot): Lambda {
   if (snapshot.pivotOn.length > 0) throw new Error('a class has fixed properties: take the pivot off first');
-  if (snapshot.rows.length === 0 && snapshot.measures.length > 0) {
-    throw new Error('a total alone is one row: group by a column first, or take the measures off');
-  }
   return levelRelation(snapshot, undefined, undefined, false).lambda();
 }
 
@@ -412,7 +411,13 @@ export function duplicateLambda(relation: ValueSpecification, column: string): L
 }
 
 /** `ordered`: a level's rows sorted and capped as the grid reads them; a class's, neither. */
-function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: PivotFacts, ordered = true): Relation {
+function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: PivotFacts, ordered = true): Relation {
+  // each measure named a column of its own, grouped or pivoted, or the level writes two columns of one name: a
+  // grouped level its measures beside the keys, a pivot its kept-out measures beside them (calc.ts measureNameProblem)
+  for (let at = 0; at < askedMeasures(snapshot).length; at++) {
+    const problem = measureNameProblem(snapshot, at);
+    if (problem !== null) throw new CubeRefusal(problem);
+  }
   let rel = from(snapshot.source.query);
   const groupCols = scope ? snapshot.rows.slice(0, Math.max(0, scope.level)) : snapshot.rows;
   const grandTotal = scope !== undefined && scope.level === 0 && snapshot.rows.length > 0;
@@ -431,20 +436,10 @@ function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: Pivot
 
   const on = snapshot.pivotOn;
   const pivoting = on.length > 0;
-  const grouping = !pivoting && (groupCols.length > 0 || snapshot.measures.length > 0 || grandTotal);
+  const grouping = !pivoting && (groupCols.length > 0 || askedMeasures(snapshot).length > 0 || grandTotal);
 
   const groupedAggs = (keys: readonly string[], projected: readonly string[]): ColSpec[] => {
-    const isKey = new Set(keys);
-    const byMeasure = new Map(snapshot.measures.map((m) => [m.column, m]));
-    const specOf = columnSpecs(snapshot);
-    const specs: ColSpec[] = [];
-    for (const name of projected) {
-      if (isKey.has(name)) continue;
-      const configured = byMeasure.get(name);
-      const spec = specOf.get(name);
-      const measures = spec?.kind === 'measure' || (isNumeric(spec?.type) && spec?.kind === undefined);
-      specs.push(aggregateSpec(configured ?? defaultMeasure(name, spec, measures ? 'sum' : 'unique')));
-    }
+    const specs: ColSpec[] = groupedMeasures(snapshot, keys, projected).map((m) => aggregateSpec(m));
     if (snapshot.leafCount === true && keys.length > 0) specs.push(LEAF_COUNT_SPEC());
     if (specs.length > 0) return specs;
     // upstream's filler: a groupBy has to aggregate something (serialize.ts writes `$x.''`
@@ -502,12 +497,23 @@ function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: Pivot
       const all = detailColumns(snapshot);
       if (all.length > 0) rel = rel.select(all);
     }
-    if (snapshot.measures.length > 0 || groupCols.length > 0 || grandTotal) {
+    if (askedMeasures(snapshot).length > 0 || groupCols.length > 0 || grandTotal) {
       groupByLevel(groupedAggs(groupCols, needed));
+      // what the grouped level writes, as the pivot's branch says its own: a sort on any other column -- one a
+      // measure renamed (`total` of `notional`) -- is the detail rows' (treeview.ts detailSnapshot), never this
+      // level's. Named here, it asked the planner for a column the groupBy did not keep, and every grouped level of
+      // the grid was refused (found 2026-10-16, PR neema2/legend-lite#47)
+      produced = new Set([
+        ...groupCols,
+        ...(groupCols.length === 0 ? [ROOT_COLUMN] : []),
+        ...groupedMeasures(snapshot, groupCols, needed).map((m) => m.name),
+        ...(snapshot.groupDerived ?? []).map((d) => d.name),
+        LEAF_COUNT_COLUMN,
+      ]);
     }
   }
 
-  const shown = totalOrderSorts(snapshot, groupCols);
+  const shown = totalOrderSorts(snapshot, groupCols).filter((x) => produced === null || produced.has(x.column));
   const rooted = (grouping || pivoting) && groupCols.length === 0;
   const keys: SortSpec[] = groupCols.length > 0
     ? groupCols.map((column) => ({ column, direction: 'asc' as const }))
@@ -536,7 +542,7 @@ function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: Pivot
 
 /** A level's child-group aggregates: each group row's aggregate of its child groups' figures. */
 export function childAggregateLambda(
-  snapshot: CubeSnapshot,
+  snapshot: QuerySnapshot,
   scope: LevelScope,
 ): { readonly query: Lambda; readonly columns: readonly string[] } | null {
   const wanted = (snapshot.groupDerived ?? []).filter((d) => d.childAggregate);
@@ -546,18 +552,15 @@ export function childAggregateLambda(
   if (level > depth) return null;
   const specOf = columnSpecs(snapshot);
   const measureOf = (of: string): Measure => {
-    const configured = snapshot.measures.find((m) => m.name === of);
-    if (configured) return configured;
-    const spec = specOf.get(of);
-    const numeric = spec?.kind === 'measure' || (isNumeric(spec?.type) && spec?.kind === undefined);
-    return defaultMeasure(of, spec, numeric ? 'sum' : 'unique');
+    const configured = askedMeasures(snapshot).find((m) => m.name === of);
+    return configured ?? defaultMeasure(of, specOf.get(of));
   };
   const { pivotValues: _v, pivotTotal: _t, window: _w, ...rest } = snapshot;
   void _v; void _t; void _w;
   const reads = new Set([...snapshot.rows.slice(0, level + 1),
     ...wanted.map((d) => measureOf(d.childAggregate!.of).column)]);
   const derivedNeeded = snapshot.derived.some((d) => reads.has(d.name));
-  const base: CubeSnapshot = {
+  const base: QuerySnapshot = {
     ...rest,
     columns: derivedNeeded ? snapshot.columns : snapshot.columns.filter((c) => reads.has(c.name)),
     derived: derivedNeeded ? snapshot.derived : [],
@@ -599,7 +602,7 @@ export function childAggregateLambda(
 }
 
 /** The rows behind a cell: the population, not its aggregate, capped. */
-export function drillLambda(snapshot: CubeSnapshot, request: DrillRequest): Lambda {
+export function drillLambda(snapshot: QuerySnapshot, request: DrillRequest): Lambda {
   let rel = sourceWithDerived(snapshot);
   const conditions = drillConditions(snapshot, request);
   const typeOf: TypeOf = (c) => columnType(snapshot, c);
@@ -657,7 +660,7 @@ export interface LevelScope {
  * members use the same rule the tree's branches do.
  */
 export function memberConditions(
-  snapshot: CubeSnapshot,
+  snapshot: QuerySnapshot,
   columns: readonly string[],
   path: RowPath,
 ): FilterNode[] {
@@ -665,7 +668,7 @@ export function memberConditions(
 }
 
 export function parentConditions(
-  snapshot: CubeSnapshot,
+  snapshot: QuerySnapshot,
   parent: RowPath,
 ): FilterNode[] {
   const out: FilterNode[] = [];
@@ -694,38 +697,41 @@ export function parentConditions(
  * and the rows come back as they are, sorted and capped as the cube
  * says. Group-level calculated columns still apply ("computed for each
  * row in the table, no matter whether it's a leaf-level row or an
- * aggregate"). Sorts on names only an aggregate has (a measure, a
- * pivot column) are dropped: a source row has no such column.
+ * aggregate"). Sorts on names only an aggregate has (a measure) are
+ * dropped: a source row has no such column.
  *
  * A PIVOTED cube keeps its pivot, grouped by every dimension -- the
- * finest rows a pivot has, as upstream's pivot without its groupBy.
+ * finest rows a pivot has, as upstream's pivot without its groupBy --
+ * and so its sorts: a pivot column is this query's too.
  */
-export function detailSnapshot(s: CubeSnapshot, parent: RowPath): CubeSnapshot {
+export function detailSnapshot(s: QuerySnapshot, parent: RowPath): QuerySnapshot {
   const keys = parentConditions(s, parent);
   const all = [...(s.filter ? [s.filter] : []), ...keys];
   const filter: FilterNode | undefined = all.length === 0 ? undefined
     : all.length === 1 ? all[0] : { kind: 'and', children: all };
-  const { filter: _old, ...rest } = s;
+  // the detail rows ask for no aggregate: a pivot's finest rows keep what the query asks of each value
+  const { filter: _old, measures: asked, ...rest } = s;
   void _old;
   const visible = new Set([
     ...detailColumns(s),
     ...(s.groupDerived ?? []).map((d) => d.name),
   ]);
-  const base: CubeSnapshot = {
+  const base: QuerySnapshot = {
     ...rest,
     ...(filter ? { filter } : {}),
-    sorts: s.sorts.filter((x) => visible.has(x.column)),
     leafCount: false,
   };
-  if (s.pivotOn.length === 0) return { ...base, rows: [], measures: [] };
+  if (s.pivotOn.length === 0) return { ...base, rows: [], sorts: s.sorts.filter((x) => visible.has(x.column)) };
   const isOn = new Set(s.pivotOn);
   const dims = rowColumns(s)
     .filter((c) => c.kind === 'dimension' && !isOn.has(c.name))
     .map((c) => c.name);
   // The same pivot columns as every level above it: the cube's values,
   // not the group's, so a group with no EMEA rows shows an empty EMEA
-  // column rather than a missing one.
-  return { ...base, rows: dims };
+  // column rather than a missing one. Its sorts are the cube's: the level orders by only what its groupBy
+  // writes (levelRelation's `produced`), so a sort on a pivot column orders the rows, as it does the groups above
+  // (dropped as a source row's, an opened group's rows came back unsorted under a sorted header: found 2026-10-18)
+  return { ...base, rows: dims, ...(asked !== undefined ? { measures: asked } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -780,18 +786,18 @@ export function pivotLabel(key: GroupKey): string {
  * `_pivotAggCols`. Nothing at all: a filler count, as upstream's
  * `_fixEmptyAggCols`, because a pivot has to show something.
  */
-export function spreadMeasures(s: CubeSnapshot): Measure[] {
+export function spreadMeasures(s: QuerySnapshot): Measure[] {
   const excluded = excludedFromPivot(s);
   const on = s.pivotOn;
-  if (s.measures.length > 0) {
-    const kept = s.measures.filter((m) => !excluded.has(m.column));
+  if (askedMeasures(s).length > 0) {
+    const kept = askedMeasures(s).filter((m) => !excluded.has(m.column));
     if (kept.length > 0) return kept;
   } else {
     const isOn = new Set(on);
     const specOf = columnSpecs(s);
     const synthesised = rowColumns(s)
       .filter((c) => !isOn.has(c.name) && !excluded.has(c.name) && c.kind === 'measure')
-      .map((c) => defaultMeasure(c.name, specOf.get(c.name), 'sum'));
+      .map((c) => defaultMeasure(c.name, specOf.get(c.name)));
     if (synthesised.length > 0) return synthesised;
   }
   return [{ name: 'count', column: on[0] ?? '', fn: 'count' }];
@@ -808,7 +814,7 @@ export function spreadMeasures(s: CubeSnapshot): Measure[] {
  * like a NULL's "(empty)" -- gets a `~2` suffix: names are identifiers
  * here, and nothing reads meaning out of them.
  */
-export function pivotColumns(s: CubeSnapshot, facts: PivotFacts): PivotColumn[] {
+export function pivotColumns(s: QuerySnapshot, facts: PivotFacts): PivotColumn[] {
   const spread = spreadMeasures(s);
   const taken = new Set([
     ...detailColumns(s),
@@ -844,7 +850,7 @@ export function pivotColumns(s: CubeSnapshot, facts: PivotFacts): PivotColumn[] 
  * `{"items": [...]}__|__qty`. The question is always about a value INSIDE
  * the document, so say how to get it -- before either step runs.
  */
-export function refuseUnpivotable(s: CubeSnapshot): void {
+export function refuseUnpivotable(s: QuerySnapshot): void {
   const specOf = columnSpecs(s);
   for (const name of s.pivotOn) {
     if (isVariant(specOf.get(name)?.type)) {
@@ -858,7 +864,7 @@ export function refuseUnpivotable(s: CubeSnapshot): void {
 }
 
 /** Pinned values as step 1's answer (`pivotValues`, one key). */
-export function pinnedPivotFacts(s: CubeSnapshot): PivotFacts | null {
+export function pinnedPivotFacts(s: QuerySnapshot): PivotFacts | null {
   if (s.pivotValues === undefined || s.pivotValues.length === 0) return null;
   // A key as a tree key is: the value's exact text (a JSON value its document's text)
   const key = (v: FilterValue): GroupKey => (isJsonValue(v) ? v.json
@@ -874,11 +880,11 @@ export function pinnedPivotFacts(s: CubeSnapshot): PivotFacts | null {
  * them, under its own name. Before, these came from a second query
  * joined in by key; now they are columns of the level's own.
  */
-export function carriedMeasures(s: CubeSnapshot, groupCols: readonly string[]): Measure[] {
+export function carriedMeasures(s: QuerySnapshot, groupCols: readonly string[]): Measure[] {
   const excluded = excludedFromPivot(s);
   const isKey = new Set([...groupCols, ...s.pivotOn]);
   const spread = spreadMeasures(s);
-  const excludedConfigured = s.measures.filter((m) => excluded.has(m.column));
+  const excludedConfigured = askedMeasures(s).filter((m) => excluded.has(m.column));
   const handled = new Set([
     ...spread.map((m) => m.column),
     ...excludedConfigured.map((m) => m.column),
@@ -887,10 +893,7 @@ export function carriedMeasures(s: CubeSnapshot, groupCols: readonly string[]): 
   const out: Measure[] = [...excludedConfigured];
   for (const name of detailColumns(s)) {
     if (isKey.has(name) || handled.has(name)) continue;
-    const spec = specOf.get(name);
-    const measure = spec?.kind === 'measure'
-      || (isNumeric(spec?.type) && spec?.kind === undefined);
-    out.push(defaultMeasure(name, spec, measure ? 'sum' : 'unique'));
+    out.push(defaultMeasure(name, specOf.get(name)));
   }
   return out;
 }
@@ -903,9 +906,9 @@ export function carriedMeasures(s: CubeSnapshot, groupCols: readonly string[]): 
  * produces simple text that a human can read in a bug report.
  */
 /** No grouping, no pivot, no measures: rows straight through. */
-export function isDetail(s: CubeSnapshot): boolean {
+export function isDetail(s: QuerySnapshot): boolean {
   return (
-    s.rows.length === 0 && s.pivotOn.length === 0 && s.measures.length === 0
+    s.rows.length === 0 && s.pivotOn.length === 0 && askedMeasures(s).length === 0
   );
 }
 
@@ -926,7 +929,7 @@ export interface SpecLike {
   readonly aggregateWeight?: string;
 }
 
-export function columnSpecs(s: CubeSnapshot): Map<string, SpecLike> {
+export function columnSpecs(s: QuerySnapshot): Map<string, SpecLike> {
   const out = new Map<string, SpecLike>();
   for (const d of [...s.derived, ...(s.groupDerived ?? [])]) {
     // The DECLARED kind wins over the type, exactly as it does for a
@@ -948,19 +951,52 @@ export function columnSpecs(s: CubeSnapshot): Map<string, SpecLike> {
 }
 
 /**
+ * THE AGGREGATE A COLUMN TAKES BY DEFAULT, the one rule every query
+ * builder asks: `sum` for a numeric column not declared a dimension,
+ * `unique` for any other. A declared measure that is no number is not
+ * summed -- the column editor starts a new column a measure whatever its
+ * type, and a saved cube can declare one, and `sum` refuses a Boolean or
+ * a String. An untyped column is not numeric: every column is typed
+ * before a query reads it (a refresh's and a compile's step 0, plan.ts
+ * `typeColumns`), so only a runner that types nothing leaves one.
+ */
+export function defaultAggregate(spec: SpecLike | undefined): AggregateFn {
+  return isNumeric(spec?.type) && spec?.kind !== 'dimension' ? 'sum' : 'unique';
+}
+
+/**
+ * A GROUPED LEVEL'S AGGREGATES with no pivot, as its query writes them: every projected column but the keys -- on
+ * each of its configured measures, under each one's name, or on its default aggregate under its own -- then each
+ * measure of a grouping column (a count of its rows). Every measure is in it: keyed by column, all but a column's last
+ * measure, and any of a grouping column, were left out without a word (found 2026-10-16, PR neema2/legend-lite#47).
+ * The one list: the level query aggregates it, and the group stage's calculated columns are offered it (calc.ts
+ * columnsInScope).
+ */
+export function groupedMeasures(
+  snapshot: QuerySnapshot, keys: readonly string[], projected: readonly string[] = detailColumns(snapshot),
+): Measure[] {
+  const isKey = new Set(keys);
+  const byColumn = new Map<string, Measure[]>();
+  for (const m of askedMeasures(snapshot)) byColumn.set(m.column, [...(byColumn.get(m.column) ?? []), m]);
+  const specOf = columnSpecs(snapshot);
+  const out: Measure[] = [];
+  for (const name of projected) {
+    if (!isKey.has(name)) out.push(...(byColumn.get(name) ?? [defaultMeasure(name, specOf.get(name))]));
+  }
+  for (const m of askedMeasures(snapshot)) if (isKey.has(m.column)) out.push(m);
+  return out;
+}
+
+/**
  * The aggregate a column takes when nothing configured a MEASURE for
  * it: Column Properties > Aggregation when set (census §2 -- the
- * dropdown reached no query before), else the kind's default.
+ * dropdown reached no query before), else the default (`defaultAggregate`).
  */
-export function defaultMeasure(
-  name: string,
-  spec: SpecLike | undefined,
-  fallback: AggregateFn,
-): Measure {
+export function defaultMeasure(name: string, spec: SpecLike | undefined): Measure {
   return {
     name,
     column: name,
-    fn: spec?.aggregate ?? fallback,
+    fn: spec?.aggregate ?? defaultAggregate(spec),
     ...(spec?.aggregateWeight !== undefined
       ? { weight: spec.aggregateWeight }
       : {}),
@@ -978,7 +1014,7 @@ export function defaultMeasure(
  * (region:String[0..1], ...)". Every group-stage calculated column
  * was unusable for as long as that line was here.
  */
-export function detailColumns(s: CubeSnapshot): string[] {
+export function detailColumns(s: QuerySnapshot): string[] {
   return [
     ...s.columns.map((c) => c.name),
     ...s.derived.map((d) => d.name),
@@ -993,13 +1029,13 @@ export function detailColumns(s: CubeSnapshot): string[] {
  * every row, and therefore very much wants a sort and a cap.
  */
 export function isSingleRow(
-  s: CubeSnapshot,
+  s: QuerySnapshot,
   groupCols: readonly string[],
   grandTotal = false,
 ): boolean {
   return (
     groupCols.length === 0
-    && (grandTotal || s.measures.length > 0 || s.pivotOn.length > 0)
+    && (grandTotal || askedMeasures(s).length > 0 || s.pivotOn.length > 0)
   );
 }
 
@@ -1032,7 +1068,7 @@ export const DEFAULT_DRILL_LIMIT = 500;
  * reviewer should be able to read exactly which rows were counted.
  */
 export function drillConditions(
-  snapshot: CubeSnapshot,
+  snapshot: QuerySnapshot,
   request: DrillRequest,
 ): FilterNode[] {
   const out: FilterNode[] = [];

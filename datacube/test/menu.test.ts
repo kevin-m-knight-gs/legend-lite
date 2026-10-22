@@ -9,6 +9,7 @@ import {
   type MenuActionId,
 } from '../src/ui/menu.ts';
 import { pivotTotalColumn, type CubeSnapshot } from '../src/snapshot.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
 const CUBE: CubeSnapshot = {
@@ -22,7 +23,6 @@ const CUBE: CubeSnapshot = {
   derived: [],
   rows: ['region'],
   pivotOn: ['year'],
-  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -392,20 +392,20 @@ describe('applyMenuAction', () => {
       label: '',
       ...(column ? { column } : {}),
       ...(direction ? { direction } : {}),
-    });
+    }, DEFAULT_CONFIGURATION);
 
   it('replaces the sort, or adds to it', () => {
     // Two different intentions, so two actions rather than one that
     // guesses which was meant.
     const replaced = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'region', direction: 'asc' }] },
-      { id: 'sort.desc', label: '', column: 'desk', direction: 'desc' },
+      { id: 'sort.desc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
     );
     assert.deepEqual(replaced.sorts, [{ column: 'desk', direction: 'desc' }]);
 
     const added = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'region', direction: 'asc' }] },
-      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' },
+      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
     );
     assert.deepEqual(added.sorts, [
       { column: 'region', direction: 'asc' },
@@ -416,7 +416,7 @@ describe('applyMenuAction', () => {
   it('re-adding a sorted column moves it rather than duplicating', () => {
     const s = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'desk', direction: 'asc' }] },
-      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' },
+      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
     );
     assert.deepEqual(s.sorts, [{ column: 'desk', direction: 'desc' }]);
   });
@@ -443,7 +443,7 @@ describe('applyMenuAction', () => {
     const cleared = applyMenuAction(filtered, {
       id: 'filter.clearAll',
       label: '',
-    });
+    }, DEFAULT_CONFIGURATION);
     assert.equal('filter' in cleared, false);
   });
 
@@ -479,7 +479,7 @@ describe("upstream's remaining entries", () => {
   });
 
   it('Pivot > Exclude from a pivoted column, Include from an excluded measure', () => {
-    const onPivoted = labels({ snapshot: CUBE, column: '2021__|__total',
+    const onPivoted = labels({ snapshot: CUBE, column: '2021__|__notional',
       canGroup: false, pivotBase: 'notional', isMeasure: true });
     assert.ok(onPivoted.includes('Exclude Column notional from Horizontal Pivot'));
     const onExcluded = labels({ snapshot: CUBE, column: 'notional',
@@ -503,10 +503,10 @@ describe('valueLabel', () => {
 });
 
 describe('a pivot Total column', () => {
-  // A total is a real column of the level's query (a conditional aggregate), so it sorts;
-  // filters apply to source rows, before any total exists, so it offers none.
-  const total = pivotTotalColumn('total');
-  const ctx = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' as const } }, column: total, pivotTotal: true };
+  // A total is a column of the level's query like any other, so it sorts; filters apply to source rows, before any
+  // total exists, so it offers none. The context is the app's for a total: its measure the pivot's base, no dimension.
+  const total = pivotTotalColumn('notional');
+  const ctx = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' as const } }, column: total, pivotBase: 'notional', canGroup: false, isMeasure: true };
 
   it('offers Sort on the total', () => {
     const on = enabled(ctx);
@@ -514,7 +514,7 @@ describe('a pivot Total column', () => {
       assert.ok(on.includes(id), `${id}: ${on.join(' ')}`);
     }
     const next = applyMenuAction(ctx.snapshot,
-      menuItems(buildMenu(ctx)).find((i) => i.id === 'sort.desc')!);
+      menuItems(buildMenu(ctx)).find((i) => i.id === 'sort.desc')!, DEFAULT_CONFIGURATION);
     assert.deepEqual(next.sorts, [{ column: total, direction: 'desc' }]);
   });
 
@@ -597,10 +597,10 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
   });
 
   it('a measure of grouped rows shown as something computed from it; not on a pivot', () => {
-    const shown = items({ snapshot: DATED, column: 'total', isMeasure: true });
+    const shown = items({ snapshot: DATED, column: 'notional', isMeasure: true });
     assert.deepEqual(shown.filter((i) => i.id === 'calc.showAs').map((i) => i.showAs),
       ['runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank']);
-    assert.ok(!items({ snapshot: CUBE, column: 'total', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
-    assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'total', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
+    assert.ok(!items({ snapshot: CUBE, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
+    assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
   });
 });

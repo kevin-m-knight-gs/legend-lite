@@ -51,11 +51,15 @@ public final class SqlParser {
 
     /** The operators the levels below {@code Op} read themselves; Postgres reads every other one at {@code Op}. */
     private static final Set<String> OWN_LEVEL_OPERATORS = Set.of(":", "+", "-", "*", "/", "%", "^", "<", ">", "=", "<=",
-            ">=", "<>", "!=", "::", "=>");
+            ">=", "<>", "!=", "::", "=>", ":=");
 
     /** The SQL value functions written without parentheses (Postgres §9.9.5): read as calls with no arguments. */
     private static final Set<String> VALUE_FUNCTIONS = Set.of("current_date", "current_time", "current_timestamp",
             "localtime", "localtimestamp");
+
+    /** The SQL value functions of the session's identity (Postgres §9.27, "Session Information Functions"). */
+    private static final Set<String> SESSION_VALUES = Set.of("current_user", "current_role", "session_user", "user",
+            "system_user", "current_catalog", "current_schema");
 
     private final List<Token> tokens;
     private int at;
@@ -169,12 +173,127 @@ public final class SqlParser {
             return inner;
         }
         if (t.is("values")) {
-            throw unsupported("VALUES lists are");
+            return values();
         }
         if (t.is("table")) {
-            throw unsupported("TABLE name queries are");
+            return table();
         }
         return selectCore();
+    }
+
+    /** {@code TABLE name}: Postgres's {@code SELECT * FROM name} (2026-10-17, the regression suite's 25). The name
+     *  may be the island's source function, {@code TABLE tb('pkg::Database.table')}, as a FROM list's may. */
+    private SqlAst.Statement table() {
+        Token t = expectWord("table");
+        if (peek().is("only")) {
+            throw unsupported("TABLE ONLY is");
+        }
+        Token first = peek();
+        List<SqlAst.Ident> name = qualifiedName();
+        SqlAst.FromItem item;
+        if (peek().kind() == Kind.LPAREN) {
+            Token open = next();
+            List<SqlAst.Arg> args = new ArrayList<>();
+            if (!accept(Kind.RPAREN)) {
+                do {
+                    args.add(arg());
+                } while (accept(Kind.COMMA));
+                expect(Kind.RPAREN);
+            }
+            SqlAst.TableFunction source = new SqlAst.TableFunction(name, args, null, List.of(), first.pos());
+            if (!SqlToPure.isSourceFunction(source)) {
+                throw new SqlSyntaxException("syntax error at or near \"(\"", open.pos());
+            }
+            item = source;
+        } else {
+            descendants();
+            item = new SqlAst.TableName(name, null, List.of(), first.pos());
+        }
+        return new SqlAst.Select(false, List.of(new SqlAst.AllColumns(null, t.pos())), List.of(item), null,
+                List.of(), null, List.of(), List.of(), null, null, t.pos());
+    }
+
+    /** A table's {@code TABLESAMPLE}, after its alias (Postgres's {@code relation_expr opt_alias_clause
+     *  tablesample_clause}; 2026-10-17, the regression suite's 17); refused by name. */
+    private void tablesample() {
+        if (peek().is("tablesample")) {
+            throw unsupported("TABLESAMPLE is");
+        }
+    }
+
+    /** A table name's {@code *}: its descendants too, which a table read includes anyway (Postgres's
+     *  {@code relation_expr}; 2026-10-17, the regression suite's {@code FROM a_star*}). */
+    private void descendants() {
+        if (peek().isOp("*")) {
+            at++;
+        }
+    }
+
+    /** {@code VALUES (e, ...), (e, ...)}, as Postgres defines it: {@code SELECT e AS column1, ... UNION ALL SELECT
+     *  ...}, its columns named column1 to columnN and typed by UNION's rules (2026-10-17, the regression suite's 364
+     *  VALUES lists). The rows are combined as a balanced tree, of depth log n for the translator and the planner
+     *  (UNION ALL is associative, and the rows keep their order). */
+    private SqlAst.Statement values() {
+        expectWord("values");
+        List<List<SqlAst.Expr>> cells = new ArrayList<>();
+        List<SqlAst.Pos> opens = new ArrayList<>();
+        do {
+            Token open = expect(Kind.LPAREN);
+            List<SqlAst.Expr> row = new ArrayList<>();
+            do {
+                if (peek().is("default")) {
+                    throw error("DEFAULT is not allowed in this context");
+                }
+                SqlAst.Expr cell = expr();
+                // a VALUES row is no select list: a set-returning function would not expand the rows, and an
+                // aggregate or a window function has no rows to read (the review of 2026-10-17: VALUES (count(*))
+                // answered 1)
+                String not = SqlToPure.notInValues(cell);
+                if (not != null) {
+                    throw new SqlSyntaxException(not, cell.pos());
+                }
+                row.add(cell);
+            } while (accept(Kind.COMMA));
+            expect(Kind.RPAREN);
+            if (!cells.isEmpty() && row.size() != cells.get(0).size()) {
+                throw new SqlSyntaxException("VALUES lists must all be the same length", open.pos());
+            }
+            cells.add(row);
+            opens.add(open.pos());
+        } while (accept(Kind.COMMA));
+        // a column of NULLs alone is text, as Postgres types one (VALUES (NULL) UNION ALL SELECT 1 is its error);
+        // a NULL beside a value takes the column's type, the rows typed together (SqlAst.SetOperation#values)
+        int width = cells.get(0).size();
+        for (int k = 0; k < width; k++) {
+            int column = k;
+            if (cells.stream().allMatch(row -> row.get(column) instanceof SqlAst.NullLit)) {
+                for (List<SqlAst.Expr> row : cells) {
+                    SqlAst.Expr cell = row.get(column);
+                    row.set(column, new SqlAst.Cast(cell, new SqlAst.TypeName("text", List.of(), cell.pos()),
+                            cell.pos()));
+                }
+            }
+        }
+        List<SqlAst.Statement> rows = new ArrayList<>();
+        for (int r = 0; r < cells.size(); r++) {
+            List<SqlAst.SelectItem> items = new ArrayList<>();
+            for (SqlAst.Expr cell : cells.get(r)) {
+                items.add(new SqlAst.SelectExpr(cell, new SqlAst.Ident("column" + (items.size() + 1), false,
+                        cell.pos()), cell.pos()));
+            }
+            rows.add(new SqlAst.Select(false, items, List.of(), null, List.of(), null, List.of(), List.of(), null,
+                    null, opens.get(r)));
+        }
+        return unionAll(rows, 0, rows.size());
+    }
+
+    private static SqlAst.Statement unionAll(List<SqlAst.Statement> rows, int from, int to) {
+        if (to - from == 1) {
+            return rows.get(from);
+        }
+        int mid = from + (to - from) / 2;
+        return new SqlAst.SetOperation(SqlAst.SetOp.UNION, true, unionAll(rows, from, mid), unionAll(rows, mid, to),
+                List.of(), null, null, rows.get(mid).pos(), true);
     }
 
     /** The sort and the slice after a query, attached to it (Postgres refuses a second ORDER BY or LIMIT). */
@@ -250,7 +369,7 @@ public final class SqlParser {
                 }
                 yield new SqlAst.SetOperation(q.op(), q.all(), q.left(), q.right(),
                         orderBy.isEmpty() ? q.orderBy() : orderBy, sawLimit ? limit : q.limit(),
-                        sawOffset ? offset : q.offset(), q.pos());
+                        sawOffset ? offset : q.offset(), q.pos(), q.values());
             }
             case SqlAst.With w -> throw unsupported("ORDER BY or LIMIT after a parenthesized WITH query is");
         };
@@ -468,12 +587,16 @@ public final class SqlParser {
                 throw unsupported("WITH ORDINALITY is");
             }
             Alias alias = alias();
-            return new SqlAst.TableFunction(name, args, alias.name(), alias.columns(), t.pos());
+            SqlAst.TableFunction f = new SqlAst.TableFunction(name, args, alias.name(), alias.columns(), t.pos());
+            if (SqlToPure.isSourceFunction(f)) {
+                tablesample();
+            }
+            return f;
         }
-        if (peek().is("tablesample")) {
-            throw unsupported("TABLESAMPLE is");
-        }
+        descendants();
+        tablesample();
         Alias alias = alias();
+        tablesample();
         return new SqlAst.TableName(name, alias.name(), alias.columns(), t.pos());
     }
 
@@ -487,8 +610,13 @@ public final class SqlParser {
         return t.is("select") || t.is("with") || t.is("values") || t.is("table");
     }
 
+    /** Whether a named argument begins here: {@code name => value}, or {@code name := value}, its older spelling. */
+    private boolean named() {
+        return isName(peek()) && (peekAt(1).isOp("=>") || peekAt(1).isOp(":="));
+    }
+
     private SqlAst.Arg arg() {
-        if (isName(peek()) && peekAt(1).isOp("=>")) {
+        if (named()) {
             SqlAst.Ident name = ident(next());
             at++;
             return new SqlAst.Arg(name, expr());
@@ -966,6 +1094,10 @@ public final class SqlParser {
             default -> {
             }
         }
+        if (SESSION_VALUES.contains(word) && !(word.equals("current_schema") && peekAt(1).kind() == Kind.LPAREN)) {
+            // the session's role, database or schema: the server's own state (2026-10-17, the regression suite's 22)
+            throw unsupported(word.toUpperCase(Locale.ROOT) + " is");
+        }
         if (VALUE_FUNCTIONS.contains(word)) {
             at++;
             if (peek().kind() == Kind.LPAREN) {
@@ -1169,11 +1301,12 @@ public final class SqlParser {
             } else {
                 acceptWord("all");
             }
-            if (peek().is("variadic")) {
-                throw unsupported("VARIADIC arguments are");
-            }
             do {
-                if (isName(peek()) && peekAt(1).isOp("=>")) {
+                // VARIADIC marks the last argument (2026-10-17: the regression suite's concat(1, VARIADIC ...))
+                if (peek().is("variadic")) {
+                    throw unsupported("VARIADIC arguments are");
+                }
+                if (named()) {
                     throw unsupported("named arguments to scalar functions are");
                 }
                 args.add(expr());

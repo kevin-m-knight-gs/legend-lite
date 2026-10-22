@@ -663,6 +663,27 @@ between accepting and refusing; the cost while parked is one wrong refusal reaso
 **Anchor.** `if (fqn != null) {` followed by `incs.add(fqn);` in `StoreSubstitutionRewrite.java`: the resolved names
 counted as listed.
 
+## PARK-27 — a decimal literal past DECIMAL(38) rounds at the typer
+
+**Recorded** 2026-10-11 by the Studio / SDLC / Depot session (the protocol program's leg 8 step 2), with the Compiler
+Rewrite line. **What happens today:** the typer rounds a decimal literal whose scale passes 38 to 38 places
+(`Typer`'s `CDecimal` arm, HALF_EVEN), silently. Its comment meant a written decimal to be refused and a promoted float
+to round, but the test of the D suffix never fired (the parser strips the suffix before the spelling was kept), so
+every such literal rounded; leg 8 deleted the spelling, which no JSON carries, and kept the behaviour. **Why it is a
+debt:** Pure's Decimal is unbounded, and legend-engine compiles a decimal literal of any scale; DECIMAL(38) is the
+relational store's width, met when the value is rendered into SQL, not when the literal is typed. Rounding at the
+typer changes a value the user wrote (a lie), and refusing there would fail a service the engine compiles (the
+compatibility plan's concern). **The cost while parked:** today's rounding is silent, so a wrong value with no word;
+the acceptance below (on the compatibility plan, the 40-place literal compiles as Pure's value) is what closes it.
+**The decision first:** which plan decides (the compatibility plan matches
+legend-engine; the lite plan may choose), and where the width is met -- at render, with the store's own error or
+rounding rule, as the engine meets it. **Acceptance:** a decimal literal with 40 places compiles as Pure's value on the
+compatibility plan, and what each dialect does with it at render is a test (refused by name, or the store's rule).
+**Who:** the Compiler Rewrite line, with the Plan Gen / Exec Split line's output layer (PARK-24 decides a literal's
+text and scale).
+
+**Anchor.** The rounding: `setScale(Type.PrecisionDecimal.MAX_PRECISION` in `Typer.java`.
+
 ## PARK-28 — a `~func` descriptor's signature is not matched against the function's
 
 **Recorded** 2026-10-11 by the Bazel program session, from the audit of the descriptor-type refusal (GATES "A `~func`
@@ -739,65 +760,6 @@ cost while parked: a table that changes between the check and a read, or a serve
 
 **Anchor.** `def _iceberg_refusal(` in `python/legend_lite/engine.py` (ParkedWorkLedgerTest reads core only; this row's
 anchor is checked by hand).
-
-## PARK-30 — a headless grid on Python plans with Python's own planner, whatever the session chose
-
-**Recorded** 2026-10-13 by the DataCube + Python line, with G1 (`docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`: a server
-planning for Python's pages). A session chooses where it plans once (`ll.planner()`, `ll.show(..., planner=...,
-server=...)`), and a page's grids, and Python's own `Table.plan` and `execute`, are planned there.
-
-**What happens today.** A page's grid read headless (`Grid.view()`, `grid.relation`, `grid.to_pandas()`: DataCube's own
-code in V8, `legend_lite/_headless.py`) plans through the bundle's planner worker, which Python answers with the native
-library (`_planner.py`), so on a session planning on a server a headless grid's numbers are legend-lite's in this
-process where its page's are the server's.
-
-**The fix.** The headless bundle's planner on the session's plane: on a server's, the tab's `UpstreamPlanner` over the
-host's fetch (the headless design's R6), asking Python's own `pure/v1` as the page does, and the grid's rows through
-plan-and-run, as the page's are.
-
-**Acceptance.** `python/tests/test_upstream.py`: a headless grid's view on a session planning on legend-lite's server
-answers as its page does, its SQL the server's.
-
-**Why parked.** The page's planning was the step; the headless bundle has no fetch of its own to a server yet.
-
-**When.** With D (headless pages), which runs the page's actions headless.
-
-**Anchor.** `with the native library (PARK-30)` in `python/legend_lite/engine.py`'s `Planner` (ParkedWorkLedgerTest reads
-core only; checked by hand).
-
-## PARK-31 — a server planning for Python: what its one query may read, and the threads its answer holds
-
-**Recorded** 2026-10-13 by the DataCube + Python line, from the audit of G1 (`docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`:
-a server planning for Python's pages). On a server's plane, the server writes the SQL Python's DuckDB runs (R4 as
-amended that day: the planner the person chose writes it).
-
-**What happens today.**
-1. **One query, but any query.** `upstream.runnable` runs a server's plan only as one SELECT (DuckDB runs every
-   statement of a text, so a server could otherwise write files, attach databases or replace a frame's view). That one
-   SELECT may still read this machine's files (`read_csv('/...')`), and on plain `http://` with no sign-in (G10) so may
-   anyone between Python and the server. In the tab the same SQL runs inside the browser's sandbox.
-2. **A server's answer is awaited on a compiler thread.** Plan-and-run runs on the compiler's pool of four threads
-   (`engine.py` `_workers`), and on a server's plane its HTTP call is made there, for up to a minute (`_TIMEOUT`): a
-   server that hangs ties up those threads. The frames' lock is not held while it waits (the audit's S2, fixed).
-3. **Python's own results keep a server's types as it gives them.** On legend-engine's plane, `Table.execute` and
-   `to_pandas` carry precise types (`meta::pure::precisePrimitives::Int`) and a BIT column's TinyInt; the page reads
-   them by legend-lite's lattice (relation-type.ts), which Python has no copy of.
-
-**The fix.** For 1: PARK-29's (DuckDB refusing this machine's paths on legend-lite's connection, with G6), and
-sign-in over TLS (G10). For 2: plan-and-run on a server's plane made on the connection's own thread, the compiler's
-threads asked only for the compiler's own calls (holding a model, reading the plan), which needs the frames' lock and
-the pool kept apart. For 3: the one typing table (G9), which Python and the tab read alike.
-
-**Acceptance.** `python/tests/test_upstream.py`: a server's SQL reading a local file refused at the read; a hung
-server holds no compiler thread (four plan-and-runs against it, then a local one answered at once); on legend-engine's
-plane an Integer column an int64 and a BIT column a boolean in `to_pandas()`.
-
-**Why parked.** Each needs a design of its own (the connection's access, the pool's ownership, the typing table); G1
-lands the plane, its one-query guard and its lock fix.
-
-**When.** 1 with G6 and G10; 2 with G2 (streaming results back, which changes how plan-and-run answers); 3 with G9.
-
-**Anchor.** `def runnable(` in `python/legend_lite/upstream.py` (ParkedWorkLedgerTest reads core only; checked by hand).
 
 ## PARK-32 — a page's charts are not drawn headless, so Python exports a grid, not a board
 
@@ -907,3 +869,36 @@ touches a dozen sites across the compiler and the lowering.
 
 **Anchor.** `k.value().longValue() < coll.elements().size()` in
 `core/src/main/java/com/legend/compiler/spec/ExecuteChainAssembly.java` (ParkedWorkLedgerTest).
+
+## PARK-38 — the element kinds lite carries by name are not compiled
+
+**Parked** 2026-10-21 by the user ("we have to do 11 eventually, can put it on roadmap for later"), after the reference
+probe of that day (64 broken models through both doors; item 11 of its list). **What happens today:** the door
+(`ModelFromProtocol.carried`) makes a named carrier of each of these kinds, which no compiler phase opens: diagrams,
+texts, generation specifications, file generations, Deephaven, Elasticsearch, MongoDB, data-quality validations,
+schema sets and bindings, service stores, relational mappers; and a function activator keeps its fields as text. So
+whatever they hold is accepted: a diagram of a class the model has not, a binding to a missing schema set, an
+activator of a missing function. **What the engine does:** each kind is compiled by its extension
+(`DiagramCompilerExtension`, `BindingCompiler` (`HelperExternalFormat.getSchemaSet`), the data-quality, service-store,
+Elasticsearch and activator extensions), and every reference refused by name. **The cost while parked:** a model the
+engine refuses compiles in lite, and its JSON is accepted for an element nobody checked. **Acceptance:** for each kind,
+every reference it makes is resolved and checked as the engine's extension does (its words), each case a test in
+`ReferenceIntegrityTest`; then the kind's own compile where lite executes it. **Who:** the Studio / SDLC / Depot line
+with the Compiler Rewrite line. **When:** after leg 9.
+
+**Anchor.** The carrier: `private static PackageableElement carried(String section, String kind, String
+qualifiedName)` in `ModelFromProtocol.java`.
+
+## PARK-39 — the class mappings lite skips compile as no mapping
+
+**Parked** 2026-10-21 with PARK-38 (the same item). **What happens today:** the door builds no class mapping for a
+merge Operation, an Operation of a function lite does not model, or a ServiceStore's or MongoDB's class mapping
+(`MappingFromProtocol`, "parse-and-skip"): the mapping compiles, and a query of that class fails later saying the class
+is not mapped -- true, but not why. **What the engine does:** it compiles each (`ClassMappingSecondPassBuilder`, the
+store extensions). **The cost while parked:** a misleading refusal at query time, and a model the engine checks
+whole left unchecked. **Acceptance:** each such class mapping is either carried and compiled (its set ids, its
+store's references) or refused at compile by name ("a merge Operation mapping is not supported"), a test each.
+**Who / When:** with PARK-38.
+
+**Anchor.** The skip: `return null;    // parse-and-skip, as above` in `MappingFromProtocol.java`.
+

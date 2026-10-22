@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       reaching a dialect, a connection or {@code Databases} ({@code ArchitectureTest}: 6j, 7a, 7b, 7c,
  *       {@code compileSideLayersAreDialectBlind}).</li>
  * </ul>
- * Code only, as the ratchet reads it: a comment or a string never counts (a refusal's message names its database).
+ * Code only, as the ratchet reads it: a comment or a string never counts (a refusal's message names its database);
+ * a connector's strings count too (its URLs and product name are its own database's).
  */
 @Tag("census")
 class DialectOwnerExclusivityTest {
@@ -51,7 +52,21 @@ class DialectOwnerExclusivityTest {
             // step 2, the engine-H2 row). Whether the engine text should spell them at all is the engine-text work's
             // question, not this guard's.
             new Crossing("core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java", "DuckDB", 9,
-                    "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"));
+                    "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
+            // (2026-10-18, the dialect program's Phase 7: the warehouse's two crossings, its Postgres catalog tests
+            // naming DuckDB, left this list: the warehouse is a host owner, its engine DuckDB (DatabaseOwners).)
+            // 2026-10-18 (registered as measured, the dialect program's Phase 7, when the guards first read testing/):
+            // MySQL's test server is reached through MariaDB's driver, the one driver both lanes load, as MySQL's
+            // connector extends MariaDB's in the product
+            new Crossing("testing/src/main/java/com/legend/testing/EmbeddedMySql.java", "MariaDB", 1,
+                    "MySQL's test server is opened by MariaDB Connector/J, the one driver both lanes load"),
+            // 2026-10-16 (registered as measured, the dialect program's Phase 6, the audit of the branch): two DuckDB
+            // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
+            // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
+            new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", "H2", 6,
+                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"),
+            new Crossing("core/src/test/java/com/legend/exec/RawGridSchemaDuckDbTest.java", "H2", 4,
+                    "a connection helper's overloads declaring H2 and DuckDB: neither is guessed"));
 
     /** {@code DatabaseType.valueOf} and {@code .values()}: the vocabulary reading a name, deciding nothing. */
     private static final Pattern ANY_TYPE = Pattern.compile("\\bDatabaseType\\s*\\.\\s*(valueOf|values)\\b");
@@ -66,8 +81,11 @@ class DialectOwnerExclusivityTest {
     @Test
     void eachOwnerNamesOnlyItsOwnDatabase() throws IOException {
         Map<String, Integer> crossings = new TreeMap<>();
-        for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.subList(1, MAIN_ROOTS.size())
-                .toArray(String[]::new))) {
+        // the tests too (2026-10-16, the dialect program's Phase 6): the test backends, and every test named for a
+        // database, are owners there
+        for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.get(1), "core/src/test/java", "pct/src/test/java",
+                "spec/src/test/java", "parser-equivalence/src", "warehouse/src/main/java", "warehouse/src/test/java",
+                "wasm/src/main/java/planner", "native/src/main/java", "testing/src/main/java")) {
             String rel = SourceFiles.path(f);
             if (!rel.endsWith(".java")) {
                 continue;
@@ -78,7 +96,20 @@ class DialectOwnerExclusivityTest {
                     || owner.kind() == DatabaseOwners.Kind.VOCABULARY) {
                 continue;
             }
-            for (String line : DialectLeakRatchetTest.lex(src).code()) {
+            DialectLeakRatchetTest.Lines lines = DialectLeakRatchetTest.lex(src);
+            List<String> read = new ArrayList<>(lines.code());
+            // a connector's strings too (2026-10-16, the dialect program's Phase 5, the audit of the branch): its URLs,
+            // its product name and its messages are its own database's, and no census counts them (the leak ratchet
+            // skips an owner, the boundary census skips a connector); a test backend's alike, and a test named for a
+            // database (Phase 6, the audit of the branch: its JDBC URLs and its models are its own database's, and the
+            // leak ratchet's jdbc-url count no longer reaches them)
+            // the warehouse's too (a host, 2026-10-18, the dialect program's Phase 7): its messages and its fixtures
+            // name its own engine, and another database only where that database owns the file
+            if (owner.kind() == DatabaseOwners.Kind.CONNECTOR || owner.kind() == DatabaseOwners.Kind.BACKEND
+                    || owner.kind() == DatabaseOwners.Kind.NAMED_TEST || owner.kind() == DatabaseOwners.Kind.HOST) {
+                read.addAll(lines.strings());
+            }
+            for (String line : read) {
                 for (String db : DatabaseOwners.named(line)) {
                     if (!owner.databases().contains(db)) {
                         crossings.merge(rel + "\t" + db, 1, Integer::sum);
@@ -105,6 +136,40 @@ class DialectOwnerExclusivityTest {
         assertTrue(failures.isEmpty(), "an owner names a database not its own: move the decision into that database's"
                 + " owner, or pass what differs in from it (a crossing is registered here only with a dated reason): "
                 + failures);
+    }
+
+    /** The warehouse's registry of the databases a catalog attaches ({@code Attachment}, an EVERY owner, which neither
+     *  census reads) names an attached database only in its rows and in its switches' one-line arms (DuckDB, the
+     *  warehouse's host, anywhere, as in every warehouse source), as DialectBoundaryTest pins
+     *  {@code Databases}' cases: a decision for one database written anywhere else in it belongs in that database's own
+     *  class (2026-10-18, the dialect program's Phase 7, the review of its branch). */
+    @Test
+    void theWarehouseRegistryNamesADatabaseOnlyInItsRowsAndArms() throws IOException {
+        String rel = "warehouse/src/main/java/com/legend/warehouse/server/Attachment.java";
+        DialectLeakRatchetTest.Lines lines = DialectLeakRatchetTest.lex(Files.readString(SourceFiles.file(rel)));
+        Pattern row = Pattern.compile("^\\s*[A-Z][A-Z0-9_]*\\s*\\(");
+        Pattern arm = Pattern.compile("^\\s*case\\s+[A-Z][A-Z0-9_]*\\s*->[^;{]*;\\s*$");
+        List<String> failures = new ArrayList<>();
+        // the warehouse's host: what a warehouse source not named for a database may name
+        Set<String> host = DatabaseOwners.of("warehouse/src/main/java/com/legend/warehouse/server/Catalogs.java", "")
+                .databases();
+        int rows = 0;
+        for (int i = 0; i < lines.code().size(); i++) {
+            String code = lines.code().get(i);
+            Set<String> named = new java.util.HashSet<>(DatabaseOwners.named(code));
+            named.removeAll(host);
+            if (named.isEmpty()) {
+                continue;
+            }
+            if (row.matcher(code).find()) {
+                rows++;
+            } else if (!arm.matcher(code).find()) {
+                failures.add(rel + ":" + (i + 1) + " " + code.strip());
+            }
+        }
+        assertTrue(rows > 0, "the registry's rows were not found: " + rel);
+        assertTrue(failures.isEmpty(), "the warehouse's registry names a database outside a row or a one-line arm: move"
+                + " the decision into that database's class (Postgres, PostgresUrl) and call it from the arm: " + failures);
     }
 
     /** A question about which dialect a value is, by its class: {@code instanceof} or {@code .class} of a dialect
@@ -243,6 +308,26 @@ class DialectOwnerExclusivityTest {
                 DatabaseOwners.of("core/src/main/java/com/legend/protocol/sql/PostgresDialect.java", "").databases());
         assertEquals(null, DatabaseOwners.of("core/src/main/java/com/legend/protocol/sql/SqlToPure.java", ""));
         assertEquals(null, DatabaseOwners.of("core/src/main/java/com/legend/exec/Sessions.java", ""));
+        // a connector (2026-10-16, the dialect program's Phase 5): its own database and its parent's; the interface
+        // none; the registry every one
+        String exec = "core/src/main/java/com/legend/exec/";
+        assertEquals(Set.of("H2"), DatabaseOwners.of(exec + "H2Connector.java",
+                "final class H2Connector implements DatabaseConnector").databases());
+        assertEquals(Set.of("MySQL", "MariaDB"), DatabaseOwners.of(exec + "MySqlConnector.java",
+                "final class MySqlConnector extends MariaDbConnector").databases());
+        assertEquals(Set.of(), DatabaseOwners.of(exec + "DatabaseConnector.java", "interface DatabaseConnector")
+                .databases());
+        assertEquals(DatabaseOwners.Kind.EVERY, DatabaseOwners.of(exec + "Connectors.java", "").kind());
+        // the warehouse (2026-10-18, the dialect program's Phase 7): a host, its engine DuckDB; a file named for an
+        // attached database names that one too; its registry of attached databases every one
+        String warehouse = "warehouse/src/main/java/com/legend/warehouse/server/";
+        assertEquals(Set.of("DuckDB"), DatabaseOwners.of(warehouse + "WarehouseServer.java", "").databases());
+        assertEquals(Set.of("DuckDB", "Postgres"), DatabaseOwners.of(warehouse + "PostgresUrl.java", "").databases());
+        assertEquals(Set.of("DuckDB", "Postgres"), DatabaseOwners.of(
+                "warehouse/src/test/java/com/legend/warehouse/WarehousePostgresLiveTest.java", "").databases());
+        assertEquals(DatabaseOwners.Kind.HOST, DatabaseOwners.of(
+                "warehouse/src/test/java/com/legend/warehouse/TestServer.java", "").kind());
+        assertEquals(DatabaseOwners.Kind.EVERY, DatabaseOwners.of(warehouse + "Attachment.java", "").kind());
     }
 
     /** Every name the ratchet counts as a database is one the register knows: the two read the same names. */

@@ -6,12 +6,13 @@ package com.legend.integration;
 import com.legend.error.LegendCompileException;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -30,6 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * in the source.
  */
 class CypherIslandIntegrationTest {
+
+    /** The platform's own engine: the island's session, its tables and the connection its model declares. */
+    private static final TestBackend PLATFORM = TestBackends.platform();
 
     private static final String MODEL = """
             ###Pure
@@ -74,17 +78,17 @@ class CypherIslandIntegrationTest {
                 ) }
             )
             ###Connection
-            RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            RelationalDatabaseConnection store::Conn { %s }
             ###Runtime
             Runtime test::RT { mappings: [ test::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }
-            """;
+            """.formatted(PLATFORM.connectionBody());
 
-    private static Connection duckdb;
+    private static Connection session;
 
     @BeforeAll
     static void seed() throws SQLException {
-        duckdb = DriverManager.getConnection("jdbc:duckdb:");
-        try (Statement s = duckdb.createStatement()) {
+        session = PLATFORM.open();
+        try (Statement s = session.createStatement()) {
             s.execute("CREATE TABLE T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), AGE INTEGER, ACTIVE BOOLEAN,"
                     + " FIRM_ID INTEGER)");
             s.execute("CREATE TABLE T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100), FOUNDED INTEGER,"
@@ -99,11 +103,103 @@ class CypherIslandIntegrationTest {
 
     @AfterAll
     static void close() throws SQLException {
-        duckdb.close();
+        session.close();
     }
 
     private static ExecutionResult run(String cypher) throws SQLException {
-        return new QueryService().execute(MODEL, "#Cypher{" + cypher + "}#", "test::RT", duckdb);
+        return new QueryService().execute(MODEL, "#Cypher{" + cypher + "}#", "test::RT", session);
+    }
+
+    /** The model with a graph (the study's §12.45): a DataSpace of Person and Firm, open. */
+    private static final String GRAPH_MODEL = MODEL + """
+            ###Pure
+            Profile graph::graph
+            {
+               stereotypes: [Anonymous, Edge, Open, from, to, type, nanoseconds, timeOfDay];
+            }
+            ###DataSpace
+            DataSpace <<graph::graph.Open>> test::G
+            {
+              executionContexts:
+              [
+                {
+                  name: 'default';
+                  mapping: test::M;
+                  defaultRuntime: test::RT;
+                }
+              ];
+              defaultExecutionContext: 'default';
+              elements: [ test::Person, test::Firm ];
+            }
+            """;
+
+    private static ExecutionResult runOver(String model, String cypher) throws SQLException {
+        return new QueryService().execute(model, "#Cypher{" + cypher + "}#", "test::RT", session);
+    }
+
+    private static ExecutionResult pure(String model, String query) throws SQLException {
+        return new QueryService().execute(model, query, "test::RT", session);
+    }
+
+    @Test
+    void theGraphAUseNamesIsADataSpaceOpenByItsStereotype() throws SQLException {
+        // the study's §12.45: USE names the graph, a DataSpace; its elements are the labels (City is outside), its
+        // <<graph::graph.Open>> the open reading (a label no class has: no rows; a property no class declares: null)
+        assertEquals(List.of(), rows(runOver(GRAPH_MODEL, "USE test::G MATCH (p:Nobody) RETURN p.name AS n")));
+        List<String> people = rows(runOver(GRAPH_MODEL, "USE test::G MATCH (p:Person) RETURN p.nam AS x"));
+        assertEquals(rows(run("MATCH (p:Person) RETURN p.name AS n")).size(), people.size());
+        assertTrue(people.stream().allMatch("null"::equals), people.toString());
+        long persons = Long.parseLong(rows(run("MATCH (p:Person) RETURN count(*) AS c")).get(0));
+        long firms = Long.parseLong(rows(run("MATCH (f:Firm) RETURN count(*) AS c")).get(0));
+        assertEquals(List.of(String.valueOf(persons + firms)),
+                rows(runOver(GRAPH_MODEL, "USE test::G MATCH (n) RETURN count(*) AS c")));
+        // without a USE the whole model is the graph, closed: C4 stays (aQueryNeo4jRejectsIsATypeError)
+        LegendCompileException closed = assertThrows(LegendCompileException.class,
+                () -> runOver(GRAPH_MODEL, "MATCH (p:Nobody) RETURN p.name"));
+        assertTrue(closed.getMessage().contains("the label Nobody names no class"), closed.getMessage());
+        // a USE naming no DataSpace, and a USE that is not the first clause, are errors at their place
+        LegendCompileException none = assertThrows(LegendCompileException.class,
+                () -> runOver(GRAPH_MODEL, "USE test::Nope MATCH (p:Person) RETURN p.name"));
+        assertTrue(none.getMessage().contains("USE test::Nope: no DataSpace of the model"), none.getMessage());
+        LegendCompileException late = assertThrows(LegendCompileException.class,
+                () -> runOver(GRAPH_MODEL, "MATCH (p:Person) USE test::G RETURN p.name"));
+        assertTrue(late.getMessage().contains("USE clause must be"), late.getMessage());
+    }
+
+    @Test
+    void theIdentityOfAMappedInstanceIsItsKey() throws SQLException {
+        // docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2: a mapped instance's identity is its class's key (the
+        // mapping's ~primaryKey, else the main table's PRIMARY KEY) as '<class>:<key>', one native, elementId
+        assertEquals(List.of("test::Person:1|test::Firm:1", "test::Person:2|test::Firm:1", "test::Person:3|test::Firm:2",
+                        "test::Person:4|null"),
+                rows(pure(MODEL, "test::Person.all()->project(~[id:p|$p->meta::legend::lite::elementId(),"
+                        + " f:p|$p.firm->meta::legend::lite::elementId()])->sort(~id->ascending())")));
+        // several instances (a to-many navigation): each its own identity
+        assertEquals(List.of("Acme|test::Person:1", "Acme|test::Person:2", "Globex|test::Person:3"),
+                rows(pure(MODEL, "test::Firm.all()->project(~[n:f|$f.legalName,"
+                        + " ids:f|$f.employees->meta::legend::lite::elementId()])->sort(~ids->ascending())")));
+        // the mapping's ~primaryKey takes precedence over the table's PRIMARY KEY (the engine's rule)
+        String keyedByName = MODEL.replace("~mainTable [store::DB] T_PERSON\n",
+                "~primaryKey ([store::DB] T_PERSON.NAME)\n                    ~mainTable [store::DB] T_PERSON\n");
+        assertEquals(List.of("test::Person:Alice", "test::Person:Bob", "test::Person:Charlie", "test::Person:Diana"),
+                rows(pure(keyedByName, "test::Person.all()->project(~[id:p|$p->meta::legend::lite::elementId()])"
+                        + "->sort(~id->ascending())")));
+        // Cypher compares nodes by it: a cartesian product joined on identity, an absent node without one
+        assertEquals(List.of("4"), rows(run("MATCH (a:Person), (b:Person) WHERE a = b RETURN count(*) AS c")));
+        assertEquals(List.of("12"), rows(run("MATCH (a:Person), (b:Person) WHERE a <> b RETURN count(*) AS c")));
+        assertEquals(List.of("Alice|true", "Bob|true", "Charlie|true", "Diana|null"),
+                rows(run("MATCH (p:Person) OPTIONAL MATCH (p)-[:firm]->(f:Firm) RETURN p.name AS n, f = f AS same"
+                        + " ORDER BY n")));
+        assertEquals(List.of("Alice|Bob", "Bob|Alice"), rows(run("MATCH (a:Person)-[:firm]->(f:Firm),"
+                + " (b:Person)-[:firm]->(g:Firm) WHERE f = g AND a <> b RETURN a.name AS an, b.name AS bn"
+                + " ORDER BY an")));
+        // a class with neither key has no identity: a compile error naming it
+        String keyless = MODEL.replace("Table T_CITY (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))",
+                "Table T_CITY (ID INTEGER, NAME VARCHAR(100))");
+        LegendCompileException none = assertThrows(LegendCompileException.class,
+                () -> runOver(keyless, "MATCH (a:City), (b:City) WHERE a = b RETURN a.name AS n"));
+        assertTrue(none.getMessage().contains("the class test::City has no identity under the mapping test::M"),
+                none.getMessage());
     }
 
     private static List<String> columns(ExecutionResult result) {
@@ -220,7 +316,7 @@ class CypherIslandIntegrationTest {
     void theIslandComposesWithPure() throws SQLException {
         ExecutionResult r = new QueryService().execute(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name,"
                 + " p.age AS age}#->filter(x|$x.age > 26)->select(~[name])->sort(~name->ascending())", "test::RT",
-                duckdb);
+                session);
         assertEquals(expect("Alice", "Bob"), rows(r));
     }
 
@@ -247,10 +343,32 @@ class CypherIslandIntegrationTest {
     void whatIsNotReadYetIsRefusedByName() {
         com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> run("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN r.since"));
-        assertEquals("#Cypher{...}# at line 1, column 53: a property of a relationship is not supported yet (an edge"
-                + " class)", e.getMessage());
+        assertEquals("#Cypher{...}# at line 1, column 53: a property of a relationship over a property or association"
+                + " (no edge class, the study's §5.6) is not supported yet", e.getMessage());
         com.legend.error.NotImplementedException create = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> run("CREATE (p:Person {name: 'x'})"));
         assertTrue(create.getMessage().contains("CREATE is not supported yet"), create.getMessage());
+    }
+
+    @Test
+    void anOrderByOnAnExpressionNotReturnedRendersItsHiddenKey() throws SQLException {
+        // the study's §12.53: the sort key is not an output column; the result render carries it as a hidden
+        // output of the ordered relation (Render.withSortOutputs); Cypher's null last ascending
+        assertEquals(expect("Charlie", "Alice", "Bob", "Diana"),
+                rows(run("MATCH (p:Person) RETURN p.name AS name ORDER BY p.age")));
+        assertEquals(expect("Bob", "Alice", "Charlie"),
+                rows(run("MATCH (p:Person) WHERE p.age IS NOT NULL WITH p.name AS name, p.age * 2 AS twice"
+                        + " RETURN name ORDER BY twice DESC")));
+        // the streamed JSON rows carry it too, outside the row objects (Render.jsonWireRows read its sort keys among
+        // the outputs it shows, and refused the hidden one: the independent review, 2026-10-18)
+        java.io.StringWriter streamed = new java.io.StringWriter();
+        try {
+            com.legend.Execution.executeStreaming(MODEL, "#Cypher{MATCH (p:Person) RETURN p.name AS name"
+                    + " ORDER BY p.age}#", "test::RT", session, streamed);
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        }
+        assertEquals("[{\"name\":\"Charlie\"},{\"name\":\"Alice\"},{\"name\":\"Bob\"},{\"name\":\"Diana\"}]",
+                streamed.toString().replace(" ", "").replace("\n", ""));
     }
 }

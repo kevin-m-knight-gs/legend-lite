@@ -1,0 +1,42 @@
+# nearest_century, every value from 0 to 100 that moves an answer (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island,
+# 2026-10-14, the options framework): a two-digit (or one-digit) year below it is of the 2000s, else of the 1900s, in
+# every spelling of a date that has one (yy first in YMD, yymmdd, a month's name). Judged by SQL Anywhere 17's answers.
+# The SQL in YAML double quotes.
+tests:
+  - id: century_0
+    sql: "SELECT CAST('00/01/02' AS DATE) AS a, CAST('49/01/02' AS DATE) AS b, CAST('99/01/02' AS DATE) AS c"
+    settings: "query.nearest_century=0"
+    profile: iq16-default, sqla17-default
+  - id: century_1
+    sql: "SELECT CAST('00/01/02' AS DATE) AS a, CAST('01/01/02' AS DATE) AS b"
+    settings: "query.nearest_century=1"
+    profile: iq16-default, sqla17-default
+  - id: century_49
+    sql: "SELECT CAST('48/01/02' AS DATE) AS a, CAST('49/01/02' AS DATE) AS b"
+    settings: "query.nearest_century=49"
+  - id: century_50
+    sql: "SELECT CAST('49/01/02' AS DATE) AS a, CAST('50/01/02' AS DATE) AS b"
+    settings: "query.nearest_century=50"
+    profile: iq16-default, sqla17-default
+  - id: century_51
+    sql: "SELECT CAST('50/01/02' AS DATE) AS a, CAST('51/01/02' AS DATE) AS b"
+    settings: "query.nearest_century=51"
+    profile: iq16-default, sqla17-default
+  - id: century_99
+    sql: "SELECT CAST('98/01/02' AS DATE) AS a, CAST('99/01/02' AS DATE) AS b"
+    settings: "query.nearest_century=99"
+  - id: century_100
+    sql: "SELECT CAST('00/01/02' AS DATE) AS a, CAST('99/01/02' AS DATE) AS b"
+    settings: "query.nearest_century=100"
+    profile: iq16-default, sqla17-default
+  - id: century_70_yymmdd_and_month_names
+    sql: "SELECT CAST('690102' AS DATE) AS a, CAST('Mar 4 69' AS DATE) AS b, CAST('Mar 4 70' AS DATE) AS c"
+    settings: "query.nearest_century=70"
+    profile: iq16-default, sqla17-default
+  - id: century_20_a_timestamp
+    sql: "SELECT CAST('19/01/02 03:04:05' AS TIMESTAMP) AS a, CAST('20/01/02 03:04:05' AS TIMESTAMP) AS b"
+    settings: "query.nearest_century=20"
+  - id: century_compared_with_a_column
+    sql: "SELECT id FROM t WHERE dt > '99/12/30' ORDER BY id"
+    settings: "query.nearest_century=100"
+    profile: iq16-default, sqla17-default

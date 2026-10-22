@@ -836,8 +836,8 @@ public final class CanonicalRenderSql {
                 SqlExpr.Call.of(SqlFn.IS_NULL, field), new SqlExpr.NullLit())), lit);
     }
 
-    /** The EMPTY key collection (NULL and empty both normalize to it). */
-    private static SqlExpr emptyArray() {
+    /** The EMPTY key collection (NULL and empty both normalize to it; InstanceEquality's collections of canons too). */
+    static SqlExpr emptyArray() {
         return new SqlExpr.ArrayLit(List.of());
     }
 

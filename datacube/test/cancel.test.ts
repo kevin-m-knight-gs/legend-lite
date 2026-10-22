@@ -37,7 +37,6 @@ const GROUPED: CubeSnapshot = {
   derived: [],
   rows: ['region', 'country'],
   pivotOn: [],
-  measures: [{ name: 'm', column: 'notional', fn: 'sum' }],
   sorts: [],
   epoch: 1,
 };
@@ -46,7 +45,7 @@ function rows(epoch: number, values: string[]): ResultTable {
   return {
     columns: [
       { name: 'region', type: 'String', values },
-      { name: 'm', type: 'Float', values: values.map((_, i) => i + 1) },
+      { name: 'notional', type: 'Float', values: values.map((_, i) => i + 1) },
     ],
     rowCount: values.length,
     epoch,
