@@ -33,7 +33,7 @@ import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
-import { type Bands, NEW_SHEET, add as addTile, asSaved, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
+import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { chartGrid, MAP_MARKS, ownGridRefusal, type ChartSpec } from '../chart-spec.ts';
 import { chartPicked, type PageFilter } from '../page-filters.ts';
@@ -43,7 +43,9 @@ import type { ExportPage, ExportTile } from '../export-model.ts';
 import {
   FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews,
 } from '../page-document.ts';
-import { givenName } from '../page-names.ts';
+import {
+  layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
+} from '../page-gestures.ts';
 import { chartTitle, gridTitle, nextPageId } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument, CubeSource } from '../cube-document.ts';
@@ -376,7 +378,7 @@ export class CubePage {
       onRename: (tile, title) => {
         // the title as typed: a grid given its made title back keeps none of its own, by renameTile's rule (views()
         // writes none either); an editing grid, which a page does not save, is no tile of the page's to tell
-        if (this.#saved(tile)) this.#tell('Rename Tile', { kind: 'renameTile', tile, title });
+        if (this.#saved(tile)) this.#tell('Rename Tile', pageCommand('renameTile', { tile, title }));
         this.#options.onChange();
       },
       onLayout: (tileId, anchor) => this.showLayouts(anchor, tileId),
@@ -429,36 +431,23 @@ export class CubePage {
     return this.views((g) => g).views.some((v) => v.id === tile);
   }
 
-  /** A sheet's layout told whole, as views() writes it: its saved tiles alone, as a page saves them. */
-  #tellLayout(sheet: Sheet): void {
-    if (this.#quiet > 0) return;
-    const saved = new Set(this.views((g) => g).views.map((v) => v.id));
-    this.#tell('Layout Change', { kind: 'layout', sheet: sheet.id, layout: { kind: 'bands', ...asSaved(without(sheet.board.layout, (id) => !saved.has(id))) } });
+  /** The tiles the page saves (views() writes them): not a chart's editing grid, a moment's work. */
+  #savedTiles(): ReadonlySet<string> {
+    return new Set(this.views((g) => g).views.map((v) => v.id));
   }
 
-  /**
-   * A sheet's layout changed by hand, told as what the hand did (P14): a lone tile stacked on another, or a preset
-   * picked, is its own command -- when every tile it moves is one the page saves (an editing grid's place is no
-   * command's); any other change is the sheet's layout whole. `before`: the layout the hand changed.
-   */
+  /** A sheet's layout told whole, as views() writes it: its saved tiles alone, as a page saves them
+   *  (page-gestures.ts layoutCommand). */
+  #tellLayout(sheet: Sheet): void {
+    if (this.#quiet > 0) return;
+    this.#tell('Layout Change', layoutCommand(sheet.id, sheet.board.layout, this.#savedTiles()));
+  }
+
+  /** A sheet's layout changed by hand, told as what the hand did (page-gestures.ts movedCommand: a stack, a preset
+   *  picked, else the layout whole). `before`: the layout the hand changed. */
   #tellMove(sheet: Sheet, before: Bands, move: LayoutMove | undefined): void {
     if (this.#quiet > 0) return;
-    const saved = new Set(this.views((g) => g).views.map((v) => v.id));
-    if (move?.kind === 'stack' && move.tiles.every((t) => saved.has(t))) {
-      this.#tell('Layout Change', { kind: 'stack', tiles: [...move.tiles] });
-      return;
-    }
-    if (move?.kind === 'arrange') {
-      // the page's tiles arranged as the preset arranges them -- an editing grid open among them is the board's, drawn
-      // after (P7; the S3 audit's 4) -- in the board's order (BandBoard #order): `first`, then the rest in reading
-      // order; none given, the page's own
-      const was = tiles(before).filter((t) => saved.has(t));
-      const first = move.first !== undefined && saved.has(move.first) ? move.first : undefined;
-      const order = first !== undefined ? [first, ...was.filter((t) => t !== first)] : null;
-      this.#tell('Layout Change', { kind: 'arrange', sheet: sheet.id, preset: move.preset, order });
-      return;
-    }
-    this.#tellLayout(sheet);
+    this.#tell('Layout Change', movedCommand(sheet.id, before, move, sheet.board.layout, this.#savedTiles()));
   }
 
   /** Commands told by `edit` are left untold: the edit tells its own. */
@@ -753,26 +742,26 @@ export class CubePage {
   /** A sheet after the last, shown (`sync` shows a sheet that comes). */
   addSheet(): string {
     const id = this.#nextId('sheet');
-    this.#tell('Add Sheet', { kind: 'addSheet', id, name: null });
+    this.#tell('Add Sheet', pageCommand('addSheet', { id, name: null }));
     return id;
   }
 
   /** A sheet's name: its own (trimmed), or -- empty or undefined -- named again after what it shows. */
   renameSheet(id: string, name: string | undefined): void {
     const sheet = this.#sheets.find((s) => s.id === id);
-    // the one rule (page-names.ts givenName): trimmed, a blank none of its own (named after its first grid)
-    const given = givenName('sheet', name ?? '');
-    const own = 'name' in given ? given.name : undefined;
-    if (!sheet || sheet.name === own) return;
-    this.#tell('Rename Sheet', { kind: 'renameSheet', sheet: id, name: own ?? null });
+    if (!sheet) return;
+    // the names' one rule (page-gestures.ts renameSheetCommand, page-names.ts givenName): trimmed, a blank none of its
+    // own (named after its first grid); none, the name it has
+    const command = renameSheetCommand(id, name, sheet.name);
+    if (command !== null) this.#tell('Rename Sheet', command);
   }
 
   /** A sheet moved to `to` in the order (counted with it taken out). */
   moveSheet(id: string, to: number): void {
     const at = this.#sheets.findIndex((s) => s.id === id);
-    const place = Math.max(0, Math.min(this.#sheets.length - 1, to));
-    if (at < 0 || at === place) return;
-    this.#tell('Move Sheet', { kind: 'moveSheet', sheet: id, to: place });
+    if (at < 0) return;
+    const command = moveSheetCommand(id, at, to, this.#sheets.length);
+    if (command !== null) this.#tell('Move Sheet', command);
   }
 
   /**
@@ -782,7 +771,7 @@ export class CubePage {
   removeSheet(id: string): void {
     const sheet = this.#sheets.find((s) => s.id === id);
     if (!sheet || this.#sheets.length === 1) return;
-    this.#tell('Delete Sheet', { kind: 'removeSheet', sheet: id });
+    this.#tell('Delete Sheet', pageCommand('removeSheet', { sheet: id }));
   }
 
   /**
@@ -801,11 +790,12 @@ export class CubePage {
     const title = from.board.title(tile) ?? spec.title;
     // one step: a new sheet and the tile onto it -- the sheet shown stays shown (`sync` shows a sheet that comes)
     const sheet = to ?? this.#nextId('sheet');
-    const added: PageCommand[] = to === null ? [{ kind: 'addSheet', id: sheet, name: null }] : [];
+    const steps = moveToSheetCommands(tile, sheet, to === null, target?.board.columns ?? null);
     if (this.#saved(tile)) {
-      this.#tell('Move to Sheet', ...added, { kind: 'moveTile', tile, sheet, columns: target?.board.columns ?? null });
+      this.#tell('Move to Sheet', ...steps);
     } else {
       // a tile the page does not save (a chart with no spec yet): its new sheet the page's, the move the board's alone
+      const added = steps.filter((c) => c.kind === 'addSheet');
       if (added.length > 0) this.#tell('Move to Sheet', ...added);
       const onto = this.#sheets.find((s) => s.id === sheet);
       if (!onto) return;
@@ -1032,7 +1022,7 @@ export class CubePage {
         if (this.#quiet > 0 || !this.#saved(id) || this.documentOf(id) === undefined) return;
         const copy = cube.copy;
         this.#options.onPageEdit({ label: copy ? 'Snap' : 'Go Live', step: false,
-          commands: [copy ? { kind: 'snap', grid: id, copy } : { kind: 'live', grid: id }] });
+          commands: [copy ? pageCommand('snap', { grid: id, copy }) : pageCommand('live', { grid: id })] });
       }),
       cube.on('plane', () => this.#options.onChange()),
     ];
@@ -1056,10 +1046,10 @@ export class CubePage {
     // a new one: told, placed where its command puts it (`sync`), and brought into view
     const sheet = (beside !== undefined ? this.#sheetOf(beside) : undefined) ?? this.#shown;
     this.#pending.set(id, tile);
-    const applied = this.#tell(how.label ?? 'Add Grid', ...(how.before ?? []), {
-      kind: 'addGrid', id, document: this.documentOf(id) ?? null, sheet: sheet.id, near: beside ?? null,
+    const applied = this.#tell(how.label ?? 'Add Grid', ...(how.before ?? []), pageCommand('addGrid', {
+      id, document: this.documentOf(id) ?? null, sheet: sheet.id, near: beside ?? null,
       title: how.title ?? null, columns: sheet.board.columns ?? null,
-    }, ...(how.after?.(id) ?? []));
+    }), ...(how.after?.(id) ?? []));
     if (!applied) {
       this.#pending.delete(id);
       // refused (its owner said why): never placed, let go -- its owner told it is gone -- and no tile has its id
@@ -1264,7 +1254,9 @@ export class CubePage {
     const placed = this.#sheetOf(id) !== undefined;
     if (!placed) this.#pending.set(id, tile);
     chart.told = JSON.stringify(spec);
-    const applied = this.#tell('Add Chart', { kind: 'addChart', id, near: grid, spec, title: null, columns: this.#sheetOf(grid)?.board.columns ?? null });
+    const applied = this.#tell('Add Chart', pageCommand('addChart', {
+      id, near: grid, spec, title: null, columns: this.#sheetOf(grid)?.board.columns ?? null,
+    }));
     if (!applied) this.#pending.delete(id);
     chart.added = applied;
     return applied;
@@ -1292,7 +1284,7 @@ export class CubePage {
       return;
     }
     chart.told = text;
-    this.#tell(label, { kind: 'setChart', chart: id, spec });
+    this.#tell(label, pageCommand('setChart', { chart: id, spec }));
   }
 
   /** The cube's own grid changed (a view landed, a sign-in): its charts draw again, a following one regrouped. */
@@ -1363,6 +1355,7 @@ export class CubePage {
       });
     }
     // each sheet's layout of what is saved: the other tiles' places closed up, as if they had been removed
+    // (page-gestures.ts savedLayout, the rule a layout is told by too)
     const saved = new Set(views.map((v) => v.id));
     return {
       views,
@@ -1371,7 +1364,7 @@ export class CubePage {
         ...(s.name !== undefined ? { name: s.name } : {}),
         // as the page has it (an editing grid never touches it: P7); a stack as it is saved, reopening on its first tab
         // (the design's §5, 7)
-        layout: { kind: 'bands' as const, ...asSaved(without(this.#layoutOf(s), (id) => !saved.has(id))) },
+        layout: savedLayout(this.#layoutOf(s), saved),
       })),
     };
   }
@@ -1498,7 +1491,7 @@ export class CubePage {
       if (this.#charts.has(id)) this.#dropChart(id);
       return;
     }
-    this.#tell(`Remove ${this.title(id) ?? id}`, { kind: 'removeTile', tile: id });
+    this.#tell(`Remove ${this.title(id) ?? id}`, pageCommand('removeTile', { tile: id }));
   }
 
   /** A tile off the board as a step leaves it (`sync`): a grid, a tile it could not open, a chart. */
@@ -1617,7 +1610,8 @@ export class CubePage {
     if (from === undefined) return;
     this.addGridOver(this.#gridLike(from, source, made.snapshot, made.configuration), {
       near: chartId, label: 'Show Grid',
-      after: (grid) => [{ kind: 'followGrid', chart: chartId, grid }, { kind: 'setChart', chart: chartId, spec: made.spec }],
+      // the one rule Python's chart.grid() asks too (page-gestures.ts showGridCommands)
+      after: (grid) => showGridCommands(chartId, grid, made.spec),
     });
   }
 

@@ -16,10 +16,8 @@ import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../..
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
-import { availableDimensions, drillDown, drillUp, useDimension } from '../dimensions.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
-import { headerSortCommand } from '../header-sort.ts';
-import { TREE_COLUMN } from '../treeview.ts';
+import { GRID_GESTURES, gestureReadsView, gridGesture as gestureCommands, isGridGesture, type GestureView } from '../grid-gestures.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
@@ -601,54 +599,42 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
 }
 
 /**
- * A HEADER'S SORT CLICK, as the screen's click makes it (header-sort.ts headerSortCommand, the one rule: the user,
- * 2026-10-22) -- Python's grid.toggle_sort and grid.toggle_group_sort: `column` (null: the groups, the tree column's)
- * sorted first in its direction by the type its header has in the grid's view, then the other way, then none;
- * `chained`, after the other sorts. A column the grid shows no header of refused in words. JSON: as gridApply's, or
- * `{problems}`.
+ * A GRID'S GESTURE AS PYTHON MAKES IT (grid.gesture, and the named ways in that are gestures: toggle_sort,
+ * toggle_group_sort, dimension, drill, drill_up, add_group ...; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8): gesture
+ * `name` (grid-gestures.ts GRID_GESTURES: the menu's own ids where the menu has it) made on the grid as it is, given its
+ * arguments by name (`given`, JSON), by the one function the screen's control calls (grid-gestures.ts gridGesture) --
+ * a gesture that reads the grid's view given it as the screen paints it (its headers, shown-columns.ts shownColumns;
+ * its pivot's columns), the grid run for it -- its commands read as gridApply reads Python's, then applied as gridApply
+ * applies them. JSON: as gridApply's;
+ * `{commands: []}` alone, a gesture that changes nothing; or `{problems}`, in DataCube's words.
  */
-export async function gridHeaderSort(spec: GridSpec, column: string | null, chained: boolean): Promise<string> {
+export async function gridGesture(spec: GridSpec, name: string, given: string): Promise<string> {
+  if (!isGridGesture(name)) {
+    return JSON.stringify({ problems: [`'${name}' is no gesture of a grid's: ${GRID_GESTURES.join(', ')}`] });
+  }
+  const args: unknown = JSON.parse(given);
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) {
+    return JSON.stringify({ problems: [`a gesture's arguments are given by name, not ${given}`] });
+  }
   return using(spec, async (o) => {
-    const view = await controllerOf(o).run({ snapshot: o.state.snapshot, tree: o.state.tree });
-    if (view === STALE) throw new Error('the grid was asked again before its view was ready');
-    let command: GridCommand;
+    let view: GestureView | null = null;
+    if (gestureReadsView(name)) {
+      const shown = await controllerOf(o).run({ snapshot: o.state.snapshot, tree: o.state.tree });
+      if (shown === STALE) throw new Error('the grid was asked again before its view was ready');
+      view = { headers: shownColumns(shown, o.state.configuration).leaves, pivot: shown.pivot?.columns ?? [] };
+    }
+    let commands: GridCommand[];
     try {
-      // the headers the screen paints (shownColumns: a grouped column among them when Show Grouped Columns is on, a
-      // hidden one not -- the S7 confirmation audit's third round's 2)
-      command = headerSortCommand(shownColumns(view, o.state.configuration).leaves, column ?? TREE_COLUMN, chained);
+      // its commands read by the commands' own reader, as every command Python builds is: what it carries from Python's
+      // JSON unjudged (a filter, a group's path, a calculated column) judged there
+      commands = gestureCommands(name, {
+        snapshot: o.state.snapshot, config: o.state.configuration, dimensions: o.cube.configuration.dimensions ?? [], view,
+      }, args as Readonly<Record<string, unknown>>).map(readGridCommand);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
     }
-    return applied(spec, o, [command]);
-  });
-}
-
-/**
- * A NAMED DIMENSION (dimensions.ts; its Dimensions tab, a configure's `dimensions`) USED OR DRILLED, as the menu's View ▸
- * Dimensions uses one: `move` 'use' groups the grid by its first level (useDimension), 'down' one level deeper, 'up'
- * one back (drillDown, drillUp) -- by the group command the Rows zone builds. A dimension the grid has not, or one naming
- * a column it has not, is refused in words. JSON: as gridApply's, or `{problems}`.
- */
-export async function gridDimension(spec: GridSpec, name: string, move: string): Promise<string> {
-  if (move !== 'use' && move !== 'down' && move !== 'up') {
-    return JSON.stringify({ problems: [`a dimension is used, drilled down or drilled up, not ${JSON.stringify(move)}`] });
-  }
-  return using(spec, async (o) => {
-    const s = o.state.snapshot;
-    const named = o.cube.configuration.dimensions ?? [];
-    const found = named.find((d) => d.name === name);
-    if (found === undefined) {
-      return JSON.stringify({ problems: [`the grid has no dimension '${name}'`
-        + (named.length > 0 ? ` (its dimensions: ${named.map((d) => d.name).join(', ')})` : ' (it has none: configure its dimensions first)')] });
-    }
-    if (availableDimensions(s, [found]).length === 0) {
-      const have = new Set(rowColumns(s).map((c) => c.name));
-      return JSON.stringify({ problems: [`the dimension '${name}' names ${found.columns.filter((c) => !have.has(c)).join(', ')
-        || 'no column'}, which the grid does not have`] });
-    }
-    const rows = (move === 'use' ? useDimension(s, found) : move === 'down' ? drillDown(s, found) : drillUp(s, found)).rows;
-    return applied(spec, o, [{ kind: 'group', rows: [...rows] }]);
+    return commands.length === 0 ? JSON.stringify({ commands: [] }) : applied(spec, o, commands);
   });
 }
 

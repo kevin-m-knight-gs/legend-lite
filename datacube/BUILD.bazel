@@ -444,6 +444,9 @@ _HEADLESS_TESTS = [
     # a grid edit as a value (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)
     "cypher-spike",
     "grid-commands",
+    # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)
+    "grid-gestures",
+    "page-gestures",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
     "cube-state",

@@ -250,8 +250,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  grid drawn in a band of its own, every grid's document said). Measured 314,975.
  *  315,500 -> 316,000 (2026-10-22, step S5's B8, B14, B6 and B5: setChart's refusal of a detached chart told to follow,
  *  the one "nothing to save" sentence and the one page-file rule, DataCube's, which Python says and asks too). Measured
- *  315,525. */
-const BUDGET = 316_000;
+ *  315,525.
+ *  316,000 -> 319,000 (2026-10-22, step S8, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "screen code builds no command":
+ *  every gesture's meaning in one module the screen's controls and Python's grid.gesture share -- grid-gestures.ts, its
+ *  refusals in words, about 2.8 KB gzipped, and page-gestures.ts, 0.8 KB -- app.ts and the menu losing their copies,
+ *  about 1 KB; making the gestures load later would put the selection-off path behind an await, F93's order). Measured
+ *  318,627. */
+const BUDGET = 319_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -330,8 +335,9 @@ const BUDGET = 316_000;
  *  Measured 305,535.
  *  306,000 -> 306,500 (2026-10-22, step S5's B8, B14, B6, B5, Z18, B4 and B13 -- the grid's note of the same date, and
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
- *  306,214. */
-const ENGINE_BUDGET = 306_500;
+ *  306,214.
+ *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694. */
+const ENGINE_BUDGET = 310_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -461,8 +467,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  323,500 -> 324,000 (2026-10-22, step S5's B8, B14 and B6: setChart's refusal of a detached chart told to follow, and
  *  the one "nothing to save" sentence, DataCube's, which Python says too). Measured 323,533.
  *  324,000 -> 324,500 (2026-10-22, step S5's B5, Z18, B4 and B13 -- the engine page's note of the same date). Measured
- *  324,039. */
-const WIDGET_BUDGET = 324_500;
+ *  324,039.
+ *  324,500 -> 328,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 327,491. */
+const WIDGET_BUDGET = 328_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

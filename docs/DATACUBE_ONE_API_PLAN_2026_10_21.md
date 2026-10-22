@@ -894,6 +894,86 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   -- fixed S7: the headers #paintView painted; and the fourth round's lows: L9 holds each restore's admission acted on
   (raised or returned), an unnamed measure of a padded column is its own Aggregation (the fix itself, said), the
   measure's form in gridSetUp's doc, F90's text finished
+- [x] **A1** the columns panel's pick added a column to the row groups by a list the screen made (`[...rows, c]`, the
+  column twice when grouped by already) -- fixed S8: the gesture `pivot.addVertical`, the menu's Add Vertical Pivot
+  (grid-gestures.test.ts; test_page.py `add_group`)
+- [x] **A2** the columns panel's tick hid or showed a column by a configure written in screen code -- fixed S8:
+  `column.show`
+- [x] **A3** the columns panel's reorder merged the columns' order in screen code (app.ts #columnOrder, mergeColumnOrder)
+  -- fixed S8: `columns.reorder` (grid-gestures.ts columnOrderOf)
+- [x] **A4** a column dragged out of a zone was taken off by a list the screen filtered -- fixed S8:
+  `pivot.removeVertical`, `pivot.removeHorizontal` (test_page.py `remove_group`, `remove_pivot`)
+- [x] **A5** a drop in the zones wrote its group and pivot commands in screen code -- fixed S8: `zones.set`
+- [x] **A6** the grid's header drag merged the order, and showed a column dragged in from the panel, in screen code --
+  fixed S8: `columns.reorder`'s `added`
+- [x] **A7** a group's chevron wrote its `open` in screen code -- fixed S8: `tree.open`
+- [x] **A8** a dragged column edge wrote its width's configure in screen code -- fixed S8: `column.resize`
+- [x] **A9** the zones and the title bar folded by a configure written in screen code -- fixed S8: `view.chrome`
+- [x] **A10** the header menu's query entries -- fourteen commands: its sorts, filters, row groups and pivots -- made in a
+  screen module (ui/menu.ts menuCommand) -- fixed S8: each entry its gesture, named by the menu's own id (ui/menu.ts
+  menuGesture: the id and what the entry carries of what the gesture takes) (menu.test.ts, menu-more.test.ts)
+- [x] **A11** Collapse All wrote its command in screen code -- fixed S8: `tree.collapseAll`
+- [x] **A12** Hide Column wrote its configure in screen code -- fixed S8: `column.hide`
+- [x] **A13** Pin Left, Pin Right and Unpin wrote their configures in screen code -- fixed S8: `column.pinLeft`,
+  `column.pinRight`, `column.unpin` (test_page.py `gesture`)
+- [x] **A14** Measures First turned its setting in screen code -- fixed S8: `pivot.measuresFirst`
+- [x] **A15** Unpin All found the pinned columns in screen code -- fixed S8: `column.unpinAll` (test_page.py `gesture`)
+- [x] **A16** Auto-size's floor, ceiling and padding were screen code -- fixed S8: `columns.autoSize`, given the content's
+  widths the screen measures
+- [x] **A17** Minimize's widths (a fixed width kept, upstream's 50) were screen code -- fixed S8: `column.minimize`,
+  `column.minimizeAll` (every header the grid paints)
+- [x] **A18** Size to Fit's scaling was screen code -- fixed S8: `columns.sizeToFit`, given the widths drawn and the
+  grid's own
+- [x] **A19** Exclude from and Include in the pivot wrote their configures in screen code -- fixed S8: `pivot.exclude`,
+  `pivot.include`
+- [x] **A20** the header menu's Delete of a calculated column wrote `removeCalculated` in screen code -- fixed S8:
+  `calc.delete`
+- [x] **A21** a heatmap went on a pivoted leaf's measure by screen code, a rule Python could not reach -- fixed S8:
+  `heatmap.add`, `heatmap.remove` (test_page.py `heatmap`)
+- [x] **A22** a header click made its command in app.ts by calling header-sort.ts itself, Python by headless
+  gridHeaderSort -- fixed S8: `header.sort`, the one gesture both ask (headless gridGesture; gridHeaderSort gone)
+- [x] **A23** a chart's mark on its grid's filter wrote its refilter in screen code -- fixed S8: `chart.refilter`
+- [x] **A24** a chart's selection taken off its grid wrote its refilter in screen code -- fixed S8: `chart.refilter`
+- [x] **A25** a named dimension used grouped the grid in screen code, and Python's dimension, drill and drill_up by a
+  headless function of their own (gridDimension) -- fixed S8: `view.dimension`, the one gesture both ask (gridDimension
+  gone)
+- [x] **A26** the column editor's Add wrote `calculate` in screen code -- fixed S8: `column.calculate`
+- [x] **A27** the column editor's OK wrote `editCalculated` in screen code -- fixed S8: `column.editCalculated`
+- [x] **A28** the column editor's Delete wrote `removeCalculated` in screen code -- fixed S8: `calc.delete`
+- [x] **A29** the filter editor's Apply wrote its filter command in screen code -- fixed S8: `filter.set`
+- [x] **A30** a tile renamed wrote `renameTile` in screen code -- fixed S8: page-gestures.ts pageCommand (the title as
+  typed)
+- [x] **A31** a sheet's layout told, its saved tiles alone, by a rule written in screen code -- twice: views() wrote a
+  page's layouts by its own copy -- fixed S8: page-gestures.ts savedLayout and layoutCommand, the one rule both write by
+  (page-gestures.test.ts)
+- [x] **A32** a hand's move on the board -- a stack of saved tiles, a preset picked and the order it arranges them in --
+  decided in screen code -- fixed S8: movedCommand
+- [x] **A33** Add Sheet wrote `addSheet` in screen code -- fixed S8: pageCommand
+- [x] **A34** a sheet's rename judged by the names' rule in screen code -- fixed S8: renameSheetCommand
+- [x] **A35** a sheet's drag held to the order's ends in screen code -- fixed S8: moveSheetCommand
+- [x] **A36** Delete Sheet wrote `removeSheet` in screen code -- fixed S8: pageCommand
+- [x] **A37** Move to Sheet -- a new sheet made first, in the same step -- composed in screen code -- fixed S8:
+  moveToSheetCommands
+- [x] **A38** Snap and Go Live told by commands written in screen code -- fixed S8: pageCommand
+- [x] **A39** Add Grid wrote `addGrid` in screen code -- fixed S8: pageCommand
+- [x] **A40** a chart told wrote `addChart` in screen code -- fixed S8: pageCommand
+- [x] **A41** a chart's spec told wrote `setChart` in screen code -- fixed S8: pageCommand
+- [x] **A42** a tile's x wrote `removeTile` in screen code -- fixed S8: pageCommand
+- [x] **A43** Show Grid's steps (the chart following its new grid, then drawn as it was) written in screen code, and
+  again in Python's chart.grid() -- fixed S8: showGridCommands, the one rule both ask (headless pageGesture;
+  test_page.py's Show Grid)
+- [x] **A44** the page renamed wrote `renamePage` in screen code -- fixed S8: pageCommand
+- [x] **A45** the page saved as a record wrote `savedAs` in screen code -- fixed S8: pageCommand
+- [x] **A46** a page filter set wrote `setPageFilter` in screen code -- fixed S8: pageCommand
+- [x] **A47** a page filter's x, in two places, wrote `removePageFilter` in screen code -- fixed S8: pageCommand
+- [x] **A48** a page opened live, a snapped grid's copy unread, told `live` written in screen code -- fixed S8:
+  pageCommand
+- [x] **A49** no scan saw where a gesture's meaning is decided: L8 asks whether each command kind is made on both sides,
+  never where (the class of F71 and F72, found by hand twice) -- fixed S8: L11, closed at 0 -- no command written out in
+  a screen file; pageCommand only for the person's input; every function that makes commands the screen calls asked by
+  headless too, or the screen's own, said why. Its first run found three the inventory missed: page-commands.ts
+  selectionRefilters (the tab's page undo), rebuiltCommands (the tab opening a served page) -- the screen's own, listed
+  -- and applyToState, an applier, not a maker (one-api-ledger.test.ts)
 
 ## 5. The steps
 
@@ -1024,7 +1104,8 @@ Ledger L11 (in one-api-ledger.test.ts), closed at 0:
    generated constructors (F71's leak was such an import: firstSortDirection).
 
 Items: A1-A60, one per site, classified at the step's start (constructor or gesture function); each closed with the
-commit that moves it, its gesture's test through the function the screen calls and the one Python calls.
+commit that moves it, its gesture's test through the function the screen calls and the one Python calls. (As built:
+A1-A49 -- the menu's fourteen one item, A10 -- and what changed from this plan, As built (S8).)
 
 ## 6. How it is tested
 
@@ -1522,7 +1603,8 @@ another editor, a kind tested elsewhere): `L8_KINDS` 3 -> 0 (F71, F72); `L8_SOUR
 **Gates.** The full local set after the first round: 202 of 203 targets green, the one red the register pin (F45-F70
 not listed), fixed and pushed (17c513e72). After the confirmation round (749bf4e0c): 203 of 203 green. After the third
 round (7cf6eab6b): 202 of 203, the one red F92's new test clicking a column its grid does not group by -- fixed
-(d15a7ba24), green, red without F92's fix. After the fourth round: GATES_R4.
+(d15a7ba24), green, red without F92's fix. After the fourth round: run with S8's, below (the user, 2026-10-22: no more
+CI rounds; the whole local set once, at S8's end).
 
 **The done condition.** The rounds found 40, 21, 6 and 7, each fewer and smaller; the fourth found no new place where
 the screen decides what a gesture means, and its races are D19's. S7 closes on that -- and the class of finding the
@@ -1531,3 +1613,70 @@ S8, the user's ask.
 
 **Next.** S8 (screen code builds no command), then D19, the single writer's client side, with H-5, H-11, H-13, F90's
 race and F97.
+
+## As built (S8, 2026-10-22)
+
+**What S8 is.** The user's ask, after the audits twice found a gesture's meaning decided in screen code (F71, F72): find
+every place, move each out, and guard it mechanically. Every command the screen applies is now made outside its files
+(app.ts, `page/`, `app/`, `ui/`, `layout/band-board.ts`): A1-A49, each closed.
+
+**The grid's gestures** (`datacube/src/grid-gestures.ts`): one table, `GRID_GESTURES`, named by the header menu's own ids
+where the menu has the gesture (`pivot.addVertical`, `column.unpinAll`, `heatmap.add`, `sort.clearColumn`, ...) and by
+names of the same form where it has none (`zones.set`, `columns.reorder`, `tree.open`, `column.resize`, `view.chrome`,
+`header.sort`, `chart.refilter`, `view.dimension`, `column.calculate`, `filter.set`). Each takes the grid as it is
+(`GestureGrid`: its state, its dimensions, and -- for the four that read it, flagged -- the headers it paints and its
+pivot's columns) and its arguments by name, refuses an argument it does not take or is not given, and has its commands
+read by the commands' own reader (readGridCommand), as a command Python builds is. The screen keeps pixels only: Auto-size
+measures the content and Size to Fit the widths drawn, then hand the numbers to `columns.autoSize` and
+`columns.sizeToFit`, whose floor, ceiling and scaling moved out of app.ts. The menu's dispatch is one line
+(`ui/menu.ts menuGesture`: the entry's id and what it carries of what the gesture takes); `menuCommand` and
+`applyMenuAction` are gone, their tests moved onto the gestures.
+
+**The page's gestures** (`datacube/src/page-gestures.ts`): what a gesture means where there is something to decide -- a
+layout as the page saves it (`savedLayout`, now also what views() writes a page's layouts by: one rule, not two), a hand's
+move (`movedCommand`), a sheet's rename and drag (`renameSheetCommand`, `moveSheetCommand`), Move to Sheet
+(`moveToSheetCommands`), Show Grid's steps (`showGridCommands`). Where every field is the person's input (a tile renamed as
+typed, a sheet deleted, a chart's spec as its panel made it), `pageCommand(kind, fields)`: the kind and the fields, as
+Python's generated builder writes them.
+
+**Python.** One way in for every grid gesture, `grid.gesture(name, **args)` (headless `gridGesture`, which runs the grid
+first only for a gesture that reads its view), and named methods where a Python user would reach for one: `add_group`,
+`remove_group`, `add_pivot`, `remove_pivot`, `heatmap` (the user's answer on the surface was not in when this was built:
+built as recommended, (a); the names are the user's to change). `toggle_sort`, `toggle_group_sort`, `dimension`, `drill`
+and `drill_up` now ask `gridGesture` too: headless `gridHeaderSort` and `gridDimension` are gone, one function each
+behind the screen's control and Python's call. `chart.grid()` asks Show Grid's steps of headless `pageGesture` instead of
+writing them itself.
+
+**What changed from the plan.**
+- *No generated constructor.* The grid side needed none: every grid command the screen made was a gesture with a meaning,
+  so each is a gesture. The page side's pass-through constructor is `pageCommand`, typed by the command union; it is not
+  read by `readPageCommand`, whose readers take a page document's JSON (`addGrid`'s cube), not the in-memory forms the
+  board holds. What keeps it honest is L11's second check: it builds only the kinds `PASS_THROUGH` lists, each said why.
+- *L11 reads text, not types.* The build's TypeScript has no compiler API to ask types of (TypeScript 7, native), so the
+  first check finds a command by every kind's `kind: '<kind>'` spelling in a screen file, the three spellings that are
+  no command listed by file (the board's LayoutMove, the filter editor's draft group). The inventory itself was taken by
+  types (TypeScript 6's compiler API, outside the build), the menu's entries -- typed a command or null -- by reading.
+- *Check 3 is wider than planned.* Not "a screen imports no rule internal" (the screen reads many rule modules to
+  paint), but: every function that returns commands and is given none, called anywhere in screen code (imported, loaded
+  later, handed over), is asked by headless too -- directly, or through a gesture table headless dispatches -- or is the
+  screen's own, said why (`SCREEN_OWN_MAKERS`: a form's edits, the board's hand, a sheet tab's drag, the tab's page undo,
+  the tab opening a served page, the person's input passed through). Its first run found three the inventory had missed
+  (A49).
+- *Items A1-A49, not A1-A60*: the menu's fourteen commands are one item (A10); a page filter's two x's one (A47).
+
+**Ledgers.** L11 closed at 0 (no ceiling: nothing in it is a gap); L8 reads a kind made by `pageCommand` and by the
+gesture tables (`exportMakes`); the register's item pattern takes `A`; menu-ids.test.ts counts an entry its gesture
+makes as handled. No ledger ceiling moved. Three bundle budgets did, each dated (bundle-budget.test.ts): the grid page
+316,000 -> 319,000, the engine page 306,500 -> 310,000, a notebook's module 324,500 -> 328,000 -- grid-gestures.ts
+(about 2.8 KB gzipped, its refusals in words) and page-gestures.ts (0.8 KB) load with the page, less what app.ts and
+the menu lost (about 1 KB). Loading the gestures later was weighed and refused: the selection-off path would wait on
+an import, and F93's order with it.
+
+**Gates.** Run locally, no CI (the user, 2026-10-22). The first full set ran out of disk mid-way (marimo's and
+JupyterLab's tests never ran) and found three reds: menu-ids.test.ts (a gesture's menu entry counted dead: it now counts
+one menuGesture makes), the headless roster (the two new test files listed) and the bundle budgets (raised, above).
+After them, the whole local set: 205 of 205 targets green, and `//datacube:verify_app_test` and `//python:wheel_test`
+green. This run is also S7's fourth round's (its own was stopped by the user's no-more-CI word).
+
+**Next.** D19, the single writer's client side, with H-5, H-11, H-13, F90's race and F97; and the user's answers on the
+Python names (S8's surface; Y-6, H-9: Save As, delete and list; Y-7, H-8: the tab's class grid on a Python host).

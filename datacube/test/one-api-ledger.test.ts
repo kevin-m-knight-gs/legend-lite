@@ -13,6 +13,8 @@
 //       source kind against what Python reads and adds; the headless exports Python never asks
 //   L10 (the browser's half) where the two sides keep different rules, and the gaps no scan reaches: each pinned by the
 //       code that is the gap (a marker), so fixing it fails here until its item is closed
+//   L11 screen code builds no command (S8): none written out in a screen file; pageCommand only for the person's input;
+//       every function that makes commands the screen calls asked by headless too, or the screen's own, said why
 //
 // The behavioural half is one-api-gestures.test.ts (L2, L3); Python's is python/tests/test_one_api.py (L4-L7, L9, L10).
 
@@ -317,7 +319,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
     + grid.slice(grid.indexOf('export function draftCommands'), grid.indexOf('function settingsPatch'))
     // and what a page opened again tells of its cubes opened over their frames (rebuiltCommands, the screen's)
     + functionBody(page, 'rebuiltCommands');
-  const made = (text: string, kind: string): boolean => new RegExp(`(?<!readonly )kind: '${kind}'`).test(text);
+  // a command written out, or built by pageCommand -- a page command whose every field is the person's input, as Python's
+  // generated builder builds it (page-gestures.ts; 2026-10-22, S8)
+  const made = (text: string, kind: string): boolean => new RegExp(`(?<!readonly )kind: '${kind}'|\\bpageCommand\\('${kind}'`).test(text);
   // 2026-10-22 (S5, Z4-Z7): a headless model action makes the page's model commands by the record the screen keeps
   // (page-model.ts PageModel, which a model action's export makes), so what PageModel makes, it makes
   const pageModel = SOURCES.read('src/page-model.ts');
@@ -326,11 +330,16 @@ describe('L8: every command kind and source kind, against who makes and reads it
   const filters = SOURCES.read('src/page-filters.ts');
   // its whole body, to its closing brace at the margin (its parameters' type closes at the margin first)
   const pickRule = filters.slice(filters.indexOf('export function chartPicked'), filters.indexOf('\n}\n', filters.indexOf('export function chartPicked')));
-  // 2026-10-22 (the user: one sort API): a header's sort click made by the one rule the screen's click asks too
-  // (header-sort.ts headerSortCommand), which headless gridHeaderSort calls
-  const headerRule = SOURCES.read('src/header-sort.ts');
+  // 2026-10-22 (the user: one sort API; S8: screen code builds no command): a gesture made by the one function the
+  // screen's control calls too (grid-gestures.ts gridGesture -- a header's sort click by header-sort.ts
+  // headerSortCommand), which headless gridGesture calls
+  const gestureRule = SOURCES.read('src/grid-gestures.ts') + SOURCES.read('src/header-sort.ts');
+  // and a page's gesture Python asks by name (page-gestures.ts PAGE_GESTURES: Show Grid's steps), which headless
+  // pageGesture calls
+  const pageGestureRule = SOURCES.read('src/page-gestures.ts');
   const exportMakes = (body: string, kind: string): boolean => made(body, kind) || (/\bnew PageModel\(/.test(body) && made(pageModel, kind))
-    || (/\bchartPicked\(/.test(body) && made(pickRule, kind)) || (/\bheaderSortCommand\(/.test(body) && made(headerRule, kind));
+    || (/\bchartPicked\(/.test(body) && made(pickRule, kind)) || (/\bgestureCommands\(/.test(body) && made(gestureRule, kind))
+    || (/\bPAGE_GESTURES\[/.test(body) && made(pageGestureRule, kind));
 
   it('each command kind is in its list, read by its reader, renamed by the rebase', () => {
     assert.deepEqual(listed(grid, 'GRID_COMMAND_KINDS'), gridKinds, 'GRID_COMMAND_KINDS is every grid command kind');
@@ -417,6 +426,107 @@ describe('L8: every command kind and source kind, against who makes and reads it
   });
 });
 
+// -- L11: screen code builds no command ------------------------------------------------------------------------------
+//
+// THE SCREEN DECIDES NO GESTURE'S MEANING (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8; the user, 2026-10-22: "Most
+// important piece of the audits are if they are finding new places where we don't have real API for datacube
+// functionality and have somehow coupled the UI to the implementation instead ... Is there any realistic way to find all
+// and guard against this"). Every command the screen applies is made outside its files: by a gesture's one function
+// (grid-gestures.ts, page-gestures.ts), which Python asks too (headless gridGesture, pageGesture), by another rule
+// module (grid-presets.ts, header-sort.ts, page-filters.ts, page-model.ts), or -- a page command whose every field is the
+// person's input -- by pageCommand, as Python's generated builder writes it. Closed at 0 (S8): nothing here is a gap.
+
+/** The screen's files: what draws a page and takes a person's gestures. layout/bands.ts is the bands' model, the page
+ *  commands' own (page-commands.ts, page-rebase.ts read it), no screen's. */
+const isScreen = (f: string): boolean => f === 'src/app.ts' || f === 'src/layout/band-board.ts'
+  || ['src/page/', 'src/app/', 'src/ui/'].some((d) => f.startsWith(d));
+/** A command kind's spelling in a screen file that is no command, by file and kind: why. */
+const NOT_COMMANDS: Record<string, string> = {
+  'src/layout/band-board.ts:arrange': "the hand's move the board reports (LayoutMove), told by page-gestures.ts movedCommand",
+  'src/layout/band-board.ts:stack': "the hand's move the board reports (LayoutMove), told by page-gestures.ts movedCommand",
+  'src/ui/filter-editor.ts:group': "a draft of the filter editor's own (an and/or group of conditions), no grid's command",
+};
+/** The page commands a screen file builds by pageCommand: each a kind whose every field is what the person typed, picked
+ *  or pointed at, or what the board measures or numbers -- nothing to decide, as Python's builder writes it. */
+const PASS_THROUGH: Record<string, string> = {
+  renameTile: 'the title as typed (renameTile judges it)',
+  addSheet: "a new sheet's id, as the page numbers ids (page-ids.ts nextPageId), unnamed",
+  removeSheet: 'the sheet deleted',
+  removeTile: "the tile whose x was clicked (removeTile's rule takes what goes with it)",
+  snap: "the grid and the copy its Snap made", live: 'the grid gone live, or opened live with its copy unread',
+  addGrid: "the new grid's cube, where it is dropped, and how many tiles fit side by side there (the board's measure)",
+  addChart: "the chart's spec as its panel made it (chart-spec.ts editChart), beside its grid",
+  setChart: "the spec as the chart's panel made it (chart-spec.ts editChart)",
+  renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
+  setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
+};
+/** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
+ *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */
+const SCREEN_OWN_MAKERS: Record<string, string> = {
+  pageCommand: 'the person\'s input passed through: the kinds PASS_THROUGH holds, each Python\'s builder writes too',
+  draftCommands: "the Properties window's edits (its draft against the grid it opened on): a form's; Python sets the same by configure and column",
+  layoutCommand: "a layout the board drew, its editing grid's place left out (an editing grid is the board's moment)",
+  movedCommand: "what the hand did on the board (a stack, a preset picked), its editing grid's place left out",
+  renameSheetCommand: "a sheet tab's rename, nothing told when it changes nothing (renameSheet's own rule names it: Python's sheet.rename tells it as given)",
+  moveSheetCommand: "a sheet tab dragged, nothing told where it is (moveSheet's own rule places it: Python's sheet.move tells it as given)",
+  moveToSheetCommands: "a tile dropped on another sheet's tab, or on New Sheet (Python makes the sheet, then moves tiles onto it)",
+  selectionRefilters: "the tab's page undo and redo: a step brought back puts its charts' selections back on their grids (G8); Python's page has no undo",
+  rebuiltCommands: "the tab opening the page Python serves: a cube it opened over the host's frames as they are now told back (P11); Python's own reopening tells its rebuilt as it reopens (_current)",
+};
+
+describe('L11: screen code builds no command', () => {
+  const kinds = [...unionKinds(SOURCES.read('src/grid-commands.ts'), 'GridCommand'), ...unionKinds(SOURCES.read('src/page-commands.ts'), 'PageCommand')];
+  const screens = SOURCES.under('src', '.ts').filter(isScreen);
+  const code = (f: string): string => codeLines(SOURCES.read(f)).map((l) => l.replace(/\s\/\/\s.*$/, '')).join('\n');
+
+  it('no screen file writes a command out', () => {
+    const found = screens.flatMap((f) => kinds.filter((k) => new RegExp(`(?<!readonly )\\bkind: '${k}'`).test(code(f)))
+      .map((k) => `${f}:${k}`)).filter((at) => NOT_COMMANDS[at] === undefined);
+    assert.deepEqual(found, [], 'a command a screen file writes: make it by its gesture function (grid-gestures.ts, page-gestures.ts)');
+    for (const at of Object.keys(NOT_COMMANDS)) {
+      const [file, kind] = at.split(':') as [string, string];
+      assert.ok(new RegExp(`\\bkind: '${kind}'`).test(code(file)), `${at}: listed, and no longer there -- take it off`);
+    }
+  });
+
+  it('pageCommand builds only what is the person\'s input', () => {
+    const built = new Set(screens.flatMap((f) => [...code(f).matchAll(/\bpageCommand\('(\w+)'/g)].map((m) => m[1]!)));
+    assert.deepEqual([...built].filter((k) => PASS_THROUGH[k] === undefined).sort(), [],
+      "a command a screen builds by pageCommand that decides something: make it by a gesture function");
+    assert.deepEqual(Object.keys(PASS_THROUGH).filter((k) => !built.has(k)).sort(), [], 'listed, and no screen builds it so: take it off');
+    for (const k of Object.keys(PASS_THROUGH)) assert.ok(kinds.includes(k), `${k}: no such command`);
+  });
+
+  it('every function that makes commands a screen calls is one Python asks too, or the screen\'s own, said why', () => {
+    // the makers: every function of a rule module that returns commands (its return type names them) and is given none
+    // (an applier -- page-commands.ts applyToState -- returns the commands it applied)
+    const rules = SOURCES.under('src', '.ts').filter((f) => !isScreen(f) && !f.startsWith('src/headless/'));
+    const makers = new Map<string, string>();
+    for (const f of rules) {
+      const text = SOURCES.read(f);
+      for (const m of text.matchAll(/^export function (\w+)(?:<[^>]*>)?\(([^]*?)\)\s*:\s*([^{;]*?(?:\{[^{}]*\}[^{;]*?)*)\s*\{\n/gm)) {
+        const given = /:\s*(?:readonly\s+)?(?:GridCommand|PageCommand)(?:\[\])?\s*(?:[,=]|$)/.test(m[2]!.trim());
+        if (/\b(?:GridCommand|PageCommand)\b/.test(m[3]!) && !given) makers.set(m[1]!, f);
+      }
+    }
+    // what headless calls: directly (its own name for an import too), or through a gesture table it dispatches by name
+    const headless = SOURCES.under('src/headless', '.ts').map((f) => SOURCES.read(f)).join('\n');
+    const aliases = new Map([...headless.matchAll(/\b(\w+) as (\w+)\b/g)].map((m) => [m[2]!, m[1]!]));
+    const called = new Set([...headless.matchAll(/\b(\w+)\(/g)].map((m) => aliases.get(m[1]!) ?? m[1]!));
+    const table = SOURCES.read('src/page-gestures.ts');
+    const dispatched = table.slice(table.indexOf('export const PAGE_GESTURES'));
+    if (/\bPAGE_GESTURES\[/.test(headless)) for (const m of dispatched.matchAll(/\b(\w+)\(/g)) called.add(m[1]!);
+    // what the screen calls, however it has it (imported, loaded with its module later, a page's rules handed over)
+    const used = new Set(screens.flatMap((f) => [...code(f).matchAll(/\b(\w+)\(/g)].map((m) => m[1]!)).filter((n) => makers.has(n)));
+    assert.deepEqual([...used].filter((n) => !called.has(n) && SCREEN_OWN_MAKERS[n] === undefined).sort(), [],
+      "a function the screen makes commands by that Python cannot ask: export it headless and ask it from Python, or say why it is the screen's own");
+    assert.deepEqual(Object.keys(SCREEN_OWN_MAKERS).filter((n) => !used.has(n) || called.has(n)).sort(), [],
+      "listed as the screen's own, and the screen calls it no more, or Python asks it now: take it off");
+    // the gestures the screen's controls make, every one Python can ask by name
+    assert.ok(called.has('gridGesture') && makers.has('gridGesture'), 'grid-gestures.ts gridGesture, which headless gridGesture asks');
+  });
+});
+
 // -- markers: the gaps no scan reaches, each pinned by the code that is it ------------------------------------------
 
 /** `text` in `file` (`count` times) while its items are open: the fix takes it away, and this fails until they close.
@@ -482,7 +592,8 @@ describe('a grid saved and opened again opens its rows as it was told to', () =>
 
 /** The files that hold the ledgers, each naming items as string literals (a letter and a number, quoted). */
 const LEDGERS = ['test/one-api-ledger.test.ts', 'test/one-api-gestures.test.ts', '../python/tests/test_one_api.py'];
-const ITEM = /'([GTCPYVHZBXK]\d{1,2})'/g;
+// 2026-10-22 (S8): A, the step's items (one per place screen code built a command)
+const ITEM = /'([GTCPYVHZBXKA]\d{1,2})'/g;
 /** Every item the register has ever held: none leaves it but closed. */
 const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P12 '
   + 'P13 P14 Y1 Y2 Y3 Y6 V1 V2 V4 V5 H1 H2 H3 Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8 Z9 Z10 Z11 Z12 Z13 Z14 Z15 Z16 Z17 Z18 Z19 B1 B2 '
@@ -507,7 +618,11 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-22, S7: the confirmation audit's third round, added by rule 9 and closed with each fix
   + 'F91 F92 F93 F94 F95 F96 '
   // 2026-10-22, S7: the audit's fourth round, added by rule 9 and closed (fixed, or moved to D19) with each fix
-  + 'F97 F98 F99 ').split(' ').filter((item) => item !== '');
+  + 'F97 F98 F99 '
+  // 2026-10-22, S8 (screen code builds no command): one item per place screen code built a command, and the guard, each
+  // closed by the commit that moved it
+  + 'A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 A17 A18 A19 A20 A21 A22 A23 A24 A25 A26 A27 A28 A29 A30'
+  + ' A31 A32 A33 A34 A35 A36 A37 A38 A39 A40 A41 A42 A43 A44 A45 A46 A47 A48 A49 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

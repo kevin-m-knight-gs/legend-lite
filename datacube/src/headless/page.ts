@@ -16,6 +16,7 @@ import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
 import { drillDown, drillLevels, drillRefusal, drillUp, markConditions, namedMark } from '../chart-spec.ts';
 import { chartPicked } from '../page-filters.ts';
+import { PAGE_GESTURES, isPageGesture } from '../page-gestures.ts';
 import { baseOnHost, draftFrom, gridApply, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
@@ -224,6 +225,28 @@ export function cubeOpensAgain(page: string, cube: string): string {
  */
 export function pageNoneOpened(name: string, opened: number): string {
   return JSON.stringify(noneOpened(name, opened) ?? null);
+}
+
+/**
+ * A PAGE'S GESTURE AS PYTHON MAKES IT (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8): gesture `name` (page-gestures.ts
+ * PAGE_GESTURES: Show Grid's steps, ...) given its arguments by name (`given`, JSON), by the one function the screen's
+ * gesture calls: its page commands, for Python to apply as it applies its own -- or `{problems}`, in DataCube's words.
+ */
+export function pageGesture(name: string, given: string): string {
+  if (!isPageGesture(name)) {
+    return JSON.stringify({ problems: [`'${name}' is no gesture of a page's: ${Object.keys(PAGE_GESTURES).join(', ')}`] });
+  }
+  const args: unknown = fromJson(given);
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) {
+    return JSON.stringify({ problems: [`a gesture's arguments are given by name, not ${given}`] });
+  }
+  try {
+    const commands = PAGE_GESTURES[name](args as Readonly<Record<string, unknown>>);
+    return `{"commands":[${commands.map((c) => toJson(c)).join(',')}]}`;
+  } catch (e) {
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
 }
 
 /**

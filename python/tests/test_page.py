@@ -1271,7 +1271,8 @@ class Abilities(Paged):
 
     def test_a_header_click_s_sort_is_turned_by_the_screen_s_one_rule(self):
         # (the user, 2026-10-22: one sort API the screen's click and a program call) grid.toggle_sort: the header click's
-        # command, made by DataCube's rule (headless gridHeaderSort), applied by the one rule every sort is (clickSort)
+        # command, made by DataCube's rule (headless gridGesture's header.sort), applied by the one rule every sort is
+        # (clickSort)
         page = ll.Page('Clicked')
         grid = page.grid(trades(), name='clicked_trades')
         sorts = lambda: [(s['column'], s['direction']) for s in grid._query['sorts']]  # noqa: E731
@@ -1430,6 +1431,47 @@ class Abilities(Paged):
         self.assertEqual(grid._query['rows'], [])
         with self.assertRaisesRegex(ValueError, r"the grid has no dimension 'Geo' \(its dimensions: Book\)"):
             grid.dimension('Geo')
+
+    def test_a_gesture_is_made_by_the_one_function_the_screens_control_calls(self):
+        # (S8: screen code builds no command) grid.gesture, add_group, remove_group, add_pivot, remove_pivot, heatmap:
+        # each the gesture the screen's control makes, made by the one function it calls (grid-gestures.ts gridGesture,
+        # headless gridGesture), its name the menu's own id
+        page = ll.Page('Gestures')
+        grid = page.grid(trades(), name='gesture_trades', measures={'notional': 'sum'})
+        grid.add_group('region')
+        grid.add_group('desk')
+        self.assertEqual(grid._query['rows'], ['region', 'desk'])
+        self.assertEqual(page._commands[-1], {'kind': 'group', 'rows': ['region', 'desk']})
+        told = len(page._commands)
+        grid.add_group('desk')
+        self.assertEqual(len(page._commands), told, 'grouped by already: nothing changes, nothing is told')
+        grid.remove_group('region')
+        self.assertEqual(grid._query['rows'], ['desk'])
+        grid.add_pivot('region')
+        self.assertEqual(grid._query['pivotOn'], ['region'])
+        # a pivoted column's heatmap is its measure's: every value's column under it has it
+        leaf = next(c['name'] for c in grid.view().columns if c['name'].endswith('notional') and 'EMEA' in c['name'])
+        grid.heatmap(leaf)
+        self.assertEqual(grid._cube['configuration']['columns']['notional']['heatmap'], {'from': '#ffffff', 'to': '#ff8a65'})
+        grid.heatmap(leaf, on=False)
+        self.assertNotIn('heatmap', grid._cube['configuration']['columns'].get('notional', {}))
+        grid.remove_pivot('region')
+        self.assertEqual(grid._query['pivotOn'], [])
+        # any gesture, by the menu's own id
+        grid.gesture('column.pinLeft', column='desk')
+        self.assertEqual(grid._cube['configuration']['columns']['desk'], {'pinned': 'left'})
+        grid.gesture('column.unpinAll')
+        self.assertNotIn('desk', grid._cube['configuration']['columns'])
+        grid.gesture('pivot.addVertical', column='region')
+        self.assertEqual(grid._query['rows'], ['desk', 'region'])
+        # refused in DataCube's words, nothing changed
+        with self.assertRaisesRegex(ValueError, r"'nope' is no gesture of a grid's: sort\.asc, "):
+            grid.gesture('nope')
+        with self.assertRaisesRegex(ValueError, r"'column\.pinLeft' takes column, not side"):
+            grid.gesture('column.pinLeft', column='desk', side='left')
+        with self.assertRaisesRegex(ValueError, r"'column\.pinLeft' needs column"):
+            grid.gesture('column.pinLeft')
+        self.assertEqual(grid._query['rows'], ['desk', 'region'])
 
     def test_a_charts_mark_is_selected_its_selection_read_and_cleared(self):
         # (K7, D8) chart.select: the mark named by its value across, and its series', as a click selects it (headless

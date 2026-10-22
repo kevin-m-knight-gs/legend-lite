@@ -392,9 +392,57 @@ class Grid(Tile):
         (``column(name, kind='dimension')`` makes one); none, not grouped."""
         return self._apply([_commands.grid_group(rows=list(rows))])
 
+    def add_group(self, column: str) -> Grid:
+        """Grouped by ``column`` too, last, as the menu's Add Vertical Pivot and the columns panel's pick add it (the
+        gesture ``pivot.addVertical``); grouped by already, nothing changes."""
+        return self._gesture('pivot.addVertical', {'column': column})
+
+    def remove_group(self, column: str) -> Grid:
+        """Grouped by ``column`` no more, the other row groups kept in order, as the menu's Remove Vertical Pivot and a
+        drag out of the Rows zone take it off (the gesture ``pivot.removeVertical``)."""
+        return self._gesture('pivot.removeVertical', {'column': column})
+
     def pivot(self, *columns: str) -> Grid:
         """Pivoted on ``columns`` (the Columns zone): dimensions, as for ``group``; none, not pivoted."""
         return self._apply([_commands.grid_pivot(columns=list(columns))])
+
+    def add_pivot(self, column: str) -> Grid:
+        """Pivoted on ``column`` too, last, as the menu's Add Horizontal Pivot adds it (the gesture
+        ``pivot.addHorizontal``); pivoted on already, nothing changes."""
+        return self._gesture('pivot.addHorizontal', {'column': column})
+
+    def remove_pivot(self, column: str) -> Grid:
+        """Pivoted on ``column`` no more, as the menu's Remove Horizontal Pivot and a drag out of the Columns zone take
+        it off (the gesture ``pivot.removeHorizontal``)."""
+        return self._gesture('pivot.removeHorizontal', {'column': column})
+
+    def heatmap(self, column: str, on: bool = True) -> Grid:
+        """A heatmap on ``column`` -- or, ``on=False``, off -- as the header menu's Add Heatmap and Remove Heatmap paint
+        it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted column's measure, so every value's column
+        under it has it; a pivot total's its own."""
+        return self._gesture('heatmap.add' if on else 'heatmap.remove', {'column': column})
+
+    def gesture(self, name: str, **args: Any) -> Grid:
+        """Any gesture a person makes on the grid, by its name -- the menu's own ids where the menu has it
+        (``'column.pinLeft'``, ``'column.unpinAll'``, ``'pivot.measuresFirst'``, ``'columns.reorder'``, ...: DataCube's
+        GRID_GESTURES) -- given its arguments by name (``column='desk'``), made by the one function the screen's control
+        calls (grid-gestures.ts gridGesture, headless gridGesture): what a gesture means is DataCube's alone (docs/
+        DATACUBE_ONE_API_PLAN_2026_10_21.md S8). Refused in DataCube's words: a gesture a grid has not, an argument it
+        does not take or is not given; one that would change nothing changes nothing."""
+        return self._gesture(name, args)
+
+    def _gesture(self, name: str, args: Mapping[str, Any]) -> Grid:
+        """The commands gesture ``name`` makes on the grid as it is (headless gridGesture), kept as an edit's are; none,
+        the grid as it was."""
+        self._page._current(self._view['cube'], 5)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridGesture', self._spec(engine, frames), name, _json.dumps(dict(args))))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        if not said['commands']:
+            return self
+        return self._kept(said, 4)
 
     def column(self, name: str, *, kind: str | None = None, aggregate: Any = _KEEP, weight: Any = _KEEP) -> Grid:
         """``name``'s Column Properties, as the panel sets them: its ``kind`` (``'dimension'``, which can be grouped and
@@ -451,28 +499,19 @@ class Grid(Tile):
 
     def toggle_sort(self, column: str, *, chained: bool = False) -> Grid:
         """``column``'s sort turned as a click on its header turns it (DataCube's one rule for the click, headless
-        gridHeaderSort: header-sort.ts headerSortCommand, grid-edits.ts clickSort -- the user, 2026-10-22: one sort API
-        the screen's click and a program call): first in its direction by the type its header has -- a number or a date
-        from the largest, anything else from A -- then the other way, then no sort. Alone, every other sort taken off;
-        ``chained`` (the screen's Ctrl-click), after the others, keeping its place among them. A column the grid shows
-        no header of is refused in DataCube's words."""
-        return self._header_sort(column, chained)
+        gridGesture's ``header.sort``: header-sort.ts headerSortCommand, grid-edits.ts clickSort -- the user, 2026-10-22:
+        one sort API the screen's click and a program call): first in its direction by the type its header has -- a
+        number or a date from the largest, anything else from A -- then the other way, then no sort. Alone, every other
+        sort taken off; ``chained`` (the screen's Ctrl-click), after the others, keeping its place among them. A column
+        the grid shows no header of is refused in DataCube's words."""
+        return self._gesture('header.sort', {'column': column, 'chained': chained})
 
     def toggle_group_sort(self, *, chained: bool = False) -> Grid:
         """The groups' order turned as a click on the tree column's header turns it (DataCube's one rule, headless
-        gridHeaderSort: grid-edits.ts clickTreeSort): the rows ordered by the groups alone, every other sort taken off,
-        the other way from the order they show; ``chained``, with sorts applied, the first group column chained after
-        them, as a click chains any column."""
-        return self._header_sort(None, chained)
-
-    def _header_sort(self, column: str | None, chained: bool) -> Grid:
-        self._page._current(self._view['cube'], 5)
-        engine, frames = self._headless()
-        with frames.reading():
-            said = json.loads(engine.call('gridHeaderSort', self._spec(engine, frames), column, chained))
-        if 'problems' in said:
-            raise ValueError('; '.join(said['problems']))
-        return self._kept(said, 4)
+        gridGesture's ``header.sort``: grid-edits.ts clickTreeSort): the rows ordered by the groups alone, every other
+        sort taken off, the other way from the order they show; ``chained``, with sorts applied, the first group column
+        chained after them, as a click chains any column."""
+        return self._gesture('header.sort', {'column': None, 'chained': chained})
 
     def sorts(self, sorts: Sequence[Any]) -> Grid:
         """Its sorts, whole and in order, replacing those it has, as the Sorts panel sets them (a ``sorts`` command,
@@ -583,16 +622,17 @@ class Grid(Tile):
 
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
-        columns, coarsest first), as the menu's View > Dimensions uses one (dimensions.ts useDimension)."""
-        return self._dimension(name, 'use')
+        columns, coarsest first), as the menu's View > Dimensions uses one (the gesture ``view.dimension``:
+        dimensions.ts useDimension)."""
+        return self._gesture('view.dimension', {'name': name, 'move': 'use'})
 
     def drill(self, name: str) -> Grid:
         """One level deeper into the named dimension ``name`` (dimensions.ts drillDown): its next column grouped by."""
-        return self._dimension(name, 'down')
+        return self._gesture('view.dimension', {'name': name, 'move': 'down'})
 
     def drill_up(self, name: str) -> Grid:
         """One level back out of the named dimension ``name`` (dimensions.ts drillUp); out of its first, not grouped."""
-        return self._dimension(name, 'up')
+        return self._gesture('view.dimension', {'name': name, 'move': 'up'})
 
     def edit_calculated(self, name: str, expression: str, *, rename: str | None = None, kind: str | None = None) -> Grid:
         """The calculated column ``name`` computed per row by ``expression`` instead, as its Edit Column window's OK
@@ -631,15 +671,6 @@ class Grid(Tile):
             raise ValueError('; '.join(said['problems']))
         return self._kept(said, 3)
 
-    def _dimension(self, name: str, move: str) -> Grid:
-        """The grid grouped as a named dimension used or drilled says (headless gridDimension), or refused in words."""
-        self._page._current(self._view['cube'], 4)
-        engine, frames = self._headless()
-        with frames.reading():
-            said = json.loads(engine.call('gridDimension', self._spec(engine, frames), name, move))
-        if 'problems' in said:
-            raise ValueError('; '.join(said['problems']))
-        return self._kept(said, 3)
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,
@@ -939,15 +970,19 @@ class Chart(Tile):
             raise ValueError('; '.join(said['problems']))
         if 'grid' in said:
             return page._tile(said['grid'], Grid)
-        # one step, as the screen's Show Grid is: the grid added beside the chart, the chart on its cube (followGrid: its
-        # selection and its page filter off by the command's own rule), following it as it was drawn (setChart)
+        # one step, as the screen's Show Grid is: the grid added beside the chart, then Show Grid's steps by the one rule
+        # the screen's asks (headless pageGesture: page-gestures.ts showGridCommands) -- the chart on its cube (followGrid:
+        # its selection and its page filter off by the command's own rule), following it as it was drawn (setChart)
         with page._batch():
             applied = page._apply_page([_commands.page_add_grid(document=_plain(_json.loads(said['cube'])),
                                                                 sheet=self.sheet.id, near=self._id, title=None,
                                                                 columns=None)])
             made = applied[0]['id']
-            page._apply_page([_commands.page_follow_grid(chart=self._id, grid=made),
-                              _commands.page_set_chart(chart=self._id, spec=said['spec'])])
+            steps = json.loads(session.headless().call('pageGesture', 'chart.showGrid', _json.dumps(
+                {'chart': self._id, 'grid': made, 'spec': said['spec']})))
+            if 'problems' in steps:
+                raise ValueError('; '.join(steps['problems']))
+            page._apply_page([_plain(c) for c in steps['commands']])
         for note in said['notes']:
             warnings.warn(f'{self._id}: {note}', stacklevel=3)
         return page._tile(made, Grid)

@@ -30,17 +30,15 @@ import {
 import {
   applyToSnapshot,
   columnConfig,
-  mergeColumnOrder,
   fromSnapshot,
   labelFor,
   toColumnAppearance,
   renderFormats,
   DEFAULT_MAX_ROWS,
-  withColumn,
   type CubeConfiguration,
 } from './config.ts';
 import type { Dimension } from './dimensions.ts';
-import { availableDimensions, useDimension } from './dimensions.ts';
+import { availableDimensions } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
@@ -48,8 +46,8 @@ import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
-import { headerSortCommand } from './header-sort.ts';
-import { applyGridCommands, draftCommands, type GridCommand, type SettingsPatch } from './grid-commands.ts';
+import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
+import { gridGesture, type GestureArgs, type GestureGrid, type GridGestureName } from './grid-gestures.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -118,9 +116,9 @@ import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
-  menuCommand,
   buildMenu,
   calcStageOf,
+  menuGesture,
   columnLabel,
   emailItems,
   exportItems,
@@ -132,7 +130,6 @@ import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts'
 import {
   PivotPanel,
   currentHeaderDrag,
-  type Zone,
   type ZoneLayout,
 } from './ui/pivot-panel.ts';
 import {
@@ -385,15 +382,6 @@ export type CubeAppOptions = CubeAppBaseOptions & CubeAppQuerySource;
 
 /** DataCube's --ag-row-height. Kept beside the CSS token in theme.css. */
 const DATACUBE_ROW_HEIGHT = 20;
-
-/** Room for the cell's own padding and its border. */
-const AUTO_SIZE_PAD = 8;
-/** Narrow enough to be honest, wide enough to still be grabbable. */
-const AUTO_SIZE_MIN = 48;
-/** One long free-text column must not push the rest off screen. */
-const AUTO_SIZE_MAX = 480;
-/** Upstream's DEFAULT_COLUMN_MIN_WIDTH: what Minimize shrinks to. */
-const MINIMIZED_WIDTH = 50;
 
 /**
  * What the result is and what it cost, in one line.
@@ -676,21 +664,16 @@ export class CubeApp {
     this.#columnsPanel = new ColumnsToolPanel(side, {
       ...((this.#options.foldPanel ?? this.#options.compact) ? { collapsed: true } : {}),
       labelFor: (c) => labelFor(this.#config, c),
-      onPick: (c) => this.#onZoneChange('rows', [...this.#snapshot.rows, c]),
-      onVisibility: (c, visible) => this.#patchColumn(c, { hidden: !visible }),
+      // a column picked: last of the row groups, as the menu's Add Vertical Pivot adds it
+      onPick: (c) => void this.#gesture('pivot.addVertical', { column: c }, 'row groups'),
+      onVisibility: (c, visible) => void this.#gesture('column.show', { column: c, visible }, `column ${c}`),
       // REORDERING WHERE THE LIST IS, and the same merge the grid's
       // own header drag goes through: the panel reports the columns
       // it lists, which is not all of them either.
-      onReorder: (order) => {
-        this.#configureColumns({}, 'reorder columns', { columnOrder: mergeColumnOrder(this.#columnOrder(), order) });
-      },
+      onReorder: (order) => void this.#gesture('columns.reorder', { order }, 'reorder columns'),
       // Dragged out of a zone and back to the list: off that axis.
-      onRemoveFromZone: (zone, column) => {
-        const next = (zone === 'rows'
-          ? this.#snapshot.rows
-          : this.#snapshot.pivotOn).filter((c) => c !== column);
-        this.#onZoneChange(zone, next);
-      },
+      onRemoveFromZone: (zone, column) => void this.#gesture(zone === 'rows' ? 'pivot.removeVertical' : 'pivot.removeHorizontal',
+        { column }, zone === 'rows' ? 'row groups' : 'column pivots'),
     });
 
     // THE SAME ZONES, DOWN THE SIDEBAR.
@@ -768,16 +751,15 @@ export class CubeApp {
         // grouped, pivoted and hidden column out of the order -- and
         // the panel, which sorts by it, threw them to the end of the
         // list. One drag and the grouped columns jumped. One change:
-        // the unhide and the order together.
-        this.#configureColumns(added !== undefined ? { [added]: { hidden: false } } : {}, 'reorder columns',
-          { columnOrder: mergeColumnOrder(this.#columnOrder(), order) });
+        // the unhide and the order together (grid-gestures.ts).
+        void this.#gesture('columns.reorder', { order, ...(added !== undefined ? { added } : {}) }, 'reorder columns');
       },
       cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
       rowMeta: (abs) => this.#rowMeta(abs),
       // SET, never toggled: the grid says which way the person asked, and
       // asking for what already is changes nothing (P2-127).
       onToggleExpand: (key, expanded) => {
-        void this.#apply([{ kind: 'open', path: parsePathKey(key), open: expanded }], expanded ? 'expand' : 'collapse');
+        void this.#gesture('tree.open', { path: parsePathKey(key), open: expanded }, expanded ? 'expand' : 'collapse');
       },
       onSelectionChange: (range) => this.#onSelectionChange(range),
       onActivateCell: (row, column) => {
@@ -786,7 +768,7 @@ export class CubeApp {
       onHeaderSort: (column, chained) => this.#sortByHeader(column, chained),
       // A dragged edge is a width like Auto-size's -- resizable again,
       // unlike an explicit Fixed one.
-      onResizeColumn: (column, width) => this.#patchColumn(column, { width }),
+      onResizeColumn: (column, width) => void this.#gesture('column.resize', { column, width }, `column ${column}`),
       headerTitle: (path, leaf) => this.#headerTitle(path, leaf),
       treeTitle: (_row, label) => (label === '' ? '' : `Group Value = ${label}`),
       ...(options.writeClipboard
@@ -1230,22 +1212,6 @@ export class CubeApp {
   #refreshFormats(): void {
     for (const key of Object.keys(this.#formats)) delete this.#formats[key];
     Object.assign(this.#formats, columnFormats(this.#config, this.#snapshot, this.#shown, this.#view ?? undefined));
-  }
-
-  /**
-   * The order of EVERY column, not just the ones on screen.
-   *
-   * The configured order where there is one, and the cube's declared
-   * order behind it, so a column the order predates still has a
-   * place rather than being treated as unlisted.
-   */
-  #columnOrder(): string[] {
-    const declared = this.#snapshot.columns.map((c) => c.name);
-    const configured = this.#config.columnOrder ?? [];
-    return [
-      ...configured.filter((n) => declared.includes(n)),
-      ...declared.filter((n) => !configured.includes(n)),
-    ];
   }
 
   #refreshToolPanel(): void {
@@ -1759,7 +1725,7 @@ export class CubeApp {
     readonly showTitleBar?: boolean;
   }): void {
     // Presentation: no query, one undo step, painted by `#onState`.
-    this.#configureColumns({}, patch.showTitleBar !== undefined ? 'title bar' : 'drag zones', patch);
+    void this.#gesture('view.chrome', patch, patch.showTitleBar !== undefined ? 'title bar' : 'drag zones');
   }
 
   /**
@@ -1913,13 +1879,7 @@ export class CubeApp {
 
   /** A drag in the zones: the whole new layout, one change (P2-103). */
   #onLayout(layout: ZoneLayout): void {
-    void this.#apply([{ kind: 'group', rows: [...layout.rows] }, { kind: 'pivot', columns: [...layout.columns] }],
-      'move in the zones');
-  }
-
-  #onZoneChange(zone: Zone, columns: readonly string[]): void {
-    void this.#apply([zone === 'rows' ? { kind: 'group', rows: [...columns] } : { kind: 'pivot', columns: [...columns] }],
-      zone === 'rows' ? 'row groups' : 'column pivots');
+    void this.#gesture('zones.set', { rows: layout.rows, columns: layout.columns }, 'move in the zones');
   }
 
   /**
@@ -2085,49 +2045,24 @@ export class CubeApp {
       this.#options.onMoveToSheet?.(item.id.slice('sheet.to.'.length));
       return;
     }
-    // A query entry builds its grid command (menuCommand), none when it
-    // would change nothing; the rest are layout, clipboard and export,
-    // which never touch the query. The menu offers only what
-    // grid-edits.ts allows; a refusal is said, never thrown away (#apply).
-    const command = menuCommand(this.#snapshot, item);
-    if (command !== null) {
-      void this.#apply([command], item.label ?? item.id ?? 'menu');
+    // A grid's gesture the menu names (menuGesture: the entry's id the gesture's name, the one Python's grid.gesture
+    // takes), made with what the entry carries of what it takes -- the column under it, an operator and its value;
+    // none when it would change nothing. The rest are the screen's own (a column measured, a window opened),
+    // layout, clipboard and export. The menu offers only what grid-edits.ts allows; a refusal is said, never thrown
+    // away (#gesture).
+    const gesture = menuGesture(item);
+    if (gesture !== null) {
+      void this.#gesture(gesture.name, gesture.args, item.label);
       return;
     }
     const column = item.column;
     switch (item.id) {
-      case 'tree.collapseAll':
-        void this.#apply([{ kind: 'collapseAll' }], 'collapse all');
-        return;
       case 'column.autoSize':
         if (column) this.#autoSize([column]);
         return;
       case 'column.autoSizeAll':
         this.#autoSize(null);
         return;
-      case 'column.hide':
-        // a column's presentation, by the command Python's configure builds (a pivot's header or the tree column too)
-        if (column) {
-          void this.#apply([{ kind: 'configure', patch: { columns: { [column]: { hidden: true } } } }], `column ${column}`);
-        }
-        return;
-      case 'column.pinLeft':
-        if (column) this.#patchColumn(column, { pinned: 'left' });
-        return;
-      case 'column.pinRight':
-        if (column) this.#patchColumn(column, { pinned: 'right' });
-        return;
-      case 'column.unpin':
-        if (column) this.#patchColumn(column, { pinned: undefined });
-        return;
-      case 'pivot.measuresFirst':
-        this.#configureColumns({}, 'settings', { pivotMeasuresFirst: this.#config.pivotMeasuresFirst ? null : true });
-        return;
-      case 'column.unpinAll': {
-        const pinned = Object.keys(this.#config.columns).filter((name) => this.#config.columns[name]?.pinned !== undefined);
-        if (pinned.length > 0) this.#configureColumns(Object.fromEntries(pinned.map((n) => [n, { pinned: undefined }])), 'unpin all');
-        return;
-      }
       case 'copy.selection':
         this.#copy(this.#selectionCsv());
         return;
@@ -2143,20 +2078,8 @@ export class CubeApp {
       case 'copy.rows':
         this.#copy(this.#rowsCsv());
         return;
-      case 'column.minimize':
-        if (column) this.#minimize([column]);
-        return;
-      case 'column.minimizeAll':
-        this.#minimize(null);
-        return;
       case 'grid.sizeToFit':
         this.#sizeToFit();
-        return;
-      case 'pivot.exclude':
-        if (column) this.#patchColumn(column, { excludedFromPivot: true });
-        return;
-      case 'pivot.include':
-        if (column) this.#patchColumn(column, { excludedFromPivot: false });
         return;
       // Upstream's Extended Columns entries. EXTEND seeds the new
       // column with a reference to the one clicked and inherits its
@@ -2200,15 +2123,6 @@ export class CubeApp {
         return;
       case 'calc.edit':
         if (column) this.openColumnEditor({ edit: column });
-        return;
-      case 'calc.delete':
-        if (column) void this.#apply([{ kind: 'removeCalculated', name: column }], 'calculated columns');
-        return;
-      case 'heatmap.add':
-        if (column) this.#setHeatmap(column, true);
-        return;
-      case 'heatmap.remove':
-        if (column) this.#setHeatmap(column, false);
         return;
       case 'export.html':
         this.#confirmExport(() => this.#export('html'));
@@ -2300,41 +2214,15 @@ export class CubeApp {
    * cube these size the columns they can name and leave the rest.
    */
   #autoSize(columns: readonly string[] | null): void {
-    const measured = this.#grid.measureColumns(columns ?? undefined);
-    let config = this.#config;
-    let changed = 0;
-    const widths: [string, number][] = [];
-    for (const [name, content] of Object.entries(measured)) {
-      const width = Math.min(AUTO_SIZE_MAX,
-        Math.max(AUTO_SIZE_MIN, content + AUTO_SIZE_PAD));
-      const next = withColumn(config, name, { width });
-      if (next !== config) changed += 1;
-      config = next;
-      widths.push([name, width]);
-    }
-    if (changed === 0) {
+    // the content's widths are the screen's to measure; the widths they size the columns to, the gesture's
+    // (grid-gestures.ts columns.autoSize, its floor and ceiling)
+    const commands = this.#gestured('columns.autoSize', { widths: this.#grid.measureColumns(columns ?? undefined) });
+    if (typeof commands === 'string') return;
+    if (commands.length === 0) {
       this.#status('nothing to resize', 'warn');
       return;
     }
-    this.#configureColumns(Object.fromEntries(widths.map(([name, width]) => [name, { width }])), 'auto-size');
-  }
-
-  /**
-   * Turn a heatmap on or off for a column.
-   *
-   * Set on the MEASURE rather than the leaf, so it reaches every
-   * `2021__|__notional` the pivot produced -- a heatmap applied to
-   * one pivoted leaf and not its siblings is worse than none. A pivot
-   * TOTAL is a column of its own (the user, 2026-10-18): its heatmap is
-   * its own, and its measure's leaves it alone (export-render.ts
-   * heatmapSetting).
-   */
-  #setHeatmap(leafName: string, on: boolean): void {
-    const measure = isPivotTotalColumn(leafName) ? leafName : this.#pivotMeasureOf(leafName) ?? leafName;
-    // by the command Python's configure builds: null takes the heatmap off, as JSON cannot write undefined
-    void this.#apply([{ kind: 'configure', patch: { columns: { [measure]: {
-      heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : null,
-    } } } }], `column ${measure}`);
+    void this.#apply(commands, 'auto-size');
   }
 
   /**
@@ -2343,18 +2231,11 @@ export class CubeApp {
    * The tree column orders the groups, and turns their order (clickTreeSort). A pivot total sorts as any column.
    */
   #sortByHeader(column: string, chained: boolean): void {
-    // the click's command by the one rule Python's grid.toggle_sort asks too (header-sort.ts headerSortCommand): its
-    // first direction the type the compiler gave the header, which only the view has
-    let command: GridCommand;
-    try {
-      // the headers as painted, not as a change still running would lay them out (the S7 audit's fourth round's 4)
-      command = headerSortCommand(this.#headers, column, chained);
-    } catch (e) {
-      if (!(e instanceof CubeRefusal)) throw e;
-      this.#status(e.message, 'warn');
-      return;
-    }
-    void this.#apply([command], column === TREE_COLUMN ? 'sort the groups' : `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
+    // the click's command by the one rule Python's grid.toggle_sort asks too (grid-gestures.ts header.sort,
+    // header-sort.ts headerSortCommand): its first direction the type the compiler gave the header, which only the view
+    // has -- the headers as painted, not as a change still running would lay them out (the S7 audit's fourth round's 4)
+    void this.#gesture('header.sort', { column, chained },
+      column === TREE_COLUMN ? 'sort the groups' : `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
   }
 
   /**
@@ -2389,27 +2270,33 @@ export class CubeApp {
     return `[ ${path.map((v, i) => `${keys[i] ?? '?'} = ${v}`).join(', ')} ]`;
   }
 
-  #patchColumn(
-    column: string,
-    patch: Parameters<typeof withColumn>[2],
-  ): void {
-    this.#configureColumns({ [column]: patch }, `column ${column}`);
+  /** The grid as its gestures read it (grid-gestures.ts): its state, its dimensions, the headers it paints and its
+   *  pivot's columns. */
+  #gestureGrid(): GestureGrid {
+    return {
+      snapshot: this.#snapshot, config: this.#config, dimensions: this.#dimensions(),
+      view: { headers: this.#headers, pivot: this.#view?.pivot?.columns ?? [] },
+    };
   }
 
-  /**
-   * Columns' presentation, each patched as a person sets it (undefined clearing a setting), by the configure command
-   * Python's configure builds (grid-commands.ts: null clears one there, as JSON cannot write undefined), with any
-   * settings of the grid's beside them.
-   */
-  #configureColumns(columns: Readonly<Record<string, Parameters<typeof withColumn>[2]>>, label: string,
-    settings: SettingsPatch = {}): void {
-    const json = (patch: object): Record<string, unknown> =>
-      Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v === undefined ? null : v]));
-    const named = Object.entries(columns).map(([name, patch]) => [name, json(patch)] as const);
-    void this.#apply([{ kind: 'configure', patch: {
-      ...settings,
-      ...(named.length > 0 ? { columns: Object.fromEntries(named) } : {}),
-    } }], label);
+  /** A gesture's commands (grid-gestures.ts: the one rule Python's grid.gesture asks too) on the grid as it is -- none
+   *  when it would change nothing -- or, refused, its words, said. */
+  #gestured(name: GridGestureName, args: GestureArgs): GridCommand[] | string {
+    try {
+      return gridGesture(name, this.#gestureGrid(), args);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(e.message, 'warn');
+      return e.message;
+    }
+  }
+
+  /** A gesture made: its commands applied as one step named `label` (#apply), none when it changes nothing. The
+   *  refusal, the gesture's words or the commands', or null. */
+  async #gesture(name: GridGestureName, args: GestureArgs, label: string): Promise<string | null> {
+    const commands = this.#gestured(name, args);
+    if (typeof commands === 'string') return commands;
+    return commands.length === 0 ? null : this.#apply(commands, label);
   }
 
   // -- selection -------------------------------------------------------
@@ -2525,41 +2412,12 @@ export class CubeApp {
   }
 
   /**
-   * Resize > Minimize: a column to its own minimum width, or upstream's
-   * DEFAULT_COLUMN_MIN_WIDTH (50). `null` minimizes every shown column.
-   * A column whose width is FIXED keeps it.
-   */
-  #minimize(columns: readonly string[] | null): void {
-    const names = columns
-      ?? (this.#view?.columns.leaves ?? [])
-        .map((l) => l.name)
-        .filter((n) => n !== TREE_COLUMN);
-    const config = this.#config;
-    this.#configureColumns(Object.fromEntries(names.flatMap((name) => {
-      const c = columnConfig(config, name);
-      return c.widthMode === 'fixed' ? [] : [[name, { width: c.minWidth ?? MINIMIZED_WIDTH }]];
-    })), 'minimize');
-  }
-
-  /**
-   * Resize > Size Grid to Fit Screen: every shown column scaled by the
-   * same factor so together they fill the grid's width -- ag-Grid's
-   * `sizeColumnsToFit`, which is what upstream calls. A fixed width
-   * keeps its size and the rest share what is left.
+   * Resize > Size Grid to Fit Screen: the widths as drawn and the grid's own are the screen's to measure; how they are
+   * scaled to fill it, the gesture's (grid-gestures.ts columns.sizeToFit).
    */
   #sizeToFit(): void {
-    const widths = this.#grid.renderedWidths();
-    const viewport = this.#grid.viewportWidth;
-    const fixed = Object.keys(widths)
-      .filter((n) => columnConfig(this.#config, n).widthMode === 'fixed');
-    const flexible = Object.keys(widths).filter((n) => !fixed.includes(n));
-    const taken = fixed.reduce((sum, n) => sum + (widths[n] ?? 0), 0);
-    const current = flexible.reduce((sum, n) => sum + (widths[n] ?? 0), 0);
-    if (viewport <= 0 || current <= 0 || flexible.length === 0) return;
-    const factor = Math.max(0, viewport - taken) / current;
-    this.#configureColumns(Object.fromEntries(flexible.map((name) => [name, {
-      width: Math.max(MINIMIZED_WIDTH, Math.floor((widths[name] ?? 0) * factor)),
-    }])), 'size to fit');
+    void this.#gesture('columns.sizeToFit', { widths: this.#grid.renderedWidths(), viewport: this.#grid.viewportWidth },
+      'size to fit');
   }
 
   #copy(text: string): void {
@@ -2772,15 +2630,16 @@ export class CubeApp {
           levels: view.snapshot.rows,
         } : null;
       },
-      // a chart's mark on this grid's filter: the command Python's would build (grid-commands.ts refilter)
+      // a chart's mark on this grid's filter (grid-gestures.ts chart.refilter)
       refilter: (old, add, label) => {
-        void this.#apply([{ kind: 'refilter', remove: [...old], add: [...add] }], label);
+        void this.#gesture('chart.refilter', { remove: old, add }, label);
       },
       // a chart's selection off this grid as a page step took it off (the page's unselected): another editor's step,
       // followed as its change is -- never told back, no step of its own history; the person's own, a step of this
       // grid's, told after any of its own still running (the S7 confirmation audit's G2-2, B2-3)
       unselected: (old, theirs) => {
-        const off: GridCommand[] = [{ kind: 'refilter', remove: [...old], add: [] }];
+        const off = this.#gestured('chart.refilter', { remove: old, add: [] });
+        if (typeof off === 'string') return;
         // the person's own step while the click that put the selection there is still to be told (its refilter in
         // flight): told after it, as the grid's own, so a host takes them in the order made (the S7 confirmation
         // audit's B2-3) -- only then: told otherwise, a condition put there by hand too would come off twice (its
@@ -3278,11 +3137,11 @@ export class CubeApp {
 
   // -- dimensions ----------------------------------------------------------
 
-  /** A named dimension used (the Dimensions tab, a host's): the grid grouped by its first level, by the command the Rows
-   *  zone builds. */
+  /** A named dimension used (the Dimensions tab, a host's): the grid grouped by its first level (grid-gestures.ts
+   *  view.dimension), by the command the Rows zone builds. */
   #useDimension(dimension: Dimension): void {
     if (this.#cubeOnly()) return;
-    void this.#apply([{ kind: 'group', rows: useDimension(this.#snapshot, dimension).rows }], `dimension ${dimension.name}`);
+    void this.#gesture('view.dimension', { name: dimension.name, move: 'use' }, `dimension ${dimension.name}`);
   }
 
   // -- the dialogs ----------------------------------------------------------
@@ -3360,11 +3219,11 @@ export class CubeApp {
         print: (query) => this.#controller.print(query),
         compile: (candidate, signal) => this.#check(this.#controller.compile(
           { snapshot: candidate, tree: this.#owner.current.tree }, this.#view, signal)),
-        // a new column added, an edited one replaced or taken out: the commands Python's calculate, edit_calculated and
-        // remove_calculated build
-        add: (level, column) => this.#apply([{ kind: 'calculate', level, column }], 'calculated columns'),
-        edit: (name, level, column) => this.#apply([{ kind: 'editCalculated', name, level, column }], 'calculated columns'),
-        remove: (name) => this.#apply([{ kind: 'removeCalculated', name }], 'calculated columns'),
+        // a new column added, an edited one replaced or taken out (grid-gestures.ts): the commands Python's calculate,
+        // edit_calculated and remove_calculated build
+        add: (level, column) => this.#gesture('column.calculate', { level, column }, 'calculated columns'),
+        edit: (name, level, column) => this.#gesture('column.editCalculated', { name, level, column }, 'calculated columns'),
+        remove: (name) => this.#gesture('calc.delete', { column: name }, 'calculated columns'),
         readJson: (column) => this.#jsonReader(column),
         // the rail's choice: another calculated column, in this window's place
         openOther: (next) => {
@@ -3512,8 +3371,8 @@ export class CubeApp {
       this.#status(message, 'error');
       return message;
     }
-    // the window's filter, whole, by the command Python's filter builds
-    return this.#apply([{ kind: 'filter', filter: filter ?? null }], 'filter');
+    // the window's filter, whole, by the command Python's filter builds (grid-gestures.ts filter.set)
+    return this.#gesture('filter.set', { filter: filter ?? null }, 'filter');
   }
 
   async #applyDraft(edited: CubeDraft, base: CubeDraft): Promise<boolean> {

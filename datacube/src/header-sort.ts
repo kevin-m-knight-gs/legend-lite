@@ -1,6 +1,7 @@
 // A HEADER'S SORT CLICK AS ITS COMMAND (the user, 2026-10-18: the click's rule; 2026-10-22: "there should be a single
 // sort API that UI actions call that also can be called programmatically"). One rule the screen's header click and
-// Python's grid.toggle_sort and grid.toggle_group_sort ask (headless gridHeaderSort): the command each clicks makes,
+// Python's grid.toggle_sort and grid.toggle_group_sort ask (grid-gestures.ts header.sort, headless gridGesture): the
+// command each clicks makes,
 // applied by the one rule every sort is (grid-edits.ts clickSort, clickTreeSort).
 
 import { firstSortDirection } from './grid-edits.ts';

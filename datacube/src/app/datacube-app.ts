@@ -1380,11 +1380,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
       // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
       const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
-      const { applyPageCommands, rebuiltCommands } = await import('../page-commands.ts');
+      const [{ applyPageCommands, rebuiltCommands }, { pageCommand }] = await Promise.all([import('../page-commands.ts'), import('../page-gestures.ts')]);
       // a snapped grid whose copy was not read here reads its rows live: told so (the S7 audit's G-3) -- first, so a
       // grid it leaves over frames that changed meanwhile is told rebuilt too, as Python's Grid.live tells both (the S7
       // confirmation audit's H2-4: judged against the copy, it never was)
-      const lives = unread.map((grid): PageCommand => ({ kind: 'live', grid }));
+      const lives = unread.map((grid): PageCommand => pageCommand('live', { grid }));
       for (const command of lives) channel?.edit({ page: command });
       const base = lives.length > 0 ? applyPageCommands({ page: said.page, held: said.held }, lives).draft.page : said.page;
       for (const command of opened ? rebuiltCommands(base, opened, taken) : []) channel?.edit({ page: command });

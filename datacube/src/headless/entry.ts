@@ -8,14 +8,14 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridDimension, gridExport,
-  gridFilter, gridHeaderSort, gridMeasure, gridOpened, gridPreset, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused, sourceCube,
+  chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
+  gridFilter, gridGesture, gridMeasure, gridOpened, gridPreset, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  chartDrill, chartPick, cubeOpensAgain, gridCopied, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, cubeOpensAgain, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageWithCube, pageWritten,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides } from './join.ts';
@@ -41,12 +41,13 @@ export {
 export { gridAddFilter, gridCopied };
 
 /** Any column the column editor makes -- a window, a child aggregate, an explode, at either level (gridColumn: Python's
- *  grid.calculate, window, child_aggregate, explode) -- a preset as the header menu adds one (gridPreset: grid.grain,
- *  show_as, bins), and a named dimension used or drilled (gridDimension: grid.dimension, drill, drill_up). */
-export { gridColumn, gridDimension, gridPreset };
-/** A header's sort click, as the screen's click makes it (gridHeaderSort: Python's grid.toggle_sort, toggle_group_sort),
- *  and measures made by a person's own steps (gridMeasure: Python's grid.measure). */
-export { gridHeaderSort, gridMeasure };
+ *  grid.calculate, window, child_aggregate, explode) -- and a preset as the header menu adds one (gridPreset: grid.grain,
+ *  show_as, bins). */
+export { gridColumn, gridPreset };
+/** Any gesture a person makes on a grid, by the one function the screen's control calls (gridGesture: Python's
+ *  grid.gesture, and toggle_sort, toggle_group_sort, dimension, drill, drill_up, add_group ...: docs/
+ *  DATACUBE_ONE_API_PLAN_2026_10_21.md S8), and measures made by a person's own steps (gridMeasure: grid.measure). */
+export { gridGesture, gridMeasure };
 
 /** A new grid's cube over a class, a saved query or a warehouse table, as the tab adds one (sourceCube: Python's
  *  `page.grid(cls=...)`, `page.grid(query=...)`, `page.grid(warehouse=...)`; X4). */
@@ -87,6 +88,9 @@ export { cubeOpensAgain, pageNoneOpened };
 /** A chart's mark selected, as a click selects one (chartPick: Python's chart.select), and a chart drilled down into a
  *  mark or back up, as a double-click and the crumbs drill (chartDrill: chart.drill, chart.drill_up). */
 export { chartDrill, chartPick };
+/** A gesture on a page, by the one function the screen's gesture calls (pageGesture: Python's chart.grid()'s steps;
+ *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8). */
+export { pageGesture };
 /** A chart's grid shown, as Show Grid shows it: the one it follows, or one of its own grouping made (chartOwnGrid:
  *  Python's chart.grid(); chart-spec.ts chartGrid, the screen's rule). */
 export { chartOwnGrid };

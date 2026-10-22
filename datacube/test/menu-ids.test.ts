@@ -79,7 +79,13 @@ function acting(source: string): Set<string> {
   return out;
 }
 
-const handled = new Set([...acting(MENU), ...acting(APP)]);
+/** Ids that are a grid's gestures (grid-gestures.ts: the menu's own ids where it has the gesture), which app.ts makes
+ *  whole by one dispatch (ui/menu.ts menuGesture) -- each one the menu emits acts, by the gesture's own function; the
+ *  rest are other controls' (a drag in the zones, a dragged column edge), no menu's (2026-10-22, S8). */
+const GESTURES = read('src/grid-gestures.ts');
+const gestures = [...GESTURES.slice(GESTURES.indexOf('const GESTURES = {'), GESTURES.indexOf('} satisfies Record<string, Gesture>'))
+  .matchAll(/^  '([a-zA-Z][\w.]*)': \{/gm)].map((m) => m[1] as string);
+const handled = new Set([...acting(MENU), ...acting(APP), ...(/\bmenuGesture\(/.test(APP) ? gestures.filter((id) => emitted.has(id)) : [])]);
 
 describe('the menu has no dead entries', () => {
   it('found the ids at all', () => {
@@ -90,6 +96,7 @@ describe('the menu has no dead entries', () => {
       `only ${emitted.size} ids emitted — the scan is broken`);
     assert.ok(handled.size > 30,
       `only ${handled.size} ids act — the scan is broken`);
+    assert.ok(gestures.length > 40, `only ${gestures.length} grid gestures found — the scan is broken`);
   });
 
   it('every id the menu emits is handled by something that acts', () => {

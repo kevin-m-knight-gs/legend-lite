@@ -43,6 +43,7 @@ import { CubeRefusal, type FilterNode } from '../snapshot.ts';
 import {
   applyPageCommands, applyToState, idsOf, selectionRefilters, takenIds, type PageCommand, type PageDraft,
 } from '../page-commands.ts';
+import { pageCommand } from '../page-gestures.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
@@ -395,7 +396,7 @@ export class PageApp {
    */
   rename(name: string): void {
     if (name === this.#name) return;
-    this.#applyUnstepped([{ kind: 'renamePage', name }], 'Rename Page');
+    this.#applyUnstepped([pageCommand('renamePage', { name })], 'Rename Page');
   }
 
   /**
@@ -406,7 +407,7 @@ export class PageApp {
    */
   savedAs(record: string | null): void {
     if ((record ?? undefined) === this.record) return;
-    this.#applyUnstepped([{ kind: 'savedAs', record }], 'Saved');
+    this.#applyUnstepped([pageCommand('savedAs', { record })], 'Saved');
   }
 
   /** The page's state, or none while the board is still being made (the constructor's first `#seen`). */
@@ -1103,8 +1104,8 @@ export class PageApp {
    */
   async setFilter(f: { readonly id?: string; readonly class: string; readonly condition: FilterNode; readonly from?: string },
     label = 'Filter'): Promise<string> {
-    const applied = await this.#filterCommand(() => ({
-      kind: 'setPageFilter', ...(f.id !== undefined ? { id: f.id } : {}), class: f.class, condition: f.condition, from: f.from ?? null,
+    const applied = await this.#filterCommand(() => pageCommand('setPageFilter', {
+      ...(f.id !== undefined ? { id: f.id } : {}), class: f.class, condition: f.condition, from: f.from ?? null,
     }), label);
     const made = applied[0];
     if (made?.kind !== 'setPageFilter' || made.id === undefined) throw new Error('the page filter was set with no id');
@@ -1113,7 +1114,7 @@ export class PageApp {
 
   /** A filter of the page taken off, as one step: every grid it reached unfiltered by it. */
   async removeFilter(id: string, label = 'Remove Filter'): Promise<void> {
-    await this.#filterCommand(() => ({ kind: 'removePageFilter', filter: id }), label);
+    await this.#filterCommand(() => pageCommand('removePageFilter', { filter: id }), label);
   }
 
   /**
@@ -1210,7 +1211,7 @@ export class PageApp {
       const made = new Bar(this.#doc, {
         // its x clicked twice before it was painted again: the second finds nothing to take off
         remove: (id) => void this.#filterCommand(() => (this.#filters.some((f) => f.id === id)
-          ? { kind: 'removePageFilter', filter: id } : undefined), 'Remove Filter').catch((e: unknown) => this.#refused(e)),
+          ? pageCommand('removePageFilter', { filter: id }) : undefined), 'Remove Filter').catch((e: unknown) => this.#refused(e)),
         add: (cls, condition) => void this.setFilter({ class: cls, condition }).catch((e: unknown) => this.#refused(e)),
       });
       this.#filterSlot.replaceWith(made.element);
