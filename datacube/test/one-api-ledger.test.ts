@@ -433,7 +433,9 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // item alone is a ledger naming it, ITEM)
   + 'P15 '
   // 2026-10-22, D18: the independent review of S5, D15 and D16, added by rule 9 and closed (or declared) with each fix
-  + 'F28 F29 F30 F31 F32 F33 F34 F35 F36 F37 F38 F39 F40 ').split(' ').filter((item) => item !== '');
+  + 'F28 F29 F30 F31 F32 F33 F34 F35 F36 F37 F38 F39 F40 '
+  // 2026-10-22, PR #64's CI (macOS, 821615817): a test that raced the board's lazily loaded code, added by rule 9
+  + 'F41 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

@@ -661,6 +661,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **F40** a join's dead `engine` field (headless join.ts); `ll.show(df)` on an install with no DataCube site made a cube
   that failed only when asked its link — closed (review, 13): the field gone; showing is refused in words first (the
   test of F39); 669caa699's message claimed every target green where As built (S5) says two failed and pass since: said
+- [x] **F41** chart-tiles.test.ts opened charts and grids without waiting for them (`app.openChart()`, `app.newGrid()`
+  not awaited, then a fixed number of turns): the first opens the board, whose code loads lazily, and on a slow machine
+  (CI's macOS, 821615817) the load outlasted the wait, so the first test read one chart where it made two — closed
+  (PR #64's CI): each call awaited; with the board's code made 300 ms slower to load the old test fails as CI did and
+  the new one passes
 
 ## 5. The steps
 

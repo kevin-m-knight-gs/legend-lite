@@ -83,8 +83,9 @@ async function ungroup(zone: HTMLElement, column: string): Promise<void> {
 const chips = (zone: HTMLElement): string[] => [...zone.querySelectorAll<HTMLElement>('.dc-chip')].map((c) => c.dataset['column'] ?? '');
 
 async function twoCharts(): Promise<[string, string]> {
-  app.openChart();
-  app.openChart();
+  // awaited: the first opens the board, whose code loads lazily -- longer, on a slow machine, than settle waits
+  await app.openChart();
+  await app.openChart();
   await settle();
   const [a, b] = charts();
   return [a!.id, b!.id];
@@ -238,7 +239,7 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
 
   it('a tile\'s own layouts arrange the whole page, that tile first: four tiles in 2 x 2 are two rows of two', async () => {
     const [a, b] = await twoCharts();
-    app.newGrid();
+    await app.newGrid();
     await settle();
     const copy = [...root.querySelectorAll<HTMLElement>('[data-tile^="grid-"]')][0]!.dataset['tile']!;
     pick('Arrange\u2026').click();
@@ -297,7 +298,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
   const zoneOf = (tileId: string): HTMLElement => tile(tileId).querySelector('.dc-zone-rows') as HTMLElement;
 
   it('New grid adds a grid of its own on the board, starting as the cube\'s grid is', async () => {
-    app.newGrid();
+    await app.newGrid();
     await settle();
     const [g] = added();
     assert.ok(g, 'a grid tile');
@@ -311,7 +312,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
   });
 
   it('every grid has its own menu in its tile\'s header, the same for the cube\'s grid and an added one', async () => {
-    app.newGrid();
+    await app.newGrid();
     await settle();
     const id = added()[0]!.dataset['tile']!;
     /** A grid's own menu, opened from its tile: its entries at the top level, by what a person reads. */
@@ -337,8 +338,8 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
   });
 
   it('a chart of an added grid follows that grid, not the cube\'s', async () => {
-    app.openChart();
-    app.newGrid();
+    await app.openChart();
+    await app.newGrid();
     await settle();
     const id = added()[0]!.dataset['tile']!;
     const mine = charts()[0]!.id;
@@ -353,7 +354,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
   });
 
   it('removing a grid removes its following charts and detaches its frozen ones', async () => {
-    app.newGrid();
+    await app.newGrid();
     await settle();
     const id = added()[0]!.dataset['tile']!;
     await chartOf(id);
@@ -374,7 +375,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
   });
 
   it('Insert > Grid from an added grid\'s own menu adds to the page, not inside the grid', async () => {
-    app.newGrid();
+    await app.newGrid();
     await settle();
     const first = added()[0]!;
     const cell = first.querySelector('.dc-row .dc-cell') as HTMLElement;
@@ -398,7 +399,7 @@ describe('each grid\'s header says its source and its plane', () => {
     const bar = (): Element => root.querySelector(':scope > .dc-titlebar')!;
     assert.equal(bar().querySelector('.dc-source-tag')?.textContent, 'trades (test)');
     assert.equal(bar().querySelector('.dc-titlebar-toggle')?.textContent, 'Snapped');
-    app.newGrid();
+    await app.newGrid();
     await settle();
     // the page's bar is the page's now
     assert.equal(bar().querySelector('.dc-source-tag'), null);
@@ -432,7 +433,7 @@ describe('New > Source: a grid over another source, with its own planner and eng
   it('a new grid has the same drop zones as this one: Column Labels too, by either way in', async () => {
     await app.newSource();
     await settle();
-    app.newGrid();
+    await app.newGrid();
     await settle();
     const tiles = added();
     assert.equal(tiles.length, 2, 'one over the other source, one over this one');
