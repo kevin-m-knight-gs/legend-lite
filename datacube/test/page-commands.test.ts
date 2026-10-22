@@ -397,18 +397,30 @@ describe("a cube changed by a page command, its live charts following it (follow
     assert.equal(chartOf(after, 'chart').spec.x, 'desk');
   });
 
-  it("setChartCube gives a detached chart following its own query a cube of another grouping: it follows it", () => {
-    // grid-2 removed: its frozen chart-2 stays, detached; made to follow (Python's setChart), then given its own query
+  it("a detached chart has no grid to follow: made to follow, refused in DataCube's words, as the screen's pill is off (B8)", () => {
+    // grid-2 removed: its frozen chart-2 stays, detached
     const grid2 = trades.views.find((v) => v.kind === 'grid' && v.id === 'grid-2')!;
-    let d = applyPageCommand(draftOf(trades), { kind: 'removeTile', tile: grid2.id }).draft;
+    const d = applyPageCommand(draftOf(trades), { kind: 'removeTile', tile: grid2.id }).draft;
     const { frozen: _f, ...live } = chartOf(d.page, 'chart-2').spec;
-    d = applyPageCommand(d, { kind: 'setChart', chart: 'chart-2', spec: live }).draft;
+    assert.throws(() => applyPageCommand(d, { kind: 'setChart', chart: 'chart-2', spec: live }),
+      /^CubeRefusal: 'chart-2' is detached -- its grid was removed, and it keeps its own copy of that grid's query -- so it has no grid to follow$/);
+    // frozen, it takes any other edit
+    const told = applyPageCommand(d, { kind: 'setChart', chart: 'chart-2', spec: { ...chartOf(d.page, 'chart-2').spec, mark: 'line' } }).draft.page;
+    assert.equal(chartOf(told, 'chart-2').spec.mark, 'line');
+    // and a chart that follows its grid goes frozen and live again as its pill toggles it
+    const { frozen: _g, ...following } = chartOf(trades, 'chart-2').spec;
+    assert.equal(chartOf(applyPageCommand(draftOf(trades), { kind: 'setChart', chart: 'chart-2', spec: following }).draft.page, 'chart-2').spec.frozen, undefined);
+  });
+
+  it("setChartCube gives a detached chart a query of its own (its editing grid's Update): it reads it, frozen, plotting what it did", () => {
+    // grid-2 removed: its frozen chart-2 stays, detached, then given its own query
+    const grid2 = trades.views.find((v) => v.kind === 'grid' && v.id === 'grid-2')!;
+    const d = applyPageCommand(draftOf(trades), { kind: 'removeTile', tile: grid2.id }).draft;
     const kept = d.page.cubes.find((c) => c.id === grid2.cube)!.cube;
-    assert.equal(chartOf(d.page, 'chart-2').spec.x, 'region', 'following its grid as it was: across region');
     const own = { ...kept, query: { ...kept.query, rows: ['desk'], pivotOn: [] } };
     const after = applyPageCommand(d, { kind: 'setChartCube', chart: 'chart-2', document: own }).draft.page;
     assert.equal(chartOf(after, 'chart-2').cube, 'chart-2-query');
-    assert.equal(chartOf(after, 'chart-2').spec.x, 'desk', 'following its own query: across desk');
+    assert.deepEqual(chartOf(after, 'chart-2').spec, chartOf(d.page, 'chart-2').spec, 'frozen: what it plots its own');
   });
 });
 

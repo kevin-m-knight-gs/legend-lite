@@ -42,8 +42,8 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # 2026-10-21 (One API S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N1, N2): L9_KEEPER 6 -> 8 -- the page written whole
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10)
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 15, 'L9_KEEPER': 8,
-            'BEHAVIOUR': 1}
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 14, 'L9_KEEPER': 8,
+            'BEHAVIOUR': 0}
 
 
 def trades():
@@ -241,7 +241,6 @@ MARKERS = [
     (PAGE, "path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)", ('Z6',), 1),
     (PAGE, "*({'kind': 'column', 'name': d, 'change': {'kind': 'dimension'}} for d in dimensions),", ('Z8',), 1),
     (PAGE, "'near': None, 'title': title, 'columns': None}], 'a title')", ('Z9',), 1),
-    (PAGE, "raise ValueError('a stack is two tiles or more')", ('Z13',), 1),
     (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
     (ENGINE, 'row snap limit. Narrow the filter, ', ('Z16',), 2),
     (ENGINE, 'self._claimed: set[str] = set()', ('Z17',), 1),
@@ -273,9 +272,7 @@ L9_KEEPER = {
 # -- L7, L9, L10: behaviour, as it is today ------------------------------------------------------------------------
 
 # each behavioural gap by its items: the test that holds it, which asserts the gap as it is (closing it fails the test)
-BEHAVIOUR = {
-    'test_b8_a_detached_chart_goes_live_in_python_and_not_on_the_screen': ('B8',),
-}
+BEHAVIOUR = {}  # B8 closed in S5 (OneRule)
 
 
 class Session(unittest.TestCase):
@@ -379,18 +376,24 @@ class HostApplies(Session):
 
 
 class SameJob(Session):
-    """L10, Python's half: the same job done by another rule than the browser's."""
+    """L10, Python's half: the same job done by another rule than the browser's (none open: B8 closed in S5)."""
 
-    def test_b8_a_detached_chart_goes_live_in_python_and_not_on_the_screen(self):
-        page = ll.Page('B8')
+
+class OneRule(Session):
+    """L10 closed: the job done by DataCube's one rule, as the browser does it."""
+
+    def test_b8_a_detached_chart_has_no_grid_to_follow_in_python_as_on_the_screen(self):
+        page = ll.Page('detached')
         grid = page.grid(trades(), name='t', rows=['region'], measures={'notional': 'sum'})
         page.grid(trades(), name='u')
         chart = grid.chart('bar', x='desk')
         page.remove(grid)
         self.assertTrue(page.to_dict()['views'][-1]['spec']['frozen'], 'detached: frozen, its grid gone')
-        chart.plot(frozen=False)
-        self.assertNotIn('frozen', page.to_dict()['views'][-1]['spec'],
-                         'B8 open: Python lets a detached chart follow again; the screen does not (its pill is off)')
+        # DataCube's setChart refuses it, in its words: the screen's pill is off for a detached chart
+        with self.assertRaisesRegex(ValueError, "^'chart-1' is detached -- its grid was removed, and it keeps its own copy of "
+                                                "that grid's query -- so it has no grid to follow$"):
+            chart.plot(frozen=False)
+        self.assertTrue(page.to_dict()['views'][-1]['spec']['frozen'], 'still frozen')
 
 
 class Ledger(unittest.TestCase):

@@ -396,6 +396,11 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
       const spec = readChart(JSON.parse(JSON.stringify(command.spec)));
       if (typeof spec === 'string') throw new CubeRefusal(spec);
+      // a chart detached from its grid (its grid removed: no grid shows its cube) has no grid to follow: it stays frozen,
+      // on both sides -- the screen's pill is off for it (B8)
+      if (spec.frozen !== true && !page.views.some((v) => v.kind === 'grid' && v.cube === view.cube)) {
+        throw new CubeRefusal(`'${command.chart}' is detached -- its grid was removed, and it keeps its own copy of that grid's query -- so it has no grid to follow`);
+      }
       // kept as the panel keeps it: a live chart regrouped as its grid is (P6)
       return done(followedPage({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, spec } : v)) }, view.cube, page));
     }

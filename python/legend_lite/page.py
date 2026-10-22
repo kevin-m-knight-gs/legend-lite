@@ -779,10 +779,10 @@ class Chart(Tile):
              frozen: bool | None = None, at: Any = _KEEP) -> Chart:
         """What it plots changed, as DataCube's options form changes it (chart-spec.ts editChart): its ``mark``, ``x``
         (None: none), ``y``, ``split`` (None: none), a bubble map's places ``at`` (``{'lat': ..., 'lon': ...}``; None:
-        none) or ``frozen`` (False: following its grid); what is not given stays, a
-        new column across takes its own order and a grain or bins go with the old one, and a live chart told its ``x``,
-        ``y`` or ``split`` freezes unless told ``frozen``. DataCube makes the edit and judges it (_made): a detached chart
-        against its cube, which stays."""
+        none) or ``frozen`` (False: following its grid -- a detached chart, its grid removed, has none to follow, and
+        DataCube refuses it); what is not given stays, a new column across takes its own order and a grain or bins go
+        with the old one, and a live chart told its ``x``, ``y`` or ``split`` freezes unless told ``frozen``. DataCube
+        makes the edit and judges it (_made): a detached chart against its cube, which stays."""
         view = self._view
         given = {**({'mark': mark} if mark is not None else {}), **({'x': x} if x is not _KEEP else {}),
                  **({'y': _measures(y)} if y is not _KEEP else {}),
@@ -1369,8 +1369,6 @@ class Page:
         strays = [t for t in tiles if not isinstance(t, Tile)]
         if strays:
             raise ValueError(f'a stack is of tiles (grids and charts), not {", ".join(repr(t) for t in strays)}')
-        if len({t._id for t in tiles}) < 2:
-            raise ValueError('a stack is two tiles or more')
         if any(t._page is not self for t in tiles):
             raise ValueError('the tiles of a stack are of this page')
         for t in tiles:

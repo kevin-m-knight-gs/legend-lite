@@ -981,8 +981,9 @@ class Document(Paged):
         self.assertNotEqual(other.id, grid.id)
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             grid.group('desk')
-        # a tile stacked with itself is no stack; one taken off, or not a tile, is refused before anything is asked
-        with self.assertRaisesRegex(ValueError, 'two tiles or more'):
+        # a tile stacked with itself is no stack, in DataCube's words (page-commands.ts 'stack'); one taken off, or not a
+        # tile -- a Python handle, not a page rule -- is refused before anything is asked
+        with self.assertRaisesRegex(ValueError, '^a stack is two tiles or more$'):
             page.stack(other, other)
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             page.stack(other, later)

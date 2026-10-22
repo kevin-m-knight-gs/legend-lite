@@ -317,7 +317,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **Z10** take-a-reopened-cube rule (with Y2) — closed S1: cube-document.ts `cubeTaken`
 - [x] **Z11** command-or-whole rule in `_kept` (with Y3) — closed S1: gone; an edit is its commands
 - [ ] **Z12** filter value conversion and pre-checks → the TypeScript reader — S5, L6
-- [ ] **Z13** stack needs two tiles (duplicate check) — S5, L6
+- [x] **Z13** stack needs two tiles (duplicate check) — closed S5: Python sends the stack and DataCube refuses it in its
+  own words (page-commands.ts `stack`; test_page.py)
 - [ ] **Z14** frames-only rule (D3) — S5, L6
 - [ ] **Z15** a snapped grid's base and refusal → exported from headless — S5, L6
 - [ ] **Z16** snap refusal sentence from one TypeScript function (N3 keeps the values) — S5, L6
@@ -336,7 +337,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **B5** one page-file rule — S5, L10
 - [ ] **B6** empty pages allowed on both sides (D2) — S5, L10
 - [ ] **B7** sources on a Python page (D3, with X1-X5) — S5, L10
-- [ ] **B8** one rule for a detached chart going live — S5, L10
+- [x] **B8** one rule for a detached chart going live — closed S5: DataCube's `setChart` refuses a detached chart
+  (no grid shows its cube) told to follow, in its words, for Python as for the screen, whose pill is off for it
+  (page-commands.ts; page-commands.test.ts, test_one_api.py `OneRule`)
 - [ ] **B9** one new-page skeleton (`pageNew` for the tab's Blank Page too) — S5, L10
 - [ ] **B10** a frame's column change keeps grid edits everywhere (with P12) — S5, L10
 - [ ] **B11** Join on both sides over every source kind — S5, L10
