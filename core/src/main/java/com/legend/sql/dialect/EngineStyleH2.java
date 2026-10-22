@@ -61,6 +61,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return strftimeText(fl);
     }
 
+    /** The empty collection: the NULL value, bare or typed as its element's array (the lowering types an empty list
+     *  by its element since ca99ed29, 2026-10-21; the corpus's sqlstring::testGreatestLeast then refused here, its text
+     *  {@code greatest(null)} the engine's, 2026-10-22). */
+    private static boolean emptyCollection(SqlExpr e) {
+        return e instanceof SqlExpr.NullLit
+                || e instanceof SqlExpr.Cast c && c.value() instanceof SqlExpr.NullLit
+                        && c.target() instanceof com.legend.sql.SqlType.Array;
+    }
+
     @Override
     protected SqlWriter listCall(SqlWriter writer, com.legend.sql.SqlFn fn,
             java.util.List<SqlExpr> args) {
@@ -74,7 +83,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         }
         if ((fn == com.legend.sql.SqlFn.LIST_MAX
                 || fn == com.legend.sql.SqlFn.LIST_MIN)
-                && args.get(0) instanceof SqlExpr.NullLit) {
+                && emptyCollection(args.get(0))) {
             // the EMPTY collection ([]->cast(@String)) — engine emits
             // greatest(null)
             return variadicExtreme(writer, fn == com.legend.sql.SqlFn.LIST_MAX,
