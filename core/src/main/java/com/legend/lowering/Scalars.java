@@ -2395,6 +2395,15 @@ final class Scalars {
         // round, timezone('UTC', naive) pins the naive value as a UTC instant and timezone(zone, instant) is its
         // wall time in the zone (measured on DuckDB 1.4.4 through the ICU it bundles, Europe/Stockholm in and out
         // of summer time; Postgres's timezone(zone, t) is AT TIME ZONE, the same pair)
+        // an integer quotient cut toward zero: the database's integer division (every dialect's INT_DIVIDE
+        // truncates; 2026-10-17, the IQ island's scale)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_QUOTIENT) {
+            // a zero divisor raises as rem's does ('Cannot divide 5 by zero'): DuckDB's // gives NULL
+            RULES.put(f, (n, args) -> guarded(
+                    SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                    cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)), new SqlExpr.StringLit(" by zero")),
+                    SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))));
+        }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"),
                     new SqlExpr.Call(SqlFn.TIMEZONE, List.of(args.get(1), args.get(0))))));

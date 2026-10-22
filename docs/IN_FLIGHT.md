@@ -2031,6 +2031,55 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       order rides alone, as before the landing: carried, the relational corpus's ordered compare of
       testRenameColumnsAfterGroupBy moved), so on a database that does not keep a subselect's order a later LIMIT
       may keep other rows.
+- **Announced 2026-10-17: landing 5's cross-area edits** (`claude/iq-island-5`; one PR and one CI run after review,
+  the user's merge). The corpus lane was rebuilt (the session scratchpad that held it was wiped; the private repo
+  neema2/iq-sql-research's `corpus-lane/` keeps its scripts) and its refusals the live IQ 17.1 answers were worked
+  top-down; each edit is judged by both `iq-parity` lanes, both `sql-parity` lanes and the corpus judge:
+  - **An integer quotient, a lite native.** `builtin/Pure.java`: `meta::legend::lite::quotient(Integer[1],
+    Integer[1]):Integer[1]` (`INTERNAL_DESUGAR` 21 to 22, `NOT_UPSTREAM` 48 to 49, both with dated notes; census row in
+    `docs/LITE_INVENTION_CENSUS.md`); `lowering/Scalars.java`: its rule, MIR's `INT_DIVIDE` with rem's zero-divisor
+    raise; `protocol/sql/SqlToPure.java`: `wholeQuotient`, used where both operands are integers (the function-FQN
+    literal ratchet 324 to 325, the Cypher translator's precedent). The Float estimate it replaces read each operand
+    about fourteen times.
+  - `sql/dialect/StringCountsAsInt.java` (new, Postgres): a string function's 64-bit count cast to its 32-bit integer.
+  - `sql/dialect/OuterJoinSubqueryFilters.java` (new, DuckDB): a LEFT JOIN condition's scalar subquery of the
+    null-supplying side filters that side first, which DuckDB cannot plan otherwise.
+  - `sql/dialect/ConstantKeysAsExpressions.java`: on DuckDB's GROUP BY integers too (`groupByOnly`), and a NULL key
+    grouped by as an integer's NULL.
+  - `protocol/sql/SqlToPure.java`, also: `*` in a grouped query shows its group keys; a scalar subquery a select item
+    reads on every path is computed once, a column before the item (`Output.pre`, in the item's phase), where it was
+    written once per check of each checked operation around it.
+  - Later the same day (follow-on branch `claude/iq-island-5-next`, the same landing):
+    - `lowering/Fold.java`, `lowering/Lowerer.java`: a large computed column that later columns read twice is written
+      once in its own select (`Fold.rereadsLarge`; removed 2026-10-18 in the landing's review: main's `Fold.Budget`
+      does it since the merge, and the lowering is main's again).
+    - `protocol/sql/SqlToPure.java`:
+      - an item past the size bound computes its long operands once, a column before it
+        (`SqlTranslationException.pastSizeBound`);
+      - a dialect's group guard (`Aggregation.guard`), each grouping's own;
+      - `Scope.enclosing`, a window's correlated-reference check that no longer asks a grouped scope to resolve a
+        column that is no group key;
+      - `SELECT DISTINCT t.*` ordered by a column the `*` shows;
+      - joins read by `InputDialect.joinType`.
+    - `protocol/sql/InputDialect.java`: `joinType`, a dialect's reading of an outer join as the inner one it is (the
+      IQ island's, under a WHERE that rejects the null-supplying side's NULLs).
+    - `protocol/sql/InputDialect.java`, also: `Problem.NESTED_AGGREGATE`, whose wording is the dialect's (Postgres's
+      unchanged; the IQ island's its -156); the shared translator's seven nested-aggregate refusals read it.
+    - `protocol/sql/InputDialect.java`, `protocol/sql/SqlToPure.java`: `translated()`, called once a statement is
+      translated, where a dialect raises an error it held while translating (the IQ island's -1001013 for a string
+      compared with a number, which IQ raises after any -157 of the statement and after a missing column's -143);
+      and `failed(e)`, the error to raise when a statement fails to translate (the IQ island's held placement error,
+      which comes after the statement's names, grouping and functions).
+    - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
+      alone but past `medium`'s 300 s in `//gates:local`.
+  - 2026-10-18, the landing's review and gate (the user's request: the flaky case fixed to be deterministic):
+    - `cypher-parity/lite/grouping.yaml`: `with_distinct_node_then_counted` sorts before its collect (`WITH DISTINCT a
+      ORDER BY a.name`). A collect's list has no order of its own; DuckDB's came back either way over the DISTINCT
+      (two passes and two failures on one head). Re-snapped from Neo4j 2026.09.0 (`[2, ['a', 'c']]`), the other 17
+      grouping answers reproduced unchanged first.
+    - `protocol/sql/PostgresOperators.java`: Postgres's integer division keeps its exact estimate (Snowflake's
+      INT_DIVIDE rounds to six places before it cuts); `sql/dialect/ConstantKeysAsExpressions.java` names its database.
+
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):

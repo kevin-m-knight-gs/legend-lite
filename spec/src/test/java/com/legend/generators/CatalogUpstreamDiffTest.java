@@ -207,8 +207,11 @@ class CatalogUpstreamDiffTest {
      *  W11). The W3 leg's lite random left in the same repair: rand() is upstream's meta::pure::functions::math::random.
      *  56 on 2026-10-18 (the user's decision of that day, the plan's W13 leg 1, docs/CYPHER_STUDY_2026_10_15.md
      *  §12.85): dateTimeOfText and timeOfText, a temporal value in text carriage -- what a nanosecond value leaves
-     *  the database as; ours alone, legend-engine carries a date-time in the database's own type. */
-    private static final int NOT_UPSTREAM_MAX = 56;
+     *  the database as; ours alone, legend-engine carries a date-time in the database's own type. 57 on 2026-10-18 (merging main into
+     *  the IQ island's landing 5, docs/IQ_CENSUS_CHECKLIST.md): meta::legend::lite::quotient, an integer quotient cut
+     *  toward zero, the database's own integer division -- upstream has none (legend-pure's divide of integers is a
+     *  Float). */
+    private static final int NOT_UPSTREAM_MAX = 57;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

@@ -38,12 +38,12 @@ input).
 |---|---|---:|---:|---:|---:|---:|
 | H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 85 | 70 | 50 | 15 | 24 |
 | H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 84 | 72 | 49 | 15 | — |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 120 | 9 | 15 | 30 |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 121 | 9 | 15 | 30 |
 | Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 104 | 6 | 15 | 33 |
 | Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 84 | 116 | 5 | 15 | 33 |
 | BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 123 | 11 | 15 | 31 |
 | Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 102 | 7 | 15 | 31 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 146 | 59 | 0 | 15 | 39 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 60 | 0 | 15 | 39 |
 | ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 133 | 7 | 15 | 31 |
 | SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 137 | 12 | 15 | 33 |
 | MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 52 | 145 | 8 | 15 | 32 |
@@ -154,7 +154,7 @@ input).
 | `PURE_SPLIT_PART` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `REVERSE_STRING` | S | S | S | S | S | S | S | S | S | S | S | S | S | S | S |
 | `ASCII_CODE` | S | S | S | S | E | S | S | S | E | E | E | E | S | S | S |
-| `CHR` | S | S | S | S | S | S | S | S | S | S | E | E | S | S | S |
+| `CHR` | S | S | E | S | S | S | S | E | S | S | E | E | S | S | S |
 | `UC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `LC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `ENCODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | E | E | E |

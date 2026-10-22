@@ -234,7 +234,7 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** The portable carrier strategies (static pivot, as-of emulation; FULL OUTER
      * stays native), the substring start clamp (Postgres counts empties before 1,
-     * like DuckDB), averages delivered as DOUBLE ({@code avg(int)} is numeric here),
+     * like DuckDB), string functions' 64-bit counts as its 32-bit integer, averages delivered as DOUBLE ({@code avg(int)} is numeric here),
      * QUALIFY as a wrapping subselect (Postgres has no QUALIFY), and a constant GROUP BY or
      * ORDER BY key as a typed expression (Postgres reads a bare one as a position, or refuses
      * it). */
@@ -243,7 +243,8 @@ public final class Postgres extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS),
                 new StarExceptToColumns(),
                 new WholePartitionOrderedSets(),
-                new SubstringClamp(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES), new QualifyToSubselect(true),
+                new SubstringClamp(), new StringCountsAsInt(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES),
+                new QualifyToSubselect(true),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
@@ -721,7 +722,8 @@ public final class Postgres extends AnsiSqlRenderer {
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
-            case CHR -> writer.function("chr", c.args());
+            // chr takes a 32-bit code; a computed Integer is a BIGINT here (IQ island, 2026-10-17: CHAR(65 + MOD(id, 26)))
+            case CHR -> writer.append("chr(CAST(").expr(c.args().get(0), 0).append(" AS INTEGER))");
             case COALESCE -> writer.function("coalesce", c.args());
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
