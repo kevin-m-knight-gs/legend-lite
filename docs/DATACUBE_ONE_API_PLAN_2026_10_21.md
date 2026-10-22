@@ -526,10 +526,17 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   conversion (headless `gridAddFilter`, sharing `gridFilter`'s `editorFilter`) as one `addFilter` (test_page.py `Abilities`)
 - [x] **K3** calculated columns: edit, rename, remove — closed S1 with G4/G5: Python `grid.edit_calculated` (rename=) and
   `grid.remove_calculated`, test_page.py
-- [ ] **K4** group-level, window, child-aggregate, explode columns; the Show As and period presets — S6, L8
+- [x] **K4** group-level, window, child-aggregate, explode columns; the Show As and period presets — closed S6:
+  `grid.calculate(..., level='group')`, `grid.window`, `grid.child_aggregate`, `grid.explode` (headless `gridColumn`: the
+  column editor's whole form by column-draft.ts, a window's and a child aggregate's fields read by readGridCommand);
+  `grid.grain`, `grid.show_as`, `grid.bins` by grid-presets.ts `presetCommands`, which the header menu's By Month and Show
+  As now ask too (its naming moved out of app.ts `#addPreset`: D6); the screen's Bins still opens the column editor on
+  the same expression (test_page.py `Abilities`, grid-presets.test.ts)
 - [x] **K5** expand, collapse, collapse all — closed S1 with G1/G2: Python `grid.expand`, `grid.collapse`,
   `grid.collapse_all`, test_page.py
-- [ ] **K6** dimensions — S6, L8
+- [x] **K6** dimensions — closed S6: `grid.dimension(name)` as View > Dimensions uses one, `grid.drill`/`grid.drill_up`
+  by dimensions.ts `drillDown`/`drillUp` (no screen gesture drills a grid's dimension today: the rule is DataCube's all
+  the same), over the configuration's `dimensions` (headless `gridDimension`) (test_page.py `Abilities`)
 - [ ] **K7** a chart's selection; page filters — S6, L8 (D8: `select`, `selection`) (S6 B: page filters done --
   `page.filter`, `page.filters`, `page.remove_filter`; the chart's selection left, with S6 D)
 - [x] **K8** sheets: reorder, remove — closed S6: `sheet.move(position)` (`moveSheet`), `page.remove(sheet)`

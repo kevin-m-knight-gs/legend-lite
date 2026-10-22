@@ -122,6 +122,16 @@ def _carried(value: Any) -> Any:
 
 # -- filters ----------------------------------------------------------------------------------------------------------
 
+def _sort_given(sort: Any, what: str) -> dict[str, Any]:
+    """A sort as Python writes one -- a column (ascending) or ``(column, 'asc' | 'desc')`` -- as the command carries it;
+    what the direction is DataCube judges."""
+    if isinstance(sort, str):
+        return {'column': sort, 'direction': 'asc'}
+    if isinstance(sort, (list, tuple)) and len(sort) == 2:
+        return {'column': sort[0], 'direction': sort[1]}
+    raise ValueError(f"{what} is a column or (column, 'asc' | 'desc'), not {sort!r}")
+
+
 def _tagged(value: Any) -> Any:
     """A filter as JSON carries it to DataCube (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D12): its tuples and lists as
     lists, each value JSON has no form for tagged -- a date, a decimal, a timestamp (``{"$date": text}``,
@@ -430,15 +440,7 @@ class Grid(Tile):
         """Its sorts, whole and in order, replacing those it has, as the Sorts panel sets them (a ``sorts`` command,
         grid-edits.ts setSorts): each a column, ascending, or ``(column, 'asc' | 'desc')``; ``[]`` clears them all, as
         the header menu's Clear All Sorts does. Refused, nothing set, in DataCube's words."""
-        given = []
-        for sort in sorts:
-            if isinstance(sort, str):
-                given.append({'column': sort, 'direction': 'asc'})
-            elif isinstance(sort, (list, tuple)) and len(sort) == 2:
-                given.append({'column': sort[0], 'direction': sort[1]})
-            else:
-                raise ValueError(f"a sort is a column or (column, 'asc' | 'desc'), not {sort!r}")
-        return self._apply([_commands.grid_sorts(sorts=given)])
+        return self._apply([_commands.grid_sorts(sorts=[_sort_given(s, 'a sort') for s in sorts])])
 
     def clear_sort(self, column: str) -> Grid:
         """``column``'s sort taken off, the others kept as they are, as the header menu's Clear Sort takes it (a
@@ -486,19 +488,81 @@ class Grid(Tile):
         """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
         return self._apply([_commands.grid_collapse_all()])
 
-    def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
+    def calculate(self, name: str, expression: str, *, kind: str | None = None, level: str = 'row') -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
         empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one
-        (DataCube's code, headless: gridCalculate): its name as DataCube takes one, ``kind`` ``'measure'`` or
+        (DataCube's code, headless: gridColumn): its name as DataCube takes one, ``kind`` ``'measure'`` or
         ``'dimension'`` as declared (not given, a measure, as the editor starts a new column -- summed when grouped if it
         is a number, its unique value if not), and the grid with it compiled as DataCube would run it -- reading any of
-        the grid's columns before it, a window column's too.
+        the grid's columns before it, a window column's too. ``level='group'``: computed after the grouping instead, over
+        each group's row (the editor's Group level: no kind), reading the grid's measures as each level aggregates them.
         A mistake fails at this line, in DataCube's and the compiler's words."""
-        return self._calculated(name, expression, kind, None)
+        if not isinstance(name, str) or not isinstance(expression, str):
+            raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'level': level})
+
+    def explode(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
+        """A calculated column whose expression gives a list, each row repeated once per element of it, the column that
+        element -- the column editor's Explode (DataCube's code, headless: gridColumn): row level only, ``kind`` as for
+        ``calculate``."""
+        if not isinstance(name, str) or not isinstance(expression, str):
+            raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'explode': True})
+
+    def window(self, name: str, fn: str, *, column: str | None = None, partition: Sequence[str] = (),
+               order: Sequence[Any] = (), frame: Any = None, offset: int | None = None, buckets: int | None = None,
+               level: str = 'row', kind: str | None = None) -> Grid:
+        """A window column: ``fn`` over the rows around each row, as the column editor's Window makes one (DataCube's
+        code, headless: gridColumn) -- reading ``column`` (an aggregate, ``lag``/``lead``, ``first``/``last``),
+        restarting for each value of ``partition``, the rows taken in ``order`` (each a column, ascending, or ``(column,
+        'asc' | 'desc')``), over ``frame`` (``'running'``, ``'partition'`` or ``{'lastRows': n}``); ``offset`` for
+        ``lag``/``lead``, ``buckets`` for ``ntile``. ``level='group'``: over the grid's groups at each level instead (its
+        order, none given, the order the grid shows them in). What ``fn`` takes is DataCube's to judge, in its words."""
+        given = {'fn': fn, 'partition': list(partition), 'order': [_sort_given(o, 'an order') for o in order],
+                 **({'column': column} if column is not None else {}), **({'frame': frame} if frame is not None else {}),
+                 **({'offset': offset} if offset is not None else {}), **({'buckets': buckets} if buckets is not None else {})}
+        return self._column({'name': name, 'mode': 'window', 'window': given, 'level': level, 'kind': kind})
+
+    def child_aggregate(self, name: str, fn: str, of: str) -> Grid:
+        """A group-level column aggregating ``of`` (a measure) over each group's child groups, ``fn`` (``'min'``,
+        ``'max'``, ``'average'``...) -- the column editor's Children (DataCube's code, headless: gridColumn)."""
+        return self._column({'name': name, 'mode': 'children', 'level': 'group', 'child': {'fn': fn, 'of': of}})
+
+    def grain(self, column: str, grain: str) -> Grid:
+        """The date ``column`` taken to its period (``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``), a new
+        dimension, as the header menu's By Month adds one (DataCube's code: grid-presets.ts presetCommands) -- named
+        ``<column>_<grain>``, or that with ``_2``... where the grid has a column of the name."""
+        return self._preset({'kind': 'grain', 'column': column, 'grain': grain})
+
+    def show_as(self, column: str, kind: str) -> Grid:
+        """The measure ``column`` shown as ``kind`` (``'runningTotal'``, ``'percentOfTotal'``, ``'difference'``,
+        ``'percentChange'``, ``'movingAverage'``, ``'rank'``) along the grid's row groups, as group-level columns, as the
+        header menu's Show As adds them (grid-presets.ts presetCommands) -- named ``<column>_<kind>``."""
+        return self._preset({'kind': 'showAs', 'column': column, 'showAs': kind})
+
+    def bins(self, column: str, *, width: float | None = None, count: int | None = None) -> Grid:
+        """The number ``column`` taken to its bin -- ``width`` wide, or ``count`` bins over its range -- a new dimension
+        (and its bin's upper edge), the columns a chart's bins are (calc-presets.ts binColumns, by grid-presets.ts
+        presetCommands), named ``<column>_bins``. The screen's Bins opens the column editor on the same expression."""
+        return self._preset({'kind': 'bins', 'column': column, 'bins': {
+            **({'width': width} if width is not None else {}), **({'count': count} if count is not None else {})}})
+
+    def dimension(self, name: str) -> Grid:
+        """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
+        columns, coarsest first), as the menu's View > Dimensions uses one (dimensions.ts useDimension)."""
+        return self._dimension(name, 'use')
+
+    def drill(self, name: str) -> Grid:
+        """One level deeper into the named dimension ``name`` (dimensions.ts drillDown): its next column grouped by."""
+        return self._dimension(name, 'down')
+
+    def drill_up(self, name: str) -> Grid:
+        """One level back out of the named dimension ``name`` (dimensions.ts drillUp); out of its first, not grouped."""
+        return self._dimension(name, 'up')
 
     def edit_calculated(self, name: str, expression: str, *, rename: str | None = None, kind: str | None = None) -> Grid:
         """The calculated column ``name`` computed per row by ``expression`` instead, as its Edit Column window's OK
-        changes it (an ``editCalculated`` command, built headless as the editor builds it: gridCalculate): ``rename`` its
+        changes it (an ``editCalculated`` command, built headless as the editor builds it: gridColumn): ``rename`` its
         new name -- what read it (the groups, the pivot, the sorts, the filter, the columns computed from it, its
         settings) reads it by that -- and ``kind`` as for ``calculate``. In its place among the grid's columns."""
         if not isinstance(name, str):
@@ -513,15 +577,38 @@ class Grid(Tile):
     def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None) -> Grid:
         if not isinstance(name, str) or not isinstance(expression, str):
             raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'replacing': replacing})
+
+    def _column(self, given: Mapping[str, Any]) -> Grid:
+        """A column made as the column editor makes one (headless gridColumn: ``given`` its form), the cube with it kept
+        as DataCube writes the editor's OK -- the column typed, the state folded -- or refused in its words."""
         self._page._current(self._view['cube'], 5)
         engine, frames = self._headless()
         with frames.reading():
-            said = json.loads(engine.call('gridCalculate', self._spec(engine, frames), name, f'x|{expression}', kind,
-                                          replacing))
+            said = json.loads(engine.call('gridColumn', self._spec(engine, frames), _json.dumps(given)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        # the cube with it, as DataCube writes the editor's OK: the column typed, the state folded
         return self._kept(said, 4)
+
+    def _preset(self, preset: Mapping[str, Any]) -> Grid:
+        """A preset's columns added as the header menu adds them (headless gridPreset), or refused in DataCube's words."""
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridPreset', self._spec(engine, frames), _json.dumps(preset)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
+
+    def _dimension(self, name: str, move: str) -> Grid:
+        """The grid grouped as a named dimension used or drilled says (headless gridDimension), or refused in words."""
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridDimension', self._spec(engine, frames), name, move))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,

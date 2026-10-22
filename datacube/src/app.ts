@@ -111,7 +111,8 @@ import {
 } from './settings.ts';
 import { SETTINGS_WINDOW, buildSettingsPanel } from './ui/settings-panel.ts';
 import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
-import { binColumns, grainColumn, showAsColumns, SHOW_AS_LABELS } from './calc-presets.ts';
+import { binColumns, SHOW_AS_LABELS } from './calc-presets.ts';
+import { presetCommands, type GridPreset } from './grid-presets.ts';
 import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
@@ -1910,14 +1911,17 @@ export class CubeApp {
    * name the cube already has gets a number, so a preset never replaces a column. Each is added by the command the
    * column editor's Add builds (grid-commands.ts calculate), in order, so one may read the one before it.
    */
-  async #addPreset(stage: 'row' | 'group', name: string, label: string, make: (name: string) => DerivedColumn[]): Promise<void> {
-    const s = this.#snapshot;
-    const taken = new Set([...rowColumns(s).map((c) => c.name), ...(s.groupDerived ?? []).map((d) => d.name)]);
-    const fits = (n: string): boolean => make(n).every((d) => !taken.has(d.name));
-    let free = name;
-    for (let i = 2; !fits(free); i += 1) free = `${name}_${i}`;
-    const refused = await this.#apply(make(free).map((column): GridCommand => ({ kind: 'calculate', level: stage, column })),
-      'calculated columns');
+  /** A preset's columns added in one step, by the one rule Python's grid.grain and grid.show_as ask (grid-presets.ts). */
+  async #addPreset(preset: GridPreset, label: string): Promise<void> {
+    let commands: GridCommand[];
+    try {
+      commands = presetCommands(this.#snapshot, preset);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(`Could not add ${label}: ${e.message}`, 'error');
+      return;
+    }
+    const refused = await this.#apply(commands, 'calculated columns');
     if (refused) this.#status(`Could not add ${label}: ${refused}`, 'error');
   }
 
@@ -2155,10 +2159,7 @@ export class CubeApp {
         return;
       // the chart's presets in the grid (calc-presets.ts): ordinary calculated columns, added in one step
       case 'calc.grain':
-        if (column && item.grain) {
-          const grain = item.grain;
-          void this.#addPreset('row', `${column}_${grain}`, `${column} by ${grain}`, (n) => [grainColumn(column, grain, n)]);
-        }
+        if (column && item.grain) void this.#addPreset({ kind: 'grain', column, grain: item.grain }, `${column} by ${item.grain}`);
         return;
       case 'calc.bins':
         // the width is the person's: the editor opens on the preset's expression (calc-presets.ts, printed by the
@@ -2175,12 +2176,8 @@ export class CubeApp {
         return;
       case 'calc.showAs':
         if (column && item.showAs) {
-          // along the grid's own groupings, in order: said, not left to the level's sort -- which may be this very
-          // column, were the grid sorted by it
-          const show = { kind: item.showAs };
-          const along = [...this.#snapshot.rows];
-          void this.#addPreset('group', `${column}_${item.showAs}`, `${column} as ${SHOW_AS_LABELS[item.showAs].toLowerCase()}`,
-            (n) => showAsColumns(show, column, along, [], n));
+          void this.#addPreset({ kind: 'showAs', column, showAs: item.showAs },
+            `${column} as ${SHOW_AS_LABELS[item.showAs].toLowerCase()}`);
         }
         return;
       case 'calc.edit':

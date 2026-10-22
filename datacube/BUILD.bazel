@@ -466,6 +466,7 @@ _HEADLESS_TESTS = [
     "fuzz",
     "grid",
     "grid-edits",
+    "grid-presets",
     "group-derived",
     "host",
     "infer",

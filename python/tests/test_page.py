@@ -1278,6 +1278,75 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'a page has one sheet at least'):
             page.remove(first)
 
+    def test_columns_as_the_column_editor_makes_them(self):
+        # (K4) grid.window, grid.child_aggregate, grid.explode and grid.calculate(level='group'): the column editor's
+        # own forms, made headless as it makes them (gridColumn: column-draft.ts draftColumn), refused in its words
+        page = ll.Page('Columns')
+        grid = page.grid(trades(), name='column_trades', rows=['region', 'desk'], measures={'notional': 'sum'})
+        grid.window('running', 'sum', column='notional', order=[('notional', 'desc')], frame='running')
+        running = next(d for d in grid._query['derived'] if d['name'] == 'running')
+        self.assertEqual(running['window'], {'fn': 'sum', 'column': 'notional', 'partition': [],
+                                             'order': [{'column': 'notional', 'direction': 'desc'}], 'frame': 'running'})
+        grid.child_aggregate('largest', 'max', 'notional')
+        largest = next(d for d in grid._query['groupDerived'] if d['name'] == 'largest')
+        self.assertEqual(largest['childAggregate'], {'fn': 'max', 'of': 'notional'})
+        grid.calculate('doubled', '$x.notional->toOne() * 2', level='group')
+        self.assertIn('doubled', [d['name'] for d in grid._query['groupDerived']])
+        self.assertEqual(groups_of(grid.view(), 'doubled'), {'EMEA': 351.0, 'AMER': 500.0})
+        with self.assertRaisesRegex(ValueError, 'a group-level column has no kind'):
+            grid.calculate('kinded', '$x.notional', level='group', kind='measure')
+        with self.assertRaisesRegex(ValueError, 'median'):
+            grid.window('middle', 'median', column='notional')
+        with self.assertRaisesRegex(ValueError, "a child aggregate is a group-level column"):
+            grid._column({'name': 'rowwise', 'mode': 'children', 'child': {'fn': 'max', 'of': 'notional'}})
+        # explode: each row once per element of what its expression gives
+        flat = page.grid(trades(), name='explode_trades')
+        flat.explode('each', '[1, 2]', kind='dimension')
+        self.assertTrue(next(d for d in flat._query['derived'] if d['name'] == 'each')['unnest'])
+        self.assertEqual(len(flat.to_pandas()), 6)
+        with self.assertRaisesRegex(ValueError, 'a row-level expression only'):
+            flat._column({'name': 'late', 'expression': 'x|[1, 2]', 'level': 'group', 'explode': True})
+
+    def test_presets_as_the_header_menu_adds_them(self):
+        # (K4) grid.grain, grid.show_as, grid.bins: the header menu's By Month and Show As, by the one rule the menu
+        # now asks too (grid-presets.ts presetCommands; its names, a taken one moved on to _2)
+        dated = pd.DataFrame({'traded': pd.to_datetime(['2024-01-05', '2024-01-20', '2024-02-03']).date,
+                              'notional': [100.0, 250.0, 75.5]})
+        page = ll.Page('Presets')
+        grid = page.grid(dated, name='dated_trades', measures={'notional': 'sum'})
+        grid.grain('traded', 'month')
+        grid.grain('traded', 'month')
+        self.assertEqual([d['name'] for d in grid._query['derived']], ['traded_month', 'traded_month_2'])
+        grid.group('traded_month')
+        self.assertEqual(sorted(groups_of(grid.view(), 'notional').values()), [75.5, 350.0])
+        grid.show_as('notional', 'runningTotal')
+        self.assertIn('notional_runningTotal', [d['name'] for d in grid._query['groupDerived']])
+        grid.bins('notional', width=100)
+        self.assertEqual([d['name'] for d in grid._query['derived']][-2:], ['notional_bins', 'notional_bins__upper'])
+        with self.assertRaisesRegex(ValueError, 'a period is day, week, month, quarter, year, not "fortnight"'):
+            grid.grain('traded', 'fortnight')
+        with self.assertRaisesRegex(ValueError, 'bins are a width or a count, one of them'):
+            grid.bins('notional')
+
+    def test_a_named_dimension_is_used_and_drilled(self):
+        # (K6) grid.dimension, grid.drill, grid.drill_up: a dimension of the grid's configuration (the Dimensions tab's),
+        # by dimensions.ts's own rules (useDimension, drillDown, drillUp), as the group command the Rows zone builds
+        page = ll.Page('Dimensions')
+        grid = page.grid(trades(), name='dimension_trades', measures={'notional': 'sum'})
+        grid.configure({'dimensions': [{'name': 'Book', 'columns': ['region', 'desk']}]})
+        grid.dimension('Book')
+        self.assertEqual(grid._query['rows'], ['region'])
+        grid.drill('Book')
+        self.assertEqual(grid._query['rows'], ['region', 'desk'])
+        grid.drill('Book')
+        self.assertEqual(grid._query['rows'], ['region', 'desk'], 'its finest level: no deeper')
+        grid.drill_up('Book')
+        self.assertEqual(grid._query['rows'], ['region'])
+        grid.drill_up('Book')
+        self.assertEqual(grid._query['rows'], [])
+        with self.assertRaisesRegex(ValueError, r"the grid has no dimension 'Geo' \(its dimensions: Book\)"):
+            grid.dimension('Geo')
+
     def test_a_saved_page_is_opened_by_its_id_as_datacubes_open_opens_it(self):
         # (K12) ll.Page.open: the record from this user's saved pages, opened as Open… opens it (headless pageOfRecord)
         from legend_lite._home import THIS_USER, pages_folder, store_call

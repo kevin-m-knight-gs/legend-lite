@@ -15,7 +15,9 @@ import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
-import { draftColumn, draftStage, existingDraft, newDraft } from '../column-draft.ts';
+import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
+import { availableDimensions, drillDown, drillUp, useDimension } from '../dimensions.ts';
+import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
@@ -47,7 +49,8 @@ import { formatOf } from '../upload.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
-  type AggregateFn, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterNode, type FilterValue, type SortDirection,
+  type AggregateFn, type ChildAggregate, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterNode, type FilterValue,
+  type SortDirection, type WindowSpec,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
@@ -367,49 +370,145 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
 }
 
 /**
- * A CALCULATED COLUMN ADDED -- or, `replacing` one, EDITED -- as DataCube's column editor adds or edits one
- * (ui/column-editor.ts), by its own steps
- * (column-draft.ts): a new row-stage column's draft, of the `kind` declared -- a measure unless told (null), as the
- * editor starts one (newDraft) -- named as calc.ts nameProblem allows, its expression (the whole lambda,
- * `x|$x.qty * 2`) parsed by the planner, the cube with it (draftCandidate) compiled as a refresh would send it
- * (CubeController.compile: its columns typed, then every query, window and child columns too) -- so Python checks no
- * calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{cube, notes}`, the
- * cube document with it as the screen writes the editor's OK (the command it builds applied, the columns typed as the
- * run that lands types them, the state folded), and what opening it over its source changed; or `{problems}`, why it
- * was refused, in DataCube's words; the `calculate` (or `editCalculated`) command it applied among `commands`. Python
- * keeps the document, never a column it adds itself (parity.json's "a calculated column").
+ * A CALCULATED COLUMN ADDED -- or, `replacing` one, EDITED -- AS DATACUBE'S COLUMN EDITOR MAKES ONE (ui/column-editor.ts),
+ * by its own steps (column-draft.ts), so Python checks no calculated column by rules of its own
+ * (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5): `given`, the editor's form, `{name, replacing?, level?, kind?,
+ * mode?, expression?, explode?, window?, child?}` -- before the grouping (`level` 'row', of the `kind` declared: a measure
+ * unless told, as the editor starts one) or after it ('group', no kind); an expression (the whole lambda, `x|$x.qty * 2`,
+ * parsed by the planner; `explode`: each row repeated once per element of what it gives, row level only), a window over
+ * the rows around it, or (group level) an aggregate of the child groups' figures -- each read as a calculate command is
+ * read (readGridCommand), named as calc.ts nameProblem allows, the cube with it compiled as a refresh would send it. An
+ * edit starts from the column as it is (Edit Column opens on it). JSON: as gridApply's -- the cube document as the screen
+ * writes the editor's OK, the `calculate` (or `editCalculated`) command among `commands` -- or `{problems}`, in
+ * DataCube's words.
  */
-export async function gridCalculate(spec: GridSpec, name: string, expression: string,
-  kind: ColumnKind | null, replacing: string | null = null): Promise<string> {
+export async function gridColumn(spec: GridSpec, given: string): Promise<string> {
+  const asked = JSON.parse(given) as {
+    name?: unknown; replacing?: string | null; level?: unknown; kind?: ColumnKind | null; mode?: unknown;
+    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown;
+  };
+  const kind = asked.kind ?? null;
+  if (kind !== null && !COLUMN_KINDS.includes(kind)) {
+    return JSON.stringify({ problems: [`a column's kind is ${COLUMN_KINDS.map((k) => `'${k}'`).join(' or ')}, not '${String(kind)}'`] });
+  }
+  if (asked.level !== undefined && asked.level !== 'row' && asked.level !== 'group') {
+    return JSON.stringify({ problems: [`a calculated column's level is 'row' or 'group', not ${JSON.stringify(asked.level)}`] });
+  }
+  if (asked.level === 'group' && kind !== null) {
+    return JSON.stringify({ problems: ['a group-level column has no kind: it is computed after the grouping'] });
+  }
+  const mode = asked.mode ?? 'expression';
+  if (!isDraftMode(mode)) {
+    return JSON.stringify({ problems: [`a calculated column is an expression, a window or a child aggregate, not ${JSON.stringify(mode)}`] });
+  }
+  if (mode === 'children' && asked.level !== 'group') {
+    return JSON.stringify({ problems: ["a child aggregate is a group-level column: its level is 'group'"] });
+  }
+  if (asked.explode === true && (mode !== 'expression' || asked.level === 'group')) {
+    return JSON.stringify({ problems: ['explode repeats each row once per element of an expression: a row-level expression only'] });
+  }
+  if (typeof asked.name !== 'string') return JSON.stringify({ problems: [`a calculated column's name is text, not ${JSON.stringify(asked.name)}`] });
+  const name = asked.name;
+  if (mode !== 'expression') {
+    // a window's or a child aggregate's fields read as a calculate command's are, refused in its words
+    try {
+      readGridCommand({ kind: 'calculate', level: asked.level === 'group' ? 'group' : 'row',
+        column: { name, ...(mode === 'window' ? { window: asked.window } : { childAggregate: asked.child }) } });
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+  }
+  const replacing = asked.replacing ?? null;
   return using(spec, async (o) => {
     const { planner, state } = o;
-    if (kind !== null && !COLUMN_KINDS.includes(kind)) {
-      const kinds = COLUMN_KINDS.map((k) => `'${k}'`).join(' or ');
-      return JSON.stringify({ problems: [`a column's kind is ${kinds}, not '${String(kind)}'`] });
-    }
     // an edit starts from the column as it is (Edit Column opens on it: its level, its explode), as told otherwise
     const was = replacing === null ? undefined : existingDraft(state.snapshot, replacing)?.draft;
     if (replacing !== null && was === undefined) {
       return JSON.stringify({ problems: [`'${replacing}' is not a calculated column of the grid`] });
     }
-    const draft = was === undefined ? newDraft(name, expression, kind ?? undefined)
-      : { ...was, name, expression, mode: 'expression' as const, ...(kind !== null ? { level: kind } : {}) };
+    const expression = typeof asked.expression === 'string' ? asked.expression : '';
+    const start = was ?? newDraft(name, expression, kind ?? undefined);
+    const level = asked.level === 'group' ? 'group' : kind ?? (asked.level === 'row' && start.level === 'group' ? 'measure' : start.level);
+    const draft: ColumnDraft = {
+      ...start, name, expression, mode, level,
+      ...(asked.explode !== undefined ? { unnest: asked.explode === true } : {}),
+      ...(mode === 'window' ? { window: asked.window as WindowSpec } : {}),
+      ...(mode === 'children' ? { child: asked.child as ChildAggregate } : {}),
+    };
     const problem = nameProblem(state.snapshot, draftStage(draft), draft.name, replacing ?? undefined);
     if (problem !== null) return JSON.stringify({ problems: [problem] });
-    let lambda: Lambda;
-    try {
-      lambda = await planner.parse(draft.expression.trim());
-    } catch (e) {
-      // the parse refused (the editor's #parsed): its message is the compiler's. Only the planner's refusal: a planner
-      // that cannot answer (PlannerUnavailableError), or any other failure, is no mistake of the expression's
-      if (!(e instanceof PlanError)) throw e;
-      return JSON.stringify({ problems: [e.message] });
+    let lambda: Lambda | undefined;
+    if (mode === 'expression') {
+      try {
+        lambda = await planner.parse(draft.expression.trim());
+      } catch (e) {
+        // the parse refused (the editor's #parsed): its message is the compiler's. Only the planner's refusal: a planner
+        // that cannot answer (PlannerUnavailableError), or any other failure, is no mistake of the expression's
+        if (!(e instanceof PlanError)) throw e;
+        return JSON.stringify({ problems: [e.message] });
+      }
     }
     // the column as the editor makes it (column-draft.ts draftColumn), by the command the editor's OK builds
     const column = draftColumn(draft, lambda);
     return applied(spec, o, [replacing === null
       ? { kind: 'calculate', level: draftStage(draft), column }
       : { kind: 'editCalculated', name: replacing, level: draftStage(draft), column }]);
+  });
+}
+
+const isDraftMode = (m: unknown): m is ColumnDraft['mode'] => m === 'expression' || m === 'window' || m === 'children';
+
+/**
+ * A PRESET ADDED AS THE HEADER MENU ADDS ONE (grid-presets.ts presetCommands: a date to its period, a measure shown as,
+ * a number to its bin -- Python's grid.grain, grid.show_as, grid.bins): `given`, the preset as JSON (readGridPreset),
+ * over the grid's columns as the compiler types them now. JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ */
+export async function gridPreset(spec: GridSpec, given: string): Promise<string> {
+  let preset: GridPreset;
+  try {
+    preset = readGridPreset(JSON.parse(given));
+  } catch (e) {
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+  return using(spec, async (o) => {
+    let commands: GridCommand[];
+    try {
+      commands = presetCommands(await typedColumns(o.runner, o.state.snapshot), preset);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+    return applied(spec, o, commands);
+  });
+}
+
+/**
+ * A NAMED DIMENSION (dimensions.ts; its Dimensions tab, a configure's `dimensions`) USED OR DRILLED, as the menu's View ▸
+ * Dimensions uses one: `move` 'use' groups the grid by its first level (useDimension), 'down' one level deeper, 'up'
+ * one back (drillDown, drillUp) -- by the group command the Rows zone builds. A dimension the grid has not, or one naming
+ * a column it has not, is refused in words. JSON: as gridApply's, or `{problems}`.
+ */
+export async function gridDimension(spec: GridSpec, name: string, move: string): Promise<string> {
+  if (move !== 'use' && move !== 'down' && move !== 'up') {
+    return JSON.stringify({ problems: [`a dimension is used, drilled down or drilled up, not ${JSON.stringify(move)}`] });
+  }
+  return using(spec, async (o) => {
+    const s = o.state.snapshot;
+    const named = o.cube.configuration.dimensions ?? [];
+    const found = named.find((d) => d.name === name);
+    if (found === undefined) {
+      return JSON.stringify({ problems: [`the grid has no dimension '${name}'`
+        + (named.length > 0 ? ` (its dimensions: ${named.map((d) => d.name).join(', ')})` : ' (it has none: configure its dimensions first)')] });
+    }
+    if (availableDimensions(s, [found]).length === 0) {
+      const have = new Set(rowColumns(s).map((c) => c.name));
+      return JSON.stringify({ problems: [`the dimension '${name}' names ${found.columns.filter((c) => !have.has(c)).join(', ')
+        || 'no column'}, which the grid does not have`] });
+    }
+    const rows = (move === 'use' ? useDimension(s, found) : move === 'down' ? drillDown(s, found) : drillUp(s, found)).rows;
+    return applied(spec, o, [{ kind: 'group', rows: [...rows] }]);
   });
 }
 

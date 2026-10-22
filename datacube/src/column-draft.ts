@@ -1,5 +1,5 @@
 // A CALCULATED COLUMN'S DRAFT, as the column editor (ui/column-editor.ts) makes one into the cube's columns: no DOM, so
-// code with no screen adds a column by the editor's own steps -- Python's, headless (headless/grid.ts gridCalculate;
+// code with no screen adds a column by the editor's own steps -- Python's, headless (headless/grid.ts gridColumn;
 // docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). Plain functions of the cube as it is now, the column's name when
 // editing began (undefined when adding), the draft, and its lambda as the compiler parsed what was typed.
 

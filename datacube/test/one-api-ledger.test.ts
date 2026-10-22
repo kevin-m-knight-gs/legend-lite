@@ -63,9 +63,14 @@ interface Entry {
 // gridCopied, cube-document.ts cubeCopied, the screen's copy held the same by one-api-gestures.test.ts) and opens a
 // saved page by its id (ll.Page.open: headless pageOfRecord, page-document.ts savedPage, the tab's Open… rule); tested by
 // test_page.py Abilities and OverClasses
+// 2026-10-22 (S6 C: K4 K6): UNCHECKED 4 -> 2 -- Python adds any column the column editor makes (grid.window,
+// child_aggregate, explode, calculate(level='group'): headless gridColumn over column-draft.ts), the header menu's
+// presets by the one rule the menu now asks too (grid.grain, show_as, bins: grid-presets.ts presetCommands), and uses and
+// drills a named dimension (grid.dimension, drill, drill_up: dimensions.ts); tested by test_page.py Abilities and
+// grid-presets.test.ts
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 6, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 4,
+  L8_KINDS: 6, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 2,
 };
 
 function pinned(name: string, size: number): void {
@@ -249,8 +254,6 @@ const L8_UNASKED: Record<string, Entry> = {};
  * these are register entries no test holds -- listed so, and pinned, never mistaken for checked.
  */
 const UNCHECKED_UNTIL_S6: Record<string, string> = {
-  K4: 'group-level, window, child-aggregate and explode columns; the Show As and period presets',
-  K6: 'a dimension used',
   K9: 'a chart drilled, and back up',
   K11: "a chart's Open in grid and Update",
 };

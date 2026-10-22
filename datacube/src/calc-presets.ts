@@ -111,8 +111,7 @@ export function binName(column: string): string {
  * row (before the grid's filter, so the bins stay put as the filter changes); the last bin keeps the maximum, its upper
  * edge one width past it.
  */
-export function binColumns(column: string, bins: Bins): DerivedColumn[] {
-  const name = binName(column);
+export function binColumns(column: string, bins: Bins, name = binName(column)): DerivedColumn[] {
   const v = one(column);
   if (bins.width !== undefined) {
     if (!(bins.width > 0)) throw new Error('a bin is wider than nothing');
