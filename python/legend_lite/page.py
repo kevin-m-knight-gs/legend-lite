@@ -1266,17 +1266,15 @@ class Page:
             # grid's cube has none: nothing to ask when none is given)
             with self._batch(tell=False):
                 pairs = list(measures.items() if isinstance(measures, Mapping) else measures or ())
-                # in the order a person would make them: the kinds first (a column made a dimension can then be
-                # grouped), the row groups and the pivot, the measures (a measure of a grouped column is one of its own),
-                # the sorts last (one may name a column a measure made)
-                commands = [
-                    *({'kind': 'column', 'name': d, 'change': {'kind': 'dimension'}} for d in dimensions),
-                    *([{'kind': 'group', 'rows': list(rows)}] if rows else []),
-                    *([{'kind': 'pivot', 'columns': list(columns)}] if columns else []),
-                    *([{'kind': 'measures', 'measures': [{'name': c, 'column': c, 'fn': fn} for c, fn in pairs]}]
-                      if pairs else []),
-                    *([{'kind': 'sorts', 'sorts': [{'column': c, 'direction': d} for c, d in sort]}] if sort else []),
-                ]
+                # as the commands that make them, in the order a person would (headless gridSetUp: grid-commands.ts
+                # setUpCommands), each judged as the screen judges it
+                said = json.loads(session.headless().call('gridSetUp', _json.dumps({
+                    'dimensions': list(dimensions), 'rows': list(rows), 'columns': list(columns),
+                    'measures': [list(p) if isinstance(p, (list, tuple)) else p for p in pairs],
+                    'sorts': [list(s) if isinstance(s, (list, tuple)) else s for s in sort]})))
+                if 'problems' in said:
+                    raise ValueError('; '.join(said['problems']))
+                commands = said['commands']
                 if commands:
                     grid._apply(commands)
                 if filter is not None:

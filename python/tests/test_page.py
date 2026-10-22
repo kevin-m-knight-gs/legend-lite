@@ -77,6 +77,18 @@ class Paged(unittest.TestCase):
 
 
 class Document(Paged):
+    def test_a_grid_in_one_call_is_the_commands_datacube_orders_and_reads(self):
+        # (Z8) its parts as the commands that make them, in a person's order (grid-commands.ts setUpCommands); a part not
+        # read as DataCube reads one refused in its words, the page as it was
+        page = ll.Page('Set up')
+        page.grid(trades(), name='set_trades', rows=['region'], columns=['desk'], measures=[('notional', 'sum')],
+                  sort=[('region', 'asc')], dimensions=['pnl'])
+        self.assertEqual([c['kind'] for c in page._commands], ['column', 'group', 'pivot', 'measures', 'sorts'])
+        with self.assertRaisesRegex(ValueError, r'^a measure is a pair: its column and its aggregate, not '
+                                                r'\["notional","sum","pnl"\]$'):
+            page.grid(trades(), name='odd_trades', measures=[('notional', 'sum', 'pnl')])
+        self.assertEqual(len(page.grids), 1)
+
     def test_a_page_is_datacubes_own_document_one_cube_per_grid_over_its_frame(self):
         page, grid, chart = self.built()
         doc = page.to_dict()

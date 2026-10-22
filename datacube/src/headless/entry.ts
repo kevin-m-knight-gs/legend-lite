@@ -9,7 +9,7 @@ import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/le
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
   cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridOpened,
-  gridRelation, gridSnapPull, gridView, snapRefused,
+  gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelInto, pageModelNames } from './model.ts';
@@ -35,8 +35,9 @@ export {
   gridRelation, gridSnapPull, gridView,
 };
 
-/** Why a snap past its host's row limit is refused: the tab's sentence, which Python's engine says too (Z16). */
-export { snapRefused };
+/** Why a snap past its host's row limit is refused: the tab's sentence, which Python's engine says too (Z16). And a new
+ *  grid's query as the commands that make it, in a person's order (gridSetUp: Python's `page.grid(...)`, Z8). */
+export { gridSetUp, snapRefused };
 
 /** Data in (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.3): a file read into the host's database by upload.ts, its
  *  table dropped again, and a remote file mounted as a view (its extensions and keys put in place first, where the host

@@ -316,7 +316,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **Z5** `_facts` association uniqueness — S5, L6
 - [ ] **Z6** Create a Data Space orchestration — S5, L6
 - [ ] **Z7** `model.py` (D4) — S5, L6
-- [ ] **Z8** `Page.grid`'s command order → TypeScript builds a grid's commands — S5, L6
+- [x] **Z8** `Page.grid`'s command order → TypeScript builds a grid's commands — closed S5: headless `gridSetUp`
+  builds them in a person's order (as `draftCommands` orders an editor's) and refuses a part it cannot read, in words;
+  Python's `page.grid(...)` applies what it gives (test_page.py `test_a_grid_in_one_call_is_the_commands_datacube_orders_and_reads`)
 - [ ] **Z9** join input names and placement → `inputOf`, placed near its first input — S5, L6 L10
 - [x] **Z10** take-a-reopened-cube rule (with Y2) — closed S1: cube-document.ts `cubeTaken`
 - [x] **Z11** command-or-whole rule in `_kept` (with Y3) — closed S1: gone; an edit is its commands

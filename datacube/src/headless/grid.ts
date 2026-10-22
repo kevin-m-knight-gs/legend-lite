@@ -44,7 +44,7 @@ import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
-  type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterValue,
+  type AggregateFn, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterValue, type SortDirection,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
@@ -490,6 +490,66 @@ async function applied(spec: GridSpec, o: Opened, commands: readonly GridCommand
   });
   return `{"cube":${JSON.stringify(cubeToJson(written))},"notes":${JSON.stringify(cube.notes)},`
     + `"commands":[${commands.map((c) => toJson(c)).join(',')}]}`;
+}
+
+/** A new grid's query as Python gives it in one call: each part a list, a measure and a sort a pair. */
+interface GridSetUp {
+  readonly dimensions: readonly string[];
+  readonly rows: readonly string[];
+  readonly columns: readonly string[];
+  /** Each `[column, aggregate]`: a measure of the column, named as it is. */
+  readonly measures: readonly (readonly [string, AggregateFn])[];
+  /** Each `[column, direction]`. */
+  readonly sorts: readonly (readonly [string, SortDirection])[];
+}
+
+/** `given` read as a GridSetUp -- or why not, in words: each part a list, of names or of pairs. */
+function readSetUp(given: unknown): GridSetUp | string {
+  if (typeof given !== 'object' || given === null || Array.isArray(given)) {
+    return 'a grid set up is its dimensions, rows, columns, measures and sorts';
+  }
+  const o = given as Record<string, unknown>;
+  const names = (key: 'dimensions' | 'rows' | 'columns'): readonly string[] | string => {
+    const v = o[key];
+    return Array.isArray(v) && v.every((x) => typeof x === 'string') ? v : `its ${key} are a list of column names`;
+  };
+  const pairs = (key: 'measures' | 'sorts', what: string): readonly (readonly [string, string])[] | string => {
+    const v = o[key];
+    if (!Array.isArray(v)) return `its ${key} are a list of pairs`;
+    const odd = v.find((x) => !Array.isArray(x) || x.length !== 2 || !x.every((y) => typeof y === 'string'));
+    return odd === undefined ? v : `a ${what}, not ${JSON.stringify(odd)}`;
+  };
+  const dimensions = names('dimensions');
+  const rows = names('rows');
+  const columns = names('columns');
+  const measures = pairs('measures', 'measure is a pair: its column and its aggregate');
+  const sorts = pairs('sorts', 'sort is a pair: its column and its direction');
+  for (const read of [dimensions, rows, columns, measures, sorts]) if (typeof read === 'string') return read;
+  // each aggregate and direction is the command's reader's to judge (readGridCommand, as gridApply reads it)
+  return { dimensions, rows, columns, measures, sorts } as GridSetUp;
+}
+
+/**
+ * A NEW GRID'S QUERY AS THE COMMANDS THAT MAKE IT (`given`: JSON, a GridSetUp), in the order a person makes them, as
+ * draftCommands orders an editor's: the columns made dimensions first (a column made one can then be grouped), the row
+ * groups and the pivot, the measures (a measure of a grouped column is one of its own), the sorts last (one may name a
+ * column a measure made); a part none is given of, left out -- what Python's `page.grid(...)` applies in one call
+ * (gridApply, which judges each; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z8). JSON: `{commands}`, or `{problems}`,
+ * why it was refused, in words.
+ */
+export function gridSetUp(given: string): string {
+  const read = readSetUp(JSON.parse(given));
+  if (typeof read === 'string') return JSON.stringify({ problems: [read] });
+  const commands: GridCommand[] = [
+    ...read.dimensions.map((name): GridCommand => ({ kind: 'column', name, change: { kind: 'dimension' } })),
+    ...(read.rows.length > 0 ? [{ kind: 'group', rows: [...read.rows] } as const] : []),
+    ...(read.columns.length > 0 ? [{ kind: 'pivot', columns: [...read.columns] } as const] : []),
+    ...(read.measures.length > 0
+      ? [{ kind: 'measures', measures: read.measures.map(([column, fn]) => ({ name: column, column, fn })) } as const] : []),
+    ...(read.sorts.length > 0
+      ? [{ kind: 'sorts', sorts: read.sorts.map(([column, direction]) => ({ column, direction })) } as const] : []),
+  ];
+  return JSON.stringify({ commands });
 }
 
 /**

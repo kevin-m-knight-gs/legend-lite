@@ -43,7 +43,7 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10).
 # 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 10, 'L9_KEEPER': 6,
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 9, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -239,7 +239,6 @@ L6_FUNCTIONS = {
 # (file, the code that is the gap, its items, how many times it is there)
 MARKERS = [
     (PAGE, "path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)", ('Z6',), 1),
-    (PAGE, "*({'kind': 'column', 'name': d, 'change': {'kind': 'dimension'}} for d in dimensions),", ('Z8',), 1),
     (PAGE, "'near': None, 'title': title, 'columns': None}], 'a title')", ('Z9',), 1),
     (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
     (ENGINE, 'self._claimed: set[str] = set()', ('Z17',), 1),
