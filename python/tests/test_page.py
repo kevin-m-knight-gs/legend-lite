@@ -944,9 +944,17 @@ class Document(Paged):
             grid.filter(('notional', 'contains', '1'))
         with self.assertRaisesRegex(ValueError, 'no overload'):
             grid.filter(('region', 'lessThan', {'relative': 'today'}))
-        for wrong in (None, float('nan'), object(), datetime.datetime(2024, 1, 31)):
+        # each value as JSON carries it, tagged where JSON has no form for it, and judged by DataCube's reader
+        # (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D12): Python checks none of it
+        for wrong in (None, float('nan'), float('-inf'), Decimal('NaN')):
             with self.assertRaisesRegex(ValueError, 'takes text, a number'):
                 grid.filter(('notional', 'greaterThan', wrong))
+        with self.assertRaises(TypeError):
+            grid.filter(('notional', 'greaterThan', object()))
+        with self.assertRaisesRegex(ValueError, r'a filter is a condition \(column, operator, value\)'):
+            grid.filter('desk')
+        with self.assertRaisesRegex(ValueError, r'a condition is \(column, operator\) or \(column, operator, value\)'):
+            grid.filter(('desk', 'equal', 'FX', 'EQ'))
         with self.assertRaisesRegex(ValueError, "not one of DataCube's aggregates"):
             grid.measure('pnl', 'total')
         with self.assertRaisesRegex(ValueError, 'is not one this DataCube draws'):
@@ -984,8 +992,14 @@ class Document(Paged):
         dated.filter(('day', 'lessThan', {'relative': 'today'}))
         self.assertEqual(page.to_dict()['cubes'][1]['cube']['query']['filter']['value'], {'relative': 'today'})
         # a relative date's word is DataCube's to judge (gridFilter), never a list of Python's
-        with self.assertRaisesRegex(ValueError, r'takes text, a number, a boolean, a date as its text, \{"relative"'):
+        with self.assertRaisesRegex(ValueError, r'takes text, a number, a boolean, a date or a timestamp, \{"relative"'):
             dated.filter(('day', 'lessThan', {'relative': 'yesterday'}))
+        # a timestamp, as its exact text (D12): a datetime column compared with a Python datetime
+        stamped = page.grid(pd.DataFrame({'at': [datetime.datetime(2024, 1, 31, 10, 30), datetime.datetime(2024, 2, 2, 9, 0)],
+                                          'qty': [1, 2]}), name='stamped')
+        stamped.filter(('at', 'lessThan', datetime.datetime(2024, 2, 1, 9, 0)))
+        self.assertEqual(page.to_dict()['cubes'][2]['cube']['query']['filter']['value'], '2024-02-01T09:00:00')
+        self.assertEqual(len(stamped.view().rows), 1)
 
     def test_a_grid_refused_leaves_the_page_and_the_frames_as_they_were(self):
         page, _, _ = self.built()

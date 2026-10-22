@@ -365,7 +365,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   `test_placed_beside_its_first_input_and_named_as_its_grids_show`)
 - [x] **Z10** take-a-reopened-cube rule (with Y2) — closed S1: cube-document.ts `cubeTaken`
 - [x] **Z11** command-or-whole rule in `_kept` (with Y3) — closed S1: gone; an edit is its commands
-- [ ] **Z12** filter value conversion and pre-checks → the TypeScript reader — S5, L6
+- [x] **Z12** filter value conversion and pre-checks → the TypeScript reader — closed S5 (D12): headless grid.ts
+  `readGivenFilter` reads a filter as a host writes one (a condition, a group, a negation, a list of them), each value
+  untagged where JSON has no form for it (`$date`, `$decimal`, `$timestamp`: their exact text; a `$set` and a
+  `$float` refused in words) -- so a timestamp is taken too; Python's `_tagged` only tags, and `_value` and
+  `_given_filter` are deleted (test_page.py `test_names_and_values_outside_datacubes_words_are_refused_where_they_are_written`)
 - [x] **Z13** stack needs two tiles (duplicate check) — closed S5: Python sends the stack and DataCube refuses it in its
   own words (page-commands.ts `stack`; test_page.py)
 - [ ] **Z14** frames-only rule (D3) — S5, L6

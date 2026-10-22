@@ -46,7 +46,8 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # 2026-10-22 (S5, Z4-Z7): L6_FUNCTIONS 7 -> 3, MARKERS 4 -> 3 -- the model actions run headless; model.py gone
 # 2026-10-22 (S5, Z15): L6_FUNCTIONS 3 -> 2 -- a grid's base on the host is DataCube's one rule (gridBaseOn)
 # 2026-10-22 (S5, B3/B9, D11): MARKERS 3 -> 2 -- a page nobody named is unnamed on both sides (newPage)
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 2, 'MARKERS': 2, 'L9_KEEPER': 6,
+# 2026-10-22 (S5, Z12, D12): L6_FUNCTIONS 2 -> 0 -- a filter's shape and values are DataCube's reader's (readGivenFilter)
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 0, 'MARKERS': 2, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -230,10 +231,7 @@ class Static(unittest.TestCase):
 
 # -- L6 ------------------------------------------------------------------------------------------------------------
 
-L6_FUNCTIONS = {
-    '_value': ('Z12',),
-    '_given_filter': ('Z12',),
-}
+L6_FUNCTIONS: dict[str, tuple[str, ...]] = {}
 
 # (file, the code that is the gap, its items, how many times it is there)
 MARKERS = [

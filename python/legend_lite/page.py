@@ -122,53 +122,35 @@ def _carried(value: Any) -> Any:
 
 # -- filters ----------------------------------------------------------------------------------------------------------
 
-def _value(value: Any) -> Any:
-    """A filter's value as DataCube keeps one (snapshot.ts, FilterValue): text, a number, a boolean, a date relative to
-    when the query runs (``{'relative': ...}``, in DataCube's words: ``'today'``, ``'now'``; gridFilter judges the word)
-    or a variant column's JSON (``{'json': text}``). A date and a Decimal go as their exact text, which DataCube writes
-    as the column's type writes it (``'2024-01-31'``, ``'12.30'``)."""
-    if isinstance(value, (bool, str)):
+def _tagged(value: Any) -> Any:
+    """A filter as JSON carries it to DataCube (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D12): its tuples and lists as
+    lists, each value JSON has no form for tagged -- a date, a decimal, a timestamp (``{"$date": text}``,
+    ``{"$decimal": text}``, ``{"$timestamp": text}``: their exact text), a set (``{"$set": [...]}``), a number JSON cannot
+    write (``{"$float": "NaN"}``), as a grid's cells come back tagged (``cells``) -- for DataCube's reader to judge
+    (headless gridFilter: readGivenFilter): Python checks none of it. A value of a kind JSON cannot carry is refused as
+    any value JSON cannot carry is (``TypeError``)."""
+    if isinstance(value, (list, tuple)):
+        return [_tagged(v) for v in value]
+    if isinstance(value, (set, frozenset)):
+        return {'$set': [_tagged(v) for v in value]}
+    if isinstance(value, Mapping):
+        return {k: _tagged(v) for k, v in value.items()}
+    if value is None or isinstance(value, (bool, str)):
         return value
     if isinstance(value, numbers.Integral):
         return int(value)
-    if isinstance(value, Decimal) and value.is_finite():
-        return str(value)
-    if isinstance(value, numbers.Real) and not isinstance(value, Decimal) and math.isfinite(value):
-        return float(value)
-    if isinstance(value, datetime.date) and not isinstance(value, datetime.datetime):
-        return value.isoformat()
-    if isinstance(value, Mapping) and ((set(value) == {'relative'} and isinstance(value['relative'], str))
-                                       or (set(value) == {'json'} and isinstance(value['json'], str))):
-        # a relative date's word is DataCube's to judge (gridFilter: snapshot.ts isRelativeDate)
-        return dict(value)
-    raise ValueError(f'a filter takes text, a number, a boolean, a date, {{"relative": word}} or {{"json": text}}, '
-                     f'not {value!r} (a timestamp as its text: "2024-01-31 10:30:00")')
-
-
-def _given_filter(node: Any) -> dict[str, Any]:
-    """A filter as Python takes one -- a condition ``(column, operator[, operand])``, a group ``('and' | 'or',
-    [nodes])`` or ``('not', node)``, a list being all of them -- in the shape of the filter editor's tree, each
-    operand's values as DataCube keeps them (``_value``). What an operator takes, and whether a column takes it,
-    DataCube's code says (gridFilter)."""
-    if isinstance(node, list):
-        node = ('and', node)
-    if not isinstance(node, tuple) or len(node) < 2:
-        raise ValueError(f'a filter is a condition (column, operator, value), a group ("and", [...]) or ("not", ...), '
-                         f'not {node!r}')
-    head = node[0]
-    if head in ('and', 'or') and len(node) == 2 and isinstance(node[1], (list, tuple)):
-        return {'kind': head, 'children': [_given_filter(child) for child in node[1]]}
-    if head == 'not' and len(node) == 2:
-        return {'kind': 'not', 'child': _given_filter(node[1])}
-    if len(node) > 3:
-        raise ValueError(f'a condition is (column, operator) or (column, operator, value), not {node!r}')
-    condition: dict[str, Any] = {'kind': 'condition', 'column': node[0], 'operator': node[1]}
-    if len(node) == 3:
-        given = node[2]
-        if isinstance(given, (set, frozenset)):
-            raise ValueError('a filter takes a list of values, in their order (a list or a tuple), not a set')
-        condition['operand'] = [_value(v) for v in given] if isinstance(given, (list, tuple)) else _value(given)
-    return condition
+    if isinstance(value, Decimal):
+        return {'$decimal': str(value)}
+    if isinstance(value, numbers.Real):
+        number = float(value)
+        if math.isfinite(number):
+            return number
+        return {'$float': 'NaN' if math.isnan(number) else ('Infinity' if number > 0 else '-Infinity')}
+    if isinstance(value, datetime.datetime):
+        return {'$timestamp': value.isoformat()}
+    if isinstance(value, datetime.date):
+        return {'$date': value.isoformat()}
+    raise TypeError(f'a filter carries values JSON can write, not {value!r}')
 
 
 # -- the handles ------------------------------------------------------------------------------------------------------
@@ -433,10 +415,9 @@ class Grid(Tile):
         self._page._current(self._view['cube'], 4)
         engine, frames = self._headless()
         with frames.serving():
-            said = json.loads(engine.call('gridFilter', self._spec(engine, frames), _json.dumps(_given_filter(condition))))
+            said = json.loads(engine.call('gridFilter', self._spec(engine, frames), _json.dumps(_tagged(condition))))
         if 'problems' in said:
-            raise ValueError(f'{"; ".join(said["problems"])} -- in Python a condition is (column, operator) or '
-                             '(column, operator, value), its value a list where the operator takes several')
+            raise ValueError('; '.join(said['problems']))
         # the cube with it, set by the filter command the filter editor's Apply builds
         return self._kept(said, 3)
 

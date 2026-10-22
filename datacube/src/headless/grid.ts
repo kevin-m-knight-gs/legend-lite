@@ -394,7 +394,69 @@ export type GivenFilter =
 const isValue = (v: unknown): v is FilterValue => typeof v === 'string' || typeof v === 'boolean'
   || (typeof v === 'number' && Number.isFinite(v)) || isRelativeDate(v) || isJsonValue(v);
 
-const VALUES = 'text, a number, a boolean, a date as its text, {"relative": "today" | "now"} or {"json": text}';
+const VALUES = 'text, a number, a boolean, a date or a timestamp, {"relative": "today" | "now"} or {"json": text}';
+
+/** A host's form of a filter, said in its words (readGivenFilter). */
+const FILTER_FORM = 'a filter is a condition (column, operator, value), a group ("and", [...]) or ("not", ...)';
+/** What gridFilter's refusals add: how a host writes a condition. */
+const CONDITION_FORM = 'a condition is (column, operator) or (column, operator, value), its value a list where the '
+  + 'operator takes several';
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * A VALUE AS A HOST TAGS IT where JSON has no form for it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D12; a grid's cells
+ * come back tagged the same way): a date, a timestamp and a finite decimal (`{"$date": text}`, `{"$timestamp": text}`,
+ * `{"$decimal": text}`) are their exact text, as the filter editor keeps one; anything else as it came -- a number JSON
+ * cannot write (`{"$float": "NaN"}`) is then no value a filter takes, refused by its operand's check in its words.
+ */
+function untagged(v: unknown): unknown {
+  if (!isRecord(v) || Object.keys(v).length !== 1) return v;
+  const text = v['$date'] ?? v['$timestamp'] ?? v['$decimal'];
+  if (typeof text !== 'string') return v;
+  return v['$decimal'] !== undefined && !Number.isFinite(Number(text)) ? v : text;
+}
+
+/**
+ * A FILTER AS A HOST WRITES ONE (D12, Z12: Python's `grid.filter`), read into the filter editor's tree (GivenFilter):
+ * a condition `[column, operator]` or `[column, operator, operand]`, a group `["and" | "or", [nodes]]`, a negation
+ * `["not", node]`, or a list of nodes -- all of them -- each value as JSON carries it, tagged where JSON has no form for
+ * it (untagged); a set (`{"$set": [...]}`) is refused, a list of values being in its order. Why not, in words.
+ */
+export function readGivenFilter(raw: unknown): GivenFilter | string {
+  if (!Array.isArray(raw)) return `${FILTER_FORM}, not ${JSON.stringify(raw)}`;
+  const head: unknown = raw[0];
+  const nodes = (list: readonly unknown[]): GivenFilter[] | string => {
+    const made: GivenFilter[] = [];
+    for (const n of list) {
+      const read = readGivenFilter(n);
+      if (typeof read === 'string') return read;
+      made.push(read);
+    }
+    return made;
+  };
+  if (raw.length === 0 || typeof head !== 'string') {
+    // a list of nodes: all of them (none: no filter)
+    const children = nodes(raw);
+    return typeof children === 'string' ? children : { kind: 'and', children };
+  }
+  if ((head === 'and' || head === 'or') && raw.length === 2 && Array.isArray(raw[1])) {
+    const children = nodes(raw[1] as unknown[]);
+    return typeof children === 'string' ? children : { kind: head, children };
+  }
+  if (head === 'not' && raw.length === 2) {
+    const child = readGivenFilter(raw[1]);
+    return typeof child === 'string' ? child : { kind: 'not', child };
+  }
+  if (raw.length < 2) return `${FILTER_FORM}, not ${JSON.stringify(raw)}`;
+  if (raw.length > 3) return `a condition is (column, operator) or (column, operator, value), not ${JSON.stringify(raw)}`;
+  if (raw.length === 2) return { kind: 'condition', column: head, operator: raw[1] };
+  const given: unknown = raw[2];
+  if (isRecord(given) && Object.keys(given).length === 1 && given['$set'] !== undefined) {
+    return 'a filter takes a list of values, in their order (a list or a tuple), not a set';
+  }
+  return { kind: 'condition', column: head, operator: raw[1], operand: Array.isArray(given) ? given.map(untagged) : untagged(given) };
+}
 
 /** What each operand is, in DataCube's words: what a condition missing it is told. */
 const OPERAND_TOLD: Readonly<Record<'single' | 'list' | 'column', (op: string) => string>> = {
@@ -486,7 +548,8 @@ function conditionFrom(
 }
 
 /**
- * A FILTER SET as DataCube's filter editor sets one (ui/filter-editor.ts): `given` (JSON, GivenFilter) built into the
+ * A FILTER SET as DataCube's filter editor sets one (ui/filter-editor.ts): `given` (JSON, as a host writes a filter:
+ * readGivenFilter, D12) built into the
  * editor's draft tree by its operators' own operands and offers (draftFrom), converted as the editor converts its tree
  * (filter-operators.ts toFilterNode: its normal form, a group of one that one, an empty group none), and the cube with
  * it compiled as a refresh would send it -- so Python checks no filter by rules of its own
@@ -494,11 +557,13 @@ function conditionFrom(
  * `commands` (its filter null: no filter at all), or `{problems}`, why it was refused.
  */
 export async function gridFilter(spec: GridSpec, given: string): Promise<string> {
+  const read = readGivenFilter(JSON.parse(given));
+  if (typeof read === 'string') return JSON.stringify({ problems: [read] });
   return using(spec, async (o) => {
     const typed = await typedColumns(o.planner, o.state.snapshot);
     const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
-    const made = draftFrom(JSON.parse(given) as GivenFilter, types);
-    if (typeof made === 'string') return JSON.stringify({ problems: [made] });
+    const made = draftFrom(read, types);
+    if (typeof made === 'string') return JSON.stringify({ problems: [`${made} -- ${CONDITION_FORM}`] });
     // the editor's normal form, set by the command the filter editor's Apply builds
     return applied(spec, o, [{ kind: 'filter', filter: toFilterNode(made, (c) => types.get(c)) }]);
   });
