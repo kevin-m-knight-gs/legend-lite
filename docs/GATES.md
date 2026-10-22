@@ -10709,8 +10709,34 @@ and legend-engine's wire, each statement's length and hash, before and after; ea
   those files conflict with main's own moves (37 files conflict), so they are fixed or re-pinned, each with its
   reason, on the merged tree when the branch merges main, not twice. **Until then this branch is not mergeable.**
 
-**On the lanes (pending):** the Snowflake probe of the new forms against the old over 1,953 doubles; Snowflake channel
-A and its three suites' timing against the merge-base (216 s, 361 s, 314 s); channel B on Snowflake and BigQuery.
+**On the lanes, at 81960bf7** (each lane session, measure only):
+- **Snowflake, the probe** (`SnowflakeFloatPrintProbe`, never committed: the old portable spelling and the new forms
+  rendered from the lane's own checkout, run side by side on 1,948 doubles and NaN, the infinities, NULL and -0.0):
+  Pure's print form identical to the old for 1,948 of 1,948 (`printDiff=0`); legend-engine's text Java's
+  `Double.toString` for 1,948 of 1,948 (`engineBad=0`). The rendered sizes: old 47,663, new 6,346, engine 5,214.
+- **Snowflake, channel A:** 5 of 5 exact, nothing to add, remove or replace, as at the merge-base. Wall time against the
+  merge-base: unclassified 78 s (77), essential 348 s (361), grammar 233 s (216; 304 at eee1e560, 517 at d36a7f0f),
+  relation 235 s (268), standard 397 s (314): 1,291 s against 1,236 in all. Grammar's SELECT compile time is the
+  merge-base's (56.4 s against 56.9 s; 145.1 s at eee1e560). Standard is the one suite over: 19 SELECTs of 20 to 100
+  thousand characters at about 2.7 s of compile each (asked of the lane's query history: what they are).
+- **Snowflake, channel B**, test by test against the merge-base: 1,233 against 1,231; lost 2 (relation sort's
+  testSimpleSortShared and testSimpleSort_MultipleExpressions: the database judge read a sorted value side by arrival,
+  fixed by b4c8be0d, below); gained 4. Grammar's WIRE-BUG census 4 > 2: no test lost, the same four eq/equal tests
+  refused in channel B as at the merge-base, channel A now passing two of them; re-pinned to 4 (b4c8be0d), Postgres's
+  move of 2026-10-20.
+- **BigQuery, channel A:** 5 of 5 exact. Every suite about twice as fast as at e6e9c9ef: essential 626 s (1,400),
+  grammar 409 s (854), relation 379 s (905), standard 583 s (1,126), unclassified 134 s (227). No error names the
+  binding or a correlated subquery.
+- **BigQuery, channel B:** 1,217, the merge-base's count; lost exactly the three known tests (filter's
+  testFilterInstance's order; least's testLeast_Number and min's testMin_NumbersArray, 1D against 1.0D), gained three;
+  the 32 erroring tests identical to e6e9c9ef's. The three wait on the user's decisions.
+
+**b4c8be0d, the sorted value side.** `VerdictSql.canonRows` numbered a plain value side's rows by the wrap's own
+ORDER BY, empty where the order is the side's plan's (`$res->map(x|$x.id)` over a sorted relation): `ROW_NUMBER() OVER
+()` over the derived table, Snowflake's ORDER BY NULL. 9dfb0ae1 fixed the layered side only. Where the side's plan
+defines an order (`SideOrdinal.defined`: a sort, a literal's rows, a select passing one through), the rows are now
+numbered by it, computed inside the plan. Local: `//core:core_tests` (25) and `//pct:pct_channel_b` (DuckDB, 5)
+green, the dump showing `ROW_NUMBER() OVER (ORDER BY side.__ord)`; the corpus judges measured below; the lanes next.
 
 ## 2026-10-21 — Channel B against the merge-base on every lane: what the branch broke, fixed at its causes
 
