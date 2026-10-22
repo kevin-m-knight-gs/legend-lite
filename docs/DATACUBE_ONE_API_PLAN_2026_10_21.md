@@ -72,6 +72,15 @@ item below has its `file:line` there.
   as inverse commands, whole-page writes gone) is its own step after S7, as §8 has it.
 - **D20** (the user, 2026-10-22) This line answers the Deephaven streaming line once: it stacks its branch on this one
   (at D16's commit), this line reviews; what is stable and what is still moving said.
+- **D21** (the user, 2026-10-22, "all the python names are fine") S6's names as proposed: `grid.sorts([...])` replaces
+  the sort, `grid.clear_sort(col)`; `grid.add_filter`; `grid.calculate(..., level='group')`; `grid.window`,
+  `grid.child_aggregate`, `grid.explode`; `grid.show_as`, `grid.grain`, `grid.bins`; `grid.dimension`, `grid.drill`,
+  `grid.drill_up`; `grid.copy()`; `page.filter(cls, condition)`, `page.filters`, `page.remove_filter(id)`;
+  `sheet.move(position)`, `page.remove(sheet)`; `ll.Page.open(id)`; `page.grid(cls=..., project=..., revision=...)`,
+  `page.grid(query=...)`, `page.grid(warehouse=..., table=..., catalog=...)`; the charts' as D7/D8. A class is named by
+  `cls=`; option values are DataCube's own spellings (`'greaterThan'`), no Python aliases.
+- **D22** (the user, 2026-10-22) A query over a table dropped since its read began is refused, in words: that is the
+  rule, not a limit (F31). A call never reads rows the session no longer serves.
 
 ## 0. Why the nine attempts before this one did not finish
 
@@ -631,7 +640,7 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **F31** As built (D15, D16) said a read keeps reading a table dropped after it began; plan-and-run plans against the
   models served now, so such a query is refused — declared (review, 4): the claim corrected; a read sees the rows of the
   tables it began with, and a query over a table dropped since is refused in words (F28's); the copies a grid's base is
-  told of are those held now
+  told of are those held now. The refusal is the rule (D22)
 - [x] **F32** the ledger's "a source kind is read on the host" check passed for every case but the last whatever it did
   (it read on into the next case's `return`) — closed (review, 5): each case read up to the next (one-api-ledger.test.ts;
   a `class` case that throws now fails it, checked)
