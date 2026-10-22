@@ -353,6 +353,14 @@ _WASM_TESTS = [
     "parity-screen",
 ]
 
+# The jsdom tests that drive a whole page through many gestures, each opening grids: past `small`'s 60 s on CI's
+# Windows runner (PR #64's CI, 2026-10-22: one_api_gestures_test about 1.2 s a gesture there, cube_page_shell_test at
+# the edge). Those get `medium` (300 s) too.
+_SLOW_DOM_TESTS = [
+    "one-api-gestures",
+    "cube-page-shell",
+]
+
 # node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
 # pinned locale and clock). Each finds its inputs through //tools/js:runfiles.
 [node_test(
@@ -360,7 +368,7 @@ _WASM_TESTS = [
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
-    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
+    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS + _SLOW_DOM_TESTS else "small",
     # a scanner reads every source; any other test, the files its imports reach (a test not yet in the generated
     # list takes them all until //datacube:update_generated adds it)
     data = [

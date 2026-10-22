@@ -23,6 +23,10 @@ import { CubeRefusal } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { classRelation } from '../src/class-source.ts';
 import * as echarts from 'echarts/core';
+// the page fetches its filter bar when it first needs one (a dynamic import): loaded here, so that import finds it
+// loaded within one settle() on any machine -- CI's Windows runner took longer than that to fetch it (PR #64's CI,
+// 2026-10-22: 'a page with a class grid has the bar' saw the slot still empty)
+import '../src/ui/page-filter-bar.ts';
 
 let dom: JSDOM;
 let host: HTMLElement;
