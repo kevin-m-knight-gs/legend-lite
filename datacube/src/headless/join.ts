@@ -7,36 +7,49 @@
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
-import { cubeToJson, gridCapped, readCube, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
+import { cubeToJson, gridCapped, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin, type TableKind } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
+import { joinInputOf } from '../page-commands.ts';
+import { readPage, type PageDocument } from '../page-document.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { TreeState } from '../tree.ts';
 import { catalogColumns } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
 
-/** What a host hands in: the two cubes, how they join, and the table of its database each one's sources read. */
+/** What a host hands in: its page, the two grids joined, how they join, and the table of its database each one reads. */
 export interface JoinSpec {
-  /** Each cube, as the page holds it: its name on the page (its tile's title, else its source's) and its document. */
-  readonly left: { readonly name: string; readonly cube: unknown };
-  readonly right: { readonly name: string; readonly cube: unknown };
+  /** The page as the host has it (page-document.ts), read strictly. */
+  readonly page: unknown;
+  /** The grids joined, by their tiles' ids: each read as the page has it, under the name it shows (joinInputOf). */
+  readonly mine: string;
+  readonly theirs: string;
   /** How they combine (join-how.ts JoinHow), read strictly. */
   readonly how: unknown;
-  /** The table of the host's database each of their sources reads, left's then right's (cube-document.ts leavesOf). */
+  /** The table of the host's database each of their sources reads, mine's then theirs' (cube-document.ts leavesOf). */
   readonly tables: readonly string[];
+}
+
+/** A join's grid added (joinCube): on which sheet, and the title a person gave it (none: the join's own). */
+export interface JoinAdded {
+  readonly sheet: string;
+  readonly title: string | null;
 }
 
 /** The kinds of source that are tables of a host's database: its frames, the files and remote files it read in. */
 const HOST_TABLES: readonly TableKind[] = ['frame', 'file', 'remoteFile'];
 
-function read(spec: string): { readonly left: JoinInput; readonly right: JoinInput; readonly how: JoinHow; readonly tables: readonly string[] } {
+function read(spec: string): {
+  readonly page: PageDocument; readonly mine: string; readonly left: JoinInput; readonly right: JoinInput; readonly how: JoinHow;
+  readonly tables: readonly string[]; readonly added?: JoinAdded;
+} {
   // the protocol's exact JSON: a cube's numbers, and a condition's in Pure, kept as they are
-  const s = fromJson(spec) as unknown as JoinSpec;
-  const input = (side: JoinSpec['left']): JoinInput => {
-    const cube = readCube(side.cube);
-    return { name: side.name, source: cube.source, query: cube.query };
+  const s = fromJson(spec) as unknown as JoinSpec & Partial<JoinAdded>;
+  const page = readPage(s.page, { empty: true });
+  return {
+    page, mine: s.mine, left: joinInputOf(page, s.mine), right: joinInputOf(page, s.theirs), how: readJoinHow(s.how), tables: s.tables,
+    ...(s.sheet !== undefined ? { added: { sheet: s.sheet, title: s.title ?? null } } : {}),
   };
-  return { left: input(s.left), right: input(s.right), how: readJoinHow(s.how), tables: s.tables };
 }
 
 /** Legend-lite's writer and the planners a call makes over the host's worker, the host's database, let go after. */
@@ -64,14 +77,18 @@ async function using<T>(use: (o: JoinOpening & { readonly engine: DuckDbEngine; 
 }
 
 /**
- * A JOIN'S CUBE (the Join window's Apply): the join of two cubes as a new grid's cube document, its rows as they are
- * (capped at the row limit when it is not its page's only grid: `gridsOnPage` counting it), titled as the tab titles
- * it (join.ts joinTitle) -- for the page command addGrid. `name` is its page's. JSON: `{cube, notes, model, runtime,
- * relation}`: the cube document as its text, what drifted in an input, and the join's model, runtime and relation (a
- * lambda) a host plans its rows over.
+ * A JOIN'S GRID (the Join window's Apply): the join of two grids of the page (JoinSpec, with JoinAdded) as the page
+ * command every grid is added by -- addGrid, a new grid's cube document, its rows as they are (capped at the row limit
+ * when it is not the page's only grid), titled as the tab titles it (join.ts joinTitle), placed beside its first input
+ * as the tab's Join… places it (join-flow.ts). JSON: `{command, notes, model, runtime, relation}`: the command, what
+ * drifted in an input, and the join's model, runtime and relation (a lambda) a host plans its rows over.
  */
-export async function joinCube(spec: string, name: string, gridsOnPage: number): Promise<string> {
+export async function joinCube(spec: string): Promise<string> {
   const s = read(spec);
+  if (!s.added) throw new Error('a join\'s grid is added on a sheet: {"sheet", "title"}');
+  const { sheet, title } = s.added;
+  const name = s.page.name;
+  const gridsOnPage = s.page.cubes.length + 1;
   return using(async (o) => {
     const source: JoinSource = {
       _type: 'join', name: joinTitle(s.how, s.left.name, s.right.name), left: s.left, right: s.right, how: s.how, columns: [],
@@ -84,7 +101,9 @@ export async function joinCube(spec: string, name: string, gridsOnPage: number):
       name, source: { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
       snapshot: state.snapshot, configuration: state.configuration, tree: state.tree,
     });
-    return `{"cube":${JSON.stringify(cubeToJson(cube))},"notes":${JSON.stringify(opened.notes)},`
+    const command = `{"kind":"addGrid","document":${cubeToJson(cube)},"sheet":${JSON.stringify(sheet)},`
+      + `"near":${JSON.stringify(s.mine)},"title":${JSON.stringify(title)},"columns":null}`;
+    return `{"command":${command},"notes":${JSON.stringify(opened.notes)},`
       + `"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
       + `"relation":${toJson({ _type: 'lambda', parameters: [], body: [opened.relation] })}}`;
   }, s.tables);

@@ -9,8 +9,8 @@ import { describe, it } from 'node:test';
 import { cubeOpenedAgain, type CubeDocument, type CubeSource, type FrameSource } from '../src/cube-document.ts';
 import { tiles } from '../src/layout/bands.ts';
 import {
-  PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, gridTitle, idsOf, nextPageId, readPageCommand,
-  followedPage, rebuiltCommands,
+  PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, gridTitle, idsOf, joinInputOf, nextPageId,
+  readPageCommand, followedPage, rebuiltCommands,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
 import { gridCopyOf, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
@@ -169,6 +169,17 @@ describe('each command gives the page the screen\'s rules give it', () => {
     assert.deepEqual(sheet(kept, 'sheet-2').layout, sheet(trades, 'sheet-2').layout);
     const same = apply({ kind: 'layout', sheet: 'sheet-1', layout: sheet(side, 'sheet-1').layout }, draft()).page;
     assert.deepEqual(sheet(same, 'sheet-1').layout, sheet(side, 'sheet-1').layout);
+  });
+});
+
+describe("a grid of the page as a join reads it, the tab's Join… and Python's alike (joinInputOf: Z9)", () => {
+  it('its cube as the page has it, under the title a person gave its tile, else what it reads; a chart refused', () => {
+    const grid = trades.cubes.find((c) => c.id === 'grid-2')!.cube;
+    assert.deepEqual(joinInputOf(trades, 'grid-2'), { name: 'By desk', source: grid.source, query: grid.query });
+    const untitled = apply({ kind: 'renameTile', tile: 'grid-2', title: null });
+    assert.equal(joinInputOf(untitled.page, 'grid-2').name, 'trades', 'no title given: what it reads');
+    refused(() => joinInputOf(trades, 'chart'), /'chart' is a chart: a join is of two grids/);
+    refused(() => joinInputOf(trades, 'grid-9'), /'grid-9' is not a tile of the page/);
   });
 });
 

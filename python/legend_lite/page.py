@@ -1319,21 +1319,19 @@ class Page:
             title = _given_name(self._session, 'tile', title, 'a title')
         session = self._session
         engine, frames = session.headless(), session.frames
-        # each input as the page names it (its tile's title, else its source's), and the tables its leaves read, in
-        # their order: a frame's its own name
-        inputs = [{'name': g.title or g._cube['source']['name'], 'cube': g._cube} for g in (mine, theirs)]
+        # the tables its leaves read, in their order: a frame's its own name. Each grid read as the page has it, under the
+        # name it shows, and the join's grid placed beside the first, are DataCube's (headless joinCube: joinInputOf)
         tables = [leaf['name'] for g in (mine, theirs) for leaf in _cube_leaves(session, g._cube)]
         with frames.serving():
-            made = json.loads(engine.call('joinCube', _json.dumps({
-                'left': inputs[0], 'right': inputs[1], 'how': how, 'tables': tables,
-            }), self.name, len(self._doc['cubes']) + 1))
+            made = _json.loads(engine.call('joinCube', _json.dumps({
+                'page': self._doc, 'mine': mine.id, 'theirs': theirs.id, 'how': how, 'tables': tables, 'sheet': target.id,
+                'title': title})))
         for note in made['notes']:
             warnings.warn(note, stacklevel=2)
         was = (self._doc, set(self._ids), len(self._page_commands),
                None if self._unserved is None else list(self._unserved), self._dirty)
         with self._batch(tell=False):
-            applied = self._apply_page([{'kind': 'addGrid', 'document': _plain(_json.loads(made['cube'])),
-                                         'sheet': target.id, 'near': None, 'title': title, 'columns': None}], 'a title')
+            applied = self._apply_page([_plain(made['command'])], 'a title')
         grid = self._tile(applied[0]['id'], Grid)
         if snap:
             try:

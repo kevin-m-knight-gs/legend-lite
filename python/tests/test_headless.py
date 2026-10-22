@@ -717,19 +717,26 @@ class Joins(unittest.TestCase):
     def setUp(self):
         self.page = ll.Page('Headless joins')
         self.trades = trades = self.page.grid(self.TRADES, name='join_trades')
-        customers = self.page.grid(self.CUSTOMERS, name='join_customers')
-        self.spec = {'left': {'name': 'trades', 'cube': trades._cube}, 'right': {'name': 'customers', 'cube': customers._cube},
-                     'tables': ['join_trades', 'join_customers']}
+        self.customers = customers = self.page.grid(self.CUSTOMERS, name='join_customers')
+        # each grid as the page has it, under the name it shows: its tile's title, else what it reads (joinInputOf)
+        trades.title = 'trades'
+        self.spec = {'mine': trades.id, 'theirs': customers.id, 'tables': ['join_trades', 'join_customers']}
         self.headless = datacube._session.headless()
 
-    def ask(self, function, how, *args):
-        return json.loads(self.headless.call(function, json.dumps({**self.spec, 'how': how}), *args))
+    def ask(self, function, how, **added):
+        return json.loads(self.headless.call(function, json.dumps({**self.spec, 'page': json.loads(self.page.to_json()), 'how': how,
+                                                                    **added})))
 
     def test_two_frames_joined_as_the_tabs_join_joins_them(self):
-        said = self.ask('joinCube', self.HOW, 'Headless joins', 3)
-        cube = json.loads(said['cube'])
+        sheet = self.page.sheets[0].id
+        said = self.ask('joinCube', self.HOW, sheet=sheet, title=None)
+        command = said['command']
+        cube = command['document']
+        # added as the tab's Join… adds one: beside its first input, on the sheet asked for
+        self.assertEqual({k: v for k, v in command.items() if k != 'document'},
+                         {'kind': 'addGrid', 'sheet': sheet, 'near': self.trades.id, 'title': None, 'columns': None})
         self.assertEqual(cube['source']['_type'], 'join')
-        self.assertEqual(cube['source']['name'], 'trades \u22c8 customers')
+        self.assertEqual(cube['source']['name'], 'trades \u22c8 join_customers', 'its title, else what it reads')
         self.assertEqual([c['name'] for c in cube['source']['columns']], ['trade_id', 'customer_id', 'qty', 'c_customer_id', 'region'])
         self.assertEqual(cube['source']['left']['source'], {'_type': 'frame', 'name': 'join_trades', 'columns': cube['source']['left']['source']['columns']})
         # its rows, planned by Python's own compiler over the join's model and run on the frames' database
@@ -737,11 +744,10 @@ class Joins(unittest.TestCase):
             rows = datacube._session.frames.run(held.plan(said['relation'], said['runtime'])).to_pylist()
         pairs = sorted((r['trade_id'], r['region']) for r in rows)
         self.assertEqual(pairs, [(1, 'EMEA'), (2, 'EMEA'), (3, 'AMER'), (3, 'APAC'), (4, None), (5, None)])
-        # a page takes it as it takes every grid: the page command addGrid, the cube document as given
+        # a page takes it as it takes every grid: the page command addGrid, as given
         doc = json.loads(self.page.to_json())
         held = [x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]]
-        add = {'kind': 'addGrid', 'document': cube, 'sheet': doc['sheets'][0]['id'], 'near': self.trades.id, 'title': None, 'columns': None}
-        applied = json.loads(self.headless.call('pageApply', self.page.to_json(), json.dumps(held), json.dumps([add])))
+        applied = json.loads(self.headless.call('pageApply', self.page.to_json(), json.dumps(held), json.dumps([command])))
         self.assertNotIn('problems', applied)
         # under the id the command gave it (the page's cubes in reading order: beside the trades' grid)
         added = next(c for c in json.loads(applied['page'])['cubes'] if c['id'] == applied['commands'][0]['id'])
@@ -755,10 +761,15 @@ class Joins(unittest.TestCase):
         self.assertEqual(anti['words'], ['3 rows of my 5 rows have a match, 2 rows none.', 'It keeps 2 rows, each once.'])
 
     def test_what_the_compiler_refuses_is_said_in_its_words(self):
+        sheet = {'sheet': self.page.sheets[0].id, 'title': None}
         with self.assertRaisesRegex(Exception, "no column 'nope'"):
-            self.ask('joinCube', {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'customer_id'}]}}, 'Headless joins', 3)
+            self.ask('joinCube', {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'customer_id'}]}}, **sheet)
         with self.assertRaisesRegex(Exception, "a join's form is one of"):
-            self.ask('joinCube', {'form': 'cross'}, 'Headless joins', 3)
+            self.ask('joinCube', {'form': 'cross'}, **sheet)
+        # a grid the page does not hold, or a chart: refused in DataCube's words
+        with self.assertRaisesRegex(Exception, "'grid-9' is not a tile of the page"):
+            json.loads(self.headless.call('joinCube', json.dumps({**self.spec, 'theirs': 'grid-9', 'page': json.loads(self.page.to_json()),
+                                                                  'how': self.HOW, **sheet})))
 
 
 if __name__ == '__main__':

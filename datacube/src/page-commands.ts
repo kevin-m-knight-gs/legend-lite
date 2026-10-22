@@ -6,7 +6,9 @@
 // command is built, as a grid command's calculated column is parsed first (grid-commands.ts).
 
 import { followCube, readChart, type ChartSpec } from './chart-spec.ts';
-import { CubeDocumentError, cubeOpenedAgain, readCube, readCubeSource, type CubeDocument, type CubeSource } from './cube-document.ts';
+import {
+  CubeDocumentError, cubeOpenedAgain, readCube, readCubeSource, type CubeDocument, type CubeSource, type JoinInput,
+} from './cube-document.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
@@ -182,6 +184,20 @@ function viewNamed(page: PageDocument, id: string): PageView {
   const view = page.views.find((v) => v.id === id);
   if (!view) throw new CubeRefusal(`'${id}' is not a tile of the page`);
   return view;
+}
+
+/**
+ * A GRID OF THE PAGE AS A JOIN READS IT (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5): its result as the page has it
+ * -- its cube's source and query -- under the name it shows, the title a person gave its tile, else what it reads. The
+ * tab's Join… and Python's page.join ask it alike (join-flow.ts, headless joinCube). Refused in words: no tile of the
+ * page, or a chart.
+ */
+export function joinInputOf(page: PageDocument, grid: string): JoinInput {
+  const view = viewNamed(page, grid);
+  if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is a chart: a join is of two grids`);
+  const cube = page.cubes.find((c) => c.id === view.cube);
+  if (!cube) throw new CubeRefusal(`'${grid}' shows no cube of the page`);
+  return { name: view.title ?? cube.cube.source.name, source: cube.cube.source, query: cube.cube.query };
 }
 
 const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => PageSheet): PageDocument =>

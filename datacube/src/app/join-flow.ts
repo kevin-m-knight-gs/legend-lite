@@ -6,6 +6,8 @@
 import { gridCapped, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { JoinInputs, TAB_TABLES, openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
 import { joinSummary, joinTitle } from '../join.ts';
+import { joinInputOf } from '../page-commands.ts';
+import type { PageDocument } from '../page-document.ts';
 import type { PageApp } from '../page/page-app.ts';
 import { joinDialog } from '../ui/join-dialog.ts';
 import { catalogColumns } from '../upload.ts';
@@ -24,24 +26,27 @@ export interface JoinFlowOf {
   readonly say: (text: string) => void;
 }
 
-/** A grid of the page as a join reads it -- its result as it is now, under the name it shows, and the tables it reads. */
-function inputOf(o: JoinFlowOf, id: string): { readonly input: JoinInput; readonly tables: readonly string[] } | undefined {
-  const place = o.sources.place(id);
-  const doc = o.page.grid(id)?.cubeDocument(o.page.title);
-  if (!place?.tables || !doc) return undefined;
-  // the title a person gave its tile, else what it reads
-  const name = o.page.givenTitle(id) ?? place.label ?? doc.source.name;
-  return { input: { name, source: doc.source, query: doc.query }, tables: place.tables };
+/**
+ * A grid of the page as a join reads it -- its result as it is now, under the name it shows (page-commands.ts
+ * joinInputOf, as Python's page.join asks it) -- and the tables of this tab's database it reads.
+ */
+function inputOf(o: JoinFlowOf, now: PageDocument, id: string): { readonly input: JoinInput; readonly tables: readonly string[] } | undefined {
+  const tables = o.sources.place(id)?.tables;
+  return tables ? { input: joinInputOf(now, id), tables } : undefined;
 }
 
-/** Join… on grid `cube`: the window, and -- applied -- the join's grid beside it. Refused in words before the window opens. */
+/**
+ * Join… on grid `cube`: the window, and -- applied -- the join's grid beside it, its first input (as Python's page.join
+ * places one: headless joinCube). Refused in words before the window opens.
+ */
 export async function joinFlow(o: JoinFlowOf): Promise<void> {
   const { page, sources, services } = o;
   const local = services.engine.local;
-  const mine = inputOf(o, o.cube);
-  if (!mine) throw new Error('this grid reads no table of this tab\'s database');
+  const now = page.document(page.title);
+  const mine = now && inputOf(o, now, o.cube);
+  if (!now || !mine) throw new Error('this grid reads no table of this tab\'s database');
   const others = new Map(page.grids.filter((id) => id !== o.cube).flatMap((id) => {
-    const i = inputOf(o, id);
+    const i = inputOf(o, now, id);
     return i ? [[id, i] as const] : [];
   }));
   if (others.size === 0) {

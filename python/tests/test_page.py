@@ -1613,10 +1613,24 @@ class Joined(Paged):
         # edited as any grid is, run by DataCube over the join's base
         joined.group('head')
         self.assertEqual(sorted(r[0] for r in joined.view().rows if r[0] is not None), ['Ana', 'Ben'])
-        # a refusal in the compiler's words, nothing added
+        # a refusal in the compiler's words, nothing added (the join sits beside its first input: the desks' grid last)
         with self.assertRaisesRegex(Exception, 'nope'):
-            page.join(page.grids[0], page.grids[1], {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
+            page.join(page.grids[0], page.grids[2], {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
         self.assertEqual(len(page.grids), 3)
+
+    def test_placed_beside_its_first_input_and_named_as_its_grids_show(self):
+        # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z9: as the tab's Join… places and names one (join-flow.ts), by
+        # DataCube's rule (page-commands.ts joinInputOf, headless joinCube)
+        page = ll.Page('Joins')
+        mine = page.grid(trades(), name='trades')
+        theirs = page.grid(desks(), name='desks')
+        mine.title = 'Book'
+        joined = page.join(mine, theirs, self.HOW)
+        self.assertEqual([t.id for t in page.sheets[0].tiles], [mine.id, joined.id, theirs.id], 'beside the grid joined')
+        self.assertEqual(joined._cube['source']['name'], 'Book \u22c8 desks', "each grid's title, else what it reads")
+        on_second = page.sheet('Second')
+        other = page.join(theirs, mine, self.HOW, sheet=on_second)
+        self.assertEqual([t.id for t in on_second.tiles], [other.id], 'on another sheet: where it is asked for')
 
     def test_saved_and_loaded_over_its_frames_and_reopened_when_one_is_served_again(self):
         page, joined = self.joined()

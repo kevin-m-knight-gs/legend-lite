@@ -319,7 +319,12 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **Z8** `Page.grid`'s command order → TypeScript builds a grid's commands — closed S5: headless `gridSetUp`
   builds them in a person's order (as `draftCommands` orders an editor's) and refuses a part it cannot read, in words;
   Python's `page.grid(...)` applies what it gives (test_page.py `test_a_grid_in_one_call_is_the_commands_datacube_orders_and_reads`)
-- [ ] **Z9** join input names and placement → `inputOf`, placed near its first input — S5, L6 L10
+- [x] **Z9** join input names and placement → `inputOf`, placed near its first input — closed S5: page-commands.ts
+  `joinInputOf(page, grid)` reads a grid as a join does, under its tile's given title else its source's name -- the
+  tab's Join… (join-flow.ts, over the page it would save) and headless `joinCube` (over the host's page and the two
+  grids' ids) ask it; `joinCube` gives the addGrid command, placed beside its first input as the tab places it, which
+  Python's `page.join` applies (page-commands.test.ts, test_headless.py Joins, test_page.py
+  `test_placed_beside_its_first_input_and_named_as_its_grids_show`)
 - [x] **Z10** take-a-reopened-cube rule (with Y2) — closed S1: cube-document.ts `cubeTaken`
 - [x] **Z11** command-or-whole rule in `_kept` (with Y3) — closed S1: gone; an edit is its commands
 - [ ] **Z12** filter value conversion and pre-checks → the TypeScript reader — S5, L6
