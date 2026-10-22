@@ -41,6 +41,20 @@ item below has its `file:line` there.
   registered as P15 (`MARKERS` 9 -> 10). Each is fixed for real, not only listed: K7 and K11 in S6 (D7, D8), P15 in S5
   with Z4-Z7 (D5).
 
+- **D11** (the user, 2026-10-22, B3/B9) A page nobody named is unnamed on both sides, as the tab keeps it: no name in the
+  page (''), shown as "Untitled page", Save suggesting its first sheet's name; `ll.Page()` makes one so. A new page's
+  skeleton is one function, which `pageNew` and the tab's Blank Page both use.
+- **D12** (the user, 2026-10-22, Z12) Python only tags the filter values JSON cannot carry (`{"$date"}`,
+  `{"$decimal"}`, `{"$timestamp"}`, as a grid's cells come back tagged `$int`/`$float`); DataCube's reader reads the
+  tuple shape, every value and its column's type -- a timestamp included -- and Python checks nothing.
+- **D13** (the user, 2026-10-22, X1) A warehouse table on a Python page reads through a warehouse session the engine
+  holds, signed in by a tab; with none, it is refused in words (sign in to it in DataCube first). Python carries no
+  credentials.
+- **D14** (the user, 2026-10-22, X3) A page over a file is given its files by the caller (`Page.load(...,
+  files={name: path})`), each checked against the hash the page names; one not given is refused in words, as the tab asks
+  the person for it. A remote file is mounted again by its URL. The keeper keeps each file's table while a page reads
+  it, as it keeps copies.
+
 ## 0. Why the nine attempts before this one did not finish
 
 This is roughly the tenth program aimed at "Python and the browser the same": the headless design (10-11), the
@@ -383,7 +397,12 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **B1** page filters reach Python's `view()`, `to_pandas()`, `export()` (headless through `gridLens`) — S5, L10
 - [x] **B2** a tile renamed to its made title stores no title: the rule inside `renameTile` — closed S1: renameTile drops a
   grid's title equal to `gridTitle(id)`; the screen sends what was typed (page-commands.test.ts)
-- [ ] **B3** one default page name — S5, L10
+- [x] **B3** one default page name — closed S5 (D11): a page nobody named is unnamed on both sides (''), shown as
+  "Untitled page" and saved under what Save suggests (page-document.ts `suggestedName`: its own name, else its first
+  sheet's `sheetLabel`, which the tab's sheet tabs ask too); the tab's host keeps no second name (`current.name` gone,
+  the page's own read), its model named by one rule (`modelPageName`, the tab's windows' and the headless actions');
+  `ll.Page()` makes one, Python's `save()` naming nothing asks headless `pageRecord` for the suggestion
+  (page-document.test.ts, page-app.test.ts, test_page.py `test_a_page_nobody_named_is_unnamed_and_saved_under_its_first_sheets_name`)
 - [x] **B4** saving under a name renames the page, on both sides — closed S5: the record names the page's content as
   it is saved (`savedRecord`), and Python, as the tab does, renames the page once it is kept (renamePage) (test_page.py)
 - [x] **B5** one page-file rule — closed S5: page-document.ts `pageFile`, Export ▸ Page File's, which Python's
@@ -397,7 +416,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **B8** one rule for a detached chart going live — closed S5: DataCube's `setChart` refuses a detached chart
   (no grid shows its cube) told to follow, in its words, for Python as for the screen, whose pill is off for it
   (page-commands.ts; page-commands.test.ts, test_one_api.py `OneRule`)
-- [ ] **B9** one new-page skeleton (`pageNew` for the tab's Blank Page too) — S5, L10
+- [x] **B9** one new-page skeleton (`pageNew` for the tab's Blank Page too) — closed S5 (D11): page-document.ts
+  `newPage`, which headless `pageNew` and the tab's Blank Page and open-in-place (PageApp.clear, naming the page as it)
+  both start from (page-document.test.ts, page-app.test.ts `cleared (Blank Page), is the new page DataCube starts`)
 - [x] **B10** a frame's column change keeps grid edits everywhere (with P12) — closed S5: every view of a frame is a
   kept page, opened again over the frame's new columns as the page has it -- in Python by the page, in a tab or a
   widget by `followed` opening the page (datacube-app.ts) -- the grid's edits kept (test_show.py

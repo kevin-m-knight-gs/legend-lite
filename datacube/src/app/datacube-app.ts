@@ -22,6 +22,7 @@ import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
 import {
   NOTHING_TO_SAVE,
+  modelPageName,
   openedLive,
   openingOrder,
   pageContent,
@@ -542,8 +543,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     let current: {
       /** The saved page it is (page-document.ts PageDocument.record): a Save saves over it, whichever editor saved it. */
       record?: string;
-      name?: string;
-      /** The name it was saved (or opened) under: a name given in the name box since is a change of the page. */
+      /** The name it was saved (or opened) under: a name given in the name box since is a change of the page (its own
+       *  name, the page's: D11, never one of the host's). */
       savedName?: string;
       /** Fields of the saved PAGE this reader does not know, and of each of its cubes, written back as they were. */
       pageUnknown?: Readonly<Record<string, unknown>>;
@@ -554,7 +555,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       lost?: readonly string[];
     } = {};
     renamePage = (name) => {
-      current = { ...current, name };
       page.rename(name);
       onCubeView?.();
     };
@@ -580,8 +580,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const dirty = (): boolean => {
       if (current.baseline === undefined) return false;
       if ((current.lost?.length ?? 0) > 0) return true;
-      if (current.name !== current.savedName) return true;
-      const now = savedForm(current.name ?? (page.suggestedName || 'page'));
+      if (page.title !== (current.savedName ?? '')) return true;
+      const now = savedForm(page.suggestedName);
       return now !== undefined && now.definition !== current.baseline;
     };
     const baseTitle = services.browser.title?.base ?? '';
@@ -598,7 +598,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       page.setChanged(changed);
       services.browser.title?.set(page.empty
         ? baseTitle
-        : `${changed ? '\u2022 ' : ''}${current.name ?? (page.suggestedName || 'page')}${notFollowed ?? followFailed ? ` (not followed: ${notFollowed ?? followFailed})` : ''} \u2013 ${baseTitle}`);
+        : `${changed ? '\u2022 ' : ''}${page.suggestedName}${notFollowed ?? followFailed ? ` (not followed: ${notFollowed ?? followFailed})` : ''} \u2013 ${baseTitle}`);
       library?.sync();
       // what the page is now, to its other editor once the change settles
       liveChanged();
@@ -630,7 +630,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const live = services.live;
     if (live?.page) {
       channel = new LiveChannel(live.page, {
-        page: () => pageNow(current.name ?? (page.suggestedName || 'page'), true),
+        // the page as it is, its own name with it ('' unnamed: D11)
+        page: () => pageNow(page.title, true),
         reopen: async (refused) => {
           const why = await openLive();
           if (why !== undefined) sayResting({ text: `not following the page: ${why}`, warn: true });
@@ -697,18 +698,17 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const onScreen = place();
       // a page of this tab's own, in place of the one its other editor serves (D1)
       if (!replacing) leaveServed();
+      // a new page, unnamed until saved (PageApp.clear: D11): its bar says the grid's report title (its source's name)
       page.clear();
       current = {};
-      // the page has no name of its own until saved: its bar says the grid's report title (its source's name)
-      page.setTitle('');
       page.addGrid(o.make);
       await page.ready();
       // another page put on screen while this one landed: that page is the one to keep a baseline of
       if (!onScreen()) return [];
       // The baseline is the page as it LANDED (normalized by its first refresh); a name given in the name box while it
       // landed stays (a change, as a rename is)
-      const landed = savedForm(page.suggestedName || 'page');
-      current = { ...(current.name !== undefined ? { name: current.name } : {}), ...(landed ? { baseline: landed.definition } : {}), lost: [] };
+      const landed = savedForm(page.suggestedName);
+      current = { ...(landed ? { baseline: landed.definition } : {}), lost: [] };
       onCubeView?.();
       library?.sync();
       return o.notes;
@@ -799,7 +799,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const record = id ?? (replacing ? doc.record : undefined);
       current = {
         ...(record !== undefined ? { record } : {}),
-        name: doc.name,
         savedName: doc.name,
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
         cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
@@ -868,7 +867,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if (id === current.record) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
-      current = { ...current, record: id, name: record.name, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
+      current = { ...current, record: id, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
       // the saved page it is, told: its other editor saves over the same record (B13)
       page.savedAs(id);
       // saved under a name: the page renamed, told as the name box tells it
@@ -1029,7 +1028,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       void (async () => {
         const refused = page.saveRefusal();
-        const offered = current.name ?? (page.suggestedName || 'page');
+        const offered = page.suggestedName;
         const savedAt = current.record !== undefined ? (await pages.store.get(current.record).catch(() => undefined))?.lastUpdatedAt : undefined;
         const doc = page.document(offered);
         const views = page.views().views;
@@ -1054,12 +1053,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           purpose: asNew ? 'saveAs' : 'save',
           name: offered,
           ...(current.record !== undefined
-            ? { over: { name: current.name ?? offered, ...(savedAt !== undefined ? { savedAt } : {}) } } : {}),
+            ? { over: { name: current.savedName ?? offered, ...(savedAt !== undefined ? { savedAt } : {}) } } : {}),
           where: pages.where,
           keeps,
           leaves,
           ...(current.lost?.length
-            ? { warning: `The saved “${current.name ?? 'page'}” has parts this page cannot show: ${current.lost.join('; ')}.` } : {}),
+            ? { warning: `The saved “${current.savedName ?? offered}” has parts this page cannot show: ${current.lost.join('; ')}.` } : {}),
           save: async (name, saveAsNew) => {
             if (refused) throw new Error(refused);
             await saveTo(name, saveAsNew);
@@ -1078,7 +1077,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if (!address) return;
       // nothing on screen is said the way any unsharable page is: in the window, not as a dead button
       const refused = page.saveRefusal();
-      const name = current.name ?? (page.suggestedName || 'page');
+      const name = page.suggestedName;
       const shared = refused ? undefined : page.document(name, {
         ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
         ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
@@ -1151,8 +1150,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         place: writing.place,
         sourceName,
         cube,
-        // the page's name, or -- never saved -- its grid's source, without its file's extension (`trades.csv` trades)
-        pageName: current.name ?? ((page.suggestedName || sourceName).replace(/\.[A-Za-z0-9]+$/, '') || 'page'),
+        // the page's name, or -- never named -- what it is called, without a file's extension (modelPageName, D11)
+        pageName: modelPageName(page.title, page.suggestedName),
         model: page.model,
         client: home.client,
         where: home.where,
@@ -1178,14 +1177,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           ? { snapshot: grid.snapshot, label: place.label ?? id, rows, ...(place.tables ? { tables: place.tables } : {}) }
           : undefined;
       }, (id) => page.model?.classes?.[id], { classBasis });
-      const sourceName = grids[0]?.label ?? 'page';
       return {
         actions,
         of: {
           writer: writing.writer,
           place: writing.place,
           rows: (model, runtime) => writing.rows(model, runtime),
-          pageName: current.name ?? ((page.suggestedName || sourceName).replace(/\.[A-Za-z0-9]+$/, '') || 'page'),
+          pageName: modelPageName(page.title, page.suggestedName),
           model: page.model,
           client: home.client,
           where: home.where,
@@ -1277,7 +1275,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const servedLeft = 'asked' in how ? leaveServed() : undefined;
       page.clear();
       current = {};
-      page.setTitle('');
       sayWhyBlank('reason' in how ? how.reason : servedLeft);
       if (blankCard) blankCard.hidden = false;
       services.browser.title?.set('New page');
@@ -1425,10 +1422,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // the person had changed it here -- "changed since saved" from here
         const name = page.title;
         if (!wasChanged) {
-          const landed = savedForm(name);
-          current = { ...current, name, savedName: name, ...(landed ? { baseline: landed.definition } : {}) };
-        } else {
-          current = { ...current, name };
+          const landed = savedForm(page.suggestedName);
+          current = { ...current, savedName: name, ...(landed ? { baseline: landed.definition } : {}) };
         }
         onCubeView?.();
         return true;

@@ -44,9 +44,11 @@ interface Entry {
 /** Each ledger's size, pinned: it shrinks with each fix (lower it then); it grows only with a dated note here. */
 // 2026-10-22 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D10, the user's sign-off): MARKERS 9 -> 10 -- S1's audit finding
 // 10 registered as P15, pinned by its code
+// 2026-10-22 (S5, B3/B9, D11): L1_HOST 10 -> 8, MARKERS 5 -> 4 -- one unnamed new page (PageApp.clear: newPage) names
+// itself, no host's setTitle(''); one name (the page's, no host's current.name)
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 10,
-  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 5, UNCHECKED: 7,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
+  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 4, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -104,7 +106,7 @@ const L1_REACH: Record<string, Entry> = {
   'datacube-app.ts:openText:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:examplesList:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'datacube-app.ts:openDataCube:blankPage': { items: ['B9'], count: 2 },
+  'datacube-app.ts:openDataCube:blankPage': { items: [], why: "N1, D1: a new page of this tab's own (newPage, D11) -- on a page another editor serves, that one left as it is", count: 2 },
 };
 
 /** What a function tells: any command, by any way the app tells one. A write in a function that tells one is no gap. */
@@ -125,14 +127,12 @@ const HOST_CALLS = /(current\s*=\s*\{|page\.setTitle\(|page\.clear\(\)|page\.res
 const L1_HOST: Record<string, Entry> = {
   'inPlace:page.clear()': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'inPlace:current = {': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
-  'inPlace:page.setTitle(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'openSaved:page.restore(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'openSaved:current = {': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
   'openSaved:page.setTitle(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'blankPage:page.clear()': { items: ['B9'] },
-  'blankPage:current = {': { items: ['B9'] },
-  'blankPage:page.setTitle(': { items: ['B9'] },
-  'followLive:current = {': { items: [], why: "following another editor's page: its name as it now is", count: 2 },
+  'blankPage:page.clear()': { items: [], why: "N1, D1: a new page of this tab's own (newPage, D11) -- on a page another editor serves, that one left as it is" },
+  'blankPage:current = {': { items: [], why: "N1, D1: a new page of this tab's own (newPage, D11) -- on a page another editor serves, that one left as it is" },
+  'followLive:current = {': { items: [], why: "following another editor's page: its saved name as it now is" },
 };
 
 describe('L1: every change of a grid, a copy or the page made other than by command is listed', () => {
@@ -358,7 +358,6 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/page-rebase.ts', text: 'export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {', items: ['X3'] },
   // the browser's half of the same jobs done by different rules
   { file: 'src/headless/grid.ts', text: 'gridLens(', items: ['B1'], absent: true },
-  { file: 'src/app/datacube-app.ts', text: "current.name ?? (page.suggestedName || 'page')", items: ['B3'], count: 5 },
   { file: 'src/headless/grid.ts', text: 'a page on Python reads frames', items: ['B7'], count: 2 },
   { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
 ];

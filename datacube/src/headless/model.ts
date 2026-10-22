@@ -13,7 +13,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { classAction, keyUnique } from '../model-plans.ts';
 import type { AssociationAction, AssociationEnd, ClassAction, ColumnChoice, ColumnRole } from '../model-writer.ts';
-import { readPage } from '../page-document.ts';
+import { modelPageName, readPage, suggestedName } from '../page-document.ts';
 import { PageModel } from '../page-model.ts';
 import { duplicateLambda } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
@@ -170,8 +170,9 @@ export async function modelClass(page: string, spec: GridSpec, given: unknown): 
       className: textOr(g['name'], "a class's name") ?? suggestedClassName(source),
       ...(documentation ? { documentation } : {}), ...(columns ? { columns } : {}),
     });
-    const into = model.into(textOr(g['project'], "a project's name") ?? doc.name,
-      textOr(g['package'], "a class's package") ?? suggestedPackage(doc.name));
+    const named = modelPageName(doc.name, suggestedName(doc));
+    const into = model.into(textOr(g['project'], "a project's name") ?? named,
+      textOr(g['package'], "a class's package") ?? suggestedPackage(named));
     const { client, writer } = reached(g);
     const done = await createClass({ sdlc: client, writer, ...into, class: action });
     model.pin(done.revision);
@@ -215,7 +216,8 @@ export async function modelAssociation(page: string, given: unknown): Promise<st
       })));
     })();
     const done = await createAssociation({
-      sdlc: client, writer, ...model.into(doc.name, pkg), association: { ...association, ends: [ends[0]!, ends[1]!] },
+      sdlc: client, writer, ...model.into(modelPageName(doc.name, suggestedName(doc)), pkg),
+      association: { ...association, ends: [ends[0]!, ends[1]!] },
     });
     model.pin(done.revision);
     return answered(model, { association: done.answer.associations[0]?.association ?? name ?? 'the association' });
@@ -244,8 +246,9 @@ export async function modelDataSpace(page: string, grids: readonly { readonly cu
     const doc = readPage(page, { empty: true });
     model = new PageModel(doc.model);
     const taken = doc.model?.classes ?? {};
-    const pkg = doc.model?.package ?? suggestedPackage(doc.name);
-    const into = model.into(textOr(g['project'], "a project's name") ?? doc.name, pkg);
+    const named = modelPageName(doc.name, suggestedName(doc));
+    const pkg = doc.model?.package ?? suggestedPackage(named);
+    const into = model.into(textOr(g['project'], "a project's name") ?? named, pkg);
     const classes: ClassAction[] = [];
     const kept: { readonly cube: string; readonly tables: readonly string[]; readonly name: string }[] = [];
     for (const grid of grids) {
@@ -261,7 +264,7 @@ export async function modelDataSpace(page: string, grids: readonly { readonly cu
     const title = textOr(g['title'], "a data space's title");
     const description = textOr(g['description'], "a data space's description");
     const dataSpace = {
-      name: textOr(g['name'], "a data space's name") ?? suggestedDataSpaceName(doc.name),
+      name: textOr(g['name'], "a data space's name") ?? suggestedDataSpaceName(named),
       ...(title ? { title } : {}), ...(description ? { description } : {}),
     };
     const { client, writer } = reached(g);

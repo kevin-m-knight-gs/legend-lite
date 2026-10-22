@@ -33,7 +33,8 @@ import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import {
-  filtersFor, keptFor, modelAcross, NOTHING_TO_SAVE, pageFile, writePageOf, type PageDocument, type PageView, type PageViews,
+  filtersFor, keptFor, modelAcross, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
+  type PageViews,
 } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
@@ -477,10 +478,9 @@ export class PageApp {
    * one sheet looks as it did, its source's name in the one tab), else "Sheet N".
    */
   #sheetLabel(sheet: SheetInfo): string {
-    if (sheet.name !== undefined) return sheet.name;
-    const grid = sheet.tiles.find((t) => this.grid(t) !== undefined && this.#page.grids.has(t));
-    const title = grid !== undefined ? this.grid(grid)?.configuration.reportTitle : undefined;
-    return title || `Sheet ${this.#page.sheets.findIndex((s) => s.id === sheet.id) + 1}`;
+    // the one rule (page-document.ts sheetLabel), asked of the board: a tile is a grid when the board holds it as one
+    return sheetLabel(sheet, this.#page.sheets.findIndex((s) => s.id === sheet.id),
+      (t) => (this.grid(t) !== undefined && this.#page.grids.has(t) ? { title: this.grid(t)?.configuration.reportTitle } : undefined));
   }
 
   /** The sheets, in order (their ids), and the one shown. */
@@ -618,8 +618,10 @@ export class PageApp {
     return this.addGrid(make, near !== undefined ? { near } : {});
   }
 
-  /** Every tile gone -- grids, charts, kept grids -- and the empty page shown (Blank Page; opening in place). */
+  /** Every tile gone -- grids, charts, kept grids -- and the new page shown, unnamed (Blank Page; opening in place). */
   clear(): void {
+    // a new page, as DataCube starts one (page-document.ts newPage, the one skeleton: D11, B9)
+    const fresh = newPage();
     this.#page.dispose();
     this.#grids.clear();
     this.#gone.clear();
@@ -629,6 +631,9 @@ export class PageApp {
     this.#model = undefined;
     this.#lensKeys.clear();
     this.#page = this.#newBoard();
+    this.#page.setSheets(fresh.sheets);
+    this.#name = fresh.name;
+    this.#paintTitle();
     this.#state = new PageState(this.#seen());
     this.#paintSheets();
     this.#paintEmpty();

@@ -45,7 +45,8 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
 # 2026-10-22 (S5, Z4-Z7): L6_FUNCTIONS 7 -> 3, MARKERS 4 -> 3 -- the model actions run headless; model.py gone
 # 2026-10-22 (S5, Z15): L6_FUNCTIONS 3 -> 2 -- a grid's base on the host is DataCube's one rule (gridBaseOn)
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 2, 'MARKERS': 3, 'L9_KEEPER': 6,
+# 2026-10-22 (S5, B3/B9, D11): MARKERS 3 -> 2 -- a page nobody named is unnamed on both sides (newPage)
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 2, 'MARKERS': 2, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -237,7 +238,6 @@ L6_FUNCTIONS = {
 # (file, the code that is the gap, its items, how many times it is there)
 MARKERS = [
     (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
-    (PAGE, "def __init__(self, name: str = 'Untitled page') -> None:", ('B3',), 1),
     # the page _apply_page assigns is headless pageApply's, as read (L5 pins the assignment, this its binding)
     (PAGE, "page = _plain(_json.loads(said['page']))", ALLOWED, 1),
 ]

@@ -900,16 +900,16 @@ class Page:
     layouts -- shown with ``ll.show(page)``, live from then on; saved as DataCube's page document (``save``,
     ``to_json``, ``to_dict``) and loaded again (``load``); read back as it is open (``read``)."""
 
-    def __init__(self, name: str = 'Untitled page') -> None:
+    def __init__(self, name: str | None = None) -> None:
         from .datacube import _current
-        if name is None:
-            raise ValueError('a page has a name')
         self._session = _current()
-        if not isinstance(name, str):
+        if name is not None and not isinstance(name, str):
             raise ValueError(f"a page's name is a name, not {name!r}")
-        # the page, started as DataCube starts a page (headless pageNew: its name by DataCube's rule, no grid yet, its
-        # one sheet an empty board), and kept by its session's keeper from now on: the one copy of it every editor --
-        # this page, a tab or a notebook widget open on it -- writes, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
+        # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's Blank Page's
+        # too -- unnamed when no name is given, as the tab's, else named by DataCube's rule; no grid yet, its one sheet an
+        # empty board: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11), and kept by its session's keeper from now on: the
+        # one copy of it every editor -- this page, a tab or a notebook widget open on it -- writes, versioned
+        # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
         said = json.loads(self._session.headless().call('pageNew', name))
         if 'problems' in said:
             raise ValueError("a page's name: " + '; '.join(said['problems']))
@@ -1321,7 +1321,8 @@ class Page:
         """Saved. With no ``path``, as DataCube's Save keeps a page: into this user's saved pages (``ll.home()/pages``,
         what Open… lists in DataCube shown from Python), by legend-lite's own saved-page rules (the native library's,
         the page's and the server's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B6) -- over the copy this page was last
-        saved as, else as a new one -- named ``name`` (the page's own when not given); its id is returned. With a
+        saved as, else as a new one -- named ``name``, else as DataCube's Save suggests (the page's own name; an unnamed
+        page's, its first sheet's: D11); its id is returned. With a
         ``path``, the page document as a file instead (as DataCube's Export > Page File writes it)."""
         if path is not None:
             if name is not None:
@@ -1337,8 +1338,7 @@ class Page:
         # the record by DataCube's one rule, the Save window's (headless pageRecord): over the saved page it is, which
         # either editor saved it as (the page's `record`, B13), else a new one; the page named as it is saved
         doc = self._doc
-        made = json.loads(self._session.headless().call('pageRecord', str(uuid.uuid4()),
-                                                        name if name is not None else self.name, _json.dumps(doc)))
+        made = json.loads(self._session.headless().call('pageRecord', str(uuid.uuid4()), name, _json.dumps(doc)))
         if 'problems' in made:
             raise ValueError('; '.join(made['problems']))
         id, record = made['id'], made['record']

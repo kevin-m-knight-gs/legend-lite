@@ -89,13 +89,62 @@ export const oneSheet = (layout: PageLayout): readonly PageSheet[] => [{ id: FIR
  * THE VIEWS A PAGE STARTS WITH, on its one sheet: a new sheet's empty board (bands.ts NEW_SHEET), or with a grid
  * (`grid`: its view's id and its cube's) added to it as any first tile is (bands.ts add: the whole board). The one
  * writer of a starting page: a cube app's page of its grid alone (app.ts pageViews), a cube saved before pages opened as
- * a page (app/datacube-app.ts), and Python's new page (headless page.ts pageNew), whose first grid the same add places.
+ * a page (app/datacube-app.ts), and a new page (newPage: Python's and the tab's Blank Page), whose first grid the same add
+ * places.
  */
 export function startingViews(grid?: { readonly id: string; readonly cube: string }): PageViews {
   return {
     views: grid ? [{ id: grid.id, kind: 'grid', cube: grid.cube }] : [],
     sheets: oneSheet({ kind: 'bands', ...(grid ? addTile(NEW_SHEET, grid.id) : NEW_SHEET) }),
   };
+}
+
+/**
+ * A NEW PAGE, the one skeleton (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B9): no cube yet, its one sheet an empty
+ * board (startingViews), unnamed ('': shown as "Untitled page", Save suggesting its first sheet's name) unless `name` is
+ * given. Python's new page (headless page.ts pageNew) and the tab's Blank Page (PageApp.clear) both start from it.
+ */
+export function newPage(name = ''): PageDocument {
+  return writePageOf({ name, cubes: [], views: startingViews() });
+}
+
+/**
+ * WHAT A SHEET IS CALLED (its tab): the name someone gave it, else the report title of the first grid it shows (its
+ * tiles in reading order; `grid` says of a tile whether it is a grid and its title), else "Sheet n" by its place (`at`,
+ * from 0). The tab's sheet tabs ask it of the board, and a page's suggested name of its document (suggestedName).
+ */
+export function sheetLabel(sheet: { readonly name?: string | undefined; readonly tiles: readonly string[] }, at: number,
+  grid: (tile: string) => { readonly title: string | undefined } | undefined): string {
+  if (sheet.name !== undefined) return sheet.name;
+  const first = sheet.tiles.map(grid).find((g) => g !== undefined);
+  return first?.title || `Sheet ${at + 1}`;
+}
+
+/**
+ * WHAT A PAGE IS CALLED when it is saved and its saver names nothing (D11): its own name, else its first sheet's label --
+ * as the Save window suggests it (PageApp.suggestedName); '' for a page of no sheet.
+ */
+export function suggestedName(page: PageDocument): string {
+  if (page.name !== '') return page.name;
+  const first = page.sheets[0];
+  if (first === undefined) return '';
+  const cubes = new Map(page.cubes.map((c) => [c.id, c.cube]));
+  const grids = new Map(page.views.flatMap((v) => (v.kind === 'grid' ? [[v.id, v.cube] as const] : [])));
+  return sheetLabel({ name: first.name, tiles: tilesOf(first.layout) }, 0, (tile) => {
+    const cube = grids.get(tile);
+    if (cube === undefined) return undefined;
+    const title = cubes.get(cube)?.configuration['reportTitle'];
+    return { title: typeof title === 'string' ? title : undefined };
+  });
+}
+
+/**
+ * WHAT A PAGE'S MODEL IS NAMED AFTER (its project, package and data space: model-names.ts), D11: its own `name`, else --
+ * never named -- what it is called (`suggested`: suggestedName, its first sheet's: its grid's source) without a file's
+ * extension (`trades.csv`: trades). The tab's model windows and DataCube's model actions headless ask it.
+ */
+export function modelPageName(name: string, suggested: string): string {
+  return name !== '' ? name : (suggested.replace(/\.[A-Za-z0-9]+$/, '') || 'page');
 }
 
 /**
@@ -424,7 +473,8 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     throw new PageDocumentError(`saved by an older version (${version} < ${PAGE_VERSION}): it is no longer read`);
   }
   if (typeof raw['name'] !== 'string') throw new PageDocumentError("missing 'name'");
-  if (!named('page', raw['name'])) throw new PageDocumentError("the page's name is blank");
+  // '' is a page nobody named (D11: shown as "Untitled page"); a name of blanks is none
+  if (raw['name'] !== '' && !named('page', raw['name'])) throw new PageDocumentError("the page's name is blank");
 
   const cubesRaw = raw['cubes'];
   if (!Array.isArray(cubesRaw) || (cubesRaw.length === 0 && options.empty !== true)) throw new PageDocumentError('it has no cube');

@@ -11,6 +11,8 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import {
   FIRST_SHEET,
   NOTHING_TO_SAVE,
+  modelPageName,
+  newPage,
   pageContent,
   pageFile,
   savedRecord,
@@ -22,7 +24,9 @@ import {
   pageToJson,
   readPage,
   readSaved,
+  sheetLabel,
   startingViews,
+  suggestedName,
   writePage,
   type PageDocument,
   type PageLayout,
@@ -326,6 +330,49 @@ describe('a saved page', () => {
 });
 
 describe('a page as it starts (startingViews: the cube app, a cube saved before pages, Python\'s new page)', () => {
+  it('is one skeleton, unnamed unless named (newPage: Python\'s new page and the tab\'s Blank Page, D11, B9)', () => {
+    assert.deepEqual(newPage(), { ...readPage(pageToJson(newPage()), { empty: true }), name: '' });
+    assert.equal(newPage().name, '');
+    assert.equal(newPage('Q3').name, 'Q3');
+    assert.deepEqual({ views: newPage().views, sheets: newPage().sheets }, startingViews());
+    assert.deepEqual(newPage().cubes, []);
+    // headless pageNew: unnamed when Python gives no name, else named by the one rule
+    assert.equal((JSON.parse(JSON.parse(pageNew(null)).page as string) as PageDocument).name, '');
+    assert.equal((JSON.parse(JSON.parse(pageNew('Q3')).page as string) as PageDocument).name, 'Q3');
+    assert.deepEqual(JSON.parse(pageNew(' ')).problems, [(givenName('page', ' ') as { refused: string }).refused]);
+  });
+
+  it("is called by its sheet's name, else its first grid's report title, else by its place (sheetLabel)", () => {
+    const grids = new Map([['g1', { title: 'trades' }], ['g2', { title: undefined }], ['g3', { title: 'desks' }]]);
+    const grid = (t: string): { title: string | undefined } | undefined => grids.get(t);
+    assert.equal(sheetLabel({ name: 'Mine', tiles: ['g1'] }, 0, grid), 'Mine');
+    assert.equal(sheetLabel({ tiles: ['chart', 'g1', 'g3'] }, 0, grid), 'trades');
+    // the first grid's title only: one with none is the sheet's place, a later grid's title aside
+    assert.equal(sheetLabel({ tiles: ['g2', 'g3'] }, 2, grid), 'Sheet 3');
+    assert.equal(sheetLabel({ tiles: [] }, 0, grid), 'Sheet 1');
+  });
+
+  it("is saved, unnamed, under its first sheet's name, and its model named after it without a file's extension (D11)", () => {
+    const unnamed = JSON.parse(JSON.parse(pageNew(null)).page as string) as PageDocument;
+    assert.equal(suggestedName(unnamed), 'Sheet 1');
+    const cube = writeCube({ name: 'q', source: frameSource('q', [{ name: 'a', type: 'String' }]),
+      snapshot: rawRows(element('q'), [{ name: 'a', type: 'String' }]),
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: 'trades.csv' }, tree: TreeState.empty() });
+    const added = JSON.parse(pageApply(JSON.stringify(unnamed), '["sheet-1"]', JSON.stringify([
+      { kind: 'addGrid', document: cube, sheet: 'sheet-1', near: null, title: null, columns: null },
+    ]))) as { page: string };
+    const page = readPage(added.page);
+    assert.equal(page.name, '');
+    assert.equal(suggestedName(page), 'trades.csv');
+    assert.equal(suggestedName({ ...page, name: 'Q3' }), 'Q3');
+    // headless pageRecord: Python's save() naming nothing, saved as the Save window suggests
+    assert.equal(JSON.parse(pageRecordJson('r-1', null, added.page)).name, 'trades.csv');
+    assert.equal(JSON.parse(pageRecordJson('r-1', 'Q4', added.page)).name, 'Q4');
+    assert.equal(modelPageName('', suggestedName(page)), 'trades');
+    assert.equal(modelPageName('Q3.final', 'x.csv'), 'Q3.final');
+    assert.equal(modelPageName('', ''), 'page');
+  });
+
   it('is its grid on the whole board, or an empty board a grid is added to', () => {
     assert.deepEqual(startingViews({ id: 'grid', cube: 'cube' }), {
       views: [{ id: 'grid', kind: 'grid', cube: 'cube' }],

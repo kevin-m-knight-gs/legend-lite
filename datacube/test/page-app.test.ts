@@ -15,7 +15,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { configurationOf, type CubeDocument, type FileSource } from '../src/cube-document.ts';
 import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
-import { gridCopyOf, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, newPage as freshPage, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
@@ -161,6 +161,17 @@ describe('a page of its own', () => {
     assert.equal(entry(pageMenu(), 'Arrange…')!.getAttribute('aria-disabled'), 'true');
     assert.match(page.saveRefusal() ?? '', /nothing on this page to save/);
     assert.equal(page.document('Q3'), undefined);
+  });
+
+  it('cleared (Blank Page), is the new page DataCube starts, unnamed (page-document.ts newPage: D11, B9)', async () => {
+    newPage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    page.setTitle('Q3 review');
+    page.clear();
+    assert.equal(page.title, '');
+    assert.equal(bar().querySelector('.dc-page-name')!.textContent, 'Untitled page');
+    assert.deepEqual(page.document(page.title, undefined, true), freshPage());
   });
 
   it('one grid alone shares the bar\'s strip: no frame, its source, pill and menu at the bar\'s right', async () => {

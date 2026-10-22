@@ -201,6 +201,24 @@ class Document(Paged):
         with self.assertRaises(ValueError):
             page.save(name=' ')
 
+    def test_a_page_nobody_named_is_unnamed_and_saved_under_its_first_sheets_name(self):
+        # one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B3): unnamed, as the tab's Blank Page -- no name in the
+        # page -- and saved, its saver naming nothing, under the name DataCube's Save suggests: its first sheet's, its
+        # grid's report title (page-document.ts suggestedName), the page then so named
+        from legend_lite.engine import Engine
+        page = ll.Page()
+        self.assertEqual(page.name, '')
+        self.assertEqual(page.to_dict()['name'], '')
+        page.grid(trades(), name='unnamed_trades')
+        saved = page.save()
+        engine = Engine(ll.Frames())
+        record = json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{saved}', '', None).body)
+        self.assertEqual(record['name'], 'unnamed_trades')
+        self.assertEqual(page.name, 'unnamed_trades')
+        # a name given is still judged by DataCube's one rule
+        with self.assertRaisesRegex(ValueError, "a page's name"):
+            ll.Page('  ')
+
     def test_tiles_are_placed_and_taken_off_as_datacube_places_them(self):
         page, grid, chart = self.built()
         sheet = page.sheets[0]

@@ -5,8 +5,8 @@
 
 import { CubeDocumentError, cubeToJson, readCube } from '../cube-document.ts';
 import {
-  gridCopyOf, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage, savedRecord,
-  startingViews, writePageOf, type PageDocument,
+  gridCopyOf, newPage, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage, savedRecord,
+  suggestedName, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
@@ -64,14 +64,16 @@ export function pageFile(text: string): string {
 /**
  * A PAGE DOCUMENT (JSON text) SAVED UNDER `name` AS THE PAGE STORE KEEPS IT -- what Python's `save()` sends the store
  * -- by the Save window's one rule (page-document.ts savedRecord, Z18, B4 and B13): over the record the page was last
- * saved as, whichever editor saved it, else a new one under `fresh`. JSON: `{record, id, name}`, the record's text (its
- * numbers exact), its id and the name it is saved under, or `{problems}`, why it is not saved.
+ * saved as, whichever editor saved it, else a new one under `fresh` -- named `name`, else as the Save window suggests
+ * (page-document.ts suggestedName: an unnamed page by its first sheet, D11). JSON: `{record, id, name}`, the record's
+ * text (its numbers exact), its id and the name it is saved under, or `{problems}`, why it is not saved.
  */
-export function pageRecord(fresh: string, name: string, text: string): string {
+export function pageRecord(fresh: string, name: string | null, text: string): string {
   try {
     const page = readPage(text, { empty: true });
     if (page.cubes.length === 0) return JSON.stringify({ problems: [NOTHING_TO_SAVE] });
-    const made = savedRecord(name, page, fresh);
+    // a name given, else the one the Save window suggests (D11: an unnamed page, its first sheet's)
+    const made = savedRecord(name ?? suggestedName(page), page, fresh);
     return 'refused' in made ? JSON.stringify({ problems: [made.refused] })
       : `{"record":${JSON.stringify(toJson(made))},"id":${JSON.stringify(made.id)},"name":${JSON.stringify(made.name)}}`;
   } catch (e) {
@@ -81,16 +83,18 @@ export function pageRecord(fresh: string, name: string, text: string): string {
 }
 
 /**
- * A NEW PAGE, as DataCube starts one (page-document.ts startingViews, written by writePageOf): named `name` by DataCube's
- * one rule (givenName), no cube yet, its one sheet an empty board -- so Python writes no page skeleton of its own. JSON:
- * `{page}`, its text as DataCube writes it, or `{problems}`, why the name was refused, in DataCube's words. A page with
- * no cube is shown and followed (D2), never saved (pageSaved): Python's first grid makes it one DataCube saves.
+ * A NEW PAGE, as DataCube starts one (page-document.ts newPage, the one skeleton: D11, B9): unnamed when `name` is null
+ * ('', as the tab's Blank Page), else named by DataCube's one rule (givenName) -- so Python writes no page skeleton of
+ * its own. JSON: `{page}`, its text as DataCube writes it, or `{problems}`, why the name was refused, in DataCube's words.
+ * A page with no cube is shown and followed (D2), never saved (pageSaved): Python's first grid makes it one DataCube
+ * saves.
  */
-export function pageNew(name: string): string {
+export function pageNew(name: string | null): string {
+  if (name === null) return JSON.stringify({ page: pageToJson(newPage()) });
   const given = givenName('page', name);
   if ('refused' in given) return JSON.stringify({ problems: [given.refused] });
   if (given.name === undefined) throw new Error("a page's name is never left to what it shows");
-  return JSON.stringify({ page: pageToJson(writePageOf({ name: given.name, cubes: [], views: startingViews() })) });
+  return JSON.stringify({ page: pageToJson(newPage(given.name)) });
 }
 
 const PARTS: readonly NamedPart[] = ['page', 'tile', 'sheet'];
