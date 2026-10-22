@@ -15,6 +15,27 @@ item below has its `file:line` there.
   saved-query and class grids, as the tab does.
 - **D4** Python asks the TypeScript `model-changes/` library headless; `model.py` goes.
 
+**Decisions** (the user, 2026-10-22):
+- **D5** A model action (Create a Class, a Data Space, an Association) is not undoable: what it writes into its project
+  cannot be undone, so the page's record of it (`modelInto`, `modelKeep`, `modelPin`) is applied by the one function in
+  the browser as it is in Python, but is no undo step. The browser's half is done with S5's Z4-Z7, where the model
+  actions move out of their dialogs. Registering S1's audit finding 10 as an item waits on the user's dated sign-off (it
+  grows a ledger).
+- **D6** S6 builds what a Python user would do; anything else is a named exception, with its reason. Every Python
+  ability calls the same TypeScript function the browser's gesture calls; where the browser's logic still sits in screen
+  code, it moves out into that function first.
+- **D7** One **Show Grid** on a chart replaces Open in grid and its Update: a chart following its grid -- that grid
+  shown, the page unchanged; a frozen or detached chart -- one step, undoable: a grid of the chart's own grouping and
+  query added, the chart following it, shown. The chart looks the same after; it follows its new grid from then on (a
+  frozen chart no longer takes its old grid's filter). The temporary editing grid and its Update go.
+- **D8** Python's chart API: `chart.select(value, split=...)` (a mark named by its value across, and its series'),
+  `chart.select(None)`, `chart.selection`; `chart.drill(value)`, `chart.drill_up(levels=1)`, `chart.drilled` (the
+  browser's own `drillDown` and `drillUp`); `chart.grid` read-only -- the grid it follows, or None (a frozen chart's old
+  grid no more); `chart.backing_grid()` -- the same function as the browser's Show Grid, its grid made first when it has
+  none. Explicit in Python, no toggle: a click's toggling is the screen's; a range across an axis not at first.
+- **D9** Every ledger's growth waits on the user's dated sign-off, the growth this plan itself calls for included (rule
+  1 as written: no standing approval).
+
 ## 0. Why the nine attempts before this one did not finish
 
 This is roughly the tenth program aimed at "Python and the browser the same": the headless design (10-11), the
@@ -337,11 +358,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **K5** expand, collapse, collapse all — closed S1 with G1/G2: Python `grid.expand`, `grid.collapse`,
   `grid.collapse_all`, test_page.py
 - [ ] **K6** dimensions — S6, L8
-- [ ] **K7** a chart's selection; page filters — S6, L8
+- [ ] **K7** a chart's selection; page filters — S6, L8 (D8: `select`, `selection`)
 - [ ] **K8** sheets: reorder, remove — S6, L8
-- [ ] **K9** drill a chart, and back up — S6, L8
+- [ ] **K9** drill a chart, and back up — S6, L8 (D8: `drill`, `drill_up`, `drilled`)
 - [ ] **K10** Copy of Grid — S6, L8
-- [ ] **K11** a chart's Open in grid and Update — S6, L8
+- [ ] **K11** a chart's Open in grid and Update — S6, L8 (D7: one Show Grid replaces them; D8: `backing_grid()`)
 - [ ] **K12** open a saved page by id — S6, L8
 
 ### Found by the audits (rule 9: each added here, fixed with a test that fails without it, closed in that commit)
@@ -531,8 +552,8 @@ Size: about 3k lines; `model.py` and Python's rule code deleted. Risk: the two s
 brought to the user before the step goes on.
 
 ### S6. Capability parity
-Items: K1-K12, X4, Z19. A Python method for every command kind and source kind; the names agreed with the user before
-building. Size: about 1.5k lines.
+Items: K1-K12, X4, Z19. A Python method for what a Python user would do, calling the browser's own function (D6), the
+rest named exceptions; the names agreed with the user before building (the charts': D7, D8). Size: about 1.5k lines.
 
 ### S7. The final audit
 The four audits run again, fresh, with one extra instruction: find what the ledgers miss. Anything found goes into the
