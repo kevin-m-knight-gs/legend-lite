@@ -716,7 +716,13 @@ class JavaEvalLedgerTest {
             // 2394 -> 2380 (2026-10-20, the writes design's leg 7, §8: write plans): the staged table's name and the
             // store it is read under moved to StagedRows (table, storeOf), which a write plan's staging names too;
             // the executor delegates; nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2380),
+            // 2380 -> 2391 (2026-10-22, PR #67's review, docs/PR67_REVIEW_2026_10_22.md fixes 2, 4 and 5): a program
+            // that stages rows runs in one transaction, as one that writes does; a staged table is not dropped where
+            // the database drops it as the transaction ends (H2, SqlDialect.dropsStagedTablesWithTheirTransaction);
+            // the staged query names its columns (lowerAndPrepare's named overload, Lowerer.namedColumns); the lets
+            // around the writes are checked before the transaction opens (StagedRows.refuseLetsTheWritesChange);
+            // sequencing and one delegated check, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2391),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

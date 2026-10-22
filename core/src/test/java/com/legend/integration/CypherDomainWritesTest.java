@@ -3,7 +3,6 @@
 
 package com.legend.integration;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
@@ -26,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A Cypher write over a graph of a domain model (graph A, docs/WRITES_DESIGN_2026_10_18.md §8 leg 5) where the
  * domain's tables are not the harness's (PR #67's review, 2026-10-22): a column the store declares NOT NULL, which a
  * CREATE writes with its row; two classes whose instances share an id, which a write refuses by name before it writes
- * anything. Each on DuckDB and on H2 (whose writes had raised "Function REVERSE not found").
+ * anything. On the platform's engine here; each other database the writes are measured on runs {@link #writes} in a
+ * test named for it (DatabaseOwners).
  */
 class CypherDomainWritesTest {
 
@@ -34,7 +34,7 @@ class CypherDomainWritesTest {
         return new CypherAnswers.GraphNode(id, List.of(label), Map.of("name", "'" + name + "'"));
     }
 
-    private static void writes(TestBackend backend) throws Exception {
+    static void writes(TestBackend backend) throws Exception {
         String n = backend.name();
         // a CREATE writes its node's row with its properties: a NOT NULL column takes its value with the row (the key
         // had been inserted alone, its other columns merged after)
@@ -87,12 +87,7 @@ class CypherDomainWritesTest {
     }
 
     @Test
-    void duckdb() throws Exception {
+    void writesOnThePlatform() throws Exception {
         writes(TestBackends.platform());
-    }
-
-    @Test
-    void h2() throws Exception {
-        writes(TestBackends.of(DatabaseType.H2));
     }
 }
