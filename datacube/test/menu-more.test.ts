@@ -10,6 +10,7 @@ import {
   applyMenuAction,
   buildMenu,
   calcStageOf,
+  menuCommand,
   menuItems,
   valueLabel,
   type MenuContext,
@@ -201,6 +202,8 @@ describe('applying an entry to the grid (applyMenuAction)', () => {
   };
 
   it('Clear Sort takes the column\'s sort away, the others kept in order; Clear All Sorts takes every one', () => {
+    // by the one rule Python's clear_sort asks (a clearSort command: grid-edits.ts clearSort), not a list the menu makes
+    assert.deepEqual(menuCommand(SORTED, { id: 'sort.clearColumn', label: '', column: 'desk' }), { kind: 'clearSort', column: 'desk' });
     assert.deepEqual(apply(SORTED, { id: 'sort.clearColumn', column: 'desk' }).sorts,
       [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }]);
     assert.deepEqual(apply(SORTED, { id: 'sort.clearAll' }).sorts, []);

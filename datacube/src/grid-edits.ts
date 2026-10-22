@@ -156,6 +156,19 @@ export function addSort<D extends GridDraft>(draft: D, column: string, direction
 }
 
 /**
+ * `column`'s sort taken off, the others kept as they are -- the header menu's Clear Sort (offered only for a column the
+ * grid is sorted by), Python's `clear_sort`. A column it is not sorted by is refused, naming its sorts.
+ */
+export function clearSort<D extends GridDraft>(draft: D, column: string): D {
+  const sorts = draft.snapshot.sorts;
+  if (!sorts.some((x) => x.column === column)) {
+    throw new CubeRefusal(`the grid is not sorted by '${column}'`
+      + (sorts.length > 0 ? ` (it is sorted by ${sorts.map((x) => x.column).join(', ')})` : ' (it has no sorts)'));
+  }
+  return setSorts(draft, sorts.filter((x) => x.column !== column));
+}
+
+/**
  * The direction a header click sorts a column in first (the user, 2026-10-18): a number or a date from the largest,
  * the latest; anything else from A. `type` is the column's as the result reports it (a pivot's cell is its aggregate's).
  */

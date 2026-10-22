@@ -11,7 +11,7 @@ import {
   type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
-  addSort, allColumns, clickSort, clickTreeSort, measureAsColumn, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
+  addSort, allColumns, clearSort, clickSort, clickTreeSort, measureAsColumn, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
   setSorts, spreadMeasureNames, type ColumnChange, type GridDraft,
 } from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
@@ -38,6 +38,8 @@ export type GridCommand =
   | { readonly kind: 'sorts'; readonly sorts: readonly SortSpec[] }
   /** A sort added last (the menu's Add Ascending and Add Descending, Python's sort). */
   | { readonly kind: 'addSort'; readonly column: string; readonly direction: SortDirection }
+  /** A column's sort taken off, the others kept (the menu's Clear Sort, Python's clear_sort). */
+  | { readonly kind: 'clearSort'; readonly column: string }
   /**
    * A header click: alone, or chained after the other sorts. `first` is the direction a click on it starts with, which
    * the type the compiler gave the header decides (grid-edits.ts firstSortDirection): a pivot's header, or a count of
@@ -75,13 +77,13 @@ export type GridCommand =
   | { readonly kind: 'collapseAll' };
 
 export const GRID_COMMAND_KINDS = [
-  'group', 'pivot', 'sorts', 'addSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
+  'group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
   'refilter', 'calculate', 'measures', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
 export const GRID_COMMAND_FIELDS = {
-  group: ['rows'], pivot: ['columns'], sorts: ['sorts'], addSort: ['column', 'direction'],
+  group: ['rows'], pivot: ['columns'], sorts: ['sorts'], addSort: ['column', 'direction'], clearSort: ['column'],
   clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
   filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column'],
   measures: ['measures'], editCalculated: ['name', 'level', 'column'], removeCalculated: ['name'], open: ['path', 'open'],
@@ -103,6 +105,8 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
       return setSorts(draft, command.sorts);
     case 'addSort':
       return addSort(draft, command.column, command.direction);
+    case 'clearSort':
+      return clearSort(draft, command.column);
     case 'clickSort':
       return clickSort(draft, command.column, command.first, command.chained);
     case 'clickTreeSort':
@@ -590,6 +594,9 @@ export function readGridCommand(given: unknown): GridCommand {
     case 'addSort':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, column: textFrom(o['column'], 'a sort'), direction: directionFrom(o['direction']) };
+    case 'clearSort':
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
+      return { kind, column: textFrom(o['column'], 'a sort cleared') };
     case 'clickSort':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (typeof o['chained'] !== 'boolean') throw new CubeRefusal('a header click is chained or not: true or false');

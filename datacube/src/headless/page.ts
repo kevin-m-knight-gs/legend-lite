@@ -3,10 +3,10 @@
 // layout, saved or written out -- a page of DataCube's own version, every one of its rules held
 // (readPage), written as DataCube writes it (pageToJson) -- so Python checks and writes no page by rules of its own.
 
-import { CubeDocumentError, cubeToJson, readCube } from '../cube-document.ts';
+import { CubeDocumentError, cubeCopied, cubeToJson, readCube } from '../cube-document.ts';
 import {
-  gridCopyOf, newPage, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage, savedRecord,
-  suggestedName, type PageDocument,
+  gridCopyOf, newPage, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage,
+  readSaved, savedPage, savedRecord, suggestedName, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
@@ -14,7 +14,7 @@ import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
 import { CubeRefusal, sameValue } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
-import { baseOnHost, draftFrom, gridApply, type GivenFilter, type HeldCopy } from './grid.ts';
+import { baseOnHost, draftFrom, gridApply, readGivenFilter, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
@@ -158,15 +158,15 @@ function applied(page: string, held: string, commands: string): string {
 
 /**
  * A PAGE FILTER AS PYTHON ASKS FOR ONE (Page.filter; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2): `given`,
- * `{class, filter, id?}` -- the class by its path or its name, one a grid of the page reads; the condition as Python's
- * grid filter hands one in (grid.ts draftFrom: the filter editor's operands, each operator one its property's type is
- * offered), over the class's properties as the page's grids over it read them (their class sources' columns) -- made the
- * setPageFilter command the screen's Add a Filter makes, for pageApply. JSON: `{command}`, or `{problems}`, in DataCube's
- * words.
+ * `{class, filter, id?}` -- the class by its path or its name, one a grid of the page reads; the condition as Python
+ * writes a grid's filter (grid.ts readGivenFilter, its values tagged where JSON has no form for them: D12), built by the
+ * filter editor's operands (draftFrom: each operator one its property's type is offered), over the class's properties
+ * as the page's grids over it read them (their class sources' columns) -- made the setPageFilter command the screen's
+ * Add a Filter makes, for pageApply. JSON: `{command}`, or `{problems}`, in DataCube's words.
  */
 export function pageFilter(page: string, given: string): string {
   const doc = heldPage(page);
-  const asked = JSON.parse(given) as { class: string; filter: GivenFilter; id?: string };
+  const asked = JSON.parse(given) as { class: string; filter: unknown; id?: string };
   const sources = doc.cubes.map((c) => c.cube.source).flatMap((s) => (s._type === 'class' ? [s] : []));
   const over = sources.filter((s) => s.class === asked.class || s.name === asked.class);
   const classes = [...new Set(over.map((s) => s.class))];
@@ -177,11 +177,45 @@ export function pageFilter(page: string, given: string): string {
       : `${asked.class} names ${classes.join(' and ')}: give the class's path`] });
   }
   const types = new Map<string, string | undefined>(over.flatMap((s) => s.columns.map((c) => [c.name, c.type] as const)));
-  const draft = draftFrom(asked.filter, types);
+  const filter = readGivenFilter(asked.filter);
+  if (typeof filter === 'string') return JSON.stringify({ problems: [filter] });
+  const draft = draftFrom(filter, types);
   if (typeof draft === 'string') return JSON.stringify({ problems: [draft] });
   const condition = toFilterNode(draft, (c) => types.get(c));
   if (condition === null) return JSON.stringify({ problems: ['a page filter lets something through: give it a condition'] });
   return `{"command":${toJson({ kind: 'setPageFilter', ...(asked.id !== undefined ? { id: asked.id } : {}), class: classes[0]!, condition, from: null })}}`;
+}
+
+/**
+ * A GRID'S COPY AS PYTHON MAKES ONE (grid.copy: Copy of Grid, cube-document.ts cubeCopied): `cube`, the grid's document
+ * as the page holds it, as the copy's document -- what Python's addGrid command carries, as the screen's does. JSON:
+ * `{cube}`, its text as DataCube writes it, or `{problems}`.
+ */
+export function gridCopied(cube: string): string {
+  try {
+    return JSON.stringify({ cube: cubeToJson(cubeCopied(readCube(cube))) });
+  } catch (e) {
+    if (!(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
+ * A SAVED PAGE AS IT OPENS (the tab's Open…: page-document.ts readSaved and savedPage; Python's Page.open): `record`, the
+ * page store's record as its GET answers it -- its content a page, or a cube saved alone before pages -- read as the tab
+ * reads it. JSON: `{page}`, its text as DataCube writes it, or `{problems}`, in DataCube's words.
+ */
+export function pageOfRecord(record: string): string {
+  try {
+    const read = fromJson(record) as { readonly content?: unknown } | null;
+    if (read === null || typeof read !== 'object' || read.content === undefined) {
+      return JSON.stringify({ problems: ["not a saved page: the store's record has no content"] });
+    }
+    return JSON.stringify({ page: pageToJson(savedPage(readSaved(read.content))) });
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
 }
 
 /**

@@ -24,7 +24,7 @@ import { getInstanceByDom } from 'echarts/core';
 import { CubeApp } from '../src/app.ts';
 import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { fold } from '../src/cube-state.ts';
-import { configurationOf, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
+import { configurationOf, cubeCopied, cubeToJson, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
 import { applyGridCommands, GRID_COMMAND_KINDS } from '../src/grid-commands.ts';
 import { LiveChannel } from '../src/app/live-channel.ts';
 import type { LivePage, LiveWrite } from '../src/app/services.ts';
@@ -636,6 +636,11 @@ const GESTURES: readonly Gesture[] = [
   { name: 'a grid ungrouped', setUp: twoGrids, make: ({ a }) => ungroup(a!, 'desk') },
   { name: 'a column sorted from its header menu', setUp: twoGrids, make: async ({ a }) => { await headerMenu(a!, 'notional'); entry('Ascending').click(); } },
   {
+    name: "a column's sort cleared from its header menu",
+    setUp: async () => { const g = await twoGrids(); await headerMenu(g.a, 'notional'); entry('Ascending').click(); await settle(); return g; },
+    make: async ({ a }) => { await headerMenu(a!, 'notional'); entry('Clear Sort').click(); },
+  },
+  {
     name: 'a sort added from its header menu',
     setUp: async () => { const g = await twoGrids(); await headerMenu(g.a, 'notional'); entry('Ascending').click(); await settle(); return g; },
     make: async ({ a }) => { await headerMenu(a!, 'notional'); entry('Add Descending').click(); },
@@ -824,6 +829,33 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
       ...Object.keys(UNTOLD).filter((k) => !(kinds as readonly string[]).includes(k)).map((k) => `${k}: no such kind`),
     ];
     assert.deepEqual(problems, [], 'every command kind is told by some gesture, or listed');
+  });
+});
+
+describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy asks (K10: cube-document.ts cubeCopied)", () => {
+  it('the addGrid it tells carries the copied grid\'s cube as cubeCopied makes it: its query and settings, no group open', async () => {
+    const { a } = await twoGrids();
+    // a group of the grid copied open first: the copy starts with none open, as a new grid does
+    chevron(a);
+    await drawn();
+    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel.opened(1);
+    await drawn();
+    await channel.idle();
+    const was = onScreen();
+    const original = was.cubes.find((c) => c.id === was.views.find((v) => v.id === a)?.cube)?.cube;
+    assert.ok(original && original.tree.open.length > 0, 'the grid copied has a group open');
+    gridMenuItem(a, 'Copy of Grid').click();
+    await drawn();
+    await channel.idle();
+    await drawn();
+    const added = writes.flatMap((w) => ('restore' in w.write ? [] : w.write.edits))
+      .flatMap((e) => ('page' in e && e.page.kind === 'addGrid' ? [e.page] : []));
+    assert.equal(added.length, 1, 'one grid added');
+    const copy = added[0]!.document;
+    assert.ok(copy, 'its document written');
+    assert.deepEqual(JSON.parse(cubeToJson(copy)), JSON.parse(cubeToJson(cubeCopied(original))));
+    assert.deepEqual(copy.tree.open, [], 'no group open in the copy');
   });
 });
 

@@ -56,9 +56,16 @@ interface Entry {
 // 2026-10-22 (S5, B11): MARKERS 1 -> 0, L8_UNASKED 2 -> 1 -- the tab's Join… on a Python page, each of its window's asks
 // answered by Python over its tables (engine.py join.json: headless joinSides, joinQuestions, joinCube; join-flow.ts
 // hostJoinFlow), tested by host-join-flow.test.ts and test_page.py Joined
+// 2026-10-22 (S6 B: K1 K2 K8 K10 K12 Z19, D21's names): L8_KINDS 11 -> 6, L8_UNASKED 1 -> 0, UNCHECKED 7 -> 4 -- Python
+// adds a condition (grid.add_filter: headless gridAddFilter), moves and removes a sheet (sheet.move, page.remove(sheet)),
+// sets and takes off a page filter (page.filter: headless pageFilter, page.remove_filter); replaces and clears sorts
+// (grid.sorts, grid.clear_sort: a clearSort command the menu's Clear Sort builds too), copies a grid (grid.copy: headless
+// gridCopied, cube-document.ts cubeCopied, the screen's copy held the same by one-api-gestures.test.ts) and opens a
+// saved page by its id (ll.Page.open: headless pageOfRecord, page-document.ts savedPage, the tab's Open… rule); tested by
+// test_page.py Abilities and OverClasses
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 11, L8_SOURCES: 3, L8_UNASKED: 1, MARKERS: 0, UNCHECKED: 7,
+  L8_KINDS: 6, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 4,
 };
 
 function pinned(name: string, size: number): void {
@@ -211,11 +218,7 @@ type Cell = 'screen' | 'python';
 const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   clickSort: { python: { items: [], why: "nature: a header click is the screen's; Python sorts by `sorts` and `addSort`" } },
   clickTreeSort: { python: { items: [], why: "nature: the tree column's click is the screen's" } },
-  addFilter: { python: { items: ['K2'] } },
   measures: { screen: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" } },
-  moveSheet: { python: { items: ['K8'] } },
-  removeSheet: { python: { items: ['K8'] } },
-  setPageFilter: { python: { items: ['K7'] } },
   // 2026-10-21, One API S1 G7: a chart's selection became the page's select and its grid's refilter -- Python's chart
   // selection is K7's (S6), so both kinds come in listed (L8_KINDS 13 -> 15; signed off by the user, 2026-10-22: D10)
   select: { python: { items: ['K7'] } },
@@ -223,7 +226,6 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   // 2026-10-21, One API S1 P8: a detached chart's Update tells its query as setChartCube -- Python's Open in grid and
   // Update are K11's (S6), so the kind comes in listed (L8_KINDS 12 -> 13; signed off by the user, 2026-10-22: D10)
   setChartCube: { python: { items: ['K11'] } },
-  removePageFilter: { python: { items: ['K7'] } },
 };
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */
@@ -239,9 +241,7 @@ const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }
 const PYTHON_ADDS: Record<string, string> = { frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube' };
 
 /** Headless exports Python never asks (`call('<name>'`): each one Python should. */
-const L8_UNASKED: Record<string, Entry> = {
-  pageFilter: { items: ['Z19'] },
-};
+const L8_UNASKED: Record<string, Entry> = {};
 
 /**
  * WHAT IS NOT CHECKED YET, SAID: what the screen does that Python's API cannot, with no command kind of its own to
@@ -249,13 +249,10 @@ const L8_UNASKED: Record<string, Entry> = {
  * these are register entries no test holds -- listed so, and pinned, never mistaken for checked.
  */
 const UNCHECKED_UNTIL_S6: Record<string, string> = {
-  K1: 'sorts replaced, one cleared, all cleared, after a grid is made',
   K4: 'group-level, window, child-aggregate and explode columns; the Show As and period presets',
   K6: 'a dimension used',
   K9: 'a chart drilled, and back up',
-  K10: 'Copy of Grid',
   K11: "a chart's Open in grid and Update",
-  K12: 'a saved page opened by its id',
 };
 
 describe('L8: every command kind and source kind, against who makes and reads it', () => {
@@ -449,7 +446,9 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-22, D18: the independent review of S5, D15 and D16, added by rule 9 and closed (or declared) with each fix
   + 'F28 F29 F30 F31 F32 F33 F34 F35 F36 F37 F38 F39 F40 '
   // 2026-10-22, PR #64's CI (macOS, 821615817): a test that raced the board's lazily loaded code, added by rule 9
-  + 'F41 ').split(' ').filter((item) => item !== '');
+  + 'F41 '
+  // 2026-10-22, S6 B: a page filter with a number broke Python's grid reads (the lens read it exactly), found testing K7
+  + 'F42 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

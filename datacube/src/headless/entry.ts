@@ -8,15 +8,15 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened, leafCube,
-  gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
+  cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
+  leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOpenedLive, pageRead, pageReads, pageRebase,
-  pageRecord, pageSaved, pageWithCube, pageWritten,
+  gridCopied, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  pageReads, pageRebase, pageRecord, pageSaved, pageWithCube, pageWritten,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides } from './join.ts';
 
@@ -35,6 +35,10 @@ export {
   cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened, leafCube,
   gridRelation, gridSnapPull, gridView,
 };
+
+/** One condition added to a grid's filter, as a cell's Add Filter adds one (gridAddFilter: Python's grid.add_filter), and
+ *  a grid's copy, as Copy of Grid makes it (gridCopied: Python's grid.copy). */
+export { gridAddFilter, gridCopied };
 
 /** Why a snap past its host's row limit is refused: the tab's sentence, which Python's engine says too (Z16). And a new
  *  grid's query as the commands that make it, in a person's order (gridSetUp: Python's `page.grid(...)`, Z8). */
@@ -63,6 +67,8 @@ export { layoutBands, layoutTiles };
  *  DataCube starts one: what Python's ll.Page() asks. And a
  *  page edited by commands (page-commands.ts): what Python's page edits send. */
 export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
+/** A page saved in the page store as it opens (pageOfRecord: the tab's Open…, Python's Page.open). */
+export { pageOfRecord };
 /** A grid's edit on a page: the page with its cube as the edit left it, its charts following it (V1, V2). */
 export { pageWithCube };
 /** The page's keeper (Python's: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) asks DataCube what it never reads itself: a

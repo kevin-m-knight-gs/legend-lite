@@ -454,6 +454,15 @@ export function readSaved(input: string | unknown): SavedDocument {
 }
 
 /**
+ * A SAVED DOCUMENT AS THE PAGE IT OPENS AS (the tab's Open…, Python's Page.open): a page as it is; a cube saved alone,
+ * before pages, a page of its one grid, the whole board.
+ */
+export function savedPage(saved: SavedDocument): PageDocument {
+  if (saved.kind === 'page') return saved.page;
+  return writePageOf({ name: saved.cube.name, cubes: [{ id: 'cube', cube: saved.cube }], views: startingViews({ id: 'grid', cube: 'cube' }) });
+}
+
+/**
  * `empty`: a page of no grid read as one, where a page is written live and not saved -- one Python holds (it starts
  * as one) or a tab has taken its last grid off (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5). A saved
  * page with no cube is never one DataCube opens.
@@ -737,9 +746,13 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof ExactNumber);
 }
 
-function plain(v: unknown): unknown {
+/** JSON read exactly (fromJson), its numbers plain: what a page's parts but its cubes are read as (their filters, its
+ *  layout's shares) -- the headless lens's page filters too (grid.ts lensOf). */
+export function plainNumbers(v: unknown): unknown {
   if (v instanceof ExactNumber) return Number(v.text);
-  if (Array.isArray(v)) return v.map(plain);
-  if (isObject(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plain(x)]));
+  if (Array.isArray(v)) return v.map(plainNumbers);
+  if (isObject(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plainNumbers(x)]));
   return v;
 }
+
+const plain = plainNumbers;

@@ -170,25 +170,28 @@ describe('a page filter as Python asks for one (headless pageFilter): the comman
   const text = pageToJson(classPage);
   const ask = (given: unknown): { command?: PageCommand; problems?: string[] } => JSON.parse(pageFilter(text, JSON.stringify(given)));
 
-  it('its class by name or path, its condition typed by the class\'s properties, applied by pageApply', () => {
-    const { command } = ask({ class: 'Trade', filter: { kind: 'condition', column: 'region', operator: 'in', operand: ['EMEA', 'AMER'] } });
+  it('its class by name or path, its condition as Python writes one, typed by the class\'s properties, applied by pageApply', () => {
+    const { command } = ask({ class: 'Trade', filter: ['region', 'in', ['EMEA', 'AMER']] });
     assert.deepEqual(command, { kind: 'setPageFilter', class: TRADE,
       condition: { kind: 'condition', column: 'region', operator: 'in', value: ['EMEA', 'AMER'] }, from: null });
-    assert.deepEqual(ask({ class: TRADE, filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', operand: 5 } }).command,
+    assert.deepEqual(ask({ class: TRADE, filter: ['qty', 'greaterThan', 5] }).command,
       { kind: 'setPageFilter', class: TRADE, condition: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 5 }, from: null });
     const done = JSON.parse(pageApply(text, JSON.stringify(idsOf(classPage)), JSON.stringify([command]))) as { page: string; commands: PageCommand[] };
     assert.deepEqual(readPage(done.page).filters?.map((f) => f.id), ['filter-1']);
   });
 
   it('refused in words: a class no grid reads, a property the class has not, an operator its type is not offered', () => {
-    assert.match(ask({ class: 'Customer', filter: { kind: 'condition', column: 'region', operator: 'equal', operand: 'EMEA' } }).problems![0]!,
+    assert.match(ask({ class: 'Customer', filter: ['region', 'equal', 'EMEA'] }).problems![0]!,
       /no grid of the page reads a class "Customer" \(its grids read trades::domain::Trade\)/);
-    assert.match(ask({ class: 'Trade', filter: { kind: 'condition', column: 'colour', operator: 'equal', operand: 'red' } }).problems![0]!,
+    assert.match(ask({ class: 'Trade', filter: ['colour', 'equal', 'red'] }).problems![0]!,
       /names "colour", not a column of the grid/);
-    assert.match(ask({ class: 'Trade', filter: { kind: 'condition', column: 'qty', operator: 'startsWith', operand: '1' } }).problems![0]!,
+    assert.match(ask({ class: 'Trade', filter: ['qty', 'startsWith', '1'] }).problems![0]!,
       /'startsWith' is not offered on qty/);
+    // the filter as Python writes one (grid.ts readGivenFilter), never the editor's tree a host does not hold
+    assert.match(ask({ class: 'Trade', filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', operand: 5 } }).problems![0]!,
+      /a filter is a condition \(column, operator, value\)/);
     const frameText = pageToJson(frames);
-    assert.match((JSON.parse(pageFilter(frameText, JSON.stringify({ class: 'Trade', filter: EMEA }))) as { problems: string[] }).problems[0]!,
+    assert.match((JSON.parse(pageFilter(frameText, JSON.stringify({ class: 'Trade', filter: ['region', 'equal', 'EMEA'] }))) as { problems: string[] }).problems[0]!,
       /none reads a class/);
   });
 });

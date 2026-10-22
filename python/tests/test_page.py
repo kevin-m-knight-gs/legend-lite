@@ -1185,6 +1185,125 @@ class Document(Paged):
             ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()})
 
 
+class Abilities(Paged):
+    """What a person does on the screen, done from Python by the command the screen's gesture builds and applied by
+    DataCube's own function (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S6; the names the user's, D21)."""
+
+    def notionals(self, grid):
+        view = grid.view()
+        at = [c['name'] for c in view.columns].index('notional')
+        return [row[at] for row in view.rows]
+
+    def test_its_sorts_are_replaced_one_cleared_and_all_cleared(self):
+        # (K1) grid.sorts: the Sorts panel's whole list (sorts); grid.clear_sort: the header menu's Clear Sort (clearSort)
+        page = ll.Page('Sorted')
+        grid = page.grid(trades(), name='sorted_trades')
+        grid.sorts([('notional', 'desc'), 'region'])
+        self.assertEqual(grid._query['sorts'], [{'column': 'notional', 'direction': 'desc'},
+                                                {'column': 'region', 'direction': 'asc'}])
+        self.assertEqual(self.notionals(grid), [250.0, 100.0, 75.5])
+        grid.clear_sort('notional')
+        self.assertEqual(grid._query['sorts'], [{'column': 'region', 'direction': 'asc'}])
+        self.assertEqual(page._commands[-1], {'kind': 'clearSort', 'column': 'notional'})
+        # refused in DataCube's words, nothing set
+        with self.assertRaisesRegex(ValueError, r"the grid is not sorted by 'desk' \(it is sorted by region\)"):
+            grid.clear_sort('desk')
+        with self.assertRaisesRegex(ValueError, r"the sorts name 'region' twice"):
+            grid.sorts(['region', ('region', 'desc')])
+        with self.assertRaisesRegex(ValueError, r"a sort is a column or \(column, 'asc' \| 'desc'\), not 3"):
+            grid.sorts([3])
+        self.assertEqual(grid._query['sorts'], [{'column': 'region', 'direction': 'asc'}])
+        # none: every sort cleared, as Clear All Sorts clears them
+        grid.sorts([])
+        self.assertEqual(grid._query['sorts'], [])
+
+    def test_a_condition_is_added_to_its_filter_and_ed_with_what_it_has(self):
+        # (K2) grid.add_filter: a cell's Add Filter (addFilter), the condition built as grid.filter builds one
+        page = ll.Page('Filtered')
+        grid = page.grid(trades(), name='filtered_trades')
+        grid.filter(('desk', 'equal', 'Rates'))
+        grid.add_filter(('region', 'equal', 'EMEA'))
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5])
+        self.assertEqual(page._commands[-1], {'kind': 'addFilter', 'condition': {
+            'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': 'EMEA'}})
+        # one condition: a group is filter's to set; a column the grid has not, refused in its words
+        with self.assertRaisesRegex(ValueError, 'a filter added is one condition'):
+            grid.add_filter(('or', [('region', 'equal', 'EMEA'), ('desk', 'equal', 'FX')]))
+        with self.assertRaisesRegex(ValueError, 'nope'):
+            grid.add_filter(('nope', 'equal', 'x'))
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5])
+
+    def test_copy_of_grid_is_a_grid_of_its_own_beside_it_starting_as_it_is(self):
+        # (K10) grid.copy: Copy of Grid -- the copy's cube by DataCube's one rule (cube-document.ts cubeCopied), the one
+        # the screen's copy writes (one-api-gestures.test.ts holds the two the same)
+        page = ll.Page('Copied')
+        grid = page.grid(trades(), name='copied_trades', rows=['region'], measures={'notional': 'sum'})
+        grid.expand('EMEA')
+        copied = grid.copy()
+        self.assertEqual(len(page.grids), 2)
+        self.assertEqual(copied.sheet.id, grid.sheet.id)
+        self.assertEqual(copied._query, grid._query)
+        self.assertEqual(copied._cube['tree']['open'], [], 'no group open, as a new grid starts')
+        self.assertNotEqual(grid._cube['tree']['open'], [])
+        self.assertEqual(groups_of(copied.view(), 'notional'), {'EMEA': 175.5, 'AMER': 250.0})
+        # a cube of its own: an edit of the copy leaves the grid as it was
+        copied.group('desk')
+        self.assertEqual(grid._query['rows'], ['region'])
+        # added as the screen adds it: beside the grid copied
+        self.assertIn(('addGrid', grid.id), [(c['kind'], c.get('near')) for c in page._page_commands])
+
+    def test_a_sheet_is_moved_among_the_sheets_and_removed_with_its_tiles(self):
+        # (K8) sheet.move: its tab's Move Left and Move Right (moveSheet); page.remove(sheet): its tab's Delete
+        # (removeSheet), its tiles with it
+        page = ll.Page('Sheets')
+        first = page.sheets[0]
+        page.grid(trades(), name='sheet_trades')
+        second = page.sheet('Charts')
+        third = page.sheet('Notes')
+        on_third = page.grid(desks(), name='sheet_desks', sheet=third)
+        third.move(0)
+        self.assertEqual([s.id for s in page.sheets], [third.id, first.id, second.id])
+        third.move(99)
+        self.assertEqual([s.id for s in page.sheets], [first.id, second.id, third.id], 'a place past the end is the end')
+        with self.assertRaisesRegex(ValueError, "a sheet's place is a whole number, not '1'"):
+            first.move('1')
+        page.remove(third)
+        self.assertEqual([s.id for s in page.sheets], [first.id, second.id])
+        self.assertEqual(len(page.grids), 1)
+        with self.assertRaisesRegex(ValueError, 'is no longer on its page'):
+            on_third.view()
+        with self.assertRaisesRegex(ValueError, 'is no longer on its page'):
+            third.name
+        page.remove(second)
+        with self.assertRaisesRegex(ValueError, 'a page has one sheet at least'):
+            page.remove(first)
+
+    def test_a_saved_page_is_opened_by_its_id_as_datacubes_open_opens_it(self):
+        # (K12) ll.Page.open: the record from this user's saved pages, opened as Open… opens it (headless pageOfRecord)
+        from legend_lite._home import THIS_USER, pages_folder, store_call
+        page = ll.Page('To open')
+        page.grid(trades(), name='open_trades', rows=['region'], measures={'notional': 'sum'})
+        id = page.save()
+        opened = ll.Page.open(id, frames={'open_trades': trades()})
+        self.assertEqual(opened.name, 'To open')
+        self.assertEqual(opened.grids[0]._query, page.grids[0]._query)
+        self.assertEqual(groups_of(opened.grids[0].view(), 'notional'), {'EMEA': 175.5, 'AMER': 250.0})
+        # saved again, over the record it was opened from
+        self.assertEqual(opened.save(), id)
+        with self.assertRaisesRegex(ValueError, "no saved page 'nope' in this user's saved pages"):
+            ll.Page.open('nope')
+        with self.assertRaisesRegex(ValueError, 'the page reads the frames open_trades: give them'):
+            ll.Page.open(id)
+        # a cube saved alone, before pages: a page of its one grid, as the tab opens one
+        cube = page.to_dict()['cubes'][0]['cube']
+        status, _ = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '',
+                               _json.dumps({'id': 'old-cube', 'name': 'To open', 'content': cube}), THIS_USER)
+        self.assertEqual(status, 200)
+        alone = ll.Page.open('old-cube', frames={'open_trades': trades()})
+        self.assertEqual(len(alone.grids), 1)
+        self.assertEqual(alone.grids[0]._query, cube['query'])
+
+
 class Live(Paged):
     def get(self, path):
         web = datacube._session.web()
@@ -2223,6 +2342,30 @@ class OverClasses(Paged):
         self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5})
         self.assertNotIn('AMER', grid.export('csv'))
         self.assertIn('EMEA', grid.export('csv'))
+
+    def test_a_page_filter_is_set_read_and_taken_off_as_the_screens_add_a_filter_sets_one(self):
+        # (K7, Z19) page.filter: made by DataCube's code headless (pageFilter), the setPageFilter command the screen's Add
+        # a Filter makes -- every grid over the class reading through it; page.filters; page.remove_filter
+        _, doc = self.classed()
+        loaded = ll.Page.load(doc)
+        grid = loaded.grids[0]
+        path = doc['cubes'][0]['cube']['source']['class']
+        id = loaded.filter('Trade', ('region', 'equal', 'EMEA'))
+        self.assertEqual([(f['id'], f['class'], f['condition']) for f in loaded.filters],
+                         [(id, path, {'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': 'EMEA'})])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 100.0])
+        # by its id, replaced
+        self.assertEqual(loaded.filter(path, ('notional', 'greaterThan', 90), id=id), id)
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [100.0, 250.0])
+        # refused in DataCube's words, nothing set
+        with self.assertRaisesRegex(ValueError, 'no grid of the page reads a class "Customer"'):
+            loaded.filter('Customer', ('region', 'equal', 'EMEA'))
+        with self.assertRaisesRegex(ValueError, 'colour'):
+            loaded.filter('Trade', ('colour', 'equal', 'red'))
+        self.assertEqual(len(loaded.filters), 1)
+        loaded.remove_filter(id)
+        self.assertEqual(loaded.filters, [])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 100.0, 250.0])
 
     def test_a_class_whose_table_is_not_served_is_refused_never_read_from_its_sample_rows(self):
         # F28: a class's rows are the tables this host serves -- the sample rows Create a Class wrote into its project are

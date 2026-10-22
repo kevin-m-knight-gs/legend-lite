@@ -15,7 +15,7 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import { gridCapped, type CubeDocument } from '../cube-document.ts';
+import { gridCapped } from '../cube-document.ts';
 import { handleKey } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
@@ -29,9 +29,8 @@ import {
   pageDefinitionText,
   pageToJson,
   readSaved,
+  savedPage,
   savedRecord,
-  startingViews,
-  writePageOf,
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
@@ -722,11 +721,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     /** Ask that what is saved be kept, once. */
     const persist = async (): Promise<boolean> => (persistent ||= (await pages?.persist()) ?? false);
 
-    /** A cube saved alone, before pages: a page of its one grid, the whole board. */
-    const pageOf = (cube: CubeDocument): PageDocument => writePageOf({
-      name: cube.name, cubes: [{ id: 'cube', cube }], views: startingViews({ id: 'grid', cube: 'cube' }),
-    });
-
     /**
      * OPEN A SAVED PAGE (from the store, a file someone handed over, a share link): each of its cubes through its own
      * source, in turn, then the page laid out as it was saved -- its grids under their saved ids, its charts, its
@@ -736,7 +730,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      */
     async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false,
       held: readonly string[] = []): Promise<readonly string[]> {
-      const given = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
+      // a page, or a cube saved alone before pages: the page it opens as (page-document.ts savedPage, Python's Page.open's)
+      const given = savedPage(saved);
       // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
       // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). The page its other editor serves (`replacing`) keeps them: its
       // host holds them now.

@@ -35,7 +35,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
 import type { GridDraft } from '../grid-edits.ts';
-import { readGridCopy, readPage, type GridCopy } from '../page-document.ts';
+import { plainNumbers, readGridCopy, readPage, type GridCopy } from '../page-document.ts';
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
@@ -47,7 +47,7 @@ import { formatOf } from '../upload.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
-  type AggregateFn, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterValue, type SortDirection,
+  type AggregateFn, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterNode, type FilterValue, type SortDirection,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
@@ -417,7 +417,8 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
 function lensOf(text: string, source: CubeSource): QueryLens | undefined {
   const said = fromJson(text) as unknown as { readonly filters: unknown; readonly charts: readonly string[] };
   const charts = new Set(said.charts);
-  return gridLens(readPageFilters(said.filters, charts), source, charts).lens;
+  // its numbers plain, as a page's filters are read (page-document.ts readPage): a filter's value is a plain number
+  return gridLens(readPageFilters(plainNumbers(said.filters), charts), source, charts).lens;
 }
 
 /** The grid's columns as the compiler types them now, its calculated ones too: the controller's step 0 (plan.ts
@@ -614,13 +615,40 @@ export async function gridFilter(spec: GridSpec, given: string): Promise<string>
   const read = readGivenFilter(JSON.parse(given));
   if (typeof read === 'string') return JSON.stringify({ problems: [read] });
   return using(spec, async (o) => {
-    const typed = await typedColumns(o.runner, o.state.snapshot);
-    const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
-    const made = draftFrom(read, types);
-    if (typeof made === 'string') return JSON.stringify({ problems: [`${made} -- ${CONDITION_FORM}`] });
+    const made = await editorFilter(o, read);
+    if ('problem' in made) return JSON.stringify({ problems: [made.problem] });
     // the editor's normal form, set by the command the filter editor's Apply builds
-    return applied(spec, o, [{ kind: 'filter', filter: toFilterNode(made, (c) => types.get(c)) }]);
+    return applied(spec, o, [{ kind: 'filter', filter: made.filter }]);
   });
+}
+
+/**
+ * ONE CONDITION ADDED TO THE FILTER, as a cell's Add Filter adds one (grid-commands.ts addFilter: AND-ed with the filter
+ * the grid has): `given` (JSON, as gridFilter takes it) built and converted as the filter editor builds and converts one
+ * (editorFilter) -- one condition, as the command takes. JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ */
+export async function gridAddFilter(spec: GridSpec, given: string): Promise<string> {
+  const read = readGivenFilter(JSON.parse(given));
+  if (typeof read === 'string') return JSON.stringify({ problems: [read] });
+  return using(spec, async (o) => {
+    const made = await editorFilter(o, read);
+    if ('problem' in made) return JSON.stringify({ problems: [made.problem] });
+    if (made.filter === null || made.filter.kind !== 'condition') {
+      return JSON.stringify({ problems: [`a filter added is one condition, not ${given} -- ${CONDITION_FORM}`] });
+    }
+    return applied(spec, o, [{ kind: 'addFilter', condition: made.filter }]);
+  });
+}
+
+/** `read` built into the filter editor's draft over the grid's columns as the compiler types them now (draftFrom: its
+ *  operators' own operands and offers) and converted as the editor converts its tree (toFilterNode: its normal form, a
+ *  group of one that one, an empty group none) -- or why not, in its words. */
+async function editorFilter(o: Opened, read: GivenFilter): Promise<{ filter: FilterNode | null } | { problem: string }> {
+  const typed = await typedColumns(o.runner, o.state.snapshot);
+  const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
+  const made = draftFrom(read, types);
+  if (typeof made === 'string') return { problem: `${made} -- ${CONDITION_FORM}` };
+  return { filter: toFilterNode(made, (c) => types.get(c)) };
 }
 
 /**

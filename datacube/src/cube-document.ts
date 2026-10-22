@@ -880,6 +880,16 @@ export function configurationOf(doc: CubeDocument): CubeConfiguration {
   return merge(DEFAULT_CONFIGURATION, doc.configuration) as CubeConfiguration;
 }
 
+/**
+ * A COPY OF A GRID'S CUBE (Copy of Grid; Python's grid.copy): its source, query and settings as `doc` has them now, and
+ * the tree a new grid starts with -- no group open, its grand total as its settings say (app.ts: TreeState.empty) -- as
+ * the copy the screen makes writes itself; nothing a newer writer added (`unknown`), which the copy never read.
+ */
+export function cubeCopied(doc: CubeDocument): CubeDocument {
+  const { unknown: _dropped, ...copied } = doc;
+  return { ...copied, tree: treeDocument(TreeState.empty(configurationOf(doc).showRootAggregation)) };
+}
+
 /** The open rows a document describes. */
 export function treeOf(doc: CubeDocument): TreeState {
   return TreeState.saved(doc.tree.open, doc.tree.showTotals, doc.tree.expandTo ?? 0, doc.tree.closed ?? []);

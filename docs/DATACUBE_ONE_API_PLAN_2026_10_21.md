@@ -424,9 +424,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   datacube-app-live.test.ts)
 - [x] **Z18** the saved-page record — closed S5: page-document.ts `savedRecord(id, name, page)`, the Save window's,
   which Python's `save()` asks through headless `pageRecord` (page-document.test.ts, test_page.py)
-- [ ] **Z19** headless exports Python never calls (`pageFilter`, `joinQuestions`) used by S6's API, stale comments
-  fixed — S6, L8 (S5, B11: `joinQuestions` is asked now, by engine.py's `join.json` for the tab's Join…; `pageFilter`
-  is left)
+- [x] **Z19** headless exports Python never calls (`pageFilter`, `joinQuestions`) used by S6's API, stale comments
+  fixed — S6, L8 (S5, B11: `joinQuestions` is asked now, by engine.py's `join.json` for the tab's Join…) — closed S6:
+  `page.filter` asks `pageFilter`, which now reads the condition as Python writes a grid's (grid.ts `readGivenFilter`,
+  its tests moved to that form: no caller ever sent the editor's tree it took); L8_UNASKED is empty (test_page.py
+  `OverClasses`, page-filters.test.ts)
 
 ### Same job, different rule (audit §6)
 - [x] **B1** page filters reach Python's `view()`, `to_pandas()`, `export()` (headless through `gridLens`) — closed S5:
@@ -517,20 +519,27 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   engine answers a tab; their rows the engine's plan-and-run (the frames' database, a project's own: C5)
 
 ### Capability parity (audit §7; Python's API, names reviewed with the user before S6)
-- [ ] **K1** sorts: replace, clear one, clear all — S6, L8
-- [ ] **K2** add one condition to a filter — S6, L8
+- [x] **K1** sorts: replace, clear one, clear all — closed S6: `grid.sorts([...])` (a `sorts` command) and
+  `grid.clear_sort(col)`, a `clearSort` command the header menu's Clear Sort now builds too (grid-edits.ts `clearSort`,
+  the menu's list-making moved out: D6) (test_page.py `Abilities`, grid-commands.test.ts, menu-more.test.ts)
+- [x] **K2** add one condition to a filter — closed S6: `grid.add_filter(condition)`, built by the filter editor's own
+  conversion (headless `gridAddFilter`, sharing `gridFilter`'s `editorFilter`) as one `addFilter` (test_page.py `Abilities`)
 - [x] **K3** calculated columns: edit, rename, remove — closed S1 with G4/G5: Python `grid.edit_calculated` (rename=) and
   `grid.remove_calculated`, test_page.py
 - [ ] **K4** group-level, window, child-aggregate, explode columns; the Show As and period presets — S6, L8
 - [x] **K5** expand, collapse, collapse all — closed S1 with G1/G2: Python `grid.expand`, `grid.collapse`,
   `grid.collapse_all`, test_page.py
 - [ ] **K6** dimensions — S6, L8
-- [ ] **K7** a chart's selection; page filters — S6, L8 (D8: `select`, `selection`)
-- [ ] **K8** sheets: reorder, remove — S6, L8
+- [ ] **K7** a chart's selection; page filters — S6, L8 (D8: `select`, `selection`) (S6 B: page filters done --
+  `page.filter`, `page.filters`, `page.remove_filter`; the chart's selection left, with S6 D)
+- [x] **K8** sheets: reorder, remove — closed S6: `sheet.move(position)` (`moveSheet`), `page.remove(sheet)`
+  (`removeSheet`, its tiles with it) (test_page.py `Abilities`)
 - [ ] **K9** drill a chart, and back up — S6, L8 (D8: `drill`, `drill_up`, `drilled`)
-- [ ] **K10** Copy of Grid — S6, L8
+- [x] **K10** Copy of Grid — closed S6: `grid.copy()`, its cube by cube-document.ts `cubeCopied` (headless `gridCopied`),
+  the one the screen's copy writes, held the same by one-api-gestures.test.ts (test_page.py `Abilities`)
 - [ ] **K11** a chart's Open in grid and Update — S6, L8 (D7: one Show Grid replaces them; D8: `chart.grid()`)
-- [ ] **K12** open a saved page by id — S6, L8
+- [x] **K12** open a saved page by id — closed S6: `ll.Page.open(id)`, the record read as the tab's Open… reads it
+  (page-document.ts `savedPage`, moved out of the app: D6; headless `pageOfRecord`) (test_page.py `Abilities`)
 
 ### Found by the audits (rule 9: each added here, fixed with a test that fails without it, closed in that commit)
 - [x] **F1** a chart's selection taken off by a grid edit made while its click's refilter was in flight (the page's
@@ -675,6 +684,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   (CI's macOS, 821615817) the load outlasted the wait, so the first test read one chart where it made two — closed
   (PR #64's CI): each call awaited; with the board's code made 300 ms slower to load the old test fails as CI did and
   the new one passes
+- [x] **F42** a page filter with a number in it (`notional > 90`) broke every read of the page's grids from Python: the
+  headless lens read the filters exactly (an `ExactNumber`), the filter reader refused it, and the refusal's own words
+  failed to print it — S5's B1, tested with text values only — closed (S6, found testing K7): the lens reads them with
+  plain numbers, as a page's filters are read (page-document.ts `plainNumbers`, grid.ts `lensOf`) (test_page.py
+  `OverClasses` `test_a_page_filter_is_set_read_and_taken_off_as_the_screens_add_a_filter_sets_one`, failing without it)
 
 ## 5. The steps
 

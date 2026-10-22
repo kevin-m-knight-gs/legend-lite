@@ -13,7 +13,7 @@ import {
   GRID_COMMAND_KINDS, applyGridCommand, applyGridCommands, draftCommands, readGridCommand, type GridCommand,
 } from '../src/grid-commands.ts';
 import {
-  addSort, clickSort, clickTreeSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, spreadMeasureNames,
+  addSort, clearSort, clickSort, clickTreeSort, measureAsColumn, setColumn, setGrouping, setPivot, setSorts, spreadMeasureNames,
   type GridDraft,
 } from '../src/grid-edits.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type DerivedColumn } from '../src/snapshot.ts';
@@ -135,6 +135,17 @@ describe('each command gives what the screen\'s own edit gives', () => {
       { hidden: true });
     refused(() => applyGridCommand(dims, { kind: 'configure', patch: { columns: { count: { aggregateFn: 'max' } } } }),
       /the count a pivot of no measure fills with: it has no kind/);
+  });
+
+  it('clearSort takes one column\'s sort off, the others kept in order; one the grid is not sorted by is refused', () => {
+    const sorted = draft({ sorts: [{ column: 'region', direction: 'asc' }, { column: 'qty', direction: 'desc' },
+      { column: 'notional', direction: 'asc' }] });
+    assert.deepEqual(applyGridCommand(sorted, { kind: 'clearSort', column: 'qty' }), clearSort(sorted, 'qty'));
+    assert.deepEqual(applyGridCommand(sorted, { kind: 'clearSort', column: 'qty' }).snapshot.sorts,
+      [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }]);
+    refused(() => applyGridCommand(sorted, { kind: 'clearSort', column: 'desk' }),
+      /the grid is not sorted by 'desk' \(it is sorted by region, qty, notional\)/);
+    refused(() => applyGridCommand(draft(), { kind: 'clearSort', column: 'qty' }), /not sorted by 'qty' \(it has no sorts\)/);
   });
 
   it('filter sets the filter whole, and null takes it off', () => {
@@ -301,6 +312,7 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'pivot', columns: [] },
     { kind: 'sorts', sorts: [{ column: 'qty', direction: 'desc' }] },
     { kind: 'addSort', column: 'qty', direction: 'asc' },
+    { kind: 'clearSort', column: 'qty' },
     { kind: 'clickSort', column: 'qty', first: 'desc', chained: true },
     { kind: 'clickTreeSort', chained: false },
     { kind: 'column', name: 'qty', change: { kind: 'dimension', aggregate: null, weight: null } },

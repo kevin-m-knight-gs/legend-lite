@@ -426,6 +426,52 @@ class Grid(Tile):
         grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
         return self._apply([_commands.grid_add_sort(column=column, direction=direction)])
 
+    def sorts(self, sorts: Sequence[Any]) -> Grid:
+        """Its sorts, whole and in order, replacing those it has, as the Sorts panel sets them (a ``sorts`` command,
+        grid-edits.ts setSorts): each a column, ascending, or ``(column, 'asc' | 'desc')``; ``[]`` clears them all, as
+        the header menu's Clear All Sorts does. Refused, nothing set, in DataCube's words."""
+        given = []
+        for sort in sorts:
+            if isinstance(sort, str):
+                given.append({'column': sort, 'direction': 'asc'})
+            elif isinstance(sort, (list, tuple)) and len(sort) == 2:
+                given.append({'column': sort[0], 'direction': sort[1]})
+            else:
+                raise ValueError(f"a sort is a column or (column, 'asc' | 'desc'), not {sort!r}")
+        return self._apply([_commands.grid_sorts(sorts=given)])
+
+    def clear_sort(self, column: str) -> Grid:
+        """``column``'s sort taken off, the others kept as they are, as the header menu's Clear Sort takes it (a
+        ``clearSort`` command, grid-edits.ts clearSort): refused, in DataCube's words, when the grid is not sorted by it."""
+        return self._apply([_commands.grid_clear_sort(column=column)])
+
+    def add_filter(self, condition: Any) -> Grid:
+        """One condition added to its filter, AND-ed with what it has, as a cell's Add Filter adds one (an ``addFilter``
+        command): ``(column, operator[, value])``, built as ``filter`` builds one (DataCube's code, headless:
+        gridAddFilter) -- a group is ``filter``'s to set. Refused, nothing set, in DataCube's words."""
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridAddFilter', self._spec(engine, frames), _json.dumps(_tagged(condition))))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
+
+    def copy(self, *, title: str | None = None) -> Grid:
+        """Copy of Grid: another grid beside this one, on its sheet, a cube of its own over the same source, starting as
+        this one is now -- its query and its settings, no group open (DataCube's code, headless gridCopied:
+        cube-document.ts cubeCopied) -- titled by its number unless given one, as the screen adds it (an ``addGrid``
+        command). Its charts are not copied, as the screen copies none."""
+        if title is not None and not isinstance(title, str):
+            raise ValueError(f'a title is a name, not {title!r}')
+        page = self._page
+        said = json.loads(page._session.headless().call('gridCopied', _json.dumps(self._cube)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        applied = page._apply_page([_commands.page_add_grid(document=_plain(_json.loads(said['cube'])), sheet=self.sheet.id,
+                                                            near=self._id, title=title, columns=None)], 'a title')
+        return page._tile(applied[0]['id'], Grid)
+
     def expand(self, *path: str | None) -> Grid:
         """The group at ``path`` open, as its chevron opens it (an ``open`` command): its keys from the top group down,
         each the text the grid shows (None, an empty group) -- its parents open with it. Saved with the page, so a page
@@ -828,6 +874,15 @@ class Sheet:
         if name is not None and not isinstance(name, str):
             raise ValueError(f"a sheet's name is a name, not {name!r}")
         self._page._apply_page([_commands.page_rename_sheet(sheet=self._id, name=name)], "a sheet's name")
+
+    def move(self, position: int) -> Sheet:
+        """Moved among the page's sheets to ``position`` (0 the first), the others keeping their order, as its tab's Move
+        Left and Move Right move it (a ``moveSheet`` command): a place past either end is that end."""
+        _ = self._doc
+        if not isinstance(position, int) or isinstance(position, bool):
+            raise ValueError(f"a sheet's place is a whole number, not {position!r}")
+        self._page._apply_page([_commands.page_move_sheet(sheet=self._id, to=position)])
+        return self
 
     @property
     def tiles(self) -> list[Tile]:
@@ -1315,18 +1370,47 @@ class Page:
             _ = t._view
         self._apply_page([_commands.page_stack(tiles=[t._id for t in tiles])])
 
-    def remove(self, tile: Tile) -> None:
+    def remove(self, part: Tile | Sheet) -> None:
         """A tile off the page, its neighbours closing over its place: a grid with its charts, but a frozen one, which
-        stays without it (as DataCube keeps one); a chart."""
-        if tile._page is not self:
-            raise ValueError(f'{tile!r} is another page\'s')
-        _ = tile._view
+        stays without it (as DataCube keeps one); a chart. Or a sheet, with its tiles, as its tab's Delete removes it (a
+        ``removeSheet`` command): refused for the page's last one."""
+        if part._page is not self:
+            raise ValueError(f'{part!r} is another page\'s')
         before = {v['id'] for v in self._doc['views']}
+        if isinstance(part, Sheet):
+            _ = part._doc
+            # as the screen deletes one (page-commands.ts removeSheet): its grids first, then the rest of its tiles
+            self._apply_page([_commands.page_remove_sheet(sheet=part._id)])
+            self._forget({part._id} | (before - {v['id'] for v in self._doc['views']}))
+            return
+        _ = part._view
         # as the screen removes one (page-commands.ts removeTile): a grid with the charts following it, a frozen one
         # staying detached; a chart's selection taken off its grid's filter; the model kept for the cubes still held --
         # its last grid too, a page shown following it empty as the tab's blank page is (D2)
-        self._apply_page([_commands.page_remove_tile(tile=tile._id)])
+        self._apply_page([_commands.page_remove_tile(tile=part._id)])
         self._forget(before - {v['id'] for v in self._doc['views']})
+
+    def filter(self, cls: str, condition: Any, *, id: str | None = None) -> str:
+        """A page filter on a class's property: ``cls`` (its path, or its name) a class a grid of the page reads,
+        ``condition`` as a grid's ``filter`` takes one, over the class's properties -- made as the screen's Add a Filter
+        makes one (DataCube's code, headless pageFilter) and set on the page (a ``setPageFilter`` command): every grid
+        over the class reads through it. ``id``: the page filter it replaces. Answers its id."""
+        said = json.loads(self._session.headless().call('pageFilter', _json.dumps(self._doc), _json.dumps(
+            {'class': cls, 'filter': _tagged(condition), **({'id': id} if id is not None else {})})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        applied = self._apply_page([said['command']])
+        return str(applied[0]['id'])
+
+    @property
+    def filters(self) -> list[dict[str, Any]]:
+        """Its page filters, a copy, each as the page document keeps one: ``{"id", "class", "condition", "from"}`` (the
+        chart whose click made it, or None)."""
+        return copy.deepcopy(self._doc.get('filters', []))
+
+    def remove_filter(self, id: str) -> None:
+        """The page filter ``id`` taken off (a ``removePageFilter`` command), as the screen's x on its chip takes it."""
+        self._apply_page([_commands.page_remove_page_filter(filter=id)])
 
     # -- the document --------------------------------------------------------------------------------------------------
 
@@ -1384,6 +1468,25 @@ class Page:
         self._apply_page([_commands.page_saved_as(record=id),
                           *([_commands.page_rename_page(name=made['name'])] if made['name'] != self.name else [])])
         return id
+
+    @classmethod
+    def open(cls, id: str, frames: Mapping[str, Any] | None = None, *,
+             files: Mapping[str, str | Path] | None = None) -> Page:
+        """A page saved in this user's saved pages (``ll.home()/pages``: what ``save()`` and DataCube's Save keep there,
+        what Open… lists), by its id, opened as DataCube's Open… opens it (headless pageOfRecord: a page, or a cube saved
+        alone before pages, a page of its one grid) and then as ``load`` opens a page -- its ``frames`` and ``files``
+        given as ``load`` takes them. Saved again, it saves over that record."""
+        from ._home import THIS_USER, pages_folder, store_call
+        from .datacube import _current
+        status, said = store_call('lite_saved_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)
+        if status == 404:
+            raise ValueError(f'no saved page {id!r} in this user\'s saved pages')
+        if status != 200:
+            raise ValueError(f'the saved page {id!r} was not read: {said}')
+        opened = json.loads(_current().headless().call('pageOfRecord', said))
+        if 'problems' in opened:
+            raise ValueError('; '.join(opened['problems']))
+        return cls.load(_plain(_json.loads(opened['page'])), frames, files=files)
 
     @classmethod
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any] | None = None, *,

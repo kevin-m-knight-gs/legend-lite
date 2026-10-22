@@ -841,9 +841,8 @@ export function menuCommand(s: CubeSnapshot, item: MenuItem): GridCommand | null
     case 'sort.addDesc':
       return col ? { kind: 'addSort', column: col, direction: item.direction ?? 'asc' } : null;
     case 'sort.clearColumn':
-      return col
-        ? { kind: 'sorts', sorts: without(s.sorts, (x) => x.column === col) }
-        : null;
+      // the column's sort taken off by the one rule (grid-edits.ts clearSort), as Python's clear_sort takes it
+      return col ? { kind: 'clearSort', column: col } : null;
     case 'sort.clearAll':
       return { kind: 'sorts', sorts: [] };
 

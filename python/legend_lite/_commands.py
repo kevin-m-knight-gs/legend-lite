@@ -11,8 +11,8 @@ from typing import Any
 # a field a command may leave out, left out
 _ABSENT: Any = object()
 
-GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clickSort', 'clickTreeSort', 'column',
-                               'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'measures',
+GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
+                               'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'measures',
                                'editCalculated', 'removeCalculated', 'open', 'collapseAll',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
                                'renameTile', 'addGrid', 'addChart', 'setChart', 'setChartCube', 'select', 'moveTile',
@@ -34,6 +34,10 @@ def grid_sorts(*, sorts: Any) -> dict[str, Any]:
 
 def grid_add_sort(*, column: Any, direction: Any) -> dict[str, Any]:
     return {'kind': 'addSort', 'column': column, 'direction': direction}
+
+
+def grid_clear_sort(*, column: Any) -> dict[str, Any]:
+    return {'kind': 'clearSort', 'column': column}
 
 
 def grid_click_sort(*, column: Any, first: Any, chained: Any) -> dict[str, Any]:
