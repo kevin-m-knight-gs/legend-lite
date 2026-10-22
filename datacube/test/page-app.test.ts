@@ -601,6 +601,40 @@ describe('a page of its own', () => {
     assert.equal(told.length, 1);
   });
 
+  it("a model action's record applied as its commands and told -- no step of its history, kept through an undo (P15, D5)", async () => {
+    const told: PageCommand[] = [];
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    told.length = 0;
+    const step = page.undoLabel;
+    const record: PageCommand[] = [
+      { kind: 'modelInto', project: 'datacube:q3', workspace: 'datacube', package: 'q3' },
+      { kind: 'modelPin', revision: 'r1' },
+      { kind: 'modelKeep', cube: a, tables: ['t_trades'], class: 'q3::domain::Trade' },
+    ];
+    page.applyModel(record);
+    assert.deepEqual(told, record, 'told, as applied');
+    assert.equal(page.undoLabel, step, 'no step of its own to undo');
+    const made = { project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [a]: ['t_trades'] },
+      classes: { [a]: 'q3::domain::Trade' }, revision: 'r1' };
+    assert.deepEqual(page.model, made);
+    assert.deepEqual(page.document('Q3')?.model, made, 'what the page saves and reports');
+    assert.deepEqual(page.state.page.model, made, "and its state's");
+    // undone past it: the sheet goes, what the model action wrote stays
+    page.undo();
+    await settle();
+    assert.equal(page.sheets.length, 1);
+    assert.deepEqual(page.model, made);
+    assert.deepEqual(page.state.page.model, made);
+    // a record that does not apply is refused in its words, nothing changed
+    told.length = 0;
+    page.applyModel([{ kind: 'modelInto', project: 'datacube:other', workspace: 'datacube', package: 'o' }]);
+    assert.deepEqual([told, page.model], [[], made]);
+  });
+
   it('tells each edit of its structure as its page command: applyPageCommand gives for them the page it saves', async () => {
     // (docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md) the screen and the one function cannot drift before stage 2 makes the
     // function the screen's: what the screen told, applied to the page it started as, is the page it writes

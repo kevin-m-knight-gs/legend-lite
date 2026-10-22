@@ -32,7 +32,9 @@ import { MenuView } from '../ui/menu-view.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
-import { filtersFor, NOTHING_TO_SAVE, pageFile, writePageOf, type PageDocument, type PageView, type PageViews } from '../page-document.ts';
+import {
+  filtersFor, keptFor, modelAcross, NOTHING_TO_SAVE, pageFile, writePageOf, type PageDocument, type PageView, type PageViews,
+} from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
@@ -182,6 +184,9 @@ export class PageApp {
   /** THE PAGE'S FILTERS (page-filters.ts, §16.2), as its state holds them: set by page commands, put on its grids'
    *  queries by each one's lens. */
   #filters: readonly PageFilter[] = [];
+  /** The page's model (where its classes are: page-model.ts), as its state has it -- made and kept by its model actions'
+   *  commands, its own and its other editor's (P15). */
+  #model: PageModelRef | undefined;
   /** Each grid's lens as last given it, by what made it (page-filters.ts gridLens's key): the same, not run again. */
   readonly #lensKeys = new Map<string, string>();
   /** The views of a page being restored: whose chart a click filter came from, before the charts are on the board. */
@@ -401,6 +406,22 @@ export class PageApp {
     this.#options.onPageCommand?.({ kind: 'savedAs', record });
   }
 
+  /** Where the page's classes are (page-model.ts), as its state has it: none before its first model action. */
+  get model(): PageModelRef | undefined {
+    return this.#model;
+  }
+
+  /**
+   * A MODEL ACTION'S RECORD OF THE PAGE (Create a Class…, an Association, a Data Space: page-commands.ts modelInto,
+   * modelKeep, modelPin), applied by the one function and told -- no step of the page's history (D5, P15): what it made in
+   * its project cannot be undone. Refused in the commands' words, nothing changed.
+   */
+  applyModel(commands: readonly PageCommand[]): void {
+    if (this.#disposed || commands.length === 0) return;
+    this.#state.keep(this.#seen());
+    if (this.#edit({ label: 'a model action', commands, step: false })) this.#options.onChange?.();
+  }
+
   /** Changed since it was saved, or not (the host knows): the name box says so. */
   setChanged(changed: boolean): void {
     if (changed === this.#changed) return;
@@ -605,6 +626,7 @@ export class PageApp {
     this.#unopened.clear();
     this.#unopenedCopies.clear();
     this.#filters = [];
+    this.#model = undefined;
     this.#lensKeys.clear();
     this.#page = this.#newBoard();
     this.#state = new PageState(this.#seen());
@@ -633,14 +655,13 @@ export class PageApp {
   /**
    * THE PAGE AS IT IS SAVED (page-document.ts, version 5): one cube per grid -- on the board, then kept off it for a
    * detached chart -- each the grid's own cube document, under the grid's id; the views and the sheets; the page's
-   * model (where its classes are), when it has one; the saved page it is (`record`), when its host says so.
+   * model (where its classes are), as its state has it (P15); the saved page it is (`record`), when its host says so.
    * `unknown`: fields a newer writer put in the page and in each cube, written back as they were. Undefined when a grid cannot say its source, or there is nothing on the page -- unless
    * `empty`: the page written live to its keeper, a page of no grid one too.
    */
   document(name: string, unknown?: {
     readonly page?: Readonly<Record<string, unknown>>;
     readonly cubes?: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
-    readonly model?: PageModelRef;
     readonly record?: string;
   }, empty = false): PageDocument | undefined {
     const ids = this.cubes;
@@ -656,7 +677,7 @@ export class PageApp {
     const written = this.#withUnopened(cubes, views);
     return writePageOf({
       name, cubes: written, views, filters: this.#filters, copies: this.#copies(ids, written),
-      ...(unknown?.model ? { model: unknown.model } : {}),
+      ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
       ...(unknown?.record !== undefined ? { record: unknown.record } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
     });
@@ -728,6 +749,7 @@ export class PageApp {
     this.#unopenedCopies.clear();
     // its filters first: each grid opens with them (a chart's click, by the views it will have)
     this.#filters = page.filters ?? [];
+    this.#model = page.model;
     this.#lensKeys.clear();
     this.#restoring = page.views;
     this.#page = this.#newBoard();
@@ -845,7 +867,10 @@ export class PageApp {
     }
     const views = this.views();
     const written = this.#withUnopened(cubes, views);
-    const page = writePageOf({ name: this.#name, cubes: written, views, filters: this.#filters, copies: this.#copies(this.cubes, written) });
+    const page = writePageOf({
+      name: this.#name, cubes: written, views, filters: this.#filters, copies: this.#copies(this.cubes, written),
+      ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
+    });
     return { page, held: idsOf(page) };
   }
 
@@ -877,6 +902,7 @@ export class PageApp {
    */
   #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map()): void {
     this.#filters = to.filters ?? [];
+    this.#model = to.model;
     this.#restoring = to.views;
     this.#syncing = true;
     try {
@@ -971,7 +997,10 @@ export class PageApp {
     const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
     if (!step) return;
     this.#options.onRestore?.();
-    this.#syncTo(step.draft.page, from);
+    // what the page's model actions wrote stays, no step of its history (D5): a grid brought back brings its own
+    const { model: was, ...back } = step.draft.page;
+    const model = modelAcross(was, from.model, back.cubes);
+    this.#syncTo(model ? { ...back, model } : back, from);
     // its grids keep their own history (G8): a chart brought back with a selection its grid's filter lost meanwhile has
     // it put back by that grid's own refilter, as a click puts it there
     for (const { grid, command } of selectionRefilters(step.draft.page, (cube) => this.grid(cube)?.snapshot.filter)) {

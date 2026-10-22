@@ -249,9 +249,14 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   Python when `snap=True`) and served as one (`engine.html?page=`, the widget's `page_key`); the tab's frame start
   (`AppStart` 'frame', `openFrame`, `CubeApp.snapRows`, `?table=`/`&snap=1`), the widget's `table`/`version`/`snap`
   and `version.json?table=` are deleted (test_show.py, test_notebook.py, the browser harness)
-- [ ] **P15** a model action's page record (`modelInto`, `modelKeep`, `modelPin`) is set outside the tab's page state and
+- [x] **P15** a model action's page record (`modelInto`, `modelKeep`, `modelPin`) is set outside the tab's page state and
   told by its difference, not applied as commands by the one function -- S1's audit finding 10, registered 2026-10-22
-  (D10) → applied as commands, no undo step (D5) — S5, with Z4-Z7, MARKERS
+  (D10) → applied as commands, no undo step (D5) — closed S5: the page's state holds its model (PageApp `#model`, as
+  it holds its filters: made and kept by the model commands, its own and its other editor's, written with the page);
+  a window's record of the page (page-model.ts PageModel) is the commands it made, in order, which the tab applies by
+  the one function, told, no step (PageApp.applyModel); across an undo or a redo the model stays as the actions left
+  it, a grid brought back bringing its own (page-document.ts `modelAcross`). The tab's `current.model` and
+  `modelCommands` (a diff) are deleted (page-app.test.ts, page-commands.test.ts)
 - [x] **P13** charts on a cube alone (embedded CubeApp) tell nothing → the same state and commands — closed S3: a cube
   alone's board keeps a page state (page-state.ts) and applies each edit by the same one step as a page of its own
   (page-commands.ts applyToState), then puts the board at what it makes (CubePage.sync), and tells the commands

@@ -254,7 +254,7 @@ describe("the page's model, in the model home (through the library: model-change
     assert.deepEqual(model.ref, { project: 'datacube:trades-3', workspace: 'datacube', package: 'trades', tables: {} });
     assert.equal(done.project, 'datacube:trades-3');
     assert.equal(model.into('Other', 'other').project, 'datacube:trades-3', 'made once');
-    model.keepTables('g1', ['trades_2']);
+    model.keep('g1', ['trades_2'], null);
     assert.deepEqual(model.ref?.tables, { g1: ['trades_2'] });
     // pinned to the revision it saved: the one its class grids are read at (§16.1)
     model.pin(done.revision);

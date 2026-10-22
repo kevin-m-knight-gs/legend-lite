@@ -16,6 +16,7 @@ import { suggestedClassName, suggestedPackage } from './model-names.ts';
 import { sampleOf } from './sample-rows.ts';
 import { classDialog, type ClassChoice, type ClassPreview, type CreatedClass } from './ui/class-dialog.ts';
 import type { ModelAnswer } from './model-writer.ts';
+import type { PageCommand } from './page-commands.ts';
 import type { ClassBasis } from './query.ts';
 
 export interface CreateClassOf {
@@ -52,10 +53,11 @@ export interface CreateClassOf {
 }
 
 /**
- * Ask for the class and write it. Resolves with the page's model as it is after -- made with its first class (kept
- * even when its first save failed), its grid's tables kept -- or undefined when nothing of it changed.
+ * Ask for the class and write it. Resolves with the page commands its record of the page takes (page-model.ts
+ * PageModel: made with its first class -- kept even when its first save failed -- pinned, its grid's tables and class
+ * kept), in order; none when nothing of it changed.
  */
-export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | undefined> {
+export async function createClassOf(o: CreateClassOf): Promise<readonly PageCommand[]> {
   const { basis } = o;
   const model = new PageModel(o.model);
   // each table's first rows, as the database has them: the class's samples (a Data element each), written by the one
@@ -88,11 +90,7 @@ export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | un
       // the page pinned to what it saved: its class grids are read at it (§16.1)
       model.pin(done.revision);
       // the grid's tables keep their names from now: the project's store reads them by those names
-      if (o.cube !== undefined) {
-        model.keepTables(o.cube, o.kept);
-        const cls = made.classes[0]?.class;
-        if (cls !== undefined) model.keepClass(o.cube, cls);
-      }
+      if (o.cube !== undefined) model.keep(o.cube, o.kept, made.classes[0]?.class ?? null);
       const after = model.ref ?? { project: done.project, workspace: done.workspace };
       const kept = await o.persist();
       return {
@@ -106,7 +104,6 @@ export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | un
       };
     },
   });
-  // the page's model as it is now, when the window changed it: made (whether or not its save then went through), or a
-  // grid's tables kept
-  return model.ref !== o.model ? model.ref : undefined;
+  // what the window changed of the page's model: made (whether or not its save then went through), pinned, kept
+  return model.commands;
 }

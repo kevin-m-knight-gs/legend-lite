@@ -302,6 +302,22 @@ export function keptFor(model: PageModelRef, cubes: readonly { readonly id: stri
 }
 
 /**
+ * THE PAGE'S MODEL ACROSS AN UNDO OR A REDO (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D5, P15): a model action (Create
+ * a Class…, an Association, a Data Space) is no step of the page's history -- what it made in its project cannot be
+ * undone -- so the page put back keeps the model as it is `now` (its project, its revision, each grid's tables and
+ * class), and a grid it brings back the tables and class it had in the page put back (`restored`); kept for the cubes
+ * that page holds (keptFor).
+ */
+export function modelAcross(restored: PageModelRef | undefined, now: PageModelRef | undefined,
+  cubes: readonly { readonly id: string }[]): PageModelRef | undefined {
+  if (now === undefined) return restored === undefined ? undefined : keptFor(restored, cubes);
+  const classes = { ...restored?.classes, ...now.classes };
+  return keptFor({
+    ...now, tables: { ...restored?.tables, ...now.tables }, ...(Object.keys(classes).length > 0 ? { classes } : {}),
+  }, cubes);
+}
+
+/**
  * The page's filters as the page writes them: a chart's click kept only while the page holds that chart -- a chart
  * removed takes the filter its click made with it, as the reader holds every click to a chart of the page.
  */

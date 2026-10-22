@@ -151,6 +151,9 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     '#move:this.#state.redo(': 'Redo (N2, S4)',
     '#move:this.#state.keep(': 'the screen put at a step: its grids made again write their own cubes',
     '#applyFilterCommand:this.#state.keep(': 'the page as its owners have it, before the filter command is applied',
+    // 2026-10-22 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P15): a model action's record applied by the commands' one
+    // step (no step of the history: D5), the page as its owners have it kept first, as before a filter command
+    'applyModel:this.#state.keep(': 'the page as its owners have it, before a model action\'s record is applied',
   },
   'src/app.ts': {
     '#keepBoard:state.keep(': "a cube alone's board: what its owners change (its grid's own edits, a view: F6), no step",

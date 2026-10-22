@@ -46,7 +46,7 @@ interface Entry {
 // 10 registered as P15, pinned by its code
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 10,
-  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 6, UNCHECKED: 7,
+  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 5, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -357,9 +357,6 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/app/datacube-app.ts', text: "current.name ?? (page.suggestedName || 'page')", items: ['B3'], count: 5 },
   { file: 'src/headless/grid.ts', text: 'a page on Python reads frames', items: ['B7'], count: 2 },
   { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
-  // a model action's page record set outside the page state and told by its difference, not applied as commands (P15:
-  // S5, with the model actions' move out of their dialogs, D5)
-  { file: 'src/app/datacube-app.ts', text: 'for (const command of modelCommands(was, model)) channel?.edit({ page: command });', items: ['P15'], count: 2 },
 ];
 
 describe('the gaps no scan reaches, pinned by their code', () => {
@@ -414,8 +411,9 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-21, One API S2's, S3's and S4's audit rounds and S4's soak: what each found, added by rule 9 and closed with
   // each fix (no ledger grows)
   + 'F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15 F16 F17 F18 F19 F20 F21 F22 F23 F24 F25 F26 F27 '
-  // 2026-10-22, D10: S1's audit finding 10, registered with the user's sign-off
-  + 'P15').split(' ');
+  // 2026-10-22, D10: S1's audit finding 10, registered with the user's sign-off (written with a space after it: a quoted
+  // item alone is a ledger naming it, ITEM)
+  + 'P15 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

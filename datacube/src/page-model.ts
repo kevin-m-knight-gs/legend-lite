@@ -39,29 +39,14 @@ export function pageProject(pageName: string): NewProject {
 }
 
 /**
- * WHAT A MODEL ACTION CHANGED OF THE PAGE'S MODEL, AS THE PAGE COMMANDS THAT MAKE THAT CHANGE (page-commands.ts
- * modelInto, modelKeep, modelPin): what the screen tells for Create a Class…, an Association, a Data Space -- the
- * commands Python's model actions apply -- so a page's other editor follows it, never reads it whole.
+ * A MODEL ACTION'S RECORD OF THE PAGE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P15, D5): where the page's model is as
+ * the action goes -- made with its first class, pinned to what it saved, a grid's tables and class kept -- and the page
+ * commands that make each change (page-commands.ts modelInto, modelPin, modelKeep), in order: what the page applies by
+ * the one function, no step of its history, the screen's windows and Python's actions alike.
  */
-export function modelCommands(before: PageModelRef | undefined, after: PageModelRef): PageCommand[] {
-  const out: PageCommand[] = [];
-  if (before === undefined) out.push({ kind: 'modelInto', project: after.project, workspace: after.workspace, package: after.package });
-  const cubes = new Set([...Object.keys(after.tables), ...Object.keys(after.classes ?? {})]);
-  for (const cube of cubes) {
-    const tables = after.tables[cube];
-    const cls = after.classes?.[cube];
-    const tablesChanged = tables !== undefined && JSON.stringify(before?.tables[cube]) !== JSON.stringify(tables);
-    const classChanged = cls !== undefined && before?.classes?.[cube] !== cls;
-    if (tablesChanged || classChanged) {
-      out.push({ kind: 'modelKeep', cube, tables: tablesChanged ? [...tables!] : null, class: classChanged ? cls! : null });
-    }
-  }
-  if (after.revision !== undefined && after.revision !== before?.revision) out.push({ kind: 'modelPin', revision: after.revision });
-  return out;
-}
-
 export class PageModel {
   #ref: PageModelRef | undefined;
+  readonly #commands: PageCommand[] = [];
 
   constructor(ref?: PageModelRef) {
     this.#ref = ref;
@@ -70,6 +55,16 @@ export class PageModel {
   /** Where the page's model is, once it has one. */
   get ref(): PageModelRef | undefined {
     return this.#ref;
+  }
+
+  /** The page commands that made each change since, in order. */
+  get commands(): readonly PageCommand[] {
+    return this.#commands;
+  }
+
+  #did(command: PageCommand, ref: PageModelRef): void {
+    this.#ref = ref;
+    this.#commands.push(command);
   }
 
   /**
@@ -85,23 +80,19 @@ export class PageModel {
       workspace: ref?.workspace ?? PAGE_WORKSPACE,
       package: ref?.package ?? pkg,
       made: (project) => {
-        this.#ref = modelMade(undefined, project, PAGE_WORKSPACE, pkg);
+        this.#did({ kind: 'modelInto', project, workspace: PAGE_WORKSPACE, package: pkg }, modelMade(undefined, project, PAGE_WORKSPACE, pkg));
       },
     };
   }
 
   /** The page is now pinned to `revision`: the one its last model action saved. */
   pin(revision: string): void {
-    this.#ref = modelPinned(this.#ref, revision);
+    this.#did({ kind: 'modelPin', revision }, modelPinned(this.#ref, revision));
   }
 
-  /** The page's model now keeps `cls` as the grid `cube`'s class. */
-  keepClass(cube: string, cls: string): void {
-    this.#ref = modelKept(this.#ref, cube, null, cls);
-  }
-
-  /** The page's model now keeps `tables` (its leaves', in their order) for the grid `cube`. */
-  keepTables(cube: string, tables: readonly string[]): void {
-    this.#ref = modelKept(this.#ref, cube, tables, null);
+  /** The page's model now keeps, for the grid `cube`, `tables` (its leaves', in their order) and `cls` -- null leaving
+   *  either as it is. */
+  keep(cube: string, tables: readonly string[] | null, cls: string | null): void {
+    this.#did({ kind: 'modelKeep', cube, tables, class: cls }, modelKept(this.#ref, cube, tables, cls));
   }
 }

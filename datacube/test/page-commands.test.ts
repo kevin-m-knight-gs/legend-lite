@@ -13,9 +13,9 @@ import {
   readPageCommand, followedPage, rebuiltCommands,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
-import { gridCopyOf, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, modelAcross, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from '../src/snapshot.ts';
-import { modelCommands, type PageModelRef } from '../src/page-model.ts';
+import { PageModel } from '../src/page-model.ts';
 import { rebaseEdits, withCube } from '../src/page-rebase.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
@@ -290,18 +290,39 @@ describe("the page's model, by its commands (page-model.ts: P4)", () => {
   const start: PageDocument = (({ model: _none, ...rest }) => rest)(trades);
   const draftOf = (p: PageDocument): PageDraft => ({ page: p, held: idsOf(p) });
 
-  it('a model action told as the commands of what it changed: applied, they make the model it made', () => {
+  it('a model action records the commands of what it changed, in order: applied, they make the model it made (P15)', () => {
     const cube = start.cubes[0]!.id;
-    const made: PageModelRef = { project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [cube]: ['t_trades'] },
-      classes: { [cube]: 'q3::domain::Trade' }, revision: 'r1' };
-    const commands = modelCommands(undefined, made);
-    assert.deepEqual(commands.map((c) => c.kind), ['modelInto', 'modelKeep', 'modelPin']);
-    const after = applyPageCommands(draftOf(start), commands).draft.page;
-    assert.deepEqual(after.model, made);
-    // the next action: what it changed alone
-    const next: PageModelRef = { ...made, revision: 'r2' };
-    assert.deepEqual(modelCommands(made, next), [{ kind: 'modelPin', revision: 'r2' }]);
-    assert.deepEqual(modelCommands(made, made), []);
+    const model = new PageModel();
+    model.into('Q3', 'q3').made('datacube:q3');
+    model.pin('r1');
+    model.keep(cube, ['t_trades'], 'q3::domain::Trade');
+    assert.deepEqual(model.commands.map((c) => c.kind), ['modelInto', 'modelPin', 'modelKeep']);
+    const after = applyPageCommands(draftOf(start), model.commands).draft.page;
+    assert.deepEqual(after.model, model.ref);
+    assert.deepEqual(model.ref, { project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [cube]: ['t_trades'] },
+      classes: { [cube]: 'q3::domain::Trade' }, revision: 'r1' });
+    // the next action over the page's model: what it changed alone
+    const next = new PageModel(model.ref);
+    next.pin('r2');
+    assert.deepEqual(next.commands, [{ kind: 'modelPin', revision: 'r2' }]);
+    assert.deepEqual(new PageModel(model.ref).commands, []);
+  });
+
+  it('across an undo or a redo, what model actions wrote stays, and a grid brought back brings its own (D5: modelAcross)', () => {
+    const [a, b] = [start.cubes[0]!.id, 'grid-b'];
+    // the page put back held both grids, the model then knowing b's tables; the model now -- pinned since, a's class made
+    const restored = { project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [b]: ['t_b'] }, revision: 'r1' };
+    const now = { project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [a]: ['t_a'] },
+      classes: { [a]: 'q3::domain::A' }, revision: 'r2' };
+    assert.deepEqual(modelAcross(restored, now, [{ id: a }, { id: b }]), {
+      project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [b]: ['t_b'], [a]: ['t_a'] },
+      classes: { [a]: 'q3::domain::A' }, revision: 'r2' });
+    // a grid the page put back does not hold keeps nothing; a page put back from before the model's first action, the
+    // model as it is now
+    assert.deepEqual(modelAcross(restored, now, [{ id: b }]), {
+      project: 'datacube:q3', workspace: 'datacube', package: 'q3', tables: { [b]: ['t_b'] }, revision: 'r2' });
+    assert.deepEqual(modelAcross(undefined, now, [{ id: a }])?.revision, 'r2');
+    assert.equal(modelAcross(undefined, undefined, [{ id: a }]), undefined);
   });
 
   it('refused in words: a second model, a pin or a keep with none, a cube the page has not', () => {

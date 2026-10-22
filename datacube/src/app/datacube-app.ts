@@ -34,6 +34,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
+import type { PageCommand } from '../page-commands.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
@@ -551,8 +552,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       baseline?: string;
       /** What opening left out of the saved page (a file changed, a source not opened): saving over it loses them. */
       lost?: readonly string[];
-      /** Where the page's classes are (Create a Class…): its project in the model home, made with its first class. */
-      model?: PageModelRef;
     } = {};
     renamePage = (name) => {
       current = { ...current, name };
@@ -569,7 +568,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const pageNow = (name: string, empty = false): PageDocument | undefined => page.document(name, {
       ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
-      ...(current.model ? { model: current.model } : {}),
       ...(current.record !== undefined ? { record: current.record } : {}),
     }, empty);
     pageKept = (name) => pageNow(name);
@@ -805,7 +803,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         savedName: doc.name,
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
         cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
-        ...(doc.model ? { model: doc.model } : {}),
       };
       page.setTitle(doc.name);
       await page.ready();
@@ -1101,7 +1098,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       field.value = link.url;
       const about = `It holds the page's settings, filter values included, not its data; ${sourcesSaid(shared, 'share')}.`
         // the page's classes are in this browser's model home (Studio's): a link carries none of them
-        + (current.model ? ` Its classes stay in ${current.model.project}, in this browser: the link does not carry them.` : '');
+        + (page.model ? ` Its classes stay in ${page.model.project}, in this browser: the link does not carry them.` : '');
       const put = async (): Promise<void> => {
         field.select();
         try {
@@ -1142,7 +1139,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return;
       }
       const [{ createClassOf }, home] = await Promise.all([import('../create-class.ts'), modelHome.connect()]);
-      const model = await createClassOf({
+      const commands = await createClassOf({
         basis,
         // the names its leaves' tables have in this tab, one per leaf (a file's, a join's each), which reopening reads
         // them under; a grid whose tables are read under the store's own names (a frame's, a warehouse table's, a saved
@@ -1156,23 +1153,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         cube,
         // the page's name, or -- never saved -- its grid's source, without its file's extension (`trades.csv` trades)
         pageName: current.name ?? ((page.suggestedName || sourceName).replace(/\.[A-Za-z0-9]+$/, '') || 'page'),
-        model: current.model,
+        model: page.model,
         client: home.client,
         where: home.where,
         ...(modelHome.studio ? { studio: (project: string, workspace: string) => modelHome.studio!(project, workspace) } : {}),
         persist,
       });
-      if (!model) return;
-      // the page's model, made with its first class or a grid's table kept: the page has changed, told as the model
-      // commands that change it (page-model.ts modelCommands), the ones Python's create_class applies
-      const was = current.model;
-      current = { ...current, model };
-      // fetched with the model action's own code (the page's first has none)
-      const { modelCommands } = await import('../page-model.ts');
-      for (const command of modelCommands(was, model)) channel?.edit({ page: command });
-      onCubeView?.();
+      landed(commands);
     };
-    pageModelNow = () => current.model;
+    pageModelNow = () => page.model;
     /**
      * THE PAGE'S MODEL ACTIONS (src/model-actions.ts, fetched the first time either is asked for): each grid of the
      * page as they read it -- its class when it is one, else its rows as a class's, or why they cannot be one.
@@ -1188,7 +1177,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return place && grid && rows
           ? { snapshot: grid.snapshot, label: place.label ?? id, rows, ...(place.tables ? { tables: place.tables } : {}) }
           : undefined;
-      }, (id) => current.model?.classes?.[id], { classBasis });
+      }, (id) => page.model?.classes?.[id], { classBasis });
       const sourceName = grids[0]?.label ?? 'page';
       return {
         actions,
@@ -1197,7 +1186,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           place: writing.place,
           rows: (model, runtime) => writing.rows(model, runtime),
           pageName: current.name ?? ((page.suggestedName || sourceName).replace(/\.[A-Za-z0-9]+$/, '') || 'page'),
-          model: current.model,
+          model: page.model,
           client: home.client,
           where: home.where,
           grids,
@@ -1208,20 +1197,19 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         },
       };
     };
-    const landed = async (model: PageModelRef | undefined): Promise<void> => {
-      if (!model) return;
-      const was = current.model;
-      current = { ...current, model };
-      const { modelCommands } = await import('../page-model.ts');
-      for (const command of modelCommands(was, model)) channel?.edit({ page: command });
+    /** What a model action changed of the page's model, applied by the one function -- told, no step of its history
+     *  (D5, P15). */
+    const landed = (commands: readonly PageCommand[]): void => {
+      if (commands.length === 0) return;
+      page.applyModel(commands);
       onCubeView?.();
     };
     const said = (e: unknown): void => window.alert(e instanceof Error ? e.message : String(e));
     createAssociation = (first) => {
-      void modelActions().then(async (m) => m && await landed(await m.actions.createAssociationOf(m.of, first))).catch(said);
+      void modelActions().then(async (m) => m && landed(await m.actions.createAssociationOf(m.of, first))).catch(said);
     };
     createDataSpace = () => {
-      void modelActions().then(async (m) => m && await landed(await m.actions.createDataSpaceOf(m.of))).catch(said);
+      void modelActions().then(async (m) => m && landed(await m.actions.createDataSpaceOf(m.of))).catch(said);
     };
     createClass = (grid, place, cube) => {
       void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
@@ -1230,7 +1218,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // over a class until its pages can follow one (the model plan's step 3b)
     if (services.engine.local) classGrid = (cube) => {
       void (async () => {
-        const model = current.model;
+        const model = page.model;
         const cls = cube === undefined ? undefined : model?.classes?.[cube];
         const writing = services.engine.modelWriting;
         if (!model || cls === undefined || cube === undefined) throw new Error('this grid was made no class of the page');
@@ -1420,7 +1408,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             cubes: page.cubes.length,
             follow: (commands, makers) => page.follow(commands, makers),
             applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
-            open: (document, grid, several) => sources.reopened(document, undefined, several, current.model?.tables[grid]),
+            open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid]),
             frameVersion: (frame) => sources.frameVersion(frame),
           });
           await page.ready();

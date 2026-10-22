@@ -11,6 +11,7 @@ import type { SdlcClient } from '../../sdlc-client/src/client.ts';
 import type { PlanAndRun } from './runner.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import { createAssociation, createDataSpace, projectState } from '../../model-changes/src/index.ts';
+import type { PageCommand } from './page-commands.ts';
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from './model-names.ts';
@@ -109,16 +110,12 @@ function projectRows(o: ModelActionsOf, project: string, pkg: string): PlanAndRu
   return o.rows(project, `${pkg}::runtime::${o.place}`);
 }
 
-/** The page's model after the window: made or changed, or undefined when it is as it was. */
-function after(model: PageModel, o: ModelActionsOf): PageModelRef | undefined {
-  return model.ref !== o.model ? model.ref : undefined;
-}
 
 /**
  * CREATE AN ASSOCIATION… between two of the page's classes. `first`: a class to start one end with (a grid's own).
  * Refused in words when the page has fewer than two classes.
  */
-export async function createAssociationOf(o: ModelActionsOf, first?: string): Promise<PageModelRef | undefined> {
+export async function createAssociationOf(o: ModelActionsOf, first?: string): Promise<readonly PageCommand[]> {
   if (!o.model) throw new NotYet('An association relates two of the page\'s classes: make them first (Create a Class…, or Create a Data Space… for the whole page).');
   const model = new PageModel(o.model);
   const pkg = o.model.package;
@@ -157,14 +154,15 @@ export async function createAssociationOf(o: ModelActionsOf, first?: string): Pr
   } finally {
     facts.host.planner.dispose?.();
   }
-  return after(model, o);
+  // what the window changed of the page's model, as the page commands that change it (page-model.ts PageModel)
+  return model.commands;
 }
 
 /**
  * CREATE A DATA SPACE… of the whole page, in one go: its grids not yet classes made classes in the same window, the
  * associations it suggests offered, all one revision (the project made with it, when the page has none yet).
  */
-export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef | undefined> {
+export async function createDataSpaceOf(o: ModelActionsOf): Promise<readonly PageCommand[]> {
   const model = new PageModel(o.model);
   const pkg = o.model?.package ?? suggestedPackage(o.pageName);
   const state = o.model ? await projectState(o.client, o.model) : { text: '', revision: '' };
@@ -235,8 +233,7 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
         for (const m of choice.made) {
           const g = o.grids.find((x) => x.id === m.id);
           if (!g || 'refused' in g.made) continue;
-          model.keepTables(g.id, g.made.kept);
-          model.keepClass(g.id, `${into.package}::domain::${m.className}`);
+          model.keep(g.id, g.made.kept, `${into.package}::domain::${m.className}`);
         }
         const kept = await o.persist();
         const at = model.ref ?? { project: done.project, workspace: done.workspace };
@@ -251,7 +248,8 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
   } finally {
     facts.host.planner.dispose?.();
   }
-  return after(model, o);
+  // what the window changed of the page's model, as the page commands that change it (page-model.ts PageModel)
+  return model.commands;
 }
 
 function dataSpaceOf(choice: DataSpaceChoice): { name: string; title?: string; description?: string } {
