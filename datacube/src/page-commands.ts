@@ -14,7 +14,7 @@ import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
 import {
-  PageDocumentError, keptFor, readGridCopy, readLayout, writePageOf, type ChartView, type GridCopy, type PageDocument,
+  PageDocumentError, keptFor, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type GridCopy, type PageDocument,
   type PageLayout, type PageSheet, type PageView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
@@ -373,8 +373,11 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       return done({ ...page, sheets: [...page.sheets, sheet] }, [...draft.held, id], { ...command, id });
     }
     case 'renameSheet': {
-      sheetNamed(page, command.sheet);
-      const name = command.name === null ? undefined : named('sheet', command.name);
+      const sheet = sheetNamed(page, command.sheet);
+      const given = command.name === null ? undefined : named('sheet', command.name);
+      // a name equal to what the sheet shows without one is none, as a tile's made title is (B2; the S7 audit's P-7: the
+      // screen's tab told nothing, Python's pinned it)
+      const name = given !== undefined && given === unnamedLabel(page, sheet) ? undefined : given;
       return done(withSheet(page, command.sheet, ({ name: _was, ...s }) => (name !== undefined ? { ...s, name } : s)));
     }
     case 'moveSheet': {
@@ -451,9 +454,12 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const grid = viewNamed(page, command.grid);
       if (grid.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is a chart, not a grid: a chart follows a grid`);
       if (grid.cube === view.cube) throw new CubeRefusal(`'${command.chart}' reads ${command.grid} already`);
-      // its selection off the cube it read (as a chart removed takes it off), then the chart on the grid's cube; the cube
-      // it read let go when no view reads it any more (a detached chart's), and the page's model kept for what is left
-      const unpicked = unselected(page, view);
+      // its selection off the cube it read (as a chart removed takes it off) and its page filter off (a click on nothing
+      // takes both: the S7 audit's Y-1), then the chart on the grid's cube; the cube it read let go when no view reads it
+      // any more (a detached chart's), and the page's model kept for what is left
+      const picked = unselected(page, view);
+      const unpicked = picked.filters?.some((f) => f.from === view.id)
+        ? { ...picked, filters: picked.filters.filter((f) => f.from !== view.id) } : picked;
       const views = unpicked.views.map((v) => {
         if (v.id !== view.id || v.kind !== 'chart') return v;
         const { selection: _was, ...rest } = v;
@@ -679,9 +685,18 @@ export function selectionRefilters(page: PageDocument, filterOf: (cube: string) 
 export function rebuiltCommands(held: PageDocument, opened: PageDocument, taken: readonly string[]): PageCommand[] {
   return taken.flatMap((cube) => {
     const now = opened.cubes.find((c) => c.id === cube);
-    if (now === undefined || held.copies?.[cube] !== undefined) return [];
+    if (now === undefined || !opensAgain(held, cube)) return [];
     return [{ kind: 'rebuilt', cube, source: now.cube.source }];
   });
+}
+
+/**
+ * WHETHER A PAGE'S CUBE OPENS AGAIN OVER ITS SOURCE AS IT IS NOW (a page reopened, a frame served again: P11), the one
+ * rule (rebuiltCommands'; Python's, headless cubeOpensAgain -- the S7 audit's Y-2): every cube but a snapped grid's,
+ * which reads its copy, never its frames, until it goes live (the S1 audit's 6).
+ */
+export function opensAgain(page: PageDocument, cube: string): boolean {
+  return page.copies?.[cube] === undefined;
 }
 
 /** A cube's source, read by the cube document's own reader: what it refuses, refused in its words. */

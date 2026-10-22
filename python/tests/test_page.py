@@ -158,8 +158,9 @@ class Document(Paged):
         path = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), 'q3.page.json')
         page.save(path)
         self.assertIn('1.50', open(path, encoding='utf-8').read())
-        # as DataCube's Export > Page File writes it (headless pageFile, B5): its text, one line
-        self.assertEqual(open(path, encoding='utf-8').read().count('\n'), 1)
+        # as DataCube's Export > Page File writes it (headless pageFile, B5): its text, one line, byte for byte (no newline
+        # of Python's own: the S7 audit's Y-4)
+        self.assertEqual(open(path, encoding='utf-8').read().count('\n'), 0)
         # classes kept in a project: refused in DataCube's words, as Export > Page File refuses it
         modelled = ll.Page.load({**page.to_dict(), 'model': {'project': 'demo:trades', 'workspace': 'datacube',
                                                              'package': 'demo', 'tables': {}}}, frames={'trades': trades()})
@@ -197,9 +198,11 @@ class Document(Paged):
         self.assertEqual(again['content']['name'], 'Q3, again')
         self.assertEqual(page.name, 'Q3, again')
         self.assertEqual(page._page_commands[-1], {'kind': 'renamePage', 'name': 'Q3, again'})
-        # deleted meanwhile (in DataCube's Open…): saved again as a new one under its id
+        # deleted meanwhile (in DataCube's Open…): refused, as DataCube's Save is refused, never made again under its id
+        # (the S7 audit's Y-8: Python made it again)
         self.assertEqual(engine.answer('DELETE', f'/api/pure/v1/query/dataCube/{first}', '', None).status, 204)
-        self.assertEqual(page.save(), first)
+        with self.assertRaisesRegex(ValueError, f"the page was not saved: Can't find query with ID '{first}'"):
+            page.save()
         # another page is another saved page; one with nothing on it is not saved, as DataCube's Save refuses it (B14)
         other = ll.Page('Other')
         with self.assertRaisesRegex(ValueError, r'^There is nothing on this page to save: add a data source first\.$'):
@@ -226,14 +229,22 @@ class Document(Paged):
         # a name given is still judged by DataCube's one rule
         with self.assertRaisesRegex(ValueError, "a page's name"):
             ll.Page('  ')
-        # written as a file unnamed, and loaded again so
+        # written as a file unnamed: named as the tab's Export > Page File names it (pageFile: its first sheet's), the file
+        # as DataCube writes it, byte for byte (the S7 audit's Y-4: '' and a newline of Python's own)
         unnamed = ll.Page()
         unnamed.grid(trades(), name='unnamed_file_trades')
         path = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), 'unnamed.page.json')
         unnamed.save(path)
+        written = Path(path).read_text('utf-8')
+        self.assertEqual(json.loads(written)['name'], 'unnamed_file_trades')
+        self.assertFalse(written.endswith('\n'))
         again = ll.Page.load(path, frames={'unnamed_file_trades': trades()})
-        self.assertEqual(again.name, '')
-        self.assertEqual(again.to_json(), unnamed.to_json())
+        self.assertEqual(again.name, 'unnamed_file_trades')
+        self.assertEqual(again.grids[0]._query, unnamed.grids[0]._query)
+        # a Cube File (a cube saved alone) loads as the tab's Open... opens one: a page of its one grid (the S7 audit's Y-5)
+        alone = ll.Page.load(unnamed.to_dict()['cubes'][0]['cube'], frames={'unnamed_file_trades': trades()})
+        self.assertEqual(len(alone.grids), 1)
+        self.assertEqual(alone.grids[0]._query, unnamed.grids[0]._query)
 
     def test_tiles_are_placed_and_taken_off_as_datacube_places_them(self):
         page, grid, chart = self.built()
@@ -1265,8 +1276,11 @@ class Abilities(Paged):
         self.assertEqual([s.id for s in page.sheets], [third.id, first.id, second.id])
         third.move(99)
         self.assertEqual([s.id for s in page.sheets], [first.id, second.id, third.id], 'a place past the end is the end')
-        with self.assertRaisesRegex(ValueError, "a sheet's place is a whole number, not '1'"):
+        # refused in DataCube's words, moveSheet's own (the S7 audit's Y-11: Python spelled them itself)
+        with self.assertRaisesRegex(ValueError, 'a sheet\'s place is a number, not "1"'):
             first.move('1')
+        with self.assertRaisesRegex(ValueError, "a sheet's place is a whole number, not 1.5"):
+            first.move(1.5)
         page.remove(third)
         self.assertEqual([s.id for s in page.sheets], [first.id, second.id])
         self.assertEqual(len(page.grids), 1)
@@ -1488,6 +1502,12 @@ class Abilities(Paged):
             ll.Page.open('nope')
         with self.assertRaisesRegex(ValueError, 'the page reads the frames open_trades: give them'):
             ll.Page.open(id)
+        # a record deleted since (in DataCube's Open...): refused, as the tab's Save is, never made again under its id (the
+        # S7 audit's Y-8)
+        self.assertEqual(store_call('lite_saved_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)[0], 204)
+        with self.assertRaisesRegex(ValueError, 'the page was not saved'):
+            opened.save()
+        self.assertEqual(store_call('lite_saved_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)[0], 404)
         # a cube saved alone, before pages: a page of its one grid, as the tab opens one
         cube = page.to_dict()['cubes'][0]['cube']
         status, _ = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '',
@@ -1496,6 +1516,8 @@ class Abilities(Paged):
         alone = ll.Page.open('old-cube', frames={'open_trades': trades()})
         self.assertEqual(len(alone.grids), 1)
         self.assertEqual(alone.grids[0]._query, cube['query'])
+        # saved again over that record, as the tab's Open... holds it -- never a second one (the S7 audit's Y-8)
+        self.assertEqual(alone.save(), 'old-cube')
 
 
 class Live(Paged):
@@ -1996,6 +2018,12 @@ class Joined(Paged):
         on_second = page.sheet('Second')
         other = page.join(theirs, mine, self.HOW, sheet=on_second)
         self.assertEqual([t.id for t in on_second.tiles], [other.id], 'on another sheet: where it is asked for')
+        # its first input on another sheet: beside it there, as the tab places it (the S7 audit's Y-3: it went on the
+        # first sheet)
+        third = page.sheet('Third')
+        far = page.grid(desks(), name='far_desks', sheet=third)
+        beside = page.join(far, mine, self.HOW)
+        self.assertEqual([t.id for t in third.tiles], [far.id, beside.id], "beside its first input, on that input's sheet")
 
     def test_saved_and_loaded_over_its_frames_and_reopened_when_one_is_served_again(self):
         page, joined = self.joined()
@@ -2052,6 +2080,7 @@ class Joined(Paged):
             {'cube': json.dumps(command['document']), 'page': page.name, 'gridsOnPage': 3}))
         self.assertEqual(opened.status, 200, opened.body)
         self.assertEqual(sorted(json.loads(opened.body)['frames']), ['desks', 'trades'], 'its rows read over both frames')
+        self.assertEqual(json.loads(opened.body)['how'], {}, 'planned over its model alone: no mapping, no project of its own')
         # refused in DataCube's words (the compiler's: a column neither grid has), and a malformed ask in the route's
         status, body = asked('questions', how={**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
         self.assertEqual(status, 422)
@@ -2408,6 +2437,27 @@ class OverFiles(Paged):
         self.assertEqual(groups_of(other.grids[0].view(), 'qty'), {'FX': 10, 'EQ': 20})
         self.assertNotEqual(other.to_dict()['cubes'][0]['cube']['source']['sha256'], sha256)
 
+    def test_a_page_whose_class_is_not_read_here_opens_without_it_as_the_tab_opens_it(self):
+        # (the S7 audit's H-6) a class this host's model home cannot read: left out and said, as the tab's Open... leaves it
+        # out -- kept as the page saved it, its other grids opened -- and refused in words when its grid is asked (Python
+        # had refused the whole page)
+        page = ll.Page('Classless')
+        page.grid(trades(), name='classless_trades')
+        page.grid(trades(), name='classless_trades_too')
+        doc = page.to_dict()
+        doc['cubes'][1]['cube']['source'] = {
+            '_type': 'class', 'name': 'Trade', 'class': 'trades::Trade', 'project': 'g:trades', 'workspace': 'datacube',
+            'revision': 'r1', 'mapping': 'trades::Mapping', 'runtime': 'trades::Runtime',
+            'columns': doc['cubes'][1]['cube']['source']['columns']}
+        with self.assertWarnsRegex(UserWarning, r"left out: Trade \(Trade is a class of g:trades, which this host's model home "
+                                                r'cannot read'):
+            loaded = ll.Page.load(doc, frames={'classless_trades': trades()})
+        self.assertEqual(len(loaded.grids), 2)
+        self.assertEqual(loaded.to_dict()['cubes'][1]['cube']['source']['class'], 'trades::Trade', 'kept as the page saved it')
+        self.assertEqual(len(loaded.grids[0].to_pandas()), len(trades()))
+        with self.assertRaisesRegex(Exception, "Trade is a class of g:trades, which this host's model home cannot read"):
+            loaded.grids[1].view()
+
     def test_a_remote_file_grid_is_mounted_once_for_its_url_and_one_not_read_is_refused_in_words(self):
         url = f'{self.base}/desks.csv'
         page = ll.Page('Remote')
@@ -2435,15 +2485,13 @@ class OverFiles(Paged):
         path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
         page = ll.Page('Files')
         page.grid(file=path)
-        page.grid(trades(), name='refused_trades')
-        # its file's bytes changed since: read anew for the load, then the page refused over a class its model home does
-        # not hold -- the file read for it let go of at once
+        page.grid(remote=f'{self.base}/desks.csv')
+        # its file's bytes changed since: read anew for the load, then the page refused over a remote file that is not
+        # there any more -- the file read for it let go of at once
         changed = self.file('desk,qty\nFX,10\n')
         refused = page.to_dict()
-        refused['cubes'][1]['cube']['source'] = {
-            '_type': 'class', 'name': 'Trade', 'class': 'trades::Trade', 'project': 'g:trades', 'workspace': 'datacube',
-            'revision': 'r1', 'mapping': 'trades::Mapping', 'runtime': 'trades::Runtime',
-            'columns': refused['cubes'][1]['cube']['source']['columns']}
+        gone = f'{self.base}/gone.csv'
+        refused['cubes'][1]['cube']['source'] = {**refused['cubes'][1]['cube']['source'], 'url': gone}
         # the page that read it gone, and its file let go of at the session's next safe moment
         del page
         gc.collect()
@@ -2451,7 +2499,7 @@ class OverFiles(Paged):
         import hashlib
         held = set(datacube._session.frames.read_files())
         self.assertNotIn(refused['cubes'][0]['cube']['source']['sha256'], held)
-        with self.assertRaisesRegex(Exception, "Trade is a class of g:trades, which this host's model home cannot read"):
+        with self.assertRaisesRegex(Exception, f'the remote file {gone} is not read'):
             ll.Page.load(refused, files={'trades.csv': changed})
         self.assertNotIn(hashlib.sha256(changed.read_bytes()).hexdigest(), datacube._session.frames.read_files(),
                          'the file read for it let go of')
@@ -2472,10 +2520,15 @@ class OverFiles(Paged):
             '_type': 'class', 'name': 'Trade', 'class': 'trades::Trade', 'project': 'g:trades', 'workspace': 'datacube',
             'revision': 'r1', 'mapping': 'trades::Mapping', 'runtime': 'trades::Runtime',
             'columns': doc['cubes'][0]['cube']['source']['columns']}
+        # left out as the page opens, as the tab's Open... leaves it out (the S7 audit's H-6), and refused in its words
+        # when its grid is asked
+        with self.assertWarnsRegex(UserWarning, "left out: Trade \\(Trade is a class of g:trades, which this host's model "
+                                                'home cannot read at revision r1'):
+            loaded = ll.Page.load(doc, frames={'heads': pd.DataFrame({'desk': ['FX', 'EQ'], 'head': ['Ana', 'Ben']})},
+                                  files={'trades.csv': path})
         with self.assertRaisesRegex(Exception, "Trade is a class of g:trades, which this host's model home cannot read "
                                                'at revision r1'):
-            ll.Page.load(doc, frames={'heads': pd.DataFrame({'desk': ['FX', 'EQ'], 'head': ['Ana', 'Ben']})},
-                         files={'trades.csv': path})
+            loaded.grids[0].view()
 
 
 class OverClasses(Paged):
@@ -2587,6 +2640,13 @@ class OverClasses(Paged):
         self.assertEqual(loaded.filters, [{'id': 'filter-1', 'class': path, 'condition': mark('AMER'), 'from': chart.id}])
         chart.select(None)
         self.assertEqual(loaded.filters, [])
+        # Show Grid on a frozen chart whose mark is a page filter: the filter off with its selection, as on the screen
+        # (followGrid's own rule: the S7 audit's Y-1 -- the screen's Show Grid had left it on)
+        frozen = grid.chart('bar', x='region', frozen=True)
+        frozen.select('EMEA')
+        self.assertEqual([f['from'] for f in loaded.filters], [frozen.id])
+        frozen.grid()
+        self.assertEqual(loaded.filters, [])
 
     def test_a_page_filter_is_set_read_and_taken_off_as_the_screens_add_a_filter_sets_one(self):
         # (K7, Z19) page.filter: made by DataCube's code headless (pageFilter), the setPageFilter command the screen's Add
@@ -2631,9 +2691,12 @@ class OverClasses(Paged):
     def test_a_class_its_model_home_does_not_hold_is_refused_in_words(self):
         _, doc = self.classed()
         doc['cubes'][0]['cube']['source']['revision'] = 'no-such-revision'
+        # left out as the page opens, said (the S7 audit's H-6), and refused in words when its grid is asked
+        with self.assertWarnsRegex(UserWarning, 'left out: Trade'):
+            loaded = ll.Page.load(doc)
         with self.assertRaisesRegex(Exception, 'Trade is a class of .*, which this host\'s model home cannot read at '
                                                'revision no-such-revision'):
-            ll.Page.load(doc)
+            loaded.grids[0].view()
 
 
 class OverWarehouse(Paged):

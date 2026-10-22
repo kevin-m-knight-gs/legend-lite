@@ -223,13 +223,19 @@ class Static(unittest.TestCase):
 
     def test_l9_who_writes_the_keeper(self):
         found = Counter()
+        unadmitted = []
         for path in (PAGE, ENGINE, SESSION):
             for node, where, _ in _where(ast.parse(path.read_text('utf-8'))):
                 if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                         and node.func.attr in ('keep', 'write', 'settle', 'restore', 'forget')
                         and 'keeper' in ast.unparse(node.func.value)):
                     found[f'{path.name}:{where}:{node.func.attr}'] += 1
+                    # every editor's write admitted by the one rule (the S7 audit's Y-10: Python's own were not)
+                    admit = node.args[3] if len(node.args) > 3 else next((k.value for k in node.keywords if k.arg == 'admit'), None)
+                    if node.func.attr == 'settle' and (admit is None or 'unadmitted' not in ast.unparse(admit)):
+                        unadmitted.append(f'{path.name}:{where}')
         _held_to(self, found, L9_KEEPER, 'keeper writers', 'L9_KEEPER')
+        self.assertEqual(unadmitted, [], 'a write settled without the admission every editor\'s write takes (Frames.unadmitted)')
 
 
 # -- L6 ------------------------------------------------------------------------------------------------------------
@@ -349,6 +355,18 @@ class HostApplies(Session):
                       said.body.decode('utf-8'))
         self.assertEqual(datacube._session.keeper.current(page._key)[0], at, 'nothing kept')
 
+    def test_both_editors_writes_are_admitted_by_one_rule(self):
+        # (the S7 audit's Y-10) a page reading a frame this host no longer serves: a tab's write refused -- and Python's
+        # own, by the same rule (Frames.unadmitted), where it had been kept
+        page, engine = self.served('admitted')
+        datacube._session.frames.unregister('t')
+        said = self.written(engine, page, {'edits': [{'page': {'kind': 'renamePage', 'name': 'by the tab'}}]})
+        self.assertEqual(said.status, 409, said)
+        self.assertIn('which this engine does not serve', said.body.decode('utf-8'))
+        with self.assertRaisesRegex(ValueError, 'the page reads the frames t, which this engine does not serve'):
+            page.name = 'by Python'
+        self.assertNotIn(datacube._session.keeper.current(page._key)[1]['name'], ('by the tab', 'by Python'))
+
     def test_a_failure_of_the_librarys_is_said_as_one_never_as_a_refusal(self):
         # a write the keeper failed on -- a bug, not a refusal -- is a 500 that names it: never "no such page" (a KeyError)
         # nor a refusal the open page reopens on
@@ -372,6 +390,11 @@ class OneRule(Session):
     def test_b13_one_saved_record_whichever_editor_saves_the_page(self):
         # the open page saved it (its Save tells savedAs): Python's save goes over that record, never a second one
         page, engine = self.served('saved twice')
+        # the tab's Save: the record in this user's saved pages, then the page told it
+        from legend_lite._home import THIS_USER, pages_folder, store_call
+        status, made = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', json.dumps(
+            {'id': 'r-tab', 'name': 'saved twice', 'content': page.to_dict()}), THIS_USER)
+        self.assertEqual(status, 200, made)
         said = self.written(engine, page, {'edits': [{'page': {'kind': 'savedAs', 'record': 'r-tab'}}]})
         self.assertEqual(said.status, 200, said)
         self.assertEqual(page.to_dict()['record'], 'r-tab')

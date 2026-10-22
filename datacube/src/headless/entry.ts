@@ -15,7 +15,7 @@ import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  chartDrill, chartPick, gridCopied, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, cubeOpensAgain, gridCopied, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageWithCube, pageWritten,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides } from './join.ts';
@@ -78,6 +78,8 @@ export { layoutBands, layoutTiles };
 export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
 /** A page saved in the page store as it opens (pageOfRecord: the tab's Open…, Python's Page.open). */
 export { pageOfRecord };
+/** Whether a page's cube opens again over its source as it is now (cubeOpensAgain: a snapped grid's does not). */
+export { cubeOpensAgain };
 /** A chart's mark selected, as a click selects one (chartPick: Python's chart.select), and a chart drilled down into a
  *  mark or back up, as a double-click and the crumbs drill (chartDrill: chart.drill, chart.drill_up). */
 export { chartDrill, chartPick };

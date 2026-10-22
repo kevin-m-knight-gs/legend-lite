@@ -9,25 +9,27 @@ import {
   readSaved, savedPage, savedRecord, suggestedName, type ChartView, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
-import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
+import { applyPageCommands, EXACT_FIELD, followedPage, opensAgain, readPageCommand, type PageCommand } from '../page-commands.ts';
 import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
 import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
 import { drillDown, drillLevels, drillRefusal, drillUp, markConditions, namedMark } from '../chart-spec.ts';
-import { classPick } from '../page-filters.ts';
+import { chartPicked } from '../page-filters.ts';
 import { baseOnHost, draftFrom, gridApply, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
 /**
- * A page document (JSON text) as DataCube reads it and would write it again. JSON: `{page}`, the page's text as
- * DataCube writes it (its numbers exact), or `{problems}`, why DataCube does not read it, in its words.
+ * A SAVED FILE (JSON text) AS THE PAGE IT OPENS AS, as the tab's Open… opens a file (page-document.ts readSaved and
+ * savedPage; Python's Page.load): a page file, or a Cube File, a page of its one grid (the S7 audit's Y-5: Python
+ * refused a Cube File). JSON: `{page}`, the page's text as DataCube writes it (its numbers exact), or `{problems}`, why
+ * DataCube does not read it, in its words.
  */
 export function pageRead(text: string): string {
   try {
-    return JSON.stringify({ page: pageToJson(readPage(text)) });
+    return JSON.stringify({ page: pageToJson(savedPage(readSaved(text))) });
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -202,11 +204,20 @@ function chartOf(doc: PageDocument, chart: string): ChartView | string {
 }
 
 /**
+ * WHETHER THE PAGE'S CUBE `cube` OPENS AGAIN OVER ITS SOURCE AS IT IS NOW, as a page opened again takes it (page-commands.ts
+ * opensAgain, rebuiltCommands' rule): what Python asks before it opens a cube again over its frames (the S7 audit's Y-2:
+ * it kept the rule itself). JSON: true or false.
+ */
+export function cubeOpensAgain(page: string, cube: string): string {
+  return JSON.stringify(opensAgain(heldPage(page), cube));
+}
+
+/**
  * A CHART'S MARK SELECTED AS PYTHON NAMES ONE (chart.select; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D8): `given`,
  * `{value, split?}` -- the mark's value across and, on a split chart, its series', each tagged where JSON has no form
  * for it (D12) -- or `{value: null}`: the selection cleared. Named as a click names it (chart-spec.ts namedMark) and
  * made the click's conditions (markConditions: a drilled chart's path with them), then what the screen's click does with
- * them (page/cube-page.ts #select; page-filters.ts classPick): on a grid over a class, those on its properties the
+ * them (page-filters.ts chartPicked, which page/cube-page.ts #select asks too): on a grid over a class, those on its properties the
  * chart's page filter; the rest the chart's selection -- its grid's `refilter`, the old selection off and the new on, and
  * the page's `select`. Explicit, never toggled (D8): the same mark again is kept. A chart whose grid was removed
  * (detached) filters no grid: refused. JSON: `{grid, commands, page}` -- the grid's tile and its commands (for
@@ -233,20 +244,9 @@ export function chartPick(page: string, chart: string, given: string): string {
     if (typeof key === 'string') return JSON.stringify({ problems: [key] });
     conditions = markConditions(view.spec, { ...cube.query, epoch: 0 }, key);
   }
-  const old = view.selection ?? [];
-  const pageCommands: PageCommand[] = [];
-  let next: readonly FilterNode[] = conditions ?? [];
-  if (cube.source._type === 'class') {
-    const pick = classPick(cube.source, chart, conditions, false);
-    const command = pick.command(doc.filters ?? []);
-    if (command !== undefined) pageCommands.push(command);
-    next = pick.own ?? [];
-  }
-  // as data, whatever order the page's writer put a condition's keys in
-  const kept = sameValue(next, old);
-  const commands: GridCommand[] = kept ? [] : [{ kind: 'refilter', remove: [...old], add: [...next] }];
-  if (!kept) pageCommands.push({ kind: 'select', chart, conditions: [...next] });
-  return JSON.stringify({ grid: grid.id, commands, page: pageCommands });
+  // what the screen's click does with them, by its one rule (page-filters.ts chartPicked), named and never toggled
+  const picked = chartPicked({ source: cube.source, chart, conditions, old: view.selection ?? [], filters: doc.filters ?? [], toggle: false });
+  return JSON.stringify({ grid: grid.id, commands: picked.refilter ? [picked.refilter] : [], page: picked.page });
 }
 
 /**
@@ -306,15 +306,18 @@ export function gridCopied(cube: string): string {
 /**
  * A SAVED PAGE AS IT OPENS (the tab's Open…: page-document.ts readSaved and savedPage; Python's Page.open): `record`, the
  * page store's record as its GET answers it -- its content a page, or a cube saved alone before pages -- read as the tab
- * reads it. JSON: `{page}`, its text as DataCube writes it, or `{problems}`, in DataCube's words.
+ * reads it, the saved page it is that record. JSON: `{page}`, its text as DataCube writes it, or `{problems}`, in DataCube's words.
  */
 export function pageOfRecord(record: string): string {
   try {
-    const read = fromJson(record) as { readonly content?: unknown } | null;
+    const read = fromJson(record) as { readonly id?: unknown; readonly content?: unknown } | null;
     if (read === null || typeof read !== 'object' || read.content === undefined) {
       return JSON.stringify({ problems: ["not a saved page: the store's record has no content"] });
     }
-    return JSON.stringify({ page: pageToJson(savedPage(readSaved(read.content))) });
+    if (typeof read.id !== 'string' || read.id === '') return JSON.stringify({ problems: ["not a saved page: the store's record has no id"] });
+    // the saved page it is, the record it was opened from, as the tab's Open… holds it -- a cube saved alone, or a page
+    // saved before B13, carries none of its own (the S7 audit's Y-8: Python's next save made a second record)
+    return JSON.stringify({ page: pageToJson({ ...savedPage(readSaved(read.content)), record: read.id }) });
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });

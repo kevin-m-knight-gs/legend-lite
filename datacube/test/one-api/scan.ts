@@ -52,9 +52,9 @@ function header(line: string): string | undefined {
  * What the line at `index` is in: the nearest header above it that is less indented than every line between (so a
  * sibling -- a local arrow function defined just before the call -- is not taken for it), by name and line.
  */
-export function enclosingAt(lines: readonly string[], index: number): { name: string; at: number } {
+export function enclosingAt(lines: readonly string[], index: number, self = true): { name: string; at: number } {
   // a function written on one line, the call in its body: `rename = (name) => page.setTitle(name);`
-  const own = header(lines[index]!);
+  const own = self ? header(lines[index]!) : undefined;
   if (own !== undefined && /=>|\{\s*$/.test(lines[index]!)) return { name: own, at: index };
   let least = indent(lines[index]!);
   for (let i = index - 1; i >= 0; i -= 1) {
@@ -92,15 +92,38 @@ export function bodyAt(lines: readonly string[], at: number): string {
   return out.join('\n');
 }
 
+/**
+ * The lines of the function headed at `at` that are its own: not those of a function defined inside it, which tells or
+ * writes for itself (the S7 audit's H-10: a large function -- the app's start -- whose inner functions tell a command
+ * read as telling one, so a write of its own escaped the ledger).
+ */
+export function ownBodyAt(lines: readonly string[], at: number): string {
+  const depth = at < 0 ? -1 : indent(lines[at]!);
+  const out = at < 0 ? [] : [lines[at]!];
+  for (let i = at + 1; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    // a local helper (`const done = (...) => {`) is the function's own work; a function of its own (a property's, a
+    // method's, `function name`, a `let` set again later) is not
+    let e = enclosingAt(lines, i);
+    while (e.at !== at && e.at >= 0 && LOCAL.test(lines[e.at]!)) e = enclosingAt(lines, e.at, false);
+    if (e.at === at) out.push(line);
+    if (at >= 0 && line.trim() !== '' && indent(line) <= depth) break;
+  }
+  return out.join('\n');
+}
+
+/** A local helper's header: `const name = ...` (a `let`, which is set again later, is a way in of its own: a callback). */
+const LOCAL = /^\s+const\s+[A-Za-z_$][\w$]*\s*=/;
+
 /** Each call of `pattern` (a global regex; its first group, or the match, names the call) as `where:call`, counted --
- *  or, with `keep`, only the calls whose enclosing function's body `keep` accepts. */
+ *  or, with `keep`, only the calls whose enclosing function's own lines (ownBodyAt) `keep` accepts. */
 export function sites(text: string, pattern: RegExp, keep?: (body: string) => boolean): Map<string, number> {
   const lines = codeLines(text);
   const found = new Map<string, number>();
   lines.forEach((line, i) => {
     for (const m of line.matchAll(pattern)) {
       const where = enclosingAt(lines, i);
-      if (keep && !keep(bodyAt(lines, where.at))) continue;
+      if (keep && !keep(ownBodyAt(lines, where.at))) continue;
       const key = `${where.name}:${m[1] ?? m[0]}`;
       found.set(key, (found.get(key) ?? 0) + 1);
     }

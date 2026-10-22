@@ -74,7 +74,7 @@ import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from 
 import type { PageCommand, PageDraft } from './page-commands.ts';
 import type { PageState } from './page-state.ts';
 import {
-  PAGE_CUBE, gridCopyOf, pageToJson, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
+  PAGE_CUBE, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
 } from './page-document.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
@@ -83,7 +83,7 @@ import {
   type LeafColumn,
 } from './grid/columns.ts';
 import { shownColumns } from './shown-columns.ts';
-import { freshConfiguration, gridCapped, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
@@ -619,8 +619,7 @@ export class CubeApp {
     this.#owner = new CubeStateOwner({
       snapshot,
       configuration,
-      tree: options.tree ?? TreeState.empty(configuration.showRootAggregation)
-        .withExpandTo(configuration.initialExpandToLevel ?? 0),
+      tree: options.tree ?? newGridTree(configuration),
     }, (state) => this.#controller.run(state), {
       historyLimit: numericSetting(this.#settings, 'dataCube.editor.maxHistoryStackSize'),
       abort: () => this.#controller.cancel(),
@@ -1080,6 +1079,12 @@ export class CubeApp {
         if (applying) this.#untold.push(...applying.commands);
         return;
       case 'presentation':
+        // an undo or a redo of a presentation change (a width, a format): no command says it, so the page is written
+        // whole, a restore (N2), as a move that queries is when it commits (the S7 audit's G-1)
+        if (event.moved) {
+          this.#options.onRestore?.();
+          return;
+        }
         if (!applying) return;
         if (applying.onCommitted) this.#tell(applying.commands);
         if (this.#owner.busy) this.#untold.push(...applying.commands);
@@ -2028,7 +2033,8 @@ export class CubeApp {
           ? this.#shown.rows.includes(column)
           : false,
         hasSelection: this.#selection !== null,
-        hasExpanded: this.#owner.current.tree.openPaths.length > 0,
+        // a group open by hand, or the level its settings open it to: Collapse All closes both (the S7 audit's G-5)
+        hasExpanded: this.#owner.current.tree.openPaths.length > 0 || this.#owner.current.tree.expandTo > 0,
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
         ...(this.#config.pivotStatisticColumnName !== undefined
@@ -2755,6 +2761,11 @@ export class CubeApp {
       refilter: (old, add, label) => {
         void this.#apply([{ kind: 'refilter', remove: [...old], add: [...add] }], label);
       },
+      // a chart's selection off this grid as a page step took it off (the page's unselected): another editor's change, as
+      // it were -- never told back, no step of its own history
+      unselected: (old) => {
+        void this.applyGridCommands([{ kind: 'refilter', remove: [...old], add: [] }], 'Chart Removed');
+      },
       spawn: (host, snapshot, spawned) => {
         const o = this.#options;
         // the same place to run as this cube: its engine and planner (and live warehouse), or its runner
@@ -3023,13 +3034,19 @@ export class CubeApp {
       return;
     }
     const title = this.#config.reportTitle ?? 'cube';
-    // the same one thing Save writes: the page, its cube inside
+    // the same one thing Save writes: the page, its cube inside -- as a page file, by its one rule (page-document.ts
+    // pageFile: Export ▸ Page File's and Python's save(path)'s; the S7 audit's G-4), or refused in its words
     const page = this.pageDocument(title);
     if (!page) {
       this.#status('this cube does not know its source, so it cannot be written down', 'warn');
       return;
     }
-    download(`${exportFileName(title, new Date())}.json`, 'application/json', pageToJson(page));
+    const made = pageFile(page);
+    if ('refused' in made) {
+      this.#status(made.refused, 'warn');
+      return;
+    }
+    download(`${exportFileName(title, new Date())}.json`, 'application/json', made.file);
   }
 
   // -- where its rows are: Snap as page state (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) ---------------

@@ -83,6 +83,11 @@ interface Entry {
 // (page.grid(query=...)) and a warehouse table (page.grid(warehouse=..., table=..., catalog=...)) as the tab adds one,
 // by headless sourceCube (givenSource: class-source.ts classAt, query-store sharedPart; host-tables.ts leafOnHost);
 // tested by test_page.py OverClasses, OverWarehouse, OverSavedQueries and PublishedQueries (F33, end to end)
+// 2026-10-22 (S7, the final audit's H-10, G-1, P-1, Y-9): no ceiling moves; the scans see more -- a host write whose
+// function's own lines tell nothing (scan.ts ownBodyAt: an inner function that tells no longer hides it), any assignment
+// of the host's `current`, an optional call of a listed gap (`blankPage?.(`), savedAs as a told command; the grid's
+// state changed through an alias of its owner refused outright; the grid's refreshes (the same state run again) said
+// why they are not listed; the reasons of entries the audit found worded wrong, corrected
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 3, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
@@ -97,8 +102,11 @@ function pinned(name: string, size: number): void {
 
 const PLUMBING = 'the one way a change reaches the state owner: no gap of its own';
 
-/** Every call in the grid (app.ts) that changes its state, by where it is made. */
+/** Every call in the grid (app.ts) that changes its state, by where it is made. Its owner's `refresh` is none: the same
+ *  state run again, its rows read afresh (state-owner.ts refresh: change with the state as it is, forced). */
 const GRID_CALLS = /this\.(#change|#owner\.change|#owner\.undo|#owner\.redo|#owner\.retryRefused)\(/g;
+/** The owner reached through another name: a change no scan above would see (the S7 audit's G-1 notes). */
+const OWNER_ALIAS = /(?<!#)\bowner\.(?:change|undo|redo|retryRefused)\(/;
 const L1_GRID: Record<string, Entry> = {
   '#change:#owner.change': { items: [], why: PLUMBING },
   '#applyCommands:#change': { items: [], why: 'the command path: applyGridCommands, told by onCommand' },
@@ -106,7 +114,7 @@ const L1_GRID: Record<string, Entry> = {
   '#redo:#owner.redo': { items: [], why: 'N2: as an undo' },
   // a retry stays a retry: the refused change run again, its commands kept and told when it lands
   // (cube-transactions.test.ts G13)
-  'submit:#owner.retryRefused': { items: [], why: "the refused change run again: its commands told (#refusedCommands)" },
+  'submit:#owner.retryRefused': { items: [], why: 'the refused change run again (signed in again): the commands it was told as they land, or, an undo or a redo among it, a restore (N2)' },
 };
 
 /** Every call of the command path, by where it is made: the ones with a change of their own beside the commands. */
@@ -128,7 +136,7 @@ const ROUTES = /\.((?:state\.(?:change|undo|redo|retryRefused|refresh))|change|r
 const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('.ts') && f !== 'src/app.ts'
   && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
 const L1_ROUTES: Record<string, Entry> = {
-  'src/page/cube-page.ts:#select:refilter': { items: [], why: "a chart's mark on its grid's filter: the grid's refilter command, told beside the page's select" },
+  'src/page/cube-page.ts:#select:refilter': { items: [], why: "a chart's mark clicked, or its chip: the grid's refilter command, told beside the page's select (page-filters.ts chartPicked, Python's chartPick's rule); a chart removed or moved by a step is no click: its grid follows the step (ChartSource.unselected)" },
   'src/page/page-app.ts:follow:followSnap': { items: [], why: "following another editor's snap" },
   'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
@@ -136,19 +144,19 @@ const L1_ROUTES: Record<string, Entry> = {
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
-const GAP_CALLS_HOST = /(?<![\w.#]|function )(inPlace|openSaved|blankPage)\(/g;
+const GAP_CALLS_HOST = /(?<![\w.#]|function )(inPlace|openSaved|blankPage)(?:\?\.)?\(/g;
 const L1_REACH: Record<string, Entry> = {
   'datacube-app.ts:openInPlace:inPlace': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'datacube-app.ts:open:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
+  'datacube-app.ts:open:openSaved': { items: [], why: "N1, D1: the Open… window's page, of this tab's own; and openLive's `open`, the page its other editor serves opened whole as its keeper has it (replacing)", count: 2 },
   'datacube-app.ts:openText:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:examplesList:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'datacube-app.ts:openDataCube:blankPage': { items: [], why: "N1, D1: a new page of this tab's own (newPage, D11) -- on a page another editor serves, that one left as it is", count: 2 },
+  'datacube-app.ts:openDataCube:blankPage': { items: [], why: "N1, D1: New ▸ Blank Page, a new page of this tab's own (newPage, D11), the page another editor serves left as it is; and a start that opened nothing, said -- never once the page its other editor serves is open (the S7 audit's H-1)", count: 3 },
 };
 
 /** What a function tells: any command, by any way the app tells one. A write in a function that tells one is no gap. */
 // (the page's rename and a grid's own move of its rows are told by the page: page-app.ts rename, cube-page.ts on 'moved')
-const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebuilt|followGrid|select)'|channel\??\.edit\(|onPageCommand\??\.\(|#tell\(|#apply\(|page\.rename\(|#emit\('moved'\)/;
+const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebuilt|followGrid|select)'|channel\??\.edit\(|onPageCommand\??\.\(|#tell\(|#apply\(|page\.rename\(|page\.savedAs\(|#emit\('moved'\)/;
 const quiet = (body: string): boolean => !TELLS.test(body);
 
 /** Where the grid says the rows it reads moved, or moves them (a snap, going live): the page's copies change. */
@@ -160,16 +168,16 @@ const L1_PLANE: Record<string, Entry> = {
 };
 
 /** The host's own writes of the page (app/datacube-app.ts) in a function that tells no command. */
-const HOST_CALLS = /(current\s*=\s*\{|page\.setTitle\(|page\.clear\(\)|page\.restore\()/g;
+const HOST_CALLS = /(current\s*=(?!=)|page\.setTitle\(|page\.clear\(\)|page\.restore\()/g;
 const L1_HOST: Record<string, Entry> = {
   'inPlace:page.clear()': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'inPlace:current = {': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
+  'inPlace:current =': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
   'openSaved:page.restore(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'openSaved:current = {': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
+  'openSaved:current =': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is", count: 2 },
   'openSaved:page.setTitle(': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'blankPage:page.clear()': { items: [], why: "N1, D1: a new page of this tab's own (newPage, D11) -- on a page another editor serves, that one left as it is" },
-  'blankPage:current = {': { items: [], why: "N1, D1: a new page of this tab's own (newPage, D11) -- on a page another editor serves, that one left as it is" },
-  'followLive:current = {': { items: [], why: "following another editor's page: its saved name as it now is" },
+  'blankPage:current =': { items: [], why: "N1, D1: a new page of this tab's own (newPage, D11) -- on a page another editor serves, that one left as it is" },
+  'followLive:current =': { items: [], why: "following another editor's page: \"changed since saved\" from here, the host's bookkeeping (the saved page it is is the page's own: savedAs)" },
 };
 
 describe('L1: every change of a grid, a copy or the page made other than by command is listed', () => {
@@ -178,6 +186,7 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
 
   it('the grid', () => {
     assert.deepEqual(heldTo(sites(app, GRID_CALLS), L1_GRID, 'app.ts'), []);
+    assert.doesNotMatch(codeLines(app).join('\n'), OWNER_ALIAS, "the grid's state changed through another name for its owner");
     pinned('L1_GRID', Object.keys(L1_GRID).length);
   });
 
@@ -202,6 +211,16 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
       'the state a grid shows is what it reads (busy, historyDepth): a way to change it there is a new gap (G11)');
     assert.deepEqual(heldTo(found, L1_ROUTES, 'routes'), []);
     pinned('L1_ROUTES', Object.keys(L1_ROUTES).length);
+    // a chart's selection off its grid as a step took it off (ChartSource.unselected: another editor's change, as it were
+    // -- never told back): only where the board follows a step that removed or moved a chart (the S7 audit's P-1); a call
+    // anywhere else is a gesture changing a grid with no command
+    const following = new Map<string, number>();
+    for (const f of SOURCES.under('src', '.ts').filter(ROUTE_FILES)) {
+      for (const [key, n] of sites(SOURCES.read(f), /\.(unselected)\(/g)) following.set(`${f}:${key}`, n);
+    }
+    assert.deepEqual(Object.fromEntries(following), {
+      'src/page/cube-page.ts:#dropChart:unselected': 1, 'src/page/cube-page.ts:#synced:unselected': 1,
+    });
   });
 
   it("a new grid's configuration, made by one rule (G15 closed)", () => {
@@ -237,7 +256,7 @@ type Cell = 'screen' | 'python';
 /** The missing cells of each kind, by item; `nature` where the kind is one side's by its nature (reviewed at S7). */
 const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   clickSort: { python: { items: [], why: "nature: a header click is the screen's; Python sorts by `sorts` and `addSort`" } },
-  clickTreeSort: { python: { items: [], why: "nature: the tree column's click is the screen's" } },
+  clickTreeSort: { python: { items: [], why: "nature: the tree column's click is the screen's; Python reaches its states by sorts([]) and configure({'treeColumnSort': ...})" } },
   measures: { screen: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" } },
 };
 
@@ -293,7 +312,13 @@ describe('L8: every command kind and source kind, against who makes and reads it
   // 2026-10-22 (S5, Z4-Z7): a headless model action makes the page's model commands by the record the screen keeps
   // (page-model.ts PageModel, which a model action's export makes), so what PageModel makes, it makes
   const pageModel = SOURCES.read('src/page-model.ts');
-  const exportMakes = (body: string, kind: string): boolean => made(body, kind) || (/\bnew PageModel\(/.test(body) && made(pageModel, kind));
+  // 2026-10-22 (the S7 audit's Y-1, Y-9): a chart's pick made by the one rule the screen's click asks too (page-filters.ts
+  // chartPicked), which headless chartPick calls
+  const filters = SOURCES.read('src/page-filters.ts');
+  // its whole body, to its closing brace at the margin (its parameters' type closes at the margin first)
+  const pickRule = filters.slice(filters.indexOf('export function chartPicked'), filters.indexOf('\n}\n', filters.indexOf('export function chartPicked')));
+  const exportMakes = (body: string, kind: string): boolean => made(body, kind) || (/\bnew PageModel\(/.test(body) && made(pageModel, kind))
+    || (/\bchartPicked\(/.test(body) && made(pickRule, kind));
 
   it('each command kind is in its list, read by its reader, renamed by the rebase', () => {
     assert.deepEqual(listed(grid, 'GRID_COMMAND_KINDS'), gridKinds, 'GRID_COMMAND_KINDS is every grid command kind');

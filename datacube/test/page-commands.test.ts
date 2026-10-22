@@ -10,10 +10,11 @@ import { cubeOpenedAgain, type CubeDocument, type CubeSource, type FrameSource }
 import { tiles } from '../src/layout/bands.ts';
 import {
   PAGE_COMMAND_KINDS, applyPageCommand, applyPageCommands, chartTitle, gridTitle, idsOf, joinInputOf, nextPageId,
-  readPageCommand, followedPage, rebuiltCommands,
+  readPageCommand, followedPage, opensAgain, rebuiltCommands,
   type PageCommand, type PageDraft,
 } from '../src/page-commands.ts';
-import { gridCopyOf, modelAcross, openedLive, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, modelAcross, openedLive, pageToJson, readPage, unnamedLabel, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { cubeOpensAgain } from '../src/headless/page.ts';
 import { CubeRefusal, withoutConditions, type FilterNode } from '../src/snapshot.ts';
 import { PageModel } from '../src/page-model.ts';
 import { rebaseEdits, withCube } from '../src/page-rebase.ts';
@@ -112,6 +113,11 @@ describe('each command gives the page the screen\'s rules give it', () => {
     assert.deepEqual(sheet(d.page, 'sheet-3'), { id: 'sheet-3', name: 'Extra', layout: { kind: 'bands', fit: true, bands: [] } });
     d = apply({ kind: 'renameSheet', sheet: 'sheet-1', name: '' }, d);
     assert.equal('name' in sheet(d.page, 'sheet-1'), false, "a blank: named after its first grid");
+    // named what it shows without a name: none of its own, as a tile's made title is none (B2; the S7 audit's P-7 --
+    // the screen's tab told nothing, Python's pinned it)
+    const shows = unnamedLabel(d.page, sheet(d.page, 'sheet-2'));
+    assert.equal('name' in sheet(apply({ kind: 'renameSheet', sheet: 'sheet-2', name: shows }, d).page, 'sheet-2'), false);
+    assert.equal(sheet(apply({ kind: 'renameSheet', sheet: 'sheet-2', name: `${shows}!` }, d).page, 'sheet-2').name, `${shows}!`);
     d = apply({ kind: 'moveSheet', sheet: 'sheet-3', to: 0 }, d);
     assert.deepEqual(d.page.sheets.map((s) => s.id), ['sheet-3', 'sheet-1', 'sheet-2']);
     const gone = apply({ kind: 'removeSheet', sheet: 'sheet-1' }, d).page;
@@ -468,6 +474,13 @@ describe("a cube changed by a page command, its live charts following it (follow
     assert.equal(chartOf(moved, 'chart').cube, trades.views.find((v) => v.id === 'grid-2')!.cube);
     assert.equal('selection' in chartOf(moved, 'chart'), false);
     assert.equal(moved.cubes.find((c) => c.id === gridCube)!.cube.query.filter, undefined, "off its old grid's filter");
+    // its page filter (its click on a grid over a class) off too, as a click on nothing takes it; another's stays (the S7
+    // audit's Y-1: Show Grid takes off what the chart selected, on either side)
+    const TRADE = 'trades::domain::Trade';
+    const filtered: PageDocument = { ...selected, filters: [{ id: 'filter-1', class: TRADE, condition: emea, from: 'chart' },
+      { id: 'filter-2', class: TRADE, condition: emea }] };
+    const unfiltered = applyPageCommand(draftOf(filtered), { kind: 'followGrid', chart: 'chart', grid: 'grid-2' }).draft.page;
+    assert.deepEqual(unfiltered.filters?.map((f) => f.id), ['filter-2']);
   });
 });
 
@@ -506,6 +519,11 @@ describe("a grid's cube opened again over its source as it is now, by its comman
     // snapped, it reads its copy: no frame opens it again
     const snapped = applyPageCommand(draftOf(trades), { kind: 'snap', grid: view.id, copy: SNAP }).draft.page;
     assert.deepEqual(rebuiltCommands(snapped, opened, [cube.id]), []);
+    // the one rule, which Python asks before opening a cube again (headless cubeOpensAgain: the S7 audit's Y-2)
+    assert.equal(opensAgain(trades, cube.id), true);
+    assert.equal(opensAgain(snapped, cube.id), false);
+    assert.equal(cubeOpensAgain(pageToJson(snapped), cube.id), 'false');
+    assert.equal(cubeOpensAgain(pageToJson(trades), cube.id), 'true');
   });
 
   it('refused in words: no such cube, a snapped grid (its copy does not move), another source', () => {

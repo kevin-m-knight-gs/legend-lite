@@ -12,6 +12,8 @@ import { openDataCube } from '../src/app/datacube-app.ts';
 import type { LivePage } from '../src/app/services.ts';
 import { pageNew } from '../src/headless/page.ts';
 import { readPage, type PageDocument } from '../src/page-document.ts';
+import { applyPageCommands, idsOf } from '../src/page-commands.ts';
+import type { LiveWrite } from '../src/app/services.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { GateEngine, StubPlanner } from './cube-fixture.ts';
 
@@ -133,6 +135,33 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     app.moved(2);
     await settle();
     assert.deepEqual(editor.changesAsked, [1], 'its move followed, by the commands since the version shown');
+  });
+
+  it("a page of no grid yet is shown as its keeper has it: its name, its sheets, the ids it holds (the S7 audit's H-1)", async () => {
+    // Python's ll.Page('Q3') with a second sheet, before its first grid
+    const page = applyPageCommands({ page: EMPTY, held: idsOf(EMPTY) }, [
+      { kind: 'addSheet', id: 'sheet-2', name: 'Second' },
+    ]).draft.page;
+    const editor = new Editor();
+    editor.read = async () => ({ version: 1, page, held: idsOf(page) });
+    const written: LiveWrite[] = [];
+    editor.report = async (at, write) => {
+      written.push(write);
+      return { version: at + 1, combined: false };
+    };
+    await opened(editor);
+    await settle();
+    const doc = dom.window.document;
+    const tabs = [...doc.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].map((t) => t.textContent);
+    assert.deepEqual(tabs.slice(-1), ['Second'], 'its sheets as its keeper has them');
+    assert.equal(tabs.length, 2);
+    assert.match(doc.querySelector('.dc-page-name')?.textContent ?? '', /Q3/, 'its name');
+    // a sheet the person adds is given an id the keeper has not held
+    (doc.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await new Promise((done) => { setTimeout(done, 700); });
+    const added = written.flatMap((w) => ('edits' in w ? w.edits : [])).flatMap((e) => ('page' in e && e.page.kind === 'addSheet' ? [e.page] : []));
+    assert.equal(added.length, 1, 'the sheet added, written to its keeper');
+    assert.equal(added[0]!.id, 'sheet-3', 'never an id its keeper held');
   });
 
   it('the editor is told, as it is asked, the version on screen: the copies it reads stay until it moves past them (Z17)', async () => {

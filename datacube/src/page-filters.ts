@@ -8,7 +8,7 @@
 import { and, fn, isIdentifier, lambda, transform, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { ClassSource, CubeSource } from './cube-document.ts';
 import { OPERATORS } from './filter-operators.ts';
-import { readFilterNode } from './grid-commands.ts';
+import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageCommand } from './page-commands.ts';
 import { filterNode } from './query.ts';
 import type { QueryLens } from './runner.ts';
@@ -55,7 +55,6 @@ export function classPick(
   source: ClassSource, chart: string, conditions: readonly FilterNode[] | null, toggle: boolean,
 ): {
   readonly own: readonly FilterNode[] | null;
-  readonly cleared: boolean;
   readonly command: (filters: readonly PageFilter[]) => PageCommand | undefined;
 } {
   const properties = new Set(source.columns.map((c) => c.name));
@@ -66,7 +65,6 @@ export function classPick(
     : mine.length === 1 ? mine[0]! : { kind: 'and', children: mine };
   return {
     own,
-    cleared: condition === undefined,
     command: (filters) => {
       const last = filters.find((f) => f.from === chart);
       // as data, whatever order its writer put the keys in (F43: a page read back writes them in its reader's)
@@ -75,6 +73,40 @@ export function classPick(
       if (same) return undefined;
       return { kind: 'setPageFilter', ...(last ? { id: last.id } : {}), class: source.class, condition, from: chart };
     },
+  };
+}
+
+/**
+ * A CHART'S MARK PICKED, the one rule (the screen's click on a mark and on its chip, page/cube-page.ts #select; Python's
+ * chart.select, headless chartPick): the mark's `conditions` (null: the selection cleared) against the chart's selection
+ * now (`old`) -- on a grid over a class (`source`), those on its properties the chart's page filter (classPick, decided
+ * on the page's `filters`), the rest its grid's own -- as its grid's `refilter` (the old selection off, the new on) and
+ * the page's commands: the page filter's, then the chart's `select`. `toggle`: a click's -- the same mark again takes it
+ * off; Python names the mark it wants and keeps it (D8). Compared as data, whatever order a writer put a condition's
+ * keys in (F43; the S7 audit's Y-9: the screen compared JSON text).
+ */
+export function chartPicked(o: {
+  readonly source: CubeSource | undefined;
+  readonly chart: string;
+  readonly conditions: readonly FilterNode[] | null;
+  readonly old: readonly FilterNode[];
+  readonly filters: readonly PageFilter[];
+  readonly toggle: boolean;
+}): { readonly refilter: GridCommand | undefined; readonly page: readonly PageCommand[] } {
+  const page: PageCommand[] = [];
+  let next: readonly FilterNode[] = o.conditions ?? [];
+  if (o.source?._type === 'class') {
+    const pick = classPick(o.source, o.chart, o.conditions, o.toggle);
+    const command = pick.command(o.filters);
+    if (command !== undefined) page.push(command);
+    next = pick.own ?? [];
+  }
+  // the same mark again: a click takes it off, a mark named is kept
+  const add = o.toggle && next.length > 0 && sameValue(next, o.old) ? [] : next;
+  if (sameValue(add, o.old)) return { refilter: undefined, page };
+  return {
+    refilter: { kind: 'refilter', remove: [...o.old], add: [...add] },
+    page: [...page, { kind: 'select', chart: o.chart, conditions: [...add] }],
   };
 }
 

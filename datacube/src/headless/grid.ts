@@ -21,7 +21,7 @@ import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
-  CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, fileChanged, fileSourceOf, frameSource, gridCapped, leavesOf, openCube,
+  CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, fileChanged, fileSourceOf, frameSource, gridCapped, leavesOf, newGridTree, openCube,
   readCube, readCubeSource, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinSource,
   type OpenedCube, type QuerySource, type WarehouseSource,
 } from '../cube-document.ts';
@@ -37,7 +37,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
 import type { GridDraft } from '../grid-edits.ts';
-import { plainNumbers, readGridCopy, readPage, type GridCopy, type PageView } from '../page-document.ts';
+import { leftOutNote, leftOutWhenUnopened, plainNumbers, readGridCopy, readPage, type GridCopy, type PageView } from '../page-document.ts';
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
@@ -53,7 +53,6 @@ import {
   type SortDirection, type WindowSpec,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
-import { TreeState } from '../tree.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
@@ -191,7 +190,7 @@ export async function gridCube(spec: FrameSpec, saved: string | null, name: stri
     // written as the screen holds the grid it opens (cube-state.ts openedState): what the query carries read back, then
     // folded -- a new grid's raw rows written unfolded were another document than the screen's (parity.json's "a new
     // grid"), and a saved cube folded without the read-back lost what only its query carried
-    const state = openedState(made.snapshot, made.configuration, made.tree ?? TreeState.empty());
+    const state = openedState(made.snapshot, made.configuration, made.tree ?? newGridTree(made.configuration));
     const cube = writeCube({
       name, source: sourceOfSpec(spec, columns), snapshot: state.snapshot, configuration: state.configuration,
       tree: state.tree, ...(was?.unknown ? { unknown: was.unknown } : {}),
@@ -388,10 +387,24 @@ export async function gridBaseOn(cube: string, snapped: unknown, host: HostTable
  */
 // `taken`: whether the cube opened is not the one held -- its frames' columns moved, a part left out, its source written
 // otherwise -- by the rule a page takes it by (cube-document.ts cubeTaken); `opened`, the source as it is now, which the
-// page's `rebuilt` command carries (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11, Z10)
+// page's `rebuilt` command carries (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11, Z10); `how`, its base's ModelOptions.
+// `leaveOut`, as its page opens: `{leftOut}`, the page's note, for a source the page leaves out (leftOutWhenUnopened)
 export async function gridOpened(cube: string, host: HostTables, name: string, gridsOnPage: number,
-  given: Readonly<Record<string, string>> = {}): Promise<string> {
+  given: Readonly<Record<string, string>> = {}, leaveOut = false): Promise<string> {
   const was = readCube(fromJson(cube));
+  try {
+    return await openedOn(was, cube, host, name, gridsOnPage, given);
+  } catch (e) {
+    // `leaveOut`, as a page opens: a source the page leaves out when it cannot be opened, said in the page's words, the
+    // cube kept as saved (page-document.ts leftOutWhenUnopened, the tab's Open…'s rule; the S7 audit's H-6)
+    if (!leaveOut || !(e instanceof CubeRefusal) || !leftOutWhenUnopened(was.source)) throw e;
+    return JSON.stringify({ leftOut: leftOutNote(was.source.name, e.message) });
+  }
+}
+
+/** gridOpened's cube opened over the host's tables, as it is now. */
+async function openedOn(was: CubeDocument, cube: string, host: HostTables, name: string, gridsOnPage: number,
+  given: Readonly<Record<string, string>>): Promise<string> {
   const on = await onHost(was.source, host, given);
   if ('leaf' in on) {
     const { base, leaf } = on.leaf;
@@ -416,9 +429,14 @@ function openedAgain(was: CubeDocument, now: CubeSource, said: readonly string[]
   const again = cubeOpenedAgain(was, now);
   const changed = again.changed || said.length > 0;
   const reads = 'source' in base ? `"source":${JSON.stringify(base.source)}` : `"relation":${base.relation}`;
+  // how its rows are planned over its model besides (a class's mapping, a model's enumerations, a saved query's own
+  // project): what a tab on the host's page reads its rows by (the S7 audit's H-2)
+  const how = { ...(base.mapping !== undefined ? { mapping: base.mapping } : {}),
+    ...(base.enumerations !== undefined ? { enumerations: base.enumerations } : {}), ...(base.project ? { project: true } : {}) };
   return `{"cube":${JSON.stringify(cubeToJson(again.document))},"notes":${JSON.stringify([...said, ...again.notes])},`
     + `"changed":${JSON.stringify(changed)},"taken":${JSON.stringify(cubeTaken(changed, was.source, now))},`
-    + `"opened":${JSON.stringify(toJson(now))},"model":${JSON.stringify(base.model)},"runtime":${JSON.stringify(base.runtime)},${reads}}`;
+    + `"opened":${JSON.stringify(toJson(now))},"model":${JSON.stringify(base.model)},"runtime":${JSON.stringify(base.runtime)},`
+    + `"how":${JSON.stringify(how)},${reads}}`;
 }
 
 async function using<T>(spec: GridSpec, use: (o: Opened) => Promise<T>): Promise<T> {
@@ -1077,7 +1095,8 @@ export async function chartOwnGrid(spec: GridSpec, page: string, chart: string):
     const snapshot = await typedColumns(runner, state.snapshot);
     const made = chartGrid({ snapshot, config: state.configuration }, view.spec, view.selection ?? []);
     if (typeof made === 'string') return JSON.stringify({ problems: [made] });
-    const tree = TreeState.empty(made.configuration.showRootAggregation);
+    // the tree a new grid starts with, as the screen's Show Grid's grid opens (the S7 audit's G-2)
+    const tree = newGridTree(made.configuration);
     const landed = fold({ snapshot: await typedColumns(runner, made.snapshot), configuration: made.configuration, tree });
     const doc = readCube(fromJson(spec.cube));
     const written = writeCube({ name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree });

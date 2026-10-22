@@ -29,6 +29,8 @@ import {
   pageDefinitionText,
   pageToJson,
   readSaved,
+  leftOutNote,
+  leftOutWhenUnopened,
   savedPage,
   savedRecord,
   type PageDocument,
@@ -541,8 +543,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // for it, to reopen it from where it was picked.
     let library: CubeLibrary | undefined;
     let current: {
-      /** The saved page it is (page-document.ts PageDocument.record): a Save saves over it, whichever editor saved it. */
-      record?: string;
       /** The name it was saved (or opened) under: a name given in the name box since is a change of the page (its own
        *  name, the page's: D11, never one of the host's). */
       savedName?: string;
@@ -568,7 +568,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const pageNow = (name: string, empty = false): PageDocument | undefined => page.document(name, {
       ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
-      ...(current.record !== undefined ? { record: current.record } : {}),
     }, empty);
     pageKept = (name) => pageNow(name);
     const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
@@ -686,9 +685,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * A SOURCE IN PLACE of the page: everything on it goes (asked first when there are unsaved changes), then one grid
      * over the source -- fresh, the page's name its. An open overtaken by a newer one lands nothing.
      */
-    async function inPlace(open: () => Promise<Opened>, what: string, replacing = false): Promise<readonly string[]> {
-      // `replacing`: the page's other editor replaced what it shows -- nothing of the person's is asked about
-      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open ${what} anyway?`)) return [];
+    async function inPlace(open: () => Promise<Opened>, what: string): Promise<readonly string[]> {
+      if (dirty() && !window.confirm(`The page has unsaved changes. Open ${what} anyway?`)) return [];
       const newest = opens.start();
       const o = await open();
       if (!newest()) {
@@ -696,8 +694,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return [];
       }
       const onScreen = place();
-      // a page of this tab's own, in place of the one its other editor serves (D1)
-      if (!replacing) leaveServed();
+      // a page of this tab's own, in place of the one its other editor serves (D1; the S7 audit's H-12: a `replacing`
+      // that no caller passed, which would have cleared the page and left it served, is gone)
+      leaveServed();
       // a new page, unnamed until saved (PageApp.clear: D11): its bar says the grid's report title (its source's name)
       page.clear();
       current = {};
@@ -729,7 +728,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * Opened.taken), by their ids. `held`: every id the page has held where its other editor keeps it (B12).
      */
     async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false,
-      held: readonly string[] = []): Promise<readonly string[]> {
+      held: readonly string[] = [], unread: string[] = []): Promise<readonly string[]> {
       // a page, or a cube saved alone before pages: the page it opens as (page-document.ts savedPage, Python's Page.open's)
       const given = savedPage(saved);
       // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
@@ -757,8 +756,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           } catch (e) {
             // a class whose rows are not here (its table read by no grid of the tab), or a join that no longer joins (an
             // input's file changed under it, a remote file that asks for keys) is left out and said, as a file not
-            // given is: the page's other grids open
-            if (cube.source._type !== 'class' && cube.source._type !== 'join') throw e;
+            // given is: the page's other grids open (page-document.ts leftOutWhenUnopened, Python's load's rule too)
+            if (!leftOutWhenUnopened(cube.source)) throw e;
             why = e instanceof Error ? e.message : String(e);
           }
           if (o) read.push(o);
@@ -767,7 +766,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             return [];
           }
           if (!o) {
-            notes.push(`left out: ${cube.source.name} (${why})`);
+            notes.push(leftOutNote(cube.source.name, why));
             continue;
           }
           if (o.taken) taken.push(cubeId);
@@ -781,7 +780,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } finally {
         sources.release();
       }
-      if (makers.size === 0) {
+      // a page its other editor serves opens as its keeper has it, a page of no grid (or none opened) too: its name, its
+      // sheets and the ids it holds are the page's (the S7 audit's H-1)
+      if (makers.size === 0 && !replacing) {
         library?.say(`not opened: "${doc.name}" -- none of its sources was opened`, 'warn');
         return [];
       }
@@ -789,12 +790,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const onScreen = place();
       // a page of this tab's own, in place of the one its other editor serves (D1)
       if (!replacing) leaveServed();
-      page.restore(doc, makers, held);
-      // the saved page it is: the store's record it was opened from, else the one its other editor saved it as (a page
-      // file is none: pageFile writes no record)
+      // the saved page it is, born with it (N1): the store's record it was opened from, else the one its other editor
+      // saved it as (a page file is none: pageFile writes no record) -- the page's state holds it (the S7 audit's H-4)
       const record = id ?? (replacing ? doc.record : undefined);
+      const { record: _given, ...unsaved } = doc;
+      page.restore(record !== undefined ? { ...unsaved, record } : unsaved, makers, held);
       current = {
-        ...(record !== undefined ? { record } : {}),
         savedName: doc.name,
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
         cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
@@ -811,6 +812,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           if (!grid?.followSnap) throw new Error('this grid reads no copy its host makes');
           await grid.followSnap(copy);
         } catch (e) {
+          // read live here: said, and -- its grid's id in `unread` -- told as its live command once the page is open, so
+          // its keeper's page is live too (the S7 audit's G-3)
+          unread.push(gridOfCube(doc, cube));
           notes.push(`${doc.cubes.find((c) => c.id === cube)?.cube.source.name ?? cube} reads its rows live: its snap `
             + `(${copy.label}) was not read: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -860,11 +864,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const record = savedRecord(name, asNew ? asItself : doc, crypto.randomUUID());
       if ('refused' in record) throw new Error(record.refused);
       const id = record.id;
-      if (id === current.record) await store.update(id, record);
+      if (id === page.record) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
-      current = { ...current, record: id, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
-      // the saved page it is, told: its other editor saves over the same record (B13)
+      current = { ...current, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
+      // the saved page it is, applied to the page's state by its command and told: its other editor saves over the same
+      // record (B13)
       page.savedAs(id);
       // saved under a name: the page renamed, told as the name box tells it
       page.rename(record.name);
@@ -874,19 +879,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }
 
     if (pages) library = new CubeLibrary(windows.library, pages.store, {
-      currentId: () => current.record,
+      currentId: () => page.record,
       dirty,
       open: async (id) => { await openSaved(readSaved((await pages.store.get(id)).content), id); },
       openText: async (text) => { await openSaved(readSaved(text), undefined); },
       forget: async (id) => {
         // every handle the page kept, whichever page is on screen
         await pages.handles?.removePage(id);
-        if (current.record === id) {
-          const { record: _gone, ...rest } = current;
-          current = rest;
-          // that record is gone: the page is no saved page any more, for its other editor too
-          page.savedAs(null);
-        }
+        // that record is gone: the page is no saved page any more, for its other editor too
+        if (page.record === id) page.savedAs(null);
       },
     });
     // OPEN… (the user, 2026-10-01: "fix the Open dialog now too"): the saved cubes in a window of
@@ -1025,7 +1026,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       void (async () => {
         const refused = page.saveRefusal();
         const offered = page.suggestedName;
-        const savedAt = current.record !== undefined ? (await pages.store.get(current.record).catch(() => undefined))?.lastUpdatedAt : undefined;
+        const savedAt = page.record !== undefined ? (await pages.store.get(page.record).catch(() => undefined))?.lastUpdatedAt : undefined;
         const doc = page.document(offered);
         const views = page.views().views;
         const charts = views.filter((v) => v.kind === 'chart').length;
@@ -1048,7 +1049,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         await saveDialog(document, {
           purpose: asNew ? 'saveAs' : 'save',
           name: offered,
-          ...(current.record !== undefined
+          ...(page.record !== undefined
             ? { over: { name: current.savedName ?? offered, ...(savedAt !== undefined ? { savedAt } : {}) } } : {}),
           where: pages.where,
           keeps,
@@ -1360,8 +1361,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const shown = page.shownSheet;
       // opened as the keeper has it: nothing the screen does meanwhile is an edit of its own
       let taken: readonly string[] = [];
+      const unread: string[] = [];
       const open = async (): Promise<void> => {
-        taken = await openSaved({ kind: 'page', page: said.page }, undefined, true, said.held);
+        taken = await openSaved({ kind: 'page', page: said.page }, undefined, true, said.held, unread);
         if (page.sheets.includes(shown)) page.showSheet(shown);
       };
       await (channel ? channel.following(open) : open());
@@ -1371,6 +1373,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
       const { rebuiltCommands } = await import('../page-commands.ts');
       for (const command of opened ? rebuiltCommands(said.page, opened, taken) : []) channel?.edit({ page: command });
+      // a snapped grid whose copy was not read here reads its rows live: told so (the S7 audit's G-3)
+      for (const grid of unread) channel?.edit({ page: { kind: 'live', grid } });
       // the page as it opened, written once it settles (restoring is a change): Python's page is what is on screen
       liveChanged();
       return undefined;
@@ -1415,12 +1419,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await page.ready();
         } catch {
           return false;
-        }
-        // the saved page it is, as the other editor saved it (or its record deleted there): a Save here saves over it (B13)
-        for (const c of moved.commands) {
-          if (!('page' in c) || c.page.kind !== 'savedAs') continue;
-          const { record: _was, ...rest } = current;
-          current = c.page.record === null ? rest : { ...rest, record: c.page.record };
         }
         // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless
         // the person had changed it here -- "changed since saved" from here
@@ -1507,8 +1505,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }
 
     // A START THAT OPENED NOTHING (a link that failed, a key refused) leaves the blank page, saying
-    // why: never an empty page without a word
-    if (page.empty) blankPage({ reason: startProblem });
+    // why: never an empty page without a word -- but the page its other editor serves, opened, which is shown as its keeper
+    // has it, a page of no grid too (the S7 audit's H-1)
+    if (page.empty && channel?.shown === undefined) blankPage({ reason: startProblem });
   }
   // the start has settled: from now on an empty page is a blank one
   if (blankCard) blankCard.hidden = false;

@@ -725,6 +725,83 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   grid's query selecting `t0.desk` unaliased is answered `DESK`, which its plan does not type (`UntypedColumn`) —
   declared (S6, found by F33's end-to-end test): core's dialect, not this line's; said in IN_FLIGHT for the dialect
   line; test_page.py `PublishedQueries` asserts the refusal, and fails when it is fixed
+- [x] **F45** a grid's undo or redo of a presentation change (a width, a pin, a format) told nothing: the keeper, Python
+  and any other tab kept the change the screen undid (S7 audit G-1) — fixed S7: the owner's presentation event says
+  when an undo or a redo landed it (`moved`) and the grid writes the page whole, a restore (N2), as a move that queries
+  does (one-api-gestures.test.ts: a presentation edit undone, and undone and redone)
+- [x] **F46** following another editor's removal of a chart with a selection, the board made up a grid `refilter` and told
+  it, so the host took the selection off twice (and the person's own Remove sent `select` and a `refilter` beside
+  `removeTile`, whose rule takes it off too) (S7 audit P-1) — fixed S7: the screen's Remove tells `removeTile` alone,
+  as Python's does; the board's grid follows a step that removed or moved a chart (ChartSource.unselected: another
+  editor's change, as it were, never told back) (page-app.test.ts, cube-page-shell.test.ts)
+- [x] **F47** a page its other editor serves with no grid was never put on the tab's screen, and the tab then wrote its own
+  blank page against Python's version (S7 audit H-1) — fixed S7: a served page opens whole as its keeper has it, a page
+  of no grid too, and a start that opened it blanks nothing (datacube-app-live.test.ts)
+- [x] **F48** on a host's page the tab opened a saved file grid by asking the person for the file the host already holds
+  (the start hung on a hidden button), and told `rebuilt` only for frames and joins (S7 audit H-3, H-2) — fixed S7: on a
+  host's page every saved cube but a frame's is opened by the host (`DatabaseService.opened`: headless gridOpened, its
+  `taken` and `how`), a file over the table it holds (cube-page-shell.test.ts)
+- [x] **F49** a new grid's tree was made three ways: the screen's grid opened to its settings' level, Python's copy and
+  Show Grid not (S7 audit G-2, P-2) — fixed S7: cube-document.ts `newGridTree`, the one rule (one-api-gestures.test.ts:
+  a copy of a grid opened to a level)
+- [x] **F50** Show Grid's step was spelled twice and differed: on a grid over a class the screen kept the chart's page
+  filter, Python took it off (S7 audit Y-1, P-3) — fixed S7: `followGrid`'s rule takes the chart's selection and its
+  page filter off, as a click on nothing; the step on both sides is addGrid, followGrid, setChart (page-commands.test.ts,
+  test_page.py OverClasses)
+- [x] **F51** the screen's click compared a chart's selection as JSON text, its own rule beside Python's (S7 audit Y-9) —
+  fixed S7: page-filters.ts `chartPicked`, the one rule the click, the chip and headless chartPick ask (page-filters.test.ts;
+  page-app.test.ts: the same mark again, its keys in another order)
+- [x] **F52** the page's saved record was kept by the host beside the page, `savedAs` told but never applied, and a
+  rename set then told (S7 audit H-4, P-4, P-5) — fixed S7: PageApp applies `savedAs` and `renamePage` by the one rule
+  (no step) and its state holds the record; the host's copy is gone (page-app.test.ts)
+- [x] **F53** a grid another editor added while the tab's bar was folded was folded in the tab's state, by no command (S7
+  audit G-3) — fixed S7: only a grid the tab makes is folded (page-app.test.ts)
+- [x] **F54** a snapped grid whose copy the tab could not read at open read live, said, with no `live` told (S7 audit G-3)
+  — fixed S7: told once the page is open
+- [x] **F55** Python's join went on the first sheet, not beside its first input (S7 audit Y-3) — fixed S7: joinCube places
+  it beside its first input unless a sheet is named; the tab asks the same (test_page.py Joined)
+- [x] **F56** Python's page file of an unnamed page said '' and ended in a newline of its own; the tab named it in screen
+  code (S7 audit Y-4) — fixed S7: page-document.ts `pageFile` names it as Save does and names the file; Python writes it
+  as given (page-document.test.ts, test_page.py)
+- [x] **F57** Python's load refused a Cube File the tab's Open… opens (S7 audit Y-5) — fixed S7: headless pageRead reads a
+  saved file as the tab does (readSaved, savedPage) (test_page.py)
+- [x] **F58** Python's save made again a record deleted in Open…; a cube saved alone, opened by its id, saved as a second
+  record (S7 audit Y-8, H-7) — fixed S7: refused as the tab's Save is; pageOfRecord holds the record it was opened from
+  (test_page.py)
+- [x] **F59** the keeper admitted a tab's write by the frames it serves, never Python's (S7 audit Y-10) — fixed S7:
+  Frames.unadmitted for both; test_one_api.py's L9 now checks every settle passes it
+- [x] **F60** Python kept the rule that a snapped grid is not opened again over its frames (S7 audit Y-2) — fixed S7:
+  page-commands.ts `opensAgain` (rebuiltCommands' rule), headless cubeOpensAgain (page-commands.test.ts)
+- [x] **F61** the grid's Export ▸ Cube File wrote the page by its own code, not pageFile's (S7 audit G-4) — fixed S7: by
+  pageFile (no behaviour a cube alone reaches today differed: one rule now)
+- [x] **F62** a sheet renamed to the label it shows told nothing on the screen and pinned the name in Python (S7 audit P-7)
+  — fixed S7: inside renameSheet, as renameTile drops a grid's made title (B2) (page-commands.test.ts)
+- [x] **F63** a copy of removeTile's rule in the board for tiles it could not open (S7 audit P-8) — deleted S7
+- [x] **F64** a dead `replacing` parameter of the tab's open-in-place, which would have cleared a served page and left it
+  served (S7 audit H-12) — deleted S7
+- [x] **F65** a page opened with a class or join it cannot open: the tab left it out, Python refused the whole page (S7
+  audit H-6) — fixed S7: page-document.ts `leftOutWhenUnopened` and `leftOutNote`, the tab's rule and headless
+  gridOpened's `leaveOut`, which Python's load asks (test_page.py OverFiles, OverClasses)
+- [x] **F66** Collapse All was offered only for a group opened by hand, never a grid opened by its level (S7 audit G-5) —
+  fixed S7 (one-api-gestures.test.ts)
+- [x] **F67** Python's Sheet.move spelled moveSheet's refusal itself (S7 audit Y-11) — fixed S7: DataCube's words
+- [x] **F68** what the ledgers missed (S7 audits H-10, G, P, Y): a host write hidden by an inner function that tells, any
+  assignment of the host's `current`, an optional call of a listed gap, savedAs as a told command, the grid's owner
+  reached by another name, `ChartSource.unselected`'s callers, the keeper's admission argument — fixed S7: the scans see
+  them (one-api/scan.ts ownBodyAt; one-api-ledger.test.ts; test_one_api.py L9), reasons worded wrong corrected; no
+  ledger grew
+- [x] **F69** what the S7 audits found that is D19's own (the single writer's client side): the tab's Save on a served page
+  saves the screen's page, not the keeper's (H-5); a reopen within the channel's wait drops the person's last edit,
+  unsaid (H-11); an undo's restore is judged by fewer rules than a write's and carries no held ids (H-13) — moved to D19,
+  whose scope they are
+- [x] **F70** declared by the S7 audits, each by nature or a known limit: Python's export is the grid alone (G-4: the
+  screen's carries charts the browser draws); presentation gestures are the screen's, Python sets them by `configure`
+  (G-5); a dimension drilled and Bins' preset columns are Python's, the column editor's JSON picker the screen's (G-6,
+  K4, K6); `grid.expand` takes a group's keys as the database writes them, unchecked (G-7); a refused board edit puts the
+  board back only at its next sync, no refusal being reachable today (P-6); PageApp's name, filters and model are fields
+  beside its state, set from it at every step (P-9). Asked of the user at S7's close: Python's Save As, delete and list
+  of saved pages (Y-6, H-9: their names), and the tab's class grid on a Python host and a class of another project (Y-7,
+  H-8: a gesture, or an exception)
 
 ## 5. The steps
 

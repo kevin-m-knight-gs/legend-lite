@@ -11,7 +11,7 @@ import { classLambda } from '../src/class-source.ts';
 import type { ClassSource, CubeSource } from '../src/cube-document.ts';
 import { applyPageCommand, applyPageCommands, idsOf, readPageCommand, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { openingOrder, pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
-import { classPick, conditionWords, filterWords, filteredByClass, gridLens, readPageFilter, readPageFilters, type PageFilter } from '../src/page-filters.ts';
+import { chartPicked, classPick, conditionWords, filterWords, filteredByClass, gridLens, readPageFilter, readPageFilters, type PageFilter } from '../src/page-filters.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { pageApply, pageFilter } from '../src/headless/page.ts';
 import { corpus } from './fixtures/pages/make.ts';
@@ -175,7 +175,6 @@ describe("a chart's mark on a grid over a class (classPick: the screen's click's
   it("its conditions on the class's properties are the chart's page filter, replacing its last; the rest the grid's own", () => {
     const pick = classPick(over, 'chart-1', [EMEA, OWN], false);
     assert.deepEqual(pick.own, [OWN]);
-    assert.equal(pick.cleared, false);
     assert.deepEqual(pick.command([]), { kind: 'setPageFilter', class: TRADE, condition: EMEA, from: 'chart-1' });
     assert.deepEqual(classPick(over, 'chart-1', [AMER], false).command([fromChart(EMEA)]),
       { kind: 'setPageFilter', id: 'filter-3', class: TRADE, condition: AMER, from: 'chart-1' }, 'its last replaced');
@@ -192,10 +191,50 @@ describe("a chart's mark on a grid over a class (classPick: the screen's click's
     assert.equal(classPick(over, 'chart-1', [EMEA], false).command([fromChart(EMEA)]), undefined);
     const cleared = classPick(over, 'chart-1', null, false);
     assert.equal(cleared.own, null);
-    assert.equal(cleared.cleared, true);
     assert.deepEqual(cleared.command([fromChart(EMEA)]), { kind: 'removePageFilter', filter: 'filter-3' });
     assert.equal(cleared.command([]), undefined, 'nothing to take off');
     assert.deepEqual(classPick(over, 'chart-1', [OWN], false).command([fromChart(EMEA)]), { kind: 'removePageFilter', filter: 'filter-3' });
+  });
+});
+
+describe("a chart's mark picked (chartPicked: the screen's click and chip, Python's chart.select)", () => {
+  const over = classOver([{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }]);
+  const OWN: FilterNode = { kind: 'condition', column: 'double', operator: 'greaterThan', value: 1 };
+  const reread = (c: FilterNode): FilterNode => JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(c).reverse()))) as FilterNode;
+  const pick = (o: Partial<Parameters<typeof chartPicked>[0]>): ReturnType<typeof chartPicked> => chartPicked({
+    source: undefined, chart: 'chart-1', conditions: null, old: [], filters: [], toggle: true, ...o,
+  });
+
+  it("on any grid: the grid's refilter (the old off, the new on) and the chart's select; nothing when nothing changes", () => {
+    assert.deepEqual(pick({ conditions: [OWN] }), {
+      refilter: { kind: 'refilter', remove: [], add: [OWN] }, page: [{ kind: 'select', chart: 'chart-1', conditions: [OWN] }],
+    });
+    assert.deepEqual(pick({ conditions: [EMEA], old: [OWN] }).refilter, { kind: 'refilter', remove: [OWN], add: [EMEA] });
+    assert.deepEqual(pick({ conditions: null, old: [OWN] }), {
+      refilter: { kind: 'refilter', remove: [OWN], add: [] }, page: [{ kind: 'select', chart: 'chart-1', conditions: [] }],
+    });
+    assert.deepEqual(pick({ conditions: null }), { refilter: undefined, page: [] }, 'nothing selected, nothing cleared');
+  });
+
+  it('the same mark again, compared as data (its keys in any order): a click takes it off, Python keeps it', () => {
+    // the selection as a page read back writes it, its keys in its reader's order (the S7 audit's Y-9)
+    assert.deepEqual(pick({ conditions: [OWN], old: [reread(OWN)] }).refilter, { kind: 'refilter', remove: [reread(OWN)], add: [] });
+    assert.deepEqual(pick({ conditions: [OWN], old: [reread(OWN)], toggle: false }), { refilter: undefined, page: [] });
+  });
+
+  it("on a grid over a class: the properties' part the chart's page filter, the rest its grid's own", () => {
+    const made = pick({ source: over, conditions: [EMEA, OWN] });
+    assert.deepEqual(made.refilter, { kind: 'refilter', remove: [], add: [OWN] });
+    assert.deepEqual(made.page, [
+      { kind: 'setPageFilter', class: TRADE, condition: EMEA, from: 'chart-1' },
+      { kind: 'select', chart: 'chart-1', conditions: [OWN] },
+    ]);
+    // all of it on the class: the page filter alone, the grid left whole
+    assert.deepEqual(pick({ source: over, conditions: [EMEA] }), {
+      refilter: undefined, page: [{ kind: 'setPageFilter', class: TRADE, condition: EMEA, from: 'chart-1' }],
+    });
+    const mine: PageFilter = { id: 'filter-3', class: TRADE, condition: EMEA, from: 'chart-1' };
+    assert.deepEqual(pick({ source: over, conditions: null, filters: [mine] }).page, [{ kind: 'removePageFilter', filter: 'filter-3' }]);
   });
 });
 

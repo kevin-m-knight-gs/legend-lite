@@ -7,13 +7,13 @@
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
-import { cubeToJson, gridCapped, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
+import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { HOST_TABLES, openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
+import { tiles } from '../layout/bands.ts';
 import { joinInputOf } from '../page-commands.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
 import { LitePlanner } from '../lite-planner.ts';
-import { TreeState } from '../tree.ts';
 import { catalogColumns } from '../upload.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostDatabase, hostEngine, hostWorker } from './host.ts';
@@ -33,9 +33,10 @@ export interface JoinSpec {
   readonly host: HostTables;
 }
 
-/** A join's grid added (joinCube): on which sheet, and the title a person gave it (none: the join's own). */
+/** A join's grid added (joinCube): on which sheet -- null, its first input's, beside it, as the tab's Join… places it --
+ *  and the title a person gave it (none: the join's own). */
 export interface JoinAdded {
-  readonly sheet: string;
+  readonly sheet: string | null;
   readonly title: string | null;
 }
 
@@ -101,7 +102,10 @@ async function using<T>(use: (o: JoinOpening & { readonly planners: LitePlanner[
 export async function joinCube(spec: string): Promise<string> {
   const s = await read(spec);
   if (!s.added) throw new Error('a join\'s grid is added on a sheet: {"sheet", "title"}');
-  const { sheet, title } = s.added;
+  const { title } = s.added;
+  // beside its first input, on that input's sheet unless another is named (the S7 audit's Y-3: Python's went on the
+  // first sheet, where the input was not)
+  const sheet = s.added.sheet ?? s.page.sheets.find((sh) => tiles(sh.layout).includes(s.mine))?.id ?? s.page.sheets[0]!.id;
   const name = s.page.name;
   const gridsOnPage = s.page.cubes.length + 1;
   return using(async (o) => {
@@ -111,7 +115,7 @@ export async function joinCube(spec: string): Promise<string> {
     const opened = await openJoin(source, o);
     const made = rebuilt(undefined, opened.relation, opened.columns, source.name, gridCapped(gridsOnPage));
     // written as the screen holds the grid it opens (cube-state.ts openedState), as headless gridCube writes one
-    const state = openedState(made.snapshot, made.configuration, made.tree ?? TreeState.empty());
+    const state = openedState(made.snapshot, made.configuration, made.tree ?? newGridTree(made.configuration));
     const cube = writeCube({
       name, source: { ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
       snapshot: state.snapshot, configuration: state.configuration, tree: state.tree,

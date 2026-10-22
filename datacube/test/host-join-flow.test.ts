@@ -96,7 +96,7 @@ describe("Join… on a host's page: each of the window's answers the host's (B11
     assert.match([...doc.querySelectorAll('.dc-join-will-line')].map((l) => l.textContent).join(' '), /3 rows of my 5 rows find a match/);
     doc.querySelector<HTMLButtonElement>('.dc-join .dc-primary')!.click();
     await flow;
-    assert.deepEqual(asked.at(-1), `cube grid grid-2 join ${trades.sheets[0]!.id}`, 'on the sheet shown');
+    assert.deepEqual(asked.at(-1), 'cube grid grid-2 join null', "beside the grid joined, joinCube's placement (the S7 audit's Y-3)");
     assert.ok(pages.every((p) => p === pageToJson(trades)), 'the page as the tab holds it, with every ask');
     assert.deepEqual(reopened, [MADE], 'opened as a saved join of the page is');
     assert.deepEqual(added, [{ make: MAKE, near: 'grid' }]);

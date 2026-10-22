@@ -1110,7 +1110,7 @@ class Engine:
         """A JOIN OF TWO OF A PAGE'S GRIDS for a tab on a page Python serves, which has no database of its own here
         (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11): ``{"op", "page", "mine", "theirs", "how", "sheet"}`` -- the page
         as the tab holds it (its document's text), the grids joined by their tiles' ids, how they join (not asked of
-        ``sides``), the sheet a join's grid goes on (``cube``'s alone) -- answered by DataCube's own code, headless, in one
+        ``sides``), the sheet a join's grid goes on (``cube``'s alone; null, its first input's) -- answered by DataCube's own code, headless, in one
         read of the frames and the files and remote files this engine read in (D15), as page.join asks it: ``sides``
         (joinSides: each side's relation and columns, and what drifted), ``questions`` (joinQuestions: what it will do)
         and ``cube`` (joinCube: the addGrid command of its grid, which the tab opens as a saved join of the page). Read
@@ -1125,7 +1125,7 @@ class Engine:
                 or not all(isinstance(asked.get(k), str) for k in ('page', 'mine', 'theirs')):
             return _said(400, shape)
         op = asked['op']
-        if (op != 'sides' and 'how' not in asked) or (op == 'cube' and not isinstance(asked.get('sheet'), str)):
+        if (op != 'sides' and 'how' not in asked) or (op == 'cube' and not isinstance(asked.get('sheet', 0), (str, type(None)))):
             return _said(400, shape)
         if self._headless is None:
             return _said(404, 'this engine makes no join: legend-lite makes one with DataCube\'s own code, headless, '
@@ -1647,9 +1647,8 @@ class Engine:
                 or ('edits' in written and not isinstance(written['edits'], list)):
             return _said(400, 'a page\'s write is {"edits": [<its edits>]} -- or, an undo or a redo, {"restore": <the page>}')
 
-        def unserved(reads: Mapping[str, list[str]]) -> str | None:
-            missing = [f for f in reads['frames'] if f not in self.frames]
-            return f'the page reads the frames {", ".join(missing)}, which this engine does not serve' if missing else None
+        # the keeper's admission of a page by what it reads: the one rule Python's own writes are admitted by too
+        unserved = self.frames.unadmitted
 
         try:
             if 'restore' in written:
@@ -1664,7 +1663,7 @@ class Engine:
                 settled = Settled(self.keeper.restore(name, int(version), _json.loads(said['page']), reads, reads['ids']),
                                   False, {})
             else:
-                settled = self.keeper.settle(name, int(version), written['edits'], unserved)
+                settled = self.keeper.settle(name, int(version), written['edits'], self.frames.unadmitted)
         except Refused as refused:
             return _said(409, str(refused))
         except Exception as failure:

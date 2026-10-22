@@ -36,7 +36,7 @@ import {
   filtersFor, keptFor, modelAcross, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
   type PageViews,
 } from '../page-document.ts';
-import { classPick, conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
+import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
 import { CubeRefusal, type FilterNode } from '../snapshot.ts';
@@ -290,7 +290,7 @@ export class PageApp {
     });
     options.empty(this.#empty);
     this.#page = this.#newBoard();
-    this.#state = new PageState(this.#seen());
+    this.#state = new PageState(this.#seen(undefined));
     this.#paintTitle();
     this.#paintSheets();
     this.#paintEmpty();
@@ -389,22 +389,41 @@ export class PageApp {
   }
 
   /**
-   * THE PAGE RENAMED BY ITS EDITOR (the name box, Save under a name): its title, and its renamePage command told -- no
-   * step of its history (the host's to name), but an edit another editor follows. A name it has already tells nothing.
+   * THE PAGE RENAMED BY ITS EDITOR (the name box, Save under a name): its renamePage command applied by the one rule and
+   * told -- no step of its history (the host's to name), but an edit another editor follows (the S7 audit's P-5: it was
+   * set, then told). A name it has already tells nothing.
    */
   rename(name: string): void {
-    const was = this.#name;
-    this.setTitle(name);
-    if (name !== was) this.#options.onPageCommand?.({ kind: 'renamePage', name });
+    if (name === this.#name) return;
+    this.#applyUnstepped([{ kind: 'renamePage', name }], 'Rename Page');
   }
 
   /**
-   * THE PAGE SAVED AS THE PAGE STORE'S RECORD `record` by its host's Save (null: that record deleted, in Open…), told:
-   * the savedAs command -- no step of its history, as a rename is none -- so its other editor saves over the same record
-   * (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B13). The host keeps the record with the page it writes (its `record`).
+   * THE PAGE SAVED AS THE PAGE STORE'S RECORD `record` by its host's Save (null: that record deleted, in Open…): its
+   * savedAs command applied by the one rule and told -- no step of its history, as a rename is none -- so its other
+   * editor saves over the same record (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B13). The page's state holds the record
+   * (`record`), no host beside it (the S7 audit's H-4).
    */
   savedAs(record: string | null): void {
-    this.#options.onPageCommand?.({ kind: 'savedAs', record });
+    if ((record ?? undefined) === this.record) return;
+    this.#applyUnstepped([{ kind: 'savedAs', record }], 'Saved');
+  }
+
+  /** The page's state, or none while the board is still being made (the constructor's first `#seen`). */
+  get #stateNow(): PageState | undefined {
+    return this.#state as PageState | undefined;
+  }
+
+  /** The page store's record the page is saved as, as its state has it (the savedAs command's), or none. */
+  get record(): string | undefined {
+    return this.#state.draft.page.record;
+  }
+
+  /** Commands of the page's own applied by the one function and told, no step of its history: what its host does to it
+   *  (a rename, a save, a model action). Refused in their words, nothing changed. */
+  #applyUnstepped(commands: readonly PageCommand[], label: string): boolean {
+    this.#state.keep(this.#seen());
+    return this.#edit({ label, commands, step: false });
   }
 
   /** Where the page's classes are (page-model.ts), as its state has it: none before its first model action. */
@@ -419,8 +438,7 @@ export class PageApp {
    */
   applyModel(commands: readonly PageCommand[]): void {
     if (this.#disposed || commands.length === 0) return;
-    this.#state.keep(this.#seen());
-    if (this.#edit({ label: 'a model action', commands, step: false })) this.#options.onChange?.();
+    if (this.#applyUnstepped(commands, 'a model action')) this.#options.onChange?.();
   }
 
   /** Changed since it was saved, or not (the host knows): the name box says so. */
@@ -550,8 +568,10 @@ export class PageApp {
     return this.cubes.map((id) => this.grid(id)).filter((g): g is PageGrid => g !== undefined);
   }
 
-  /** `make`, made to say what it made: every grid on the page is made through here, under its tile's id. */
-  #maker(make: GridMaker, start?: GridStart): (host: HTMLElement, options: SpawnOptions) => PageGrid {
+  /** `make`, made to say what it made: every grid on the page is made through here, under its tile's id. `own`: a grid
+   *  this tab makes (a gesture's), which a folded bar folds; never one another editor's command or an undo makes from
+   *  the page's document, whose own setting it keeps (the S7 audit's G-3). */
+  #maker(make: GridMaker, start?: GridStart, own = true): (host: HTMLElement, options: SpawnOptions) => PageGrid {
     return (host, options) => {
       const id = options.id;
       const hostStatus = this.#options.hostStatus;
@@ -560,7 +580,7 @@ export class PageApp {
         // the host's readout, in this grid's bar while it is the first on the sheet shown
         ...(hostStatus && id !== undefined ? { hostStatus: (slot: HTMLElement) => { if (this.#firstShown() === id) hostStatus(slot); } } : {}),
         // made while the bar is folded: it says so too, or the bar would come back once it is the only grid
-        ...(this.barFolded ? { titleBarHidden: true } : {}),
+        ...(own && this.barFolded ? { titleBarHidden: true } : {}),
       }, start);
       if (id !== undefined) {
         this.#grids.set(id, { grid, make });
@@ -634,7 +654,7 @@ export class PageApp {
     this.#page.setSheets(fresh.sheets);
     this.#name = fresh.name;
     this.#paintTitle();
-    this.#state = new PageState(this.#seen());
+    this.#state = new PageState(this.#seen(undefined));
     this.#paintSheets();
     this.#paintEmpty();
     this.#options.onChange?.();
@@ -660,14 +680,13 @@ export class PageApp {
   /**
    * THE PAGE AS IT IS SAVED (page-document.ts, version 5): one cube per grid -- on the board, then kept off it for a
    * detached chart -- each the grid's own cube document, under the grid's id; the views and the sheets; the page's
-   * model (where its classes are), as its state has it (P15); the saved page it is (`record`), when its host says so.
+   * model (where its classes are), as its state has it (P15); the saved page it is (`record`), as its state has it.
    * `unknown`: fields a newer writer put in the page and in each cube, written back as they were. Undefined when a grid cannot say its source, or there is nothing on the page -- unless
    * `empty`: the page written live to its keeper, a page of no grid one too.
    */
   document(name: string, unknown?: {
     readonly page?: Readonly<Record<string, unknown>>;
     readonly cubes?: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
-    readonly record?: string;
   }, empty = false): PageDocument | undefined {
     const ids = this.cubes;
     // a page of no grid is no page saved; written live, it is one (`empty`: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
@@ -683,7 +702,7 @@ export class PageApp {
     return writePageOf({
       name, cubes: written, views, filters: this.#filters, copies: this.#copies(ids, written),
       ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
-      ...(unknown?.record !== undefined ? { record: unknown.record } : {}),
+      ...(this.record !== undefined ? { record: this.record } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
     });
   }
@@ -795,7 +814,7 @@ export class PageApp {
     this.#filters = filtersFor(this.#filters, this.views().views);
     this.#applyLenses();
     // a page opened has no history: its first step is the first edit made on it
-    const seen = this.#seen();
+    const seen = this.#seen(page.record);
     this.#state = new PageState({ ...seen, held: [...new Set([...seen.held, ...held])] });
     this.#paintSheets();
     this.#paintEmpty();
@@ -860,12 +879,14 @@ export class PageApp {
       // any grid it made: one the board waits to place too
       documentOf: (grid) => this.#grids.get(grid)?.grid.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
-      onPick: (chart, grid, conditions) => this.#pick(chart, grid, conditions),
+      // a chart's click decided on its grid's source and the page's filters (page-filters.ts chartPicked)
+      pickOn: (grid) => ({ source: this.grid(grid)?.cubeSource, filters: this.#filters }),
     });
   }
 
-  /** The page as it is on screen, as its state holds it: what `document` writes (each grid that can say its source). */
-  #seen(): PageDraft {
+  /** The page as it is on screen, as its state holds it: what `document` writes (each grid that can say its source) --
+   *  and the saved page it is (`record`), which only the page's savedAs command changes (the S7 audit's H-4). */
+  #seen(record: string | undefined = this.#stateNow?.draft.page.record): PageDraft {
     const cubes: { id: string; cube: CubeDocument }[] = [];
     for (const id of this.cubes) {
       const cube = this.grid(id)?.cubeDocument(this.#name);
@@ -876,6 +897,7 @@ export class PageApp {
     const page = writePageOf({
       name: this.#name, cubes: written, views, filters: this.#filters, copies: this.#copies(this.cubes, written),
       ...(this.#model ? { model: keptFor(this.#model, written) } : {}),
+      ...(record !== undefined ? { record } : {}),
     });
     return { page, held: idsOf(page) };
   }
@@ -907,6 +929,11 @@ export class PageApp {
    * (another editor's) -- and each grid's lens given it again.
    */
   #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map()): void {
+    // its name as the step has it (a renamePage: its editor's, or another's)
+    if (to.name !== this.#name) {
+      this.#name = to.name;
+      this.#paintTitle();
+    }
     this.#filters = to.filters ?? [];
     this.#model = to.model;
     this.#restoring = to.views;
@@ -914,7 +941,7 @@ export class PageApp {
     try {
       this.#page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, (grid, document) => {
         const make = makers.get(grid);
-        return this.#remake(grid, document) ?? (make ? this.#maker(make) : undefined);
+        return this.#remake(grid, document) ?? (make ? this.#maker(make, undefined, false) : undefined);
       }, (cube) => this.#unopenedWhy(cube));
     } finally {
       this.#syncing = false;
@@ -974,11 +1001,7 @@ export class PageApp {
     const from = this.#state.draft.page;
     const made = applyPageCommands(this.#state.draft, commands).draft;
     const to = made.page;
-    // its name too (a page renamed in Python): the host reads it back (`title`)
-    if (to.name !== from.name) {
-      this.#name = to.name;
-      this.#paintTitle();
-    }
+    // its name too (a page renamed in Python), by #syncTo: the host reads it back (`title`)
     this.#syncTo(to, from, makers);
     // the page the commands made, whole -- the ids it has held, its cubes -- the start of its history again: before the
     // grids read their rows where the commands say, so an edit made meanwhile is a step on top of it (the S3 audit's 5)
@@ -1024,9 +1047,9 @@ export class PageApp {
     const was = live ? { make: live.make, start: startOf(live.grid) } : this.#gone.get(id);
     if (!was) return undefined;
     this.#gone.delete(id);
-    if (document === undefined) return this.#maker(was.make, was.start);
+    if (document === undefined) return this.#maker(was.make, was.start, false);
     const opened = openCube(document, was.start.snapshot.source, was.start.snapshot.columns);
-    return this.#maker(was.make, { snapshot: opened.snapshot, configuration: opened.configuration, tree: opened.tree });
+    return this.#maker(was.make, { snapshot: opened.snapshot, configuration: opened.configuration, tree: opened.tree }, false);
   }
 
   /** A tile came or went: grids taken off forgotten, a lone grid shown in the bar, the empty page when it is. */
@@ -1193,22 +1216,6 @@ export class PageApp {
     });
   }
 
-  /**
-   * A CHART'S CLICK on a grid over a class (§16.2): its mark's conditions on the class's properties are a page filter
-   * from that chart -- replacing its last, or, the same mark again or none, taken off -- reaching every other grid over
-   * the class. A condition on anything else (a calculated column) is the grid's own, as on any grid: not taken (false).
-   */
-  #pick(chart: string, grid: string, conditions: readonly FilterNode[] | null): readonly FilterNode[] | null {
-    const source = this.grid(grid)?.cubeSource;
-    if (source?._type !== 'class') return null;
-    // the mark's conditions on the class's properties are the page's; the rest (a calculated column's) its grid's own --
-    // decided on the page as the edits before it leave it (page-filters.ts classPick, a click's: the same mark again
-    // takes the chart's filter off)
-    const pick = classPick(source, chart, conditions, true);
-    void this.#filterCommand(() => pick.command(this.#filters), pick.cleared ? 'Clear Chart Filter' : 'Filter to Chart Mark')
-      .catch((e: unknown) => this.#refused(e));
-    return pick.own;
-  }
 
   // -- the page's menu --------------------------------------------------------------
 
@@ -1287,15 +1294,15 @@ export class PageApp {
       case 'page.export': {
         // the page as its host keeps it, when it keeps more than the board (a newer writer's fields, its model), as a
         // page file by DataCube's one rule (pageFile: Python's save(path) asks it too), or refused in its words
-        const name = this.suggestedName || 'page';
-        const doc = this.#options.pageNow ? this.#options.pageNow(name) : this.document(name);
+        // named by pageFile's rule (Python's save(path) asks it too), the file after it
+        const doc = this.#options.pageNow ? this.#options.pageNow(this.#name) : this.document(this.#name);
         if (!doc) return;
         const made = pageFile(doc);
         if ('refused' in made) {
           this.#options.refuse?.(made.refused);
           return;
         }
-        this.#options.download?.(`${name}.page.json`, 'application/json', made.file);
+        this.#options.download?.(`${made.name}.page.json`, 'application/json', made.file);
         return;
       }
       case 'view.settings': {

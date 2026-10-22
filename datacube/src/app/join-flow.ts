@@ -166,7 +166,8 @@ export async function hostJoinFlow(o: HostJoinFlowOf): Promise<void> {
     parse: o.parse,
     summary: (their, how) => join.questions(now(), o.cube, their, how),
     apply: async (their, how) => {
-      const made = await join.cube(now(), o.cube, their, how, page.shownSheet);
+      // beside the grid joined, on its sheet: joinCube's placement, the one rule (the S7 audit's Y-3)
+      const made = await join.cube(now(), o.cube, their, how, null);
       const opened = await sources.reopened(made, undefined, true);
       if (!opened) return;
       if (!o.stillShown()) {

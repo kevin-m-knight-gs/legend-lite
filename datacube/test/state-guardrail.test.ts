@@ -87,7 +87,9 @@ const BOARD_SITES: Record<string, string | readonly [string, number]> = {
   '#place:board.add(': 'a tile on its board: by sync, restore, a placeholder, a chart with no spec yet',
   '#take:board.remove(': 'a tile off its board: by sync (#drop), a chart with no spec yet',
   '#synced:#newSheet(': SYNC,
-  '#synced:chart.conditions = ': SYNC,
+  // 2026-10-22 (the S7 audit's P-1): twice -- its selection as the step has it, and a chart the step moved off a grid
+  // with a selection (another editor's followGrid), off that grid as the step took it off (ChartSource.unselected)
+  '#synced:chart.conditions = ': [SYNC, 2],
   '#synced:board.remove(': `${SYNC}: a tile onto its sheet`,
   '#synced:board.add(': `${SYNC}: a tile onto its sheet`,
   '#synced:board.rename(': SYNC,
@@ -141,7 +143,7 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     'clear:this.#state = ': 'a blank page',
     'restore:this.#state = ': 'a saved page put back',
     'follow:this.#state = ': "another editor's commands, applied by the rules: the page they made, whole",
-    'setTitle:this.#state.keep(': "the page's name, its host's (no step)",
+    'setTitle:this.#state.keep(': "the page's name, its host's (no step): N1, a page opened named",
     'onChange:this.#state.keep(': "what its owners change (a grid's own edits), no step",
     '#move:this.#state.undo(': 'Undo (N2, S4)',
     '#move:this.#state.redo(': 'Redo (N2, S4)',
@@ -149,7 +151,8 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     '#applyFilterCommand:this.#state.keep(': 'the page as its owners have it, before the filter command is applied',
     // 2026-10-22 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P15): a model action's record applied by the commands' one
     // step (no step of the history: D5), the page as its owners have it kept first, as before a filter command
-    'applyModel:this.#state.keep(': 'the page as its owners have it, before a model action\'s record is applied',
+    // 2026-10-22 (the S7 audit's H-4, P-5): moved into #applyUnstepped, which a rename and a save (savedAs) apply by too
+    '#applyUnstepped:this.#state.keep(': 'the page as its owners have it, before its host\'s commands (a rename, a save, a model action) are applied, no step',
   },
   'src/app.ts': {
     '#keepBoard:state.keep(': "a cube alone's board: what its owners change (its grid's own edits, a view: F6), no step",

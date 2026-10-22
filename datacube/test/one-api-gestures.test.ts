@@ -89,7 +89,6 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  savedAs = undefined;
   channel?.stop();
   await settle();
   page?.dispose();
@@ -168,10 +167,9 @@ const overClass = (): GridMaker => (gridHost, spawned, start) => {
   return made;
 };
 
-/** The page as the tab writes it (datacube-app.ts pageNow: its name as it is now, a page of no grid too). */
-/** The saved page it is, as its host keeps it (datacube-app.ts `current.record`): set by the host's Save, stood in for. */
-let savedAs: string | undefined;
-const onScreen = (): PageDocument => pg().document(pg().title || 'Q3', savedAs === undefined ? undefined : { record: savedAs }, true)!;
+/** The page as the tab writes it (datacube-app.ts pageNow: its name as it is now, a page of no grid too; the saved page
+ *  it is as its state holds it, the savedAs command's). */
+const onScreen = (): PageDocument => pg().document(pg().title || 'Q3', undefined, true)!;
 
 /**
  * The page, wired as datacube-app.ts wires a page another editor serves. One part is the host's own and stood in for
@@ -540,12 +538,9 @@ const GESTURES: readonly Gesture[] = [
   {
     name: "the page saved by its host's Save: the record it is, told (B13)",
     setUp: twoGrids,
-    make: () => {
-      // the host's Save, stood in for: the record kept with the page it writes, the page told it, and the page changed
-      savedAs = 'r-1';
-      pg().savedAs('r-1');
-      channel?.changed();
-    },
+    // the host's Save: the record the page is saved as, applied to the page's state by its command and told (the S7
+    // audit's H-4: the host had kept it beside the page)
+    make: () => { pg().savedAs('r-1'); },
   },
   {
     name: 'the page renamed in its name box',
@@ -580,6 +575,30 @@ const GESTURES: readonly Gesture[] = [
     },
     restores: true,
     make: async ({ a }) => { await cubes.get(a!)!.undo(); },
+  },
+  // a presentation change (no query) undone and redone: written whole, as a move that queries is (the S7 audit's G-1:
+  // no command says it, and nothing was written)
+  {
+    name: "a grid's presentation edit undone",
+    setUp: async () => {
+      const g = await twoGrids();
+      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } }], 'Pin'), null);
+      await settle();
+      return g;
+    },
+    restores: true,
+    make: async ({ a }) => { await cubes.get(a!)!.undo(); },
+  },
+  {
+    name: "a grid's presentation edit undone and redone",
+    setUp: async () => {
+      const g = await twoGrids();
+      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } }], 'Pin'), null);
+      await settle();
+      return g;
+    },
+    restores: true,
+    make: async ({ a }) => { const grid = cubes.get(a!)!; await grid.undo(); await grid.redo(); },
   },
   // charts
   {
@@ -737,6 +756,24 @@ const GESTURES: readonly Gesture[] = [
     },
   },
   {
+    // opened only by the level its settings open it to: Collapse All offered, as Python's collapse_all() clears it (the
+    // S7 audit's G-5: the menu offered it only for a group opened by hand)
+    name: 'every group collapsed, a grid opened to its level',
+    setUp: async () => {
+      const g = await twoGrids();
+      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'group', rows: ['desk'] }, { kind: 'configure', patch: { initialExpandToLevel: 1 } }], 'Level'), null);
+      await settle();
+      return g;
+    },
+    make: ({ a }) => {
+      escape();
+      contextMenu(tile(a!).querySelector('.dc-row .dc-cell') as HTMLElement);
+      const item = entry('Collapse All');
+      assert.ok(item, 'Collapse All offered');
+      item.click();
+    },
+  },
+  {
     name: 'a grid added while the page bar is folded',
     setUp: async () => { const g = await twoGrids(); pg().setBarFolded(true); await settle(); return g; },
     make: ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); },
@@ -861,6 +898,28 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     assert.ok(copy, 'its document written');
     assert.deepEqual(JSON.parse(cubeToJson(copy)), JSON.parse(cubeToJson(cubeCopied(original))));
     assert.deepEqual(copy.tree.open, [], 'no group open in the copy');
+  });
+
+  it("a grid opened to a level by its settings: the copy opened to it too, on both sides (the S7 audit's G-2)", async () => {
+    const { a } = await twoGrids();
+    assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }, { kind: 'configure', patch: { initialExpandToLevel: 1 } }], 'Level'), null);
+    await drawn();
+    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel.opened(1);
+    await drawn();
+    await channel.idle();
+    const was = onScreen();
+    const original = was.cubes.find((c) => c.id === was.views.find((v) => v.id === a)?.cube)?.cube;
+    assert.ok(original);
+    gridMenuItem(a, 'Copy of Grid').click();
+    await drawn();
+    await channel.idle();
+    await drawn();
+    const copy = writes.flatMap((w) => ('restore' in w.write ? [] : w.write.edits))
+      .flatMap((e) => ('page' in e && e.page.kind === 'addGrid' ? [e.page] : []))[0]?.document;
+    assert.ok(copy, 'its document written');
+    assert.equal(copy.tree.expandTo, 1, 'the screen\'s copy opened to its level');
+    assert.deepEqual(JSON.parse(cubeToJson(copy)), JSON.parse(cubeToJson(cubeCopied(original))), "Python's copy the same");
   });
 });
 

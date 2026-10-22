@@ -341,8 +341,9 @@ class Grid(Tile):
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
         shows, with its formats, appearance and heatmaps -- ``'csv'`` (raw values), ``'excel'`` (a workbook, the tree
         as outlines), ``'html'``, ``'text'`` (formatted, to paste) or ``'pdf'``: the kinds its menu offers, a kind it
-        does not refused in DataCube's words. Answers the file's content (text, or bytes for a workbook or a PDF), or,
-        given ``to``, writes it there and answers the path."""
+        does not refused in DataCube's words. The grid alone: the screen's HTML, Excel and PDF carry the page's charts
+        beside it, drawn by the browser, which Python does not draw (the S7 audit's G-4, said). Answers the file's content
+        (text, or bytes for a workbook or a PDF), or, given ``to``, writes it there and answers the path."""
         import base64
         engine, frames = self._headless()
         with frames.reading():
@@ -894,7 +895,8 @@ class Chart(Tile):
         headless chartOwnGrid: chart-spec.ts chartGrid, the screen's rule): the grid it follows; or -- frozen, or detached
         (its grid removed) -- a grid of its own grouping and query, made beside it, which it follows from then on, drawn
         as it was: its column across and its split the grid's rows, its values the grid's Column Properties, its
-        selection taken off its old grid's filter first (as ``select(None)`` takes it). Refused in DataCube's words for a
+        selection, and on a grid over a class its page filter, taken off as ``select(None)`` would (followGrid's own
+        rule, the screen's Show Grid's too). Refused in DataCube's words for a
         chart with no grouping of its own (a scatter, a treemap, a map, a gauge)."""
         view = self._view
         page, cube = self._page, view['cube']
@@ -909,11 +911,9 @@ class Chart(Tile):
             raise ValueError('; '.join(said['problems']))
         if 'grid' in said:
             return page._tile(said['grid'], Grid)
-        # one step, as the screen's Show Grid is: the selection off its old grid's filter, the grid added beside the
-        # chart, the chart on its cube (followGrid), following it as it was drawn (setChart)
+        # one step, as the screen's Show Grid is: the grid added beside the chart, the chart on its cube (followGrid: its
+        # selection and its page filter off by the command's own rule), following it as it was drawn (setChart)
         with page._batch():
-            if view.get('selection'):
-                self.select(None)
             applied = page._apply_page([_commands.page_add_grid(document=_plain(_json.loads(said['cube'])),
                                                                 sheet=self.sheet.id, near=self._id, title=None,
                                                                 columns=None)])
@@ -1056,8 +1056,8 @@ class Sheet:
         """Moved among the page's sheets to ``position`` (0 the first), the others keeping their order, as its tab's Move
         Left and Move Right move it (a ``moveSheet`` command): a place past either end is that end."""
         _ = self._doc
-        if not isinstance(position, int) or isinstance(position, bool):
-            raise ValueError(f"a sheet's place is a whole number, not {position!r}")
+        # a place that is no whole number refused in DataCube's words (moveSheet's rule: the S7 audit's Y-11, Python had
+        # spelled the refusal itself)
         self._page._apply_page([_commands.page_move_sheet(sheet=self._id, to=position)])
         return self
 
@@ -1260,7 +1260,8 @@ class Page:
                 settled = Settled(keeper.restore(self._key_name, self._version, self._document, reads,
                                                  sorted(self._ids | set(reads['ids']))), False, {})
             else:
-                settled = keeper.settle(self._key_name, self._version, self._unserved)
+                # admitted as a tab's write is, by the frames this host serves (Frames.unadmitted: the S7 audit's Y-10)
+                settled = keeper.settle(self._key_name, self._version, self._unserved, self._session.frames.unadmitted)
         except Refused as refused:
             self._discard()
             raise ValueError(str(refused)) from None
@@ -1502,7 +1503,8 @@ class Page:
         the columns of theirs to keep, every one when None), ``{'form': 'semi' | 'anti', 'on': ...}``, ``{'form':
         'asOf', 'match': {...}, 'on': ..., 'prefix', 'keep'}`` or ``{'form': 'append'}``. Written by DataCube (headless
         joinCube) over the frames the two read, judged by the compiler -- a refusal in its words, the page as it was --
-        and added on ``sheet`` (the first unless given) by the page command every grid is added by. Each input is kept
+        and added beside ``mine`` on its sheet -- or at the bottom of ``sheet``, given -- by the page command every grid is
+        added by (DataCube's placement, the tab's Join…'s). Each input is kept
         by value: the join does not follow later edits of the grids joined. ``snap``: the join read once, by its grid's
         Snap (``grid.snap()``); refused, the page is as it was."""
         for g in (mine, theirs):
@@ -1510,8 +1512,8 @@ class Page:
                 raise ValueError(f'{g!r} is another page\'s')
         if sheet is not None and sheet._page is not self:
             raise ValueError(f'{sheet!r} is another page\'s')
-        target = self.sheets[0] if sheet is None else sheet
-        _ = target._doc
+        if sheet is not None:
+            _ = sheet._doc
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
         session = self._session
@@ -1522,7 +1524,7 @@ class Page:
         with frames.reading():
             made = _json.loads(engine.call('joinCube', _json.dumps({
                 'page': self._doc, 'mine': mine.id, 'theirs': theirs.id, 'how': how, 'host': frames.hosted(),
-                'sheet': target.id, 'title': title})))
+                'sheet': None if sheet is None else sheet.id, 'title': title})))
         for note in made['notes']:
             warnings.warn(note, stacklevel=2)
         was = (self._doc, set(self._ids), len(self._page_commands),
@@ -1639,7 +1641,8 @@ class Page:
             said = json.loads(self._session.headless().call('pageFile', _json.dumps(self._doc)))
             if 'problems' in said:
                 raise ValueError('; '.join(said['problems']))
-            Path(path).write_text(said['file'] + '\n', 'utf-8', newline='')
+            # the file as DataCube writes it, byte for byte (the S7 audit's Y-4: Python added a newline)
+            Path(path).write_text(said['file'], 'utf-8', newline='')
             return None
         from ._home import THIS_USER, pages_folder, store_call
         # the record by DataCube's one rule, the Save window's (headless pageRecord): over the saved page it is, which
@@ -1649,11 +1652,11 @@ class Page:
         if 'problems' in made:
             raise ValueError('; '.join(made['problems']))
         id, record = made['id'], made['record']
+        # over the record it is saved as, else a new one, as the tab's Save decides -- a record deleted since (in
+        # DataCube's Open…) refused, as the tab's Save is refused, never made again under its id (the S7 audit's Y-8)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
-                        if doc.get('record') is not None else (404, ''))
-        if status == 404:
-            # never saved, or its saved copy deleted since (in DataCube's Open…): saved as a new one under its id
-            status, said = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', record, THIS_USER)
+                        if id == doc.get('record') else
+                        store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', record, THIS_USER))
         if status != 200:
             try:
                 said = json.loads(said).get('message', said)
@@ -1759,7 +1762,7 @@ class Page:
         # and said once, so no later call on the grid sends it -- each its command, none written alone
         with self._batch(tell=False):
             for c in doc['cubes']:
-                self._reopened(c['id'], 4, given)
+                self._reopened(c['id'], 4, given, leave_out=True)
         # a page loaded is a page made whole, by no command
         self._unnoted()
 
@@ -1899,7 +1902,7 @@ class Page:
             for id in reading:
                 self._reopened(id, 4)
 
-    def _reopened(self, id: str, stacklevel: int, given: Mapping[str, str] | None = None) -> bool:
+    def _reopened(self, id: str, stacklevel: int, given: Mapping[str, str] | None = None, leave_out: bool = False) -> bool:
         """The page's cube ``id`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
         cube-document.ts rebuilt -- a new column hidden; a gone one left out; the open groups dropped when the grouping
         changed), taken when it is
@@ -1908,13 +1911,21 @@ class Page:
         leaves out. Whether it was taken. Asked when a page is loaded (``load``: its frames served), when a frame is
         served again (``_update``), and before a filter, a calculated column or a chart is checked against it
         (``_current``: a frame changed in place). ``given``: as the page loads, each file given for it by its name, the
-        hash of the file read in for it (headless gridOpened)."""
-        if id in self._doc.get('copies', {}):
-            # snapped: it reads its copy, which its frames do not move (it is opened over them again when it goes live)
+        hash of the file read in for it (headless gridOpened). ``leave_out``, as a page loads: a class whose rows are not
+        read here, a join that no longer joins, left out and said as the tab's Open... leaves it out -- kept as the page
+        saved it, refused in words when its grid is next asked (DataCube's rule, headless gridOpened's leaveOut:
+        page-document.ts leftOutWhenUnopened; the S7 audit's H-6: Python refused the whole page)."""
+        # opened again over its source only as DataCube's rule says (headless cubeOpensAgain: not a snapped grid's, which
+        # reads its copy until it goes live -- the S7 audit's Y-2: Python kept the rule itself)
+        if not json.loads(self._session.headless().call('cubeOpensAgain', _json.dumps(self._doc), id)):
             return False
         held = next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
         label = held['source']['name']
-        notes, taken, opened = self._opened_cube(held, given or {})
+        said = self._opened_cube(held, given or {}, leave_out)
+        if isinstance(said, str):
+            warnings.warn(said, stacklevel=stacklevel)
+            return False
+        notes, taken, opened = said
         # whether it is taken is DataCube's rule (headless gridOpened `taken`): not, the cube stands as it is
         if not taken:
             return False
@@ -1930,15 +1941,18 @@ class Page:
         calculated column that read it left out) is the cube DataCube checks, never the one held before."""
         self._reopened(cube, stacklevel + 1)
 
-    def _opened_cube(self, saved: dict[str, Any], given: Mapping[str, str]) -> tuple[list[str], bool, dict[str, Any]]:
+    def _opened_cube(self, saved: dict[str, Any], given: Mapping[str, str],
+                     leave_out: bool = False) -> tuple[list[str], bool, dict[str, Any]] | str:
         """A saved cube as DataCube opens it over the frames as they are now -- a frame's, a join's of frames (headless
         gridOpened, by the rule of the page's ``rebuilt`` command: cube-document.ts cubeOpenedAgain) -- what DataCube
         says of what changed, whether the page takes it (cubeTaken), and the source as it is now, which the page's
-        ``rebuilt`` command carries."""
+        ``rebuilt`` command carries -- or, ``leave_out`` and a source a page leaves out, DataCube's note of it."""
         engine, frames = self._session.headless(), self._session.frames
         with frames.reading():
             made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
-                                          len(self._doc['cubes']), dict(given)))
+                                          len(self._doc['cubes']), dict(given), leave_out))
+        if 'leftOut' in made:
+            return made['leftOut']
         return list(made['notes']), made['taken'], _plain(_json.loads(made['opened']))
 
     def _frame_cube(self, frame: str, grids_on_page: int,

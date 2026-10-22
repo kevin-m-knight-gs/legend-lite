@@ -878,16 +878,19 @@ export function pageSources(d: SourcesOf): PageSources {
   }
 
   /**
-   * A SAVED JOIN OF THE HOST'S FRAMES (Python's page.join: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), opened by the
-   * host over its frames as they are now (DatabaseService.opened: DataCube's own code, headless there) -- this page has
-   * no database or compiler of its own on the host -- its rows read through the host's runner over the join's model and
-   * typed by it, as a frame's grid's are, and each frame it reads followed as that frame's own grid follows it.
+   * A SAVED CUBE ON A HOST'S PAGE (Python's: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), every kind but a frame's --
+   * a file's, a remote file's, a class's, a saved query's, a warehouse table's, a join's -- opened by the host where it
+   * reads it, as its source is now (DatabaseService.opened: DataCube's own code, headless gridOpened, Python's own rule
+   * for it; a file's over the table the host holds by its bytes, never asked for again) -- this page has no database or
+   * compiler of its own on the host -- its rows read through the host's runner over its model and typed by it, as a
+   * frame's grid's are, what opening it changed said as Python says it (`taken`: the page's `rebuilt`), and each frame it
+   * reads followed as that frame's own grid follows it (the S7 audit's H-2, H-3).
    */
-  async function openedHostJoin(src: JoinSource, doc: CubeDocument, capped: boolean): Promise<Opened> {
+  async function openedOnHost(src: CubeSource, doc: CubeDocument, capped: boolean): Promise<Opened> {
     const opened = await database.opened!(cubeToJson(doc), doc.name, capped ? 2 : 1);
     const was = readCube(fromJson(opened.cube));
-    if (was.source._type !== 'join') throw new Error(`the host opened ${src.name} as no join`);
-    const rows = services.engine.rows(opened.model, opened.runtime);
+    if (was.source._type !== src._type) throw new Error(`the host opened ${src.name} as another kind of source (${was.source._type})`);
+    const rows = services.engine.rows(opened.model, opened.runtime, opened.how);
     try {
       const columns = await sourceColumns(typer(rows), opened.relation);
       for (const [name, version] of Object.entries(opened.frames)) {
@@ -901,8 +904,9 @@ export function pageSources(d: SourcesOf): PageSources {
         taken: opened.taken,
         make: gridMaker(r.snapshot, r.configuration, [], {
           ...rowsPlace(rows), cubeSource: was.source, label: src.name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
-          // its rows read afresh from the host's frames by every query: it snaps into a copy of its own, the host's
-          ...(rows.runner ? hostSnapPlace(opened) : {}),
+          // its rows read afresh where the host reads them by every query: it snaps into a copy of its own, the host's --
+          // but a class's or a saved query's, planned through a mapping or its project's own, which the host's copy is not
+          ...(rows.runner && opened.how.mapping === undefined && !opened.how.project ? hostSnapPlace(opened) : {}),
         }),
         discard: async () => letGo(rows),
       };
@@ -1087,6 +1091,8 @@ export function pageSources(d: SourcesOf): PageSources {
    */
   async function reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[]): Promise<Opened | undefined> {
     const src = doc.source;
+    // on a host's page (Python's), every kind but a frame's opened by the host, where it reads it (H-2, H-3)
+    if (!local && database.opened && src._type !== 'frame') return openedOnHost(src, doc, several);
     // `several`: one of a page's grids, its columns panel folded as a grid added beside others is
     if (src._type === 'savedQuery') return openedSavedQuery(await openedRecord(src.query), doc, several);
     if (src._type === 'warehouseTable') return reopenTable(src, doc, several);
@@ -1098,9 +1104,6 @@ export function pageSources(d: SourcesOf): PageSources {
     // a join's files are its leaves': each read from where the page kept it, as a file's grid's is, under the name its
     // page's model keeps for it
     if (src._type === 'join') {
-      // on a host's page (Python's: page.join), the host opens it over its frames -- this page has no database or
-      // compiler of its own there
-      if (!local && database.opened) return openedHostJoin(src, doc, several);
       return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}) });
     }
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);

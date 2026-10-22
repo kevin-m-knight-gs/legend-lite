@@ -16,13 +16,13 @@ import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import { openCube, type CubeDocument, type FileSource } from '../src/cube-document.ts';
+import { cubeToJson, openCube, writeCube, type CubeDocument, type FileSource } from '../src/cube-document.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { CubePage, type SpawnedGrid } from '../src/page/cube-page.ts';
 import { PAGE_CUBE, pageToJson, readPage, startingViews, writePageOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { pageSources } from '../src/app/sources.ts';
-import type { TreeState } from '../src/tree.ts';
+import { TreeState } from '../src/tree.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import type { ChartMeasure } from '../src/chart-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
@@ -446,10 +446,12 @@ describe('Show Grid on a following chart and on a frozen one', () => {
     const n = told.length;
     await showGrid(chart);
     const own = chartView(chart)!.cube;
-    assert.deepEqual(told.slice(n).map((c) => c.kind), ['select', 'addGrid', 'followGrid', 'setChart'], 'one step, its selection cleared first');
+    // one step: its selection off its old grid by followGrid's own rule, as Python's chart.grid() takes it off (the S7
+    // audit's Y-1), that grid following the step
+    assert.deepEqual(told.slice(n).map((c) => c.kind), ['addGrid', 'followGrid', 'setChart']);
     assert.equal(pg().undoLabel, 'Show Grid');
     assert.equal(chartView(chart)!.selection, undefined, 'the chart selects nothing');
-    assert.equal(pg().grid(a)!.snapshot.filter, undefined, 'off its old grid\'s filter, by that grid');
+    assert.equal(pg().grid(a)!.snapshot.filter, undefined, 'off its old grid\'s filter');
     assert.equal(pg().grid(own)!.snapshot.filter, undefined, 'never on its own grid');
     assert.equal((tile(chart).querySelector('.dc-tile-chip') as HTMLElement).hidden, true, 'its chip gone');
   });
@@ -932,6 +934,35 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     assert.deepEqual(disposed, ['orders']);
   });
 
+  it("on a host's page, a saved grid over a file is opened by the host over the table it holds, what it changed said (the S7 audit's H-2, H-3)", async () => {
+    // the host's own answer (headless gridOpened through Python's opened.json): the cube as it is now, taken
+    const asked: string[] = [];
+    const now = writeCube({ name: 'Q3', source: file('trades.csv'), snapshot: SNAPSHOT, configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty() });
+    const services = {
+      engine: {
+        rows: () => ({ planner: new StubPlanner(), engine }),
+        database: {
+          opened: async (doc: string) => {
+            asked.push(doc);
+            return { cube: cubeToJson(now), notes: ['qty: left out'], taken: true, model: 'm', runtime: 'r', how: {},
+              relation: SNAPSHOT.source.query, frames: {} };
+          },
+        },
+      },
+    } as never;
+    newPage();
+    const sources = pageSources({ services, page: pg(), gridMaker: (() => () => undefined) as never, taken: [], ask: () => {} });
+    // asked of the host, never of the person (a file it holds is no file to choose: a tab would wait on a hidden button)
+    const opened = await Promise.race([
+      sources.reopened(now, undefined, false),
+      new Promise<'waiting'>((done) => { setTimeout(() => done('waiting'), 2000); }),
+    ]);
+    assert.notEqual(opened, 'waiting', 'opened by the host, not waiting on a file to be chosen');
+    assert.equal(asked.length, 1);
+    assert.equal(opened !== 'waiting' && opened?.taken, true, "what the host's opening changed: told as the page's rebuilt");
+    assert.equal(opened !== 'waiting' ? opened?.notes[0] : '', 'qty: left out', "the host's notes said first");
+  });
+
   it("a frozen chart's selection, cleared when its grid went, comes back with it (the audit's 2)", async () => {
     const { b } = await twoGrids();
     const chart = await chartOf(b);
@@ -1304,7 +1335,8 @@ describe("a cube alone's board: the same state and commands as a page of its own
     assert.deepEqual(replayed(), shown(), 'a second chart, beside the first');
     tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
-    assert.deepEqual(told.slice(-2).map((c) => c.kind), ['select', 'removeTile'], 'its selection cleared as it goes');
+    // its selection off by removeTile's own rule, as Python's removal takes it off (the S7 audit's P-1)
+    assert.deepEqual(told.slice(-1).map((c) => c.kind), ['removeTile']);
     assert.deepEqual(replayed(), shown(), 'a chart removed');
   });
 });

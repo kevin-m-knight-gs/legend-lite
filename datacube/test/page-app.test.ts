@@ -19,7 +19,7 @@ import { gridCopyOf, newPage as freshPage, pageToJson, readPage, type PageDocume
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
-import { CubeRefusal } from '../src/snapshot.ts';
+import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { classRelation } from '../src/class-source.ts';
 import * as echarts from 'echarts/core';
@@ -858,6 +858,149 @@ describe('a page of its own', () => {
     assert.equal(files[0]![0], 'Q3.page.json');
     assert.equal(readPage(files[0]![1]).cubes[0]!.cube.source.name, 'picked.csv');
   });
+});
+
+describe("another editor's commands followed: nothing told back that the page did not say (the S7 audit's P-1)", () => {
+  /** Each grid command the page's grids told, by grid: what a host's channel would write. */
+  let told: { grid: string; kind: string }[] = [];
+  const telling = (name: string, filter?: FilterNode): GridMaker => (gridHost, spawned, start) => new CubeApp(gridHost,
+    start?.snapshot ?? (filter ? { ...SNAPSHOT, filter } : SNAPSHOT), {
+    engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+    configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+    onCommand: (command) => { if (spawned.id !== undefined) told.push({ grid: spawned.id, kind: command.kind }); },
+  });
+  const filterOf = (doc: PageDocument, grid: string): unknown => doc.cubes.find((c) => c.id === grid)!.cube.query.filter;
+
+  it("a selected chart removed by the other editor: its grid's filter as the page's rule leaves it, no refilter told", async () => {
+    newPage();
+    const a = page.addGrid(telling('trades.csv'));
+    page.addGrid(telling('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(a);
+    await settle();
+    echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!
+      .trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    const before = page.document('Q3')!;
+    assert.ok(filterOf(before, a) !== undefined, 'the mark is on its grid\'s filter');
+    // the other editor's removal (Python's page.remove(chart)), as its keeper applies it
+    const kept = applyPageCommands({ page: before, held: idsOf(before) }, [{ kind: 'removeTile', tile: chart }]).draft.page;
+    told = [];
+    await page.follow([{ kind: 'removeTile', tile: chart }], new Map());
+    await settle();
+    assert.deepEqual(told, [], 'following tells nothing back: the removal took the selection off its grid already');
+    assert.deepEqual(filterOf(page.document('Q3')!, a), filterOf(kept, a), 'the grid holds the filter its keeper holds');
+    assert.deepEqual(filterOf(page.state.page, a), filterOf(kept, a));
+  });
+
+  it("the screen's own Remove of a selected chart: removeTile alone, as Python's, its grid's filter as the rule leaves it", async () => {
+    const pageTold: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => pageTold.push(c) });
+    const a = page.addGrid(telling('trades.csv'));
+    page.addGrid(telling('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(a);
+    await settle();
+    echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!
+      .trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    const before = page.document('Q3')!;
+    const kept = applyPageCommands({ page: before, held: idsOf(before) }, [{ kind: 'removeTile', tile: chart }]).draft.page;
+    told = [];
+    pageTold.length = 0;
+    tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.deepEqual(pageTold.map((c) => c.kind), ['removeTile']);
+    assert.deepEqual(told, [], 'no refilter beside it: the removal took the selection off');
+    assert.deepEqual(filterOf(page.document('Q3')!, a), filterOf(kept, a));
+    assert.deepEqual(filterOf(page.state.page, a), filterOf(kept, a));
+  });
+
+  it("a grid the other editor adds while the bar is folded: its title bar as its document says, the page's state too (the S7 audit's G-3)", async () => {
+    newPage({ confirm: () => true });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    page.setBarFolded(true);
+    await settle();
+    // Python's grid, its title bar shown (the default it writes)
+    const doc = page.document('Q3')!.cubes[0]!.cube;
+    const shown: CubeDocument = { ...doc, configuration: { ...doc.configuration, showTitleBar: true } };
+    await page.follow([{ kind: 'addGrid', id: 'grid-7', document: shown, sheet: page.sheets[0]!, near: null, title: null, columns: null }],
+      new Map([['grid-7', over('orders.csv', shown)]]));
+    await settle();
+    const cubeOf = (p: PageDocument): CubeDocument => p.cubes.find((c) => c.id === 'grid-7')!.cube;
+    assert.equal(configurationOf(cubeOf(page.state.page)).showTitleBar, true, 'the state holds what its keeper holds');
+    assert.equal(configurationOf(cubeOf(page.document('Q3')!)).showTitleBar, true);
+  });
+
+  it("the saved page it is and its name are the page's state, by their commands: its own, another editor's, a page restored (the S7 audit's H-4, P-5)", async () => {
+    const pageTold: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => pageTold.push(c) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    pageTold.length = 0;
+    const step = page.undoLabel;
+    page.savedAs('r-1');
+    page.rename('Trades');
+    assert.deepEqual(pageTold.map((c) => c.kind), ['savedAs', 'renamePage']);
+    assert.equal(page.record, 'r-1');
+    assert.equal(page.state.page.record, 'r-1');
+    assert.equal(page.document('Trades')!.record, 'r-1', 'the page written carries it');
+    assert.equal(page.state.page.name, 'Trades');
+    assert.equal(page.title, 'Trades');
+    assert.equal(page.undoLabel, step, 'no step of its history');
+    // the same again tells nothing
+    page.savedAs('r-1');
+    page.rename('Trades');
+    assert.equal(pageTold.length, 2);
+    // another editor's: followed by the same rule, no host keeping it beside the page
+    await page.follow([{ kind: 'savedAs', record: 'r-2' }, { kind: 'renamePage', name: 'Q5' }], new Map());
+    assert.equal(page.record, 'r-2');
+    assert.equal(page.title, 'Q5');
+    await page.follow([{ kind: 'savedAs', record: null }], new Map());
+    assert.equal(page.record, undefined);
+    // a page restored with its record holds it, and an edit keeps it
+    const doc = { ...page.document('Q5')!, record: 'r-3' };
+    page.restore(doc, new Map(doc.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    assert.equal(page.record, 'r-3');
+    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(page.state.page.record, 'r-3', 'kept through an edit');
+  });
+
+  it("the same mark clicked again takes it off, whatever order its page wrote the selection's keys in (the S7 audit's Y-9)", async () => {
+    newPage();
+    const a = page.addGrid(telling('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await settle();
+    const click = (): void => {
+      echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!
+        .trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    };
+    click();
+    await settle();
+    const doc = page.document('Q3')!;
+    // the page as another writer wrote it: each condition of the chart's selection with its keys in another order
+    const reordered = (v: PageDocument['views'][number]): PageDocument['views'][number] => (v.kind === 'chart' && v.selection
+      ? { ...v, selection: v.selection.map((c) => Object.fromEntries(Object.entries(c).reverse()) as typeof c) } : v);
+    const written: PageDocument = { ...doc, views: doc.views.map(reordered) };
+    assert.ok(written.views.some((v) => v.kind === 'chart' && v.selection !== undefined), 'the chart selects its mark');
+    page.dispose();
+    newPage();
+    // its grid opened as it was saved: filtered to the mark
+    page.restore(written, new Map([[a, telling('trades.csv', written.cubes[0]!.cube.query.filter)]]));
+    await settle();
+    await new Promise((r) => setTimeout(r, 200));
+    await settle();
+    click();
+    await settle();
+    const view = page.document('Q3')!.views.find((v) => v.id === chart);
+    assert.equal(view?.kind === 'chart' ? view.selection : 'no chart', undefined, 'the same mark again: the selection taken off, not set again');
+  });
+
 });
 
 describe('a dashboard\'s page filters (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2): on a class, reaching its grids', () => {

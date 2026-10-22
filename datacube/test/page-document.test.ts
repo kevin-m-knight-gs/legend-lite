@@ -454,8 +454,18 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     const added = (JSON.parse(pageApply(started, '["sheet-1"]',
       `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
     const page = readPage(added);
-    assert.deepEqual(pageFile(page), { file: pageToJson(page) });
+    assert.deepEqual(pageFile(page), { file: pageToJson(page), name: 'Q3 review' });
     assert.deepEqual(JSON.parse(pageFileJson(added)), { file: pageToJson(page) });
+    // an unnamed page: named as Save names it (its first sheet's), the file and its name alike (the S7 audit's Y-4: the
+    // tab named it in its own code, Python's file said '')
+    const unnamed = readPage((JSON.parse(pageApply(JSON.parse(pageNew(null)).page as string, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page);
+    assert.equal(unnamed.name, '');
+    const filed = pageFile(unnamed) as { file: string; name: string };
+    assert.equal(filed.name, suggestedName(unnamed));
+    assert.notEqual(filed.name, '');
+    assert.equal(readPage(filed.file).name, filed.name);
+    assert.equal(readPage(JSON.parse(pageFileJson(pageToJson(unnamed))).file as string).name, filed.name, "Python's the same");
     // a newer writer's field kept, as Save keeps it
     const newer = readPage({ ...JSON.parse(added), variables: [{ name: 'asOf' }] });
     assert.match((pageFile(newer) as { file: string }).file, /"variables":\[\{"name":"asOf"\}\]/);

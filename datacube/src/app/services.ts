@@ -179,9 +179,10 @@ export interface DatabaseService {
   /** Whose database it is, as a person reads it (`Python`): where a snap's copy is said to be kept. */
   readonly place?: string;
   /**
-   * A saved cube over the host's frames opened by the host as they are now (Python's `opened.json`: a join of frames,
-   * which a page with no database or compiler of its own on the host cannot open; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
-   * §18.3). `cube`: its document's text; `page`: its page's name; `gridsOnPage`: how many grids the page holds.
+   * A saved cube opened by the host where it reads it, as its source is now (Python's `opened.json`: headless gridOpened)
+   * -- every kind but a frame's, which a page with no database or compiler of its own on the host cannot open
+   * (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3; the S7 audit's H-2, H-3). `cube`: its document's text; `page`: its
+   * page's name; `gridsOnPage`: how many grids the page holds.
    */
   readonly opened?: (cube: string, page: string, gridsOnPage: number) => Promise<HostOpened>;
   /** A join of two of the page's grids made by the host over its tables (HostJoin): where the page has no database of
@@ -200,7 +201,7 @@ export interface HostJoin {
   /** What the join will do (headless joinQuestions). */
   questions(page: string, mine: string, theirs: string, how: JoinHow): Promise<JoinSummaryCounts>;
   /** The join's grid's cube document, as the page command addGrid carries it onto `sheet` (headless joinCube). */
-  cube(page: string, mine: string, theirs: string, how: JoinHow, sheet: string): Promise<CubeDocument>;
+  cube(page: string, mine: string, theirs: string, how: JoinHow, sheet: string | null): Promise<CubeDocument>;
 }
 
 /** A saved cube the host opened (`DatabaseService.opened`): rebuilt as it opens now, and the base its rows are read over. */
@@ -213,7 +214,10 @@ export interface HostOpened {
   readonly taken: boolean;
   readonly model: string;
   readonly runtime: string;
-  /** The relation its rows are read over (a join's, of the host's frames). */
+  /** How its rows are planned over `model` besides: a class's mapping, a saved query's own project. */
+  readonly how: ModelOptions;
+  /** The relation its rows are read over: a file's, a remote file's, a class's, a saved query's, a warehouse table's,
+   *  a join's of the host's tables. */
   readonly relation: ValueSpecification;
   /** Each frame it reads, by name, at the version it was read at: what following the host's frames compares. */
   readonly frames: Readonly<Record<string, number>>;

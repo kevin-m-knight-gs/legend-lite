@@ -498,19 +498,21 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
   return {
     frame: (name) => frameOf(link, name),
     place: 'Python',
-    // a saved join of frames, opened by Python over its frames (§18.3): this page has no compiler or database of its own
+    // a saved cube opened by Python where it reads it, every kind but a frame's (§18.3; the S7 audit's H-2, H-3): this page
+    // has no compiler or database of its own there
     ...(offers.files ? {
       opened: async (cube: string, page: string, gridsOnPage: number): Promise<HostOpened> => {
         // read exactly: the relation's numbers as their digits (a join condition's decimal)
         const said = fromJson(await posted(link, 'opened.json', { cube, page, gridsOnPage })) as {
           cube: string; notes: string[]; taken: boolean; model: string; runtime: string; relation?: unknown;
-          frames: Record<string, ExactNumber>;
+          how: { mapping?: string; enumerations?: string[]; project?: true }; frames: Record<string, ExactNumber>;
         };
-        if (said.relation === undefined) throw new Error('Python opened no join of its frames: it said no relation');
+        if (said.relation === undefined) throw new Error('Python opened the grid, and said no relation its rows are read over');
         const relation = readValueSpecification(said.relation);
         if (relation._type !== 'lambda' || relation.body.length !== 1) throw new Error('Python said a relation that is no query');
         return {
-          cube: said.cube, notes: said.notes, taken: said.taken, model: said.model, runtime: said.runtime, relation: relation.body[0]!,
+          cube: said.cube, notes: said.notes, taken: said.taken, model: said.model, runtime: said.runtime, how: said.how,
+          relation: relation.body[0]!,
           frames: Object.fromEntries(Object.entries(said.frames).map(([name, v]) => [name, Number(v.text)])),
         };
       },
@@ -529,7 +531,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
         },
         questions: async (page: string, mine: string, theirs: string, how: JoinHow) => (JSON.parse(await postedText(link, 'join.json',
           `{"op":"questions",${joinOf(page, mine, theirs)},"how":${toJson(how)}}`)) as { counts: JoinSummaryCounts }).counts,
-        cube: async (page: string, mine: string, theirs: string, how: JoinHow, sheet: string) => {
+        cube: async (page: string, mine: string, theirs: string, how: JoinHow, sheet: string | null) => {
           const said = fromJson(await postedText(link, 'join.json',
             `{"op":"cube",${joinOf(page, mine, theirs)},"how":${toJson(how)},"sheet":${JSON.stringify(sheet)}}`)) as {
             command: { document: unknown };

@@ -881,13 +881,22 @@ export function configurationOf(doc: CubeDocument): CubeConfiguration {
 }
 
 /**
+ * THE TREE A NEW GRID STARTS WITH, the one rule (the screen's grid as it opens, app.ts; a copy, cubeCopied; a chart's
+ * own grid, headless chartOwnGrid): no group open, its grand total and the level it is opened to as its `configuration`
+ * says (the S7 audit's G-2: a copy made by Python started collapsed at a level its settings named).
+ */
+export function newGridTree(configuration: CubeConfiguration): TreeState {
+  return TreeState.empty(configuration.showRootAggregation).withExpandTo(configuration.initialExpandToLevel ?? 0);
+}
+
+/**
  * A COPY OF A GRID'S CUBE (Copy of Grid; Python's grid.copy): its source, query and settings as `doc` has them now, and
- * the tree a new grid starts with -- no group open, its grand total as its settings say (app.ts: TreeState.empty) -- as
- * the copy the screen makes writes itself; nothing a newer writer added (`unknown`), which the copy never read.
+ * the tree a new grid starts with (newGridTree) -- as the copy the screen makes writes itself; nothing a newer writer
+ * added (`unknown`), which the copy never read.
  */
 export function cubeCopied(doc: CubeDocument): CubeDocument {
   const { unknown: _dropped, ...copied } = doc;
-  return { ...copied, tree: treeDocument(TreeState.empty(configurationOf(doc).showRootAggregation)) };
+  return { ...copied, tree: treeDocument(newGridTree(configurationOf(doc))) };
 }
 
 /** The open rows a document describes. */

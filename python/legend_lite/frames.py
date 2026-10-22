@@ -698,3 +698,10 @@ class Frames:
 
     def __contains__(self, name: str) -> bool:
         return name.lower() in self._tables
+
+    def unadmitted(self, reads: Mapping[str, list[str]]) -> str | None:
+        """Why a page that reads ``reads`` (its frames, as DataCube says) is not admitted by a keeper on this database,
+        or None: the keeper's admission of every editor's write (``PageKeeper.settle``'s ``admit``) -- a tab's and
+        Python's alike, by this one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, the S7 audit's Y-10)."""
+        missing = [f for f in reads['frames'] if f not in self]
+        return f'the page reads the frames {", ".join(missing)}, which this engine does not serve' if missing else None

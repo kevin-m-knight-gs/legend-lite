@@ -25,7 +25,7 @@
 
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
 import { readChart, type ChartSpec } from './chart-spec.ts';
-import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
+import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
@@ -121,21 +121,47 @@ export function sheetLabel(sheet: { readonly name?: string | undefined; readonly
 }
 
 /**
+ * WHAT A PAGE LEAVES OUT WHEN IT OPENS AND A CUBE'S SOURCE CANNOT BE OPENED, the one rule (the tab's Open…, P9; Python's
+ * load, headless gridOpened's `leaveOut` -- the S7 audit's H-6: Python refused the whole page): a class whose rows are
+ * not read here, a join that no longer joins -- kept as the page saved it, its views saying why, the page's other grids
+ * opened. Any other source refuses the open, in words (a file asked for, a frame given).
+ */
+export function leftOutWhenUnopened(source: CubeSource): boolean {
+  return source._type === 'class' || source._type === 'join';
+}
+
+/** What a cube left out as its page opens is said as (leftOutWhenUnopened): its source's name, and why. */
+export function leftOutNote(name: string, why: string): string {
+  return `left out: ${name} (${why})`;
+}
+
+/**
  * WHAT A PAGE IS CALLED when it is saved and its saver names nothing (D11): its own name, else its first sheet's label --
  * as the Save window suggests it (PageApp.suggestedName); '' for a page of no sheet.
  */
 export function suggestedName(page: PageDocument): string {
   if (page.name !== '') return page.name;
   const first = page.sheets[0];
-  if (first === undefined) return '';
+  return first === undefined ? '' : labelOf(page, first, first.name);
+}
+
+/** What a sheet of `page` shows as its label (sheetLabel), its name `name` (undefined: none of its own): its first grid's
+ *  report title, else its place. */
+function labelOf(page: PageDocument, sheet: PageSheet, name: string | undefined): string {
   const cubes = new Map(page.cubes.map((c) => [c.id, c.cube]));
   const grids = new Map(page.views.flatMap((v) => (v.kind === 'grid' ? [[v.id, v.cube] as const] : [])));
-  return sheetLabel({ name: first.name, tiles: tilesOf(first.layout) }, 0, (tile) => {
+  return sheetLabel({ name, tiles: tilesOf(sheet.layout) }, page.sheets.indexOf(sheet), (tile) => {
     const cube = grids.get(tile);
     if (cube === undefined) return undefined;
     const title = cubes.get(cube)?.configuration['reportTitle'];
     return { title: typeof title === 'string' ? title : undefined };
   });
+}
+
+/** What a sheet of `page` shows when it has no name of its own (its label, sheetLabel's): a name equal to it is none
+ *  (page-commands.ts renameSheet, as renameTile drops a grid's made title: B2; the S7 audit's P-7). */
+export function unnamedLabel(page: PageDocument, sheet: PageSheet): string {
+  return labelOf(page, sheet, undefined);
 }
 
 /**
@@ -236,15 +262,23 @@ export const NOTHING_TO_SAVE = 'There is nothing on this page to save: add a dat
  * writes it, what a newer writer put in it kept -- or why it is none, in one wording for both (B5): nothing on it
  * (NOTHING_TO_SAVE), or classes kept in a project, which a page file cannot carry yet (§15.3).
  */
-export function pageFile(page: PageDocument): { readonly file: string } | { readonly refused: string } {
+export function pageFile(page: PageDocument): { readonly file: string; readonly name: string } | { readonly refused: string } {
   if (page.cubes.length === 0) return { refused: NOTHING_TO_SAVE };
   if (page.model) {
     return { refused: `This page's classes are in ${page.model.project}: a page file cannot carry them yet -- save the `
       + 'page where its classes are kept.' };
   }
+  // named as Save names it (D11: an unnamed page, its first sheet's), else 'page' -- the file named the same, by this one
+  // rule (the S7 audit's Y-4: the tab named it in its own code, Python not at all)
+  const name = suggestedName(page) || 'page';
+  const named = page.name === name ? page : writePageOf({
+    name, cubes: page.cubes, views: { views: page.views, sheets: page.sheets }, ...(page.model ? { model: page.model } : {}),
+    ...(page.filters ? { filters: page.filters } : {}), ...(page.copies ? { copies: page.copies } : {}),
+    ...(page.unknown ? { unknown: page.unknown } : {}),
+  });
   // a page file is no saved record: opened elsewhere, its first save is a new one
-  const { record: _record, ...file } = page;
-  return { file: pageToJson(file) };
+  const { record: _record, ...file } = named;
+  return { file: pageToJson(file), name };
 }
 
 const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies', 'record']);

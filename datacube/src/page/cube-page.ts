@@ -36,6 +36,7 @@ import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.
 import { type Bands, NEW_SHEET, add as addTile, asSaved, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { chartGrid, MAP_MARKS, ownGridRefusal, type ChartSpec } from '../chart-spec.ts';
+import { chartPicked, type PageFilter } from '../page-filters.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
@@ -45,7 +46,7 @@ import {
 import { givenName } from '../page-names.ts';
 import { chartTitle, gridTitle, nextPageId } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
-import type { CubeDocument } from '../cube-document.ts';
+import type { CubeDocument, CubeSource } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
 import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
@@ -76,6 +77,12 @@ export interface ChartSource {
   shown(): GridShown | null;
   /** Take `old` off the grid's filter and put `add` on, as one change named `label`. */
   refilter(old: readonly FilterNode[], add: readonly FilterNode[], label: string): void;
+  /**
+   * A chart's selection `old` taken off the grid's filter as a page step took it already (removeTile, followGrid:
+   * page-commands.ts unselected) -- followed, as another editor's change is: never told back, no step of the grid's own
+   * (the S7 audit's P-1).
+   */
+  unselected(old: readonly FilterNode[]): void;
   /**
    * A grid of its own over the same source, in `host`: a chart's editing grid, or another grid on
    * the page. `onChart` is where its own "+ Chart" goes (the page), rather than a board of its own.
@@ -202,12 +209,11 @@ export interface CubePageOptions {
   /** Ctrl+Z (Ctrl+Shift+Z: `redo`) on a tile's frame: the page's own undo (a page of its own); absent, Undo Layout. */
   readonly onUndo?: (redo: boolean) => void;
   /**
-   * A chart's click (its mark's conditions; null, taken off) the page takes its part of: on a grid over a class, the
-   * conditions on the class's properties are a page filter (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2). Answers
-   * what is left for the chart's own grid (its other conditions: a calculated column's), or null -- nothing taken, the
-   * click filters its own grid as it always has.
+   * What a chart's click on a mark of grid `grid` is decided on (page-filters.ts chartPicked): the grid's source -- on a
+   * grid over a class, the conditions on its properties are a page filter (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   * §16.2) -- and the page's filters now. Absent (a cube alone), the click is its grid's alone.
    */
-  readonly onPick?: (chart: string, grid: string, conditions: readonly FilterNode[] | null) => readonly FilterNode[] | null;
+  readonly pickOn?: (grid: string) => { readonly source: CubeSource | undefined; readonly filters: readonly PageFilter[] };
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -261,7 +267,6 @@ interface ChartTile {
   readonly chip: HTMLButtonElement;
   /** The conditions this chart's last click put on its grid's filter. */
   conditions: FilterNode[];
-  key: string;
   /** Its spec as last told (`#chartChanged`), as JSON: a change told once however many callbacks say it. */
   told: string;
   /** Whether the page has it: a chart made with no spec yet has not, until its first one (#tellSpec). */
@@ -498,25 +503,13 @@ export class CubePage {
   }
 
   /**
-   * A tile it could not open taken off, as removeTile takes its view: a grid's charts it could not open either go with
-   * it, a frozen one staying with no selection of its own (page-commands.ts withoutTile).
+   * A tile it could not open taken off, as a step leaves it (`sync`): what the step did to the rest -- a grid's charts
+   * gone with it, a frozen one's selection cleared -- is the step's own views, which `sync` takes as they are (the S7
+   * audit's P-8: a copy of removeTile's rule was here).
    */
   #dropUnavailable(id: string): void {
-    const view = this.#unavailable.get(id);
-    if (!view) return;
-    this.#unavailable.delete(id);
+    if (!this.#unavailable.delete(id)) return;
     this.#take(id);
-    if (view.kind !== 'grid') return;
-    for (const other of [...this.#unavailable.values()]) {
-      if (other.kind !== 'chart' || other.cube !== view.cube) continue;
-      if (!other.spec.frozen) {
-        this.#unavailable.delete(other.id);
-        this.#take(other.id);
-      } else if (other.selection) {
-        const { selection: _cleared, ...detached } = other;
-        this.#unavailable.set(other.id, detached);
-      }
-    }
   }
 
   /** A tile off its sheet (its element detached, not destroyed). */
@@ -651,9 +644,16 @@ export class CubePage {
           // reading another grid there than here (a grid's removal undone; a Show Grid, or one undone or redone): it reads
           // that grid
           if (chart.link.grid !== view.cube && this.#grids.has(view.cube)) {
+            // moved off a grid with a selection (another editor's followGrid): off that grid as the step took it off
+            const moved = chart.link.grid !== null && chart.conditions.length > 0;
+            if (moved) {
+              this.#sourceOf(chart.link).unselected(chart.conditions);
+              chart.conditions = [];
+            }
             chart.link.grid = view.cube;
             delete chart.link.detached;
             chart.paint();
+            if (moved) this.#paintSelection(view.id);
           }
           if (JSON.stringify(chart.panel.spec) !== JSON.stringify(view.spec)) {
             chart.told = JSON.stringify(view.spec);
@@ -665,7 +665,6 @@ export class CubePage {
           const selection = view.selection ?? [];
           if (chart.link.grid !== null && JSON.stringify(selection) !== JSON.stringify(chart.conditions)) {
             chart.conditions = [...selection];
-            chart.key = selection.length > 0 ? JSON.stringify(selection) : '';
             this.#paintSelection(view.id);
           }
         }
@@ -1228,7 +1227,6 @@ export class CubePage {
       paint,
       chip,
       conditions: restore?.selection ? [...restore.selection] : [],
-      key: restore?.selection ? JSON.stringify(restore.selection) : '',
       told: JSON.stringify(panel.spec),
       added: restore !== undefined,
     });
@@ -1316,7 +1314,6 @@ export class CubePage {
       if (chart.link.grid !== grid || chart.conditions.length === 0) continue;
       if (withoutConditions(filter, chart.conditions, true) === null) {
         chart.conditions = [];
-        chart.key = '';
         this.#paintSelection(id);
       }
     }
@@ -1480,16 +1477,16 @@ export class CubePage {
       // detached, a treemap keeps the rows it last drew
       shown: () => null,
       refilter: () => {},
+      unselected: () => {},
       spawn: (host, s, options) => runs.spawn(host, s, options),
     };
   }
 
   /**
    * A TILE'S REMOVE (its x, its menu's Remove, a grid's Remove from Page): a tile of the page's is told as its removal,
-   * and `sync` takes it off (#drop). A
-   * chart's selection is cleared in the same edit (the page's select) and taken off its grid's filter (the grid's
-   * refilter, told by the grid, as `sync` drops the chart), so removeTile's own rule has none left to take off -- one
-   * removal, by one command each (the S1 audit's 5); Python's removeTile alone takes it off by the rule.
+   * and `sync` takes it off (#drop). A chart's selection comes off its grid's filter by removeTile's own rule (the
+   * page's unselected), as Python's removeTile takes it off: one removal, one command (the S1 audit's 5), the grid on
+   * the board following the step, nothing more told (the S7 audit's P-1).
    */
   #removeTile(id: string): void {
     if (!this.#saved(id)) {
@@ -1497,9 +1494,7 @@ export class CubePage {
       if (this.#charts.has(id)) this.#dropChart(id);
       return;
     }
-    const selected = (this.#charts.get(id)?.conditions.length ?? 0) > 0;
-    this.#tell(`Remove ${this.title(id) ?? id}`, ...(selected ? [{ kind: 'select', chart: id, conditions: [] } as const] : []),
-      { kind: 'removeTile', tile: id });
+    this.#tell(`Remove ${this.title(id) ?? id}`, { kind: 'removeTile', tile: id });
   }
 
   /** A tile off the board as a step leaves it (`sync`): a grid, a tile it could not open, a chart. */
@@ -1512,12 +1507,14 @@ export class CubePage {
     } else if (this.#charts.has(id)) this.#dropChart(id);
   }
 
-  /** A chart off the board: its selection off its grid's filter (the grid's refilter, told by the grid), a grid kept only
-   *  for it let go. */
+  /** A chart off the board: its selection off its grid's filter as the step took it off (followed, not told), a grid
+   *  kept only for it let go. */
   #dropChart(id: string): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
-    if (chart.conditions.length > 0) this.#quietly(() => this.#select(id, null));
+    // its selection off its grid as the step that took it off the board took it off the grid's filter (the page's
+    // unselected): followed, nothing told
+    if (chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions);
     chart.panel.dispose();
     this.#charts.delete(id);
     this.#take(id);
@@ -1576,7 +1573,6 @@ export class CubePage {
         continue;
       }
       chart.conditions = [];
-      chart.key = '';
       this.#paintSelection(chartId);
       chart.link.detached = { snapshot: query, from: id };
       chart.link.grid = null;
@@ -1597,9 +1593,9 @@ export class CubePage {
    * SHOW GRID (D7; Python's chart.grid(), by the same rule): a chart's grid shown -- the one it follows, the page as it
    * is; or, frozen or detached, a grid of its own grouping and query (chart-spec.ts chartGrid: its column across and its
    * split the Rows, its values the Column Properties, its selection off the filter), made beside it in one step that
-   * has the chart follow it: the grid added, the chart on its cube (`followGrid`), following it as it was drawn
-   * (`setChart`) -- its selection taken off its grid's filter first, by that grid (its refilter), as a click on nothing
-   * takes it.
+   * has the chart follow it: the grid added, the chart on its cube (`followGrid`: its selection off its old grid's filter
+   * and its page filter off, as a click on nothing takes them -- the rule's, its old grid following the step), following
+   * it as it was drawn (`setChart`).
    */
   #showGrid(chartId: string): void {
     const chart = this.#charts.get(chartId);
@@ -1615,11 +1611,8 @@ export class CubePage {
     if (typeof made === 'string') return;
     const from = chart.link.grid ?? chart.link.detached?.from;
     if (from === undefined) return;
-    // its selection off its grid's filter first, as a click on nothing takes it, its select told in this step
-    const unselect = chart.link.grid !== null ? this.#select(chartId, null, true) : undefined;
     this.addGridOver(this.#gridLike(from, source, made.snapshot, made.configuration), {
       near: chartId, label: 'Show Grid',
-      before: unselect ? [unselect] : [],
       after: (grid) => [{ kind: 'followGrid', chart: chartId, grid }, { kind: 'setChart', chart: chartId, spec: made.spec }],
     });
   }
@@ -1662,27 +1655,22 @@ export class CubePage {
    * column the mark names, ANDed on), owned by that chart. A click on another mark replaces them
    * rather than piling more on (two clicks must not filter to nothing); a click on the same mark,
    * or the chip naming it in the chart's title bar, takes them off. Each is ONE change -- one undo
-   * step, refused as a whole. `within` another step (Show Grid's): the grid's refilter made, the page's select answered
-   * for that step to tell, and the page's filters left as they are.
+   * step, refused as a whole -- by the one rule Python's chart.select asks too (page-filters.ts chartPicked, toggled as
+   * a click is): on a grid over a class, the conditions on its properties the chart's page filter.
    */
-  #select(id: string, conditions: readonly FilterNode[] | null, within = false): PageCommand | undefined {
+  #select(id: string, conditions: readonly FilterNode[] | null): void {
     const chart = this.#charts.get(id);
-    if (!chart) return undefined;
-    // the page's part taken (a page filter on a class): what is left is the chart's own grid's, as any click's
-    const left = !within && chart.link.grid !== null ? this.#options.onPick?.(id, chart.link.grid, conditions) ?? null : null;
+    if (!chart || chart.link.grid === null) return;
+    const on = this.#options.pickOn?.(chart.link.grid);
     // the chart said the mark as conditions (chart-spec.ts `markConditions`): a value, a period's or a bin's range
-    const next: FilterNode[] = left !== null ? [...left] : conditions === null ? [] : [...conditions];
-    const key = JSON.stringify(next);
-    const add = key === chart.key ? [] : next;
-    const old = chart.conditions;
-    if (old.length === 0 && add.length === 0) return undefined;
-    const label = add.length === 0 ? 'clear chart selection' : 'filter to chart mark';
-    // its conditions on its grid's filter, that grid's (its refilter, told by the grid); the chart's selection, the
-    // page's (its select), painted by `sync` -- or, the chart going (#dropChart, quiet), by nothing
-    this.#sourceOf(chart.link).refilter(old, add, label);
-    const select: PageCommand = { kind: 'select', chart: id, conditions: add };
-    if (!within) this.#tell(label, select);
-    return select;
+    const picked = chartPicked({ source: on?.source, chart: id, conditions, old: chart.conditions, filters: on?.filters ?? [], toggle: true });
+    if (picked.refilter === undefined && picked.page.length === 0) return;
+    const label = picked.page.every((c) => c.kind === 'removePageFilter' || (c.kind === 'select' && c.conditions.length === 0))
+      ? 'clear chart selection' : 'filter to chart mark';
+    // its conditions on its grid's filter, that grid's (its refilter, told by the grid); the page filter and the chart's
+    // selection, the page's (painted by `sync`)
+    if (picked.refilter?.kind === 'refilter') this.#sourceOf(chart.link).refilter(picked.refilter.remove, picked.refilter.add, label);
+    if (picked.page.length > 0) this.#tell(label, ...picked.page);
   }
 
   #paintSelection(id: string): void {
