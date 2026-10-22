@@ -608,7 +608,9 @@ export async function gridHeaderSort(spec: GridSpec, column: string | null, chai
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     let command: GridCommand;
     try {
-      command = headerSortCommand(view.columns.leaves, column ?? TREE_COLUMN, chained);
+      // the headers the screen paints (shownColumns: a grouped column among them when Show Grouped Columns is on, a
+      // hidden one not -- the S7 confirmation audit's third round's 2)
+      command = headerSortCommand(shownColumns(view, o.state.configuration).leaves, column ?? TREE_COLUMN, chained);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
@@ -963,7 +965,7 @@ function readSetUp(given: unknown): GridSetUp | string {
  * in one call (gridApply, which judges each; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z8). JSON: `{commands}`, or
  * `{problems}`, why it was refused, in words.
  */
-export async function gridSetUp(spec: GridSpec, given: string): Promise<string> {
+export async function gridSetUp(spec: GridSpec | null, given: string): Promise<string> {
   const read = readSetUp(JSON.parse(given));
   if (typeof read === 'string') return JSON.stringify({ problems: [read] });
   const shaped: GridCommand[] = [
@@ -974,11 +976,13 @@ export async function gridSetUp(spec: GridSpec, given: string): Promise<string> 
   const sorts: GridCommand[] = read.sorts.length > 0
     ? [{ kind: 'sorts', sorts: read.sorts.map(([column, direction]) => ({ column, direction })) }] : [];
   if (read.measures.length === 0) return JSON.stringify({ commands: [...shaped, ...sorts] });
+  // the measures judged against the grid the steps before them make: its spec, which only they need
+  if (spec === null) throw new Error("a grid's measures are judged against the grid: give its spec");
   return using(spec, async ({ runner, cube }) => {
     try {
       const d = applyGridCommands({ snapshot: await typedColumns(runner, cube.snapshot), config: cube.configuration, tree: cube.tree },
         shaped);
-      const measures = measureCommands(d, read.measures.map(([column, fn]) => readMeasure({ name: column, column, fn })));
+      const measures = measureCommands(d, read.measures.map(([column, fn]) => readMeasure({ column, fn })));
       return JSON.stringify({ commands: [...shaped, ...measures, ...sorts] });
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;

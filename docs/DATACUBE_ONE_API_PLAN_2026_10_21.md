@@ -865,6 +865,24 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   offers Snap and Go Live where one added shows Snapped -- the host's answer says no read time or row count to show
   (H2-5); a host's refusal said on the tab carries the exception's kind (`CubeRefusal: `), as every 422 of the host's
   does (H2-7); another editor's removal followed while the person's click still runs is two editors at once: D19's
+- [x] **F91** F75's closure kept the person's own removal out of the grid's undo stack but did not record it: an undo
+  past it put the removed chart's selection back and took the edit before it away (the S7 confirmation audit's third
+  round's 1) -- fixed S7: a recorded step of the grid's history, told nothing (`#applyCommands`' `said`) (page-app.test.ts)
+- [x] **F92** F71's one sort rule looked headers up in the view's raw columns, which leave a grouped column out that Show
+  Grouped Columns paints: its header no longer sorted (the third round's 2) -- fixed S7: the headers the screen paints
+  (shownColumns), on the screen and in headless gridHeaderSort alike (app-dom.test.ts)
+- [x] **F93** F75's race fix told the removal's refilter whenever the grid ran any edit, so a condition put there by hand
+  came off twice on the host (the third round's 3) -- fixed S7: told only while the click that put the selection there
+  is still to be told (page-app.test.ts)
+- [x] **F94** F87 left Python refusing an arrangement's shape and a calculated column's name in its own words (the third
+  round's P2) -- fixed S7: DataCube's readers refuse them; an expression, which Python makes its lambda's text of, alone
+  is checked in Python (test_page.py)
+- [x] **F95** an unnamed measure was named after its column by Python and by headless gridSetUp, each (the third round's
+  P3) -- fixed S7: grid-commands.ts readMeasure's default, the one rule
+- [x] **F96** declared by the third round: page.grid's set-up read the frames even with no measure to judge (fixed: only
+  then); a value JSON cannot carry (a path, bytes) is refused by the transport, a TypeError, before DataCube can judge
+  it (P1); the L9 restore scan now holds each restore to an admission of its own reads (P5); two doc comments put back
+  above their functions
 
 ## 5. The steps
 
@@ -1420,7 +1438,8 @@ now; regenerated in the close-out, both pass. `verify_app` as the container's un
 ledgers miss: 40 findings (H-1..H-13, G-1..G-7, P-1..P-9, Y-1..Y-11), F45-F70 -- fixed with a test that fails without
 each (F45-F67), the ledgers' blind spots closed with no ceiling moved (F68), D19's own moved there (F69), the rest
 declared (F70). A confirmation round of the same four audits, over those fixes, found 21 more -- five of them wrong
-closures or regressions of the first round's fixes -- and the user asked why a header click was exempt (F71-F90):
+closures or regressions of the first round's fixes -- and the user asked why a header click was exempt (F71-F90); a
+third round, over those, found six more, three of them its own fixes' wrong closures or regressions (F91-F96):
 
 - *One sort API* (F71, the user's question): header-sort.ts `headerSortCommand` is the one rule the screen's header
   click and Python's `grid.toggle_sort` / `grid.toggle_group_sort` ask (headless gridHeaderSort). The "by nature"
@@ -1461,7 +1480,7 @@ another editor, a kind tested elsewhere): `L8_KINDS` 3 -> 0 (F71, F72); `L8_SOUR
 (F79); two dated pins in state-guardrail.test.ts. Each move dated in its file.
 
 **Gates.** The full local set after the first round: 202 of 203 targets green, the one red the register pin (F45-F70
-not listed), fixed and pushed (17c513e72). After the confirmation round: GATES_R2.
+not listed), fixed and pushed (17c513e72). After the confirmation round (749bf4e0c): 203 of 203 green. After the third
+round: GATES_R3.
 
-**Next.** D19, the single writer's client side, with H-5, H-11, H-13 and F90's race. The audit's done condition -- a
-round that finds nothing new -- is met when a third round over F71-F90 finds nothing; it runs with D19's first audit.
+**Next.** D19, the single writer's client side, with H-5, H-11, H-13 and F90's race. NEXT_R3

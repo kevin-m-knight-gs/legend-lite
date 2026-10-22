@@ -906,6 +906,10 @@ describe("another editor's commands followed: nothing told back that the page di
     echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!
       .trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
     await settle();
+    // an edit of the grid's own after the click
+    const grid = page.grid(a) as unknown as CubeApp;
+    await grid.edit([{ kind: 'sorts', sorts: [{ column: 'notional', direction: 'desc' }] }], 'sort');
+    await settle();
     const before = page.document('Q3')!;
     const kept = applyPageCommands({ page: before, held: idsOf(before) }, [{ kind: 'removeTile', tile: chart }]).draft.page;
     told = [];
@@ -916,7 +920,65 @@ describe("another editor's commands followed: nothing told back that the page di
     assert.deepEqual(told, [], 'no refilter beside it: the removal took the selection off (a second would take a condition put there by hand off too)');
     assert.deepEqual(filterOf(page.document('Q3')!, a), filterOf(kept, a));
     assert.deepEqual(filterOf(page.state.page, a), filterOf(kept, a));
-    assert.equal((page.grid(a) as unknown as CubeApp).canUndo, true, "the grid's own history kept (a removal followed as another editor's wiped it)");
+    assert.equal(grid.canUndo, true, "the grid's own history kept (a removal followed as another editor's wiped it)");
+    // a step of it, recorded: the grid's undo lands where it was before the removal, its sort kept (the third round's
+    // 1: unrecorded, the undo took the sort away and put the selection back)
+    await grid.undo();
+    await settle();
+    assert.deepEqual(grid.snapshot.sorts, [{ column: 'notional', direction: 'desc' }]);
+    assert.deepEqual(grid.snapshot.filter, filterOf(before, a));
+  });
+
+  it("a selected chart removed while the grid runs another edit: its selection taken off once, the condition put there by hand too kept (the S7 confirmation audit's third round's 3)", async () => {
+    const all: { readonly page?: PageCommand; readonly grid?: { readonly id: string; readonly command: GridCommand } }[] = [];
+    const recording = (name: string): GridMaker => (gridHost, spawned, start) => new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+      engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+      configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
+      ...(page ? { windowHost: page.root } : {}), ...spawned,
+      onCommand: (command) => { if (spawned.id !== undefined) all.push({ grid: { id: spawned.id, command } }); },
+    });
+    newPage({ onPageCommand: (c) => all.push({ page: c }) });
+    const a = page.addGrid(recording('trades.csv'));
+    page.addGrid(recording('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(a);
+    await settle();
+    echarts.getInstanceByDom(tile(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!
+      .trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await settle();
+    const grid = page.grid(a) as unknown as CubeApp;
+    const view = page.document('Q3')!.views.find((v) => v.id === chart);
+    const mark = view?.kind === 'chart' ? view.selection?.[0] : undefined;
+    assert.ok(mark);
+    // the same condition put on the grid by hand too
+    await grid.edit([{ kind: 'addFilter', condition: mark }], 'filter');
+    await settle();
+    const before = page.document('Q3')!;
+    all.length = 0;
+    // a sort of the grid's own still running when the chart is removed
+    engine.gate.hold = true;
+    void grid.edit([{ kind: 'sorts', sorts: [{ column: 'notional', direction: 'desc' }] }], 'sort');
+    await settle();
+    tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    engine.gate.hold = false;
+    engine.gate.releaseAll();
+    await settle();
+    assert.deepEqual(all.flatMap((t) => (t.grid ? [t.grid.command.kind] : [])), ['sorts'], 'no refilter told: the removal said it');
+    let host: PageDraft = { page: before, held: idsOf(before) };
+    for (const t of all) {
+      if (t.page) host = applyPageCommands(host, [t.page]).draft;
+      else {
+        const at = host.page.cubes.find((c) => c.id === t.grid!.id)!;
+        const d = applyGridCommands({ snapshot: { ...SNAPSHOT, ...at.cube.query }, config: configurationOf(at.cube), tree: treeOf(at.cube) },
+          [t.grid!.command]);
+        const { filter: _was, ...query } = at.cube.query;
+        const cube = { ...at.cube, query: d.snapshot.filter ? { ...query, filter: d.snapshot.filter } : query };
+        host = { ...host, page: { ...host.page, cubes: host.page.cubes.map((c) => (c.id === at.id ? { ...c, cube } : c)) } };
+      }
+    }
+    assert.deepEqual(filterOf(host.page, a), filterOf(page.document('Q3')!, a), "the host's grid filtered as the screen's");
+    assert.deepEqual(filterOf(page.document('Q3')!, a), mark, 'the condition put there by hand kept');
   });
 
   it("a selected chart removed while its click still runs: the grid's edits told in the order made, the host's page as the screen's (the S7 confirmation audit's B2-3)", async () => {

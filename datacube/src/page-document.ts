@@ -444,18 +444,18 @@ export interface SavedRecord {
   readonly content: Record<string, unknown>;
 }
 
-/**
- * A PAGE SAVED UNDER `name` AS THE PAGE STORE KEEPS IT -- the Save window's record, and Python's `save()`'s (headless
- * pageRecord: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z18): its id, its name, and its content named so -- saved under a
- * name, the page is that name (B4), which its editor then tells as the name box does (renamePage). `name` by the one
- * rule of a page's name (givenName), or why not, in its words.
- */
 /** Whether `page` saves over the saved page it is (its record, either editor's: B13) rather than as a new one -- the
  *  tab's Save, Python's save (the S7 confirmation audit's Y2-5: Python spelled the choice itself). */
 export function savesOver(page: PageDocument): boolean {
   return page.record !== undefined;
 }
 
+/**
+ * A PAGE SAVED UNDER `name` AS THE PAGE STORE KEEPS IT -- the Save window's record, and Python's `save()`'s (headless
+ * pageRecord: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z18): its id, its name, and its content named so -- saved under a
+ * name, the page is that name (B4), which its editor then tells as the name box does (renamePage). `name` by the one
+ * rule of a page's name (givenName), or why not, in its words.
+ */
 export function savedRecord(name: string, page: PageDocument, fresh: string): SavedRecord | { readonly refused: string } {
   const given = givenName('page', name);
   if ('refused' in given) return given;

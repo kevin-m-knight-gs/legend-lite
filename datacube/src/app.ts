@@ -46,7 +46,7 @@ import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CubeRefusal, isPivotTotalColumn, type QuerySnapshot } from './snapshot.ts';
+import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
 import { headerSortCommand } from './header-sort.ts';
 import { applyGridCommands, draftCommands, type GridCommand, type SettingsPatch } from './grid-commands.ts';
@@ -1010,11 +1010,13 @@ export class CubeApp {
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
   async applyGridCommands(commands: readonly GridCommand[], label: string, own = false): Promise<string | null> {
-    const { refused, outcome } = await this.#applyCommands(commands, label, 'theirs');
+    const { refused, outcome } = await this.#applyCommands(commands, label, own ? 'said' : 'theirs');
     const why = refused ?? refusal(outcome);
     // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
     // take it back unseen); `own`: what a page step of the person's own said already (removeTile's rule taking a
-    // chart's selection off) -- told nothing, a step of the grid's history all the same (the S7 confirmation audit's G2-2)
+    // chart's selection off) -- told nothing, a step of the grid's history all the same, recorded, so an undo past it
+    // lands where it was (the S7 confirmation audit's G2-2; its third round's 1: unrecorded, an undo put the selection
+    // back and took the edit before it away)
     if (why === null && !own) this.#owner.clearHistory();
     return why;
   }
@@ -1022,9 +1024,10 @@ export class CubeApp {
   /** #apply's change, and how it ended: a refusal of the commands in their words, or the change's outcome. `by`: the
    *  screen's own edit -- a step of its
    *  history, its commands told -- or another editor's (Python's: applyGridCommands), which is neither: its commands
-   *  are that editor's own already, never told back to it (T4). */
+   *  are that editor's own already, never told back to it (T4) -- or (`said`) the person's own that a page step of
+   *  theirs told already: a step of its history, told nothing. */
   async #applyCommands(commands: readonly GridCommand[], label: string,
-    by: 'mine' | 'theirs' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
+    by: 'mine' | 'theirs' | 'said' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
     // judged on the state the person sees (the change in flight's, else the committed one): a presentation change is
     // laid over the committed state too, and one that state cannot take (a setting of the column the change in flight
@@ -1044,7 +1047,7 @@ export class CubeApp {
           else if (s === this.#owner.committed) applying.onCommitted = false;
           return s;
         }
-      }, { label, record: by === 'mine' });
+      }, { label, record: by !== 'theirs' });
     } finally {
       this.#applying = null;
     }
@@ -2340,7 +2343,7 @@ export class CubeApp {
     // first direction the type the compiler gave the header, which only the view has
     let command: GridCommand;
     try {
-      command = headerSortCommand(this.#view?.columns.leaves ?? [], column, chained);
+      command = headerSortCommand(this.#view ? shownColumns(this.#view, this.#config).leaves : [], column, chained);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       this.#status(e.message, 'warn');
@@ -2773,9 +2776,12 @@ export class CubeApp {
       // grid's, told after any of its own still running (the S7 confirmation audit's G2-2, B2-3)
       unselected: (old, theirs) => {
         const off: GridCommand[] = [{ kind: 'refilter', remove: [...old], add: [] }];
-        // the person's own step while an edit of the grid's own still runs (a click's refilter): told after it, as the
-        // grid's own, so a host takes them in the order made (the S7 confirmation audit's B2-3)
-        if (!theirs && this.#owner.busy) {
+        // the person's own step while the click that put the selection there is still to be told (its refilter in
+        // flight): told after it, as the grid's own, so a host takes them in the order made (the S7 confirmation
+        // audit's B2-3) -- only then: told otherwise, a condition put there by hand too would come off twice (its
+        // third round's 3)
+        const unsaid = this.#untold.some((c) => c.kind === 'refilter' && c.add.some((a) => old.some((o) => sameValue(a, o))));
+        if (!theirs && unsaid) {
           void this.#apply(off, 'Chart Removed');
           return;
         }

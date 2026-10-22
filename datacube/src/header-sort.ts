@@ -17,8 +17,9 @@ export interface SortedHeader {
 /**
  * The command a click on `column`'s header makes, `chained` (Ctrl, or ⌘ on a Mac) or not: the tree column's turns the
  * groups' order (clickTreeSort); any other's sorts by it, first in its direction by the type its header has -- which
- * only the grid's view has (`headers`: its leaves; a pivot's header and a count of text are numbers) -- then the other
- * way, then none (clickSort). A column the grid shows no header of is refused, naming those it does.
+ * only the grid's view has (`headers`: the leaves it paints, shown-columns.ts shownColumns; a pivot's header and a count
+ * of text are numbers) -- then the other way, then none (clickSort). A column the grid shows no header of is refused,
+ * naming those it does.
  */
 export function headerSortCommand(headers: readonly SortedHeader[], column: string, chained: boolean): GridCommand {
   if (column === TREE_COLUMN) return { kind: 'clickTreeSort', chained };

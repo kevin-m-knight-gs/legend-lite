@@ -677,6 +677,19 @@ describe('the app', () => {
       { kind: 'clickTreeSort', chained: true }, { kind: 'clickTreeSort', chained: false }]);
   });
 
+  it("a grouped column's header, shown by Show Grouped Columns, sorts as any header does (the S7 confirmation audit's third round's 2)", async () => {
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    await app.edit([{ kind: 'configure', patch: { showGroupedColumns: true } }], 'settings');
+    await settle();
+    const head = root.querySelector('.dc-th[data-column="desk"]') as HTMLElement | null;
+    assert.ok(head, 'its header painted');
+    head.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await settle();
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'desk', direction: 'asc' }]);
+  });
+
   it('tells a host only the commands the cube kept: a change undone as it runs is never told, one carried is, in order', async () => {
     const settle = async (): Promise<void> => {
       for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));

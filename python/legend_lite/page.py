@@ -84,6 +84,13 @@ def _operations(cls: Any) -> Any:
     return cls
 
 
+def _expression(expression: Any) -> None:
+    """A calculated column's expression, which Python makes its lambda's text of (``x|<expression>``): text, or that text
+    would be some other (a number, ``x|5``, a lambda DataCube would take) -- its name and the rest DataCube judges."""
+    if not isinstance(expression, str):
+        raise ValueError(f'an expression is text, not {expression!r}')
+
+
 def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
     """A name a page, a tile or a sheet is given, by DataCube's one rule (page-names.ts givenName, asked headless:
     nameGiven, as the screen's renames ask it): its text trimmed, a page's or a tile's blank refused in DataCube's words,
@@ -406,7 +413,7 @@ class Grid(Tile):
         had; a measure's, as the panel refuses a dimension's (``column(name, kind='measure')`` makes one) -- unless
         ``name`` names another column: then a calculated column of that name reading ``column``, with that Aggregation,
         as the screen would add one. A grouped ``column`` takes no Aggregation of its own: give the measure a ``name``."""
-        measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
+        measure = {'column': column, 'fn': fn, **({'name': name} if name is not None else {}),
                    **({'weight': weight} if weight is not None else {})}
         # made by the steps a person makes it by -- Column Properties' Aggregation, or the column editor's calculated
         # column and then its Aggregation -- built by DataCube (headless gridMeasure: grid-measures.ts measureCommands;
@@ -526,16 +533,14 @@ class Grid(Tile):
         the grid's columns before it, a window column's too. ``level='group'``: computed after the grouping instead, over
         each group's row (the editor's Group level: no kind), reading the grid's measures as each level aggregates them.
         A mistake fails at this line, in DataCube's and the compiler's words."""
-        if not isinstance(name, str) or not isinstance(expression, str):
-            raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        _expression(expression)
         return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'level': level})
 
     def explode(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column whose expression gives a list, each row repeated once per element of it, the column that
         element -- the column editor's Explode (DataCube's code, headless: gridColumn): row level only, ``kind`` as for
         ``calculate``."""
-        if not isinstance(name, str) or not isinstance(expression, str):
-            raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        _expression(expression)
         return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'explode': True})
 
     def window(self, name: str, fn: str, *, column: str | None = None, partition: Sequence[str] = (),
@@ -594,8 +599,6 @@ class Grid(Tile):
         changes it (an ``editCalculated`` command, built headless as the editor builds it: gridColumn): ``rename`` its
         new name -- what read it (the groups, the pivot, the sorts, the filter, the columns computed from it, its
         settings) reads it by that -- and ``kind`` as for ``calculate``. In its place among the grid's columns."""
-        if not isinstance(name, str):
-            raise ValueError(f'a calculated column is edited by its name, not {name!r}')
         return self._calculated(name if rename is None else rename, expression, kind, name)
 
     def remove_calculated(self, name: str) -> Grid:
@@ -604,8 +607,7 @@ class Grid(Tile):
         return self._apply([_commands.grid_remove_calculated(name=name)])
 
     def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None) -> Grid:
-        if not isinstance(name, str) or not isinstance(expression, str):
-            raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        _expression(expression)
         return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'replacing': replacing})
 
     def _column(self, given: Mapping[str, Any]) -> Grid:
@@ -1126,9 +1128,7 @@ class Sheet:
         """Its places arranged as one of DataCube's layout picker's shapes, in reading order (a stack is one place):
         ``'side-by-side'`` (one band), ``'stacked'`` (a band each), ``'rows:2-1'`` (bands of 2 then 1),
         ``'columns:1-2'``, ``'focus-left'`` (the first half the page, the rest beside it) and the picker's others, as
-        DataCube names them."""
-        if not isinstance(shape, str):
-            raise ValueError(f"a shape is the layout picker's name ('side-by-side', 'rows:2-1', ...), not {shape!r}")
+        DataCube names them -- what is not one refused in DataCube's words."""
         return self._arranged(shape, None)
 
     def _arranged(self, preset: str, order: list[str] | None) -> Sheet:
@@ -1483,12 +1483,16 @@ class Page:
                 pairs = list(measures.items() if isinstance(measures, Mapping) else measures or ())
                 # as the commands that make them, in the order a person would (headless gridSetUp), each judged as the
                 # screen judges it -- a measure by a person's own steps, against the grid the steps before it made
+                given = _json.dumps({
+                    'dimensions': list(dimensions), 'rows': list(rows), 'columns': list(columns),
+                    'measures': [list(p) if isinstance(p, (list, tuple)) else p for p in pairs],
+                    'sorts': [list(s) if isinstance(s, (list, tuple)) else s for s in sort]})
                 engine, frames = grid._headless()
-                with frames.reading():
-                    said = json.loads(engine.call('gridSetUp', grid._spec(engine, frames), _json.dumps({
-                        'dimensions': list(dimensions), 'rows': list(rows), 'columns': list(columns),
-                        'measures': [list(p) if isinstance(p, (list, tuple)) else p for p in pairs],
-                        'sorts': [list(s) if isinstance(s, (list, tuple)) else s for s in sort]})))
+                if pairs:
+                    with frames.reading():
+                        said = json.loads(engine.call('gridSetUp', grid._spec(engine, frames), given))
+                else:
+                    said = json.loads(engine.call('gridSetUp', None, given))
                 if 'problems' in said:
                     raise ValueError('; '.join(said['problems']))
                 commands = said['commands']

@@ -1027,6 +1027,14 @@ class Document(Paged):
             page.sheet(5)
         with self.assertRaisesRegex(ValueError, "a tile's title is text, not 5"):
             grid.copy(title=5)
+        # ... an arrangement's shape and a calculated column's name too (the third round's 2); an expression is Python's
+        # to make its lambda's text of, so it alone is refused here
+        with self.assertRaisesRegex(ValueError, "the layout picker's shape is text, not 5"):
+            page.sheets[0].arrange(5)
+        with self.assertRaisesRegex(ValueError, "a calculated column's name is text, not 5"):
+            grid.calculate(5, '$x.notional')
+        with self.assertRaisesRegex(ValueError, 'an expression is text, not 5'):
+            grid.calculate('five', 5)
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
         # ... a sheet's blank is none of its own (named after its first grid), as the screen's rename makes it; a name
         # is kept trimmed, as the screen keeps one

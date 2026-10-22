@@ -551,23 +551,24 @@ function calculatedFrom(v: unknown): DerivedColumn {
   };
 }
 
-/**
- * A command read from JSON (Python's, a live channel's): its kind one this module applies, its fields exactly those
- * the kind takes, each of its type -- or refused in words. What the fields NAME (a column the grid has, a setting
- * DataCube knows) is the apply's to judge, as it judges the screen's.
- */
-/** A measure as JSON carries one (`{name, column, fn[, weight]}`: Python's grid.measure, page.grid's measures) read, or
- *  refused in words. */
+/** A measure as JSON carries one (`{column, fn[, name][, weight]}`: Python's grid.measure, page.grid's measures) read,
+ *  or refused in words -- unnamed, named as its column: that column's own Aggregation (measurePlan). */
 export function readMeasure(m: unknown): Measure {
-  if (!isObject(m)) throw new CubeRefusal(`a measure is {name, column, fn[, weight]}, not ${JSON.stringify(m)}`);
+  if (!isObject(m)) throw new CubeRefusal(`a measure is {column, fn[, name][, weight]}, not ${JSON.stringify(m)}`);
+  const column = textFrom(m['column'], "a measure's column");
   return {
-    name: textFrom(m['name'], "a measure's name").trim(),
-    column: textFrom(m['column'], "a measure's column"),
+    name: m['name'] === undefined ? column : textFrom(m['name'], "a measure's name").trim(),
+    column,
     fn: aggregateFrom(m['fn']),
     ...(m['weight'] !== undefined ? { weight: textFrom(m['weight'], "a measure's weight") } : {}),
   };
 }
 
+/**
+ * A command read from JSON (Python's, a live channel's): its kind one this module applies, its fields exactly those
+ * the kind takes, each of its type -- or refused in words. What the fields NAME (a column the grid has, a setting
+ * DataCube knows) is the apply's to judge, as it judges the screen's.
+ */
 export function readGridCommand(given: unknown): GridCommand {
   if (!isObject(given) || typeof given['kind'] !== 'string') {
     throw new CubeRefusal(`a grid's command is {kind, ...}, its kind one of ${GRID_COMMAND_KINDS.join(', ')}, not ${JSON.stringify(given)}`);

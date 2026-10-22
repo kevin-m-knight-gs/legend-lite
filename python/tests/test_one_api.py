@@ -236,8 +236,13 @@ class Static(unittest.TestCase):
                         unadmitted.append(f'{path.name}:{where}')
                     # a page written whole is admitted by the same rule, by the function that restores it (the S7
                     # confirmation audit's Y2-6: Python's own restore was not)
-                    if node.func.attr == 'restore' and (scope is None or not any(
-                            isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'unadmitted'
+                    # ... by its own reads (the restore's fourth argument), the answer acted on (the S7 confirmation
+                    # audit's third round's 5)
+                    reads = ast.unparse(node.args[3]) if len(node.args) > 3 else None
+                    if node.func.attr == 'restore' and (scope is None or reads is None or not any(
+                            isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+                            and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'unadmitted'
+                            and [ast.unparse(a) for a in n.value.args] == [reads]
                             for n in ast.walk(scope))):
                         unadmitted.append(f'{path.name}:{where}:restore')
         _held_to(self, found, L9_KEEPER, 'keeper writers', 'L9_KEEPER')
