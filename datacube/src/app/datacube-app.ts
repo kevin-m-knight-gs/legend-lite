@@ -28,6 +28,7 @@ import {
   pageDefinitionText,
   pageToJson,
   readSaved,
+  savedRecord,
   startingViews,
   writePageOf,
   type PageDocument,
@@ -861,16 +862,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const { store } = pages;
       const refused = page.saveRefusal();
       if (refused) throw new Error(refused);
-      const form = savedForm(name);
-      if (!form) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
+      const doc = pageNow(name);
+      if (!doc) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
       const id = !asNew && current.cubeId !== undefined ? current.cubeId : crypto.randomUUID();
-      const record = { id, name, content: form.content };
+      // the record by DataCube's one rule (savedRecord: Python's save() asks it too), the page named as it is saved
+      const record = savedRecord(id, name, doc);
+      if ('refused' in record) throw new Error(record.refused);
       if (id === current.cubeId) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
-      current = { ...current, cubeId: id, name, savedName: name, baseline: form.definition, lost: [] };
+      current = { ...current, cubeId: id, name: record.name, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
       // saved under a name: the page renamed, told as the name box tells it
-      page.rename(name);
+      page.rename(record.name);
       onCubeView?.();
       await persist();
       library?.sync();

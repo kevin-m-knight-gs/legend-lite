@@ -180,10 +180,14 @@ class Document(Paged):
         # its content the page document, its decimal's digits kept
         self.assertEqual(json.loads(opened.body)['content'], json.loads(page.to_json()))
         self.assertIn(b'1.50', opened.body)
-        # saved again: over the copy it was saved as, its new name taken
-        self.assertEqual(page.save(name='Q3, again'), first)
+        # saved again: over the copy it was saved as, its new name taken -- by the page too, its content so named, as
+        # DataCube's Save renames it (B4: the record by DataCube's rule, savedRecord)
+        self.assertEqual(page.save(name='  Q3, again '), first)
         again = json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{first}', '', None).body)
         self.assertEqual(again['name'], 'Q3, again')
+        self.assertEqual(again['content']['name'], 'Q3, again')
+        self.assertEqual(page.name, 'Q3, again')
+        self.assertEqual(page._page_commands[-1], {'kind': 'renamePage', 'name': 'Q3, again'})
         # deleted meanwhile (in DataCube's Open…): saved again as a new one under its id
         self.assertEqual(engine.answer('DELETE', f'/api/pure/v1/query/dataCube/{first}', '', None).status, 204)
         self.assertEqual(page.save(), first)

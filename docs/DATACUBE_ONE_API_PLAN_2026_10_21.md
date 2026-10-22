@@ -332,7 +332,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   limit (snap.test.ts; test_engine.py `test_the_snap_limit_in_the_tabs_words`)
 - [ ] **Z17** copy ownership: one model (the keeper's), `HostSnaps` adopt / handOver and `_claimed` gone; keeper
   known limit 6 closed — S5, L6
-- [ ] **Z18** the saved-page record — S5, L6
+- [x] **Z18** the saved-page record — closed S5: page-document.ts `savedRecord(id, name, page)`, the Save window's,
+  which Python's `save()` asks through headless `pageRecord` (page-document.test.ts, test_page.py)
 - [ ] **Z19** headless exports Python never calls (`pageFilter`, `joinQuestions`) used by S6's API, stale comments
   fixed — S6, L8
 
@@ -341,7 +342,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **B2** a tile renamed to its made title stores no title: the rule inside `renameTile` — closed S1: renameTile drops a
   grid's title equal to `gridTitle(id)`; the screen sends what was typed (page-commands.test.ts)
 - [ ] **B3** one default page name — S5, L10
-- [ ] **B4** saving under a name renames the page, on both sides — S5, L10
+- [x] **B4** saving under a name renames the page, on both sides — closed S5: the record names the page's content as
+  it is saved (`savedRecord`), and Python, as the tab does, renames the page once it is kept (renamePage) (test_page.py)
 - [x] **B5** one page-file rule — closed S5: page-document.ts `pageFile`, Export ▸ Page File's, which Python's
   `save(path)` asks through headless `pageFile`: DataCube's one-line text with a newer writer's fields kept (the tab's
   export now writes the page as the tab keeps it, as Save does), refused in one wording when there is nothing on it or

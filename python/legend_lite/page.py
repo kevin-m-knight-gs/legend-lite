@@ -1419,9 +1419,13 @@ class Page:
             Path(path).write_text(said['file'] + '\n', 'utf-8', newline='')
             return None
         from ._home import THIS_USER, pages_folder, store_call
-        named = _given_name(self._session, 'page', name if name is not None else self.name, "a saved page's name")
         id = self._saved if self._saved is not None else str(uuid.uuid4())
-        record = _json.dumps({'id': id, 'name': named, 'content': self._written()}, indent=None)
+        # the record by DataCube's one rule, the Save window's (headless pageRecord): the page named as it is saved
+        made = json.loads(self._session.headless().call('pageRecord', id, name if name is not None else self.name,
+                                                        _json.dumps(self._doc)))
+        if 'problems' in made:
+            raise ValueError('; '.join(made['problems']))
+        record = made['record']
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
                         if self._saved is not None else (404, ''))
         if status == 404:
@@ -1434,6 +1438,9 @@ class Page:
                 pass  # not the store's {"message"}: said as it came
             raise ValueError(f'the page was not saved: {said}')
         self._saved = id
+        # saved under a name, the page is that name, as DataCube's Save renames it (renamePage), on both sides (B4)
+        if made['name'] != self.name:
+            self.name = made['name']
         return id
 
     @classmethod

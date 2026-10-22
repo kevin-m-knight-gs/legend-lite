@@ -321,6 +321,26 @@ export function pageContent(page: PageDocument): Record<string, unknown> {
   };
 }
 
+/** A saved page as the page store keeps it: its id, its name, its content. */
+export interface SavedRecord {
+  readonly id: string;
+  readonly name: string;
+  readonly content: Record<string, unknown>;
+}
+
+/**
+ * A PAGE SAVED UNDER `name` AS THE PAGE STORE KEEPS IT -- the Save window's record, and Python's `save()`'s (headless
+ * pageRecord: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z18): its id, its name, and its content named so -- saved under a
+ * name, the page is that name (B4), which its editor then tells as the name box does (renamePage). `name` by the one
+ * rule of a page's name (givenName), or why not, in its words.
+ */
+export function savedRecord(id: string, name: string, page: PageDocument): SavedRecord | { readonly refused: string } {
+  const given = givenName('page', name);
+  if ('refused' in given) return given;
+  if (given.name === undefined) throw new Error("a page's name is never left to what it shows");
+  return { id, name: given.name, content: pageContent({ ...page, name: given.name }) };
+}
+
 /** The page as JSON text (exact numbers kept, as the cube's own document keeps them). */
 export function pageToJson(page: PageDocument): string {
   return protocolJson(pageContent(page));

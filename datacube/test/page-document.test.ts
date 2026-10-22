@@ -11,7 +11,10 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import {
   FIRST_SHEET,
   NOTHING_TO_SAVE,
+  pageContent,
   pageFile,
+  savedRecord,
+  type SavedRecord,
   PAGE_KIND,
   PageDocumentError,
   oneSheet,
@@ -26,11 +29,11 @@ import {
   type PageViews,
 } from '../src/page-document.ts';
 import { givenName } from '../src/page-names.ts';
-import { pageApply, pageFile as pageFileJson, pageNew, pageRead, pageSaved } from '../src/headless/page.ts';
+import { pageApply, pageFile as pageFileJson, pageNew, pageRead, pageRecord as pageRecordJson, pageSaved } from '../src/headless/page.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, col, element, lambda, lit, times } from '../../pure-protocol/src/index.ts';
+import { accessor, col, element, lambda, lit, times, toJson } from '../../pure-protocol/src/index.ts';
 
 const SOURCE: FileSource = {
   _type: 'file', name: 'trades.csv', format: 'csv', size: 120, sha256: 'ab'.repeat(32),
@@ -360,6 +363,22 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
       `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string };
     assert.equal(JSON.parse(pageSaved(added.page)).page, JSON.parse(pageRead(added.page)).page, 'written as DataCube writes it');
     assert.match(JSON.parse(pageSaved('{"bogus":1}')).problems[0], /^cannot read saved page/);
+  });
+
+  it("saved under a name as the page store keeps it (savedRecord; headless pageRecord: Python's save()), the page so named (Z18, B4)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    const added = (JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
+    const page = readPage(added);
+    const record = savedRecord('r-1', '  Q4 review ', page) as SavedRecord;
+    assert.deepEqual(record, { id: 'r-1', name: 'Q4 review', content: pageContent({ ...page, name: 'Q4 review' }) });
+    assert.deepEqual(savedRecord('r-1', ' ', page), { refused: "a page's name is not blank" });
+    // headless: the record's text, its numbers exact, and the name it is saved under; nothing on the page, refused
+    const said = JSON.parse(pageRecordJson('r-1', 'Q4 review', added)) as { record: string; name: string };
+    assert.equal(said.name, 'Q4 review');
+    assert.equal(said.record, toJson(record));
+    assert.match(said.record, /12\.30/);
+    assert.deepEqual(JSON.parse(pageRecordJson('r-1', 'Q4', started)), { problems: [NOTHING_TO_SAVE] });
   });
 
   it("as a page file (Export ▸ Page File; headless pageFile: Python's save(path)): DataCube's text, or refused in one wording (B5)", () => {

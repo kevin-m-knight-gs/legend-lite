@@ -5,8 +5,8 @@
 
 import { CubeDocumentError, cubeToJson, readCube } from '../cube-document.ts';
 import {
-  gridCopyOf, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage, startingViews,
-  writePageOf, type PageDocument,
+  gridCopyOf, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage, savedRecord,
+  startingViews, writePageOf, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
@@ -55,6 +55,24 @@ export function pageFile(text: string): string {
   try {
     const made = fileOf(readPage(text, { empty: true }));
     return JSON.stringify('refused' in made ? { problems: [made.refused] } : { file: made.file });
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
+ * A PAGE DOCUMENT (JSON text) SAVED UNDER `name` AS THE PAGE STORE KEEPS IT, under the record `id` -- what Python's
+ * `save()` sends the store -- by the Save window's one rule (page-document.ts savedRecord, Z18 and B4). JSON: `{record,
+ * name}`, the record's text (its numbers exact) and the name it is saved under, or `{problems}`, why it is not saved.
+ */
+export function pageRecord(id: string, name: string, text: string): string {
+  try {
+    const page = readPage(text, { empty: true });
+    if (page.cubes.length === 0) return JSON.stringify({ problems: [NOTHING_TO_SAVE] });
+    const made = savedRecord(id, name, page);
+    return 'refused' in made ? JSON.stringify({ problems: [made.refused] })
+      : `{"record":${JSON.stringify(toJson(made))},"name":${JSON.stringify(made.name)}}`;
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
