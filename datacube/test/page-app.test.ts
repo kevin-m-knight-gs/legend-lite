@@ -895,7 +895,7 @@ describe("another editor's commands followed: nothing told back that the page di
     assert.deepEqual(filterOf(page.state.page, a), filterOf(kept, a));
   });
 
-  it("the screen's own Remove of a selected chart: removeTile, its grid's refilter its own step, told (the S7 confirmation audit's G2-2)", async () => {
+  it("the screen's own Remove of a selected chart: removeTile alone, its grid's refilter a step of its own history (the S7 confirmation audit's G2-2)", async () => {
     const pageTold: PageCommand[] = [];
     newPage({ onPageCommand: (c) => pageTold.push(c) });
     const a = page.addGrid(telling('trades.csv'));
@@ -913,7 +913,7 @@ describe("another editor's commands followed: nothing told back that the page di
     tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     assert.deepEqual(pageTold.map((c) => c.kind), ['removeTile']);
-    assert.deepEqual(told, [{ grid: a, kind: 'refilter' }], "the grid's own step, told: nothing left to take off where the removal took it off");
+    assert.deepEqual(told, [], 'no refilter beside it: the removal took the selection off (a second would take a condition put there by hand off too)');
     assert.deepEqual(filterOf(page.document('Q3')!, a), filterOf(kept, a));
     assert.deepEqual(filterOf(page.state.page, a), filterOf(kept, a));
     assert.equal((page.grid(a) as unknown as CubeApp).canUndo, true, "the grid's own history kept (a removal followed as another editor's wiped it)");

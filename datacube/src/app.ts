@@ -1009,12 +1009,13 @@ export class CubeApp {
    * ANOTHER EDITOR'S GRID COMMANDS (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), applied
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
-  async applyGridCommands(commands: readonly GridCommand[], label: string): Promise<string | null> {
+  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false): Promise<string | null> {
     const { refused, outcome } = await this.#applyCommands(commands, label, 'theirs');
     const why = refused ?? refusal(outcome);
     // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
-    // take it back unseen)
-    if (why === null) this.#owner.clearHistory();
+    // take it back unseen); `own`: what a page step of the person's own said already (removeTile's rule taking a
+    // chart's selection off) -- told nothing, a step of the grid's history all the same (the S7 confirmation audit's G2-2)
+    if (why === null && !own) this.#owner.clearHistory();
     return why;
   }
 
@@ -2772,7 +2773,16 @@ export class CubeApp {
       // grid's, told after any of its own still running (the S7 confirmation audit's G2-2, B2-3)
       unselected: (old, theirs) => {
         const off: GridCommand[] = [{ kind: 'refilter', remove: [...old], add: [] }];
-        void (theirs ? this.applyGridCommands(off, 'Chart Removed') : this.#apply(off, 'Chart Removed'));
+        // the person's own step while an edit of the grid's own still runs (a click's refilter): told after it, as the
+        // grid's own, so a host takes them in the order made (the S7 confirmation audit's B2-3)
+        if (!theirs && this.#owner.busy) {
+          void this.#apply(off, 'Chart Removed');
+          return;
+        }
+        // else what the page step said already (removeTile's, followGrid's rule): told nothing more -- a second
+        // removal would take a condition put on the grid by hand off too (the S1 audit's 5) -- a step of this grid's
+        // history when the step is the person's own (G2-2), none when another editor's (P-1)
+        void this.applyGridCommands(off, 'Chart Removed', !theirs);
       },
       spawn: (host, snapshot, spawned) => {
         const o = this.#options;

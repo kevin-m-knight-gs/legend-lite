@@ -802,6 +802,69 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   beside its state, set from it at every step (P-9). Asked of the user at S7's close: Python's Save As, delete and list
   of saved pages (Y-6, H-9: their names), and the tab's class grid on a Python host and a class of another project (Y-7,
   H-8: a gesture, or an exception)
+- [x] **F71** a header's sort click was listed "by nature" the screen's, Python reaching its states another way (the
+  user, 2026-10-22: "Why are clickSort exempt? ... There should be single sort API that UI actions call that also can be
+  called programmatic") -- and the click's first direction was worked out in screen code -- fixed S7: header-sort.ts
+  `headerSortCommand`, the one rule the screen's header click and Python's `grid.toggle_sort` / `grid.toggle_group_sort`
+  ask (headless gridHeaderSort); L8_KINDS' two "nature" entries gone (grid-commands.test.ts; test_page.py)
+- [x] **F72** `measures`, a command kind only Python sent, no screen gesture making it -- fixed S7: deleted; Python's
+  measure and page.grid's measures are made by the steps a person makes one by (grid-measures.ts `measureCommands`:
+  Column Properties' `column`, or the column editor's `calculate` and then `column`), judged by the one rule Show Grid's
+  measures are made by too (grid-edits.ts `measurePlan`); page.grid's set-up judges them against the grid its steps
+  before made (headless gridSetUp, gridMeasure); L8_KINDS 1 -> 0 (grid-commands.test.ts; test_page.py)
+- [x] **F73** F48's closure sent every saved grid of a page on a Python host to the host, the tab's own pages too, and the
+  host refuses a file it does not hold: such a page no longer opened (the S7 confirmation audit's H2-1) -- fixed S7: only
+  a grid of the page its other editor serves is opened by the host (`reopened`'s `served`); a page of the tab's own opens
+  its sources the tab's way (cube-page-shell.test.ts)
+- [x] **F74** F52's closure put the saved record and the name in the page's history, so an undo past a Save took them
+  back -- the next Save made a second saved page (the S7 confirmation audit's H2-2, B2-1) -- fixed S7: neither is a step,
+  both carried across an undo and a redo as the page's model is (page-app.test.ts)
+- [x] **F75** F46's closure followed the person's own removal of a selected chart as another editor's change: the grid's
+  whole undo history wiped, and a click still running told its selection after the removal had taken it off, so the host
+  kept it (the S7 confirmation audit's G2-2, B2-2, B2-3) -- fixed S7: a step of the person's own (Remove, Show Grid, a
+  page undo) takes the selection off the grid as a step of its own history, told nothing more (a second removal would
+  take a condition put there by hand off too: the S1 audit's 5) -- but while an edit of the grid's own still runs, told
+  after it, as the grid's own; another editor's step is followed as before (ChartSource.unselected's `theirs`)
+  (page-app.test.ts; one-api-gestures.test.ts)
+- [x] **F76** the grid's own calls of `applyGridCommands` were invisible to every scan (the S7 confirmation audit's G2-3)
+  -- fixed S7: pinned (one-api-ledger.test.ts)
+- [x] **F77** F45's closure left what a presentation change laid on a change in flight kept to tell again after the
+  restore (the S7 confirmation audit's G2-1) -- fixed S7 (cube-transactions.test.ts)
+- [x] **F78** F66's closure offered Collapse All where nothing is open (a grid of one row group opened to a level: the
+  level never opens the deepest), and its gesture drove that case (the S7 confirmation audit's G2-4) -- fixed S7:
+  tree.ts `opensAny` (tree.test.ts; one-api-gestures.test.ts: two row groups)
+- [x] **F79** F49's headless half had no test that fails without it, and the gesture floor had not followed the
+  catalogue (40, 51 held) (the S7 confirmation audit's G2-5) -- fixed S7 (test_page.py: Show Grid's own grid opened to
+  its source's level; GESTURES_AT_LEAST 51)
+- [x] **F80** the screen's sheet label left out a grid the page could not open, the rule counted it: a rename to the label
+  shown was dropped (the S7 confirmation audit's B2-4) -- fixed S7 (page-app.test.ts)
+- [x] **F81** a share link carried the saved record of the person's store (the S7 confirmation audit's H2-3) -- fixed S7:
+  none, as a page file carries none (share-link.test.ts)
+- [x] **F82** F54's closure told `live` judged against the copy, so a grid over a frame changed meanwhile was never told
+  `rebuilt`; and a detached chart's cube was told `live`, refused, the page opened again, told again (the S7 confirmation
+  audit's H2-4) -- fixed S7: `live` first, `rebuilt` judged after it, as Python's Grid.live tells both; no `live` for a
+  cube no grid shows (datacube-app-live.test.ts)
+- [x] **F83** the empty page's Add a data source, on the page Python serves, opened a page of the tab's own in its place
+  (the S7 confirmation audit's H2-6) -- fixed S7: added to it, as New ▸ Data Source… adds (datacube-app-live.test.ts)
+- [x] **F84** F65's closure left a source out on a refusal only; a join that no longer joins fails as its plan does:
+  Python refused the page the tab opens (the S7 confirmation audit's Y2-1, H2-7) -- fixed S7: any failure, as the tab
+  (test_page.py Joined)
+- [x] **F85** F65's closure opened in Python a page none of whose sources opened, which the tab refuses (the S7
+  confirmation audit's Y2-2) -- fixed S7: page-document.ts `noneOpened`, the tab's rule, headless pageNoneOpened, which
+  Python's load asks (test_page.py OverClasses)
+- [x] **F86** Python's load kept a document's saved record, so a page loaded from another's document saved over that
+  one's (the S7 confirmation audit's Y2-3) -- fixed S7: a page read from a document holds none, as the tab's Open… of a
+  file; Page.open holds the one it opened by its `savedAs` (test_page.py)
+- [x] **F87** Python refused a name that is not text in words of its own (the S7 confirmation audit's Y2-4) -- fixed S7:
+  page-names.ts givenName and the commands' readers refuse it, and arrange's refusal is DataCube's alone (test_page.py)
+- [x] **F88** Python's save decided over-or-new itself (the S7 confirmation audit's Y2-5) -- fixed S7: page-document.ts
+  `savesOver`, the tab's Save's rule, headless pageRecord's `over` (no behaviour differed: one rule now)
+- [x] **F89** Python's own page written whole was admitted by no rule, and no scan saw it (the S7 confirmation audit's
+  Y2-6) -- fixed S7: Frames.unadmitted, as every write; test_one_api.py's L9 checks every restore asks it
+- [x] **F90** declared by the S7 confirmation audit: a file grid of the page Python serves, opened again on the host,
+  offers Snap and Go Live where one added shows Snapped -- the host's answer says no read time or row count to show
+  (H2-5); a host's refusal said on the tab carries the exception's kind (`CubeRefusal: `), as every 422 of the host's
+  does (H2-7); another editor's removal followed while the person's click still runs is two editors at once: D19's
 
 ## 5. The steps
 
@@ -1350,3 +1413,55 @@ now; regenerated in the close-out, both pass. `verify_app` as the container's un
 `//python:wheel_test` green. CI on pull request #64: a66b75c89 and 243a0fa8a green on every job, 24196c82d green.
 
 **Next.** S7, the final audit; then D19, the single writer's client side.
+
+## As built (S7, 2026-10-22)
+
+**Built.** The four audits (host shell, grid, board and page, Python) ran again, fresh, each told to find what the
+ledgers miss: 40 findings (H-1..H-13, G-1..G-7, P-1..P-9, Y-1..Y-11), F45-F70 -- fixed with a test that fails without
+each (F45-F67), the ledgers' blind spots closed with no ceiling moved (F68), D19's own moved there (F69), the rest
+declared (F70). A confirmation round of the same four audits, over those fixes, found 21 more -- five of them wrong
+closures or regressions of the first round's fixes -- and the user asked why a header click was exempt (F71-F90):
+
+- *One sort API* (F71, the user's question): header-sort.ts `headerSortCommand` is the one rule the screen's header
+  click and Python's `grid.toggle_sort` / `grid.toggle_group_sort` ask (headless gridHeaderSort). The "by nature"
+  entries were wrong: a gesture's rule is an API like any other.
+- *No command kind of one side's own* (F72): `measures`, which only Python sent, is deleted; a measure is made by the
+  steps a person makes one by (grid-measures.ts `measureCommands`, over grid-edits.ts `measurePlan`, the rule Show
+  Grid's measures are made by too). L8_KINDS 3 -> 0: every command kind is made by the screen and by Python.
+- *What a person sees, fixed*: an undo of a width or a format told (F45, F77); a selected chart's removal taken off its
+  grid once, the grid's undo kept, a click still running told in order (F46, F75); a page Python serves with no grid
+  opened, and its Add a data source adding to it (F47, F83); a host's page opening its own grids on the host and a page
+  of the tab's own opening its files the tab's way (F48, F73); the saved record and the name kept through an undo
+  (F52, F74); Collapse All offered when something is open (F66, F78); a snapped grid read live told `live` then
+  `rebuilt` (F54, F82); Python's join beside its first input (F55), a Cube File loaded (F57), a deleted record refused
+  (F58), a page with a source it cannot open left out as the tab leaves it, refused when none opened (F65, F84, F85), a
+  page loaded from another's document saving as its own (F86).
+- *One rule each* where two spelled it: a new grid's tree (F49), Show Grid's step (F50), a chart's click (F51), a page
+  file's name (F56), a snapped grid opened again (F60), the keeper's admission, on every write (F59, F89), a sheet's
+  label (F80), a name that is not text (F87), Save's over-or-new (F88).
+
+**Deviations, and limits, each said.**
+
+- *Three first-round items fix no behaviour a person reaches today*: F60, F61, F63 (one rule now; no test can fail
+  without them, none claimed). F88 likewise.
+- *D19's own* (F69): Save on a served page saves the screen's page (H-5); a reopen within the channel's wait drops the
+  last edit unsaid (H-11); an undo's restore is judged by fewer rules than a write (H-13); and another editor's removal
+  followed while the person's click still runs (F90).
+- *Declared* (F70, F90): Python's export is the grid alone; presentation gestures are the screen's, Python sets them by
+  `configure`; a drilled dimension and Bins' preset columns are Python's, the column editor's JSON picker the screen's;
+  `grid.expand` takes a group's keys unchecked; a refused board edit puts the board back at its next sync; PageApp's
+  name, filters and model are fields beside its state; a served file grid opened again on the host offers Snap and Go
+  Live (the host's answer says no read time to show); a host's refusal carries the exception's kind.
+- *Open for the user*: Python's Save As, delete and list of saved pages (Y-6, H-9: their names); the tab's class grid
+  on a Python host and a class of another project (Y-7, H-8: a gesture, or an exception).
+
+**Ledgers.** Every ledger is empty but N1-N3 and the entries that are no gaps (the command path, its plumbing, following
+another editor, a kind tested elsewhere): `L8_KINDS` 3 -> 0 (F71, F72); `L8_SOURCES`, `L8_UNASKED`, `MARKERS`,
+`UNCHECKED` 0; `L1_*` as at S6. The scans see more with no ceiling raised (F68, F76, F89); the gesture floor 40 -> 51
+(F79); two dated pins in state-guardrail.test.ts. Each move dated in its file.
+
+**Gates.** The full local set after the first round: 202 of 203 targets green, the one red the register pin (F45-F70
+not listed), fixed and pushed (17c513e72). After the confirmation round: GATES_R2.
+
+**Next.** D19, the single writer's client side, with H-5, H-11, H-13 and F90's race. The audit's done condition -- a
+round that finds nothing new -- is met when a third round over F71-F90 finds nothing; it runs with D19's first audit.

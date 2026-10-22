@@ -1280,7 +1280,7 @@ class Abilities(Paged):
         grid.toggle_sort('region')
         self.assertEqual(sorts(), [('region', 'asc')])
         # the groups' order, as the tree column's header turns it
-        grid.group(['region'])
+        grid.group('region')
         grid.toggle_group_sort()
         self.assertEqual(page._commands[-1], {'kind': 'clickTreeSort', 'chained': False})
         self.assertEqual(sorts(), [])

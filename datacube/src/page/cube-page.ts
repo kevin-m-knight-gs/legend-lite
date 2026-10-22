@@ -81,9 +81,9 @@ export interface ChartSource {
    * A chart's selection `old` taken off the grid's filter as a page step took it already (removeTile, followGrid:
    * page-commands.ts unselected). `theirs`: another editor's step, followed as its change is -- never told back, no step
    * of the grid's own (the S7 audit's P-1); else the person's own (a Remove, a Show Grid, a page undo): a step of the
-   * grid's own history, told, so the grid's own edits stay in the order they were made (the S7 confirmation audit's
-   * G2-2, B2-3: a removal followed as another editor's wiped the grid's undo, and a click still running then told its
-   * selection after the removal had taken it off).
+   * grid's own history, told only after an edit of the grid's own still running -- the step said the rest (the S7
+   * confirmation audit's G2-2, B2-3: a removal followed as another editor's wiped the grid's undo, and a click still
+   * running then told its selection after the removal had taken it off).
    */
   unselected(old: readonly FilterNode[], theirs: boolean): void;
   /**
@@ -1488,10 +1488,9 @@ export class CubePage {
   /**
    * A TILE'S REMOVE (its x, its menu's Remove, a grid's Remove from Page): a tile of the page's is told as its removal,
    * and `sync` takes it off (#drop). A chart's selection comes off its grid's filter by removeTile's own rule (the
-   * page's unselected), as Python's removeTile takes it off: one removal, one page command (the S1 audit's 5); the grid
-   * on the board follows the step by a refilter of its own, told after any edit of its own still running, which finds
-   * nothing left to take off where the step took it off already (ChartSource.unselected; the S7 audit's P-1, the S7
-   * confirmation audit's G2-2, B2-3).
+   * page's unselected), as Python's removeTile takes it off: one removal, one command (the S1 audit's 5); the grid on
+   * the board follows the step, a step of its own history, told only after an edit of its own still running
+   * (ChartSource.unselected; the S7 audit's P-1, the S7 confirmation audit's G2-2, B2-3).
    */
   #removeTile(id: string): void {
     if (!this.#saved(id)) {

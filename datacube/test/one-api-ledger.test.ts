@@ -498,7 +498,10 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-22, S6 B: a page filter with a number broke Python's grid reads (the lens read it exactly), found testing K7
   + 'F42 F43 F44 '
   // 2026-10-22, S7: the final audit's findings, added by rule 9 and closed (fixed, moved to D19, or declared) with each fix
-  + 'F45 F46 F47 F48 F49 F50 F51 F52 F53 F54 F55 F56 F57 F58 F59 F60 F61 F62 F63 F64 F65 F66 F67 F68 F69 F70 ').split(' ').filter((item) => item !== '');
+  + 'F45 F46 F47 F48 F49 F50 F51 F52 F53 F54 F55 F56 F57 F58 F59 F60 F61 F62 F63 F64 F65 F66 F67 F68 F69 F70 '
+  // 2026-10-22, S7: the confirmation audit's findings and the user's question (one sort API), added by rule 9 and closed
+  // (fixed, or declared) with each fix
+  + 'F71 F72 F73 F74 F75 F76 F77 F78 F79 F80 F81 F82 F83 F84 F85 F86 F87 F88 F89 F90 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {
