@@ -163,10 +163,24 @@ final class DomainComposer {
         for (String statement : PureComposer.statements(f.body(), style, Composing.indented("", 2, style))) {
             body.add("  " + statement);
         }
+        // its constraints, pre-conditions then post-conditions, in Pure's block (legend-engine's composer prints none:
+        // its grammar's walker drops the block, so its JSON from text has none -- a JSON or a lite text that has them
+        // prints them, never drops them)
+        List<ConstraintDefinition> constraints = new ArrayList<>(f.preConstraints());
+        constraints.addAll(f.postConstraints());
+        String block = "";
+        if (!constraints.isEmpty()) {
+            List<String> cs = new ArrayList<>();
+            for (int i = 0; i < constraints.size(); i++) {
+                cs.add(TAB + constraint(constraints.get(i), i, style));
+            }
+            block = "[\n" + String.join(",\n", cs) + "\n]\n";
+        }
         return declarationPrefix("function", "", f.stereotypes(), f.taggedValues())
                 + Composing.convertPath(f.qualifiedName())
                 + "(" + String.join(", ", params) + ")"
                 + ": " + genericType(f.returnType()) + "[" + multiplicity(f.returnMultiplicity()) + "]\n"
+                + block
                 + "{\n" + String.join(";\n", body) + (f.body().size() > 1 ? ";" : "") + "\n}"
                 + FunctionTestComposer.testSuites(f, style);
     }
@@ -241,12 +255,14 @@ final class DomainComposer {
                 + genericType(qp.type()) + "[" + multiplicity(qp.multiplicity()) + "]";
     }
 
-    /** An inline body: the wire carries only the body, so a function-ref binding has nothing to print. */
+    /** The body to print ({@link Realization#writtenBody}): a function-ref binding with no kept node has none. */
     private static List<ValueSpecification> inline(Realization r, String what) {
-        if (!(r instanceof Realization.Inline inl)) {
-            throw Composing.refused(what + " bound to a function, not written inline (the wire carries a body only)");
+        List<ValueSpecification> body = r.writtenBody();
+        if (body == null) {
+            throw Composing.refused(what + " bound to a function by name, with no body to print (the wire carries a"
+                    + " body only)");
         }
-        return inl.body();
+        return body;
     }
 
     /** {@code renderConstraint}: {@code index} is the constraint's position among its class's. */

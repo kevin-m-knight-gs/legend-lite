@@ -104,11 +104,6 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         return new LexableSectionGrammar.ParsedSection(elements, imports);
     }
 
-    @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
     private static Protocol.PDiagram parseDiagram(Raw r,
             com.legend.parser.Dialect dialect) {
         int[] start = r.mark();

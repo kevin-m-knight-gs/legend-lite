@@ -47,11 +47,6 @@ public final class DataQualityValidationSectionGrammar
     }
 
     @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
-    @Override
     public Protocol.Element parseOne(TokenStreamCursor c) {
         String kind = c.safeText();
         return switch (kind) {

@@ -52,11 +52,6 @@ public final class DataSpaceSectionGrammar
         return parseElement(c);
     }
 
-    @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
     /** The engine's own enum names (DataSpaceRegion, DataSpaceDeliveryFrequency):
      *  a value is validated as written, with the engine's message. */
     private static final List<String> REGIONS = List.of("APAC", "EMEA", "LAMR", "NAMR");

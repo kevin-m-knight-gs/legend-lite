@@ -10,7 +10,7 @@ import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.SignatureMangle;
 import com.legend.parser.Dialect;
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -81,7 +81,7 @@ class CatalogUpstreamDiffTest {
                 files++;
                 List<PackageableElement> elements;
                 try {
-                    elements = ElementParser.parse(Files.readString(f, StandardCharsets.UTF_8),
+                    elements = ModelFromText.parse(Files.readString(f, StandardCharsets.UTF_8),
                             Dialect.LEGEND_PLATFORM).elements();
                 } catch (RuntimeException e) {
                     unreadable.add(root.relativize(f) + "\t" + SpecBodyCensusTest.first(e.getMessage()));
@@ -214,8 +214,11 @@ class CatalogUpstreamDiffTest {
      *  meta::legend::lite::stage, rows computed once into a temporary table of the session for the statements after
      *  (the Cypher island's writes); a lite-internal native, ours alone. 65 on 2026-10-20 (the writes design's leg 5,
      *  §4 L2): writeInstances, mergeInstances, deleteInstances, link and unlink, the class writes over a direct
-     *  mapping, which the store resolver writes as L1's statements; ours alone. */
-    private static final int NOT_UPSTREAM_MAX = 65;
+     *  mapping, which the store resolver writes as L1's statements; ours alone. 66 on 2026-10-22 (merging main into the
+     *  Cypher writes branch): main's meta::legend::lite::quotient (57 on 2026-10-18 on main, merging the IQ island's
+     *  landing 5), an integer quotient cut toward zero, the database's own integer division -- upstream has none
+     *  (legend-pure's divide of integers is a Float). */
+    private static final int NOT_UPSTREAM_MAX = 66;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

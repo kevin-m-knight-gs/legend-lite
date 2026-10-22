@@ -19,7 +19,7 @@
 // re-run tests (the golden catalog file shows the diff).
 package com.legend.builtin;
 
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import com.legend.model.ClassDefinition;
 import com.legend.model.EnumDefinition;
 import com.legend.model.NativeFunctionDefinition;
@@ -35,7 +35,7 @@ import java.util.List;
  * constants, not by string lookups.
  *
  * <p>Each constant is a {@link NativeFunctionDefinition} produced by routing
- * the signature through {@link ElementParser} at class-load time. Class init
+ * the signature through {@link ModelFromText} at class-load time. Class init
  * fails loudly if any signature stops parsing &mdash; that is the
  * parse-coverage guarantee.
  *
@@ -132,7 +132,7 @@ public final class Pure {
 
     /**
      * Parse one {@code native Class ...} declaration through
-     * {@link ElementParser} and stash the resulting record.
+     * {@link ModelFromText} and stash the resulting record.
      *
      * <p>Call sites contain real Pure source verbatim &mdash; the same
      * text that would appear in an engine {@code .pure} file. This keeps
@@ -145,7 +145,7 @@ public final class Pure {
      */
     static ClassDefinition nativeClass(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
-        var parsed = ElementParser.parse(pureSource,
+        var parsed = ModelFromText.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
@@ -292,7 +292,7 @@ public final class Pure {
     // Engine declares several stdlib types as {@code Enum} rather than
     // {@code Class} (e.g. {@link #DURATION_UNIT}, {@link #JOIN_KIND}).
     // Modelled as parsed {@link EnumDefinition} records so they round-trip
-    // through {@link ElementParser} the same way native classes do.
+    // through {@link ModelFromText} the same way native classes do.
     //
     // Same naming convention as the class catalog: the constant is the
     // record itself (e.g. {@link #JOIN_KIND} is an {@link EnumDefinition}).
@@ -307,7 +307,7 @@ public final class Pure {
     }
 
     /**
-     * Parse one {@code Enum ...} declaration through {@link ElementParser}
+     * Parse one {@code Enum ...} declaration through {@link ModelFromText}
      * and stash the resulting record.
      *
      * <p>Like {@link #nativeClass(String)}, call sites contain real Pure
@@ -315,7 +315,7 @@ public final class Pure {
      */
     static EnumDefinition nativeEnum(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
-        var parsed = ElementParser.parse(pureSource,
+        var parsed = ModelFromText.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
@@ -436,6 +436,13 @@ public final class Pure {
          *  the wall time of an instant in it. Emitted by the Cypher translator only. */
         public static final String INSTANT_IN = PKG + "instantIn";
         public static final String LOCAL_IN = PKG + "localIn";
+        /** An integer quotient, cut toward zero (2026-10-17, the IQ island's scale): {@code quotient(a, b)} is
+         *  {@code a / b} without its remainder, the database's own integer division ({@code //}, {@code div}).
+         *  Pure has none -- its {@code divide} of integers is a Float -- so the SQL islands wrote the quotient as a
+         *  Float estimate corrected by remainders, each operand read about fourteen times; nested quotients
+         *  multiplied that into statements of megabytes. Emitted by the SQL islands only, where both operands are
+         *  integers and the divisor's zero is tested before. */
+        public static final String QUOTIENT = PKG + "quotient";
         /** A temporal value in text carriage (2026-10-18, the Cypher island's nanosecond values as a date and a time
          *  of day, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): {@code dateTimeOfText(text)} is the date-time,
          *  {@code timeOfText(text)} the time of day, the database's ISO text spells, carried to the caller as that
@@ -607,7 +614,8 @@ public final class Pure {
                     Lite.MERGE_INSTANCES, Lite.DELETE_INSTANCES, Lite.LINK, Lite.UNLINK, Lite.TIME_OF, Lite.AT_TIME,
                     Lite.INSTANT_IN,
                     Lite.LOCAL_IN,
-                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT)
+                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT,
+                    Lite.QUOTIENT)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -825,13 +833,13 @@ public final class Pure {
     }
 
     /**
-     * Parse a Pure native signature through {@link ElementParser} and stash
+     * Parse a Pure native signature through {@link ModelFromText} and stash
      * the resulting record. Class-load fails if the signature is malformed
      * or if {@code ElementParser} refuses any grammar form &mdash; that is
      * the comprehensive parse-coverage guarantee.
      */
     private static NativeFunctionDefinition signature(String pureSignature) {
-        var parsed = ElementParser.parse(pureSignature,
+        var parsed = ModelFromText.parse(pureSignature,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
@@ -1076,6 +1084,7 @@ public final class Pure {
      *  {@code localIn} the wall time of an instant in a zone — each two of the database's zone conversions (the
      *  convertTimeZone lowering's pair), a Pure DateTime in and out. Upstream knows zones only at formatting and on
      *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). */
+    public static final NativeFunctionDefinition QUOTIENT__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::quotient(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::convertTimeZoneFormat(d:meta::pure::metamodel::type::DateTime[0..1], tz:meta::pure::metamodel::type::String[1], fmt:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[0..1];");
@@ -2513,6 +2522,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NOT_EQUAL_ANSI = com.legend.model.FunctionId.ofAll(NOT_EQUAL_ANSI__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PARSE_DATE_FORMAT = com.legend.model.FunctionId.ofAll(PARSE_DATE_FORMAT__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_QUOTIENT = com.legend.model.FunctionId.ofAll(QUOTIENT__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);

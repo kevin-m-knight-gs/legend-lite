@@ -685,9 +685,13 @@ records, and the records mirroring the engine's JSON where it was cut so far -- 
 `compiler/` with the Compiler Rewrite line's review: `spec/Typer.java` (the zero-argument qualified-property lift
 takes a parameterized class), `spec/GraphFetchChecker.java`, `spec/typed/TypedGraphTree.java` and
 `resolver/GraphEmission.java` (no `qualified` mark), `NameResolver.java` and `normalizer/` (the mapping's dead
-`testSuitesSource`). Step 2 continues on `leg8-records`: a relation column's `[0..1]`, a decimal decided by its kind,
-the operator spelling (each with the Compiler Rewrite line, judged as before), and the dropped-text rule, the user's
-to decide first. Then leg 9, imports and comments
+`testSuitesSource`). **Built 2026-10-11 to 2026-10-13 on the Mac, and stranded there (the session's pushes were
+refused from 2026-10-11): a relation column's `[0..1]`, a decimal as its value, a relation cast read as parsed**, with
+the Compiler Rewrite line's review -- in `compiler/`, `spec/Typer.java` (a decimal by its value; its rounding past
+DECIMAL(38) is PARK-27) and `spec/TypeAnnotations.java` (the parsed column multiplicity read as it is);
+`NameResolver.java` unchanged, but its resolved columns now keep the written multiplicity; then `leg8-step2b`
+(persistence spans, a reference body, value equality without position) and `leg8-tds`. All three rebased on main and
+judged again 2026-10-21 on the branch `studio-program` (the note below; GATES 2026-10-21). Then leg 9, imports and comments
 (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
@@ -707,6 +711,62 @@ fast-forward), after the user decides the order. **Overlap to watch:** the compi
 (`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`, names resolved once) changes how call nodes (`protocol.spec`
 `AppliedFunction`) are built, and the protocol program changes the same records (nullable spans, the `list` factory);
 whichever lands second merges, and the two should agree before either starts on those files.
+
+**2026-10-21: the Studio line resumes in a cloud session** (session_01FAGeqrwQFYg5GrctquLuEy; the Mac session is
+unreachable). The Mac session's last work was stranded there (its pushes to `main` and `ci/*` were refused from
+2026-10-11); the user pushed its branches on 2026-10-21. This session's pushes to `main` are refused too, and **the
+user, 2026-10-21: everything is built on one branch, `studio-program`, kept up to date with main** (main merged in,
+never a rebase or a force-push: rule 1), landing on main when the user says. On it, in order: the Query fix (a mapping
+maps its includes' classes) and Studio's Data panel naming a refused file; the protocol program's leg 8 step 2 from the
+Mac's three branches, rebased and judged again; then leg 8's rest -- the dropped-text rule (the user's rule A,
+2026-10-21: `docs/SEMANTICS_REGISTER.md` S89), the operator spelling, step 3 (the routes take a PureModelContextData;
+execute compiles once) and the last step (the parser returns protocol only) -- and then leg 9's design, with the user.
+**Files beyond the line's own:** `core/src/main/java/com/legend/{parser,protocol,model}/` (rule A at the engine's
+dialect; the readers and emitters); `compiler/spec/{Typer,Overloads}.java` (an operator run by its shape -- the Compiler
+Rewrite line's area; that session is offline too, so the change is judged as its changes are: the six corpus passes,
+PCT, the reference lane); `server/{PureV1Api,QueryService,ModelInput}.java`, `Execution.java`, `Compiler.java` (step 3:
+the seam agreed with the Plan Gen / Exec Split line on 2026-10-10, `boundParameters` untouched); `core/BUILD.bazel`
+(one file in `:pure_v1`, and the last step's new `//core:door`: `door/ModelFromText.java`, the text's door, with
+`tools/deps/core-layers.txt` and ArchitectureTest's rule 7c losing `model..`); the callers of the parser's old
+model entry (`builtin/{Pure,Prelude,SystemMetamodel}.java`, `ide/ModelOrchestrator.java`, the spec module's
+generators, parser-equivalence's harness); parser-equivalence's oracle and ratchet. Each judged in GATES before the
+next.
+
+**Then the compiler's missing reference checks (the user, 2026-10-21, after an honest account of what leg 8 had
+shortcut: "def fix arithmetic, def need real tests, definitely need to fix function constraints and fake extends and
+fakes profiles/stereotypes")**, built on `reference-checks` (from `studio-program`'s d170f3eb0) and squashed onto
+`studio-program` once judged (two commits; `reference-checks` keeps the working history). A probe of 64 broken models through both doors found what lite accepted that the engine
+refuses: a supertype that is no class, a generic's wrong arity, a profile, stereotype or tag that does not exist, a
+runtime's mapping, a service's or data space's mapping and runtime, a database's or mapping's
+include, an Operation's member set, an optional property with a default; and two messages that misled. Each is now
+refused with the engine's (or legend-pure's) words, a case each in `ReferenceIntegrityTest`; defaults and a function's
+pre/post-conditions are compiled (lifted as synthesized functions and typed, as derived properties are); an operator run
+is decided by the resolved declaration (`NativeFn.OperatorRun`), never a spelling. The element kinds lite carries by
+name (diagrams, bindings, activators, ...) are the roadmap's, not this change's: PARK-38 and PARK-39 (the user: "we
+have to do 11 eventually, can put it on roadmap for later"). **Files beyond the line's own** (the Compiler Rewrite
+line's area, judged as its changes are): `compiler/element/{ModelIntegrity,TypeClassifier,TypedClass,ClassCompiler,
+type/PlatformTypes}.java`, `compiler/{NameResolver,ModelBuilder,KnowledgeLayer,DerivedProps,SynthFqn}.java`,
+`compiler/spec/{Typer,Overloads,InferenceKernel,TableReferenceChecker}.java`, `normalizer/{ModelNormalizer,
+MappingClosures,MappingValidation,MappingPrePass}.java`, `builtin/{NativeFn,Prelude,SystemMetamodel}.java` and the
+regenerated `prelude.pure` (its generator in `spec/`: the platform's profiles join it), `Compiler.java`
+(`withoutPreludeShadows`: a platform profile yields to the prelude's), `model/{ClassDefinition,EnumDefinition,
+AssociationDefinition,FunctionDefinition,FromProtocol,SynthHat}.java`; in `pct/`, `ModelPacker` (it injected a
+primitive as a class: `Class Integer extends Number`) and the standard suite's model roots (the module's own
+dependency, the relation functions' qualifier profile); guards `FallbackLedgerTest` (floor 10 -> 6) and
+`IdentityGuardrailTest` (NAME_CUTTING 108 -> 107), each dated. And what the stricter compiler found in the
+repository's own inputs: the stress corpus's generator and layout (`scripts/corpus/build.py`, `core/stress.bzl`, three
+comments in `core/BUILD.bazel` and `scripts/corpus/BUILD.bazel` -- the build line's files: the three services over the
+excluded `55-canonical-store.pure` generated apart into `94-canonical-services.pure`, which lite excludes with it),
+two hand-written stress fixtures, `StressExclusions` and `LegendLiteGapTest`; parser-equivalence's pins
+(`JsonModelDoorTest`, `OwnCorpusConformanceTest`, `OwnDialectCensusTest`, `FixtureAdjudicationTest`) and
+`JavaEvalLedgerTest`'s ModelPacker row, each dated. **Then the independent audit (2026-10-21, three reviewers, GATES
+"the independent audit"),** fixed on `reference-checks` and squashed onto `studio-program` again: files beyond the
+above -- `parser/SpecParser.java` (a binding's first expression; ModelStore data), `server/PureV1Api.java` (the
+request depth), `Compiler.java` (the JSON door's refusal), `compiler/spec/SpecCompiler.java` (a default's new
+instances; a condition's message), `normalizer/ImplicitInheritance.java` (a missing association, FallbackLedger 6 -> 5),
+`protocol/{DomainReader,ProtocolEmitter}.java` (a condition's lambda), the prelude generator (the engine's profiles),
+`pct/.../ModelPacker.java` (a precise primitive's values), the stress corpus (`74-path-surface.pure`, excluded),
+parser-equivalence's `JsonModelDoorTest` (rule A's texts listed, `json-door-rule-a.tsv`).
 
 ## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
 
@@ -1946,6 +2006,55 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       order rides alone, as before the landing: carried, the relational corpus's ordered compare of
       testRenameColumnsAfterGroupBy moved), so on a database that does not keep a subselect's order a later LIMIT
       may keep other rows.
+- **Announced 2026-10-17: landing 5's cross-area edits** (`claude/iq-island-5`; one PR and one CI run after review,
+  the user's merge). The corpus lane was rebuilt (the session scratchpad that held it was wiped; the private repo
+  neema2/iq-sql-research's `corpus-lane/` keeps its scripts) and its refusals the live IQ 17.1 answers were worked
+  top-down; each edit is judged by both `iq-parity` lanes, both `sql-parity` lanes and the corpus judge:
+  - **An integer quotient, a lite native.** `builtin/Pure.java`: `meta::legend::lite::quotient(Integer[1],
+    Integer[1]):Integer[1]` (`INTERNAL_DESUGAR` 21 to 22, `NOT_UPSTREAM` 48 to 49, both with dated notes; census row in
+    `docs/LITE_INVENTION_CENSUS.md`); `lowering/Scalars.java`: its rule, MIR's `INT_DIVIDE` with rem's zero-divisor
+    raise; `protocol/sql/SqlToPure.java`: `wholeQuotient`, used where both operands are integers (the function-FQN
+    literal ratchet 324 to 325, the Cypher translator's precedent). The Float estimate it replaces read each operand
+    about fourteen times.
+  - `sql/dialect/StringCountsAsInt.java` (new, Postgres): a string function's 64-bit count cast to its 32-bit integer.
+  - `sql/dialect/OuterJoinSubqueryFilters.java` (new, DuckDB): a LEFT JOIN condition's scalar subquery of the
+    null-supplying side filters that side first, which DuckDB cannot plan otherwise.
+  - `sql/dialect/ConstantKeysAsExpressions.java`: on DuckDB's GROUP BY integers too (`groupByOnly`), and a NULL key
+    grouped by as an integer's NULL.
+  - `protocol/sql/SqlToPure.java`, also: `*` in a grouped query shows its group keys; a scalar subquery a select item
+    reads on every path is computed once, a column before the item (`Output.pre`, in the item's phase), where it was
+    written once per check of each checked operation around it.
+  - Later the same day (follow-on branch `claude/iq-island-5-next`, the same landing):
+    - `lowering/Fold.java`, `lowering/Lowerer.java`: a large computed column that later columns read twice is written
+      once in its own select (`Fold.rereadsLarge`; removed 2026-10-18 in the landing's review: main's `Fold.Budget`
+      does it since the merge, and the lowering is main's again).
+    - `protocol/sql/SqlToPure.java`:
+      - an item past the size bound computes its long operands once, a column before it
+        (`SqlTranslationException.pastSizeBound`);
+      - a dialect's group guard (`Aggregation.guard`), each grouping's own;
+      - `Scope.enclosing`, a window's correlated-reference check that no longer asks a grouped scope to resolve a
+        column that is no group key;
+      - `SELECT DISTINCT t.*` ordered by a column the `*` shows;
+      - joins read by `InputDialect.joinType`.
+    - `protocol/sql/InputDialect.java`: `joinType`, a dialect's reading of an outer join as the inner one it is (the
+      IQ island's, under a WHERE that rejects the null-supplying side's NULLs).
+    - `protocol/sql/InputDialect.java`, also: `Problem.NESTED_AGGREGATE`, whose wording is the dialect's (Postgres's
+      unchanged; the IQ island's its -156); the shared translator's seven nested-aggregate refusals read it.
+    - `protocol/sql/InputDialect.java`, `protocol/sql/SqlToPure.java`: `translated()`, called once a statement is
+      translated, where a dialect raises an error it held while translating (the IQ island's -1001013 for a string
+      compared with a number, which IQ raises after any -157 of the statement and after a missing column's -143);
+      and `failed(e)`, the error to raise when a statement fails to translate (the IQ island's held placement error,
+      which comes after the statement's names, grouping and functions).
+    - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
+      alone but past `medium`'s 300 s in `//gates:local`.
+  - 2026-10-18, the landing's review and gate (the user's request: the flaky case fixed to be deterministic):
+    - `cypher-parity/lite/grouping.yaml`: `with_distinct_node_then_counted` sorts before its collect (`WITH DISTINCT a
+      ORDER BY a.name`). A collect's list has no order of its own; DuckDB's came back either way over the DISTINCT
+      (two passes and two failures on one head). Re-snapped from Neo4j 2026.09.0 (`[2, ['a', 'c']]`), the other 17
+      grouping answers reproduced unchanged first.
+    - `protocol/sql/PostgresOperators.java`: Postgres's integer division keeps its exact estimate (Snowflake's
+      INT_DIVIDE rounds to six places before it cuts); `sql/dialect/ConstantKeysAsExpressions.java` names its database.
+
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):
@@ -2460,7 +2569,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   - guards and generated files: the code-shape allowlist, the FQN-literal ceiling, the not-upstream pin, the native
     claims and the implementation kinds (each dated or regenerated).
 - **Landed on the branch, 2026-10-20: writes leg 5, the class writes (L2) and Cypher's writes on a domain model**
-  (GATES' ninety-fifth landing; the design's §8, leg 5; register row S94). Five lite natives write a class's instances
+  (GATES' ninety-fifth landing; the design's §8, leg 5; register row S102). Five lite natives write a class's instances
   through its direct mapping (`writeInstances`, `mergeInstances`, `deleteInstances`, `link`, `unlink`), the store
   resolver rewriting each into L1's statement over the mapping's table; Cypher's writer over a domain model reads the
   graph as unions over the classes' extents and writes it through them. Files of other lines:
@@ -2476,7 +2585,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   - guards and generated files: the governance, not-upstream and FQN-literal pins, the code-shape allowlist (each
     dated), the native claims and the implementation kinds (regenerated).
 - **Landed on the branch, 2026-10-20: writes leg 4, `#SQL{...}#` statements that write a table** (GATES' ninety-sixth
-  landing; the design's §8, leg 4; register row S95). INSERT (VALUES or a query, ON CONFLICT DO NOTHING / DO UPDATE),
+  landing; the design's §8, leg 4; register row S103). INSERT (VALUES or a query, ON CONFLICT DO NOTHING / DO UPDATE),
   UPDATE (with FROM) and DELETE (with USING) as L1's writes, RETURNING as a program of the staged rows, the write and
   the rows; judged by Postgres 16 on both SQL lanes (`sql-parity/lite/dml.yaml`, with a check query per case). Files of
   other lines:

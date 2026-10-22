@@ -82,7 +82,7 @@ name, never guessed, because inverting a general mapping is the view-update prob
 | `meta::legend::lite::writeInstances`, `::mergeInstances`, `::deleteInstances`, `::link`, `::unlink` | L2 | their signatures | `resolver/ClassWrites`, into L1 |
 
 The FQNs are in `core/src/main/java/com/legend/builtin/Pure.java` (`Pure.Lite`). The L2 natives are emitted by the
-Cypher translator only today: they are not bare-name resolvable from user Pure yet. Typing (register row S89) is by
+Cypher translator only today: they are not bare-name resolvable from user Pure yet. Typing (register row S97) is by
 NAME, where upstream's `write` binds by position:
 - each column of the rows names a column of the table, of the same type or both numeric;
 - the table's other columns take their defaults;
@@ -107,7 +107,7 @@ unchanged.
   - Two source rows with one key are not handled specially: whatever the database's `MERGE` does.
 - **L2:** an instance's key is its mapping's `~primaryKey`, else the main table's PRIMARY KEY (one column). It is what
   `elementId` spells.
-- **Minted ids** (decision D4; register row S92) are the database's, never Java's. A created row's id is above the
+- **Minted ids** (decision D4; register row S100) are the database's, never Java's. A created row's id is above the
   store's greatest as the statement started, plus its row number, so an id deleted within a statement is never given
   again in it. This is registered as unsafe under concurrent writers. An identity or sequence column, where a store
   declares one, is the design's preferred form and is not built yet.
@@ -137,8 +137,8 @@ unchanged.
 ## Where to read more
 
 - The design and its legs as landed: `docs/WRITES_DESIGN_2026_10_18.md` (§4 the layers, §8 legs 2, 4, 5, 6 and 7).
-- The register rows: S89 (by-name typing), S92 (ids), S93 (a statement ending in an update), S94 (writes over a
-  domain model), S95 (`#SQL` DML), in `docs/SEMANTICS_REGISTER.md`.
+- The register rows: S97 (by-name typing), S100 (ids), S101 (a statement ending in an update), S102 (writes over a
+  domain model), S103 (`#SQL` DML), in `docs/SEMANTICS_REGISTER.md`.
 - The tests: `StoreWritesTest` (rendering), `StoreWritesExecutionTest` and `StoreWritesPostgresTest` (L1 on DuckDB, H2
   and Postgres 16), `ClassWritesExecutionTest` (L2), `WritePlansTest`, `WritePlansH2Test` and `WritePlansPostgresTest`
   (plans), `CypherWritePlansTest` (a Cypher write by plan and by execution), `SqlWritesExecutionTest` (`#SQL` over

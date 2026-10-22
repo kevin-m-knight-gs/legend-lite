@@ -92,10 +92,6 @@ final class Overloads {
         return t.namedType(te);
     }
 
-    private static void markOperatorRun(boolean infix, List<TypedSpec> args) {
-        Typer.markOperatorRun(infix, args);
-    }
-
     /**
      * The one generic application rule (engine {@code ScalarChecker}): type the
      * arguments, resolve the overload against the registered signatures, and read
@@ -470,7 +466,6 @@ final class Overloads {
         for (ValueSpecification p : af.parameters()) {
             args.add(synth(p, env));
         }
-        markOperatorRun(af.infix(), args);
         return checkGenericTyped(af, args, expected);
     }
 
@@ -503,8 +498,9 @@ final class Overloads {
                     + " or a misspelling)");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected);
-        return new Application(r.chosen(), args, NumberKinds.refine(r.chosen(), args,
-                refineParseDate(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output()))));
+        List<TypedSpec> typedArgs = Typer.withOperatorRun(r.chosen(), args);
+        return new Application(r.chosen(), typedArgs, NumberKinds.refine(r.chosen(), typedArgs,
+                refineParseDate(r.chosen(), typedArgs, refineDecimalCarrier(r.chosen(), r.output()))));
     }
 
     /** parseDate over a LITERAL refines its abstract Date output to the
@@ -584,7 +580,7 @@ final class Overloads {
         TypeInferenceException firstFailure = null;
         for (TypedFunction cand : ranked) {
             try {
-                Application built = bindDeferredAndBuild(cand, raw, typed.clone(), env, af.infix());
+                Application built = bindDeferredAndBuild(cand, raw, typed.clone(), env);
                 com.legend.builtin.DecisionProbe.retryAccept(af.function(), ranked.get(0).id().qualified(), cand.id().qualified(), ranked.indexOf(cand));
                 return built;
             } catch (SchemaInvariantException invariant) {
@@ -604,7 +600,7 @@ final class Overloads {
      *  {@link TypeInferenceException} when the candidate cannot host the
      *  deferred arguments — the caller's retry loop moves on. */
     private Application bindDeferredAndBuild(TypedFunction chosen,
-            List<ValueSpecification> raw, TypedSpec[] typed, Env env, boolean infix) {
+            List<ValueSpecification> raw, TypedSpec[] typed, Env env) {
         Bindings b = new Bindings();
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] != null) {
@@ -709,8 +705,7 @@ final class Overloads {
 
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b,
                 java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
-        List<TypedSpec> typedArgs = new ArrayList<>(List.of(typed));
-        markOperatorRun(infix, typedArgs);
+        List<TypedSpec> typedArgs = Typer.withOperatorRun(chosen, List.of(typed));
         return new Application(chosen, typedArgs, NumberKinds.refine(chosen, typedArgs,
                 refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out))));
     }

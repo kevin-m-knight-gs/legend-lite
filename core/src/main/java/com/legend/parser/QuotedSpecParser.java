@@ -90,22 +90,25 @@ public final class QuotedSpecParser {
         if (src == null) {
             return null;
         }
-        com.legend.model.ParsedModel parsed;
+        // the payload's records (the parser returns protocol only): functions, each as its lambda
+        com.legend.protocol.Protocol.PureModelContextData parsed;
         try {
-            parsed = ElementParser.parse(src, Dialect.LEGEND_ENGINE);
+            parsed = PmcdParser.parse(src, Dialect.LEGEND_ENGINE).model();
         } catch (ParseException notGrammar) {
             return null;
         }
         java.util.List<com.legend.protocol.spec.LambdaFunction> fns =
                 new java.util.ArrayList<>();
-        for (com.legend.model.PackageableElement el : parsed.elements()) {
-            if (!(el instanceof com.legend.model.FunctionDefinition fd)) {
+        for (com.legend.protocol.Protocol.Element el : parsed.elements()) {
+            if (el instanceof com.legend.protocol.Protocol.PSectionIndex) {
+                continue;   // the index the engine appends, not an element
+            }
+            if (!(el instanceof com.legend.protocol.Protocol.PFunction fd)) {
                 return null;
             }
             java.util.List<com.legend.protocol.spec.Variable> params =
                     new java.util.ArrayList<>(fd.parameters().size());
-            for (com.legend.model.FunctionDefinition.ParameterDefinition p
-                    : fd.parameters()) {
+            for (com.legend.protocol.ParameterDefinition p : fd.parameters()) {
                 params.add(new com.legend.protocol.spec.Variable(p.name(),
                         p.type(), p.multiplicity(), null));
             }

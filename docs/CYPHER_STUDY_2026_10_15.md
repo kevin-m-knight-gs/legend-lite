@@ -5793,7 +5793,7 @@ MATCH of its own: a first MATCH, where the cut (§12.54), the arms (§12.35) and
 joined back on the bound node's identity; an OPTIONAL MATCH uses a left join. The lanes in update mode: the native
 lane PASS 4271 → 4276, REFUSED 17 → 12; the domain lanes PASS 4244 → 4245, REFUSED 44 → 43 on DuckDB and Postgres;
 nothing else moved. The native lane now passes every case the domain lane passes. What it still refuses is the TCK's
-two signed years and lite's own pinned refusals; the domain lane's are those, and the label changes (S94).
+two signed years and lite's own pinned refusals; the domain lane's are those, and the label changes (S102).
 
 ### 12.96 Lite's pinned refusals that were gaps, not decisions (2026-10-20)
 

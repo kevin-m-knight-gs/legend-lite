@@ -3479,7 +3479,7 @@ public final class CypherToPure {
         rows.columns().forEach(c -> names.add(c.name()));
         String name = freshName(names);
         String one = "\n" + name + "\n1\n";
-        ValueSpecification vs = call("join", com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+        ValueSpecification vs = call("join", com.legend.protocol.spec.TdsLiteral.of(one, null),
                 rows.vs(), new EnumValue(JOIN_KIND, "LEFT"), new LambdaFunction(List.of(new Variable("l"),
                 new Variable("r")), List.of(new CBoolean(true))));
         List<Col> columns = new ArrayList<>(List.of(new Col(name, Kind.INTEGER, false)));
@@ -6638,7 +6638,7 @@ public final class CypherToPure {
      *  name. */
     private static Rows oneRow() {
         String one = "\n" + SYNTHETIC + "row\n1\n";
-        return new Rows(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+        return new Rows(com.legend.protocol.spec.TdsLiteral.of(one, null),
                 List.of(new Col(SYNTHETIC + "row", Kind.INTEGER, false)));
     }
 
@@ -7560,7 +7560,7 @@ public final class CypherToPure {
         // the computed counts, over one row
         String row = freshName(taken);
         String one = "\n" + row + "\n1\n";
-        Rows single = new Rows(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+        Rows single = new Rows(com.legend.protocol.spec.TdsLiteral.of(one, null),
                 List.of(new Col(row, Kind.INTEGER, false)));
         RowScope none = new RowScope(single);
         List<ColSpec> counts = new ArrayList<>();

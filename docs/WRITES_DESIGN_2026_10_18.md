@@ -409,7 +409,7 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      in the standard forms measured on each (H2 has no `ON CONFLICT`, so the upsert is `MERGE` on all three); every
      other dialect refuses each by name. `StoreWritesTest`.
    - `write` lowered for real; `delete`, `update` and `merge` lite natives (`LITE_SURFACE`), typed by `WriteChecker`
-     against the table's columns by name (S89), lowered by `Lowerer.lowerStoreWrite`.
+     against the table's columns by name (S97), lowered by `Lowerer.lowerStoreWrite`.
    - The execution: `StatementExecutor` runs a store write at the statement's root (never through the effect arms,
      which reseed), its value the database's update count (`Executor.executeUpdate`); a program that writes runs in
      one transaction (`Executor.inTransaction`), a caller's open transaction joined. It is `Execution.execute`'s own
@@ -457,7 +457,7 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
        the model has their classes and views;
      - the clauses, each over the staged rows and the narrow tables.
 4. **`#SQL` DML** on L1, judged by Postgres 16. **Landed on the branch 2026-10-20** (GATES' ninety-sixth landing;
-   register row S95).
+   register row S103).
    - **The parser:** `INSERT`, `UPDATE` and `DELETE` (`SqlAst.Write`: `Insert`, `Update`, `Delete`) as the statement
      itself; inside a query, Postgres's syntax error; as a WITH query, refused by name. An INSERT's VALUES is typed by
      the columns it writes (no text for a column of NULLs alone).
@@ -485,7 +485,7 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      `DELETE … USING` over a keyed table run in `SqlWritesExecutionTest` on DuckDB, H2 and Postgres 16 (H2 reaches no
      outer row from a derived table: a SET's correlated scalar subquery is its error there, so `UPDATE … FROM` is
      measured on DuckDB and Postgres).
-5. **L2 and Cypher on A:** **Landed on the branch 2026-10-20** (GATES' ninety-fifth landing; register row S94).
+5. **L2 and Cypher on A:** **Landed on the branch 2026-10-20** (GATES' ninety-fifth landing; register row S102).
    - **L2, the class writes:** `rows->meta::legend::lite::writeInstances(C, ~key)`, `mergeInstances(C, ~key)`,
      `deleteInstances(C, ~key)`, `pairs->link(C, ~end, ~key)` and `unlink(...)`, lite natives typed by their
      signatures. The store resolver rewrites each, in any space, into L1's statement over the class's mapping
@@ -502,7 +502,7 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
    - **Cypher's writer over a domain model** (`CypherToPure.Writer`, `domain`): a node's class is its label set's;
      the store's `nodes` and `rels` as the writer reads them are unions over the classes' and edge classes' extents,
      and a property's rows the classes declaring it (`domainTable`, `propRows`); every write a class write. Ids are
-     the graph's, unique across the classes (minted as on B, S92); an element's identity its class's path and its id.
+     the graph's, unique across the classes (minted as on B, S100); an element's identity its class's path and its id.
      A relationship's edge class is its type's between its ends' classes, the database choosing row by row where
      several may.
    - **The resolver, two gaps closed on the way:** a closed class query under a data lambda resolves where it stands
@@ -512,7 +512,7 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
    - **The harness:** a write case's model is the schema of the graphs before and after (`CypherGraph.inferWrite`),
      every relationship type an edge class, plus each property of a literal value the query sets (a branch Neo4j's
      run never took: an ON MATCH where it created); its tables seeded with the graph before's rows alone.
-   - **Refused by name** (S94): a label set or removed (a node's labels are its class), a property no class declares,
+   - **Refused by name** (S102): a label set or removed (a node's labels are its class), a property no class declares,
      a node deleted whose class has an association end, a mapping that is not direct, a junction association.
    - **Found on the way, fixed for both graphs:** a relation read whole as a value indexed its columns by a scan per
      column (`ValueCollections.rowMajorCellList`), quadratic in a staged row's columns: `Create4/[2]`'s few hundred
@@ -528,17 +528,17 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
    - **The native store:** a DataSpace marked `<<graph::graph.Native>>` holding the store's database
      (`CypherToPure.Model.nativeStore`); a write over a graph of a domain model is refused by name (leg 5).
    - **Ids** are minted by the database: above the store's greatest as the statement started and every id minted
-     since (S92), the row's number and the element's place.
+     since (S100), the row's number and the element's place.
    - **The clauses.** CREATE (consecutive ones as one); SET and REMOVE of properties, maps and labels (the last row's
      value where several rows write one property); DELETE and DETACH DELETE of carried elements and of any value
      naming them (a path, a list's element, a map's entry, by its JSON's identities), Neo4j's DeleteConnectedNode and
      DeletedEntityAccess raised by the database; MERGE: the pattern matched against the narrow tables, the unmatched
      rows grouped by their merge key and each group's pattern created once (its first row creating it, ON CREATE over
-     the creating rows, ON MATCH over the others), a named path bound, a null property Neo4j's error (S90, S91).
+     the creating rows, ON MATCH over the others), a named path bound, a null property Neo4j's error (S98, S99).
    - **The read back:** a node's identity as the views spell it (its label set's class's path and its id), so a
      merged, created or relabelled element re-anchors; a list written as a property read as its shape.
    - **The judge:** a case whose query updates the graph runs in a rolled-back transaction even where Neo4j raised;
-     the store's TIMESTAMP and TIME columns read back; a statement ending in an update compared with no columns (S93).
+     the store's TIMESTAMP and TIME columns read back; a statement ending in an update compared with no columns (S101).
    - **Refused by name:** a nanosecond value written, `startNode`/`endNode` of a relationship no write created or
      merged (one a pattern reads, or one carried through a projection), a write to an element carried without
      identity; on the read side over edge classes (every native relationship is one): a hop from a node an edge

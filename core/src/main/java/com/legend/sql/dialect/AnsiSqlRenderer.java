@@ -396,12 +396,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 nl(writer, depth);
                 writer.append(joinKeyword(j.kind())).append(" ");
                 source(writer, j.right(), depth);
-                if (j.on() != null) {
-                    writer.append(" ON ").expr(j.on(), 0);
+                SqlExpr on = j.on();
+                if (on != null) {
+                    writer.append(" ON ").expr(joinCondition(j.kind(), on), 0);
                 }
                 yield writer;
             }
         };
+    }
+
+    /** A join's ON as the dialect writes it: as it is; a dialect whose planner a form of it defeats writes an
+     *  equivalent one (DuckDB). */
+    protected SqlExpr joinCondition(SqlSource.Join.Kind kind, SqlExpr on) {
+        return on;
     }
 
     /** ANSI row-constructor VALUES with column aliases; SQLite overrides (UNION ALL). */
@@ -736,7 +743,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // COMPARISONS (prec 4) are NON-ASSOCIATIVE: a nested
         // comparison operand always parenthesizes — bare
         // a = b = TRUE is a type error, (a = b) = TRUE is the value.
-        boolean nonCommutative = c.fn() == SqlFn.MINUS;
+        // + and * too (IQ island, 2026-10-17, the differential fuzzer's fifth round): a trailing operand of the same
+        // precedence is its own value -- w + (2000 - 2020) is not w + 2000 - 2020, which overflows a BIGINT w that the
+        // sum fits, and a DOUBLE's sum rounds by its order; a run's operands (one call's) stay in their written order
+        boolean trailingOwnValue = c.fn() == SqlFn.MINUS || c.fn() == SqlFn.PLUS || c.fn() == SqlFn.TIMES;
         boolean nonAssociative = infix.prec() == 4;
         boolean wrap = infix.prec() < parentPrec;
         String pad = infixPad(c.fn());
@@ -748,7 +758,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 writer.append(pad).append(infix.sql()).append(pad);
             }
             writer.expr(c.args().get(i),
-                    (i > 0 && nonCommutative) || nonAssociative
+                    (i > 0 && trailingOwnValue) || nonAssociative
                             ? infix.prec() + 1 : infix.prec());
         }
         if (wrap) {

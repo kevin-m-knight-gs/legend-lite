@@ -3,66 +3,32 @@ package com.legend.parser;
 import com.legend.protocol.Multiplicity;
 import com.legend.protocol.Protocol;
 import com.legend.protocol.TypeExpression;
-import com.legend.model.ParsedModel;
-import com.legend.model.ImportScope;
 
-import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import com.legend.model.AuthenticationSpec;
-import com.legend.model.ClassDefinition;
 import com.legend.protocol.ConstraintDefinition;
 import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.protocol.ParameterDefinition;
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionSpecification;
-import com.legend.model.FunctionDefinition;
-import com.legend.model.NativeFunctionDefinition;
-import com.legend.model.LegacyMappingDefinition;
 import com.legend.protocol.Realization;
-import com.legend.protocol.spec.PackageableElementPtr;
-import com.legend.model.JsonModelConnection;
-import com.legend.model.PackageableElement;
-import com.legend.model.RuntimeDefinition;
-import com.legend.model.ServiceDefinition;
 import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * Pure's domain grammar (the {@code ###Pure} section's elements: classes, enumerations, profiles, associations,
  * functions, and the platform dialect's native declarations and {@code Primitive}s), each element parsed into its
- * protocol record, and step B's entry for a whole text.
+ * protocol record.
  *
- * <h2>Usage</h2>
- * <pre>
- *   ParsedModel model = ElementParser.parse(pureSource, Dialect.LEGEND_LITE);
- *   // ONE entry, the caller names the level — see {@link Dialect}
- * </pre>
- *
- * <p>{@link #parse(String, Dialect)} is the door over the one parser (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8):
- * the text into its records by {@link PmcdParser} (the engine's section walk and import scoping at every dialect,
- * each {@code ###Pure} element through this class, every other section through its grammar), then the records into
- * the compiler's model by {@code ModelFromProtocol} -- the same door a model given as JSON goes through. A section
- * nothing claims is refused, or recorded and skipped at the platform dialect; an unsupported keyword raises a
- * {@link ParseException}.
+ * <p>A whole text is read by {@link PmcdParser} (the engine's section walk and import scoping at every dialect, each
+ * {@code ###Pure} element through this class, every other section through its grammar) into its records, and nothing
+ * else: the parser builds no compiler model (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8's last step). The text's
+ * door, {@code com.legend.door.ModelFromText}, makes the records the compiler's model through
+ * {@code ModelFromProtocol} -- the same door a model given as JSON goes through. A section nothing claims is refused,
+ * or recorded and skipped at the platform dialect; an unsupported keyword raises a {@link ParseException}.
  *
  * <h2>Deliberate divergences from engine</h2>
  * <ul>
- *   <li>{@link FunctionDefinition} drops engine's compiler-cache fields
- *       ({@code resolvedBody}, {@code parsedReturnType}, parameter
- *       {@code functionType}/{@code parsedType}) &mdash; those bridge parser
- *       output and compiler output via {@code withResolvedBody}, which is
- *       the F-must-not-trigger-G violation AGENTS.md invariant 1 forbids.
- *       Compile-side output lives on {@code compiler.element.TypedFunction}
- *       (Phase F, future).</li>
- *   <li>{@link ServiceDefinition} drops engine's {@code toRegexPattern()},
- *       {@code extractPathParams()}, and convenience factories &mdash;
- *       those are REST-runtime concerns, not parser data.</li>
  *   <li><strong>Unknown keys inside {@code Runtime} / {@code Connection} /
  *       {@code Service} bodies throw</strong> (engine silently
  *       {@code skipToSemicolon}'s them). Matches AGENTS.md invariant 4
@@ -167,57 +133,6 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /**
-     * Tokenize and parse a Pure source string into a {@link ParsedModel}.
-     *
-     * <p>Linear eager parse: every declared element is parsed in source
-     * order. The result is the batch compiler's parser-stage output.
-     *
-     * <p>Demand-driven element loading (parse only the elements an
-     * incremental client touches) is provided by the dormant IDE layer in
-     * {@code com.legend.ide}; it is not used by the batch compiler.
-     *
-     * <p>THE PLATFORM SURFACE ({@link Dialect#PLATFORM}) — legend-lite's
-     * own legend-pure dialect superset, for bootstrap/platform-source
-     * loading and the test harness ONLY. Caller-whitelisted
-     * (PlatformSurfaceGuardrailTest); user entries route through
-     * {@link #parseLegendLite} or {@link #parseStrict}.
-     */
-    /** THE parse entry — ONE way in: the caller NAMES the level
-     *  (provenance routing); there is no default and no named-entry
-     *  synonym. {@link Dialect#LEGEND_LITE} is the product surface,
-     *  {@link Dialect#LEGEND_ENGINE} the drop-in/parity surface,
-     *  {@link Dialect#LEGEND_PLATFORM} the bootstrap/m2 superset (naming
-     *  it in production trips the guardrail; Pure.java is the one
-     *  consumer). */
-    public static ParsedModel parse(String source, Dialect dialect) {
-        // THE ONE PARSER (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8): the text into its records (PmcdParser, the
-        // engine's section walk and import scoping at every dialect), then the compiler's one door -- the same door a
-        // model given as JSON goes through
-        PmcdParser.Parsed parsed = PmcdParser.parse(Objects.requireNonNull(source, "source"),
-                Objects.requireNonNull(dialect, "dialect"));
-        List<ParsedModel.UnclaimedSection> unclaimed = new ArrayList<>();
-        for (PmcdParser.UnclaimedSection u : parsed.unclaimed()) {
-            unclaimed.add(new ParsedModel.UnclaimedSection(u.name(), u.startOffset(), u.endOffset()));
-        }
-        try {
-            return com.legend.model.ModelFromProtocol.of(parsed.model(), source, unclaimed);
-        } catch (com.legend.model.ModelFromProtocol.Unrepresentable u) {
-            // a shape the compiler's model cannot represent is the text's error, at the element (every element
-            // parsed from a text has its span: one without is the parser's bug, never placed at 1:1)
-            ParsedModel.Position at = u.at();
-            if (at == null) {
-                throw new IllegalStateException(u.path() + " was parsed without a span: " + u.reason(), u);
-            }
-            throw new ParseException(u.reason(), at.line(), at.column());
-        }
-    }
-
-    /** Pre-lexed variant of {@link #parse(String, Dialect)}: the one parser reads the stream's text. */
-    public static ParsedModel parse(TokenStream tokens, Dialect dialect) {
-        return parse(Objects.requireNonNull(tokens, "tokens").source(), dialect);
-    }
-
-    /**
      * Parse exactly one packageable element from a token-stream slice.
      *
      * <p>The slice is expected to contain the element's full token range
@@ -228,12 +143,14 @@ public final class ElementParser implements TokenStreamCursor {
      *
      * <p>Exposed for the IDE layer ({@code com.legend.ide}), which uses it
      * to deep-parse a single element sliced out of a larger token stream
-     * via the shallow indexer. Not used by the batch compiler.
+     * via the shallow indexer. Not used by the batch compiler. The element is
+     * its record; the text's door ({@code door.ModelFromText.element}) makes
+     * it the compiler's model.
      */
-    public static PackageableElement parseSingle(TokenStream slice,
+    public static Protocol.Element parseSingle(TokenStream slice,
             Dialect dialect) {
         ElementParser parser = new ElementParser(slice, dialect);
-        PackageableElement element = parser.parseSingleElement();
+        Protocol.Element element = parser.parseSingleElement();
         if (!parser.atEnd()) {
             parser.error("trailing tokens after element body: expected slice to be fully consumed");
         }
@@ -263,14 +180,13 @@ public final class ElementParser implements TokenStreamCursor {
      * file's parse). Returns false (nothing consumed) for anything else.
      */
     /**
-     * A {@code ###Data} element on the RUNNER path. It is fully parsed —
-     * the same grammar the byte-parity harness proves — and carried as a
-     * {@link com.legend.model.DataDefinition}: the protocol body is the
-     * model's (a data element is data, never compiled), indexed and named
-     * so a test suite's {@code Reference #{ path }#} resolves to it.
+     * A {@code ###Data} element as its record. It is fully parsed —
+     * the same grammar the byte-parity harness proves — and the compiler's
+     * model carries the record as data (a data element is data, never
+     * compiled), indexed and named so a test suite's
+     * {@code Reference #{ path }#} resolves to it.
      */
-    /** PROTOCOL-FIRST. */
-    private PackageableElement dataElement() {
+    private Protocol.PDataElement dataElement() {
         int start = pos;
         com.legend.protocol.Protocol.PDataElement de =
                 MappingProtocolParser.parseData(tokens, start, dialect);
@@ -278,7 +194,7 @@ public final class ElementParser implements TokenStreamCursor {
         parseDecorations();
         parseQualifiedName();
         skipBalancedBlock();         // { <body> }
-        return com.legend.model.ModelFromProtocol.element(de);
+        return de;
     }
 
     boolean skipTopLevelNonElement() {
@@ -342,7 +258,7 @@ public final class ElementParser implements TokenStreamCursor {
      * ranked worklist is {@code docs/PROTOCOL_MIGRATION_CENSUS.md}; this
      * switch is its index.
      */
-    private PackageableElement parseSingleElement() {
+    private Protocol.Element parseSingleElement() {
         // PLATFORM: a top-level '''...''' documentation literal is m3's
         // element-doc sugar attached to the NEXT declaration (legend-pure
         // documentation.pure). Doc text does not affect execution — the
@@ -377,15 +293,17 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
         return switch (t) {
-            case CLASS -> classElement(false);
-            case NATIVE -> nativeElement();
-            case ASSOCIATION -> associationElement();
-            case ENUM -> enumElement();
-            case PROFILE -> profileElement();
-            case FUNCTION -> functionElement();
-            case SERVICE -> serviceElement();
-            case RUNTIME, SINGLE_CONNECTION_RUNTIME -> runtimeElement();
-            case RELATIONAL_DATABASE_CONNECTION -> connectionElement();
+            case CLASS -> parseClassDefinition(false);
+            case NATIVE -> parseNativeProtocol();
+            case ASSOCIATION -> parseAssociationDefinition();
+            case ENUM -> parseEnumDefinition();
+            case PROFILE -> parseProfileDefinition();
+            case FUNCTION -> parseFunctionProtocol();
+            case SERVICE -> com.legend.parser.section.ServiceSectionGrammar.parseElement(this);
+            // both Runtime and SingleConnectionRuntime: THE Runtime grammar is the registered section grammar
+            case RUNTIME, SINGLE_CONNECTION_RUNTIME -> parseRuntimeProtocol();
+            // a HEADERLESS connection (no ###Connection header: mixed fixtures, IDE slices)
+            case RELATIONAL_DATABASE_CONNECTION -> parseConnectionProtocol();
             case DATABASE -> databaseElement();
             case MAPPING -> mappingElement();
             case VALID_STRING -> keywordElement(t);
@@ -423,20 +341,6 @@ public final class ElementParser implements TokenStreamCursor {
         return false;
     }
 
-    /** PROTOCOL-FIRST. */
-    private PackageableElement classElement(boolean isNative) {
-        return com.legend.model.FromProtocol.toClassDefinition(
-                parseClassDefinition(isNative));
-    }
-
-    /** PROTOCOL-FIRST for {@code native Class}; the function arm is not.
-     *  The documentation stands BEFORE {@code native} (pure's grammar:
-     *  {@code nativeFunction: documentation? NATIVE FUNCTION ...}), so it
-     *  is read here and handed to the arm. */
-    private PackageableElement nativeElement() {
-        return com.legend.model.ModelFromProtocol.element(parseNativeProtocol());
-    }
-
     /** A {@code native Class} or {@code native function} declaration (the platform dialect only) as its record. */
     Protocol.Element parseNativeProtocol() {
         int declStart = pos;
@@ -455,63 +359,27 @@ public final class ElementParser implements TokenStreamCursor {
         };
     }
 
-    /** PROTOCOL-FIRST. */
-    private PackageableElement enumElement() {
-        return com.legend.model.FromProtocol.toEnumDefinition(
-                parseEnumDefinition());
-    }
-
-    /** PROTOCOL-FIRST. */
-    private PackageableElement profileElement() {
-        return com.legend.model.FromProtocol.toProfileDefinition(
-                parseProfileDefinition());
-    }
-
-    /** A HEADERLESS RelationalDatabaseConnection element (no
-     *  {@code ###Connection} header: mixed fixtures, IDE slices). Sectioned
-     *  files never reach it — {@link #parseModel} dispatches the whole
-     *  section through the registry. */
-    private PackageableElement connectionElement() {
-        com.legend.protocol.Protocol.PConnection pc =
-                com.legend.parser.section.ConnectionSectionGrammar
-                        .parseElement(this);
-        try {
-            return com.legend.model.FromProtocol.toConnectionElement(pc);
-        } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
-            throw error(u.reason());
-        }
-    }
-
-    /** PROTOCOL-FIRST (R3) — the ###Relational model is a TRANSFORM on
-     *  protocol, not a second parse. */
-    private PackageableElement databaseElement() {
+    /** A {@code Database} (the ###Relational grammar) as its record. */
+    private Protocol.PDatabase databaseElement() {
         int[] endOut = new int[1];
         com.legend.protocol.Protocol.PDatabase db =
                 DatabaseProtocolParser.parse(tokens, pos, endOut, dialect);
         pos = endOut[0];
-        return com.legend.model.FromProtocol.toDatabaseDefinition(db);
+        return db;
     }
 
-    /** PROTOCOL-FIRST (M4) — one parse, one grammar. */
-    private PackageableElement mappingElement() {
+    /** A {@code Mapping} (one parse, one grammar) as its record. */
+    private Protocol.PMapping mappingElement() {
         int[] endOut = new int[1];
         int sectionLine = tokens.sectionContentLine("Mapping", tokens.start(pos));
-        try {
-            com.legend.protocol.Protocol.PMapping m =
-                    MappingProtocolParser.parse(tokens, pos, sectionLine,
-                            endOut, dialect);
-            pos = endOut[0];
-            return com.legend.model.MappingFromProtocol.toMappingElement(m);
-        } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
-            // the transform's refusals become ParseExceptions HERE, where the
-            // position is known and where com.legend.model need not depend on
-            // the parser's exception type
-            throw error(u.reason());
-        }
+        com.legend.protocol.Protocol.PMapping m =
+                MappingProtocolParser.parse(tokens, pos, sectionLine, endOut, dialect);
+        pos = endOut[0];
+        return m;
     }
 
     /** Elements whose keyword is not a reserved token. */
-    private PackageableElement keywordElement(TokenType t) {
+    private Protocol.Element keywordElement(TokenType t) {
         if ("Primitive".equals(safeText())) {
             // pure-m2 dialect: the ENGINE wire grammar has no Primitive
             // element (its parser dies with a raw InputMismatchException,
@@ -520,7 +388,7 @@ public final class ElementParser implements TokenStreamCursor {
             if (dialect.refusesLiteExtensions()) {
                 throw error("Primitive type declarations are not supported");
             }
-            return primitiveElement();
+            return parsePrimitiveProtocol();
         }
         if ("Data".equals(safeText())) {
             // strict section binding: Data lives in ###Data only
@@ -530,18 +398,10 @@ public final class ElementParser implements TokenStreamCursor {
             return dataElement();
         }
         if ("Measure".equals(safeText())) {
-            return measureElement();
+            return parseMeasureDefinition();
         }
         throw error("unsupported top-level keyword: " + t
                 + " ('" + safeText() + "')");
-    }
-
-    /** PROTOCOL-FIRST — the byte-parity-proven {@link #parseMeasureDefinition}
-     *  finally has a caller on the model path (worklist item: finishes
-     *  ###Pure). */
-    private PackageableElement measureElement() {
-        return com.legend.model.FromProtocol.toMeasureDefinition(
-                parseMeasureDefinition());
     }
 
     // ============================================================
@@ -597,9 +457,11 @@ public final class ElementParser implements TokenStreamCursor {
                 taggedValuesWithDocumentation(doc, parseTaggedValues());
         String qualifiedName = parseQualifiedName();
 
-        List<String> typeParams = parseClassTypeParams();
+        List<String> typeParams = new ArrayList<>();
+        List<String> multiplicityParams = new ArrayList<>();
+        parseClassTypeParams(typeParams, multiplicityParams);
         List<com.legend.protocol.ParameterDefinition> typeVariables = parseTypeVariableDeclarations();
-        if (dialect.refusesLiteExtensions() && !typeParams.isEmpty()) {
+        if (dialect.refusesLiteExtensions() && !(typeParams.isEmpty() && multiplicityParams.isEmpty())) {
             // DECLARED extension LITE-DESIGN-function-types-generics
             // (OWN_CORPUS_DECISIONS §11): LEGEND_LITE parses generics,
             // the exact-engine surface refuses engine-verbatim
@@ -628,19 +490,23 @@ public final class ElementParser implements TokenStreamCursor {
             String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
             return new com.legend.protocol.Protocol.PClass(pn[0], pn[1], typeParams, typeVariables, List.of(),
                     List.of(), List.of(), List.of(), stereotypes, taggedValues, isNative,
-                    spanOf(classStartTok, pos - 1));
+                    spanOf(classStartTok, pos - 1), List.of(), multiplicityParams);
         }
 
         List<com.legend.protocol.Protocol.PSuperType> superClasses = new ArrayList<>();
         if (match(TokenType.EXTENDS)) {
-            int stTok = pos;
-            superClasses.add(new com.legend.protocol.Protocol.PSuperType(
-                    parseType(), spanOf(stTok, pos - 1)));
-            while (match(TokenType.COMMA)) {
-                int nTok = pos;
-                superClasses.add(new com.legend.protocol.Protocol.PSuperType(
-                        parseType(), spanOf(nTok, pos - 1)));
-            }
+            do {
+                int stTok = pos;
+                com.legend.protocol.TypeExpression st = parseType();
+                com.legend.protocol.SourceInfo span = spanOf(stTok, pos - 1);
+                if (dialect.refusesLiteExtensions()
+                        && st instanceof com.legend.protocol.TypeExpression.Generic g) {
+                    // a generic supertype (extends c::D<String>): the engine keeps its base path alone, the span the
+                    // whole expression's (ProbeWireShapes); lite's dialect keeps its arguments (S89, rule A)
+                    st = new com.legend.protocol.TypeExpression.NameRef(g.name(), span);
+                }
+                superClasses.add(new com.legend.protocol.Protocol.PSuperType(st, span));
+            } while (match(TokenType.COMMA));
         }
 
         List<ConstraintDefinition> constraints = peek() == TokenType.BRACKET_OPEN
@@ -675,7 +541,9 @@ public final class ElementParser implements TokenStreamCursor {
                 stereotypes,
                 taggedValues,
                 isNative,
-                spanOf(classStartTok, pos - 1));
+                spanOf(classStartTok, pos - 1),
+                List.of(),
+                multiplicityParams);
     }
 
     /** Optional generic type parameters: {@code <T>}, {@code <U, V>}, ... */
@@ -706,14 +574,12 @@ public final class ElementParser implements TokenStreamCursor {
         return out;
     }
 
-    private List<String> parseClassTypeParams() {
-        if (peek() != TokenType.LESS_THAN) return List.of();
+    private void parseClassTypeParams(List<String> params, List<String> multiplicityParams) {
+        if (peek() != TokenType.LESS_THAN) return;
         advance(); // consume <
-        List<String> params = new ArrayList<>();
         // M3 DIALECT: `<T|m>` / `<|m>` — multiplicity parameters after
-        // the pipe (PCT map.pure's M_MultiplicityHolder<|m>). The names
-        // join the parameter list (the checker's late-binding treats
-        // them nominally); the exact-engine surface refuses at the
+        // the pipe (PCT map.pure's M_MultiplicityHolder<|m>), kept apart
+        // from the type parameters; the exact-engine surface refuses at the
         // caller's gate as before.
         if (peek() != TokenType.PIPE) {
             params.add(parseTypeParamName());
@@ -722,13 +588,12 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
         if (!dialect.refusesPlatformDialect() && match(TokenType.PIPE)) {
-            params.add(parseIdentifier());
+            multiplicityParams.add(parseIdentifier());
             while (match(TokenType.COMMA)) {
-                params.add(parseIdentifier());
+                multiplicityParams.add(parseIdentifier());
             }
         }
         expect(TokenType.GREATER_THAN);
-        return params;
     }
 
     /** M3 DIALECT: a VARIANCE marker on a type parameter — {@code
@@ -838,21 +703,8 @@ public final class ElementParser implements TokenStreamCursor {
         // terminated tail (name..';' end column is the ';' - 1? — the probe shows the span
         // running to the declaration's last token; the harness arbitrates).
         return new DerivedPropertyDefinition(
-                name, params, realizationOf(body), type, mult,
+                name, params, Realization.of(body), type, mult,
                 stereotypes, taggedValues, spanOf(declStart, pos - 1));
-    }
-
-    /**
-     * Classify a parsed body as a {@link Realization}: a single bare element
-     * reference ({@link PackageableElementPtr}) is a function ref (Door 1/4);
-     * anything else is an inline expression body (sugar / Door 3). Shared by
-     * mapping bindings and the class/service hats.
-     */
-    static Realization realizationOf(List<ValueSpecification> body) {
-        if (body.size() == 1 && body.get(0) instanceof PackageableElementPtr ptr) {
-            return new Realization.Ref(ptr.fullPath(), ptr);
-        }
-        return new Realization.Inline(body);
     }
 
     private ParameterDefinition parseDerivedPropertyParameter() {
@@ -1023,7 +875,7 @@ public final class ElementParser implements TokenStreamCursor {
             }
             expect(TokenType.PAREN_CLOSE);
             // Engine convention: the span covers the whole `name ( ... )` block.
-            return new ConstraintDefinition(name, realizationOf(List.of(fn)),
+            return new ConstraintDefinition(name, Realization.of(List.of(fn)),
                     message, level, externalId, owner, spanOf(constraintStart, pos - 1));
         }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
@@ -1054,7 +906,7 @@ public final class ElementParser implements TokenStreamCursor {
         // Door 4: `[name: some::fn]` binds the constraint to a predicate
         // function; any other expression is the sugar (inline) predicate.
         // Engine convention: the span covers `name: expr`, name inclusive.
-        return new ConstraintDefinition(name, realizationOf(List.of(expression)),
+        return new ConstraintDefinition(name, Realization.of(List.of(expression)),
                 null, null, null, null, spanOf(constraintStart, pos - 1));
     }
 
@@ -1076,12 +928,6 @@ public final class ElementParser implements TokenStreamCursor {
             return v.name();
         }
         return null;
-    }
-
-    /** {@code Primitive fqn extends Base} with an optional dropped constraint block. */
-    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
-    private PackageableElement primitiveElement() {
-        return com.legend.model.ModelFromProtocol.element(parsePrimitiveProtocol());
     }
 
     /** {@code Primitive pkg::T<...> extends Base} (lite's and the platform's dialects) as legend-lite's own record. */
@@ -1109,13 +955,6 @@ public final class ElementParser implements TokenStreamCursor {
     // ============================================================
     // Association
     // ============================================================
-
-    /** {@code Association <<stereos>> {tags} qualifiedName { end1; end2; }}: the record
-     *  ({@link #parseAssociationDefinition}, a projection's own at the platform dialect), through the door. */
-    /** PROTOCOL-FIRST. */
-    private PackageableElement associationElement() {
-        return com.legend.model.ModelFromProtocol.element(parseAssociationDefinition());
-    }
 
     /** Parses one non-projection {@code Association} at the cursor into its protocol
      *  record — the per-element protocol entry point (see {@link #at}). */
@@ -1375,10 +1214,6 @@ public final class ElementParser implements TokenStreamCursor {
                 stereotypes, taggedValues);
     }
 
-    /** PROTOCOL-FIRST. */
-    private FunctionDefinition functionElement() {
-        return com.legend.model.FromProtocol.toFunctionDefinition(parseFunctionProtocol());
-    }
     /** Parses one {@code Measure} declaration at the cursor into its protocol record
      *  (probe: vanilla engine Measure JSON). Engine grammar (DomainParserGrammar.g4):
      *  {@code (measureExpr* canonicalExpr measureExpr*) | nonConvertibleMeasureExpr+} —
@@ -1469,14 +1304,18 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /** Parses one {@code function} declaration at the cursor into its protocol record —
-     *  the per-element protocol entry point (see {@link #at}). Constraint blocks are
-     *  CAPTURED (the wire carries pre/postConstraints; the emitter walls until probed). */
+     *  the per-element protocol entry point (see {@link #at}). A constraint block is parsed at every dialect and
+     *  kept at lite's; at the engine's it is dropped, as legend-engine's walker drops it ({@code visitFunction} reads
+     *  no constraints), so the engine's JSON lists none (docs/SEMANTICS_REGISTER.md S89, the user's rule A). */
     public com.legend.protocol.Protocol.PFunction parseFunctionProtocol() {
         FunctionSignature sig = parseFunctionSignature();
 
         List<ConstraintDefinition> constraints = peek() == TokenType.BRACKET_OPEN
                 ? parseConstraints()
                 : List.of();
+        if (dialect.refusesLiteExtensions()) {
+            constraints = List.of();
+        }
 
         expect(TokenType.BRACE_OPEN);
         int bodyStart = pos;
@@ -1502,10 +1341,16 @@ public final class ElementParser implements TokenStreamCursor {
             suites = parseFunctionTestBlock(sig);
         }
 
+        // pre- and post-conditions apart, by legend-pure's rule: a constraint reading $return is a post-condition
+        List<ConstraintDefinition> pre = new ArrayList<>();
+        List<ConstraintDefinition> post = new ArrayList<>();
+        for (ConstraintDefinition c : constraints) {
+            (c.mentionsReturn() ? post : pre).add(c);
+        }
         String[] pn = com.legend.protocol.Protocol.splitFqn(sig.qualifiedName());
         return new com.legend.protocol.Protocol.PFunction(pn[0], pn[1],
                 sig.typeParams(), sig.multParams(), sig.params(),
-                sig.returnType(), sig.returnMult(), body, constraints, suites,
+                sig.returnType(), sig.returnMult(), body, pre, post, suites,
                 sig.stereotypes(), sig.taggedValues(),
                 spanOf(sig.declStart(), pos - 1));
     }
@@ -2320,15 +2165,6 @@ public final class ElementParser implements TokenStreamCursor {
     // Service declaration
     // ============================================================
 
-    /** PROTOCOL-FIRST — THE Service grammar is the registered
-     *  {@link com.legend.parser.section.ServiceSectionGrammar}; this arm is
-     *  its internal-dialect feed for BARE service elements. */
-    private PackageableElement serviceElement() {
-        return com.legend.model.FromProtocol.toServiceSectionElement(
-                com.legend.parser.section.ServiceSectionGrammar
-                        .parseElement(this));
-    }
-
     // ============================================================
     // Runtime declaration
     // ============================================================
@@ -2359,21 +2195,6 @@ public final class ElementParser implements TokenStreamCursor {
                 .parseElement(this);
     }
 
-
-    /** PROTOCOL-FIRST — THE Runtime grammar is the registered
-     *  {@link com.legend.parser.section.RuntimeSectionGrammar}; this arm is
-     *  its internal-dialect feed for BARE runtime elements (handles both
-     *  {@code Runtime} and {@code SingleConnectionRuntime}). */
-    private PackageableElement runtimeElement() {
-        com.legend.protocol.Protocol.PRuntime pr =
-                com.legend.parser.section.RuntimeSectionGrammar
-                        .parseElement(this);
-        try {
-            return com.legend.model.FromProtocol.toRuntimeElement(pr);
-        } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
-            throw error(u.reason());
-        }
-    }
 
     // ============================================================
     // RelationalDatabaseConnection

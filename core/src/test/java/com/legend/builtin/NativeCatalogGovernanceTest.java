@@ -143,6 +143,12 @@ class NativeCatalogGovernanceTest {
         // (Postgres keeps microseconds, DuckDB's TIMESTAMP_NS holds 1678 to 2261) leaves the database so.
         // legend-engine carries a date-time in the database's own type, so neither has an upstream counterpart.
         // Emitted by the Cypher translator only, by FQN, at a result's columns. 26 -> 28.
+        // +1 2026-10-17 (the IQ island's scale, docs/IQ_CENSUS_CHECKLIST.md "the refusals the live IQ answers"):
+        // quotient — an integer quotient cut toward zero, the database's own integer division (MIR's INT_DIVIDE,
+        // every dialect's arm). legend-pure's divide of integers is a Float and upstream has no integer division,
+        // so the SQL islands wrote one as a Float estimate corrected by remainders, reading each operand about
+        // fourteen times; nested quotients made statements of megabytes (44 corpus queries refused by the
+        // translation-size bound). Emitted by the SQL islands only, by FQN. 28 -> 29 (merging main, 2026-10-18).
         // +1 2026-10-20 (the writes design's leg 6, docs/WRITES_DESIGN_2026_10_18.md §8: Cypher's writes on the native
         // graph store): stage -- let s = rows->stage(), the rows computed once at the let's turn into a temporary table
         // of the session, which the statements after read, so the writes between read the rows as they were (a
@@ -155,7 +161,9 @@ class NativeCatalogGovernanceTest {
         // which the store resolver writes as L1's statement over the class's mapped table (resolver/ClassWrites).
         // legend-pure has no write through a mapping; legend-engine's is mutation::save, an upsert of one object.
         // Emitted by the Cypher translator only, by FQN (GraphQL's mutations will be their second emitter). 29 -> 34.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 34,
+        // 34 -> 35 (2026-10-22, merging main into the Cypher writes branch): main's quotient (+1, above) beside this
+        // branch's stage and the five class writes (+6).
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 35,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

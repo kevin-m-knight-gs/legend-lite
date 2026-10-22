@@ -697,6 +697,27 @@ between accepting and refusing; the cost while parked is one wrong refusal reaso
 **Anchor.** `if (fqn != null) {` followed by `incs.add(fqn);` in `StoreSubstitutionRewrite.java`: the resolved names
 counted as listed.
 
+## PARK-27 — a decimal literal past DECIMAL(38) rounds at the typer
+
+**Recorded** 2026-10-11 by the Studio / SDLC / Depot session (the protocol program's leg 8 step 2), with the Compiler
+Rewrite line. **What happens today:** the typer rounds a decimal literal whose scale passes 38 to 38 places
+(`Typer`'s `CDecimal` arm, HALF_EVEN), silently. Its comment meant a written decimal to be refused and a promoted float
+to round, but the test of the D suffix never fired (the parser strips the suffix before the spelling was kept), so
+every such literal rounded; leg 8 deleted the spelling, which no JSON carries, and kept the behaviour. **Why it is a
+debt:** Pure's Decimal is unbounded, and legend-engine compiles a decimal literal of any scale; DECIMAL(38) is the
+relational store's width, met when the value is rendered into SQL, not when the literal is typed. Rounding at the
+typer changes a value the user wrote (a lie), and refusing there would fail a service the engine compiles (the
+compatibility plan's concern). **The cost while parked:** today's rounding is silent, so a wrong value with no word;
+the acceptance below (on the compatibility plan, the 40-place literal compiles as Pure's value) is what closes it.
+**The decision first:** which plan decides (the compatibility plan matches
+legend-engine; the lite plan may choose), and where the width is met -- at render, with the store's own error or
+rounding rule, as the engine meets it. **Acceptance:** a decimal literal with 40 places compiles as Pure's value on the
+compatibility plan, and what each dialect does with it at render is a test (refused by name, or the store's rule).
+**Who:** the Compiler Rewrite line, with the Plan Gen / Exec Split line's output layer (PARK-24 decides a literal's
+text and scale).
+
+**Anchor.** The rounding: `setScale(Type.PrecisionDecimal.MAX_PRECISION` in `Typer.java`.
+
 ## PARK-28 — a `~func` descriptor's signature is not matched against the function's
 
 **Recorded** 2026-10-11 by the Bazel program session, from the audit of the descriptor-type refusal (GATES "A `~func`
@@ -882,3 +903,36 @@ touches a dozen sites across the compiler and the lowering.
 
 **Anchor.** `k.value().longValue() < coll.elements().size()` in
 `core/src/main/java/com/legend/compiler/spec/ExecuteChainAssembly.java` (ParkedWorkLedgerTest).
+
+## PARK-38 — the element kinds lite carries by name are not compiled
+
+**Parked** 2026-10-21 by the user ("we have to do 11 eventually, can put it on roadmap for later"), after the reference
+probe of that day (64 broken models through both doors; item 11 of its list). **What happens today:** the door
+(`ModelFromProtocol.carried`) makes a named carrier of each of these kinds, which no compiler phase opens: diagrams,
+texts, generation specifications, file generations, Deephaven, Elasticsearch, MongoDB, data-quality validations,
+schema sets and bindings, service stores, relational mappers; and a function activator keeps its fields as text. So
+whatever they hold is accepted: a diagram of a class the model has not, a binding to a missing schema set, an
+activator of a missing function. **What the engine does:** each kind is compiled by its extension
+(`DiagramCompilerExtension`, `BindingCompiler` (`HelperExternalFormat.getSchemaSet`), the data-quality, service-store,
+Elasticsearch and activator extensions), and every reference refused by name. **The cost while parked:** a model the
+engine refuses compiles in lite, and its JSON is accepted for an element nobody checked. **Acceptance:** for each kind,
+every reference it makes is resolved and checked as the engine's extension does (its words), each case a test in
+`ReferenceIntegrityTest`; then the kind's own compile where lite executes it. **Who:** the Studio / SDLC / Depot line
+with the Compiler Rewrite line. **When:** after leg 9.
+
+**Anchor.** The carrier: `private static PackageableElement carried(String section, String kind, String
+qualifiedName)` in `ModelFromProtocol.java`.
+
+## PARK-39 — the class mappings lite skips compile as no mapping
+
+**Parked** 2026-10-21 with PARK-38 (the same item). **What happens today:** the door builds no class mapping for a
+merge Operation, an Operation of a function lite does not model, or a ServiceStore's or MongoDB's class mapping
+(`MappingFromProtocol`, "parse-and-skip"): the mapping compiles, and a query of that class fails later saying the class
+is not mapped -- true, but not why. **What the engine does:** it compiles each (`ClassMappingSecondPassBuilder`, the
+store extensions). **The cost while parked:** a misleading refusal at query time, and a model the engine checks
+whole left unchecked. **Acceptance:** each such class mapping is either carried and compiled (its set ids, its
+store's references) or refused at compile by name ("a merge Operation mapping is not supported"), a test each.
+**Who / When:** with PARK-38.
+
+**Anchor.** The skip: `return null;    // parse-and-skip, as above` in `MappingFromProtocol.java`.
+

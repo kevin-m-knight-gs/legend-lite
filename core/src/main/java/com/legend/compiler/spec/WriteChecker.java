@@ -27,7 +27,7 @@ import java.util.Optional;
  * table, of the same type or both numeric; the table's other columns take their
  * defaults. A column's multiplicity is not compared: a null into a NOT NULL
  * column is the database's error, as is a number it cannot hold
- * (SEMANTICS_REGISTER S89). The relation rule is applied here, never by loosening
+ * (SEMANTICS_REGISTER S97). The relation rule is applied here, never by loosening
  * the generic {@code T}-binding, as {@link ConcatenateChecker} applies its own.
  *
  * <p>Lite's other store writes (2026-10-18, the same leg) are checked here too, each over a store table:

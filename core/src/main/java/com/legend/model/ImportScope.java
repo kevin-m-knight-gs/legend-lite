@@ -44,7 +44,7 @@ public record ImportScope(List<String> wildcards) {
     }
 
     /**
-     * Mutable builder used by {@link ElementParser} while walking imports.
+     * Mutable builder used by {@code ModelFromProtocol} while reading a model's section imports.
      * Constructs an immutable {@link ImportScope} via {@link #build()}.
      */
     public static final class Builder {

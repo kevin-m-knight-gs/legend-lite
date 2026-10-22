@@ -80,6 +80,15 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
   device".
 - **Root.** The container runs as root, and the embedded Postgres (`initdb`) refuses root:
   `tools/postgres/as_unprivileged.sh` runs a Postgres test as an unprivileged user (its header says how).
+  Measured 2026-10-21 (Bazel 9.2): give `--run_under` a copy of the script OUTSIDE the workspace
+  (`cp tools/postgres/as_unprivileged.sh "$SCRATCH"/`). With the in-workspace path, a target that loads the root package
+  (`//datacube:verify_app_test`, through `//datacube:app`'s `//:LICENSE`) fails its analysis with "Inconsistent filesystem
+  operations" under `bazel-out/.../_javac`; the core Postgres targets run either way. The local gate's Postgres targets
+  (eight: the seven `//core:*postgres*` tests and `//datacube:verify_app_test`) and `//pct:pct_postgres` all pass so.
+- **The action disk cache in `~/.bazelrc`.** To turn it off for the container, write `build --disk_cache=`: a `common`
+  line loses to the repository's own `build --disk_cache=~/.cache/bazel-disk` (2026-10-21; it went on filling the disk).
+  Deleting the cache's files while a build runs costs only upload warnings ("Multiple errors during bulk transfer");
+  recreate its `ac`, `cas` and `tmp` folders after.
 - **DuckDB in a Node test asks nothing of the network** (2026-10-17). With no `XMLHttpRequest`, DuckDB-WASM's Node
   build fetched an extension it autoloads (ICU for the session's time zone, JSON, Parquet) from extensions.duckdb.org on
   a worker thread and waited with no timeout; in the sandbox the TLS to the agent proxy failed (no CA bundle), and eight

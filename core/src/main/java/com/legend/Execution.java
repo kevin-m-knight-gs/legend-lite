@@ -141,10 +141,30 @@ public final class Execution {
     public static com.legend.plan.QueryPlan executeWire(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, false);
+        return executeWire(Compiler.compileModel(model), query, runtimeFqn, sessions, out);
+    }
+
+    /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String,
+     *  com.legend.exec.Sessions.Source, java.io.Writer)} over a model already compiled -- a text's or a JSON
+     *  model's, compiled once by the route (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 8 step 3; the seam the execution
+     *  plan's step 4 builds on). */
+    public static com.legend.plan.QueryPlan executeWire(ModelContext model,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
+        Compiler.LoweredQuery l = Compiler.query(model, query).lower(runtimeFqn, false);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
             return wireOn(l, runtimeFqn, session.connection(), out);
         }
+    }
+
+    /** {@link #executeUpstream(ModelContext, com.legend.protocol.spec.ValueSpecification, String,
+     *  com.legend.exec.Sessions.Source, com.legend.exec.PlanSessions.Source, java.io.Writer)} over a model's text,
+     *  compiled here. */
+    public static com.legend.plan.QueryPlan executeUpstream(String model,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, com.legend.exec.PlanSessions.Source planSessions,
+            java.io.Writer out) throws java.io.IOException {
+        return executeUpstream(Compiler.compileModel(model), query, runtimeFqn, sessions, planSessions, out);
     }
 
     /**
@@ -155,13 +175,13 @@ public final class Execution {
      * The database's JSON rows are written to {@code out}. Returns the plan that ran: for a program, its answer's SQL
      * and its root type. A program whose answer execute cannot write (a count, any value but a relation's rows or a
      * graph fetch's objects: unprobed, as a read's) is refused by name before its plan runs, so its writes never land
-     * behind a refused answer.
+     * behind a refused answer. The model is compiled once by the route, as {@link #executeWire}'s is.
      */
-    public static com.legend.plan.QueryPlan executeUpstream(String model,
+    public static com.legend.plan.QueryPlan executeUpstream(ModelContext model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, com.legend.exec.PlanSessions.Source planSessions,
             java.io.Writer out) throws java.io.IOException {
-        TypedQuery typed = Compiler.query(Compiler.compileModel(model), query);
+        TypedQuery typed = Compiler.query(model, query);
         if (!typed.writes()) {
             Compiler.LoweredQuery l = typed.lower(runtimeFqn, false);
             try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn),

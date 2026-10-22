@@ -18,6 +18,55 @@ import java.util.Set;
  */
 public final class DuckDb extends AnsiSqlRenderer {
 
+    /**
+     * An outer join's ON without the IS NOT NULL tests a comparison beside them already makes (2026-10-17, the IQ
+     * island's TPC-H corpus lane): DuckDB plans a LEFT JOIN whose ON tests a preserved column IS NOT NULL as a nested
+     * loop (BLOCKWISE_NL_JOIN), where the bare equality is a hash join -- 56 s against 0.6 s at TPC-H's scale 0.01.
+     * The two are one condition: an ON matches only where it is TRUE, and a comparison is never TRUE for a NULL.
+     */
+    @Override
+    protected SqlExpr joinCondition(SqlSource.Join.Kind kind, SqlExpr on) {
+        if (kind != SqlSource.Join.Kind.LEFT && kind != SqlSource.Join.Kind.RIGHT && kind != SqlSource.Join.Kind.FULL) {
+            return on;
+        }
+        List<SqlExpr> conjuncts = new java.util.ArrayList<>();
+        conjuncts(on, conjuncts);
+        java.util.Set<SqlExpr> compared = new java.util.HashSet<>();
+        for (SqlExpr c : conjuncts) {
+            if (c instanceof SqlExpr.Call call && COMPARISONS.contains(call.fn())) {
+                compared.addAll(call.args());
+            }
+        }
+        List<SqlExpr> kept = new java.util.ArrayList<>();
+        for (SqlExpr c : conjuncts) {
+            if (!(c instanceof SqlExpr.Call call && call.fn() == SqlFn.IS_NOT_NULL && call.args().size() == 1
+                    && compared.contains(call.args().get(0)))) {
+                kept.add(c);
+            }
+        }
+        if (kept.size() == conjuncts.size()) {
+            return on;
+        }
+        SqlExpr out = kept.get(0);
+        for (int i = 1; i < kept.size(); i++) {
+            out = SqlExpr.Call.of(SqlFn.AND, out, kept.get(i));
+        }
+        return out;
+    }
+
+    /** The comparisons that are never TRUE for a NULL operand. */
+    private static final Set<SqlFn> COMPARISONS = Set.of(SqlFn.EQUAL, SqlFn.NOT_EQUAL, SqlFn.LESS, SqlFn.LESS_EQUAL,
+            SqlFn.GREATER, SqlFn.GREATER_EQUAL);
+
+    /** Into {@code out}, {@code e}'s conjuncts under AND. */
+    private static void conjuncts(SqlExpr e, List<SqlExpr> out) {
+        if (e instanceof SqlExpr.Call call && call.fn() == SqlFn.AND) {
+            call.args().forEach(a -> conjuncts(a, out));
+        } else {
+            out.add(e);
+        }
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -523,7 +572,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             case SPLIT_PART -> writer.function("split_part", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case ASCII_CODE -> writer.function("ascii", c.args());
-            case CHR -> writer.function("chr", c.args());
+            // chr takes a 32-bit code; a computed Integer is a BIGINT here (IQ island, 2026-10-17: CHAR(65 + MOD(id, 26)))
+            case CHR -> writer.append("chr(CAST(").expr(c.args().get(0), 0).append(" AS INTEGER))");
             case LEVENSHTEIN -> writer.function("levenshtein", c.args());
             case FORMAT -> writer.function("printf", c.args());
             case MD5 -> writer.function("md5", c.args());
@@ -604,7 +654,10 @@ public final class DuckDb extends AnsiSqlRenderer {
                         new QuantileOrder(),
                         new UnqualifyPivotArgs(), new FoldToListReduce(),
                         new CheckedDefectsToLists(),
-                        new SubstringClamp()));
+                        new SubstringClamp(), ConstantKeysAsExpressions.groupByOnly(),
+                        // IQ island, 2026-10-17: a LEFT JOIN condition's scalar subquery of the null-supplying side,
+                        // which DuckDB cannot plan, filters that side before the join
+                        new OuterJoinSubqueryFilters()));
         if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
             ps.add(new StableScanOrder());
         }
@@ -845,6 +898,23 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter roundHalfEven(SqlWriter writer, List<SqlExpr> a) {
+        if (a.size() == 2 && a.get(0).type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() instanceof com.legend.sql.SqlType.Decimal && a.get(1) instanceof SqlExpr.IntLit n
+                && n.value() >= 0 && n.value() <= 37) {
+            // an exact decimal to a constant scale (IQ island, 2026-10-17, the corpus lane's wide CASTs: ROUND_EVEN of a
+            // DECIMAL is a DOUBLE, 1524157887653619.89 came back .84): DuckDB's ROUND of a DECIMAL is exact, half away
+            // from zero, so an exact half -- the remainder by the unit half of it -- whose rounding is odd steps back
+            // one unit toward zero, to its even neighbour
+            java.math.BigDecimal unit = java.math.BigDecimal.ONE.movePointLeft((int) n.value());
+            String u = unit.toPlainString();
+            String h = unit.divide(java.math.BigDecimal.valueOf(2)).toPlainString();
+            String twice = unit.multiply(java.math.BigDecimal.valueOf(2)).toPlainString();
+            SqlWriter.Piece x = w -> w.append("(").expr(a.get(0), 0).append(")");
+            SqlWriter.Piece rounded = w -> w.append("ROUND(").piece(x).append(", " + n.value() + ")");
+            return writer.append("(CASE WHEN abs(").piece(x).append(" % " + u + ") = " + h + " AND ").piece(rounded)
+                    .append(" % " + twice + " <> 0 THEN ").piece(rounded).append(" - sign(").piece(x).append(") * "
+                            + u + " ELSE ").piece(rounded).append(" END)");
+        }
         // round_even is a 2-arg macro — bare round(x) means precision 0.
         return a.size() == 1
                 ? writer.append("ROUND_EVEN(").expr(a.get(0), 0).append(", 0)")

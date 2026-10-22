@@ -67,6 +67,7 @@ final class ArchitectureTest {
             java.util.Map.entry("protocol", "com.legend.protocol.Protocol"),
             java.util.Map.entry("model", "com.legend.model.ConnectionDefinition"),
             java.util.Map.entry("parser", "com.legend.parser.ElementParser"),
+            java.util.Map.entry("door", "com.legend.door.ModelFromText"),
             java.util.Map.entry("builtin", "com.legend.builtin.Pure"),
             java.util.Map.entry("platform", "com.legend.platform.WalledBodies"),
             java.util.Map.entry("compiler_element_type", "com.legend.compiler.element.type.ExprType"),
@@ -442,11 +443,11 @@ final class ArchitectureTest {
      * <strong>Invariant 7c — the parser's dependency surface is pinned.</strong>
      * Endgame ({@code PARSER_DROP_IN_PLAN.md} §2.1): the parser reads tokens
      * and produces protocol records — {@code lexer + protocol + values} and
-     * nothing else. Today it still constructs {@code com.legend.model} records
-     * for the element kinds that have not yet been migrated to protocol
-     * output, so {@code model..} remains in the allowlist. <b>Shrink this
-     * list; never grow it.</b> When the last element kind emits protocol,
-     * delete {@code model..} here and the drop-in is extractable.
+     * nothing else. {@code model..} left this list 2026-10-21 (the protocol
+     * program's leg 8, last step, docs/PROTOCOL_PROGRAM_2026_10_05.md): every
+     * element kind is parsed into its record, and a text meets the compiler's
+     * model only through {@code door.ModelFromText}, outside the parser.
+     * <b>Shrink this list; never grow it.</b>
      */
     @Test
     void parserDependencySurfaceIsPinned() {
@@ -457,14 +458,13 @@ final class ArchitectureTest {
                             .resideInAnyPackage("com.legend.parser..",
                                     "com.legend.lexer..",
                                     "com.legend.protocol..",
-                                    "com.legend.model..",   // shrinking: dies with the last model-record output
                                     "com.legend.values",
                                     "com.legend.error",     // ParseException extends the shared error vocabulary (a JDK-only leaf, 6g)
                                     "com.legend.spi",       // the OVERLAY seam (Phase M): SectionGrammarRegistry routes ### sections through it — a stable JDK-only contract, below the parser by design
                                     "java..")
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 7c: the parser consumes tokens and produces protocol"
-              + " (+ model records, temporarily) — nothing above it, ever")
+              + " records — nothing above it, ever")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -877,7 +877,8 @@ final class ArchitectureTest {
                     "com.legend.compiler..", "com.legend.lowering..",
                     "com.legend.resolver..", "com.legend.normalizer..",
                     "com.legend.lineage..", "com.legend.plan..",
-                    "com.legend.protocol..", "com.legend.model..")
+                    "com.legend.protocol..", "com.legend.model..",
+                    "com.legend.door..")
             .and().haveNameNotMatching(
                     "com\\.legend\\.lowering\\.Scalars(\\$.*)?")
             .should().dependOnClassesThat()
