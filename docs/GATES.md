@@ -11947,6 +11947,17 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-22 — `#Cypher{...}#` and writes: main merged in, ahead of the PR
+
+Branch `claude/keen-noether-v5mis0`, merge commit `c0aa4fbed`: main's 134 commits since 2026-10-20 merged in (the commit
+names each resolution).
+- **The register:** this branch's rows are S97-S103, renumbered after main's S89-S96, and every citation follows.
+- **The local gate:** `bazel test --lockfile_mode=error //gates:local` under `tools/postgres/as_unprivileged.sh`:
+  - 383 of 386 tests pass, one skipped;
+  - `//datacube:upload_test` and `//engine-client:model_data_test` fail only under that wrapper and pass without it.
+- **Outside the gate:** `//core:cypher_parity_native_test` and `//core:store_writes_postgres_test` (under the
+  wrapper) are green. The Cypher lanes kept their ledgers: nothing moved.
+
 ## 2026-10-20 — `#Cypher{...}#`: the hundred-and-sixth landing — lists inside lists, and maps, ordered
 
 Branch `claude/keen-noether-v5mis0`; the record is the study's §12.97.
