@@ -946,9 +946,11 @@ about a prep UI like it, "but maybe more Alteryx like".
   TinyInt: the join's model passes no `bitColumns` (S23's workaround), which would need mapping through the prefix.
 - **Create a Class of a joined grid**: not offered (its relation reads no one table, and the writer makes a class of a
   table's rows; §18 makes a class of any base query).
-- **An append of a precise decimal column one side lacks** is refused by the compiler, in its words: lite types
-  `[]->cast(@Decimal(10,2))` in an `extend` as `Decimal`, which `concatenate` will not unite with `Decimal(10,2)`. A core
-  typing gap, for the compiler's line; never worked around here (test/join-open.test.ts pins the refusal).
+- **An append of a precise decimal column one side lacks** was refused by the compiler, in its words: lite types
+  `[]->cast(@Decimal(10,2))` in an `extend` as `Decimal`, which `concatenate` would not unite with `Decimal(10,2)`. A core
+  typing gap, for the compiler's line; never worked around here. Closed in core (2026-10-22, `08113f082`: a decimal of
+  a stated precision unites with the other numbers): the append opens, the column empty on the rows of the side that
+  lacks it (test/join-open.test.ts).
 
 ### 17.8 As built (2026-10-20, `claude/datacube-model-prep`)
 

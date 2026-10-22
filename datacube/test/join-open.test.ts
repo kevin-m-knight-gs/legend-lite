@@ -200,11 +200,15 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.notEqual(got['tags']![got['id']!.map(Number).indexOf(7)], null);
   });
 
-  it('append: a precise decimal column one side lacks is the compiler\'s to refuse, today, in its words', async () => {
-    // `[]->cast(@Decimal(10,2))` types as Decimal in an extend, which concatenate will not unite with Decimal(10,2): a
-    // core typing gap (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.7), said as the compiler says it, never worked around
-    await assert.rejects(openJoin(join(input(TRADES, 'trades'), input(PRICED, 'priced'), { form: 'append' }), opening(['trades', 'priced'])),
-      (e: unknown) => e instanceof Error && /cannot unite with 'px' Decimal\(10,2\)/.test(e.message));
+  it('append: a precise decimal column one side lacks, empty on its rows, its value exact on the others', async () => {
+    // `[]->cast(@Decimal(10,2))` in an extend types as Decimal, which concatenate unites with Decimal(10,2) since core's
+    // 08113f082 (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.7: the typing gap this test pinned as refused, closed)
+    const opened = await openJoin(join(input(TRADES, 'trades'), input(PRICED, 'priced'), { form: 'append' }), opening(['trades', 'priced']));
+    assert.deepEqual(opened.columns.map((c) => c.name).slice(-1), ['px']);
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.equal(got['id']!.length, 6);
+    assert.equal(got['px']![got['id']!.map(Number).indexOf(1)], null);
+    assert.equal(Number(got['px']![got['id']!.map(Number).indexOf(7)]), 12.5);
   });
 
   it('every pair: a join on nothing; a table joined to itself is one table of the model', async () => {
