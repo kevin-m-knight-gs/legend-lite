@@ -1356,7 +1356,8 @@ class Page:
         missing = [n for n in wanted if n not in frames]
         if missing:
             raise ValueError(f'the page reads the frames {", ".join(missing)}: give them, frames={{name: frame}}')
-        page = cls(doc['name'])
+        # its own name, or none: a page nobody named loads unnamed (D11)
+        page = cls(doc['name'] or None)
         # loaded as one call on the page: written once, whole, when it ends (a public call inside, as a cube opens,
         # never writes a page half loaded)
         with page._call():

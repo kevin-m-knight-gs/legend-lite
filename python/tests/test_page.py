@@ -218,6 +218,14 @@ class Document(Paged):
         # a name given is still judged by DataCube's one rule
         with self.assertRaisesRegex(ValueError, "a page's name"):
             ll.Page('  ')
+        # written as a file unnamed, and loaded again so
+        unnamed = ll.Page()
+        unnamed.grid(trades(), name='unnamed_file_trades')
+        path = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), 'unnamed.page.json')
+        unnamed.save(path)
+        again = ll.Page.load(path, frames={'unnamed_file_trades': trades()})
+        self.assertEqual(again.name, '')
+        self.assertEqual(again.to_json(), unnamed.to_json())
 
     def test_tiles_are_placed_and_taken_off_as_datacube_places_them(self):
         page, grid, chart = self.built()
