@@ -14,7 +14,7 @@ import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
 import { CubeRefusal, sameValue } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
-import { draftFrom, gridApply, gridBase, onHost, type GivenFilter, type HostFrame } from './grid.ts';
+import { baseOnHost, draftFrom, gridApply, onHost, type GivenFilter, type HeldCopy, type HostFrame } from './grid.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -235,14 +235,6 @@ export function pageOpenedLive(text: string): string {
   return JSON.stringify({ page: pageToJson(opened.page), notes: opened.notes });
 }
 
-/** A copy its host holds, as the host modelled it (Python's engine: Engine.copy_of): what a snapped grid reads. */
-export interface HeldCopy {
-  readonly model: string;
-  readonly runtime: string;
-  /** The relation that reads it, as the protocol writes one. */
-  readonly source: unknown;
-}
-
 /** A writer's edits read from JSON, each by its own reader: a page command's (a grid's cube with its exact numbers, as
  *  pageApply reads one), or a grid's by readGridCommand -- as the page's keeper reads a write (pageRebase). */
 export function readEdits(text: string): PageEdit[] {
@@ -312,16 +304,8 @@ export async function pageRebase(page: string, held: string, edits: string, know
     const done = await rebaseEdits({ page: now, held: JSON.parse(held) as string[] }, readEdits(edits),
       async (at, cube, id, commands) => {
         const text = cubeToJson(cube);
-        const snapped = (at.copies ?? {})[id];
-        let base: object;
-        if (snapped !== undefined) {
-          const copy = copies[snapped.table];
-          if (copy === undefined) throw new CubeRefusal(`${cube.name}: its snap (${snapped.label}) is no longer held`);
-          base = { model: copy.model, runtime: copy.runtime,
-            relation: JSON.stringify({ _type: 'lambda', parameters: [], body: [copy.source] }) };
-        } else {
-          base = JSON.parse(await gridBase(text, frames)) as object;
-        }
+        // a snapped grid's edit over its copy, as the writer applied it (baseOnHost: the one rule)
+        const base = await baseOnHost(text, (at.copies ?? {})[id], frames, copies);
         const said = JSON.parse(await gridApply({ cube: text, ...base } as Parameters<typeof gridApply>[0],
           `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));

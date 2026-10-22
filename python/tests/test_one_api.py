@@ -44,7 +44,8 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10).
 # 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
 # 2026-10-22 (S5, Z4-Z7): L6_FUNCTIONS 7 -> 3, MARKERS 4 -> 3 -- the model actions run headless; model.py gone
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 3, 'MARKERS': 3, 'L9_KEEPER': 6,
+# 2026-10-22 (S5, Z15): L6_FUNCTIONS 3 -> 2 -- a grid's base on the host is DataCube's one rule (gridBaseOn)
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 2, 'MARKERS': 3, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -231,7 +232,6 @@ class Static(unittest.TestCase):
 L6_FUNCTIONS = {
     '_value': ('Z12',),
     '_given_filter': ('Z12',),
-    '_copy_base_of': ('Z15',),
 }
 
 # (file, the code that is the gap, its items, how many times it is there)

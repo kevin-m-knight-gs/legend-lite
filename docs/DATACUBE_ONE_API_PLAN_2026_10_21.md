@@ -355,7 +355,13 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **Z13** stack needs two tiles (duplicate check) — closed S5: Python sends the stack and DataCube refuses it in its
   own words (page-commands.ts `stack`; test_page.py)
 - [ ] **Z14** frames-only rule (D3) — S5, L6
-- [ ] **Z15** a snapped grid's base and refusal → exported from headless — S5, L6
+- [x] **Z15** a snapped grid's base and refusal → exported from headless — closed S5: headless grid.ts `baseOnHost`,
+  the one rule -- a snapped grid reads its copy as the host holds it, one no longer held refused in one wording (go live,
+  or snap it anew), never read live in its place; any other grid, or a snapped one's live base, over the host's frames
+  -- which the keeper's rebase asks (pageRebase) and Python asks for every grid call (headless `gridBaseOn`, given the
+  page's copy for the grid and the copies the session holds). `_copy_base_of`, `Page._copy_base`, the session's
+  `copy_of` and the `gridBase` export deleted (test_page.py
+  `test_a_snapped_grid_whose_copy_is_no_longer_held_is_refused_in_datacubes_words`)
 - [x] **Z16** snap refusal sentence from one TypeScript function (N3 keeps the values) — closed S5: snap.ts
   `snapRefusal(rows, limit)`, the preflight's, which Python's engine says through headless `snapRefused` with its own
   limit (snap.test.ts; test_engine.py `test_the_snap_limit_in_the_tabs_words`)

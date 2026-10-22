@@ -1692,6 +1692,26 @@ class Snapped(Paged):
         engine = datacube._session.engine()
         return engine.copy_of(table) is not None or datacube._session.frames.file_table(table) is not None
 
+    def test_a_snapped_grid_whose_copy_is_no_longer_held_is_refused_in_datacubes_words(self):
+        # one rule (headless gridBaseOn: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z15): a snapped grid reads its copy as
+        # the engine holds it, never its frame in its place -- one the session no longer holds is refused, in its words
+        import re
+        page = ll.Page('Snaps')
+        grid = page.grid(trades(), name='trades', rows=['region'], measures={'notional': 'sum'})
+        grid.snap()
+        shown = len(grid.view().rows)
+        gone = re.escape(f"its snap ({grid.snapped['label']}) is no longer held -- go live to read its rows live again, "
+                         'or snap it anew')
+        with mock.patch.object(datacube._session, 'held_copies', lambda: {}):
+            with self.assertRaisesRegex(ValueError, gone):
+                grid.view()
+            # its live base is its frame's, whatever its copy: what a snap pulls, what a class is made of
+            self.assertIn('trades', grid.relation)
+        self.assertEqual(len(grid.view().rows), shown, 'held again: its copy read')
+        grid.live()
+        with mock.patch.object(datacube._session, 'held_copies', lambda: {}):
+            self.assertEqual(len(grid.view().rows), shown, 'live: its frame read, no copy asked for')
+
     def test_a_snapped_grid_reads_its_copy_whatever_its_frame_does_and_live_again_reads_the_frame(self):
         state, frame = self.moving()
         page = ll.Page('Snaps')

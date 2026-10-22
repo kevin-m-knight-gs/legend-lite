@@ -8,7 +8,7 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
+  cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
   gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
@@ -28,10 +28,11 @@ export { REQUEST_KINDS };
  *  its cube over a frame as DataCube makes one, new or rebuilt over the frame as it is now (cube-document.ts
  *  rebuilt), and a calculated column added to it, its filter set as the screen's editors do, and the grid edited as the
  *  screen edits one (gridApply: grid-commands.ts, the commands its panels, menu and drag zones build). What a cube reads
- *  (cubeLeaves), its base over the host's frames (gridBase) and a saved cube opened over them as it is now (gridOpened):
- *  a frame's, or a join's of frames (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). */
+ *  (cubeLeaves), its base on the host -- over the host's frames, or its copy, snapped (gridBaseOn: the one rule, Z15)
+ *  -- and a saved cube opened over them as it is now (gridOpened): a frame's, or a join's of frames
+ *  (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). */
 export {
-  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
+  cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
   gridRelation, gridSnapPull, gridView,
 };
 

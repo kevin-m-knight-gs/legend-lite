@@ -191,13 +191,13 @@ class _Session:
                 self._headless = Headless(bundle(), connection=self.frames.connection)
             return self._headless
 
-    def copy_of(self, table: str) -> dict[str, Any] | None:
-        """A snap's copy this session's engine holds, by its table (its model, runtime and relation, as DataCube
-        modelled it as it landed), or None -- none made yet, no engine yet. Asked with the frames held (a snapped
-        grid's base, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): it takes no session lock, which a frame's
-        registering takes before the frames', only the engine's own."""
+    def held_copies(self) -> dict[str, dict[str, Any]]:
+        """Every snap's copy this session's engine holds, by its table (its model, runtime and relation, as DataCube
+        modelled it as it landed: headless grid.ts HeldCopy) -- none made yet, no engine yet: none. Asked with the frames
+        held (a snapped grid's base, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): it takes no session lock, which a
+        frame's registering takes before the frames', only the engine's own."""
         engine = self._engine
-        return None if engine is None else engine.copy_of(table)
+        return {} if engine is None else engine.held_copies()
 
     def sweep(self) -> None:
         """The pages collected since forgotten, and each snap's copy no page kept reads any more let go of by the engine
@@ -217,8 +217,7 @@ class _Session:
         the frames')."""
         from . import _json
         headless = self.headless()
-        engine = self._engine
-        copies = {} if engine is None else engine.held_copies()
+        copies = self.held_copies()
         with self.frames.serving():
             said = _json.loads(headless.call('pageRebase', _json.dumps(page), _json.dumps(held), _json.dumps(edits),
                                              _json.dumps(known), self.frames.hosted(), copies))

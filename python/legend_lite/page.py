@@ -307,7 +307,8 @@ class Grid(Tile):
         frame's registering takes before the frames', so asking for it here, the frames held, could wait on it forever.
         A snapped grid's base is its copy (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), unless ``live``: what it is
         a copy of (what a snap pulls, what a class is made of)."""
-        return _cube_spec(self._cube, frames, engine, None if live else self._page._copy_base(self._view['cube']))
+        return _cube_spec(self._page._session, self._cube, frames, engine,
+                          None if live else self._page._snapped(self._view['cube']))
 
     def view(self) -> GridView:
         """What the grid shows, as DataCube computes it: its columns and rows, their groups and totals, its pivot, and
@@ -648,24 +649,27 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
     session = page._session
     engine, frames = session.headless(), session.frames
     with frames.serving():
-        made = _json.loads(engine.call('gridChart', _cube_spec(page._cube(cube), frames, engine, page._copy_base(cube)),
+        made = _json.loads(engine.call('gridChart', _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube)),
                                        _json.dumps(given), None if before is None else _json.dumps(before)))
     if made['problems']:
         raise ValueError(' '.join(made['problems']))
     return made['spec']
 
 
-def _cube_spec(cube: Mapping[str, Any], frames: Any, engine: Any, copy: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    """A cube document and its base, as the bundle's grid functions take them (the frames held still): the base as
-    DataCube says it is over the frames this session serves (headless gridBase -- a frame's own model, a join's of
-    frames one model of them; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), never by the cube's kind here -- or, its
-    grid snapped, its ``copy``: the model DataCube wrote for the copy as it landed, and the relation that reads it
-    (§18.8). The cube document never carries its base, so one opened over its copy is written as the live one is."""
+def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
+               snapped: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """A cube document and its base, as the bundle's grid functions take them (the frames held still): its base on the
+    host as DataCube says it is (headless gridBaseOn, the one rule: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z15) -- over
+    the frames this session serves (a frame's own model, a join's of frames one model of them; never by the cube's kind
+    here), or, its grid ``snapped`` (the page's copy for it), over the copy as its engine modelled it as it landed,
+    refused in DataCube's words when the session no longer holds it (never read live in its place). The cube document
+    never carries its base, so one opened over its copy is written as the live one is."""
     text = _json.dumps(cube)
-    if copy is not None:
-        return {'cube': text, 'model': copy['model'], 'runtime': copy['runtime'],
-                'relation': _json.dumps({'_type': 'lambda', 'parameters': [], 'body': [copy['source']]})}
-    return {'cube': text, **json.loads(engine.call('gridBase', text, frames.hosted()))}
+    said = json.loads(engine.call('gridBaseOn', text, None if snapped is None else _carried(snapped), frames.hosted(),
+                                  session.held_copies()))
+    if 'problems' in said:
+        raise ValueError('; '.join(said['problems']))
+    return {'cube': text, **said}
 
 
 def _cube_leaves(session: Any, cube: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -1498,11 +1502,10 @@ class Page:
     def _cube(self, id: str) -> dict[str, Any]:
         return next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
 
-    def _copy_base(self, cube: str) -> dict[str, Any] | None:
-        """The copy cube ``cube`` (its id) reads when its grid is snapped (§18.8) -- its model, runtime and relation, as
-        the engine holding it modelled it -- or None: it reads its rows live. A copy the page names that this session
-        no longer holds is refused, never read live in its place. Asked with the frames held: it takes no session lock."""
-        return _copy_base_of(self._session, self._doc, cube)
+    def _snapped(self, cube: str) -> dict[str, Any] | None:
+        """The copy the page says cube ``cube`` (its id) reads, its grid snapped (§18.8), or None: it reads its rows live.
+        Where its rows are then read is DataCube's to say (_cube_spec)."""
+        return self._doc.get('copies', {}).get(cube)
 
     def _served(self) -> list[str]:
         return [n for n in self._frames() if n in self._session.frames]
@@ -1588,20 +1591,6 @@ class Page:
 
     def __repr__(self) -> str:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'
-
-
-def _copy_base_of(session: Any, doc: dict[str, Any], cube: str) -> dict[str, Any] | None:
-    """The copy cube ``cube`` of ``doc`` reads, as the engine holding it modelled it, or None: it reads its rows live. A
-    copy the page names that the session no longer holds is refused, never read live in its place."""
-    snapped = doc.get('copies', {}).get(cube)
-    if snapped is None:
-        return None
-    held = session.copy_of(snapped['table'])
-    if held is None:
-        name = next(c['cube'] for c in doc['cubes'] if c['id'] == cube)['source']['name']
-        raise ValueError(f'{name}: its snap ({snapped["label"]}) is no longer held by this session: grid.live() reads its '
-                         'rows live again, grid.snap() snaps it anew')
-    return held
 
 
 def _read_page(doc: Any, session: Any, saved: bool = False) -> dict[str, Any]:

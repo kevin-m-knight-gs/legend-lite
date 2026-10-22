@@ -367,14 +367,14 @@ class OpenPage:
         return _json.loads(said['page']), said['commands'][0]
 
     def grid_applied(self, doc, grid, command):
-        from legend_lite.page import _copy_base_of, _cube_spec
+        from legend_lite.page import _cube_spec
         session = datacube._session
         view = next((v for v in doc['views'] if v['id'] == grid and v['kind'] == 'grid'), None)
         if view is None:
             raise ValueError(f'{grid} is no longer on the page')
         cube = next(c['cube'] for c in doc['cubes'] if c['id'] == view['cube'])
         with session.frames.serving():
-            spec = _cube_spec(cube, session.frames, self.headless, _copy_base_of(session, doc, view['cube']))
+            spec = _cube_spec(session, cube, session.frames, self.headless, doc.get('copies', {}).get(view['cube']))
             said = json.loads(self.headless.call('gridApply', spec, _json.dumps([command])))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))

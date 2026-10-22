@@ -20,7 +20,7 @@ import { draftColumn, draftStage, existingDraft, newDraft } from '../column-draf
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
-  cubeOpenedAgain, cubeTaken, cubeToJson, frameSource, gridCapped, leavesOf, openCube, readCube, rebuilt, writeCube,
+  CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, frameSource, gridCapped, leavesOf, openCube, readCube, rebuilt, writeCube,
   type CubeDocument, type CubeSource, type JoinSource, type OpenedCube,
 } from '../cube-document.ts';
 import {
@@ -35,6 +35,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
 import type { GridDraft } from '../grid-edits.ts';
+import { readGridCopy, type GridCopy } from '../page-document.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
 import { classBasis, classLambda, snapPull, type ClassBasis } from '../query.ts';
@@ -200,6 +201,51 @@ export async function gridBase(cube: string, frames: Readonly<Record<string, Hos
   const opened = await joinOpenedOn(on.join, on.tables);
   return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
     + `"relation":${JSON.stringify(toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }))}}`;
+}
+
+/** A copy its host holds, as the host modelled it (Python's engine: Engine.held_copies): what a snapped grid reads. */
+export interface HeldCopy {
+  readonly model: string;
+  readonly runtime: string;
+  /** The relation that reads it, as the protocol writes one. */
+  readonly source: unknown;
+}
+
+/** A grid's base on the host, as every grid call is given it (GridSpec without its cube). */
+export type HostBase = { readonly model: string; readonly runtime: string } & ({ readonly source: string } | { readonly relation: string });
+
+/**
+ * A GRID'S BASE ON THE HOST, the one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z15; DATACUBE_MODEL_DESIGN §18.8):
+ * a snapped grid reads its copy (`snapped`, the page's copy for it) as the host modelled it (`copies`, the copies the host
+ * holds, by table) -- one the host no longer holds refused in words, never read live in its place; any other grid, or a
+ * snapped one's live base (what a snap pulls, what a class is made of: no `snapped`), its base over the host's frames
+ * (gridBase). The keeper's rebase asks it of each grid it applies a write to (headless page.ts pageRebase), and Python of
+ * each grid it asks DataCube about (gridBaseOn).
+ */
+export async function baseOnHost(cube: string, snapped: GridCopy | undefined, frames: Readonly<Record<string, HostFrame>>,
+  copies: Readonly<Record<string, HeldCopy>>): Promise<HostBase> {
+  if (snapped === undefined) return JSON.parse(await gridBase(cube, frames)) as HostBase;
+  const copy = copies[snapped.table];
+  if (copy === undefined) {
+    throw new CubeRefusal(`${readCube(fromJson(cube)).name}: its snap (${snapped.label}) is no longer held -- go live to `
+      + 'read its rows live again, or snap it anew');
+  }
+  return { model: copy.model, runtime: copy.runtime, relation: JSON.stringify({ _type: 'lambda', parameters: [], body: [copy.source] }) };
+}
+
+/**
+ * A GRID'S BASE ON THE HOST, HEADLESS (baseOnHost): `cube` as the page holds it, `snapped` the page's copy for its grid
+ * (null: it reads live, or its live base is asked), `frames` and `copies` what the host serves and holds. JSON: `{model,
+ * runtime, source}` or `{model, runtime, relation}`, as gridBase says it -- or `{problems}`, in DataCube's words.
+ */
+export async function gridBaseOn(cube: string, snapped: unknown, frames: Readonly<Record<string, HostFrame>>,
+  copies: Readonly<Record<string, HeldCopy>>): Promise<string> {
+  try {
+    return JSON.stringify(await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), frames, copies));
+  } catch (e) {
+    if (!(e instanceof CubeRefusal) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
 }
 
 /**
