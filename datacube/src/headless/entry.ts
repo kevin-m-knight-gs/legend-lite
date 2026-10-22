@@ -8,7 +8,7 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridDimension, gridExport,
+  chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridDimension, gridExport,
   gridFilter, gridOpened, gridPreset, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
@@ -77,6 +77,9 @@ export { pageOfRecord };
 /** A chart's mark selected, as a click selects one (chartPick: Python's chart.select), and a chart drilled down into a
  *  mark or back up, as a double-click and the crumbs drill (chartDrill: chart.drill, chart.drill_up). */
 export { chartDrill, chartPick };
+/** A chart's grid shown, as Show Grid shows it: the one it follows, or one of its own grouping made (chartOwnGrid:
+ *  Python's chart.grid(); chart-spec.ts chartGrid, the screen's rule). */
+export { chartOwnGrid };
 /** A grid's edit on a page: the page with its cube as the edit left it, its charts following it (V1, V2). */
 export { pageWithCube };
 /** The page's keeper (Python's: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) asks DataCube what it never reads itself: a

@@ -15,7 +15,7 @@ GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort'
                                'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'measures',
                                'editCalculated', 'removeCalculated', 'open', 'collapseAll',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
-                               'renameTile', 'addGrid', 'addChart', 'setChart', 'setChartCube', 'select', 'moveTile',
+                               'renameTile', 'addGrid', 'addChart', 'setChart', 'followGrid', 'select', 'moveTile',
                                'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap',
                                'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',)
 
@@ -135,8 +135,8 @@ def page_set_chart(*, chart: Any, spec: Any) -> dict[str, Any]:
     return {'kind': 'setChart', 'chart': chart, 'spec': spec}
 
 
-def page_set_chart_cube(*, chart: Any, document: Any) -> dict[str, Any]:
-    return {'kind': 'setChartCube', 'chart': chart, 'document': document}
+def page_follow_grid(*, chart: Any, grid: Any) -> dict[str, Any]:
+    return {'kind': 'followGrid', 'chart': chart, 'grid': grid}
 
 
 def page_select(*, chart: Any, conditions: Any) -> dict[str, Any]:

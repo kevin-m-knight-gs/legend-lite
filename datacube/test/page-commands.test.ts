@@ -140,8 +140,10 @@ describe('each command gives the page the screen\'s rules give it', () => {
     const none = apply({ kind: 'select', chart: 'chart', conditions: [] }, { page: selected, held: idsOf(selected) });
     assert.equal('selection' in view(none.page, 'chart')!, false);
     refused(() => apply({ kind: 'select', chart: 'grid', conditions: [] }), /'grid' is a grid, not a chart/);
-    // a chart's own query (P8): only a detached chart's; the cube it read before let go when nothing reads it
-    refused(() => apply({ kind: 'setChartCube', chart: 'chart', document: trades.cubes[0]!.cube }), /reads its grid/);
+    // a chart onto another grid's cube (D7: Show Grid's followGrid): a chart onto a grid, never the one it reads
+    refused(() => apply({ kind: 'followGrid', chart: 'chart', grid: 'grid' }), /'chart' reads grid already/);
+    refused(() => apply({ kind: 'followGrid', chart: 'grid', grid: 'grid-2' }), /'grid' is a grid, not a chart/);
+    refused(() => apply({ kind: 'followGrid', chart: 'chart', grid: 'chart-2' }), /'chart-2' is a chart, not a grid/);
   });
 
   it("the page's name is each cube's too (writePageOf's rule), written by no rule of its own", () => {
@@ -246,7 +248,7 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addGrid', id: 'grid-3', document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: 'grid', title: null, columns: 2 },
     { kind: 'addChart', near: 'grid', spec, title: 'T', columns: null },
     { kind: 'setChart', chart: 'chart', spec },
-    { kind: 'setChartCube', chart: 'chart', document: trades.cubes[0]!.cube },
+    { kind: 'followGrid', chart: 'chart', grid: 'grid-2' },
     { kind: 'select', chart: 'chart', conditions: [{ kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }] },
     { kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null },
     { kind: 'stack', tiles: ['grid', 'chart'] },
@@ -446,15 +448,26 @@ describe("a cube changed by a page command, its live charts following it (follow
     assert.equal(chartOf(applyPageCommand(draftOf(trades), { kind: 'setChart', chart: 'chart-2', spec: following }).draft.page, 'chart-2').spec.frozen, undefined);
   });
 
-  it("setChartCube gives a detached chart a query of its own (its editing grid's Update): it reads it, frozen, plotting what it did", () => {
-    // grid-2 removed: its frozen chart-2 stays, detached, then given its own query
+  it("followGrid has a chart read another grid's cube (D7: Show Grid): its selection off the cube it read, a detached one's cube let go", () => {
+    // grid-2 removed: its frozen chart-2 stays, detached, reading grid-2's cube kept for it
     const grid2 = trades.views.find((v) => v.kind === 'grid' && v.id === 'grid-2')!;
     const d = applyPageCommand(draftOf(trades), { kind: 'removeTile', tile: grid2.id }).draft;
-    const kept = d.page.cubes.find((c) => c.id === grid2.cube)!.cube;
-    const own = { ...kept, query: { ...kept.query, rows: ['desk'], pivotOn: [] } };
-    const after = applyPageCommand(d, { kind: 'setChartCube', chart: 'chart-2', document: own }).draft.page;
-    assert.equal(chartOf(after, 'chart-2').cube, 'chart-2-query');
-    assert.deepEqual(chartOf(after, 'chart-2').spec, chartOf(d.page, 'chart-2').spec, 'frozen: what it plots its own');
+    assert.ok(d.page.cubes.some((c) => c.id === grid2.cube), "the detached chart's cube kept for it");
+    const after = applyPageCommand(d, { kind: 'followGrid', chart: 'chart-2', grid: 'grid' }).draft.page;
+    assert.equal(chartOf(after, 'chart-2').cube, 'grid');
+    assert.equal(after.cubes.some((c) => c.id === grid2.cube), false, 'the cube no view reads let go');
+    // a chart with a selection: taken off the filter of the cube it read, and off the chart
+    const emea = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    const gridCube = trades.views.find((v) => v.id === 'grid')!.cube;
+    const selected: PageDocument = {
+      ...trades,
+      cubes: trades.cubes.map((c) => (c.id === gridCube ? { ...c, cube: { ...c.cube, query: { ...c.cube.query, filter: emea } } } : c)),
+      views: trades.views.map((v) => (v.id === 'chart' && v.kind === 'chart' ? { ...v, selection: [emea] } : v)),
+    };
+    const moved = applyPageCommand(draftOf(selected), { kind: 'followGrid', chart: 'chart', grid: 'grid-2' }).draft.page;
+    assert.equal(chartOf(moved, 'chart').cube, trades.views.find((v) => v.id === 'grid-2')!.cube);
+    assert.equal('selection' in chartOf(moved, 'chart'), false);
+    assert.equal(moved.cubes.find((c) => c.id === gridCube)!.cube.query.filter, undefined, "off its old grid's filter");
   });
 });
 

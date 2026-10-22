@@ -341,7 +341,7 @@ export interface MeasureMade {
  * column-draft.ts newDraft, draftColumn; its name by calc.ts nameProblem), with that Aggregation -- each by setColumn's
  * rules. Refused in their words (CubeRefusal): a column the grid has not, a name taken, an aggregate its column's type
  * is not offered (a count of text: "Show leaf count" counts a group's rows). Python's grid.measure() and a chart's
- * values opened in a grid (Open in Grid) are made the grid's by this one rule. Only `converting` (a chart's values:
+ * values shown in a grid of their own (Show Grid) are made the grid's by this one rule. Only `converting` (a chart's values:
  * what was there already) makes a dimension a measure; asked of a grid (Python's measure()), a dimension's
  * Aggregation is refused, as Column Properties refuses it.
  */
@@ -405,7 +405,7 @@ function asMeasure<D extends GridDraft>(draft: D, name: string): D {
 /**
  * A LIST OF MEASURES AS THE SCREEN'S MODEL: each by measureAsColumn, in order, against what the ones before it made (a
  * column given an Aggregation once is taken: another measure of it is a calculated column). One it cannot be is left
- * out, said, the rest made: Open in Grid makes what it can of a chart's values.
+ * out, said, the rest made: Show Grid makes what it can of a chart's values.
  */
 export function measuresAsColumns<D extends GridDraft>(draft: D, measures: readonly Measure[]): {
   readonly draft: D;

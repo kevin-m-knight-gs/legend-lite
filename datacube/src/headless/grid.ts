@@ -14,7 +14,7 @@ import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
-import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
+import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
 import { availableDimensions, drillDown, drillUp, useDimension } from '../dimensions.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
@@ -37,7 +37,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
 import type { GridDraft } from '../grid-edits.ts';
-import { plainNumbers, readGridCopy, readPage, type GridCopy } from '../page-document.ts';
+import { plainNumbers, readGridCopy, readPage, type GridCopy, type PageView } from '../page-document.ts';
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
@@ -965,6 +965,34 @@ export async function gridExport(spec: GridSpec, kind: string): Promise<string> 
     const { content } = file;
     return JSON.stringify({ name: file.name, mime: file.mime, text: typeof content === 'string',
       content: typeof content === 'string' ? content : base64(content) });
+  });
+}
+
+/**
+ * A CHART'S GRID AS PYTHON ASKS FOR IT (chart.grid(); docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D7, the screen's Show
+ * Grid): `page`, the page as Python holds it, and its chart `chart`; `spec`, the chart's cube over its base, as gridChart
+ * takes it. A chart following its grid answers that grid (`{grid}`: shown, the page as it is); a frozen or a detached
+ * one the grid of its own grouping and query (chart-spec.ts chartGrid, the screen's rule) -- `{cube, spec, notes}`, the
+ * new grid's document as the screen's new grid writes itself (opened over the source as the compiler types it now,
+ * folded, no group open) and the chart following it, for Python's addGrid, followGrid and setChart -- or `{problems}`,
+ * in DataCube's words.
+ */
+export async function chartOwnGrid(spec: GridSpec, page: string, chart: string): Promise<string> {
+  const views = (JSON.parse(page) as { views: readonly PageView[] }).views;
+  const view = views.find((v) => v.id === chart);
+  if (view?.kind !== 'chart') return JSON.stringify({ problems: [`'${chart}' is no chart of the page`] });
+  const grid = views.find((v) => v.kind === 'grid' && v.cube === view.cube);
+  if (grid !== undefined && view.spec.frozen !== true) return JSON.stringify({ grid: grid.id });
+  return using(spec, async ({ runner, state }) => {
+    // the chart's cube as the screen's chart reads it: its grid's columns as the compiler types them now
+    const snapshot = await typedColumns(runner, state.snapshot);
+    const made = chartGrid({ snapshot, config: state.configuration }, view.spec, view.selection ?? []);
+    if (typeof made === 'string') return JSON.stringify({ problems: [made] });
+    const tree = TreeState.empty(made.configuration.showRootAggregation);
+    const landed = fold({ snapshot: await typedColumns(runner, made.snapshot), configuration: made.configuration, tree });
+    const doc = readCube(fromJson(spec.cube));
+    const written = writeCube({ name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree });
+    return `{"cube":${JSON.stringify(cubeToJson(written))},"spec":${JSON.stringify(made.spec)},"notes":${JSON.stringify(made.notes)}}`;
   });
 }
 

@@ -91,9 +91,9 @@ export type PageCommand =
   }
   /** A chart's spec, whole (made first by chart-spec.ts editChart, the options form's rule). */
   | { readonly kind: 'setChart'; readonly chart: string; readonly spec: ChartSpec }
-  /** A detached chart given a query of its own (its editing grid's Update): it reads `<chart>-query`, that grid's cube
-   *  as `document` says -- the cube it read before let go when no view reads it any more. */
-  | { readonly kind: 'setChartCube'; readonly chart: string; readonly document: CubeDocument }
+  /** A chart reading another grid's cube from now on (D7: Show Grid made the grid of its own grouping) -- its selection
+   *  taken off the cube it read, and that cube let go when no view reads it any more (a detached chart's). */
+  | { readonly kind: 'followGrid'; readonly chart: string; readonly grid: string }
   /** A chart's selection, the mark clicked last as its conditions (none: cleared) -- the chart's alone: the conditions
    *  on its grid's filter are that grid's `refilter`, told with it (grid-commands.ts). */
   | { readonly kind: 'select'; readonly chart: string; readonly conditions: readonly FilterNode[] }
@@ -137,7 +137,7 @@ export type PageCommand =
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'setChartCube', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
+  'followGrid', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
   'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
@@ -146,7 +146,7 @@ export const PAGE_COMMAND_KINDS = [
 export const PAGE_COMMAND_FIELDS = {
   renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
-  addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], setChartCube: ['chart', 'document'],
+  addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], followGrid: ['chart', 'grid'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
   removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'],
@@ -445,18 +445,23 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       // kept as the panel keeps it: a live chart regrouped as its grid is (P6)
       return done(followedPage({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, spec } : v)) }, view.cube, page));
     }
-    case 'setChartCube': {
+    case 'followGrid': {
       const view = viewNamed(page, command.chart);
       if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
-      if (page.views.some((v) => v.kind === 'grid' && v.cube === view.cube)) {
-        throw new CubeRefusal(`'${command.chart}' reads its grid: only a chart detached from it has a query of its own`);
-      }
-      const own = `${view.id}-query`;
-      const views = page.views.map((v) => (v.id === view.id ? { ...view, cube: own } : v));
-      const entry = { id: own, cube: command.document };
-      const cubes = (page.cubes.some((c) => c.id === own) ? page.cubes.map((c) => (c.id === own ? entry : c)) : [...page.cubes, entry])
-        .filter((c) => views.some((v) => v.cube === c.id));
-      return done(followedPage(rewritten({ ...page, ...(page.model ? { model: keptFor(page.model, cubes) } : {}) }, { views, cubes }), own, page));
+      const grid = viewNamed(page, command.grid);
+      if (grid.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is a chart, not a grid: a chart follows a grid`);
+      if (grid.cube === view.cube) throw new CubeRefusal(`'${command.chart}' reads ${command.grid} already`);
+      // its selection off the cube it read (as a chart removed takes it off), then the chart on the grid's cube; the cube
+      // it read let go when no view reads it any more (a detached chart's), and the page's model kept for what is left
+      const unpicked = unselected(page, view);
+      const views = unpicked.views.map((v) => {
+        if (v.id !== view.id || v.kind !== 'chart') return v;
+        const { selection: _was, ...rest } = v;
+        return { ...rest, cube: grid.cube };
+      });
+      const cubes = unpicked.cubes.filter((c) => views.some((v) => v.cube === c.id));
+      const kept = rewritten({ ...unpicked, ...(unpicked.model ? { model: keptFor(unpicked.model, cubes) } : {}) }, { views, cubes });
+      return done(followedPage(kept, grid.cube, page));
     }
     case 'select': {
       const view = viewNamed(page, command.chart);
@@ -692,7 +697,7 @@ function sourceOf(v: unknown): CubeSource {
 /** The field of a page command a host reads with its exact numbers (a calculated column's 1.10, a join condition's
  *  decimal), as the page's cubes are read: a cube's document, or a source. */
 export const EXACT_FIELD: Partial<Record<PageCommand['kind'], 'document' | 'source'>> = {
-  addGrid: 'document', setChartCube: 'document', rebuilt: 'source',
+  addGrid: 'document', rebuilt: 'source',
 };
 
 /**
@@ -771,9 +776,9 @@ export function readPageCommand(given: unknown): PageCommand {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!isObject(o['spec'])) throw new CubeRefusal("a chart's spec is an object");
       return { kind, chart: text(o['chart'], 'a chart'), spec: o['spec'] as unknown as ChartSpec };
-    case 'setChartCube':
+    case 'followGrid':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
-      return { kind, chart: text(o['chart'], 'a chart'), document: cubeOf(o['document']) };
+      return { kind, chart: text(o['chart'], 'a chart'), grid: text(o['grid'], 'a grid') };
     case 'select':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!Array.isArray(o['conditions'])) throw new CubeRefusal("a chart's selection is a list of conditions");

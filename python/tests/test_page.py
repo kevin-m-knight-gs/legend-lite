@@ -673,7 +673,7 @@ class Document(Paged):
         follows = grid.chart('pie')
         self.assertNotIn('frozen', page.to_dict()['views'][-1]['spec'])
         page.remove(grid)
-        self.assertEqual((page.grids, page.charts, chart.grid), ([], [chart], None))
+        self.assertEqual((page.grids, page.charts), ([], [chart]))
         doc = page.to_dict()
         self.assertEqual([c['id'] for c in doc['cubes']], [grid.id])
         self.assertEqual([v['id'] for v in doc['views']], [chart.id])
@@ -1429,6 +1429,48 @@ class Abilities(Paged):
             flat.chart('bar').drill('EMEA')
         with self.assertRaisesRegex(ValueError, 'a kpi chart does not drill: its marks are not its categories across'):
             flat.chart('kpi').drill('EMEA')
+
+    def test_show_grid_shows_a_charts_grid_or_makes_one_of_its_own_grouping_it_follows(self):
+        # (K11, D7, D8) chart.grid(): the grid a following chart follows, the page as it is; a frozen or a detached
+        # chart's grid of its own grouping and query made beside it in one step (headless chartOwnGrid: chart-spec.ts
+        # chartGrid, the screen's Show Grid), the chart following it from then on, drawn as it was
+        page = ll.Page('Shown')
+        grid = page.grid(trades(), name='shown_trades', rows=['region'], measures={'notional': 'sum'})
+        follows = grid.chart('bar')
+        before = page.to_dict()
+        self.assertEqual(follows.grid().id, grid.id)
+        self.assertEqual(page.to_dict(), before, 'the page as it is')
+        # a frozen chart, its mark selected: a grid of its own grouping, its values the grid's Column Properties
+        frozen = grid.chart('bar', x='desk', y=[('pnl', 'max')])
+        frozen.select('Rates')
+        own = frozen.grid()
+        self.assertNotEqual(own.id, grid.id)
+        self.assertEqual(own._query['rows'], ['desk'])
+        self.assertEqual(groups_of(own.view(), 'pnl'), {'FX': 1.5, 'Rates': 0.25}, "its values: each desk's most pnl")
+        self.assertEqual([c['kind'] for c in page._page_commands[-3:]], ['addGrid', 'followGrid', 'setChart'])
+        self.assertEqual(frozen._view['cube'], own._view['cube'])
+        spec = frozen._view['spec']
+        self.assertNotIn('frozen', spec, 'it follows its own grid')
+        self.assertEqual((spec['mark'], spec['x']), ('bar', 'desk'), 'drawn as it was')
+        # its selection off its old grid's filter, as select(None) takes it, and never on its own grid's
+        self.assertEqual(frozen.selection, [])
+        self.assertNotIn('filter', grid._query)
+        self.assertNotIn('filter', own._query)
+        # following its own grid from now on
+        own.group('region')
+        self.assertEqual(frozen._view['spec']['x'], 'region')
+        self.assertEqual(frozen.grid().id, own.id)
+        # a detached chart (its grid removed) shown in one of its own: the cube it kept let go
+        lone = grid.chart('line', x='region', split=None)
+        page.remove(grid)
+        made = lone.grid()
+        self.assertEqual(made._query['rows'], ['region'])
+        self.assertEqual(sorted(c['id'] for c in page.to_dict()['cubes']), sorted([own._view['cube'], made._view['cube']]))
+        self.assertNotIn('frozen', lone._view['spec'])
+        # refused in DataCube's words: a chart with no grouping of its own
+        scatter = own.chart('scatter', x='notional', y=[('pnl', 'sum')], frozen=True)
+        with self.assertRaisesRegex(ValueError, "a scatter chart has no grouping of its own to show in a grid"):
+            scatter.grid()
 
     def test_a_saved_page_is_opened_by_its_id_as_datacubes_open_opens_it(self):
         # (K12) ll.Page.open: the record from this user's saved pages, opened as Open… opens it (headless pageOfRecord)

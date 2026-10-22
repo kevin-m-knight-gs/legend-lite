@@ -266,7 +266,7 @@ export interface CubeAppBaseOptions {
    * tile (plan F6, blocker #4). It must be positioned (relative or absolute). Default: the cube.
    */
   readonly windowHost?: HTMLElement;
-  /** A cube in a tile (a page's grid, a chart's editing grid): no title bar of its own; its columns panel folded. */
+  /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
   readonly foldPanel?: boolean;
@@ -461,7 +461,7 @@ export class CubeApp {
   /** The page's filters on it (setLens), and in words: said in its status bar. */
   #lens: QueryLens | undefined;
   #lensSaid: string | undefined;
-  /** The grids it spawned for its charts (Open in Grid): given its lens whenever it is given one. */
+  /** The grids it spawned (Copy of Grid, a chart's Show Grid on a cube alone's board): given its lens whenever it is given one. */
   readonly #spawnedGrids = new Set<CubeApp>();
   readonly #grid: DataGrid;
   readonly #pivots: PivotPanel;
@@ -941,7 +941,7 @@ export class CubeApp {
     this.#lens = lens;
     // what filters it, said in its status bar beside its own filter: a page's filter is not the grid's own
     this.#lensSaid = lens ? said : undefined;
-    // a grid it spawned (Open in Grid's, editing a chart of it) reads as it does, the page's filters changing with it
+    // a grid it spawned (a copy, a chart's own) reads as it does, the page's filters changing with it
     for (const grid of [...this.#spawnedGrids]) {
       if (grid.#disposed) this.#spawnedGrids.delete(grid);
       else void grid.setLens(lens, run, said);
@@ -2771,7 +2771,7 @@ export class CubeApp {
           ...(o.heldCopy ? { heldCopy: o.heldCopy } : {}),
           ...(o.cubeSource ? { cubeSource: o.cubeSource } : {}),
           ...(o.sourceLabel !== undefined ? { sourceLabel: o.sourceLabel } : {}),
-          // its own Column Properties when it is given them (Open in Grid: the chart's values), else this cube's
+          // its own Column Properties when it is given them (Show Grid: a chart's values), else this cube's
           configuration: spawned?.configuration ?? this.#config,
           // its windows float where this cube's do, not inside the small tile
           windowHost: o.windowHost ?? this.#els.root,
@@ -2786,7 +2786,7 @@ export class CubeApp {
           ...(spawned?.exportPage ? { exportPage: spawned.exportPage } : {}),
           ...(spawned?.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
         });
-        // it reads its rows as this grid does: the page's filters on this grid's class too (Open in Grid's chart), now
+        // it reads its rows as this grid does: the page's filters on this grid's class too (a chart's own grid), now
         // and as they change
         if (this.#lens) void grid.setLens(this.#lens, false, this.#lensSaid);
         this.#spawnedGrids.add(grid);
@@ -4292,7 +4292,7 @@ export class CubeApp {
   #ownsKey(target: EventTarget | null): boolean {
     const node = target && typeof (target as Node).nodeType === 'number' ? target as Node : null;
     if (!node) return lastTouched.get(this.#doc) === this;
-    // inside ANOTHER cube -- one on this cube's own board (a chart's editing grid) included
+    // inside ANOTHER cube -- one on this cube's own board (a grid added beside it) included
     const scope = cubeScopeOf(node);
     if (scope !== null && scope !== this.#els.root.dataset['dcCube']) return false;
     if (this.#els.root.contains(node)) return true;

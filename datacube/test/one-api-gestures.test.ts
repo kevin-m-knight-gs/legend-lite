@@ -289,17 +289,10 @@ function rename(id: string, name: string): void {
   field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
 }
 
-async function openInGrid(chart: string): Promise<void> {
+/** Show Grid, from the chart's right-click menu (D7). */
+async function showGrid(chart: string): Promise<void> {
   chartMenu(chart);
-  entry('Open in grid').click();
-  await settle();
-}
-
-async function update(chart: string): Promise<void> {
-  const button = [...tile(`edit-${chart}`).querySelectorAll<HTMLButtonElement>('.dc-tile-actions > button')]
-    .find((x) => x.textContent?.startsWith('Update'));
-  assert.ok(button, `the editing grid of ${chart} has its Update`);
-  button.click();
+  entry('Show Grid').click();
   await settle();
 }
 
@@ -612,24 +605,36 @@ const GESTURES: readonly Gesture[] = [
     },
     make: ({ chart }) => removeTile(chart!),
   },
+  // Show Grid (D7): a following chart's grid shown, the page as it is; a frozen or a detached chart's grid of its own
+  // grouping made, one step -- addGrid, followGrid, setChart, its selection's select first -- that it follows
+  { name: "a following chart's grid shown", quiet: true, setUp: withChart, make: ({ chart }) => showGrid(chart!) },
   {
-    // its editing grid is the view's, never saved (P7: cube-page-shell.test.ts, its band's shares kept)
-    name: 'a frozen chart opened in a grid',
-    quiet: true,
+    name: 'a frozen chart shown in a grid of its own',
     setUp: async () => { const ids = await withChart(); await togglePill(ids['chart']!); return ids; },
-    make: ({ chart }) => openInGrid(chart!),
+    make: ({ chart }) => showGrid(chart!),
   },
   {
-    name: 'a detached chart updated from its editing grid',
+    name: 'a frozen chart with a mark selected shown in a grid of its own',
+    setUp: async () => {
+      const ids = await withChart();
+      await togglePill(ids['chart']!);
+      await drawn();
+      clickMark(ids['chart']!, 0, 0);
+      await settle();
+      return ids;
+    },
+    make: ({ chart }) => showGrid(chart!),
+  },
+  {
+    name: 'a detached chart shown in a grid of its own',
     setUp: async () => {
       const g = await twoGrids();
       const chart = await chartOf(g.b);
       await togglePill(chart);
       await removeTile(g.b);
-      await openInGrid(chart);
       return { ...g, chart };
     },
-    make: ({ chart }) => update(chart!),
+    make: ({ chart }) => showGrid(chart!),
   },
   { name: 'a grid with a following chart ungrouped', setUp: withChart, make: ({ a }) => ungroup(a!, 'desk') },
   // grids

@@ -889,11 +889,40 @@ class Chart(Tile):
 
     _kind = 'chart'
 
-    @property
-    def grid(self) -> Grid | None:
-        """Its grid; None when the grid was removed and the chart, frozen, stayed (DataCube's detached chart)."""
-        cube = self._view['cube']
-        return next((g for g in self._page.grids if g._view['cube'] == cube), None)
+    def grid(self) -> Grid:
+        """Its grid, as DataCube's Show Grid shows it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D7; DataCube's code,
+        headless chartOwnGrid: chart-spec.ts chartGrid, the screen's rule): the grid it follows; or -- frozen, or detached
+        (its grid removed) -- a grid of its own grouping and query, made beside it, which it follows from then on, drawn
+        as it was: its column across and its split the grid's rows, its values the grid's Column Properties, its
+        selection taken off its old grid's filter first (as ``select(None)`` takes it). Refused in DataCube's words for a
+        chart with no grouping of its own (a scatter, a treemap, a map, a gauge)."""
+        view = self._view
+        page, cube = self._page, view['cube']
+        page._current(cube, 3)
+        session = page._session
+        engine, frames = session.headless(), session.frames
+        with frames.reading():
+            said = json.loads(engine.call('chartOwnGrid', _cube_spec(session, page._cube(cube), frames, engine,
+                                                                     page._snapped(cube)),
+                                          _json.dumps(page._doc), self._id))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        if 'grid' in said:
+            return page._tile(said['grid'], Grid)
+        # one step, as the screen's Show Grid is: the selection off its old grid's filter, the grid added beside the
+        # chart, the chart on its cube (followGrid), following it as it was drawn (setChart)
+        with page._batch():
+            if view.get('selection'):
+                self.select(None)
+            applied = page._apply_page([_commands.page_add_grid(document=_plain(_json.loads(said['cube'])),
+                                                                sheet=self.sheet.id, near=self._id, title=None,
+                                                                columns=None)])
+            made = applied[0]['id']
+            page._apply_page([_commands.page_follow_grid(chart=self._id, grid=made),
+                              _commands.page_set_chart(chart=self._id, spec=said['spec'])])
+        for note in said['notes']:
+            warnings.warn(f'{self._id}: {note}', stacklevel=3)
+        return page._tile(made, Grid)
 
     def plot(self, mark: str | None = None, *, x: Any = _KEEP, y: Any = _KEEP, split: Any = _KEEP,
              frozen: bool | None = None, at: Any = _KEEP) -> Chart:

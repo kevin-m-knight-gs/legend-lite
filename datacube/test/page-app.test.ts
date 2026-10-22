@@ -330,7 +330,7 @@ describe('a page of its own', () => {
     assert.deepEqual(doc.views.map((v) => [v.id, v.kind, v.cube]), [[a, 'grid', a], [copy, 'grid', copy]]);
   });
 
-  it('a detached chart\'s Update keeps a grid of its own, made by the host\'s maker, and the page saves it', async () => {
+  it("a detached chart's Show Grid makes a grid of its own grouping, by the host's maker, which it follows and the page saves", async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));
     const b = page.addGrid(over('orders.csv'), { near: a });
@@ -342,20 +342,18 @@ describe('a page of its own', () => {
     await settle();
     (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
       .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')].find((i) => label(i) === 'Open in grid')!.click();
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')].find((i) => label(i) === 'Show Grid')!.click();
     await settle();
-    const update = [...tile(`edit-${chart}`).querySelectorAll<HTMLElement>('.dc-tile-actions > button')]
-      .find((x) => x.textContent?.startsWith('Update'));
-    assert.ok(update, 'the editing grid\'s Update');
-    update.click();
-    await settle();
-    const own = `${chart}-query`;
-    assert.deepEqual(made.at(-1), [own, true], 'made by the maker of the grid it copies');
-    assert.ok(page.grid(own), 'the page knows it');
     const doc = page.document('Q3');
     assert.ok(doc, 'the page can be saved');
-    assert.deepEqual(doc.cubes.map((c) => c.id), [a, own], 'the grid it replaced is gone');
-    assert.deepEqual(doc.views.find((v) => v.id === chart)?.cube, own);
+    const own = doc.views.find((v) => v.kind === 'grid' && v.id !== a)?.id;
+    assert.ok(own, 'a grid of its own on the page');
+    assert.deepEqual(made.at(-1), [own, true], 'made by the maker of the grid it copies');
+    assert.ok(page.grid(own), 'the page knows it');
+    assert.deepEqual(doc.cubes.map((c) => c.id), [a, own], 'the grid kept for the detached chart is gone');
+    const view = doc.views.find((v) => v.id === chart);
+    assert.equal(view?.cube, own, 'the chart reads it');
+    assert.equal(view?.kind === 'chart' ? view.spec.frozen : 'not a chart', undefined, 'and follows it');
   });
 
   it('the host\'s readout is in the first grid\'s status bar only, and moves when that grid goes', async () => {
@@ -1060,7 +1058,7 @@ describe('a chart\'s click on a grid over a class (§16.2): a page filter from t
     assert.equal(page.filters.length, 1, 'never two from one chart (two clicks must not filter to nothing)');
   });
 
-  it('a grid spawned to edit a chart (Open in Grid) reads as its grid does, the page\'s filters changing with it (the audit\'s 6)', async () => {
+  it('a grid spawned by another (a copy on a cube alone\'s board) reads as its grid does, the page\'s filters changing with it (the audit\'s 6)', async () => {
     newPage();
     const a = new Recording();
     const gridA = page.addGrid(overClass(a));
@@ -1072,13 +1070,13 @@ describe('a chart\'s click on a grid over a class (§16.2): a page filter from t
     a.plans.length = 0;
     await editing.open();
     await settle();
-    assert.ok(filtered(a.plans), 'the editing grid reads the class filtered too');
+    assert.ok(filtered(a.plans), 'the spawned grid reads the class filtered too');
     await page.removeFilter(page.filters[0]!.id);
     await settle();
     a.plans.length = 0;
     await editing.open();
     await settle();
-    assert.ok(a.plans.length > 0 && !filtered(a.plans), 'the filter taken off: the editing grid reads it whole again');
+    assert.ok(a.plans.length > 0 && !filtered(a.plans), 'the filter taken off: the spawned grid reads it whole again');
     editing.dispose();
   });
 });

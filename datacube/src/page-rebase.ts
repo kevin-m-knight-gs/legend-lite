@@ -77,9 +77,10 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'addChart':
       return { ...command, near: n(command.near) };
     case 'setChart':
-    case 'setChartCube':
     case 'select':
       return { ...command, chart: n(command.chart) };
+    case 'followGrid':
+      return { ...command, chart: n(command.chart), grid: n(command.grid) };
     case 'moveTile':
       return { ...command, tile: n(command.tile), sheet: n(command.sheet) };
     case 'stack':

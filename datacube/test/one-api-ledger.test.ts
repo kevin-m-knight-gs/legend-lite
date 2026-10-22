@@ -74,9 +74,14 @@ interface Entry {
 // page's select), and drills a chart down and back up (chart.drill, drill_up: headless chartDrill, chart-spec.ts
 // drillDown and drillUp, as setChart); tested by test_page.py Abilities and OverClasses, and one-api-gestures.test.ts
 // (the screen's click told as chartPick makes it)
+// 2026-10-22 (S6 D: K11, D7's Show Grid): L8_KINDS 4 -> 3, UNCHECKED 1 -> 0 -- Open in grid and its Update are gone,
+// and setChartCube with them; Show Grid makes a frozen or detached chart's grid of its own grouping by chart-spec.ts
+// chartGrid -- the screen's gesture (addGrid, followGrid, setChart) and Python's chart.grid() (headless chartOwnGrid) by
+// the same rule; the telling pattern below names followGrid in setChartCube's place; tested by test_page.py Abilities,
+// one-api-gestures.test.ts (four Show Grid gestures), page-commands.test.ts (followGrid)
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 4, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 1,
+  L8_KINDS: 3, L8_SOURCES: 3, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
 function pinned(name: string, size: number): void {
@@ -139,7 +144,7 @@ const L1_REACH: Record<string, Entry> = {
 
 /** What a function tells: any command, by any way the app tells one. A write in a function that tells one is no gap. */
 // (the page's rename and a grid's own move of its rows are told by the page: page-app.ts rename, cube-page.ts on 'moved')
-const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebuilt|setChartCube|select)'|channel\??\.edit\(|onPageCommand\??\.\(|#tell\(|#apply\(|page\.rename\(|#emit\('moved'\)/;
+const TELLS = /kind: '(?:renamePage|snap|live|modelInto|modelPin|modelKeep|rebuilt|followGrid|select)'|channel\??\.edit\(|onPageCommand\??\.\(|#tell\(|#apply\(|page\.rename\(|#emit\('moved'\)/;
 const quiet = (body: string): boolean => !TELLS.test(body);
 
 /** Where the grid says the rows it reads moved, or moves them (a snap, going live): the page's copies change. */
@@ -230,9 +235,6 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
   clickSort: { python: { items: [], why: "nature: a header click is the screen's; Python sorts by `sorts` and `addSort`" } },
   clickTreeSort: { python: { items: [], why: "nature: the tree column's click is the screen's" } },
   measures: { screen: { items: [], why: "nature: Python's measure under another name; the screen's panels set columns" } },
-  // 2026-10-21, One API S1 P8: a detached chart's Update tells its query as setChartCube -- Python's Open in grid and
-  // Update are K11's (S6), so the kind comes in listed (L8_KINDS 12 -> 13; signed off by the user, 2026-10-22: D10)
-  setChartCube: { python: { items: ['K11'] } },
 };
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */
@@ -256,7 +258,6 @@ const L8_UNASKED: Record<string, Entry> = {};
  * these are register entries no test holds -- listed so, and pinned, never mistaken for checked.
  */
 const UNCHECKED_UNTIL_S6: Record<string, string> = {
-  K11: "a chart's Open in grid and Update",
 };
 
 describe('L8: every command kind and source kind, against who makes and reads it', () => {

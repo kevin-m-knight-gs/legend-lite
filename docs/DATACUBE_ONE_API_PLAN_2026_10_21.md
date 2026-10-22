@@ -550,7 +550,16 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   `drillRefusal` beside `drillLevels` (headless `chartDrill`, as `setChart`) (test_page.py `Abilities`)
 - [x] **K10** Copy of Grid — closed S6: `grid.copy()`, its cube by cube-document.ts `cubeCopied` (headless `gridCopied`),
   the one the screen's copy writes, held the same by one-api-gestures.test.ts (test_page.py `Abilities`)
-- [ ] **K11** a chart's Open in grid and Update — S6, L8 (D7: one Show Grid replaces them; D8: `chart.grid()`)
+- [x] **K11** a chart's Open in grid and Update — closed S6: D7's one **Show Grid** replaces them, on the screen and
+  in Python (`chart.grid()`, the read-only `chart.grid` property gone): a following chart's grid shown, the page as it
+  is; a frozen or detached chart's grid of its own grouping and query made by chart-spec.ts `chartGrid` (its column
+  across and split the rows, its values the Column Properties, its selection off the filter) in one step -- `addGrid`,
+  a new `followGrid` (the chart on the grid's cube, its selection off the cube it read, a detached chart's kept cube
+  let go), `setChart` (the chart following it, drawn as it was). A cube alone saves its own grid alone, so there Show
+  Grid only shows the grid a following chart follows (a chart moved onto another grid would be lost on save: found by
+  the test rewrite). `setChartCube`, the editing grid, its Update and the board's kept `<chart>-query` grids are deleted (headless `chartOwnGrid`; test_page.py `Abilities`,
+  one-api-gestures.test.ts's four Show Grid gestures, page-commands.test.ts, page-app.test.ts, chart-tiles.test.ts,
+  cube-page-shell.test.ts, verify-charts.mjs, tour.mjs)
 - [x] **K12** open a saved page by id — closed S6: `ll.Page.open(id)`, the record read as the tab's Open… reads it
   (page-document.ts `savedPage`, moved out of the app: D6; headless `pageOfRecord`) (test_page.py `Abilities`)
 

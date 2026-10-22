@@ -28,7 +28,9 @@ import {
   type QuerySnapshot,
   type RowColumn,
   type SortSpec,
+  withoutConditions,
 } from './snapshot.ts';
+import { applyToSnapshot, type CubeConfiguration } from './config.ts';
 import { defaultKind, familyOf, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 
@@ -874,14 +876,14 @@ function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
 }
 
 /**
- * A CHART'S VALUES AS A GRID'S COLUMN PROPERTIES (Open in Grid): each (column, aggregate) pair once -- two values of
+ * A CHART'S VALUES AS A GRID'S COLUMN PROPERTIES (Show Grid: chartGrid): each (column, aggregate) pair once -- two values of
  * one pair (a sum and its running total) carried by one column. A pair a column of the grid carries already (its own
- * column at that Aggregation, or a copy of it: a converted measures list's, an earlier Open in Grid's) is that column's;
+ * column at that Aggregation, or a copy of it: a converted measures list's, an earlier Show Grid's) is that column's;
  * any other is made by grid-edits.ts measuresAsColumns, the one rule: the first of a column its Aggregation, unless the
  * column is the chart's across or split (a key the grid groups by) or carries another value already, and those a
  * calculated column named for the value, apart from every name the grid has. `carriedBy` says which column carries
- * each value, for Update (followCube); a value no column carries -- a group-level column plotted as it is, a pair
- * left out -- has none, and Update leaves it as it is.
+ * each value, for the chart following that grid (followCube); a value no column carries -- a group-level column
+ * plotted as it is, a pair left out -- has none, and the chart keeps it as it is.
  */
 export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly ChartMeasure[]): {
   readonly draft: D;
@@ -914,6 +916,43 @@ export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly 
   return { draft: made.draft, notes: made.notes, carriedBy: (m) => carrier.get(pairKey(m)) };
 }
 
+/**
+ * Why a chart has no grouping of its own to show in a grid (D7, Show Grid; Python's chart.grid()), in words -- or null:
+ * it has one, its column across (and its split). A chart of rows (a scatter, a scatter matrix), of the grid as shown (a
+ * treemap, a sunburst, a tree), of places (a map) or of one figure (a gauge) has none a grid's Rows would hold.
+ */
+export function ownGridRefusal(spec: ChartSpec): string | null {
+  if (plotsRows(spec) || GRID_MARKS.has(spec.mark) || MAP_MARKS.has(spec.mark) || spec.mark === 'gauge') {
+    return `a ${spec.mark} chart has no grouping of its own to show in a grid`;
+  }
+  return spec.x === undefined ? 'the chart has nothing across: no grouping of its own to show in a grid' : null;
+}
+
+/**
+ * A CHART'S OWN GRID (D7: Show Grid on a frozen or a detached chart; Python's chart.grid()): the grid of the chart's own
+ * grouping and query -- its cube's query (`draft`: as its grid has it, or as the chart kept it, detached) with the chart's
+ * selection off its filter, grouped by its column across and its split, pivoted by nothing, its values the grid's Column
+ * Properties (chartValuesAsColumns, each value read back from the column that carries it) -- and the chart following
+ * that grid: the same chart, frozen no more. Or why it has none (ownGridRefusal).
+ */
+export function chartGrid(draft: GridDraft, spec: ChartSpec, selection: readonly FilterNode[]): {
+  readonly snapshot: CubeSnapshot;
+  readonly configuration: CubeConfiguration;
+  readonly spec: ChartSpec;
+  readonly notes: readonly string[];
+} | string {
+  const refused = ownGridRefusal(spec);
+  if (refused !== null) return refused;
+  const { filter: was, ...query } = draft.snapshot;
+  const filter = withoutConditions(was, selection) ?? undefined;
+  const rows = [spec.x!, ...(spec.split !== undefined ? [spec.split] : [])];
+  const made = chartValuesAsColumns({ ...draft, snapshot: { ...query, ...(filter ? { filter } : {}), rows, pivotOn: [] } }, spec.y);
+  // folded: the grid reads its query back over its configuration, whose Aggregations are the chart's values now
+  const snapshot = applyToSnapshot(made.draft.snapshot, made.draft.config);
+  const { frozen: _frozen, ...following } = spec;
+  return { snapshot, configuration: made.draft.config, spec: followCube(following, snapshot, made.carriedBy), notes: made.notes };
+}
+
 /** A name for a calculated column carrying `m` that the grid has not: the value's own (`max_notional`), else by its column. */
 function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
   const base = baseName(m);
@@ -927,7 +966,7 @@ function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
 /**
  * The grid's column that carries a chart's value as it is, if one does: its own column at that aggregate (not a key the
  * grid groups by, which it does not aggregate), else a calculated column that copies it (grid-edits.ts copiedColumn,
- * as a converted measures list or Open in Grid makes one) at that aggregate -- so a saved page's min and max of one
+ * as a converted measures list or Show Grid makes one) at that aggregate -- so a saved page's min and max of one
  * column, converted into the column and a copy, stay two values.
  */
 function carryingColumn(m: ChartMeasure, s: CubeShape): string | undefined {
@@ -1160,7 +1199,7 @@ export function followRefusal(told: readonly string[], made: ChartSpec, followed
 /**
  * A live chart, regrouped the way the cube is now: its first row group across; its second row group -- else its first
  * column label -- as the split; each value on the grid's Aggregation of the column carrying it (followedValue:
- * `carriedBy` -- Update's, from Open in Grid; else carryingColumn, a value the grid carries as it is keeping its
+ * `carriedBy` -- Show Grid's, from the grid it makes (chartGrid); else carryingColumn, a value the grid carries as it is keeping its
  * aggregate, and one it does not following its own column's). The mark and the options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
  * values, not groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */

@@ -843,11 +843,12 @@ export class PageApp {
         for (const grid of this.#live()) grid.useSettings(values);
         this.#options.onSettingsChanged?.(values);
       },
-      // a copy (Copy of Grid; a detached chart's own grid) is made by the maker of the grid it copies
-      gridLike: (from, snapshot) => {
+      // a copy (Copy of Grid; the grid of a chart's own grouping Show Grid makes) is made by the maker of the grid it
+      // copies -- one kept off the board for a detached chart too
+      gridLike: (from, snapshot, configuration) => {
         const was = this.#grids.get(from);
         if (!was || !this.grid(from)) throw new Error(`no grid ${from} on the page to copy`);
-        return this.#maker(was.make, { snapshot, configuration: was.grid.configuration });
+        return this.#maker(was.make, { snapshot, configuration: configuration ?? was.grid.configuration });
       },
       sheetLabel: (id) => this.sheetLabel(id),
       onSheets: () => this.#onSheets(),
@@ -856,7 +857,7 @@ export class PageApp {
       // it makes; its commands told
       onPageEdit: (edit) => this.#edit(edit),
       taken: () => takenIds(this.#state.draft),
-      // any grid it made: one the board waits to place or to keep (a detached chart's Update) too
+      // any grid it made: one the board waits to place too
       documentOf: (grid) => this.#grids.get(grid)?.grid.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
       onPick: (chart, grid, conditions) => this.#pick(chart, grid, conditions),

@@ -1,10 +1,11 @@
 // The page shell (page/cube-page.ts) as a person meets it, beyond what chart-tiles.test.ts and page-app.test.ts hold:
-// OPEN IN GRID and its Update -- the chart's values as the editing grid's Column Properties, an Aggregation changed
-// there carried back, an editing grid closed without Update throwing its changes away, and a DETACHED chart's Update
-// replacing the query it keeps (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.5) -- then SHEETS (a tile dragged onto
+// SHOW GRID (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D7) -- the grid a following chart follows shown, the page as it
+// is; a frozen or a DETACHED chart's grid of its own grouping made in one step, the chart following it from then on, its
+// values the new grid's Column Properties (an Aggregation changed there reaching it), its selection taken off its old
+// grid's filter, the cube a detached chart kept let go, undone and redone as one step -- then SHEETS (a tile dragged onto
 // a tab, a sheet deleted with a grid whose charts are elsewhere, a page reopened without its deleted first sheet, each
-// sheet's own layout undo), TITLES (a renamed tile moved and saved), a new grid's id beside a kept one, an export with
-// an editing grid open, and a chart's click-to-filter SELECTION (its chip, cleared by it or by the grid's filter).
+// sheet's own layout undo), TITLES (a renamed tile moved and saved), a new grid's id beside a kept one, and a chart's
+// click-to-filter SELECTION (its chip, cleared by it or by the grid's filter).
 //
 // Real grids (CubeApps over a fake engine: cube-fixture.ts), on a page of its own made the way DataCube's app makes
 // one (page-app.test.ts), or on a cube alone (chart-tiles.test.ts). No test here needs the WebAssembly planner.
@@ -16,7 +17,6 @@ import { JSDOM } from 'jsdom';
 import { CubeApp } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { openCube, type CubeDocument, type FileSource } from '../src/cube-document.ts';
-import type { ExportPage } from '../src/export-model.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { CubePage, type SpawnedGrid } from '../src/page/cube-page.ts';
@@ -187,21 +187,18 @@ function chartMenu(chart: string): HTMLElement[] {
     .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   return menuItems();
 }
-/** Open in grid, from the chart's right-click menu. */
-async function openInGrid(chart: string): Promise<void> {
-  const item = chartMenu(chart).find((i) => label(i) === 'Open in grid');
-  assert.ok(item && item.getAttribute('aria-disabled') !== 'true', `${chart} offers Open in grid`);
+/** Show Grid, from the chart's right-click menu (D7): the grid it follows shown, or one of its own grouping made. */
+async function showGrid(chart: string): Promise<void> {
+  const item = chartMenu(chart).find((i) => label(i) === 'Show Grid');
+  assert.ok(item && item.getAttribute('aria-disabled') !== 'true', `${chart} offers Show Grid`);
   item.click();
   await settle();
 }
-/** The editing grid's Update button. */
-const updateButton = (chart: string): HTMLButtonElement | undefined =>
-  [...tile(`edit-${chart}`).querySelectorAll<HTMLButtonElement>('.dc-tile-actions > button')].find((x) => x.textContent?.startsWith('Update'));
-async function update(chart: string): Promise<void> {
-  const button = updateButton(chart);
-  assert.ok(button, `the editing grid of ${chart} has its Update`);
-  button.click();
-  await settle();
+/** Whether a chart's right-click menu offers Show Grid: the entry is always there, disabled where it shows nothing. */
+function offersShowGrid(chart: string): boolean {
+  const item = chartMenu(chart).find((i) => label(i) === 'Show Grid');
+  assert.ok(item, `${chart}'s menu has Show Grid`);
+  return item.getAttribute('aria-disabled') !== 'true';
 }
 /** A tile taken off by its own x. */
 async function removeTile(id: string): Promise<void> {
@@ -291,11 +288,11 @@ async function drawn(): Promise<void> {
 const SUM: ChartMeasure = { column: 'notional', fn: 'sum' };
 const MAX: ChartMeasure = { column: 'notional', fn: 'max' };
 
-describe('Open in grid on a DETACHED chart: Update replaces the query it keeps', () => {
+describe('Show Grid on a DETACHED chart: a grid of its own grouping, which it follows from then on (D7)', () => {
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
-  it('an untouched Update leaves its values as they were -- its grid\'s Aggregation had moved on -- and so does a second round', async () => {
+  it('its values as they were -- its grid\'s Aggregation had moved on -- said in its own grid\'s Column Properties; the cube it kept let go', async () => {
     const { a, b } = await twoGrids();
     const chart = await chartOf(b);
     await togglePill(chart);
@@ -306,28 +303,21 @@ describe('Open in grid on a DETACHED chart: Update replaces the query it keeps',
     assert.deepEqual(valuesOf(chart), [SUM]);
     await removeTile(b);
     assert.equal(pill(chart), 'Detached');
-    const before = chartView(chart)!.spec;
-    await openInGrid(chart);
-    // the editing grid's Column Properties say the chart's sum, not the kept grid's average
-    assert.equal(await aggregationShown(`edit-${chart}`, 'notional'), 'sum');
-    assert.deepEqual(rowChips(`edit-${chart}`), ['region', 'desk'], 'grouped as the chart is');
-    await update(chart);
-    assert.equal(tile(`edit-${chart}`), null, 'the editing grid closed');
-    assert.deepEqual(chartView(chart)!.spec, before, 'the chart as it was: its values, its grouping, frozen');
-    assert.equal(pill(chart), 'Detached');
-    // a query of its own, kept off the board in place of its grid's (no chart reads that one now)
-    const own = `${chart}-query`;
-    assert.deepEqual(pg().cubes, [a, own]);
-    assert.equal(chartView(chart)!.cube, own);
-    // a second round: the kept query it reads now is opened again, and Update keeps the same values
-    await openInGrid(chart);
-    assert.equal(await aggregationShown(`edit-${chart}`, 'notional'), 'sum', 'the second editing grid says the sum too');
-    await update(chart);
-    assert.deepEqual(chartView(chart)!.spec, before, 'unchanged by a second untouched round');
-    assert.deepEqual(pg().cubes, [a, own], 'the query it replaced is gone: one kept grid, not two');
+    const { frozen: _frozen, ...before } = chartView(chart)!.spec;
+    await showGrid(chart);
+    const own = chartView(chart)!.cube;
+    assert.notEqual(own, b);
+    assert.deepEqual(pg().grids, [a, own], 'a grid of its own, on the page');
+    assert.deepEqual(pg().cubes, [a, own], 'the cube it kept for the removed grid let go');
+    assert.equal(sheetOf(own), sheetOf(chart), 'beside it');
+    // its own grid's Column Properties say the chart's sum, not the kept grid's average; grouped as the chart is
+    assert.equal(await aggregationShown(own, 'notional'), 'sum');
+    assert.deepEqual(rowChips(own), ['region', 'desk']);
+    assert.deepEqual(chartView(chart)!.spec, before, 'the chart as it was -- its values, its grouping -- following now');
+    assert.equal(pill(chart), 'Dynamic');
   });
 
-  it('two values of one column (a sum and a max) both come back, round after round, carried by one calculated copy', async () => {
+  it('two values of one column (a sum and a max) both come back, carried by its own grid\'s calculated copy, and stay as it follows', async () => {
     const { a, b } = await twoGrids();
     const chart = await chartOf(b);
     await togglePill(chart);
@@ -337,192 +327,154 @@ describe('Open in grid on a DETACHED chart: Update replaces the query it keeps',
     await settle();
     assert.deepEqual(valuesOf(chart), [SUM, MAX]);
     await removeTile(b);
-    const own = `${chart}-query`;
-    for (const round of [1, 2, 3]) {
-      await openInGrid(chart);
-      await update(chart);
-      assert.deepEqual(valuesOf(chart), [SUM, MAX], `round ${round}: both values as they were`);
-      // the max is carried by a calculated copy of notional: made once, not once more each round
-      assert.deepEqual(pg().grid(own)!.snapshot.derived.map((d) => d.name), ['max_notional'], `round ${round}`);
-    }
+    await showGrid(chart);
+    const own = chartView(chart)!.cube;
+    assert.deepEqual(valuesOf(chart), [SUM, MAX], 'both values as they were');
+    // the max is carried by a calculated copy of notional, made once
+    assert.deepEqual(pg().grid(own)!.snapshot.derived.map((d) => d.name), ['max_notional']);
     assert.deepEqual(pg().cubes, [a, own]);
+    // its grid regrouped: the chart follows its grouping and keeps both values
+    await ungroup(own, 'desk');
+    assert.equal(chartView(chart)!.spec.split, undefined, 'regrouped as its grid is');
+    assert.deepEqual(valuesOf(chart), [SUM, MAX], 'still both');
   });
 
-  it('an Aggregation changed in the editing grid\'s Column Properties reaches the chart and the query it keeps', async () => {
+  it('an Aggregation changed in its own grid\'s Column Properties reaches the chart, which follows it, saved and reopened', async () => {
     const { a, b } = await twoGrids();
     const [chart] = await detached(b);
-    await openInGrid(chart!);
-    await setAggregation(`edit-${chart}`, 'notional', 'max');
-    await update(chart!);
+    await showGrid(chart!);
+    const own = chartView(chart!)!.cube;
+    await setAggregation(own, 'notional', 'max');
     assert.deepEqual(valuesOf(chart!), [MAX], 'the chart takes the max');
-    assert.equal(chartView(chart!)!.spec.frozen, true);
-    // its kept query says the max as well: opened again, the editing grid starts on it, and an untouched Update keeps it
-    await openInGrid(chart!);
-    assert.equal(await aggregationShown(`edit-${chart}`, 'notional'), 'max');
-    await update(chart!);
-    assert.deepEqual(valuesOf(chart!), [MAX]);
-    assert.deepEqual(pg().cubes, [a, `${chart}-query`]);
-    // saved and reopened, it still reads its own query, detached -- and Update replaces that one as before
+    assert.equal(chartView(chart!)!.spec.frozen, undefined, 'following its grid');
+    // saved and reopened: it follows its own grid, which says the max
     reopen(pg().document('Q3')!);
     await settle();
-    assert.equal(pill(chart!), 'Detached');
+    assert.equal(pill(chart!), 'Dynamic');
     assert.deepEqual(valuesOf(chart!), [MAX]);
-    assert.deepEqual(pg().cubes, [a, `${chart}-query`]);
-    await openInGrid(chart!);
-    assert.equal(await aggregationShown(`edit-${chart}`, 'notional'), 'max');
-    await update(chart!);
-    assert.deepEqual(valuesOf(chart!), [MAX]);
-    assert.deepEqual(pg().cubes, [a, `${chart}-query`]);
+    assert.deepEqual(pg().cubes, [a, own]);
+    assert.equal(await aggregationShown(own, 'notional'), 'max');
   });
 
-  it('two charts detached from one grid: Update gives one a query of its own; the other keeps the grid\'s, until it goes', async () => {
+  it('two charts detached from one grid: Show Grid gives one a grid of its own; the other keeps the removed grid\'s cube, until it goes', async () => {
     const { a, b } = await twoGrids();
     const [x, y] = await detached(b, 2);
-    await openInGrid(x!);
-    await ungroup(`edit-${x}`, 'desk');
-    await update(x!);
-    assert.equal(chartView(x!)!.spec.split, undefined, 'regrouped as its editing grid was');
-    assert.equal(chartView(y!)!.spec.split, 'desk', 'the other is as it was');
-    assert.equal(chartView(y!)!.cube, b, 'and still reads the removed grid\'s query');
-    assert.deepEqual(pg().cubes, [a, b, `${x}-query`]);
-    // opened again, its editing grid groups by its column across alone: it has no split now
-    await openInGrid(x!);
-    assert.deepEqual(rowChips(`edit-${x}`), ['region']);
-    await removeTile(`edit-${x}`);
-    // the removed grid's last chart gone, the grid kept for it goes too; the other's own query stays
+    await showGrid(x!);
+    const own = chartView(x!)!.cube;
+    assert.equal(pill(x!), 'Dynamic');
+    assert.equal(pill(y!), 'Detached', 'the other as it was');
+    assert.equal(chartView(y!)!.cube, b, 'and still reads the removed grid\'s cube');
+    assert.deepEqual([...pg().cubes].sort(), [a, b, own].sort());
+    // the removed grid's last chart gone, the cube kept for it goes too; the new grid stays
     await removeTile(y!);
-    assert.deepEqual(pg().cubes, [a, `${x}-query`]);
-  });
-
-  it('a chart whose grid is removed while its editing grid is open: Update still writes it back, into a query of its own', async () => {
-    const { a, b } = await twoGrids();
-    const chart = await chartOf(b);
-    await togglePill(chart);
-    await openInGrid(chart);
-    await ungroup(`edit-${chart}`, 'desk');
-    await removeTile(b);
-    assert.equal(pill(chart), 'Detached');
-    assert.ok(tile(`edit-${chart}`), 'its editing grid is still open');
-    await update(chart);
-    assert.equal(chartView(chart)!.spec.split, undefined);
-    assert.deepEqual(pg().cubes, [a, `${chart}-query`], 'its query its own; the removed grid no chart reads, gone');
+    assert.deepEqual([...pg().cubes].sort(), [a, own].sort());
   });
 });
 
-describe('Open in grid on a frozen chart: Update, and closing without it', () => {
+describe('Show Grid on a following chart and on a frozen one', () => {
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
-  it('an Aggregation changed in the editing grid\'s Column Properties reaches the chart on Update; its grid is untouched', async () => {
-    let changes = 0;
-    newPage({ onChange: () => { changes += 1; } });
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
+  it('a following chart: the grid it follows shown, on its sheet -- nothing told, the page as it was', async () => {
+    const told: PageCommand[] = [];
+    const { a, b } = await twoGrids({ onPageCommand: (c) => told.push(c) });
     const chart = await chartOf(a);
-    await togglePill(chart);
-    const title = chartView(chart)!.title;
-    await openInGrid(chart);
-    assert.equal(tile(`edit-${chart}`).querySelector('.dc-tile-title')?.textContent, `Editing ${title}`);
-    assert.equal(updateButton(chart)?.textContent, `Update ${title}`);
-    await setAggregation(`edit-${chart}`, 'notional', 'max');
-    const told = changes;
-    await update(chart);
-    assert.deepEqual(valuesOf(chart), [MAX]);
-    assert.equal(chartView(chart)!.spec.frozen, true, 'still frozen');
-    assert.ok(changes > told, 'the page is told it changed');
-    // the chart's grid never moved: its Column Properties still say notional's default
-    assert.equal(await aggregationShown(a, 'notional'), '');
-    assert.deepEqual(rowChips(a), ['region', 'desk']);
-  });
-
-  it('closing the editing grid without Update leaves the chart as it was, whatever was changed in it', async () => {
-    newPage();
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
-    const chart = await chartOf(a);
-    await togglePill(chart);
-    const before = JSON.stringify(chartView(chart)!.spec);
-    await openInGrid(chart);
-    await setAggregation(`edit-${chart}`, 'notional', 'max');
-    await ungroup(`edit-${chart}`, 'desk');
-    await removeTile(`edit-${chart}`);
-    assert.equal(tile(`edit-${chart}`), null);
-    assert.equal(JSON.stringify(chartView(chart)!.spec), before, 'neither the Aggregation nor the grouping reached it');
-    // opened again, a fresh editing grid from the chart: not the one thrown away
-    await openInGrid(chart);
-    assert.deepEqual(rowChips(`edit-${chart}`), ['region', 'desk']);
-    assert.equal(await aggregationShown(`edit-${chart}`, 'notional'), '');
-  });
-
-  it('following the grid again closes the editing grid; removing a chart closes its editing grid with it', async () => {
-    newPage();
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
-    const x = await chartOf(a);
-    const y = await chartOf(a);
-    await togglePill(x);
-    await togglePill(y);
-    await openInGrid(x);
-    await openInGrid(y);
-    // Follow the grid: an open editing grid has nothing left to edit
-    await togglePill(x);
-    assert.equal(pill(x), 'Dynamic');
-    assert.equal(tile(`edit-${x}`), null, 'its editing grid closed');
-    assert.ok(tile(`edit-${y}`), 'the other chart\'s is still open');
-    await removeTile(y);
-    assert.equal(tile(`edit-${y}`), null, 'the chart\'s editing grid went with it');
-    assert.deepEqual(pg().views().views.map((v) => v.id), [a, x]);
-  });
-
-  it('Open in grid again, while the editing grid is open, shows that one with its changes rather than a second', async () => {
-    newPage();
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
-    const chart = await chartOf(a);
-    await togglePill(chart);
-    await openInGrid(chart);
-    await ungroup(`edit-${chart}`, 'desk');
-    await openInGrid(chart);
-    assert.equal(host.querySelectorAll('[data-tile^="edit-"]').length, 1, 'one editing grid');
-    assert.deepEqual(rowChips(`edit-${chart}`), ['region'], 'its change kept');
-    // the chart moved to another sheet, its editing grid left where it was: Open in grid from there shows that sheet
+    // the chart on a sheet of its own, shown: its grid is on the first
     const first = pg().shownSheet;
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    chartMenu(chart).find((i) => label(i) === 'New Sheet')!.click();
     await settle();
-    clickTab('trades.csv');
-    await settle();
-    chartMenu(chart).find((i) => label(i) === 'Sheet 2')!.click();
-    await settle();
-    clickTab('Sheet 2');
+    pg().showSheet(sheetOf(chart)!);
     await settle();
     assert.notEqual(pg().shownSheet, first);
-    await openInGrid(chart);
-    assert.equal(pg().shownSheet, first, 'the editing grid\'s sheet shown');
-    assert.equal(sheetOf(`edit-${chart}`), first);
-    assert.deepEqual(rowChips(`edit-${chart}`), ['region'], 'still the one with its change');
+    const before = pg().document('Q3')!;
+    const labelBefore = pg().undoLabel;
+    told.length = 0;
+    await showGrid(chart);
+    assert.equal(pg().shownSheet, first, 'its grid\'s sheet shown');
+    assert.deepEqual(told, [], 'nothing told');
+    assert.equal(pg().undoLabel, labelBefore, 'no step');
+    assert.deepEqual(pg().document('Q3'), before, 'the page as it was');
+    assert.deepEqual(pg().grids, [a, b]);
+    assert.equal(pill(chart), 'Dynamic');
   });
 
-  it('an export of the page leaves an open editing grid out: a moment\'s work, not the page', async () => {
-    const exports = new Map<string, () => ExportPage | undefined>();
-    // a maker that keeps each grid's export, as its CubeApp would call it
-    const keep: GridMaker = (gridHost, spawned, start) => {
-      if (spawned.id !== undefined && spawned.exportPage) exports.set(spawned.id, spawned.exportPage);
-      return over('trades.csv')(gridHost, spawned, start);
-    };
-    newPage();
-    const a = pg().addGrid(keep);
+  it('a frozen chart: one step makes a grid of its own grouping beside it, which it follows; the grid it was frozen on untouched', async () => {
+    let changes = 0;
+    const told: PageCommand[] = [];
+    newPage({ onChange: () => { changes += 1; }, onPageCommand: (c) => told.push(c) });
+    const a = pg().addGrid(over('trades.csv'));
     await settle();
-    assert.equal(exports.get(a)?.(), undefined, 'no chart on its sheet: the grid exports alone');
     const chart = await chartOf(a);
     await togglePill(chart);
-    await openInGrid(chart);
-    const exported = exports.get(a)?.();
-    assert.ok(exported, 'a page export, with its chart');
-    assert.deepEqual(exported.tiles.map((t) => [t.id, t.kind]).sort(), [[a, 'grid'], [chart, 'chart']].sort());
+    // its grid moves on; the frozen chart keeps region by desk
+    await ungroup(a, 'desk');
+    assert.equal(chartView(chart)!.spec.split, 'desk');
+    const n = told.length;
+    const was = changes;
+    await showGrid(chart);
+    const own = chartView(chart)!.cube;
+    assert.notEqual(own, a);
+    assert.deepEqual(told.slice(n).map((c) => c.kind), ['addGrid', 'followGrid', 'setChart'],
+      'one step: the grid added, the chart on its cube, following it');
+    assert.equal(pg().undoLabel, 'Show Grid');
+    assert.ok(changes > was, 'the page is told it changed');
+    assert.deepEqual(rowChips(own), ['region', 'desk'], 'grouped as the chart is');
+    assert.equal(sheetOf(own), sheetOf(chart), 'beside it');
+    assert.equal(chartView(chart)!.spec.frozen, undefined, 'following it');
+    assert.equal(chartView(chart)!.spec.split, 'desk', 'drawn as it was');
+    assert.equal(pill(chart), 'Dynamic');
+    assert.deepEqual(rowChips(a), ['region'], 'the grid it was frozen on never moved');
+    // following its own grid: an Aggregation changed in its Column Properties reaches it; its old grid's no longer does
+    await setAggregation(own, 'notional', 'max');
+    assert.deepEqual(valuesOf(chart), [MAX]);
+    await setAggregation(a, 'notional', 'average');
+    assert.deepEqual(valuesOf(chart), [MAX], 'its old grid no longer moves it');
+    assert.equal(await aggregationShown(a, 'notional'), 'average');
+  });
+
+  it('a frozen chart filtering its grid: its selection taken off that grid\'s filter, in the same step, and never on its own grid\'s', async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await drawn();
+    await togglePill(chart);
+    clickMark(tile(chart), 0, 0);
+    await settle();
+    assert.ok(pg().grid(a)!.snapshot.filter && chartView(chart)!.selection, 'the click filtered its grid');
+    const n = told.length;
+    await showGrid(chart);
+    const own = chartView(chart)!.cube;
+    assert.deepEqual(told.slice(n).map((c) => c.kind), ['select', 'addGrid', 'followGrid', 'setChart'], 'one step, its selection cleared first');
+    assert.equal(pg().undoLabel, 'Show Grid');
+    assert.equal(chartView(chart)!.selection, undefined, 'the chart selects nothing');
+    assert.equal(pg().grid(a)!.snapshot.filter, undefined, 'off its old grid\'s filter, by that grid');
+    assert.equal(pg().grid(own)!.snapshot.filter, undefined, 'never on its own grid');
+    assert.equal((tile(chart).querySelector('.dc-tile-chip') as HTMLElement).hidden, true, 'its chip gone');
+  });
+
+  it('shown again, a chart shows the grid it follows now, on that grid\'s sheet: never a second one', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await togglePill(chart);
+    await showGrid(chart);
+    const own = chartView(chart)!.cube;
+    const first = pg().shownSheet;
+    chartMenu(chart).find((i) => label(i) === 'New Sheet')!.click();
+    await settle();
+    pg().showSheet(sheetOf(chart)!);
+    await settle();
+    assert.notEqual(pg().shownSheet, first);
+    await showGrid(chart);
+    assert.equal(pg().shownSheet, first, 'its grid\'s sheet shown');
+    assert.deepEqual(pg().grids, [a, own], 'no second grid');
   });
 });
 
-describe('a chart\'s right-click menu: Options..., and Open in grid offered only where it opens a grid', () => {
+describe('a chart\'s right-click menu: Options..., and Show Grid offered only where it shows a grid', () => {
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
@@ -539,10 +491,10 @@ describe('a chart\'s right-click menu: Options..., and Open in grid offered only
     assert.equal(form().hidden, true);
   });
 
-  it('a frozen KPI with no column across: Open in grid is not offered when it would open nothing', async () => {
-    // A KPI may have no column across (its trend: chart-spec.ts chartProblems). Open in grid groups the editing grid by
-    // the chart's column across (#openEditor returns without one), so the menu should not offer it -- as it does not
-    // for a gauge, which never has one.
+  it('a frozen KPI with no column across: Show Grid is not offered when it would show nothing', async () => {
+    // A KPI may have no column across (its trend: chart-spec.ts chartProblems). Show Grid groups a frozen chart's own
+    // grid by its column across (chart-spec.ts chartGrid, ownGridRefusal: none without one), so the menu should not
+    // offer it -- as it does not for a gauge, which never has one.
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
@@ -558,17 +510,19 @@ describe('a chart\'s right-click menu: Options..., and Open in grid offered only
     assert.equal(chartView(chart)!.spec.mark, 'kpi');
     assert.equal(chartView(chart)!.spec.x, undefined);
     assert.equal(pill(chart), 'Frozen');
-    const item = chartMenu(chart).find((i) => label(i) === 'Open in grid');
+    const item = chartMenu(chart).find((i) => label(i) === 'Show Grid');
     assert.ok(item, 'the entry is in the menu');
     const offered = item.getAttribute('aria-disabled') !== 'true';
+    const grids = pg().grids.length;
     item.click();
     await settle();
-    const opened = tile(`edit-${chart}`) !== null;
-    // offered exactly when it opens one (either way out of the mismatch: the entry disabled, or an editing grid)
-    assert.equal(offered, opened, `offered: ${String(offered)}, but clicked it opened ${opened ? 'an' : 'no'} editing grid`);
+    const opened = pg().grids.length > grids;
+    // offered exactly when it makes one (either way out of the mismatch: the entry disabled, or a grid of its own)
+    assert.equal(offered, opened, `offered: ${String(offered)}, but clicked it made ${opened ? 'a' : 'no'} grid`);
+    assert.equal(offered, false);
   });
 
-  it('a map: Open in grid is not offered (its places are its own columns, which Update would not change), and its pill says so', async () => {
+  it('a map: frozen, Show Grid is not offered (its places are its own columns, no grouping a grid holds); following, it shows its grid; its pill says so', async () => {
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
@@ -577,10 +531,32 @@ describe('a chart\'s right-click menu: Options..., and Open in grid offered only
     reopen({ ...doc, views: doc.views.map((v) => (v.kind !== 'chart' ? v : { ...v, spec: { ...v.spec, mark: 'map' as const, frozen: true } })) });
     await settle();
     assert.equal(chartView(chart)!.spec.mark, 'map');
-    assert.equal(chartMenu(chart).find((i) => label(i) === 'Open in grid')?.getAttribute('aria-disabled'), 'true');
+    assert.equal(offersShowGrid(chart), false);
     await togglePill(chart);
+    assert.equal(offersShowGrid(chart), true, 'following its grid: that grid shown');
     const title = tile(chart).querySelector<HTMLElement>('.dc-tile-actions .dc-titlebar-toggle')!.title;
     assert.match(title, /a map is placed by its own columns, not the grid's grouping/);
+  });
+
+  it('a frozen scatter: Show Grid is not offered (its marks are rows, no grouping of its own); clicked anyway, nothing is made', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const doc = pg().document('Q3')!;
+    reopen({ ...doc, views: doc.views.map((v) => {
+      if (v.kind !== 'chart') return v;
+      const { split: _split, ...rest } = v.spec;
+      return { ...v, spec: { ...rest, mark: 'scatter' as const, x: 'notional', frozen: true } };
+    }) });
+    await settle();
+    assert.equal(chartView(chart)!.spec.mark, 'scatter');
+    assert.equal(pill(chart), 'Frozen');
+    assert.equal(offersShowGrid(chart), false);
+    chartMenu(chart).find((i) => label(i) === 'Show Grid')!.click();
+    await settle();
+    assert.deepEqual(pg().grids, [a], 'no grid made');
+    assert.equal(chartView(chart)!.spec.frozen, true, 'the chart as it was');
   });
 });
 
@@ -1009,45 +985,42 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     assert.deepEqual(pg().document('Q3')!.cubes, before.cubes, 'its cube as it was, its open groups among it');
   });
 
-  it("a detached chart's Update, then its grid's removal, undone: it follows its grid again (the audit's 5)", async () => {
+  it("a detached chart's Show Grid, then its grid's removal, undone: it is frozen on its grid again (the audit's 5)", async () => {
     const { b } = await twoGrids();
     const chart = await chartOf(b);
     await togglePill(chart);
     const frozen = pg().document('Q3')!;
     await removeTile(b);
-    await openInGrid(chart);
-    await ungroup(`edit-${chart}`, 'desk');
-    await update(chart);
+    await showGrid(chart);
+    await ungroup(chartView(chart)!.cube, 'desk');
     pg().undo();
     await drawn();
+    assert.equal(pill(chart), 'Detached', 'Show Grid undone: detached on the cube it kept');
     pg().undo();
     await drawn();
     assert.equal(pill(chart), 'Frozen');
     assert.deepEqual(pg().views().views, frozen.views, 'the page as it was before its grid was removed');
-    assert.deepEqual([...pg().cubes], pg().grids, "the Update's own query let go");
+    assert.deepEqual([...pg().cubes], pg().grids, 'the grid Show Grid made let go');
   });
 
-  it("an undo leaves an editing grid beside its chart, and closes it when the chart follows its grid again (the audit's 7, 8)", async () => {
-    newPage();
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
-    const chart = await chartOf(a);
+  it('Show Grid on a frozen chart and on a detached one is one step each: undone, its grid gone and the chart as it was; redone, back (D7)', async () => {
+    const told: PageCommand[] = [];
+    const { b } = await twoGrids({ onPageCommand: (c) => told.push(c) });
+    const chart = await chartOf(b);
     await togglePill(chart);
-    await openInGrid(chart);
-    const frame = (id: string): string | null | undefined => tile(id)?.closest('.dc-band-tile')?.getAttribute('style');
-    const where = frame(`edit-${chart}`);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
-    await settle();
-    clickTab('trades.csv');
-    await settle();
+    await step('a frozen chart shown in a grid of its own', told, () => showGrid(chart), 'Show Grid');
+    assert.equal(pill(chart), 'Dynamic', 'redone: following its own grid');
+    const other = await chartOf(b);
+    await togglePill(other);
+    await removeTile(b);
+    assert.equal(pill(other), 'Detached');
+    assert.equal(pill(chart), 'Dynamic', 'its own grid stays when the one it was frozen on goes');
+    await step('a detached chart shown in a grid of its own', told, () => showGrid(other), 'Show Grid');
+    assert.equal(pill(other), 'Dynamic');
     pg().undo();
     await drawn();
-    assert.equal(frame(`edit-${chart}`), where, 'beside its chart, where it was');
-    assert.equal(pg().undoLabel, 'Chart Change');
-    pg().undo();
-    await drawn();
-    assert.equal(pill(chart), 'Dynamic');
-    assert.equal(tile(`edit-${chart}`), null, 'following its grid again: its editing grid closed');
+    assert.equal(pill(other), 'Detached', 'undone: detached again, on the cube it kept');
+    assert.ok(pg().cubes.includes(b), 'that cube back');
   });
 
   it("a chart changed in its options form is one step, told once (the test gap: both its callbacks fire)", async () => {
@@ -1113,7 +1086,7 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
   }
 
-  it('a renamed chart keeps its name on another sheet and in Open in grid; a renamed grid\'s name is saved, an unrenamed one\'s is not', async () => {
+  it('a renamed chart keeps its name on another sheet; a renamed grid\'s name is saved, an unrenamed one\'s is not', async () => {
     const { a, b } = await twoGrids();
     const chart = await chartOf(a);
     rename(chart, 'Desk mix');
@@ -1130,12 +1103,6 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     await settle();
     assert.equal(pg().views().sheets.find((s) => tilesOf(s.layout).includes(chart))?.id, sheetOf(chart));
     assert.equal(chartView(chart)!.title, 'Desk mix', 'moved under the name it was given');
-    await togglePill(chart);
-    clickTab('Sheet 2');
-    await settle();
-    await openInGrid(chart);
-    assert.equal(updateButton(chart)?.textContent, 'Update Desk mix');
-    await removeTile(`edit-${chart}`);
     // saved: the renamed grid's title written, the other's (as it was made) left out
     const doc = pg().document('Q3')!;
     const gridViews = doc.views.filter((v) => v.kind === 'grid');
@@ -1148,36 +1115,19 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     assert.deepEqual(tabs(), ['trades.csv', 'Sheet 2']);
   });
 
-  it('a rename or a move tells its page command as the page saves it: a grid given its made title back none; an editing grid nothing', async () => {
+  it('a rename tells its page command as the page saves it: a grid given its made title back none', async () => {
     // (the phase 1 audit's 4 and 5) what the screen tells replays to the page it writes
     const told: PageCommand[] = [];
     const { b } = await twoGrids({ onPageCommand: (c) => told.push(c) });
-    const chart = await chartOf(b);
-    await togglePill(chart);
-    await openInGrid(chart);
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
-    const [first, second] = pg().sheets;
     clickTab('trades.csv');
     await settle();
     const start = pg().document('Q3')!;
     told.length = 0;
     rename(b, 'Sales');
     rename(b, 'Grid 2');
-    rename(`edit-${chart}`, 'My edit');
-    // the editing grid dragged by its title bar onto the second sheet's tab (each tab placed along the bar: jsdom lays
-    // nothing out)
-    [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].forEach((tab, i) => {
-      const left = 100 + 100 * i;
-      tab.getBoundingClientRect = () => ({ left, right: left + 80, top: 0, bottom: 20, x: left, y: 0, width: 80, height: 20, toJSON: () => ({}) });
-    });
-    const head = tile(`edit-${chart}`).querySelector<HTMLElement>('.dc-tile-head')!;
-    for (const [type, x, y] of [['pointerdown', 600, 300], ['pointermove', 240, 10], ['pointerup', 240, 10]] as const) {
-      head.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, clientX: x, clientY: y, button: 0, bubbles: true }));
-    }
     await settle();
-    assert.equal(sheetOf(`edit-${chart}`), second, 'the editing grid moved');
-    assert.equal(pg().shownSheet, first);
     // the titles as typed: the made one back keeps none, by renameTile's rule (the replay below)
     assert.deepEqual(told, [{ kind: 'renameTile', tile: b, title: 'Sales' }, { kind: 'renameTile', tile: b, title: 'Grid 2' }]);
     const replayed = applyPageCommands({ page: start, held: idsOf(start) }, told).draft.page;
@@ -1219,7 +1169,7 @@ async function setUpCube(): Promise<void> {
   host = cube.root;
 }
 
-describe('Open in grid on a detached chart of a cube alone: its kept query made by its grid\'s own spawn', () => {
+describe('Show Grid on a cube alone: a cube alone saves its own grid alone, so a frozen or detached chart gets no grid of its own', () => {
   beforeEach(setUpCube);
   afterEach(cube.tearDown);
 
@@ -1228,30 +1178,26 @@ describe('Open in grid on a detached chart of a cube alone: its kept query made 
     await drawn();
     return tile(chart).querySelector('.dc-chartpanel-chart')?.getAttribute('aria-label') ?? '';
   };
+  const added = (): string[] => [...host.querySelectorAll<HTMLElement>('[data-tile^="grid-"]')].map((t) => t.dataset['tile']!);
 
-  it('an untouched Update keeps what it plots, round after round; an Aggregation changed in the editing grid reaches it', async () => {
+  it('a detached chart: Show Grid offered disabled; clicked anyway, nothing made, the chart drawn from its kept query as it was', async () => {
     // a cube alone saves its own grid's charts only, so the chart is read as a person reads it: by what it draws
     await cube.app.newGrid();
     await settle();
-    const added = host.querySelector<HTMLElement>('[data-tile^="grid-"]')!.dataset['tile']!;
-    const chart = await chartOf(added);
+    const [was] = added();
+    const chart = await chartOf(was!);
     await togglePill(chart);
-    await setAggregation(added, 'notional', 'average');
-    await removeTile(added);
+    await setAggregation(was!, 'notional', 'average');
+    await removeTile(was!);
     assert.equal(pill(chart), 'Detached');
-    const was = await drawing(chart);
-    assert.match(was, /^Bar chart of sum_notional by region, split by desk/);
-    for (const round of [1, 2]) {
-      await openInGrid(chart);
-      assert.equal(await aggregationShown(`edit-${chart}`, 'notional'), 'sum', `round ${round}: the chart's sum, not its grid's average`);
-      await update(chart);
-      assert.equal(await drawing(chart), was, `round ${round}: as it was`);
-      assert.equal(pill(chart), 'Detached');
-    }
-    await openInGrid(chart);
-    await setAggregation(`edit-${chart}`, 'notional', 'max');
-    await update(chart);
-    assert.match(await drawing(chart), /^Bar chart of max_notional by region, split by desk/);
+    const drawnBefore = await drawing(chart);
+    assert.match(drawnBefore, /^Bar chart of sum_notional by region, split by desk/);
+    assert.equal(offersShowGrid(chart), false, 'not offered on a cube alone');
+    chartMenu(chart).find((i) => label(i) === 'Show Grid')!.click();
+    await settle();
+    assert.deepEqual(added(), [], 'no grid made');
+    assert.equal(pill(chart), 'Detached');
+    assert.equal(await drawing(chart), drawnBefore, 'drawn as it was: its own sum, not its old grid\'s average');
   });
 });
 
@@ -1287,18 +1233,17 @@ describe('what is looked at survives an edit: the board put at the page keeps it
     assert.deepEqual([pg().shownSheet, sheetOf(chart)], ['sheet-1', 'sheet-3'], 'moved onto a new sheet: the sheet shown stays');
   });
 
-  it("a chart's open options, and its editing grid beside it", async () => {
+  it("a chart's open options, through an edit and through its Show Grid", async () => {
     const { chart } = await aPage();
     chartMenu(chart).find((i) => label(i) === 'Options...')!.click();
     await settle();
     const form = (): HTMLElement => tile(chart).querySelector<HTMLElement>('.dc-chartpanel-form')!;
     assert.equal(form().hidden, false);
-    await togglePill(chart);
-    await openInGrid(chart);
     await anEdit('Renamed');
     assert.equal(form().hidden, false, 'its options still open');
-    assert.ok(tile(`edit-${chart}`), 'its editing grid still open');
-    assert.equal(sheetOf(`edit-${chart}`), sheetOf(chart), 'beside it');
+    await togglePill(chart);
+    await showGrid(chart);
+    assert.equal(form().hidden, false, 'still open after its grid of its own was made');
   });
 
   it("a maximised tile, the board's scroll and the tile with focus", async () => {
@@ -1327,44 +1272,6 @@ describe('what is looked at survives an edit: the board put at the page keeps it
     assert.ok(shows(chart) && !shows(a), 'its tab pressed: the chart in front');
     await anEdit('Stacked');
     assert.ok(shows(chart) && !shows(a), 'still in front after an edit');
-  });
-});
-
-describe("an editing grid is the board's, never the page's (P7)", () => {
-  beforeEach(setUpPage);
-  afterEach(tearDownPage);
-
-  it("Open in grid leaves the saved layout as it is: the editing grid in a band of its own below its chart's, the page's shares kept", async () => {
-    newPage();
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
-    const chart = await chartOf(a);
-    await togglePill(chart);
-    // the chart's band shared unevenly (a divider dragged: here, its command)
-    const sheet = pg().sheets[0]!;
-    await pg().follow([{ kind: 'layout', sheet, layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { split: 'row',
-      parts: [{ node: { tile: a }, size: 0.7 }, { node: { tile: chart }, size: 0.3 }] } }] } }], new Map());
-    const saved = (): string => JSON.stringify(pg().views().sheets[0]!.layout);
-    const was = saved();
-    assert.match(was, /"size":0\.7/);
-    // the board given a width (jsdom lays nothing out) where three tiles fit side by side, so the tiles' boxes say the
-    // shares -- and the editing grid could have joined the chart's band
-    for (const s of host.querySelectorAll<HTMLElement>('.dc-sheet')) {
-      Object.defineProperty(s, 'clientWidth', { configurable: true, get: () => 1200 });
-      Object.defineProperty(s, 'clientHeight', { configurable: true, get: () => 600 });
-    }
-    pg().setLayoutEditing(true);
-    const share = (): number => parseFloat(tile(a).style.width) / (parseFloat(tile(a).style.width) + parseFloat(tile(chart).style.width));
-    assert.ok(Math.abs(share() - 0.7) < 0.02, `the grid has its share: ${share()}`);
-    await openInGrid(chart);
-    assert.ok(tile(`edit-${chart}`), 'the editing grid, on the board');
-    assert.ok(parseFloat(tile(`edit-${chart}`).style.top) > parseFloat(tile(chart).style.top), "in a band of its own, below the chart's");
-    assert.ok(Math.abs(share() - 0.7) < 0.02, `the page's tiles keep their shares while it is open: ${share()}`);
-    assert.equal(saved(), was, "the page's layout as it was, the editing grid on the board");
-    await removeTile(`edit-${chart}`);
-    assert.equal(tile(`edit-${chart}`), null);
-    assert.equal(saved(), was, "closed: the page's layout as it was");
-    assert.ok(Math.abs(share() - 0.7) < 0.02, `the board at the page's shares again: ${share()}`);
   });
 });
 
@@ -1596,69 +1503,52 @@ describe("the S3 audit's findings: a page of its own", () => {
   beforeEach(setUpPage);
   afterEach(tearDownPage);
 
-  it('F9: a drag made while an editing grid is open changes the page as it would with it closed (P7)', async () => {
-    /** a and its chart in one band, 0.7 / 0.3, b in a band below; b dragged onto a's left edge, the editor open or not. */
-    const dragged = async (editing: boolean): Promise<Record<string, number>> => {
-      newPage();
-      const a = pg().addGrid(over('trades.csv'));
-      await settle();
-      const chart = await chartOf(a);
-      await togglePill(chart);
-      const b = pg().addGrid(over('orders.csv'), { near: a });
-      await settle();
-      await pg().follow([{ kind: 'layout', sheet: pg().sheets[0]!, layout: { kind: 'bands', fit: true, bands: [
-        { height: 1, node: { split: 'row', parts: [{ node: { tile: a }, size: 0.7 }, { node: { tile: chart }, size: 0.3 }] } },
-        { height: 1, node: { tile: b } },
-      ] } }], new Map());
-      sized();
-      if (editing) await openInGrid(chart);
-      pressOn(b);
-      letGoOn(b, a, 'left');
-      await settle();
-      if (editing) await removeTile(`edit-${chart}`);
-      const out = shares();
-      page!.dispose();
-      page = undefined;
-      return out;
-    };
-    const closed = await dragged(false);
-    assert.equal(Object.keys(closed).length, 3, `the drag moved b beside a: ${JSON.stringify(closed)}`);
-    assert.deepEqual(await dragged(true), closed, 'the same page, the editing grid open or not');
+  it('F9: a tile dragged onto another\'s left edge goes beside it, in the page\'s layout', async () => {
+    // a and its chart in one band, 0.7 / 0.3, b in a band below; b dragged onto a's left edge
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await togglePill(chart);
+    const b = pg().addGrid(over('orders.csv'), { near: a });
+    await settle();
+    await pg().follow([{ kind: 'layout', sheet: pg().sheets[0]!, layout: { kind: 'bands', fit: true, bands: [
+      { height: 1, node: { split: 'row', parts: [{ node: { tile: a }, size: 0.7 }, { node: { tile: chart }, size: 0.3 }] } },
+      { height: 1, node: { tile: b } },
+    ] } }], new Map());
+    sized();
+    pressOn(b);
+    letGoOn(b, a, 'left');
+    await settle();
+    const moved = shares();
+    assert.deepEqual(Object.keys(moved).sort(), [a, b, chart].sort(), `the drag moved b beside a: ${JSON.stringify(moved)}`);
+    assert.equal(pg().views().sheets[0]!.layout.bands.length, 1, 'one band: b beside a and its chart');
   });
 
-  it("F9: an arrangement picked while an editing grid is open is told as the arrangement (P14), the page's tiles arranged as with it closed", async () => {
-    const arranged = async (editing: boolean): Promise<{ told: string[]; layout: unknown }> => {
-      const told: PageCommand[] = [];
-      newPage({ onPageCommand: (c) => told.push(c) });
-      const a = pg().addGrid(over('trades.csv'));
-      await settle();
-      const chart = await chartOf(a);
-      await togglePill(chart);
-      pg().addGrid(over('orders.csv'), { near: a });
-      await settle();
-      sized();
-      if (editing) await openInGrid(chart);
-      const sheet = pg().sheets[0]!;
-      told.length = 0;
-      // the board's own arrangement, as its picker picks one: the page bar's Arrange…
-      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
-      (host.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
-      menuItems().find((i) => label(i) === 'Arrange…')!.click();
-      await settle();
-      host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="focus-left"]')!.click();
-      await settle();
-      if (editing) await removeTile(`edit-${chart}`);
-      const out = { told: told.map((c) => c.kind), layout: pg().views().sheets.find((s) => s.id === sheet)!.layout };
-      page!.dispose();
-      page = undefined;
-      return out;
-    };
-    const closed = await arranged(false);
-    assert.deepEqual(closed.told, ['arrange']);
-    assert.deepEqual(await arranged(true), closed);
+  it('P14: an arrangement picked is told as the arrangement, the page\'s tiles arranged by it', async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    await togglePill(chart);
+    const b = pg().addGrid(over('orders.csv'), { near: a });
+    await settle();
+    sized();
+    const sheet = pg().sheets[0]!;
+    told.length = 0;
+    // the board's own arrangement, as its picker picks one: the page bar's Arrange…
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    (host.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
+    menuItems().find((i) => label(i) === 'Arrange…')!.click();
+    await settle();
+    host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="focus-left"]')!.click();
+    await settle();
+    assert.deepEqual(told.map((c) => c.kind), ['arrange']);
+    assert.deepEqual(new Set(tilesOf(pg().views().sheets.find((s) => s.id === sheet)!.layout)), new Set([a, chart, b]));
   });
 
-  it('F11: a detached chart\'s Update is told, and undone and redone the board reads the query the step holds', async () => {
+  it('F11: a detached chart\'s Show Grid is told, and undone and redone the board is the state the step holds', async () => {
     const { a, b } = await twoGrids();
     const chart = await chartOf(b);
     await togglePill(chart);
@@ -1667,32 +1557,21 @@ describe("the S3 audit's findings: a page of its own", () => {
     // the cubes by content (a document made again from another's text writes its keys in its own order)
     const seen = (): unknown => JSON.parse(JSON.stringify(pg().document('Q3')!.cubes));
     const held = (): unknown => JSON.parse(JSON.stringify(pg().state.page.cubes));
-    await openInGrid(chart);
-    await ungroup(`edit-${chart}`, 'desk');
-    await update(chart);
-    const own = `${chart}-query`;
-    assert.equal(chartView(chart)!.cube, own);
-    assert.deepEqual(seen(), held(), 'the board is the state: the query the Update kept');
+    await showGrid(chart);
+    const own = chartView(chart)!.cube;
+    assert.notEqual(own, b);
+    assert.deepEqual(seen(), held(), 'the board is the state: the grid Show Grid made');
     pg().undo();
     await settle();
-    assert.equal(chartView(chart)!.cube, b, 'undone: it reads its grid\'s query again');
+    assert.equal(chartView(chart)!.cube, b, 'undone: it reads the cube it kept again');
+    assert.equal(pill(chart), 'Detached');
     assert.deepEqual(pg().cubes, [a, b]);
     assert.deepEqual(seen(), held(), 'undone: the board is the state');
     pg().redo();
     await settle();
-    assert.equal(chartView(chart)!.cube, own, 'redone: its own query again');
+    assert.equal(chartView(chart)!.cube, own, 'redone: its own grid again');
+    assert.equal(pill(chart), 'Dynamic');
     assert.deepEqual(seen(), held(), 'redone: the board is the state');
-    // an Update again, its query regrouped once more, undone: the query the first Update kept
-    const first = held();
-    await openInGrid(chart);
-    await ungroup(`edit-${chart}`, 'region');
-    await update(chart);
-    assert.notDeepEqual(held(), first);
-    assert.deepEqual(seen(), held());
-    pg().undo();
-    await settle();
-    assert.deepEqual(held(), first);
-    assert.deepEqual(seen(), first, "the board reads the first Update's query again, as the step holds it");
   });
 });
 

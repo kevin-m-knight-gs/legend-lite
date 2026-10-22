@@ -74,7 +74,7 @@ export class PageState {
   /** Every tile the history's other pages hold (its steps back and forward): a tile gone now that an undo or a redo can
    *  bring back. */
   get reachable(): ReadonlySet<string> {
-    // its tiles, and its cubes: a detached chart's query (setChartCube) is a cube with no tile of its own
+    // its tiles, and its cubes: a detached chart's is a cube with no tile of its own
     return new Set([...this.#past, ...this.#future].flatMap((step) => [...step.draft.page.views.map((v) => v.id),
       ...step.draft.page.cubes.map((c) => c.id)]));
   }
