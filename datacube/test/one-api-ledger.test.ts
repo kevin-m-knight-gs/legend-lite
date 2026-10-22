@@ -46,7 +46,7 @@ interface Entry {
 // 10 registered as P15, pinned by its code
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 9, L1_PLANE: 4, L1_HOST: 12,
-  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 7, UNCHECKED: 7,
+  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 6, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -363,7 +363,6 @@ const MARKERS: readonly Marker[] = [
   { file: 'src/app/datacube-app.ts', text: "current.name ?? (page.suggestedName || 'page')", items: ['B3'], count: 5 },
   { file: 'src/headless/grid.ts', text: 'a page on Python reads frames', items: ['B7'], count: 2 },
   { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
-  { file: 'src/app/datacube-app.ts', text: 'current.cubeId : crypto.randomUUID()', items: ['B13'] },
   // a model action's page record set outside the page state and told by its difference, not applied as commands (P15:
   // S5, with the model actions' move out of their dialogs, D5)
   { file: 'src/app/datacube-app.ts', text: 'for (const command of modelCommands(was, model)) channel?.edit({ page: command });', items: ['P15'], count: 2 },

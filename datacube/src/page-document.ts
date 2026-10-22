@@ -155,6 +155,11 @@ export interface PageDocument extends PageViews {
   readonly filters?: readonly PageFilter[];
   /** The copy each snapped grid reads, by its cube's id (§18.8): none, none written. */
   readonly copies?: Readonly<Record<string, GridCopy>>;
+  /**
+   * The saved page it was last saved as, by the page store's id: whichever editor saves it next saves over that record
+   * (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B13); none until it is first saved. Never in a page file (pageFile).
+   */
+  readonly record?: string;
   /** Top-level fields a newer writer added, kept verbatim. */
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
@@ -188,10 +193,12 @@ export function pageFile(page: PageDocument): { readonly file: string } | { read
     return { refused: `This page's classes are in ${page.model.project}: a page file cannot carry them yet -- save the `
       + 'page where its classes are kept.' };
   }
-  return { file: pageToJson(page) };
+  // a page file is no saved record: opened elsewhere, its first save is a new one
+  const { record: _record, ...file } = page;
+  return { file: pageToJson(file) };
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies']);
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies', 'record']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -232,6 +239,7 @@ export function writePageOf(o: {
   readonly model?: PageModelRef;
   readonly filters?: readonly PageFilter[];
   readonly copies?: Readonly<Record<string, GridCopy>>;
+  readonly record?: string;
   readonly unknown?: Readonly<Record<string, unknown>>;
 }): PageDocument {
   const filters = filtersFor(o.filters ?? [], o.views.views);
@@ -247,6 +255,7 @@ export function writePageOf(o: {
     ...(o.model ? { model: keptFor(o.model, o.cubes) } : {}),
     ...(filters.length > 0 ? { filters } : {}),
     ...(Object.keys(copies).length > 0 ? { copies } : {}),
+    ...(o.record !== undefined ? { record: o.record } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
 }
@@ -334,11 +343,13 @@ export interface SavedRecord {
  * name, the page is that name (B4), which its editor then tells as the name box does (renamePage). `name` by the one
  * rule of a page's name (givenName), or why not, in its words.
  */
-export function savedRecord(id: string, name: string, page: PageDocument): SavedRecord | { readonly refused: string } {
+export function savedRecord(name: string, page: PageDocument, fresh: string): SavedRecord | { readonly refused: string } {
   const given = givenName('page', name);
   if ('refused' in given) return given;
   if (given.name === undefined) throw new Error("a page's name is never left to what it shows");
-  return { id, name: given.name, content: pageContent({ ...page, name: given.name }) };
+  // over the record it was last saved as, whichever editor saved it (B13); else a new one, under `fresh`
+  const id = page.record ?? fresh;
+  return { id, name: given.name, content: pageContent({ ...page, name: given.name, record: id }) };
 }
 
 /** The page as JSON text (exact numbers kept, as the cube's own document keeps them). */
@@ -431,6 +442,10 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   for (const [k, v] of Object.entries(raw)) if (!KNOWN.has(k)) unknown[k] = plain(v);
   const model = raw['model'] === undefined ? undefined : readModel(plain(raw['model']), ids);
   const copies = raw['copies'] === undefined ? undefined : readCopies(plain(raw['copies']), ids);
+  const record = plain(raw['record']);
+  if (record !== undefined && (typeof record !== 'string' || record === '')) {
+    throw new PageDocumentError("'record' is not a saved page's id");
+  }
   let filters: readonly PageFilter[] | undefined;
   if (raw['filters'] !== undefined) {
     try {
@@ -452,6 +467,7 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     ...(model ? { model } : {}),
     ...(filters ? { filters } : {}),
     ...(copies ? { copies } : {}),
+    ...(record !== undefined ? { record } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   };
 }

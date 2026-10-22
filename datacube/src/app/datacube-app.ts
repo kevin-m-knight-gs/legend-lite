@@ -544,7 +544,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // for it, to reopen it from where it was picked.
     let library: CubeLibrary | undefined;
     let current: {
-      cubeId?: string;
+      /** The saved page it is (page-document.ts PageDocument.record): a Save saves over it, whichever editor saved it. */
+      record?: string;
       name?: string;
       /** The name it was saved (or opened) under: a name given in the name box since is a change of the page. */
       savedName?: string;
@@ -574,6 +575,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
       ...(current.model ? { model: current.model } : {}),
+      ...(current.record !== undefined ? { record: current.record } : {}),
     }, empty);
     pageKept = (name) => pageNow(name);
     const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
@@ -801,8 +803,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // a page of this tab's own, in place of the one its other editor serves (D1)
       if (!replacing) leaveServed();
       page.restore(doc, makers, held);
+      // the saved page it is: the store's record it was opened from, else the one its other editor saved it as (a page
+      // file is none: pageFile writes no record)
+      const record = id ?? (replacing ? doc.record : undefined);
       current = {
-        ...(id !== undefined ? { cubeId: id } : {}),
+        ...(record !== undefined ? { record } : {}),
         name: doc.name,
         savedName: doc.name,
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
@@ -864,14 +869,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if (refused) throw new Error(refused);
       const doc = pageNow(name);
       if (!doc) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
-      const id = !asNew && current.cubeId !== undefined ? current.cubeId : crypto.randomUUID();
-      // the record by DataCube's one rule (savedRecord: Python's save() asks it too), the page named as it is saved
-      const record = savedRecord(id, name, doc);
+      // the record by DataCube's one rule (savedRecord: Python's save() asks it too): over the saved page it is, or, Save
+      // As, a new one; the page named as it is saved
+      const { record: _was, ...asItself } = doc;
+      const record = savedRecord(name, asNew ? asItself : doc, crypto.randomUUID());
       if ('refused' in record) throw new Error(record.refused);
-      if (id === current.cubeId) await store.update(id, record);
+      const id = record.id;
+      if (id === current.record) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
-      current = { ...current, cubeId: id, name: record.name, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
+      current = { ...current, record: id, name: record.name, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
+      // the saved page it is, told: its other editor saves over the same record (B13)
+      page.savedAs(id);
       // saved under a name: the page renamed, told as the name box tells it
       page.rename(record.name);
       onCubeView?.();
@@ -880,16 +889,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }
 
     if (pages) library = new CubeLibrary(windows.library, pages.store, {
-      currentId: () => current.cubeId,
+      currentId: () => current.record,
       dirty,
       open: async (id) => { await openSaved(readSaved((await pages.store.get(id)).content), id); },
       openText: async (text) => { await openSaved(readSaved(text), undefined); },
       forget: async (id) => {
         // every handle the page kept, whichever page is on screen
         await pages.handles?.removePage(id);
-        if (current.cubeId === id) {
-          const { cubeId: _gone, ...rest } = current;
+        if (current.record === id) {
+          const { record: _gone, ...rest } = current;
           current = rest;
+          // that record is gone: the page is no saved page any more, for its other editor too
+          page.savedAs(null);
         }
       },
     });
@@ -1029,7 +1040,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       void (async () => {
         const refused = page.saveRefusal();
         const offered = current.name ?? (page.suggestedName || 'page');
-        const savedAt = current.cubeId !== undefined ? (await pages.store.get(current.cubeId).catch(() => undefined))?.lastUpdatedAt : undefined;
+        const savedAt = current.record !== undefined ? (await pages.store.get(current.record).catch(() => undefined))?.lastUpdatedAt : undefined;
         const doc = page.document(offered);
         const views = page.views().views;
         const charts = views.filter((v) => v.kind === 'chart').length;
@@ -1052,7 +1063,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         await saveDialog(document, {
           purpose: asNew ? 'saveAs' : 'save',
           name: offered,
-          ...(current.cubeId !== undefined
+          ...(current.record !== undefined
             ? { over: { name: current.name ?? offered, ...(savedAt !== undefined ? { savedAt } : {}) } } : {}),
           where: pages.where,
           keeps,
@@ -1422,6 +1433,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await page.ready();
         } catch {
           return false;
+        }
+        // the saved page it is, as the other editor saved it (or its record deleted there): a Save here saves over it (B13)
+        for (const c of moved.commands) {
+          if (!('page' in c) || c.page.kind !== 'savedAs') continue;
+          const { record: _was, ...rest } = current;
+          current = c.page.record === null ? rest : { ...rest, record: c.page.record };
         }
         // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless
         // the person had changed it here -- "changed since saved" from here

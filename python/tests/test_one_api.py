@@ -43,7 +43,7 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10).
 # 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 7, 'L9_KEEPER': 6,
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 6, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -243,7 +243,6 @@ MARKERS = [
     (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
     (ENGINE, 'self._claimed: set[str] = set()', ('Z17',), 1),
     (PAGE, "def __init__(self, name: str = 'Untitled page') -> None:", ('B3',), 1),
-    (PAGE, 'id = self._saved if self._saved is not None else str(uuid.uuid4())', ('B13',), 1),
     # the page _apply_page assigns is headless pageApply's, as read (L5 pins the assignment, this its binding)
     (PAGE, "page = _plain(_json.loads(said['page']))", ALLOWED, 1),
 ]
@@ -372,6 +371,21 @@ class SameJob(Session):
 
 class OneRule(Session):
     """L10 closed: the job done by DataCube's one rule, as the browser does it."""
+
+    def test_b13_one_saved_record_whichever_editor_saves_the_page(self):
+        # the open page saved it (its Save tells savedAs): Python's save goes over that record, never a second one
+        page, engine = self.served('saved twice')
+        said = self.written(engine, page, {'edits': [{'page': {'kind': 'savedAs', 'record': 'r-tab'}}]})
+        self.assertEqual(said.status, 200, said)
+        self.assertEqual(page.to_dict()['record'], 'r-tab')
+        self.assertEqual(page.save(), 'r-tab')
+        # and Python's own save, the page's record from then on: what the open page saves over
+        other = ll.Page('saved once')
+        other.grid(trades(), name='u')
+        first = other.save()
+        self.assertEqual(other.to_dict()['record'], first)
+        self.assertEqual(datacube._session.keeper.current(other._key)[1]['record'], first)
+        self.assertEqual(other.save(), first)
 
     def test_b8_a_detached_chart_has_no_grid_to_follow_in_python_as_on_the_screen(self):
         page = ll.Page('detached')

@@ -57,6 +57,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
   const n = (id: string): string => named(id, renamed);
   switch (command.kind) {
     case 'renamePage':
+    case 'savedAs':
     case 'addSheet':
     case 'modelInto':
     case 'modelPin':

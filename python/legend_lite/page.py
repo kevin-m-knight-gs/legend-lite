@@ -960,8 +960,6 @@ class Page:
         # where it is shown (datacube.show_page): told each time it changes
         self._shown: list[Any] = []
         self._quiet = 0
-        # the saved page it was last saved as (``save()``): its id, or None
-        self._saved: str | None = None
 
     # -- the page's one copy, its keeper's (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) ------------------------------------
 
@@ -1419,15 +1417,16 @@ class Page:
             Path(path).write_text(said['file'] + '\n', 'utf-8', newline='')
             return None
         from ._home import THIS_USER, pages_folder, store_call
-        id = self._saved if self._saved is not None else str(uuid.uuid4())
-        # the record by DataCube's one rule, the Save window's (headless pageRecord): the page named as it is saved
-        made = json.loads(self._session.headless().call('pageRecord', id, name if name is not None else self.name,
-                                                        _json.dumps(self._doc)))
+        # the record by DataCube's one rule, the Save window's (headless pageRecord): over the saved page it is, which
+        # either editor saved it as (the page's `record`, B13), else a new one; the page named as it is saved
+        doc = self._doc
+        made = json.loads(self._session.headless().call('pageRecord', str(uuid.uuid4()),
+                                                        name if name is not None else self.name, _json.dumps(doc)))
         if 'problems' in made:
             raise ValueError('; '.join(made['problems']))
-        record = made['record']
+        id, record = made['id'], made['record']
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
-                        if self._saved is not None else (404, ''))
+                        if doc.get('record') is not None else (404, ''))
         if status == 404:
             # never saved, or its saved copy deleted since (in DataCube's Open…): saved as a new one under its id
             status, said = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', record, THIS_USER)
@@ -1437,10 +1436,10 @@ class Page:
             except (ValueError, AttributeError):
                 pass  # not the store's {"message"}: said as it came
             raise ValueError(f'the page was not saved: {said}')
-        self._saved = id
-        # saved under a name, the page is that name, as DataCube's Save renames it (renamePage), on both sides (B4)
-        if made['name'] != self.name:
-            self.name = made['name']
+        # the saved page it is, told (savedAs: an open page saves over it too, B13); saved under a name, the page is that
+        # name, as DataCube's Save renames it (renamePage, B4) -- neither a step of its history
+        self._apply_page([{'kind': 'savedAs', 'record': id},
+                          *([{'kind': 'renamePage', 'name': made['name']}] if made['name'] != self.name else [])])
         return id
 
     @classmethod

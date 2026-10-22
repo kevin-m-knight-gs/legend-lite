@@ -225,6 +225,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
   const spec = (view(trades, 'chart') as ChartView).spec;
   const every: PageCommand[] = [
     { kind: 'renamePage', name: 'P' },
+    { kind: 'savedAs', record: 'r-1' },
+    { kind: 'savedAs', record: null },
     { kind: 'addSheet', name: null },
     { kind: 'renameSheet', sheet: 'sheet-1', name: 'S' },
     { kind: 'moveSheet', sheet: 'sheet-1', to: 1 },

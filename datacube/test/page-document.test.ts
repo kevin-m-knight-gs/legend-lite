@@ -370,15 +370,35 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     const added = (JSON.parse(pageApply(started, '["sheet-1"]',
       `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
     const page = readPage(added);
-    const record = savedRecord('r-1', '  Q4 review ', page) as SavedRecord;
-    assert.deepEqual(record, { id: 'r-1', name: 'Q4 review', content: pageContent({ ...page, name: 'Q4 review' }) });
-    assert.deepEqual(savedRecord('r-1', ' ', page), { refused: "a page's name is not blank" });
-    // headless: the record's text, its numbers exact, and the name it is saved under; nothing on the page, refused
-    const said = JSON.parse(pageRecordJson('r-1', 'Q4 review', added)) as { record: string; name: string };
-    assert.equal(said.name, 'Q4 review');
+    const record = savedRecord('  Q4 review ', page, 'r-1') as SavedRecord;
+    assert.deepEqual(record, { id: 'r-1', name: 'Q4 review', content: pageContent({ ...page, name: 'Q4 review', record: 'r-1' }) });
+    assert.deepEqual(savedRecord(' ', page, 'r-1'), { refused: "a page's name is not blank" });
+    // headless: the record's text, its numbers exact, its id and the name it is saved under; nothing on the page, refused
+    const said = JSON.parse(pageRecordJson('r-1', 'Q4 review', added)) as { record: string; id: string; name: string };
+    assert.deepEqual([said.id, said.name], ['r-1', 'Q4 review']);
     assert.equal(said.record, toJson(record));
     assert.match(said.record, /12\.30/);
     assert.deepEqual(JSON.parse(pageRecordJson('r-1', 'Q4', started)), { problems: [NOTHING_TO_SAVE] });
+  });
+
+  it("the saved page it is, kept in the page: saved again, by either editor, over that record; never in a page file (B13)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    const added = (JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
+    // saved by one editor: the page says its record (the savedAs command), read and written by the page's own reader
+    const saved = JSON.parse(pageApply(added, '["sheet-1","grid-1"]', '[{"kind":"savedAs","record":"r-1"}]')) as { page: string };
+    const page = readPage(saved.page);
+    assert.equal(page.record, 'r-1');
+    assert.equal(readPage(pageToJson(page)).record, 'r-1');
+    // saved again, by the other: over r-1, whatever new id it was handed
+    assert.equal((savedRecord('Q3', page, 'r-other') as SavedRecord).id, 'r-1');
+    assert.equal(JSON.parse(pageRecordJson('r-other', 'Q3', saved.page)).id, 'r-1');
+    // a page file carries none: opened elsewhere, its first save is a new record
+    assert.equal(readPage((pageFile(page) as { file: string }).file).record, undefined);
+    // its record deleted: the page no saved page any more
+    const gone = JSON.parse(pageApply(saved.page, '["sheet-1","grid-1"]', '[{"kind":"savedAs","record":null}]')) as { page: string };
+    assert.equal(readPage(gone.page).record, undefined);
+    assert.throws(() => readPage({ ...JSON.parse(saved.page), record: '' }), /'record' is not a saved page's id/);
   });
 
   it("as a page file (Export ▸ Page File; headless pageFile: Python's save(path)): DataCube's text, or refused in one wording (B5)", () => {

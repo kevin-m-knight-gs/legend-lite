@@ -64,6 +64,9 @@ export interface PageDraft {
 /** One edit of a page's structure. An id left out of one that makes a tile or a sheet is allocated (nextPageId). */
 export type PageCommand =
   | { readonly kind: 'renamePage'; readonly name: string }
+  /** The page saved as the page store's record `record` (null: that record deleted): whichever editor saves it next saves
+   *  over it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B13). No step of its history, as a rename is none. */
+  | { readonly kind: 'savedAs'; readonly record: string | null }
   | { readonly kind: 'addSheet'; readonly id?: string; readonly name: string | null }
   | { readonly kind: 'renameSheet'; readonly sheet: string; readonly name: string | null }
   | { readonly kind: 'moveSheet'; readonly sheet: string; readonly to: number }
@@ -130,7 +133,7 @@ export type PageCommand =
   | { readonly kind: 'modelKeep'; readonly cube: string; readonly tables: readonly string[] | null; readonly class: string | null };
 
 export const PAGE_COMMAND_KINDS = [
-  'renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
+  'renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
   'setChartCube', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
   'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
@@ -212,7 +215,8 @@ function rewritten(page: PageDocument,
   return writePageOf({
     name: next.name, cubes: next.cubes, views: { views: next.views, sheets: next.sheets },
     ...(next.model ? { model: next.model } : {}), ...(next.filters ? { filters: next.filters } : {}),
-    ...(next.copies ? { copies: next.copies } : {}), ...(next.unknown ? { unknown: next.unknown } : {}),
+    ...(next.copies ? { copies: next.copies } : {}), ...(next.record !== undefined ? { record: next.record } : {}),
+    ...(next.unknown ? { unknown: next.unknown } : {}),
   });
 }
 
@@ -324,6 +328,10 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const name = named('page', command.name);
       if (name === undefined) throw new Error("a page's name is never left to what it shows");
       return done(rewritten(page, { name }));
+    }
+    case 'savedAs': {
+      const { record: _was, ...rest } = page;
+      return done(command.record === null ? rest : { ...page, record: command.record });
     }
     case 'addSheet': {
       const id = freshId(draft, command.id, 'sheet');
@@ -689,6 +697,12 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'renamePage':
       fields(o, kind, ['name']);
       return { kind, name: text(o['name'], "a page's name") };
+    case 'savedAs': {
+      fields(o, kind, ['record']);
+      const record = textOrNull(o['record'], "a saved page's id");
+      if (record === '') throw new CubeRefusal("a saved page's id is not blank");
+      return { kind, record };
+    }
     case 'addSheet':
       fields(o, kind, ['id', 'name']);
       return { kind, ...optionalId(o['id'], "a sheet's id"), name: textOrNull(o['name'], "a sheet's name") };

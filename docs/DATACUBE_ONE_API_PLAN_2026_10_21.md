@@ -363,7 +363,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   out an id the keeper has said it held (test_one_api.py, page-app.test.ts, datacube-app-live.test.ts: F23). A write
   that leaves the page as it was holds its ids with no new version; an editor that then gives one out has it given out
   afresh by the keeper
-- [ ] **B13** one saved record per page: the record's id kept in the page document, so both sides save to it — S5, L10
+- [x] **B13** one saved record per page: the record's id kept in the page document, so both sides save to it — closed
+  S5: page-document.ts `record` (read, written, kept by every command, never in a page file), set by the `savedAs` page
+  command -- no step of the history -- which the tab's Save and Python's `save()` tell; `savedRecord` saves over it
+  (Save As: a new one); the tab's `current.cubeId` and Python's `_saved` deleted (page-document.test.ts; test_one_api.py
+  `OneRule`)
 - [x] **B14** one "nothing to save" wording — closed S5: page-document.ts `NOTHING_TO_SAVE`, the screen's Save and
   Page File's, which Python's `save` and `to_json` say through headless `pageSaved`; Python's own wording and the
   reader's `PageNoCubeError` (its one use) deleted (page-document.test.ts, test_page.py)

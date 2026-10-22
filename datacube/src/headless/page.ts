@@ -62,17 +62,18 @@ export function pageFile(text: string): string {
 }
 
 /**
- * A PAGE DOCUMENT (JSON text) SAVED UNDER `name` AS THE PAGE STORE KEEPS IT, under the record `id` -- what Python's
- * `save()` sends the store -- by the Save window's one rule (page-document.ts savedRecord, Z18 and B4). JSON: `{record,
- * name}`, the record's text (its numbers exact) and the name it is saved under, or `{problems}`, why it is not saved.
+ * A PAGE DOCUMENT (JSON text) SAVED UNDER `name` AS THE PAGE STORE KEEPS IT -- what Python's `save()` sends the store
+ * -- by the Save window's one rule (page-document.ts savedRecord, Z18, B4 and B13): over the record the page was last
+ * saved as, whichever editor saved it, else a new one under `fresh`. JSON: `{record, id, name}`, the record's text (its
+ * numbers exact), its id and the name it is saved under, or `{problems}`, why it is not saved.
  */
-export function pageRecord(id: string, name: string, text: string): string {
+export function pageRecord(fresh: string, name: string, text: string): string {
   try {
     const page = readPage(text, { empty: true });
     if (page.cubes.length === 0) return JSON.stringify({ problems: [NOTHING_TO_SAVE] });
-    const made = savedRecord(id, name, page);
+    const made = savedRecord(name, page, fresh);
     return 'refused' in made ? JSON.stringify({ problems: [made.refused] })
-      : `{"record":${JSON.stringify(toJson(made))},"name":${JSON.stringify(made.name)}}`;
+      : `{"record":${JSON.stringify(toJson(made))},"id":${JSON.stringify(made.id)},"name":${JSON.stringify(made.name)}}`;
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -195,11 +196,13 @@ function exactly(plainly: unknown, exact: unknown): unknown {
 function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
-  const { kind, version, name, views, sheets, model, filters, copies, ...unknown } = rest;
+  const { kind, version, name, views, sheets, model, filters, copies, record, ...unknown } = rest;
   return {
     kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}), ...(filters !== undefined ? { filters } : {}),
     // the copies its snapped grids read (§18.8): a field of the page, which its snap and live commands edit
     ...(copies !== undefined ? { copies } : {}),
+    // the saved page it is (B13): a field of the page, which the savedAs command edits
+    ...(record !== undefined ? { record } : {}),
     cubes: cubes.map((c, i) => ({ id: c.id, cube: readCube(exact[i]!.cube) })),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   } as unknown as PageDocument;

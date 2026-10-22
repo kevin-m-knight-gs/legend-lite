@@ -394,6 +394,15 @@ export class PageApp {
     if (name !== was) this.#options.onPageCommand?.({ kind: 'renamePage', name });
   }
 
+  /**
+   * THE PAGE SAVED AS THE PAGE STORE'S RECORD `record` by its host's Save (null: that record deleted, in Open…), told:
+   * the savedAs command -- no step of its history, as a rename is none -- so its other editor saves over the same record
+   * (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B13). The host keeps the record with the page it writes (its `record`).
+   */
+  savedAs(record: string | null): void {
+    this.#options.onPageCommand?.({ kind: 'savedAs', record });
+  }
+
   /** Changed since it was saved, or not (the host knows): the name box says so. */
   setChanged(changed: boolean): void {
     if (changed === this.#changed) return;
@@ -626,14 +635,15 @@ export class PageApp {
   /**
    * THE PAGE AS IT IS SAVED (page-document.ts, version 5): one cube per grid -- on the board, then kept off it for a
    * detached chart -- each the grid's own cube document, under the grid's id; the views and the sheets; the page's
-   * model (where its classes are), when it has one. `unknown`: fields a newer writer put in the page and in each cube,
-   * written back as they were. Undefined when a grid cannot say its source, or there is nothing on the page -- unless
+   * model (where its classes are), when it has one; the saved page it is (`record`), when its host says so.
+   * `unknown`: fields a newer writer put in the page and in each cube, written back as they were. Undefined when a grid cannot say its source, or there is nothing on the page -- unless
    * `empty`: the page written live to its keeper, a page of no grid one too.
    */
   document(name: string, unknown?: {
     readonly page?: Readonly<Record<string, unknown>>;
     readonly cubes?: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
     readonly model?: PageModelRef;
+    readonly record?: string;
   }, empty = false): PageDocument | undefined {
     const ids = this.cubes;
     // a page of no grid is no page saved; written live, it is one (`empty`: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
@@ -649,6 +659,7 @@ export class PageApp {
     return writePageOf({
       name, cubes: written, views, filters: this.#filters, copies: this.#copies(ids, written),
       ...(unknown?.model ? { model: unknown.model } : {}),
+      ...(unknown?.record !== undefined ? { record: unknown.record } : {}),
       ...(unknown?.page ? { unknown: unknown.page } : {}),
     });
   }

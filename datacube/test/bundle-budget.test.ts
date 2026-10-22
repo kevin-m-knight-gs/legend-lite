@@ -327,8 +327,11 @@ const BUDGET = 316_000;
  *  305,500 -> 306,000 (2026-10-21, step S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the host applies the commands":
  *  the page Python serves written as its edits or, undone or redone, whole (a restore), the ids it has held read with it,
  *  and Open..., in place and Blank Page leaving it for a page of the tab's own (D1), said on a blank page's card).
- *  Measured 305,535. */
-const ENGINE_BUDGET = 306_000;
+ *  Measured 305,535.
+ *  306,000 -> 306,500 (2026-10-22, step S5's B8, B14, B6, B5, Z18, B4 and B13 -- the grid's note of the same date, and
+ *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
+ *  306,214. */
+const ENGINE_BUDGET = 306_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -456,8 +459,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  316,000 -> 322,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 322,107.
  *  322,500 -> 323,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 322,960.
  *  323,500 -> 324,000 (2026-10-22, step S5's B8, B14 and B6: setChart's refusal of a detached chart told to follow, and
- *  the one "nothing to save" sentence, DataCube's, which Python says too). Measured 323,533. */
-const WIDGET_BUDGET = 324_000;
+ *  the one "nothing to save" sentence, DataCube's, which Python says too). Measured 323,533.
+ *  324,000 -> 324,500 (2026-10-22, step S5's B5, Z18, B4 and B13 -- the engine page's note of the same date). Measured
+ *  324,039. */
+const WIDGET_BUDGET = 324_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

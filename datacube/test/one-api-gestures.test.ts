@@ -89,6 +89,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  savedAs = undefined;
   channel?.stop();
   await settle();
   page?.dispose();
@@ -168,7 +169,9 @@ const overClass = (): GridMaker => (gridHost, spawned, start) => {
 };
 
 /** The page as the tab writes it (datacube-app.ts pageNow: its name as it is now, a page of no grid too). */
-const onScreen = (): PageDocument => pg().document(pg().title || 'Q3', undefined, true)!;
+/** The saved page it is, as its host keeps it (datacube-app.ts `current.record`): set by the host's Save, stood in for. */
+let savedAs: string | undefined;
+const onScreen = (): PageDocument => pg().document(pg().title || 'Q3', savedAs === undefined ? undefined : { record: savedAs }, true)!;
 
 /**
  * The page, wired as datacube-app.ts wires a page another editor serves. One part is the host's own and stood in for
@@ -540,6 +543,16 @@ const GESTURES: readonly Gesture[] = [
       return { ...g, filter: onScreen().filters![0]!.id };
     },
     make: async ({ filter }) => { await pg().removeFilter(filter!); },
+  },
+  {
+    name: "the page saved by its host's Save: the record it is, told (B13)",
+    setUp: twoGrids,
+    make: () => {
+      // the host's Save, stood in for: the record kept with the page it writes, the page told it, and the page changed
+      savedAs = 'r-1';
+      pg().savedAs('r-1');
+      channel?.changed();
+    },
   },
   {
     name: 'the page renamed in its name box',
