@@ -646,8 +646,6 @@ public final class CypherParity {
     }
 
 
-    /** The outcome of a run that threw: refused by name, lite's compile error, or another error, each BOTH_ERROR
-     *  where Neo4j errs too. */
     /** A case declaring procedures (the study's §12.60): Neo4j runs none of the harness's, so the TCK's own
      *  expectation judges (its rows, an empty result, or an error: any error of lite's but a refusal by name). */
     private static SqlParity.Outcome procedureOutcome(Case c, String model, Lane lane) {
@@ -706,18 +704,20 @@ public final class CypherParity {
         };
     }
 
+    /** The outcome of a run that threw: refused by name (REFUSED, whatever Neo4j does), lite's compile error or
+     *  another error, each BOTH_ERROR where Neo4j errs too. */
     private static SqlParity.Outcome failed(Throwable e, CypherAnswers.Answer a) {
         // a dialect's refusal by name (DialectCapability, at render: a microsecond engine asked for nanoseconds)
-        // is a refusal, wherever it sits in the cause chain
+        // is a refusal, wherever it sits in the cause chain; a refusal is REFUSED where Neo4j raises too, as the
+        // TCK's lane judges it: lite does not read the statement, so it does not catch Neo4j's error (PR #67's
+        // review, 2026-10-22: 37 write cases had passed for BOTH_ERROR on a refusal)
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof com.legend.sql.dialect.DialectCapability) {
-                return a.error() != null ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e))
-                        : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+                return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
             }
         }
         if (e instanceof com.legend.error.NotImplementedException) {
-            return a.error() != null ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e))
-                    : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+            return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         }
         if (e instanceof com.legend.compiler.spec.TypeInferenceException) {
             // C4 (docs/SEMANTICS_REGISTER.md S58): over a CLOSED graph a label, property or relationship type the

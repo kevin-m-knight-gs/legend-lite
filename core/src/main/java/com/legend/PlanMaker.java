@@ -76,6 +76,7 @@ final class PlanMaker {
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), ctx, dialect);
         boolean streaming = output == TypedQuery.Output.STREAMED_JSON;
         List<com.legend.compiler.spec.typed.TypedSpec> body = query.body();
+        com.legend.resolver.StagedRows.refuseLetsTheWritesChange(body, query.specs());
         List<com.legend.compiler.spec.typed.TypedSpec> lets = new ArrayList<>();
         List<ExecutionPlan.Node> steps = new ArrayList<>();
         List<String> staged = new ArrayList<>();
@@ -92,11 +93,11 @@ final class PlanMaker {
                 // statements after read by name (the writes between read the rows as they were)
                 String table = com.legend.resolver.StagedRows.table(let.name());
                 TypedQuery.Resolved r = query.resolve(with(lets, rows), runtime);
-                SqlQuery q = com.legend.sql.EnumValueTables.apply(query.lowerer(r.temporal(), false, slots)
-                        .lower(r.body()));
-                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(new com.legend.sql.SqlDml
-                        .CreateTempTableAs(table, q, com.legend.resolver.StagedRows.columns(r.root().info()))),
-                        target, null), null));
+                com.legend.lowering.Lowerer lowerer = query.lowerer(r.temporal(), false, slots);
+                SqlQuery q = com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(lowerer.lower(r.body())));
+                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
+                        .staged(table, q, com.legend.resolver.StagedRows.columns(r.root().info()))), target, null),
+                        null));
                 staged.add(table);
                 lets.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
                         com.legend.resolver.StagedRows.storeOf(r.body(), ctx, runtime), let.info()));
@@ -124,7 +125,7 @@ final class PlanMaker {
             steps.add(last ? result(r.root(), q, output, dialect, target)
                     : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)));
         }
-        for (String table : staged) {
+        for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
             // (a failed program's transaction takes its tables back with its writes)
             steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new com.legend.sql.SqlDdl.DropTable(
                     null, table, com.legend.sql.NameQuoting.BARE)), List.of(), target, null), null));

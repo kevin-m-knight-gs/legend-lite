@@ -71,6 +71,48 @@ class StoreWritesExecutionTest {
         }
     }
 
+    /** A let's value is computed where the let is read (PR #67's review, 2026-10-22): a let whose value writes, and a
+     *  let read after a write changes its rows, are refused by name, on the execution path and the plan path, before
+     *  anything runs; a let of rows no later write changes is read as usual. */
+    @Test
+    void aLetTheWritesWouldChangeIsRefusedByName() throws Exception {
+        TestBackend backend = TestBackends.platform();
+        String model = MODEL.formatted(backend.connectionBody());
+        var ctx = com.legend.Compiler.compileModel(model);
+        try (Connection c = backend.openWorkspace()) {
+            run(c, "CREATE TABLE T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER)");
+            run(c, "CREATE TABLE SRC (ID INTEGER, NAME VARCHAR(20), AGE INTEGER)");
+            run(c, "INSERT INTO SRC VALUES (1, 'a', 10), (2, 'b', 20)");
+            run(c, "INSERT INTO T VALUES (9, 'z', 90)");
+            for (var refused : List.of(
+                    // (it had written nothing: the let was never read)
+                    List.of("{|let k = #>{w::DB.SRC}#->write(#>{w::DB.T}#); #>{w::DB.T}#->size();}",
+                            "the let 'k' has a write for its value"),
+                    // (it had read the rows the delete left: none)
+                    List.of("{|let s = #>{w::DB.T}#->filter(r|$r.ID > 0); #>{w::DB.T}#->delete(r|true);"
+                            + " $s->size();}", "the let 's' reads rows the write at statement 2 changes"),
+                    // through a let that reads it
+                    List.of("{|let s = #>{w::DB.T}#; let n = $s->size(); #>{w::DB.T}#->delete(r|true); $n;}",
+                            "the let 's' reads rows the write at statement 3 changes"),
+                    // a class's rows: its tables are known after the store resolver
+                    List.of("{|let p = w::Person.all(); #>{w::DB.T}#->delete(r|true); $p->size();}",
+                            "the let 'p' reads rows the write at statement 2 changes"))) {
+                Exception e = assertThrows(Exception.class, () -> count(backend, c, refused.get(0)), refused.get(0));
+                assertTrue(String.valueOf(e.getMessage()).contains(refused.get(1)), refused.get(0) + ": "
+                        + e.getMessage());
+                Exception p = assertThrows(Exception.class, () -> com.legend.Compiler.query(ctx, refused.get(0))
+                        .executionPlan("w::RT", com.legend.TypedQuery.Output.JSON), refused.get(0));
+                assertTrue(String.valueOf(p.getMessage()).contains(refused.get(1)), refused.get(0) + ": "
+                        + p.getMessage());
+                assertEquals(List.of("9|z|90"), rows(c), refused.get(0));
+            }
+            // rows of a table no later write changes: read as usual, after the write
+            assertEquals(3L, count(backend, c, "{|let s = #>{w::DB.SRC}#->filter(r|$r.ID > 0); $s->write(#>{w::DB.T}#);"
+                    + " $s->size() + 1;}"), "the let of another table's rows");
+            assertEquals(List.of("1|a|10", "2|b|20", "9|z|90"), rows(c));
+        }
+    }
+
     /** Every check, on {@code backend}'s own workspace. */
     static void writes(TestBackend backend) throws Exception {
         try (Connection c = backend.openWorkspace()) {
@@ -135,6 +177,19 @@ class StoreWritesExecutionTest {
             assertEquals(1L, count(backend, c, "|#>{w::DB.REV}#->write(#>{w::DB.T}#)"), name);
             assertEquals(1L, count(backend, c, "|#>{w::DB.REV}#->merge(#>{w::DB.T}#, ~[ID])"), name);
             assertEquals(List.of("7|g|70"), rows(c), name);
+            // staged rows (PR #67's review, 2026-10-22): that source staged by name, under a let of a mixed-case name
+            // (Postgres had staged its values under each other's columns, and made a table its reads did not name)
+            assertEquals(1L, count(backend, c, "{|let rowsA = #>{w::DB.REV}#->meta::legend::lite::stage();"
+                    + " #>{w::DB.T}#->delete(r|true); $rowsA->write(#>{w::DB.T}#);}"), name);
+            assertEquals(List.of("7|g|70"), rows(c), name);
+            // a failing last write takes back every write before it, a staging between them included (H2's CREATE
+            // TEMPORARY TABLE had committed the first), and the staged table is gone
+            assertThrows(RuntimeException.class, () -> count(backend, c, "{|#>{w::DB.SRC}#->filter(r|$r.ID == 1)"
+                    + "->write(#>{w::DB.T}#); let s = #>{w::DB.T}#->meta::legend::lite::stage();"
+                    + " #>{w::DB.SRC}#->write(#>{w::DB.T}#);}"), name);
+            assertEquals(List.of("7|g|70"), rows(c), name);
+            assertThrows(Exception.class, () -> run(c, "SELECT * FROM legend_stage_s"), name);
+            assertTrue(c.getAutoCommit(), name);
         }
     }
 

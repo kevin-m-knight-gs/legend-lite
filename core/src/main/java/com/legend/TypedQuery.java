@@ -33,6 +33,11 @@ public final class TypedQuery {
         return ctx;
     }
 
+    /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). */
+    SpecCompiler specs() {
+        return specs;
+    }
+
     /** The query's statements typed as a query body (Phase G), once. */
     public List<TypedSpec> body() {
         List<TypedSpec> b = body;

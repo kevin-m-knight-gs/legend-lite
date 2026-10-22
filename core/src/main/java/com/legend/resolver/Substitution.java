@@ -1450,12 +1450,6 @@ final class Substitution {
                                     .getClass().getSimpleName()) + "]");
     }
 
-    /** A LIST VALUE's map (a computed, many-valued String[*] — the
-     * residual {@code if(..)->concatenate(..)} of toPostgresModel's
-     * qualifiedName parts — never a row path, never a class collection):
-     * a list operation, the mapper is data over its own element (the
-     * lowering's list_transform). Pure's map over exactly one value is
-     * application, which {@link #objectSpaceFanOut} keeps. */
     /** Whether a collection operation's source is a list of values, not a relation, a class's instances or a
      *  navigation from the scope's variable ({@link #listValueMap}'s test of a map's source). */
     private boolean listValue(TypedSpec source) {
@@ -1464,6 +1458,12 @@ final class Substitution {
                 && pathOf(source, target.userVar()) == null;
     }
 
+    /** A LIST VALUE's map (a computed, many-valued String[*] — the
+     * residual {@code if(..)->concatenate(..)} of toPostgresModel's
+     * qualifiedName parts — never a row path, never a class collection):
+     * a list operation, the mapper is data over its own element (the
+     * lowering's list_transform). Pure's map over exactly one value is
+     * application, which {@link #objectSpaceFanOut} keeps. */
     private boolean listValueMap(TypedMap m) {
         return m.mapper().parameters().size() == 1
                 && !Type.isRelation(m.source().info().type())

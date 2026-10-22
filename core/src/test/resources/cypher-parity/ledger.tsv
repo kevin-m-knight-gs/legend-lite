@@ -137,7 +137,7 @@ tck/clauses/delete/Delete1/[3] Detach deleting connected nodes and relationships
 tck/clauses/delete/Delete1/[4] Delete on null node	PASS	PASS
 tck/clauses/delete/Delete1/[5] Ignore null when deleting node	PASS	PASS
 tck/clauses/delete/Delete1/[6] Detach delete on null node	PASS	PASS
-tck/clauses/delete/Delete1/[7] Failing when deleting connected nodes	BOTH_ERROR	BOTH_ERROR
+tck/clauses/delete/Delete1/[7] Failing when deleting connected nodes	REFUSED	BOTH_ERROR
 tck/clauses/delete/Delete1/[8] Failing when deleting a label	BOTH_ERROR	BOTH_ERROR
 tck/clauses/delete/Delete2/[1] Delete relationships	PASS	PASS
 tck/clauses/delete/Delete2/[2] Delete optionally matched relationship	PASS	PASS
@@ -603,7 +603,7 @@ tck/clauses/merge/Merge1/[13] Merge should bind a path	PASS	PASS
 tck/clauses/merge/Merge1/[14] Merges should not be able to match on deleted nodes	PASS	PASS
 tck/clauses/merge/Merge1/[15] Fail when merge a node that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge1/[16] Fail when using parameter as node predicate in MERGE	BOTH_ERROR	BOTH_ERROR
-tck/clauses/merge/Merge1/[17] Fail on merging node with null property	BOTH_ERROR	BOTH_ERROR
+tck/clauses/merge/Merge1/[17] Fail on merging node with null property	REFUSED	BOTH_ERROR
 tck/clauses/merge/Merge2/[1] Merge node with label add label on create	REFUSED	REFUSED
 tck/clauses/merge/Merge2/[2] ON CREATE on created nodes	PASS	PASS
 tck/clauses/merge/Merge2/[3] Merge node with label add property on create	PASS	PASS
@@ -645,17 +645,17 @@ tck/clauses/merge/Merge5/[25] Fail when merging relationship with more than one 
 tck/clauses/merge/Merge5/[26] Fail when merging relationship that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[27] Fail when using parameter as relationship predicate in MERGE	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[28] Fail when using variable length relationship in MERGE	BOTH_ERROR	BOTH_ERROR
-tck/clauses/merge/Merge5/[29] Fail on merging relationship with null property	BOTH_ERROR	BOTH_ERROR
+tck/clauses/merge/Merge5/[29] Fail on merging relationship with null property	REFUSED	BOTH_ERROR
 tck/clauses/merge/Merge6/[1] Using ON CREATE on a node	PASS	PASS
 tck/clauses/merge/Merge6/[2] Using ON CREATE on a relationship	PASS	PASS
 tck/clauses/merge/Merge6/[3] Updating one property with ON CREATE	PASS	PASS
 tck/clauses/merge/Merge6/[4] Null-setting one property with ON CREATE	PASS	PASS
-tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	BOTH_ERROR	BOTH_ERROR
+tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	REFUSED	BOTH_ERROR
 tck/clauses/merge/Merge6/[7] Copying properties from literal map with ON CREATE	PASS	PASS
 tck/clauses/merge/Merge7/[1] Using ON MATCH on created node	PASS	PASS
 tck/clauses/merge/Merge7/[2] Using ON MATCH on created relationship	PASS	PASS
 tck/clauses/merge/Merge7/[3] Using ON MATCH on a relationship	PASS	PASS
-tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	BOTH_ERROR	BOTH_ERROR
+tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	REFUSED	BOTH_ERROR
 tck/clauses/merge/Merge7/[5] Copying properties from literal map with ON MATCH	PASS	PASS
 tck/clauses/merge/Merge8/[1] Using ON CREATE and ON MATCH	PASS	PASS
 tck/clauses/merge/Merge9/[1] UNWIND with one MERGE	PASS	PASS
@@ -833,7 +833,7 @@ tck/clauses/set/Set1/[6] Concatenate elements onto a list property	PASS	PASS
 tck/clauses/set/Set1/[7] Concatenate elements in reverse onto a list property	PASS	PASS
 tck/clauses/set/Set1/[8] Ignore null when setting property	PASS	PASS
 tck/clauses/set/Set1/[9] Failing when using undefined variable in SET	BOTH_ERROR	BOTH_ERROR
-tck/clauses/set/Set1/[10] Failing when setting a list of maps as a property	BOTH_ERROR	BOTH_ERROR
+tck/clauses/set/Set1/[10] Failing when setting a list of maps as a property	REFUSED	BOTH_ERROR
 tck/clauses/set/Set1/[11] Set multiple node properties	PASS	PASS
 tck/clauses/set/Set2/[1] Setting a node property to null removes the existing property	PASS	PASS
 tck/clauses/set/Set2/[2] Setting a node property to null removes the existing property, but not before SET	PASS	PASS
@@ -1282,7 +1282,7 @@ tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad a
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	REFUSED	BOTH_ERROR
 tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	PASS	PASS
 tck/expressions/aggregation/Aggregation8/[2] Distinct on null	PASS	PASS
 tck/expressions/aggregation/Aggregation8/[3] Collect distinct nulls	PASS	PASS
@@ -4637,7 +4637,7 @@ lite/rows/a_fresh_match_with_a_relationship_after_rows	PASS	PASS
 lite/rows/a_fresh_untyped_match_after_rows_aggregated	PASS	PASS
 lite/rows/a_fresh_match_after_rows_counted	PASS	PASS
 lite/rows/a_fresh_match_after_rows_keeps_no_row_over_no_node	PASS	PASS
-lite/rows/a_match_binding_a_projected_variable_after_rows_refused	BOTH_ERROR	BOTH_ERROR
+lite/rows/a_match_binding_a_projected_variable_after_rows_refused	REFUSED	BOTH_ERROR
 lite/shapes/list_of_one_row_value	PASS	PASS
 lite/shapes/list_with_a_null_element	PASS	PASS
 lite/shapes/list_of_mixed_kinds	PASS	PASS
@@ -5053,6 +5053,11 @@ lite/withlists/a_list_of_row_values_through_with_unwound	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS	PASS
 lite/withlists/a_map_of_row_values_through_with	PASS	PASS
 lite/withlists/a_list_of_row_strings_through_with	PASS	PASS
+lite/writes/an_undirected_merge_over_both_orders_creates_one	PASS	
+lite/writes/an_undirected_merge_binds_the_one_relationship_on_both_rows	PASS	
+lite/writes/a_set_after_a_delete_writes_nothing_back	PASS	
+lite/writes/a_relationship_from_a_deleted_node_is_neo4js_error	REFUSED	
+lite/writes/several_rows_setting_one_property_from_itself	FAIL	
 lite/zones/stored_offset_fields	PASS	PASS
 lite/zones/stored_offset_through_with	PASS	PASS
 lite/zones/stored_offset_texts	PASS	PASS

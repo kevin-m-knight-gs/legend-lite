@@ -45,14 +45,23 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
      *  columns the query's (the test-data generator's fetches, 2026-10-16). The name is one the platform makes: bare.
      *  {@code columns}, when given, names the table's columns in the query's order, each as its relation names it (a
      *  program's staged rows, read after by those names: the writes design's leg 4, 2026-10-20), for a dialect whose
-     *  database would otherwise fold a stored column's name; empty for the query's own. */
-    record CreateTempTableAs(String table, SqlQuery query, List<String> columns) implements SqlDml {
+     *  database would otherwise fold a stored column's name; empty for the query's own. {@code staged}: a program's
+     *  staged rows, made within the program's transaction, which the statement must not end, and gone when the
+     *  program has run ({@link com.legend.sql.dialect.SqlDialect#dropsStagedTablesWithTheirTransaction}: dropped by
+     *  the program's last step, or by the database as the transaction ends; PR #67's review, 2026-10-22). */
+    record CreateTempTableAs(String table, SqlQuery query, List<String> columns, boolean staged) implements SqlDml {
         public CreateTempTableAs {
             columns = List.copyOf(columns);
         }
 
         public CreateTempTableAs(String table, SqlQuery query) {
-            this(table, query, List.of());
+            this(table, query, List.of(), false);
+        }
+
+        /** A program's staged rows ({@code meta::legend::lite::stage}), {@code columns} as the staged relation names
+         *  them, in {@code query}'s order. */
+        public static CreateTempTableAs staged(String table, SqlQuery query, List<String> columns) {
+            return new CreateTempTableAs(table, query, columns, true);
         }
     }
 

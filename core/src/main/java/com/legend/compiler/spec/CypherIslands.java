@@ -56,7 +56,7 @@ public final class CypherIslands {
                     com.legend.protocol.cypher.CypherParser.parse(island.sql());
             return CypherToPure.translate(statement, new Graph(model, graphOf(statement, model)));
         } catch (SqlTranslationException e) {
-            throw refusal(island, e);
+            throw SqlIslands.refusal(island, e);
         }
     }
 
@@ -83,19 +83,8 @@ public final class CypherIslands {
             return CypherToPure.program(statement, new Graph(model, graphOf(statement, model))).stream()
                     .map(NameResolver::resolveQuery).toList();
         } catch (SqlTranslationException e) {
-            throw refusal(island, e);
+            throw SqlIslands.refusal(island, e);
         }
-    }
-
-    /** A translator's refusal as the compile error its kind says, placed in the enclosing source. */
-    private static RuntimeException refusal(SqlIsland island, SqlTranslationException e) {
-        String message = island.opening() + "...}# at " + SqlIslands.position(island, e.line(), e.column()) + ": "
-                + e.getMessage();
-        return switch (e.kind()) {
-            case SYNTAX -> new com.legend.error.IslandSyntaxException(message);
-            case UNSUPPORTED -> new com.legend.error.NotImplementedException(message);
-            case INVALID -> new TypeInferenceException(message);
-        };
     }
 
     /** The classes of the model by their simple names (what a label names: an anonymous class, one carrying

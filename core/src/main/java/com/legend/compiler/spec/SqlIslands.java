@@ -98,7 +98,7 @@ final class SqlIslands {
             }
 
             @Override
-            public java.util.List<String> primaryKey(String database, String table) {
+            public java.util.@com.legend.base.Nullable List<String> primaryKey(String database, String table) {
                 return SqlIslands.primaryKey(model, database, table);
             }
 
@@ -124,8 +124,9 @@ final class SqlIslands {
         };
     }
 
-    /** A translator's refusal as the compile error its kind says, placed in the enclosing source. */
-    private static RuntimeException refusal(SqlIsland island, SqlTranslationException e) {
+    /** A translator's refusal as the compile error its kind says, placed in the enclosing source (the #SQL and the
+     *  #Cypher islands'). */
+    static RuntimeException refusal(SqlIsland island, SqlTranslationException e) {
         String message = island.opening() + "...}# at " + position(island, e.line(), e.column()) + ": "
                 + e.getMessage();
         return switch (e.kind()) {
@@ -136,12 +137,13 @@ final class SqlIslands {
     }
 
     /** The writes design's leg 4 (2026-10-20): the primary key's columns of {@code table} ({@code schema.table}, or a
-     *  table of the default schema) of the Database {@code database}, as it declares them; none for a table it does not
-     *  declare. */
-    static java.util.List<String> primaryKey(ModelContext model, String database, String table) {
+     *  table of the default schema) of the Database {@code database}, as it declares them; null for a table it does not
+     *  declare (SqlToPure.Sources#primaryKey). */
+    static java.util.@com.legend.base.Nullable List<String> primaryKey(ModelContext model, String database,
+            String table) {
         com.legend.model.DatabaseDefinition db = model.findDatabase(database).orElse(null);
         if (db == null) {
-            return java.util.List.of();
+            return null;
         }
         int dot = table.indexOf('.');
         java.util.List<com.legend.model.DatabaseDefinition.TableDefinition> tables = new java.util.ArrayList<>();
@@ -161,7 +163,7 @@ final class SqlIslands {
                         .map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toList();
             }
         }
-        return java.util.List.of();
+        return null;
     }
 
     /** IQ island, 2026-10-14 (M1e): the model's tables, by Database, schema ({@code default} for one declared outside

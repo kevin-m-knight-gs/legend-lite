@@ -77,9 +77,12 @@ final class StatementExecutor {
             env = env.withProtocolBody(rlf.body());
         }
         // a program that writes a store table runs in ONE transaction (docs/WRITES_DESIGN_2026_10_18.md §4): its
-        // writes all land or none do; a caller's open transaction is joined, not committed
+        // writes all land or none do; a caller's open transaction is joined, not committed. So does one that stages
+        // rows: its staged tables are the transaction's (SqlDml.CreateTempTableAs.staged)
         java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
-        if (typedBody.stream().anyMatch(s -> com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
+        if (typedBody.stream().anyMatch(s -> com.legend.resolver.StagedRows.rowsOf(s) != null
+                || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
+            com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
             ExecEnv tx = env;
             return com.legend.exec.Executor.inTransaction(connection,
                     () -> executeStatements(typedBody, new java.util.ArrayList<>(), specs, tx));
@@ -2085,6 +2088,16 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection, boolean identity) {
+        return lowerAndPrepare(body, env, ctx, dialect, connection, identity, false);
+    }
+
+    /** {@link #lowerAndPrepare(java.util.List, ExecEnv, ModelContext, com.legend.sql.dialect.SqlDialect,
+     *  java.sql.Connection, boolean)}; {@code named}: the query's columns named in its select, in its relation's
+     *  order (Lowerer.namedColumns: a staged table takes them by position). */
+    private static com.legend.sql.SqlQuery lowerAndPrepare(
+            java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect,
+            java.sql.Connection connection, boolean identity, boolean named) {
         com.legend.lowering.Lowerer lowerer = lowererFor(body, env, ctx, identity);
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
@@ -2115,7 +2128,7 @@ final class StatementExecutor {
                             inner, fDialect, fConn),
                     com.legend.exec.Executor::pureOfSqlType);
         }
-        return plan;
+        return named ? lowerer.namedColumns(plan) : plan;
     }
 
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
@@ -2156,9 +2169,9 @@ final class StatementExecutor {
         }
         ExecEnv planned = p.plannedEnv();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), planned, planned.ctx(), planned.dialect(),
-                planned.connection(), false);
+                planned.connection(), false, true);
         // (each column named as the staged relation names it: the statements after read it by those names)
-        String sql = planned.dialect().render(new com.legend.sql.SqlDml.CreateTempTableAs(table, plan,
+        String sql = planned.dialect().render(com.legend.sql.SqlDml.CreateTempTableAs.staged(table, plan,
                 com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
         record(planned, sql, false);
         com.legend.exec.Executor.executeUpdate(planned.connection(), sql);
@@ -2171,8 +2184,12 @@ final class StatementExecutor {
     }
 
     /** The staged lets' temporary tables dropped once the program has run (a failed program's transaction takes
-     *  them back with its writes). */
+     *  them back with its writes), unless the database drops them as the transaction ends
+     *  (SqlDialect.dropsStagedTablesWithTheirTransaction). */
     static void dropStaged(ExecEnv env, java.util.List<String> tables) {
+        if (env.dialect().dropsStagedTablesWithTheirTransaction()) {
+            return;
+        }
         for (String t : tables) {
             String sql = env.dialect().render(new com.legend.sql.SqlDdl.DropTable(null, t,
                     com.legend.sql.NameQuoting.BARE));

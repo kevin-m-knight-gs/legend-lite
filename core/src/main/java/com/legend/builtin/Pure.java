@@ -479,7 +479,8 @@ public final class Pure {
          *  §8, leg 6): {@code let s = rows->stage()} computes {@code rows} at that statement's turn into a temporary
          *  table of the session, and every statement after it reads the table, so the writes between read the rows
          *  as they were (a statement that writes changes what a recomputed query finds). Types as its relation;
-         *  a let's value only. Emitted by the Cypher translator only. */
+         *  a let's value only. Emitted by the Cypher translator and by the #SQL island's RETURNING, and written in
+         *  Pure by its full name (PR #67's review, 2026-10-22: this said the Cypher translator only). */
         public static final String STAGE = PKG + "stage";
         /** Class writes over direct mappings (2026-10-20, docs/WRITES_DESIGN_2026_10_18.md §4, L2: the Cypher island's
          *  writes on a graph of a domain model, leg 5): each over a relation of rows and a class, the rows' column

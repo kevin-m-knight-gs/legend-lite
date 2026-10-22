@@ -11947,6 +11947,21 @@ SKIP 33, of 5062 cases); no case moved against the head; TCK agreement 3600 on b
 the guards green after four tests' translator pins moved, `projectArm` split under its ceiling and the native claims
 regenerated; the local gate below.
 
+## 2026-10-22 — writes: PR #67's review, fourteen findings fixed before its first CI run
+
+Branch `claude/keen-noether-v5mis0`; the record is `docs/PR67_REVIEW_2026_10_22.md` (two independent reviews, every
+finding probed on DuckDB, H2, Postgres 16 and the local Neo4j before it was fixed).
+- **Fixed and pinned:** H2's staged program atomic and session-local (`ON COMMIT DROP TRANSACTIONAL`, no `DROP`);
+  Postgres's staged table named as its reads name it, its columns in the relation's order; a let of a write, and a
+  let read after a write changes its rows, refused by name on both paths; an undirected MERGE over both orders of a
+  pair one relationship; a SET after a DELETE writing nothing back; a relationship created from a deleted node
+  raising EntityNotFound (graph B); a domain model's CREATE one insert, its writes running on H2, and a MERGE, DELETE,
+  REMOVE or read-back SET over classes sharing ids refused by name; the judge's refusal REFUSED where Neo4j raises;
+  the native lane in `//gates:core`.
+- **The lanes,** in update mode: LANES_PLACEHOLDER
+- **Registered, for the user:** several rows writing one property from itself (S98, the corpus's one FAIL), and nine
+  decisions (the review's §4).
+
 ## 2026-10-22 — `#Cypher{...}#` and writes: main merged in, ahead of the PR
 
 Branch `claude/keen-noether-v5mis0`, merge commit `c0aa4fbed`: main's 134 commits since 2026-10-20 merged in (the commit

@@ -180,10 +180,22 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
-     *  generator tests, ReservedNamesGenerationTest). */
+     *  generator tests, ReservedNamesGenerationTest). A program's staged rows are a LOCAL table, TRANSACTIONAL and
+     *  dropped ON COMMIT: H2's {@code CREATE TEMPORARY TABLE} commits the open transaction and makes a table every
+     *  session sees, and a {@code DROP TABLE} commits it too, where the local, transactional table commits nothing
+     *  and is gone when the transaction ends, committed or rolled back (measured 2026-10-22 on H2 2.1.214, PR #67's
+     *  review: a staged program's failing last write had left its first write committed). */
     @Override
     protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
-        return createTemporaryTableAs(ct);
+        return ct.staged() ? createTemporaryTableAs(ct, false, "CREATE LOCAL TEMPORARY TABLE ",
+                " ON COMMIT DROP TRANSACTIONAL") : createTemporaryTableAs(ct);
+    }
+
+    /** {@inheritDoc} H2: its staged table is dropped ON COMMIT ({@link #tempTableAs}), since a {@code DROP TABLE}
+     *  would commit the program's transaction. */
+    @Override
+    public boolean dropsStagedTablesWithTheirTransaction() {
+        return true;
     }
 
     /** H2's catalog names a column's type by its own name ({@code CHARACTER VARYING}, {@code DOUBLE PRECISION}) and

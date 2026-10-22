@@ -39,6 +39,7 @@ class WritePlansTest {
             Database w::DB (
               Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER)
               Table SRC (ID INTEGER, NAME VARCHAR(20), AGE INTEGER)
+              Table REV (ID INTEGER, NAME VARCHAR(20), AGE INTEGER)
             )
             ###Connection
             RelationalDatabaseConnection w::Conn {
@@ -91,6 +92,14 @@ class WritePlansTest {
                     + " #>{w::DB.SRC}#->write(#>{w::DB.T}#);}";
             assertThrows(RuntimeException.class, () -> answer(model, c, two, Map.of("id", 1L)), name);
             assertEquals(List.of("2|b|20", "3|c|30"), rows(c), name);
+            // ... a staging between them included (PR #67's review, 2026-10-22: H2's CREATE TEMPORARY TABLE had
+            // committed the first), its table gone
+            String staging = "{id: Integer[1] |#>{w::DB.SRC}#->filter(r|$r.ID == $id)->write(#>{w::DB.T}#);"
+                    + " let s = #>{w::DB.T}#->meta::legend::lite::stage(); #>{w::DB.SRC}#->write(#>{w::DB.T}#);}";
+            assertThrows(RuntimeException.class, () -> answer(model, c, staging, Map.of("id", 1L)), name);
+            assertEquals(List.of("2|b|20", "3|c|30"), rows(c), name);
+            assertThrows(Exception.class, () -> run(c, "SELECT * FROM legend_stage_s"), name);
+            assertTrue(c.getAutoCommit(), name);
             // update and delete, their values and predicates bound
             assertEquals(count(model, c, "|1"), answer(model, c, "{id: Integer[1], age: Integer[1] |#>{w::DB.T}#"
                     + "->update(r|$r.ID == $id, ~[AGE: r|$age])}", Map.of("id", 2L, "age", 99L)), name);
@@ -125,6 +134,14 @@ class WritePlansTest {
             assertEquals(answer(PlanJson.read(PlanJson.write(plan)), c, Map.of("age", 15L)),
                     count(model, c, "|2"), name);
             assertEquals(List.of("2|b|20", "3|c|30"), rows(c), name);
+            // rows the database holds in another order than the store declares, staged by name under a let of a
+            // mixed-case name (PR #67's review: Postgres had swapped the values, and made a table its reads missed)
+            run(c, "CREATE TABLE REV (AGE INTEGER, NAME VARCHAR(20), ID INTEGER)");
+            run(c, "INSERT INTO REV VALUES (70, 'g', 7)");
+            assertEquals(count(model, c, "|1"), answer(model, c, "{|let rowsA = #>{w::DB.REV}#"
+                    + "->meta::legend::lite::stage(); #>{w::DB.T}#->delete(r|true); $rowsA->write(#>{w::DB.T}#);}",
+                    Map.of()), name);
+            assertEquals(List.of("7|g|70"), rows(c), name);
         }
     }
 

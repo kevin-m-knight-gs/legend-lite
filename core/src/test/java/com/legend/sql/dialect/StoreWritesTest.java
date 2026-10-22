@@ -135,7 +135,7 @@ class StoreWritesTest {
                 integer("above"))));
         // CREATE TEMPORARY TABLE S AS SELECT ... FROM SRC AS s WHERE s.AGE > ?
         SqlDml.CreateTempTableAs staged = new SqlDml.CreateTempTableAs("S", source().withWhere(new SqlExpr.Call(
-                SqlFn.GREATER, List.of(stored("s", "AGE"), integer("older")))), List.of());
+                SqlFn.GREATER, List.of(stored("s", "AGE"), integer("older")))));
         for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new DuckDb(), "jdbc:duckdb:"),
                 Map.entry(new H2(), "jdbc:h2:mem:store_writes_bound"),
                 Map.entry(new H2Modern(), "jdbc:h2:mem:store_writes_bound_m"))) {

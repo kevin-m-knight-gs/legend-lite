@@ -61,9 +61,11 @@ public final class SqlToPure {
 
         /** The writes design's leg 4 (2026-10-20): the columns of the primary key of the table {@code table} of the
          *  Database {@code database} ({@code schema.table}, or a table of its default schema), as the store declares
-         *  them: none unless the caller compiles against a model. */
-        default List<String> primaryKey(String database, String table) {
-            return List.of();
+         *  them (none where it declares none); null where the table is not known (the caller compiles against no
+         *  model, or its model declares no such table: PR #67's review, 2026-10-22, an unknown table had read as one
+         *  of no key). */
+        default @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+            return null;
         }
 
         /** IQ island, 2026-10-14 (M1e): reports the model's tables a dialect may name without a source function
@@ -489,7 +491,12 @@ public final class SqlToPure {
             }
             keys.add(key.name());
         }
-        if (!new HashSet<>(sources.primaryKey(t.database(), t.path())).equals(new HashSet<>(keys))) {
+        List<String> declared = sources.primaryKey(t.database(), t.path());
+        if (declared == null) {
+            throw SqlTranslationException.unsupported("ON CONFLICT over a table whose primary key no model declares"
+                    + " is not supported (" + t.database() + "." + t.path() + ")", conflict.pos());
+        }
+        if (!new HashSet<>(declared).equals(new HashSet<>(keys))) {
             throw SqlTranslationException.invalid("there is no unique or exclusion constraint matching the ON"
                     + " CONFLICT specification", conflict.pos());
         }

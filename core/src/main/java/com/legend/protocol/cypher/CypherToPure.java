@@ -9672,8 +9672,6 @@ public final class CypherToPure {
         return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(v, nullable) : Tx.value(v, kind, nullable);
     }
 
-    /** A stored property's kind: a time of day under its mark (the study's §12.64: a DateTime, the date-time at
-     *  the time of day on the epoch day), else its type's. */
     /** The shape of a Variant property a graph profile list mark marks ({@link #LIST_MARKS}: a stored list of
      *  temporals of one kind, each element its text), null for an unmarked one; a list mark on a property of another
      *  type, or two of them, is the model's error. */
@@ -9696,6 +9694,8 @@ public final class CypherToPure {
         return found == null ? null : storedListShape(found);
     }
 
+    /** A stored property's kind: a time of day under its mark (the study's §12.64: a DateTime, the date-time at
+     *  the time of day on the epoch day), else its type's. */
     private static Kind kindOf(Property p, Pos pos) {
         if (p.timeOfDay()) {
             if (!p.type().equals("DateTime")) {
@@ -18724,6 +18724,9 @@ public final class CypherToPure {
             store = model.nativeStore();
             // (no native store: a graph of a domain model, written through its classes' mappings, L2)
             domain = store == null;
+            if (domain && namesByIdAcrossClasses()) {
+                idsUnique();
+            }
             if (clauses.stream().anyMatch(c -> c instanceof CypherAst.Create || c instanceof CypherAst.Merge)) {
                 highWater = highWater();
             }
@@ -18939,12 +18942,14 @@ public final class CypherToPure {
             return new Rows(new Variable(name), columns);
         }
 
-        /** The id in the store an element's identity text ends in: what follows its last {@code :} (as many of its
-         *  last characters as come before the first {@code :} of it reversed; the relational indexOf counts from 1,
-         *  the engine's strpos). */
+        /** The id in the store an element's identity text ends in: what follows its last {@code :}, the one colon
+         *  left once each package separator {@code ::} is another character (the relational indexOf and substring
+         *  count from 1, the engine's strpos and substr). No reverse, which H2 lacks (PR #67's review, 2026-10-22: a
+         *  domain model's writes on H2 raised "Function REVERSE not found"). */
         private static ValueSpecification storeId(ValueSpecification identity) {
-            return call("parseInteger", call("right", identity, AppliedFunction.infixRun("minus", List.of(call(
-                    "indexOf", call("reverseString", identity), new CString(":")), new CInteger(1L)))));
+            ValueSpecification unpackaged = call("replace", identity, new CString("::"), new CString("/"));
+            return call("parseInteger", call("substring", unpackaged, plus(call("indexOf", unpackaged,
+                    new CString(":")), new CInteger(1L))));
         }
 
         /** The store's table {@code table}. */
@@ -19244,8 +19249,8 @@ public final class CypherToPure {
             for (String c : classes) {
                 Property p = java.util.Objects.requireNonNull(property(c, key));
                 ValueSpecification value = domainValue(c, p, v, kind);
-                ValueSpecification arm = el.classPath() != null ? rows : call("filter", rows, lambda("r", call(
-                        "startsWith", call("toOne", read(identityText(el))), new CString(c + ":"))));
+                ValueSpecification arm = stillHeld(el.classPath() != null ? rows : call("filter", rows, lambda("r", call(
+                        "startsWith", call("toOne", read(identityText(el))), new CString(c + ":")))), el, c);
                 classWrite(MERGE_INSTANCES, call("distinct", call("project", arm, new ColSpecArray(List.of(
                         new ColSpec(DOMAIN_KEY, lambda("r", key(el)), null, null),
                         new ColSpec(key, lambda("r", value), null, null))))), c, null, DOMAIN_KEY);
@@ -19427,11 +19432,43 @@ public final class CypherToPure {
             for (int j = 0; j < newNodes.size(); j++) {
                 NodePattern n = newNodes.get(j);
                 Element el = nodeElements.get(j);
+                Map<String, Kind> kinds = new LinkedHashMap<>();
+                Map<String, Expr> slotted = new LinkedHashMap<>();
                 if (domain) {
-                    // (an instance of its label set's class, its key the minted id)
-                    classWrite(WRITE_INSTANCES, call("project", staged.vs(), new ColSpecArray(List.of(new ColSpec(
-                            DOMAIN_KEY, lambda("r", mintedId(java.util.Objects.requireNonNull(el.minted()))), null, null)))),
-                            java.util.Objects.requireNonNull(el.classPath()), null, DOMAIN_KEY);
+                    // (an instance of its label set's class, its key the minted id and its properties' values in one
+                    // insert, so a column the store declares NOT NULL takes its value with the row: PR #67's review,
+                    // 2026-10-22, the key had been inserted alone; a zoned value's or a duration's slots merged after)
+                    String c = java.util.Objects.requireNonNull(el.classPath());
+                    List<ColSpec> cols = new ArrayList<>(List.of(new ColSpec(DOMAIN_KEY, lambda("r", mintedId(
+                            java.util.Objects.requireNonNull(el.minted()))), null, null)));
+                    for (Map.Entry<String, Expr> prop : n.properties().entrySet()) {
+                        String key = prop.getKey();
+                        Pos at = prop.getValue().pos();
+                        Val value = val(prop.getValue(), scopeOver);
+                        listsWritten.remove(el.variable() + "." + key);
+                        if (isNull(value)) {
+                            continue;
+                        }
+                        Tx t = propertyValue(key, value, at);
+                        if (t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION) {
+                            slotted.put(key, prop.getValue());
+                            continue;
+                        }
+                        Property p = property(c, key);
+                        if (p == null) {
+                            throw CypherErrors.unsupported("the property " + key + " written on " + el.variable()
+                                    + ", which no class of the domain model declares, is not supported (a domain"
+                                    + " model's class declares its properties)", at);
+                        }
+                        cols.add(new ColSpec(key, lambda("r", domainValue(c, p, SqlToPure.valueOf(t), t.kind())), null,
+                                null));
+                        if (t.detail() instanceof ListOf l) {
+                            listsWritten.put(el.variable() + "." + key, l);
+                        }
+                        kinds.put(key, t.kind());
+                    }
+                    classWrite(WRITE_INSTANCES, call("project", staged.vs(), new ColSpecArray(cols)), c, null,
+                            DOMAIN_KEY);
                 } else {
                     List<ColSpec> row = List.of(
                             new ColSpec("id", lambda("r", mintedId(java.util.Objects.requireNonNull(el.minted()))), null,
@@ -19439,9 +19476,9 @@ public final class CypherToPure {
                             new ColSpec("labels", lambda("r", new CString(labelText(n.labels()))), null, null));
                     statements.add(call("write", call("project", staged.vs(), new ColSpecArray(row)),
                             table("nodes")));
+                    slotted.putAll(n.properties());
                 }
-                Map<String, Kind> kinds = new LinkedHashMap<>();
-                for (Map.Entry<String, Expr> prop : n.properties().entrySet()) {
+                for (Map.Entry<String, Expr> prop : slotted.entrySet()) {
                     Kind k = insertProperty(staged, el, prop.getKey(), val(prop.getValue(), scopeOver),
                             prop.getValue().pos());
                     if (k != null) {
@@ -19461,6 +19498,13 @@ public final class CypherToPure {
                     edgesWritten(staged, java.util.Objects.requireNonNull(el.minted()), relClasses.get(j), ends[0],
                             key(carriedKey(ends[0])), ends[1], key(carriedKey(ends[1])), r.types().get(0));
                 } else {
+                    for (Element end : ends) {
+                        if (end.minted() == null) {
+                            // (an end the statement deleted: Neo4j's EntityNotFound; PR #67's review, 2026-10-22)
+                            guard(staged, call("not", stored(true, key(carriedKey(end)))), "Unable to load NODE "
+                                    + end.variable() + ": it was deleted before the relationship was created from it");
+                        }
+                    }
                     List<ColSpec> row = List.of(
                             new ColSpec("id", lambda("r", mintedId(java.util.Objects.requireNonNull(el.minted()))), null,
                                     null),
@@ -19484,6 +19528,39 @@ public final class CypherToPure {
                 }
             }
             return refreshed(staged, reread, cr.pos());
+        }
+
+        /** Whether a clause of the statement names an element of a domain model by its id alone, as the native
+         *  store's graph does (a node's {@code nodes.id}), which a domain model's mappings need not keep unique across
+         *  its classes: a MERGE (its match), a DELETE, a REMOVE, and a SET whose elements a later clause reads again.
+         *  A CREATE names each element it makes by an id above every class's, and a SET each element by its class
+         *  and its id. */
+        private boolean namesByIdAcrossClasses() {
+            for (int i = 0; i < clauses.size(); i++) {
+                Clause c = clauses.get(i);
+                if (c instanceof CypherAst.Merge || c instanceof CypherAst.Remove || c instanceof CypherAst.Delete
+                        || c instanceof CypherAst.SetClause && !usedAfter(i).isEmpty()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** A statement that names a domain model's elements by their ids ({@link #namesByIdAcrossClasses}) raises,
+         *  before it writes, where two of its node classes' instances share an id, or two of its edge classes' (PR
+         *  #67's review, 2026-10-22: deleting {@code A:7} would have deleted {@code B:7} too). */
+        private void idsUnique() {
+            for (String t : List.of("nodes", "rels")) {
+                // (the condition inside the raise: H2 computes a grouped query's items before its HAVING)
+                ValueSpecification ids = call("groupBy", table(t), new ColSpecArray(List.of(new ColSpec("id", null,
+                        null, null))), new ColSpecArray(List.of(new ColSpec("n", lambda("x", new CInteger(1L)),
+                        lambda("y", call("count", new Variable("y"))), null))));
+                statements.add(call("project", ids, new ColSpecArray(List.of(new ColSpec(SYNTHETIC + "shared",
+                        lambda("r", raisingWhere(call("greaterThan", read("n"), new CInteger(1L)), "A write to a graph"
+                        + " of a domain model whose " + ("nodes".equals(t) ? "node" : "edge") + " classes' instances"
+                        + " share an id is not supported: the writer names an element by its id",
+                        new CInteger(1L))), null, null)))));
+            }
         }
 
         /** The store's greatest node and relationship ids as the statement starts, one row of them (none: null),
@@ -19837,6 +19914,11 @@ public final class CypherToPure {
          *  where it may be none) are present; of an element several rows write, the last row's (Neo4j's last write). */
         private ValueSpecification writtenRows(Rows staged, Element el, ValueSpecification whole, boolean nullable) {
             ValueSpecification present = el.minted() != null ? null : call("isNotEmpty", read(el.key()));
+            if (present != null && !domain) {
+                // (an element the store still holds: one the statement deleted is written nothing, as Neo4j writes a
+                // deleted node nothing; PR #67's review, 2026-10-22: its property rows had outlived it)
+                present = call("and", present, stored(el.node(), key(el)));
+            }
             if (nullable) {
                 ValueSpecification has = call("isNotEmpty", whole);
                 present = present == null ? has : call("and", present, has);
@@ -19851,6 +19933,30 @@ public final class CypherToPure {
                         lambda("s", later))), new CInteger(0L))));
             }
             return rows;
+        }
+
+        /** Whether the native store holds the node (a relationship where {@code node} is false) of the id {@code id},
+         *  over the staged rows' {@code r}. */
+        private ValueSpecification stored(boolean node, ValueSpecification id) {
+            return call("isNotEmpty", call("filter", table(node ? "nodes" : "rels"), lambda("x", call("equal",
+                    new AppliedProperty(new Variable("x"), "id"), id))));
+        }
+
+        /** The rows of {@code arm} whose element, of the domain model's class {@code classPath}, the store still holds
+         *  (one the statement deleted is written nothing, as Neo4j writes a deleted node nothing: PR #67's review,
+         *  2026-10-22, its row had been merged back); a created element's, all. */
+        private ValueSpecification stillHeld(ValueSpecification arm, Element el, String classPath) {
+            if (el.minted() != null) {
+                return arm;
+            }
+            String held = SYNTHETIC + "held";
+            ValueSpecification ids = call("project", call("getAll", new PackageableElementPtr(classPath)),
+                    new ColSpecArray(List.of(new ColSpec(held, lambda("x", storeId(call("toOne", call(ELEMENT_ID,
+                    new Variable("x"))))), null, null))));
+            ValueSpecification rowKey = key(el);
+            return call("join", arm, ids, new EnumValue(JOIN_KIND, "INNER"), new LambdaFunction(List.of(new Variable(
+                    "r"), new Variable("l")), List.of(call("equal", rowKey, new AppliedProperty(new Variable("l"),
+                    held)))));
         }
 
         /** A zoned value's or a duration's slots ({@link #slots}) written as the property {@code key} of {@code el}
@@ -19872,8 +19978,8 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("a " + cypherType(t.kind()) + " written into the property " + key
                             + " of " + c + ", a " + p.type() + ", is not supported (the domain model types it)", at);
                 }
-                ValueSpecification arm = el.classPath() != null ? rows : call("filter", rows, lambda("r", call(
-                        "startsWith", call("toOne", read(identityText(el))), new CString(c + ":"))));
+                ValueSpecification arm = stillHeld(el.classPath() != null ? rows : call("filter", rows, lambda("r", call(
+                        "startsWith", call("toOne", read(identityText(el))), new CString(c + ":")))), el, c);
                 List<ColSpec> cols = new ArrayList<>();
                 cols.add(new ColSpec(DOMAIN_KEY, lambda("r", key(el)), null, null));
                 for (Map.Entry<String, ValueSpecification> slot : slots.entrySet()) {
@@ -20237,12 +20343,32 @@ public final class CypherToPure {
             ValueSpecification unmatched = call("filter", staged.vs(), lambda("r", call("equal", call("size", call(
                     "filter", matched.vs(), lambda("m", call("equal", new AppliedProperty(new Variable("m"), ordinal),
                     read(ordinal))))), new CInteger(0L))));
+            // an undirected relationship between two carried nodes: one relationship per pair of them, whichever way a
+            // row holds them (Neo4j's later row of a pair matches what its first created: PR #67's review, 2026-10-22),
+            // the rows grouped by the pair's lesser and greater id, the group's creating row the first of those whose
+            // first end holds the lesser (Neo4j's first row, the product of label scans in id order), else its first
+            List<String> pair = undirectedPair(elements, staged);
+            String lo = pair == null ? null : freshName(names);
+            String hi = pair == null ? null : freshName(names);
+            String rank = pair == null ? ordinal : freshName(names);
+            if (pair != null && lo != null && hi != null) {
+                ValueSpecification less = call("lessThan", read(pair.get(0)), read(pair.get(1)));
+                unmatched = call("extend", unmatched, new ColSpecArray(List.of(
+                        new ColSpec(lo, lambda("r", call("if", less, thunk(read(pair.get(0))),
+                                thunk(read(pair.get(1))))), null, null),
+                        new ColSpec(hi, lambda("r", call("if", less, thunk(read(pair.get(1))),
+                                thunk(read(pair.get(0))))), null, null),
+                        new ColSpec(rank, lambda("r", plus(read(ordinal), call("if", call("lessThan", read(pair.get(1)),
+                                read(pair.get(0))), thunk(new CInteger(1L << 40)), thunk(new CInteger(0L))))), null,
+                                null))));
+            }
             // their merge keys: each a group's column
             Map<String, String> groupOf = new LinkedHashMap<>();
             for (Merged el : elements) {
                 List<String> sources = new ArrayList<>(el.props().values());
                 if (el.carried()) {
-                    sources.add(0, el.key());
+                    sources.add(0, pair == null || !pair.contains(el.key()) ? el.key()
+                            : java.util.Objects.requireNonNull(el.key().equals(pair.get(0)) ? lo : hi));
                 }
                 for (String s : sources) {
                     if (!groupOf.containsKey(s)) {
@@ -20251,7 +20377,7 @@ public final class CypherToPure {
                 }
             }
             String creator = freshName(names);
-            Rows created = created(unmatched, staged, elements, groupOf, ordinal, creator, names, mg.pos());
+            Rows created = created(unmatched, staged, elements, groupOf, pair, rank, creator, names, mg.pos());
             // the rows the pattern's creation reads: each unmatched row with its group's, the first of the group
             // creating it
             ValueSpecification cond = null;
@@ -20274,7 +20400,7 @@ public final class CypherToPure {
             both.add(new Col(flag, Kind.BOOLEAN, false));
             ValueSpecification union = call("concatenate", selected(call("extend", matched.vs(), new ColSpecArray(
                     List.of(new ColSpec(flag, lambda("r", new CBoolean(false)), null, null)))), both), selected(call(
-                    "extend", made, new ColSpecArray(List.of(new ColSpec(flag, lambda("r", call("equal", read(ordinal),
+                    "extend", made, new ColSpecArray(List.of(new ColSpec(flag, lambda("r", call("equal", read(rank),
                     read(creator))), null, null)))), both));
             // each named free node's and relationship's identity: its id's text (an unnamed one's under a hidden
             // name where the path is read)
@@ -20473,14 +20599,17 @@ public final class CypherToPure {
          *  first row's number {@code creator}): each free node's and relationship's id minted, its row, its
          *  properties' rows from the group's values; staged, the groups' rows. */
         private Rows created(ValueSpecification unmatched, Rows staged, List<Merged> elements,
-                Map<String, String> groupOf, String ordinal, String creator, Set<String> names, Pos at) {
+                Map<String, String> groupOf, @com.legend.base.Nullable List<String> pair, String ordinal,
+                String creator, Set<String> names, Pos at) {
             List<ColSpec> copies = new ArrayList<>();
             List<ColSpec> groupKeys = new ArrayList<>();
             List<Col> groupColumns = new ArrayList<>();
             for (Map.Entry<String, String> g : groupOf.entrySet()) {
                 copies.add(new ColSpec(g.getValue(), lambda("r", read(g.getKey())), null, null));
                 groupKeys.add(new ColSpec(g.getValue(), null, null, null));
-                Col source = java.util.Objects.requireNonNull(column(staged, g.getKey()));
+                // (an undirected pair's lesser or greater id: of its ends' kind)
+                Col source = java.util.Objects.requireNonNull(column(staged, pair != null && column(staged, g.getKey())
+                        == null ? pair.get(0) : g.getKey()));
                 groupColumns.add(new Col(g.getValue(), source.kind(), true));
             }
             ColSpec first = new ColSpec(creator, lambda("x", new AppliedProperty(new Variable("x"), ordinal)),
@@ -20491,6 +20620,25 @@ public final class CypherToPure {
                     : call("groupBy", call("extend", unmatched, new ColSpecArray(copies)), new ColSpecArray(groupKeys),
                             new ColSpecArray(List.of(first)));
             groupColumns.add(new Col(creator, Kind.INTEGER, true));
+            // each carried end's id among the groups' rows: its group's; an undirected pair's, the creating row's own
+            // (its direction the relationship's)
+            Map<String, String> endOf = new HashMap<>(groupOf);
+            if (pair != null) {
+                String byOrdinal = freshName(names);
+                List<ColSpec> own = new ArrayList<>(List.of(new ColSpec(byOrdinal, lambda("r", read(ordinal)), null,
+                        null)));
+                for (String end : pair) {
+                    String c = freshName(names);
+                    own.add(new ColSpec(c, lambda("r", read(end)), null, null));
+                    groupColumns.add(new Col(c, java.util.Objects.requireNonNull(column(staged, end)).kind(), false));
+                    endOf.put(end, c);
+                }
+                groupColumns.add(new Col(byOrdinal, Kind.INTEGER, false));
+                groups = call("join", groups, call("project", unmatched, new ColSpecArray(own)), new EnumValue(
+                        JOIN_KIND, "INNER"), new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(
+                        call("equal", new AppliedProperty(new Variable("l"), creator), new AppliedProperty(
+                        new Variable("r"), byOrdinal)))));
+            }
             List<Element> nodes = new ArrayList<>();
             List<Element> rels = new ArrayList<>();
             Map<String, List<Edge>> relClasses = new HashMap<>();
@@ -20517,8 +20665,8 @@ public final class CypherToPure {
                     if (classes.size() == 1) {
                         classPath = classes.get(0).classPath();
                     } else {
-                        ValueSpecification srcId = read(endKey(in ? far : near, groupOf));
-                        ValueSpecification dstId = read(endKey(in ? near : far, groupOf));
+                        ValueSpecification srcId = read(endKey(in ? far : near, endOf));
+                        ValueSpecification dstId = read(endKey(in ? near : far, endOf));
                         edgeChoices.put(el.key(), classes.stream().map(e -> Map.entry(e.classPath(), choice(e,
                                 src, srcId, dst, dstId))).toList());
                     }
@@ -20552,8 +20700,8 @@ public final class CypherToPure {
                         Element dst = mergedEnd(in ? near : far, staged, elements);
                         List<Edge> classes = java.util.Objects.requireNonNull(relClasses.get(el.key()));
                         classPath = classes.size() == 1 ? classes.get(0).classPath() : null;
-                        edgesWritten(created, el.key(), classes, src, read(endKey(in ? far : near, groupOf)), dst,
-                                read(endKey(in ? near : far, groupOf)), r.types().get(0));
+                        edgesWritten(created, el.key(), classes, src, read(endKey(in ? far : near, endOf)), dst,
+                                read(endKey(in ? near : far, endOf)), r.types().get(0));
                     }
                     Element w = new Element(el.key(), node, null, el.key(), el.key(), classPath);
                     for (Map.Entry<String, String> prop : el.props().entrySet()) {
@@ -20569,8 +20717,8 @@ public final class CypherToPure {
                     row.add(new ColSpec("labels", lambda("r", new CString(labelText(n.labels()))), null, null));
                 } else {
                     RelPattern r = (RelPattern) el.pattern();
-                    String near = endKey(elements.get(i - 1), groupOf);
-                    String far = endKey(elements.get(i + 1), groupOf);
+                    String near = endKey(elements.get(i - 1), endOf);
+                    String far = endKey(elements.get(i + 1), endOf);
                     boolean in = r.direction() == CypherAst.Direction.IN;
                     row.add(new ColSpec("type", lambda("r", new CString(r.types().get(0))), null, null));
                     row.add(new ColSpec("src_id", lambda("r", read(in ? far : near)), null, null));
@@ -20585,6 +20733,27 @@ public final class CypherToPure {
                 }
             }
             return created;
+        }
+
+        /** A MERGE pattern of one undirected relationship between two nodes the rows carry: the two ends' key columns
+         *  among the staged rows {@code rows}, else null. Over a domain model, only two nodes of one class (an id names an instance of
+         *  its class). */
+        private @com.legend.base.Nullable List<String> undirectedPair(List<Merged> elements, Rows rows) {
+            if (elements.size() != 3 || !(elements.get(1).pattern() instanceof RelPattern r)
+                    || r.direction() != CypherAst.Direction.BOTH || !elements.get(0).carried()
+                    || !elements.get(2).carried() || elements.get(0).key().equals(elements.get(2).key())) {
+                return null;
+            }
+            if (domain) {
+                Col ca = column(rows, java.util.Objects.requireNonNull(variableOf(elements.get(0).pattern())));
+                Col cb = column(rows, java.util.Objects.requireNonNull(variableOf(elements.get(2).pattern())));
+                String classA = ca != null && ca.detail() instanceof NodeShape ns ? ns.classPath() : null;
+                String classB = cb != null && cb.detail() instanceof NodeShape ns ? ns.classPath() : null;
+                if (classA == null || !classA.equals(classB)) {
+                    return null;
+                }
+            }
+            return List.of(elements.get(0).key(), elements.get(2).key());
         }
 
         /** A MERGE pattern's node as an end of a relationship it creates, its class where the clause knows it: a
@@ -21018,7 +21187,7 @@ public final class CypherToPure {
                     // (its identity as the views spell it: its type's edge class's path, where the type has one,
                     // and its id)
                     String path = edgeClassOf(java.util.Objects.requireNonNull(rr.type()));
-                    if (domain && path.isEmpty()) {
+                    if (domain && path == null) {
                         // (over a domain model, a type of several edge classes: its edge class's path the one of
                         // them holding its id, as the database finds it)
                         identity = freshName(names);
@@ -21042,7 +21211,8 @@ public final class CypherToPure {
                         identity = freshName(names);
                         vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(identity, lambda("r", call("if",
                                 call("isEmpty", read(rr.key())), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(plus(
-                                new CString(path + ":"), call("toString", call("toOne", read(rr.key()))))))), null,
+                                new CString((path == null ? "" : path) + ":"), call("toString", call("toOne",
+                                read(rr.key()))))))), null,
                                 null))));
                         columns.add(new Col(identity, Kind.STRING, true));
                     }
@@ -21119,7 +21289,9 @@ public final class CypherToPure {
         }
 
         /** The path of the model's node class whose labels are the label set {@code text} ({@code :A:B:}, in any
-         *  order: its labels each in it and its length theirs), the database's choice; none, the empty text. */
+         *  order: its labels each in it and its length theirs), the database's choice; none (a label set the statement
+         *  creates, which no class holds: its node's identity is its id after a colon, register row S100), the empty
+         *  text. */
         private ValueSpecification classPathOf(ValueSpecification text) {
             Set<String> edgeClasses = new HashSet<>();
             edges().forEach(e -> edgeClasses.add(e.classPath()));
@@ -21139,14 +21311,14 @@ public final class CypherToPure {
             return path;
         }
 
-        /** The path of the model's one edge class of the relationship type {@code type}; none (or several, a type
-         *  joining several class pairs), the empty text. */
-        private String edgeClassOf(String type) {
+        /** The path of the model's one edge class of the relationship type {@code type}; null for none (a type the
+         *  statement creates: its relationship's identity is its id after a colon, register row S100) or several (a
+         *  type joining several class pairs). */
+        private @com.legend.base.Nullable String edgeClassOf(String type) {
             List<String> classes = edges().stream().filter(e -> e.type().equals(type)).map(Edge::classPath).toList();
-            return classes.size() == 1 ? classes.get(0) : "";
+            return classes.size() == 1 ? classes.get(0) : null;
         }
 
-        /** A left join's condition: the left row's key column {@code key} equal to the right's {@code id}. */
         /** The identity column of the node the columns carry under {@code variable}, null where none. */
         private static @com.legend.base.Nullable String identityColumn(List<Col> columns, String variable) {
             for (Col c : columns) {
@@ -21157,6 +21329,7 @@ public final class CypherToPure {
             return null;
         }
 
+        /** A left join's condition: the left row's key column {@code key} equal to the right's {@code id}. */
         private static LambdaFunction joinedOn(String key, String id) {
             return new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(call("equal",
                     new AppliedProperty(new Variable("l"), key), new AppliedProperty(new Variable("r"), id))));

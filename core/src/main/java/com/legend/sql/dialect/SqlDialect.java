@@ -74,6 +74,14 @@ public interface SqlDialect {
         return false;
     }
 
+    /** Whether a program's staged table ({@link com.legend.sql.SqlDml.CreateTempTableAs#staged}) is dropped by the
+     *  database as the program's transaction ends, committed or rolled back, so the program issues no drop of it.
+     *  Default: it is not, and the program's last step drops it, within the transaction (a database whose DDL is
+     *  transactional: a failed transaction takes the table back with its writes). */
+    default boolean dropsStagedTablesWithTheirTransaction() {
+        return false;
+    }
+
     /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} and a date cell
      *  as {@code java.time.LocalDate} (the BC-faithful carriers the executor reads every timestamp and date as; dates
      *  since 2026-10-17, measured then on pgjdbc, DuckDB's and H2's drivers: the other drivers' JDBC 4.2 support

@@ -343,18 +343,7 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = SubselectPrune.prune(lower(source));
-        // the rows' columns NAMED in the select: an INSERT writes them by position into the columns it lists, and a
-        // star is the database's order of its source's columns, which the model's declaration need not be
-        if (rows instanceof SqlSelect s && s.projections().isEmpty()) {
-            SqlSelect over = s.from() instanceof SqlSource.Join ? isolate(s) : s;
-            List<SqlSelect.Projection> named = new ArrayList<>();
-            for (OutputCol o : over.outputs()) {
-                named.add(new SqlSelect.Projection(SqlExpr.Column.of(over.from().alias(), o), o.name(),
-                        new OutputCol(o.name(), o.type(), o.nullable(), OutputCol.Origin.DERIVED)));
-            }
-            rows = over.withProjections(named);
-        }
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source)));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -366,6 +355,24 @@ public final class Lowerer {
             }
         }
         return rows;
+    }
+
+    /** {@code rows} with each of its columns NAMED in the select, in its relation's order: a statement that takes
+     *  rows by position (an INSERT into the columns it lists, a staged table whose columns it names) reads them in
+     *  that order, where a star is the database's order of its source's columns, which the model's declaration need
+     *  not be (PR #67's review, 2026-10-22: Postgres staged a table declared {@code (ID, NAME)} and made
+     *  {@code (NAME, ID)} with each value under the other's name). */
+    public SqlQuery namedColumns(SqlQuery rows) {
+        if (!(rows instanceof SqlSelect s) || !s.projections().isEmpty()) {
+            return rows;
+        }
+        SqlSelect over = s.from() instanceof SqlSource.Join ? isolate(s) : s;
+        List<SqlSelect.Projection> named = new ArrayList<>();
+        for (OutputCol o : over.outputs()) {
+            named.add(new SqlSelect.Projection(SqlExpr.Column.of(over.from().alias(), o), o.name(),
+                    new OutputCol(o.name(), o.type(), o.nullable(), OutputCol.Origin.DERIVED)));
+        }
+        return over.withProjections(named);
     }
 
     /** A lambda over the table's row ({@code scan}, the table read under one alias) as one expression over that alias:

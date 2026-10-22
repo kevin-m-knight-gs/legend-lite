@@ -151,7 +151,14 @@ public final class Execution {
     public static com.legend.plan.QueryPlan executeWire(ModelContext model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.query(model, query).lower(runtimeFqn, false);
+        return wire(Compiler.query(model, query), runtimeFqn, sessions, out);
+    }
+
+    /** A query typed once, its rows written as the JSON wire on the session {@code sessions} opens for its runtime's
+     *  target: {@link #executeWire}'s, and {@link #executeUpstream}'s for a query that writes nothing. */
+    private static com.legend.plan.QueryPlan wire(TypedQuery typed, String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
+        Compiler.LoweredQuery l = typed.lower(runtimeFqn, false);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
             return wireOn(l, runtimeFqn, session.connection(), out);
         }
@@ -183,11 +190,7 @@ public final class Execution {
             java.io.Writer out) throws java.io.IOException {
         TypedQuery typed = Compiler.query(model, query);
         if (!typed.writes()) {
-            Compiler.LoweredQuery l = typed.lower(runtimeFqn, false);
-            try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn),
-                    l.ctx())) {
-                return wireOn(l, runtimeFqn, session.connection(), out);
-            }
+            return wire(typed, runtimeFqn, sessions, out);
         }
         com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(typed.body().get(typed.body().size() - 1));
         if (shape != com.legend.plan.ResultShape.TABULAR && shape != com.legend.plan.ResultShape.GRAPH) {

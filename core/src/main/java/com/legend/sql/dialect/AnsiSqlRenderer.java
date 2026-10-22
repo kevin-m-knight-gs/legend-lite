@@ -1810,12 +1810,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@link #createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs)}; {@code named}: its columns named
      *  ({@code CREATE TEMPORARY TABLE t ("a", ...) AS <query>}), each delimited, when the statement names them. */
     protected final SqlWriter createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct, boolean named) {
-        SqlWriter head = newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()));
+        return createTemporaryTableAs(ct, named, "CREATE TEMPORARY TABLE ", "");
+    }
+
+    /** {@link #createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs, boolean)}, the statement opened by
+     *  {@code create} and {@code options} written before its {@code AS}. The table's name is spelled as a query
+     *  reads a bare name ({@link #tableName}), so the statement that makes it, the queries that read it and its
+     *  drop name one table (PR #67's review, 2026-10-22: Postgres made {@code "legend_stage_rowsA"} and read
+     *  {@code legend_stage_rowsa}). */
+    protected final SqlWriter createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct, boolean named,
+            String create, String options) {
+        SqlWriter head = newWriter().append(create).append(tableName(ct.table(), com.legend.sql.NameQuoting.BARE));
         if (named && !ct.columns().isEmpty()) {
             head.append(" (").append(String.join(", ", ct.columns().stream().map(this::delimited).toList()))
                     .append(")");
         }
-        return query(head.append(" AS "), passed(ct.query()), 0).append(";");
+        return query(head.append(options).append(" AS "), passed(ct.query()), 0).append(";");
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

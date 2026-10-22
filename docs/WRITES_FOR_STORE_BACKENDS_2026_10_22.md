@@ -5,9 +5,10 @@ line. The design is `docs/WRITES_DESIGN_2026_10_18.md`; its §8 records each leg
 questions about it and points at the code. Related: F1 in `docs/BI_AND_ETL_PLAN_2026_09_29.md` ("write a relation into
 a table").
 
-**Where the code is:** branch `claude/cypher-writes` (the same commits as `claude/keen-noether-v5mis0`). It is NOT on
-`main` yet: it branched from `main` as of 2026-10-20, and `main` has moved since (eight files conflict on a merge, none
-in the write path's core: `SqlToPure`, guard tests, ratchets, the register, `tools/deps/core-layers.txt`).
+**Where the code is:** branch `claude/keen-noether-v5mis0` (pull request neema2/legend-lite#67; `claude/cypher-writes`
+holds the commits as of 2026-10-22, before main was merged in). It is NOT on `main` yet. Main was merged into the branch
+on 2026-10-22: its conflicts were in `SqlToPure` (the `#SQL` island's write path), guard tests, ratchets, the register
+and `tools/deps/core-layers.txt`.
 
 ## 1. The write operations
 
@@ -29,8 +30,10 @@ Three layers, every front end translating to Pure and the one compiler lowering 
 | merge | `rel->merge(#>{db.t}#, ~[keys])` | `MERGE INTO t USING (...) ON keys WHEN MATCHED UPDATE ... WHEN NOT MATCHED INSERT ...` (`Merge`) |
 
 Beside them, `let s = rows->meta::legend::lite::stage()` computes rows once into a session temporary table
-(`CreateTempTableAs`), dropped when the program ends. A program's later statements read it, so the writes between read
-the rows as they were (read-your-own-writes for a multi-step write).
+(`CreateTempTableAs.staged`), gone when the program ends: dropped by its last step, or, on H2 (whose `DROP TABLE`
+commits), by the database as the transaction ends (`ON COMMIT DROP`). A program's later statements read it, so the
+writes between read the rows as they were (read-your-own-writes for a multi-step write). Any other let is computed where
+it is read: a let whose value writes, or one read after a write changes its rows, is refused by name (stage it).
 
 **How each front end lands on them:**
 - **Cypher:**
@@ -42,7 +45,8 @@ the rows as they were (read-your-own-writes for a multi-step write).
   - `DETACH DELETE` deletes the relationships, then the node;
   - `MERGE` is a match, then an append of what the match lacks, with `ON CREATE` and `ON MATCH` updates scoped to
     each.
-- **`#SQL` DML:**
+- **`#SQL` DML** (a table named as the island names one, `tb('db::Store.TABLE')`, e.g. `#SQL{INSERT INTO
+  tb('w::DB.ITEM') (ID, NAME) VALUES (1, 'a')}#`):
   - `INSERT` is `write`;
   - `UPDATE` is `update`; `DELETE` is `delete` (`DELETE ... USING` is an EXISTS);
   - `ON CONFLICT (k) DO UPDATE` is `merge`;
@@ -105,6 +109,8 @@ unchanged.
     `WHEN MATCHED` arm: it is insert-if-absent.
   - So "replace the whole row by key" means the rows name every column.
   - Two source rows with one key are not handled specially: whatever the database's `MERGE` does.
+  - A NULL key matches no row (the database's `MERGE`): each merge of it inserts another row (measured on DuckDB, H2
+    and Postgres, 2026-10-22).
 - **L2:** an instance's key is its mapping's `~primaryKey`, else the main table's PRIMARY KEY (one column). It is what
   `elementId` spells.
 - **Minted ids** (decision D4; register row S100) are the database's, never Java's. A created row's id is above the
@@ -116,9 +122,10 @@ unchanged.
 
 ## 5. All-or-nothing
 
-- **A program that writes is one transaction.** On the execution path, `Executor.inTransaction` runs every
-  statement on one connection and commits at the end; any error rolls all of them back. A failing second write takes
-  the first back (pinned by `StoreWritesExecutionTest` and `WritePlansTest`).
+- **A program that writes, or stages rows, is one transaction.** On the execution path, `Executor.inTransaction` runs
+  every statement on one connection and commits at the end; any error rolls all of them back. A failing second write
+  takes the first back, a staging between them included (pinned by `StoreWritesExecutionTest` and `WritePlansTest`, on
+  DuckDB, H2 and Postgres).
 - **A caller's open transaction is joined, not committed.** The parity harness relies on this to roll every case back.
 - **The plan path** (leg 7: `executionplan/ExecutionPlan`, `exec/PlanRunner`):
   - a write program plans as a `Sequence` of `Update` (a change, its count bindable as `#count`), `Check` (a query

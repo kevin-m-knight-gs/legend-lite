@@ -1030,6 +1030,7 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+    visibility = ["//gates:__pkg__"],
 )
 
 junit_test(

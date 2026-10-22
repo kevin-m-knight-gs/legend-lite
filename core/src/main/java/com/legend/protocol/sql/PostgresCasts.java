@@ -375,8 +375,6 @@ final class PostgresCasts {
         return WIDE_INTEGERS.contains(type) ? Integer.valueOf(8) : null;
     }
 
-    /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value
-     *  read as one ({@code []->cast(@Integer)->toOne()} raises, typed as the integer it stands for). */
     /** {@code numeric(p, s)} (writes leg 4, 2026-10-20: a value as a column of that type holds it): the value as
      *  numeric, rounded to {@code s} places half away from zero, as Postgres rounds it; one of {@code p - s} or more
      *  digits before the point is Postgres's error ("numeric field overflow"), the database's to raise. */
@@ -408,6 +406,8 @@ final class PostgresCasts {
         });
     }
 
+    /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value
+     *  read as one ({@code []->cast(@Integer)->toOne()} raises, typed as the integer it stands for). */
     private static Tx inRange(Tx x, long[] range, String type) {
         return strict(Kind.INTEGER, List.of(x), v -> call("if", call("or", call("lessThan", v.get(0),
                 new CInteger(range[0])), call("greaterThan", v.get(0), new CInteger(range[1]))),
