@@ -10653,6 +10653,65 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-22 — Snowflake and BigQuery: the Float's print forms read once
+
+The user, 2026-10-21: "2-3x timing cannot go to main". Snowflake's channel A ran its grammar suite in 304 s against
+the merge-base's 216 s (at eee1e560), and its compile time followed statement size: Pure's print form of a Float read
+the double's text nine times, and since d36a7f0f that text is Snowflake's own 5 KB expression (its exact shortest
+digits). For `|1.5 + 2.25` the PCT statement was 48,288 characters and the served one (`pure/v1` execute, legend-engine's
+text) 5,973,345; BigQuery's 11,029 and 320,970 (its text is a subquery of its own).
+
+**Landed:**
+- `SqlFn.FLOAT_PRINT` (Pure's `toString` of a Float) and `SqlFn.FLOAT_PRINT_ENGINE` (legend-engine's text): one call
+  per value, as `FLOAT_CANON` is since 2026-10-11. `LiteralSpelling.floatPrint` and `floatPrintJava` emit them (a Float
+  the store holds as an integer still prints its integer, decided in the lowering); their portable spellings moved
+  unchanged to `sql/dialect/FloatPrintText`, expanded before every other pass on every database that does not spell
+  them itself, so that SQL is the SQL of before.
+- **Snowflake** spells both from its digits read once (`Snowflake.floatPrint`, `floatPrintEngine`), the same decisions
+  the portable spelling made over its text. A value that is no double (a literal, a decimal slot) still prints through
+  the database's own text of it, as before.
+- **BigQuery** reads the value and its text once: the expansion binds them in a one-row derived table under a scalar
+  subquery (`bindsFloatPrint`), the canon's binding's shape. A value that is no double is read in place, as before.
+- `docs/dialect-capability/` regenerated (the two functions' rows; it also refreshes three rows already stale on the
+  branch: Snowflake's and Postgres's COALESCE, Snowflake's TYPEOF and FLOAT_CANON).
+
+**Measured locally** (a throwaway test, the plans of ten Float-printing queries on eleven databases in every output
+and legend-engine's wire, each statement's length and hash, before and after; each plan round-tripped):
+- **Byte-identical** on DuckDB, H2, SQLite, Postgres, MariaDB, MySQL, ClickHouse, Trino and Databricks: 0 of their
+  statements changed.
+- **Snowflake:** PCT text 48,288 -> 6,763; served 5,973,345 -> 5,918; an in-query `toString` of a column 48,695 ->
+  7,352; CSV 291,783 -> 39,593 (the CSV cell reads its text in each of its quoting tests). Literal cases unchanged.
+- **BigQuery:** PCT text 11,029 -> 3,117; served 320,970 -> 19,984; an in-query `toString` 11,469 -> 3,739. **CSV
+  grew, 11,919 -> 17,262:** the cell's text is read five times, and the common-subexpression pass, which bound the
+  portable spelling once before, moves no node holding a subquery. Recorded, not fixed: the served CSV route only.
+- MySQL's and MariaDB's served statements are 2.6 MB and 2.4 MB, since before the branch (`MariaDb.floatLayout`,
+  2026-10-15): out of this change's scope; `docs/RESULTS_AND_RENDERERS_2026_10_22.md` removes them with the route's SQL.
+
+**Local gate** (`bazel test --lockfile_mode=error //gates:local` on 26936f52; 373 targets, 350 passed, 22 failed,
+1 skipped), every failure read:
+- **This change's, fixed:** `//core:core_tests_sql` (the BigQuery test counted every `BIGNUMERIC` cast; the print
+  form's HUGEINT and DECIMAL casts are BIGNUMERIC there too: 1c5ceb11) and one `//core:guardrails` finding
+  (`FloatPrintText.fresh` a mutable field: 81960bf7). `core_tests_sql` 183 of 183 at 81960bf7.
+- **The container, not the change:** the seven Postgres-backed targets (`//core:postgres_arm_test`,
+  `sql_parity_postgres_test`, `cypher_parity_postgres_test`, `iq_parity_postgres_test`, `sql_island_postgres_test`,
+  `host_operations_postgres_test`, `//datacube:verify_app_test`): initdb refuses root; all pass under
+  `--run_under=tools/postgres/as_unprivileged.sh` (docs/CLOUD_SESSIONS.md). Seven browser and JavaScript targets
+  timed out on a 4-core container at a load of 7 (`//datacube:upload_test`, `typed_values_test`,
+  `typed_values_new_york_test`, `typed_values_tokyo_test`, `json_read_test`, `verify_remote_test`,
+  `//engine-client:model_data_test`): re-run one at a time, result pending.
+- **The branch's, not this change's** (every other database's SQL is byte-identical here): `//query:verify_test`, the
+  tab's DuckDB refusing `rpad(VARCHAR, BIGINT, ...)` in the served Float text (`floatPrintJava`'s layout since
+  2026-10-18); and guard drift from the branch's earlier commits, which never ran this gate: the generated
+  `native-claims.tsv`, the ladder fixtures 6 and 8 (`SideOrdinal`'s `__ord`), the parser-equivalence ratchet
+  (`own_corpus.matched` 2873 -> 2879), and `ArchitectureTest.execsReachIntoPlanningOnlyShrinks`, `CodeShapeGuardrailTest`
+  (two methods over 250 lines, a `withOutputs` site, a mutable field), `IdentityGuardrailTest`,
+  `PlatformNamesGuardrailTest`, `CarrierPurityRatchetTest`, `DialectLeakRatchetTest` and `JavaEvalLedgerTest`. Half of
+  those files conflict with main's own moves (37 files conflict), so they are fixed or re-pinned, each with its
+  reason, on the merged tree when the branch merges main, not twice. **Until then this branch is not mergeable.**
+
+**On the lanes (pending):** the Snowflake probe of the new forms against the old over 1,953 doubles; Snowflake channel
+A and its three suites' timing against the merge-base (216 s, 361 s, 314 s); channel B on Snowflake and BigQuery.
+
 ## 2026-10-21 — Channel B against the merge-base on every lane: what the branch broke, fixed at its causes
 
 The user, 2026-10-20: "if we have broken Channel B we have coupled this to fixing all of Channel B before we can merge".
