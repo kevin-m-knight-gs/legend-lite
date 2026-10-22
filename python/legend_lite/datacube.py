@@ -171,12 +171,24 @@ class _Session:
         self.gone: list[str] = []
 
     def engine(self) -> Engine:
+        """This session's engine: its rows' plan-and-run (every grid's, D16), and what a tab or a notebook's widget is
+        served by -- with DataCube's site when this install carries it (``shown_engine``)."""
         with self._lock:
             if self._engine is None:
                 # a page's file is read into the frames' database by DataCube's own code, headless (file.json); every
                 # query planned in this process, by Python's own compiler (a host plans in process: the program's §1.1)
-                self._engine = Engine(self.frames, site=_site(), headless=self.headless, keeper=self.keeper)
+                site = _site()
+                self._engine = Engine(self.frames, site=site if site.is_dir() else None, headless=self.headless,
+                                      keeper=self.keeper)
             return self._engine
+
+    def shown_engine(self) -> Engine:
+        """The engine, for what shows a page (a tab, a notebook's widget): DataCube's site with it -- refused in words when
+        this install carries none, which reads grids in Python alone."""
+        engine = self.engine()
+        if engine.site is None:
+            raise ValueError(f'the site {_site()} is not a directory: DataCube\'s pages are not in this install')
+        return engine
 
     def headless(self) -> Any:
         """DataCube's own non-screen code, in V8, over these frames' database (the `datacube` extra): made on first
@@ -195,17 +207,17 @@ class _Session:
                 # (any function of this module would reach the session through the module's globals, and an engine in
                 # such a cycle is collected at the interpreter's end, where tearing V8 down crashes the process)
                 self._headless.answers = weakref.WeakMethod(self._answer_here)
+                # every grid's rows are read by the engine's plan-and-run (D16): made with it, before any call asks it
+                self.engine()
             return self._headless
 
     def _answer_here(self, path: str, body: str, over: Any) -> tuple[int, str, bytes]:
         """A call of DataCube's code to the engine (headless calls.ts ``engine``), answered by this session's engine on
-        DataCube's thread over the read the call was made in (``Engine.answer_over``: D15). It takes no session lock (the
-        call's caller may hold it, waiting): an engine not made yet is said -- a page whose grids read anything but its
-        frames and files is opened by it (``Page.load``, a tab), which makes it first."""
+        DataCube's thread over the read the call was made in (``Engine.answer_over``: D15) -- made with DataCube's engine
+        (``headless``), so it takes no session lock (the call's caller may hold it, waiting)."""
         engine = self._engine
         if engine is None:
-            raise RuntimeError('this session has no engine yet to plan and run a grid that reads more than its frames '
-                               'and files: Page.load and a tab make it')
+            raise RuntimeError('this session made DataCube\'s engine without its own: no grid\'s rows can be read')
         return engine.answer_over(path, body, over)
 
     def held_copies(self) -> dict[str, dict[str, Any]]:
@@ -252,7 +264,7 @@ class _Session:
         """The engine over HTTP, for the tabs: started by the first."""
         with self._lock:
             if self._web is None:
-                self._web = WebServer(self.engine())
+                self._web = WebServer(self.shown_engine())
             return self._web
 
     def register(self, frame: Any, name: str | None) -> str:
@@ -264,8 +276,8 @@ class _Session:
             shown = name.lower() in self.cubes or any(f.lower() == name.lower()
                                                       for view in self.pages for f in view._page._frames())
             self.frames.register(name, frame)
-            # an engine is made by what shows a frame (a tab, a notebook's cube, a page shown): none yet, nothing has
-            # been served and nobody is told; a page's grid read headless (Grid.view) needs none
+            # an engine is made by what shows a frame (a tab, a notebook's cube, a page shown) or reads a grid (D16):
+            # none yet, nothing has been served and nobody is told
             engine = self._engine
             if engine is not None and (shown or engine.seen(name)):
                 # shown again under its name (or again after it was closed): a page showing it reads it again

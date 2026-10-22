@@ -1057,3 +1057,36 @@ file. Nothing grew.
 for test-gaming, overclaimed items and the stand-ins above) is with the user.
 
 **Next.** D15 and D16, then S6.
+
+## As built (D15, D16, 2026-10-22)
+
+**D15: no lock across a call into DataCube.** A read of the frames (frames.py `Frames.reading`) is a DuckDB cursor of
+its own, its session set as the planner's SQL expects, each frame read at each query registered on it as the frame is
+when the read begins, and a transaction begun and pinned by one catalog read (DuckDB begins a transaction on a database
+lazily, at its first read). The frames' lock is held only to begin it. Every read through DataCube on Python is one:
+page.py's grid calls, the keeper's rebase, the engine's `opened.json` and `join.json`. A call into DataCube made in a
+read queries through the read's cursor, and what it asks of Python's engine is answered on DataCube's own thread over
+the same read (engine.py `answer_over`, `_plan_and_run_over`). That thread counts as a compiler thread
+(`_pool.library_thread`), so a library call made there, a model home's included, runs in place and never waits on the
+pool. A write through DataCube's code (a file read in, a remote file mounted, a table forgotten, a snap's copy landed)
+takes DataCube's turn (`Headless.turn`) before it holds the frames, so no one holds the frames while waiting for a
+turn. The caller-thread queue, its serving loop and `answer_here` are deleted. Tests: test_headless.py `OneRead`. Run
+against the code before D15 (its old API spelled as it was), the same three scenarios fail: a frame registered during a
+call waits for the call; the engine's answer runs on the caller's thread; a library call made while the pool is busy
+times out.
+
+**D16: one rows path on the Python host.** Every grid's rows are read by the engine's plan-and-run, whatever the base:
+what a grid shows and exports in DataCube's code (headless grid.ts `runnerOf`: the tab's own `pythonRunner` over the
+host's engine, as a tab on the page reads every grid), Python's `to_pandas`, a join's questions and a model action's key
+facts. The host's database is queried directly only for what DataCube writes into it and its catalog. `HostBase.runs`
+is gone: nothing in DataCube says where a base's rows are. A session's engine is made with DataCube's (it reads every
+grid's rows), with no site where an install carries none; what shows a page asks `shown_engine`, refused in words
+without one. The tab keeps its own host's path (its planner and DuckDB-WASM, or Python's engine over HTTP). Test:
+test_headless.py `OneRowsPath`. With D16's rows-path change taken out and the rest kept, it fails (`0 not greater than
+0 : its view`).
+
+**Said, not changed.** A read sees the frames as they were when it began. A frame registered during a long call is read
+by the next read, not by this one. A tab's query no longer waits for a Python call to end (a read's start still waits
+for a tab's query in flight, a moment: both take the frames' lock). A grid's base
+whose tables were dropped after a read began reads on as the read saw them. The engine's own HTTP routes still take
+the frames' lock while they plan and run (`serving`); no call into DataCube is made inside one.

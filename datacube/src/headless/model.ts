@@ -3,22 +3,22 @@
 // Create a Class…, Create an Association… and Create a Data Space… run by DataCube's own code and the generic library
 // (model-changes/), so Python writes none of their rules again.
 
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import {
   createAssociation, createClass, createDataSpace, projectState, serverWriter, type ModelWriter,
 } from '../../../model-changes/src/index.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { SdlcClient } from '../../../sdlc-client/src/client.ts';
-import { LitePlanner } from '../lite-planner.ts';
+import type { LitePlanner } from '../lite-planner.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { classAction, keyUnique } from '../model-plans.ts';
 import type { AssociationAction, AssociationEnd, ClassAction, ColumnChoice, ColumnRole } from '../model-writer.ts';
 import { modelPageName, readPage, suggestedName } from '../page-document.ts';
 import { PageModel } from '../page-model.ts';
 import { duplicateLambda } from '../query.ts';
-import { PlanThenRun } from '../runner.ts';
+import type { PlanAndRun } from '../runner.ts';
+import { pythonRunner } from '../services/python-host.ts';
 import { gridClassed, type GridSpec } from './grid.ts';
-import { hostCalls, hostDatabase, hostFetch, hostWorker } from './host.ts';
+import { hostCalls, hostEngine, hostFetch, hostWorker } from './host.ts';
 
 // -- THE MODEL ACTIONS, HEADLESS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): Create a Class…, Create an
 // Association… and Create a Data Space… run in the host's V8 by the windows' own functions (model-plans.ts) and the
@@ -132,15 +132,15 @@ function refused(model: PageModel | undefined, e: unknown): string {
   return JSON.stringify({ problems: [e instanceof Error ? e.message : String(e)], commands: model?.commands ?? [] });
 }
 
-/** A project's rows planned over its model, through the place's runtime, and run on the host's database: where a key's
- *  facts are read. Its planner let go after `use`. */
-async function projectRows<T>(text: string, runtime: string, use: (rows: PlanThenRun) => Promise<T>): Promise<T> {
+/** A project's rows planned over its model, through the place's runtime, by the host's plan-and-run -- the one way every
+ *  row is read on the host (D16): where a key's facts are read. Its planner let go after `use`. */
+async function projectRows<T>(text: string, runtime: string, use: (rows: PlanAndRun) => Promise<T>): Promise<T> {
   const calls = hostCalls();
-  const planner = new LitePlanner({ model: text, runtime, worker: () => hostWorker(calls) });
+  const rows = pythonRunner(hostEngine(calls), text, runtime, {}, () => hostWorker(calls));
   try {
-    return await use(new PlanThenRun(planner, new DuckDbEngine(hostDatabase(calls).connection)));
+    return await use(rows);
   } finally {
-    planner.dispose();
+    (rows.host.planner as LitePlanner).dispose();
   }
 }
 

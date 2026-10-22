@@ -15,7 +15,8 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { TreeState } from '../tree.ts';
 import { catalogColumns } from '../upload.ts';
-import { hostCalls, hostDatabase, hostWorker } from './host.ts';
+import { pythonRunner } from '../services/python-host.ts';
+import { hostCalls, hostDatabase, hostEngine, hostWorker } from './host.ts';
 import { leafTables, type HostTables } from './host-tables.ts';
 
 /** What a host hands in: its page, the two grids joined, how they join, and the table of its database each one reads. */
@@ -149,16 +150,22 @@ export async function joinSides(spec: string): Promise<string> {
 
 /**
  * WHAT A JOIN WILL DO (the Join window's questions, before it is applied): my rows, those that find a match, the rows
- * after it, their keys that repeat -- each a query the compiler plans over the two cubes' model, run on the host's
- * database -- and in the window's words. JSON: `{counts, words}`.
+ * after it, their keys that repeat -- each a query over the two cubes' model, planned and run by the host's plan-and-run
+ * -- and in the window's words. JSON: `{counts, words}`.
  */
 export async function joinQuestions(spec: string): Promise<string> {
   const s = await read(spec);
   return using(async (o) => {
     const inputs = await openInputs(s.left, s.right, o);
-    const planner = o.typer(inputs.model, inputs.runtime) as LitePlanner;
-    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, s.how),
-      async (query) => o.engine.run((await planner.plan(query)).sql, 0));
-    return JSON.stringify({ counts, words: summaryWords(s.how, counts) });
+    // each question's rows read by the host's plan-and-run, the one way every row is read on the host (D16)
+    const calls = hostCalls();
+    const rows = pythonRunner(hostEngine(calls), inputs.model, inputs.runtime, {}, () => hostWorker(calls));
+    try {
+      const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, s.how),
+        async (query) => (await rows.host.planAndRun(query, 0)).rows);
+      return JSON.stringify({ counts, words: summaryWords(s.how, counts) });
+    } finally {
+      (rows.host.planner as LitePlanner).dispose();
+    }
   }, s.tables);
 }

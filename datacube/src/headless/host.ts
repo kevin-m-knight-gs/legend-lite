@@ -70,7 +70,8 @@ export function hostFetch(calls: HostCalls): typeof fetch {
  * THE ENGINE THE HOST RUNS BESIDE DATACUBE, as a tab on it reaches it (services/python-host.ts PythonLink): its calls
  * carried by the host (calls.ts `engine`) -- a grid's query planned and run where its rows are, a warehouse table opened
  * under the session it holds -- each answer's status, media type, text and bytes as a browser's Response gives them. So
- * a grid of a page on the host reads a base its database does not hold by the tab's own runner (pythonRunner).
+ * every grid of a page on the host reads its rows by the tab's own runner (pythonRunner), whatever its base: the one rows
+ * path (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D16).
  */
 export function hostEngine(calls: HostCalls): PythonLink {
   const carried = async (input: unknown, init?: { readonly method?: string; readonly body?: unknown }): Promise<unknown> => {
@@ -101,7 +102,9 @@ export interface HostDatabase {
 }
 
 /**
- * The host's database as DataCube's engine takes one. Each query is one whole call (no `send`: the host's DuckDB
+ * The host's database as DataCube's engine takes one: for what DataCube writes into it (a page's file read in, a remote
+ * file's view, a snap's copy modelled) and its catalog -- never a grid's rows, which the host's plan-and-run reads
+ * (hostEngine: D16). Each query is one whole call (no `send`: the host's DuckDB
  * answers a statement at once, so a superseded query is not cancelled between batches); its Arrow IPC read by
  * apache-arrow, as DuckDB-WASM's answers are.
  */

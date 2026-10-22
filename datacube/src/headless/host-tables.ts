@@ -26,11 +26,11 @@ export interface HostFrame {
 
 /** A grid's base on the host, as every grid call is given it (GridSpec without its cube): its model and runtime, the
  *  relation it reads -- Pure text (a frame's accessor) or a lambda as the protocol writes it -- and, read through a
- *  mapping (a class, a saved query), that mapping and the model's enumerations; `runs: 'engine'`: its rows read where the
- *  host's engine reads them (a project's own database, a warehouse), not on the host's database. */
+ *  mapping (a class, a saved query), that mapping and the model's enumerations. Its rows are the host's plan-and-run's
+ *  to read, wherever they are (D16): nothing here says where. */
 export type HostBase = {
   readonly model: string; readonly runtime: string;
-  readonly mapping?: string; readonly enumerations?: readonly string[]; readonly runs?: 'engine';
+  readonly mapping?: string; readonly enumerations?: readonly string[];
 } & ({ readonly source: string } | { readonly relation: string });
 
 /** The file a host read in as a table, as a cube records it: a file's name, size and bytes' hash; a remote file's URL. */
@@ -75,8 +75,8 @@ export interface LeafOnHost {
  * -- each read on the host's database. A class, read through its project at its revision in the host's model home (as
  * the tab opens one: class-source.ts classOpened); a saved query, through its project's version in the host's depot
  * (saved-queries.ts savedQueryOpened); a warehouse table, under the session the host's engine holds for its warehouse,
- * signed in by a tab (D13) -- each read where the host's engine reads it (`runs: 'engine'`). What is not read here is
- * said in words.
+ * signed in by a tab (D13). Every base's rows read by the host's plan-and-run, which knows where they are (D16). What
+ * is not read here is said in words.
  */
 export async function leafOnHost(leaf: LeafSource | HostLeaf, host: HostTables, given: Readonly<Record<string, string>> = {}):
   Promise<LeafOnHost> {
@@ -136,7 +136,7 @@ async function classBase(leaf: ClassSource): Promise<HostBase> {
         + `revision ${leaf.revision}: ${e instanceof Error ? e.message : String(e)}`);
     }
     const { model, source } = await classOpened(leaf, files, async (text) => await reading.elements(text) as ClassElement[]);
-    return { model, runtime: leaf.runtime, mapping: leaf.mapping, relation: relationOf(source), runs: 'engine' };
+    return { model, runtime: leaf.runtime, mapping: leaf.mapping, relation: relationOf(source) };
   } finally {
     dispose();
   }
@@ -162,7 +162,7 @@ async function savedQueryBase(leaf: QuerySource): Promise<HostBase> {
       typers.push(typer);
       return typer;
     });
-    return { model, runtime, ...how, relation: relationOf(source), runs: 'engine' };
+    return { model, runtime, ...how, relation: relationOf(source) };
   } finally {
     dispose();
     for (const t of typers) t.dispose();
@@ -184,7 +184,7 @@ async function warehouseBase(leaf: WarehouseSource): Promise<HostBase> {
   }
   if (!answer.ok) throw new CubeRefusal(`${leaf.name} is not opened on the warehouse at ${leaf.warehouse}: ${text}`);
   const opened = JSON.parse(text) as { model: string; runtime: string; source: unknown };
-  return { model: opened.model, runtime: opened.runtime, relation: JSON.stringify({ _type: 'lambda', parameters: [], body: [opened.source] }), runs: 'engine' };
+  return { model: opened.model, runtime: opened.runtime, relation: JSON.stringify({ _type: 'lambda', parameters: [], body: [opened.source] }) };
 }
 
 /**

@@ -130,8 +130,8 @@ class PageCube(_EngineWidget):
     def __init__(self, page: Any, *, height: int = 640) -> None:
         self._closed = True
         session = page._session
-        engine = session.engine()
-        assert engine.site is not None  # the session's engine always has DataCube's site
+        engine = session.shown_engine()
+        assert engine.site is not None  # what shows a page has DataCube's site
         loader, module = _loader(engine.site)
         self._session = session
         # the engine the page is served on, kept: its watchers are told from a thread that may hold the frames still,

@@ -729,8 +729,11 @@ class Joins(unittest.TestCase):
         self.headless = datacube._session.headless()
 
     def ask(self, function, how, **added):
-        return json.loads(self.headless.call(function, json.dumps({**self.spec, 'page': json.loads(self.page.to_json()), 'how': how,
-                                                                    **added})))
+        # in one read of the frames, as every caller asks (page.join, the engine's join.json): a join's questions are rows
+        # the engine's plan-and-run reads over it (D15, D16)
+        with datacube._session.frames.reading():
+            return json.loads(self.headless.call(function, json.dumps({**self.spec, 'page': json.loads(self.page.to_json()),
+                                                                        'how': how, **added})))
 
     def test_two_frames_joined_as_the_tabs_join_joins_them(self):
         sheet = self.page.sheets[0].id
@@ -859,6 +862,39 @@ class OneRead(unittest.TestCase):
         free.set()
         for f in started:
             f.result(10)
+
+
+class OneRowsPath(unittest.TestCase):
+    """ONE WAY TO A GRID'S ROWS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D16): what a grid shows, its rows and its export
+    -- a frame's grid as a class's -- are each read by the engine's plan-and-run, which says where its rows are, as a tab
+    on the page reads them; the session's engine made with DataCube's, with no site where this install carries none (this
+    lane's)."""
+
+    def test_a_frames_grid_is_read_by_the_engines_plan_and_run_for_its_view_rows_and_export(self):
+        page = ll.Page('One rows path')
+        grid = page.grid(TRADES, name='trades_one_path', rows=['region'], measures={'notional': 'sum'})
+        engine = datacube._session.engine()
+        asked = []
+        planned = engine._plan_and_run_over
+
+        def counted(question, over, refused):
+            asked.append(question['model'])
+            return planned(question, over, refused)
+
+        with mock.patch.object(engine, '_plan_and_run_over', counted):
+            view = grid.view()
+            after_view = len(asked)
+            rows = grid.to_pandas()
+            after_rows = len(asked)
+            grid.export('csv')
+        # before D16 a frame's grid was planned in DataCube and run on the database directly: none of these asked it
+        self.assertGreater(after_view, 0, 'its view')
+        self.assertGreater(after_rows, after_view, 'its rows')
+        self.assertGreater(len(asked), after_rows, 'its export')
+        model = datacube._session.frames['trades_one_path'].model
+        self.assertEqual(set(asked), {model}, "each over the frame's own model")
+        self.assertEqual(sorted(groups(view, 'notional')), ['AMER', 'APAC', 'EMEA'])
+        self.assertEqual(sorted(rows['region']), ['AMER', 'APAC', 'EMEA'], 'its rows at their finest level: by region')
 
 
 if __name__ == '__main__':

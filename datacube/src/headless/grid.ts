@@ -3,14 +3,13 @@
 // a saved cube), its configuration folded into its query as the tab's state owner folds it (cube-state.ts `fold`: its
 // row cap, each column's aggregate and kind, pivot totals and sorts), CubeController.run for its view (its levels,
 // totals, pivot and truncation) laid out as the screen lays it out (shownColumns: hidden columns out, its order), and
-// classLambda for its rows at their finest level (Create a Class's relation), which Python plans and runs itself for
+// classLambda for its rows at their finest level (Create a Class's relation), which Python's plan-and-run reads for
 // all of them (Grid.to_pandas, typed by its plan: docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15.3a). Its planner is
-// legend-lite's over the host's worker, its engine DuckDB over the host's connection: the tab's own pair, in Python.
+// legend-lite's over the host's worker; its rows the host's plan-and-run's, as a tab on the host reads them (D16).
 //
 // Each call opens the grid afresh from the cube document it is given: the document is the grid's state, Python's
 // page keeps it, and nothing here holds a grid between calls.
 
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
@@ -41,7 +40,7 @@ import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
 import { classBasis, classLambda, snapPull, type ClassBasis } from '../query.ts';
-import { PlanThenRun, type PlanAndRun, type QueryLens } from '../runner.ts';
+import type { PlanAndRun, QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
 import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
 import { formatOf } from '../upload.ts';
@@ -53,7 +52,7 @@ import {
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
 import { pythonRunner } from '../services/python-host.ts';
-import { hostCalls, hostDatabase, hostEngine, hostWorker } from './host.ts';
+import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { joinOpenedOn } from './join.ts';
 import { base64 } from './web.ts';
@@ -72,8 +71,6 @@ export interface GridSpec {
   /** Read through a mapping (a class, a saved query): the mapping, and the model's enumerations (planner.ts ModelOptions). */
   readonly mapping?: string;
   readonly enumerations?: readonly string[];
-  /** `engine`: its rows read where the host's engine reads them (host-tables.ts HostBase), not on the host's database. */
-  readonly runs?: 'engine';
   /** What the page's filters are to it (gridBaseOn's, its page given): the page's filters and the grid's charts, as the
    *  protocol's JSON text -- what a page's grid reads through, as the screen's grid does (page-filters.ts gridLens). */
   readonly lens?: string;
@@ -81,7 +78,7 @@ export interface GridSpec {
 
 interface Opened {
   readonly planner: LitePlanner;
-  /** What answers its queries: the planner and the host's database, or the host's engine (`runs`). */
+  /** What answers its queries: the host's plan-and-run (runnerOf). */
   readonly runner: PlanAndRun;
   /** The page's filters' rewrite of its queries, as the screen's grid takes it (page-filters.ts gridLens); none, none. */
   readonly lens?: QueryLens;
@@ -91,10 +88,11 @@ interface Opened {
 }
 
 /**
- * What answers a base's queries: its planner over the host's worker, and -- its rows on the host's database -- that
- * database; or, read where the host's engine reads them (`runs: 'engine'`: a project's own database, a warehouse), the
- * tab's own runner over the host's engine (services/python-host.ts pythonRunner), as a tab on the host reads such a
- * base. Through its mapping, when it has one.
+ * What answers a base's queries, ONE WAY WHATEVER THE BASE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D16): the host's
+ * plan-and-run, which says where its rows are -- the host's database (a frame, a file, a copy), a project's own, a
+ * warehouse -- asked by the tab's own runner over the host's engine (services/python-host.ts pythonRunner), as a tab on
+ * the host reads every grid; its planner, over the host's worker, typing what the grid shows. Through its mapping, when
+ * it has one.
  */
 function runnerOf(spec: Omit<GridSpec, 'cube'>): { readonly planner: LitePlanner; readonly runner: PlanAndRun } {
   const calls = hostCalls();
@@ -102,12 +100,8 @@ function runnerOf(spec: Omit<GridSpec, 'cube'>): { readonly planner: LitePlanner
     ...(spec.mapping !== undefined ? { mapping: spec.mapping } : {}),
     ...(spec.enumerations !== undefined ? { enumerations: spec.enumerations } : {}),
   };
-  if (spec.runs === 'engine') {
-    const runner = pythonRunner(hostEngine(calls), spec.model, spec.runtime, how, () => hostWorker(calls));
-    return { planner: runner.host.planner as LitePlanner, runner };
-  }
-  const planner = new LitePlanner({ model: spec.model, runtime: spec.runtime, worker: () => hostWorker(calls), ...how });
-  return { planner, runner: new PlanThenRun(planner, new DuckDbEngine(hostDatabase(calls).connection)) };
+  const runner = pythonRunner(hostEngine(calls), spec.model, spec.runtime, how, () => hostWorker(calls));
+  return { planner: runner.host.planner as LitePlanner, runner };
 }
 
 /** A source as the compiler types it now: its planner and runner (runnerOf), its relation, its columns. */
