@@ -155,11 +155,15 @@ class Table:
         self.columns: tuple[compiler.Column, ...] = ()
         # its model, compiled once and held while the table is registered (each plan then pays for its query alone)
         self.held: compiler.HeldModel | None = None
+        # read at each query: the Arrow table its view reads now, which a read (Frames.reading) registers on its own
+        # cursor, so it reads the frame as it was when it began, whatever the frame is made since
+        self._arrow: pa.Table | None = None
 
     def _load(self, arrow: pa.Table) -> None:
         """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model."""
         con = self._frames.connection
         con.register(self._registered, arrow)
+        self._arrow = arrow if self.live else None
         kind = 'view' if self.live else 'table'
         # a view whose columns changed is dropped, not replaced: the copy below may change its kind of select
         _host.run(con, {'op': 'drop', 'kind': kind, 'target': self._target},
@@ -208,6 +212,7 @@ class Table:
         arrow = _arrow(self._read())
         if arrow.schema == self._schema:
             self._frames.connection.register(self._registered, arrow)
+            self._arrow = arrow
         else:
             self._load(arrow)
 
@@ -268,6 +273,25 @@ class _File:
         return {'model': self.model, 'runtime': self.runtime, 'source': self.source, 'table': self.name, 'leaf': self.leaf}
 
 
+class Reading:
+    """WHAT ONE READ SEES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D15): the frames' database as it was when the read
+    began -- a cursor of its own, its session set as the planner's SQL expects, each frame read at each query registered
+    on it as the frame was then, in a transaction pinned as it began -- and what was served then (``hosted``, the frames'
+    and files' ``models``). Whatever is registered, read in, snapped or dropped meanwhile, on any thread, a query on it
+    reads the same rows, and no lock is held while it is used: DataCube's code, asked a call by Python, reads through it
+    and asks what it asks of Python's engine over it, on its own thread, waiting on no thread. One thread uses it at a
+    time (its read's: the caller, then DataCube's thread while the call runs)."""
+
+    def __init__(self, cursor: duckdb.DuckDBPyConnection, hosted: dict[str, Any], models: dict[str, str]) -> None:
+        self.cursor = cursor
+        self.hosted = hosted
+        self.models = models
+
+    def run(self, plan: compiler.Plan) -> pa.Table:
+        """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
+        return typed_by_plan(self.cursor.execute(plan.sql).to_arrow_table(), plan)
+
+
 class Frames:
     """Frames in one duckdb-python database, each a Legend table the compiler plans queries over.
 
@@ -282,9 +306,14 @@ class Frames:
         # a database Frames made itself, which legend-lite may set up for its own reading (an engine's remote files),
         # where the person's own is left as they keep it
         self.owns_connection = connection is None
-        for statement in compiler.session_setup('DuckDB'):
+        # the session the planner's SQL expects, set on the connection and on each read's own cursor (Frames.reading):
+        # a cursor is a session of its own, which a connection's settings do not reach
+        self._setup = compiler.session_setup('DuckDB')
+        for statement in self._setup:
             self.connection.execute(statement)
         self._lock = threading.RLock()
+        # each thread's read in progress (``reading``): what DataCube's code, asked a call by it, reads through
+        self._local = threading.local()
         # how deep in ``serving`` the thread holding the lock is: inside, the frames are held still, each read as it is now
         self._still = 0
         # DuckDB matches names without regard to case, quoted or not: so does this
@@ -420,6 +449,7 @@ class Frames:
             raise ValueError(f"a file's table is named by a plain identifier (letters, digits, '_'), not {asked!r}")
         if asked.lower().startswith(_OWN):
             raise ValueError(f'a name beginning {_OWN} is legend-lite\'s own, not a file\'s: {asked!r}')
+        self._writing()
         with self._lock:
             name, n = asked, 2
             while self._taken(name):
@@ -465,8 +495,24 @@ class Frames:
             gone.held.close()
 
     @contextlib.contextmanager
+    def using_connection(self) -> Iterator[None]:
+        """The connection used a moment from another thread for what no read of the frames reads (a project's database
+        made beside them, projects.py): the lock alone."""
+        with self._lock:
+            yield
+
+    def plan_over(self, model: str, plan: Callable[[compiler.HeldModel], Any]) -> Any:
+        """``plan`` against the model a page's query may be planned over (``model_for``), held while it plans -- a frame
+        registered again meanwhile lets go of its model only after -- or None: no such model served. For a read's query
+        (D15): the model of that text is of the tables the read sees as they were (the same text, the same columns)."""
+        with self._lock:
+            held = self.model_for(model)
+            return None if held is None else plan(held)
+
+    @contextlib.contextmanager
     def holding(self) -> Iterator[None]:
         """The frames held still while another thread's code uses the connection (DataCube's, dropping a file's table)."""
+        self._writing()
         with self._lock:
             yield
 
@@ -511,12 +557,69 @@ class Frames:
                 for held, _tables in admitted:
                     held.close()
 
+    @contextlib.contextmanager
+    def reading(self) -> Iterator[Reading]:
+        """ONE READ OF THE FRAMES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D15): the database as it is now, for the
+        calls into DataCube's code this thread makes inside -- each frame read at each query read once, now (a function
+        frame called once), registered on the read's own cursor; a transaction begun and pinned, so the frames' tables,
+        the files' and the copies' are read as they are now whatever is made or dropped meanwhile; and what is served
+        now (``hosted``). The lock is taken only to begin it: nothing waits on this read while it runs. A read inside a
+        read on the same thread is the one read. Nothing is written inside one (``holding``, ``reading_file``): what a
+        read would not see is written before it begins."""
+        outer: Reading | None = getattr(self._local, 'reading', None)
+        if outer is not None:
+            yield outer
+            return
+        with self._lock:
+            for table in self._tables.values():
+                if table.live:
+                    table._ready()
+            cursor = self.connection.cursor()
+            try:
+                for statement in self._setup:
+                    cursor.execute(statement)
+                for table in self._tables.values():
+                    if table.live:
+                        cursor.register(table._registered, table._arrow)
+                cursor.begin()
+                # a transaction is begun on a database when it is first read: read every database's catalog now, so
+                # this read sees each as it is while the lock is held
+                cursor.execute('SELECT 1 FROM duckdb_tables() LIMIT 0').fetchall()
+            except BaseException:
+                cursor.close()
+                raise
+            read = Reading(cursor, self._hosted(), {**{t.name: t.model for t in self._tables.values()},
+                                                    **{f.name: f.model for f in self._files.values()}})
+        self._local.reading = read
+        try:
+            yield read
+        finally:
+            self._local.reading = None
+            with contextlib.suppress(duckdb.Error):
+                cursor.rollback()
+            cursor.close()
+
+    def reading_now(self) -> Reading | None:
+        """The read this thread is in (``reading``), or None."""
+        return getattr(self._local, 'reading', None)
+
+    def _writing(self) -> None:
+        if self.reading_now() is not None:
+            raise RuntimeError('the frames are read on this thread (Frames.reading), which sees them as they were when it '
+                               'began: a write inside it would not be read -- write before the read begins')
+
     def hosted(self) -> dict[str, dict[str, Any]]:
         """What this database serves a page's cubes over, as DataCube's headless code takes it (headless host-tables.ts
         HostTables): each frame by its name -- its model, its runtime and the accessor that reads it -- and each page's
         file and remote file it read in by what a page names it by (the file's bytes' hash, the remote file's URL: its
         ``leaf``), with its table -- what a page's cube is opened over (gridBaseOn, gridOpened, pageRebase, joinCube).
-        Asked inside ``serving``, the frames held still."""
+        Inside a read (``reading``), what was served when it began, as its queries see the database."""
+        read = self.reading_now()
+        if read is not None:
+            return read.hosted
+        return self._hosted()
+
+    def _hosted(self) -> dict[str, dict[str, Any]]:
         with self._lock:
             frames = {t.name: {'model': t.model, 'runtime': t.runtime, 'accessor': t.accessor} for t in self._tables.values()}
             read = [f for f in self._files.values() if f.leaf is not None]

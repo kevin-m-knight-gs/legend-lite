@@ -61,7 +61,7 @@ from . import _host, _json, compiler, warehouse
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, UntypedColumn, typed_by_plan
+from .frames import Frames, Reading, UntypedColumn, typed_by_plan
 from .keeper import PageKeeper, Refused, Settled
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -183,8 +183,9 @@ def _arrow_of(chunks: Iterable[bytes]) -> pa.Table:
 
 
 def _on_planner_threads() -> Callable[..., Any]:
-    """Where a planner's calls run: the compiler's threads (the native library's)."""
-    return lambda f, *a: _workers().submit(f, *a).result()
+    """Where a planner's calls run: the compiler's threads (the native library's) -- in place on one of them, DataCube's
+    engine's among them (_pool.library_thread: D15)."""
+    return lambda f, *a: _on_compiler_threads(lambda: f(*a))
 
 
 def _arrow_rows(rows: pa.Table, planned: str, receipt: dict[str, Any] | None = None) -> Answer:
@@ -435,7 +436,7 @@ class Engine:
         self.planner = NativePlanner()
         # a project's own rows, when Query or Studio served here runs one of its queries (C5): each project
         # version in a database of its own inside the frames' DuckDB, made by the native library's statements
-        self.projects = ProjectDatabases(frames.connection, guard=frames.holding)
+        self.projects = ProjectDatabases(frames.connection, guard=frames.using_connection)
         self._pages_folder = Path(pages) if pages is not None else None
         self.site = Path(site).resolve() if site is not None else None
         if self.site is not None and not self.site.is_dir():
@@ -520,16 +521,17 @@ class Engine:
             return Answer(200, 'application/json', json.dumps(kept).encode('utf-8'))
         return self._file(path)
 
-    def answer_here(self, path: str, body: str) -> tuple[int, str, bytes]:
+    def answer_over(self, path: str, body: str, over: Reading) -> tuple[int, str, bytes]:
         """A call of DataCube's code run headless for a grid of a page in Python (headless calls.ts ``engine``), answered
-        by this engine's own code ON THE CALLER'S THREAD -- the thread whose call into DataCube asked it, which holds the
-        frames still, so nothing here waits on another thread for them: ``/plan-and-run.json`` (a grid's query planned and
-        run where its rows are: the frames' database, a project's own, a warehouse) and ``/warehouse.json`` (a warehouse
-        table opened under the session this engine holds: D13). Any other path refused. Its status, media type, body."""
+        by this engine's own code over the read of the frames its call was made in (``over``: Frames.reading, D15), on
+        whichever thread asks -- DataCube's own, or Python's for a grid's rows -- holding nothing a moment longer than it
+        plans: ``/plan-and-run.json`` (a grid's query planned and run where its rows are: the frames' database as the read
+        sees it, a project's own, a warehouse) and ``/warehouse.json`` (a warehouse table opened under the session this
+        engine holds: D13). Any other path refused. Its status, media type, body."""
         if path == _PLAN_AND_RUN:
             table = self._warehouse_table_of(body)
             said = (_answered(lambda b: self._warehouse_plan_and_run(table, b), body) if table is not None
-                    else _answered(self._plan_and_run, body))
+                    else _answered(lambda b: self._plan_and_run(b, over), body))
         elif path == _WAREHOUSE:
             said = _answered(self._warehouse, body)
         else:
@@ -688,7 +690,8 @@ class Engine:
         assert self._headless is not None
         # asked for before the frames are held (the session's lock first, then the frames')
         headless = self._headless()
-        with self.frames.reading_file(asked, view=True) as name:
+        # its turn first, then the frames held: no one holds the frames waiting for a turn (D15)
+        with headless.turn(), self.frames.reading_file(asked, view=True) as name:
             self._extensions_here(extensions)
             mount = {'url': url, 'name': name, **({'s3': dict(s3)} if s3 else {})}
             # the source's extensions and keys first, then what it names checked, before any view of it reads it
@@ -844,7 +847,8 @@ class Engine:
         # asked for before the frames are held: the session takes its own lock first, then the frames' (register)
         headless = self._headless()
         size, sha256 = _bytes_of(path)
-        with self.frames.reading_file(asked) as table:
+        # its turn first, then the frames held: no one holds the frames waiting for a turn (D15)
+        with headless.turn(), self.frames.reading_file(asked) as table:
             read: dict[str, Any] = json.loads(headless.call('ingest', json.dumps(
                 {'path': str(path), 'name': name, 'table': table, 'size': size, 'sha256': sha256})))
             self.frames.keep_file(table, read)
@@ -875,7 +879,7 @@ class Engine:
         nothing reading it -- a remote file's view dropped as a view."""
         assert self._headless is not None
         headless = self._headless()
-        with self.frames.holding():
+        with headless.turn(), self.frames.holding():
             headless.call('forget', json.dumps({'table': read['table'], 'view': 'url' in read['leaf']}))
             self.frames.forget_file(read['table'])
 
@@ -902,7 +906,7 @@ class Engine:
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
-            with self.frames.holding():
+            with headless.turn(), self.frames.holding():
                 # dropped first, by the name Frames gave it, and only then served no more: a drop that fails leaves the
                 # table served, and the page may let go of it again
                 headless.call('forget', json.dumps({'table': table}))
@@ -1067,7 +1071,7 @@ class Engine:
         """A SAVED GRID OPENED BY PYTHON for a page it serves (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3):
         ``{"cube", "page", "gridsOnPage"}`` -- the cube document's text, its page's name, how many grids the page holds --
         opened over the frames as they are now by DataCube's own code, headless (gridOpened: a join of frames opened as
-        the tab opens a saved join), the frames held still. The answer is gridOpened's -- the cube rebuilt, what it
+        the tab opens a saved join), in one read of them (D15). The answer is gridOpened's -- the cube rebuilt, what it
         said, and its base: its model, its runtime, and a frame's accessor or a join's relation, which the page reads its
         rows over through Python -- and the version of each frame it reads, which the page follows. A cube over anything
         but this engine's frames is refused in DataCube's words."""
@@ -1086,9 +1090,10 @@ class Engine:
             headless = self._headless()
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
-        with self.frames.serving():
+        # one read of the frames (D15): DataCube's code reads them, and asks the engine, as they were when it began
+        with self.frames.reading() as over:
             try:
-                made = _json.loads(headless.call('gridOpened', asked['cube'], self.frames.hosted(), asked['page'],
+                made = _json.loads(headless.call('gridOpened', asked['cube'], over.hosted, asked['page'],
                                                  asked['gridsOnPage']))
                 leaves = json.loads(headless.call('cubeLeaves', asked['cube']))
             except Exception as refused:
@@ -1102,8 +1107,8 @@ class Engine:
         """A JOIN OF TWO OF A PAGE'S GRIDS for a tab on a page Python serves, which has no database of its own here
         (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11): ``{"op", "page", "mine", "theirs", "how", "sheet"}`` -- the page
         as the tab holds it (its document's text), the grids joined by their tiles' ids, how they join (not asked of
-        ``sides``), the sheet a join's grid goes on (``cube``'s alone) -- answered by DataCube's own code, headless, over
-        the frames held still and the files and remote files this engine read in, as page.join asks it: ``sides``
+        ``sides``), the sheet a join's grid goes on (``cube``'s alone) -- answered by DataCube's own code, headless, in one
+        read of the frames and the files and remote files this engine read in (D15), as page.join asks it: ``sides``
         (joinSides: each side's relation and columns, and what drifted), ``questions`` (joinQuestions: what it will do)
         and ``cube`` (joinCube: the addGrid command of its grid, which the tab opens as a saved join of the page). Read
         and written exactly (a condition's decimal keeps its digits); refused in DataCube's words."""
@@ -1128,8 +1133,9 @@ class Engine:
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
         spec = {'page': asked['page'], 'mine': asked['mine'], 'theirs': asked['theirs']}
-        with self.frames.serving():
-            spec['host'] = self.frames.hosted()
+        # one read of the frames (D15): DataCube's code reads them, and asks the engine, as they were when it began
+        with self.frames.reading() as over:
+            spec['host'] = over.hosted
             try:
                 if op == 'sides':
                     said = headless.call('joinSides', _json.dumps(spec))
@@ -1186,7 +1192,7 @@ class Engine:
         assert self._headless is not None
         try:
             headless = self._headless()
-            with self.frames.holding():
+            with headless.turn(), self.frames.holding():
                 headless.call('forget', json.dumps({'table': table}))
                 self.frames.forget_file(table)
         except Exception:
@@ -1231,7 +1237,7 @@ class Engine:
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
             headless = self._headless()
-            with self.frames.holding():
+            with headless.turn(), self.frames.holding():
                 # dropped first, and only then served no more: a drop that fails leaves it served, to let go again
                 headless.call('forget', json.dumps({'table': name}))
                 self.frames.forget_file(name)
@@ -1252,7 +1258,8 @@ class Engine:
             self._copies_made += 1
             asked = 'snap' if self._copies_made == 1 else f'snap_{self._copies_made}'
         try:
-            with self.frames.reading_file(asked) as name:
+            # its turn first, then the frames held: no one holds the frames waiting for a turn (D15)
+            with headless.turn(), self.frames.reading_file(asked) as name:
                 land(self.frames.connection, _host.name(name, schema='main'))
                 made = json.loads(headless.call('landed', json.dumps({'table': name})))
                 self.frames.keep_file(name, made)
@@ -1322,7 +1329,8 @@ class Engine:
             headless = self._headless()
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
-        with self.frames.serving() as models:
+        # its turn first, then the frames held: the copy is landed and modelled by DataCube's code inside (D15)
+        with headless.turn(), self.frames.serving() as models:
             self._noted(models)
             held = self.frames.model_for(asked['model'])
             if held is None:
@@ -1391,14 +1399,15 @@ class Engine:
             return _planned({'plan': planned, 'error': f'{type(refused).__name__}: {refused}'}, 422)
         return _arrow_rows(rows, planned, receipt)
 
-    def _plan_and_run(self, body: str) -> Answer:
+    def _plan_and_run(self, body: str, over: Reading | None = None) -> Answer:
         """PLANANDRUN on Python (§15.2): ``{"lambda", "model", "runtime"}`` -- the plan request the page's planner makes
         (lite-planner.ts ``planRequest``), its model as text -- planned against the model Python holds of that text
         (``Frames.held_for``: only the models this engine serves, R4) by the planner function the tab's worker calls
         (``planJson``), its SQL run on the frames' DuckDB, all in this one call: the page sends Pure, never SQL. The
         answer is the database's rows as Arrow, the planner's answer in their schema's metadata (``legend.plan``),
         which the page reads as its planner reads its own; or, no rows, JSON: the planner's refusal (``plan``), or its
-        plan and why its SQL was refused (``error``)."""
+        plan and why its SQL was refused (``error``). ``over``: a read of the frames (D15) -- a call of DataCube's made in
+        one, or Python's own rows -- whose database it runs on as the read sees it."""
         try:
             asked = json.loads(body)
         except ValueError:
@@ -1407,6 +1416,8 @@ class Engine:
             return _said(400, 'a plan-and-run is {"lambda", "model", "runtime"}, each a string')
         refused = self.planner.refused_plan('this engine plans only over the tables it serves: a page\'s frames and '
                                             'files, a model that reads only them, and a project\'s model with Data rows')
+        if over is not None:
+            return self._plan_and_run_over(asked, over, refused)
         with self.frames.serving() as models:
             self._noted(models)
             served = self.frames.model_for(asked['model']) is not None
@@ -1428,6 +1439,24 @@ class Engine:
                 rows = self.frames.run(plan)
             except (duckdb.Error, UntypedColumn) as refused:
                 return _planned({'plan': planned, 'error': f'{type(refused).__name__}: {refused}'}, 422)
+        return _arrow_rows(rows, planned)
+
+    def _plan_and_run_over(self, asked: dict[str, str], over: Reading, refused: str) -> Answer:
+        """A plan-and-run over a read of the frames (D15): planned by Python's planner against the model this engine
+        serves of that text -- the tables as the read saw them, the frames' lock taken only while it plans -- and run on
+        the read's own cursor, as the read sees the database; a model of no table served, a project's (C5)."""
+        self._noted(over.models)
+        planned = self.frames.plan_over(asked['model'], lambda held: self.planner.plan(asked['lambda'], held, asked['runtime']))
+        if planned is None:
+            return self._project_plan_and_run(asked, refused)
+        try:
+            plan = self.planner.read(planned)
+        except LegendError:
+            return _planned({'plan': planned})
+        try:
+            rows = over.run(plan)
+        except (duckdb.Error, UntypedColumn) as failure:
+            return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
 
     def _project_plan_and_run(self, asked: dict[str, str], refused: str) -> Answer:

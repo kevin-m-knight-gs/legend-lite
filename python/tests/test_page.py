@@ -1970,7 +1970,7 @@ class Snapped(Paged):
             engine = datacube._session.engine()
             # the tab's Snap: a copy it asked Python for, and the page it writes with it (as its grid's copy)
             engine_h, frames = datacube._session.headless(), datacube._session.frames
-            with frames.serving():
+            with frames.reading():
                 spec = grid._spec(engine_h, frames, live=True)
                 pull = engine_h.call('gridSnapPull', spec)
             made = json.loads(engine.answer('POST', '/snap.json', '', json.dumps(

@@ -188,7 +188,8 @@ class _Session:
                 self._headless = None
             if self._headless is None:
                 from ._headless import Headless, bundle
-                self._headless = Headless(bundle(), connection=self.frames.connection)
+                # a call made in a read of the frames (Frames.reading) queries through it (D15)
+                self._headless = Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now)
                 # what DataCube's code asks of the engine beside it (a grid's rows where they are), answered by this
                 # session's engine -- by a weak method: the session holds its DataCube engine, never the other way round
                 # (any function of this module would reach the session through the module's globals, and an engine in
@@ -196,16 +197,16 @@ class _Session:
                 self._headless.answers = weakref.WeakMethod(self._answer_here)
             return self._headless
 
-    def _answer_here(self, path: str, body: str) -> tuple[int, str, bytes]:
+    def _answer_here(self, path: str, body: str, over: Any) -> tuple[int, str, bytes]:
         """A call of DataCube's code to the engine (headless calls.ts ``engine``), answered by this session's engine on
-        the caller's thread (``Engine.answer_here``). Asked with the frames held, so it takes no session lock: an engine
-        not made yet is said -- a page whose grids read anything but its frames and files is opened by it (``Page.load``,
-        a tab), which makes it first."""
+        DataCube's thread over the read the call was made in (``Engine.answer_over``: D15). It takes no session lock (the
+        call's caller may hold it, waiting): an engine not made yet is said -- a page whose grids read anything but its
+        frames and files is opened by it (``Page.load``, a tab), which makes it first."""
         engine = self._engine
         if engine is None:
             raise RuntimeError('this session has no engine yet to plan and run a grid that reads more than its frames '
                                'and files: Page.load and a tab make it')
-        return engine.answer_here(path, body)
+        return engine.answer_over(path, body, over)
 
     def held_copies(self) -> dict[str, dict[str, Any]]:
         """Every snap's copy this session's engine holds, by its table (its model, runtime and relation, as DataCube
@@ -234,7 +235,7 @@ class _Session:
         from . import _json
         headless = self.headless()
         copies = self.held_copies()
-        with self.frames.serving():
+        with self.frames.reading():
             said = _json.loads(headless.call('pageRebase', _json.dumps(page), _json.dumps(held), _json.dumps(edits),
                                              _json.dumps(known), self.frames.hosted(), copies))
         if 'page' in said:

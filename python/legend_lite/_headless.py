@@ -10,6 +10,14 @@ exports every function it names.
 
 The engine runs on an event loop of its own, on its own thread: a caller's thread (a notebook's included, whose own
 loop is running) posts each call to it and waits, so the API is synchronous and never touches the caller's loop.
+
+WHAT A CALL ASKS OF PYTHON IS ANSWERED ON THE ENGINE'S THREAD, WAITING ON NO OTHER (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+D15): a call made inside a read of the frames (``Frames.reading``) queries through that read's own cursor, and what it asks
+of Python's engine (``engine``: a grid's rows planned and run where they are) is answered over that read too; the engine's
+thread is one of the compiler's (``_pool.library_thread``), so a library call it makes runs there. A call is made in its
+turn (``turn``), which a caller that writes the frames' database through DataCube's code takes before it holds the frames
+(the order every lock is taken in: the turn, then the warehouse's, then the frames'): no one holds a lock a call's answer
+takes while waiting for the call's turn.
 """
 
 from __future__ import annotations
@@ -20,19 +28,18 @@ import contextlib
 import hashlib
 import io
 import json
-import queue
 import tempfile
 import threading
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Iterator
 from pathlib import Path
 from typing import Any
 
 from . import _host
 from ._library import Library, library
+from ._pool import library_thread
 
 from ._planner import KINDS, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
@@ -105,12 +112,15 @@ class Headless:
     ends it."""
 
     def __init__(self, bundle: str, *, connection: Any = None, folder: str | Path | None = None,
-                 memory_limit: int = DEFAULT_MEMORY_LIMIT, lib: Library | None = None) -> None:
+                 memory_limit: int = DEFAULT_MEMORY_LIMIT, lib: Library | None = None,
+                 reading: Callable[[], Any] | None = None) -> None:
         """``bundle`` is a headless bundle's script. ``connection`` the duckdb connection its queries run on (a Frames'
         one, whose tables a page's grids read; a new database of the engine's own when not given, closed with it).
         ``folder`` where the files DataCube registers are written (a temporary folder of the engine's own when not
         given); a database of the engine's own reads relative names from it. A connection given is left as it is: a
-        file registered meanwhile is in ``folder``, which that database does not search (no grid registers one)."""
+        file registered meanwhile is in ``folder``, which that database does not search (no grid registers one).
+        ``reading``: the read of the frames the calling thread is in, if any (``Frames.reading_now``): a call made in one
+        queries through it."""
         import duckdb  # the database: the datacube extra's, never the compiler's
 
         self._lib = lib or library()
@@ -121,25 +131,42 @@ class Headless:
         if self._own_db:
             _host.run(self._db, {'op': 'fileSearchPath', 'folder': str(self._folder)})
         self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=self._loop.run_forever, name='legend-lite-datacube', daemon=True)
+        self._thread = threading.Thread(target=self._serve, name='legend-lite-datacube', daemon=True)
         self._thread.start()
         self._stack = contextlib.AsyncExitStack()
         self._mr: Any = None
         self._memory_limit = memory_limit
-        # one call into the context at a time, made on the engine's loop
-        self._turn: asyncio.Lock | None = None
-        # the caller whose call holds the turn: what it is asked to answer on its own thread (``engine``), while it waits
-        self._caller: queue.SimpleQueue[Any] | None = None
+        # one call into the context at a time: taken on the caller's thread, before anything the call holds (``turn``)
+        self._turn = threading.RLock()
+        self._reading = reading
+        # the read the call in its turn was made in (Frames.reading), if any: what its queries and its asks of the engine
+        # read through
+        self._over: Any = None
         # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
-        # a warehouse table opened under the session it holds), given by the engine's owner as a weak reference to them
-        # (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone: no such call answered
-        self.answers: Callable[[], Callable[[str, str], tuple[int, str, bytes]] | None] | None = None
+        # a warehouse table opened under the session it holds), over the call's read, given by the engine's owner as a
+        # weak reference to them (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone:
+        # no such call answered
+        self.answers: Callable[[], Callable[[str, str, Any], tuple[int, str, bytes]] | None] | None = None
         self.broken = False
         try:
             self._run(self._open(bundle, memory_limit))
         except BaseException:
             self.close()
             raise
+
+    def _serve(self) -> None:
+        # the engine's thread calls the native library (the planner's requests, the engine's answers): one of the
+        # compiler's threads, so a call it makes through the pool runs here, never waiting on the pool's
+        library_thread()
+        self._loop.run_forever()
+
+    @contextlib.contextmanager
+    def turn(self) -> Iterator[None]:
+        """This thread's turn at the engine: its calls inside are made one after another, no other thread's between them.
+        A caller that holds a lock while it calls (the frames', writing their database through DataCube's code) takes its
+        turn first, so no thread holds that lock while it waits for a turn."""
+        with self._turn:
+            yield
 
     @property
     def folder(self) -> Path:
@@ -155,7 +182,8 @@ class Headless:
     async def _query(self, sql: str) -> str:
         import pyarrow as pa
 
-        result = self._db.execute(sql)
+        # a call made in a read of the frames queries through it: the database as it was when the read began
+        result = (self._db if self._over is None else self._over.cursor).execute(sql)
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
@@ -176,15 +204,17 @@ class Headless:
 
     async def _engine(self, path: str, body: str) -> str:
         """One call of DataCube's to the engine it runs beside (calls.ts ``engine``: ``/plan-and-run.json``,
-        ``/warehouse.json``), answered by the engine's own code on the thread of the caller whose call asked it -- which
-        holds what it held as it called (the frames, still), so the answer takes what it takes as that caller, never
-        waiting on a lock the caller holds. ``{status, contentType, body}`` (the body base64), as JSON."""
-        caller, answers = self._caller, None if self.answers is None else self.answers()
-        if caller is None or answers is None:
+        ``/warehouse.json``), answered by the engine's own code here, on the engine's thread, over the read the call was
+        made in (D15) -- what was served when it began, read through its own cursor -- so the answer waits on no lock and
+        no other thread. A call made in no read asks nothing of the engine: refused, in words. ``{status, contentType,
+        body}`` (the body base64), as JSON."""
+        answers = None if self.answers is None else self.answers()
+        if answers is None:
             raise RuntimeError('this host answers no call of the engine\'s: it was given none to answer')
-        answered: asyncio.Future[tuple[int, str, bytes]] = self._loop.create_future()
-        caller.put((answers, (path, body), answered))
-        status, content_type, data = await answered
+        if self._over is None:
+            raise RuntimeError('DataCube asked the engine in a call made in no read of the frames (Frames.reading): '
+                               'its rows are read over what one read sees')
+        status, content_type, data = answers(path, body, self._over)
         return json.dumps({'status': status, 'contentType': content_type, 'body': base64.b64encode(data).decode('ascii')})
 
     async def _digest(self, algorithm: str, data: str) -> str:
@@ -199,7 +229,6 @@ class Headless:
         from py_mini_racer import MiniRacer
 
         # made on the engine's loop, so mini-racer runs on it (and never on a caller's)
-        self._turn = asyncio.Lock()
         self._mr = MiniRacer()
         self._mr.set_hard_memory_limit(memory_limit)
         # no WebAssembly in this process (the user's ruling, 2026-10-11): anything that reached for it fails here, loudly
@@ -223,67 +252,43 @@ class Headless:
         check_interface(json.loads(self._mr.eval('JSON.stringify(legendLiteHeadless.REQUEST_KINDS)')), self._lib)
         self._mr.eval('globalThis.legendLite = legendLiteHeadless.start();')
 
-    def _run(self, coroutine: Coroutine[Any, Any, Any], timeout: float | None = None,
-             asks: queue.SimpleQueue[Any] | None = None) -> Any:
-        """``coroutine`` run on the engine's loop, waited for -- and, while it runs, each call of the engine's it asks
-        (``asks``: ``_engine``'s) answered here, on this thread."""
+    def _run(self, coroutine: Coroutine[Any, Any, Any], timeout: float | None = None) -> Any:
+        """``coroutine`` run on the engine's loop, waited for."""
         if threading.current_thread() is self._thread:
+            coroutine.close()
             raise RuntimeError("the engine's own thread cannot wait for the engine")
         if self.broken:
             coroutine.close()
             raise RuntimeError('this engine ran out of its memory and is closed to calls: its owner makes another')
         future = asyncio.run_coroutine_threadsafe(coroutine, self._loop)
-        if asks is None:
-            try:
-                return future.result(timeout)
-            except TimeoutError:
-                future.cancel()
-                raise TimeoutError(f'DataCube did not answer within {timeout} s') from None
-        future.add_done_callback(lambda _: asks.put(None))
-        deadline = None if timeout is None else time.monotonic() + timeout
-        while True:
-            try:
-                asked = asks.get(timeout=None if deadline is None else max(0.0, deadline - time.monotonic()))
-            except queue.Empty:
-                future.cancel()
-                raise TimeoutError(f'DataCube did not answer within {timeout} s') from None
-            if asked is None:
-                return future.result()
-            answer, args, answered = asked
-            try:
-                said = answer(*args)
-            except Exception as failure:  # noqa: BLE001 -- handed to DataCube's call, which says it
-                self._loop.call_soon_threadsafe(_settle, answered, None, failure)
-            except BaseException:
-                # an interrupt of this thread: DataCube's call is let go, as a call that ran out of time is
-                future.cancel()
-                raise
-            else:
-                self._loop.call_soon_threadsafe(_settle, answered, said, None)
+        try:
+            return future.result(timeout)
+        except TimeoutError:
+            future.cancel()
+            raise TimeoutError(f'DataCube did not answer within {timeout} s') from None
 
-    async def _evaluate(self, expression: str, asks: queue.SimpleQueue[Any] | None = None) -> Any:
-        assert self._turn is not None
-        async with self._turn:
-            # the caller of this call, while it holds the turn: what DataCube's code asks of the engine, it answers
-            self._caller = asks
-            try:
-                promise = self._mr.eval(f'Promise.resolve({expression}).then((v) => JSON.stringify(v === undefined ? null : v))')
-                return json.loads(await promise)
-            except Exception as e:
-                if self._mr.was_hard_memory_limit_reached():
-                    # V8 stopped this call at the cap; what its context holds now is not to be trusted with another
-                    self.broken = True
-                    raise MemoryError(f"DataCube's engine reached its memory cap ({self._memory_limit} bytes)") from e
-                raise
-            finally:
-                self._caller = None
+    async def _evaluate(self, expression: str, over: Any) -> Any:
+        # the read the call was made in, while it runs: what its queries and its asks of the engine read through
+        self._over = over
+        try:
+            promise = self._mr.eval(f'Promise.resolve({expression}).then((v) => JSON.stringify(v === undefined ? null : v))')
+            return json.loads(await promise)
+        except Exception as e:
+            if self._mr.was_hard_memory_limit_reached():
+                # V8 stopped this call at the cap; what its context holds now is not to be trusted with another
+                self.broken = True
+                raise MemoryError(f"DataCube's engine reached its memory cap ({self._memory_limit} bytes)") from e
+            raise
+        finally:
+            self._over = None
 
     def evaluate(self, expression: str, timeout: float | None = None) -> Any:
         """A JavaScript expression's value, awaited when it is a Promise, as JSON gives it to Python: within ``timeout``
-        seconds when given (it then raises TimeoutError), else as long as it takes. What it asks of the engine
-        (``answers``) is answered on this thread meanwhile."""
-        asks: queue.SimpleQueue[Any] = queue.SimpleQueue()
-        return self._run(self._evaluate(expression, asks), timeout, asks)
+        seconds when given (it then raises TimeoutError), else as long as it takes. Made in this thread's turn, over the
+        read of the frames this thread is in (``reading``), if any."""
+        over = None if self._reading is None else self._reading()
+        with self._turn:
+            return self._run(self._evaluate(expression, over), timeout)
 
     def call(self, function: str, *args: Any, timeout: float | None = None) -> Any:
         """One of the bundle's functions (``legendLiteHeadless.<function>``) called with ``args`` as JSON gives them,
@@ -293,10 +298,9 @@ class Headless:
     def execute(self, code: str) -> None:
         """JavaScript code run in the engine's context, for its effects."""
         async def run() -> None:
-            assert self._turn is not None
-            async with self._turn:
-                self._mr.eval(code)
-        self._run(run())
+            self._mr.eval(code)
+        with self._turn:
+            self._run(run())
 
     def close(self) -> None:
         """Ends the engine: its calls let go, V8's context, the loop's thread, the database, and its own folder."""
@@ -321,16 +325,6 @@ class Headless:
 
     def __exit__(self, *_exc: object) -> None:
         self.close()
-
-
-def _settle(answered: asyncio.Future[Any], said: Any, failure: BaseException | None) -> None:
-    """An engine's call's answer handed back to DataCube's call waiting on it, on the engine's loop."""
-    if answered.done():
-        return
-    if failure is not None:
-        answered.set_exception(failure)
-    else:
-        answered.set_result(said)
 
 
 # the product's bundle: beside this module in the wheel (the `datacube` extra, step 4), or where LEGEND_LITE_DATACUBE says

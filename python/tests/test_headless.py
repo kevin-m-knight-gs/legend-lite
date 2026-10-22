@@ -7,17 +7,21 @@ import base64
 import datetime
 import json
 import os
+import threading
 import unittest
 from pathlib import Path
 from decimal import Decimal
+from unittest import mock
 
 import pandas as pd
 import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite import datacube
+from legend_lite import _pool
 from legend_lite._headless import Headless, bundle
 from legend_lite.engine import Engine
+from legend_lite.frames import Frames
 
 TRADES = pd.DataFrame({
     'region': ['EMEA', 'EMEA', 'AMER', 'APAC', 'AMER', 'EMEA'],
@@ -771,6 +775,90 @@ class Joins(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "'grid-9' is not a tile of the page"):
             json.loads(self.headless.call('joinCube', json.dumps({**self.spec, 'theirs': 'grid-9', 'page': json.loads(self.page.to_json()),
                                                                   'how': self.HOW, **sheet})))
+
+
+class OneRead(unittest.TestCase):
+    """A CALL INTO DATACUBE HOLDS NO LOCK, AND WHAT IT ASKS IS ANSWERED ON ITS OWN THREAD (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+    D15): a call made in a read of the frames (Frames.reading) reads them as they were when the read began, through the
+    read's own cursor, while a frame is registered again meanwhile on another thread without waiting for it; what the call
+    asks of Python's engine is answered on DataCube's thread, over the read; and a library call made there runs in place,
+    never waiting on the compiler's pool, whose threads may all be waiting for DataCube."""
+
+    def setUp(self):
+        self.frames = Frames()
+        self.frames.register('trades', TRADES)
+        self.headless = Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now)
+        self.addCleanup(self.headless.close)
+
+    def rows(self, sql):
+        """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64."""
+        said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
+        return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
+
+    def test_a_frame_registered_meanwhile_waits_for_no_call_which_reads_the_frames_as_they_were(self):
+        asked, go, seen = threading.Event(), threading.Event(), {}
+
+        def slow(method, url, body):
+            # DataCube's call waiting on its host, mid-call: the frames are not to be held meanwhile
+            asked.set()
+            go.wait(20)
+            return 200, '{}'
+
+        def call():
+            with self.frames.reading():
+                self.headless.evaluate("legendLiteHost.fetch('GET', '/api/lite/v1/ping', null)")
+                seen['rows'] = self.rows('SELECT count(*) AS n FROM trades')
+
+        with mock.patch('legend_lite._headless.answer_fetch', slow):
+            calling = threading.Thread(target=call)
+            calling.start()
+            self.assertTrue(asked.wait(20))
+            registering = threading.Thread(target=self.frames.register, args=('trades', TRADES.head(2)))
+            registering.start()
+            registering.join(10)
+            # before D15 the call held the frames' lock until it ended: the frame waited on it, and it on the frame
+            self.assertFalse(registering.is_alive(), 'registering a frame waited on a call into DataCube')
+            go.set()
+            calling.join(20)
+        self.assertEqual(seen['rows'], [{'n': 6}], 'the call read the frame as it was when its read began')
+        with self.frames.reading():
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 2}], 'a read after it reads it as it is')
+
+    def test_what_a_call_asks_of_the_engine_is_answered_on_datacubes_thread_over_its_read(self):
+        answered = []
+
+        def answers(path, body, over):
+            answered.append((threading.current_thread().name, path, over))
+            return 200, 'application/json', b'{}'
+
+        self.headless.answers = lambda: answers
+        with self.frames.reading() as over:
+            self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')")
+        # before D15 it was answered on the caller's thread, which held the frames
+        self.assertEqual(answered, [('legend-lite-datacube', '/plan-and-run.json', over)])
+        # a call made in no read: nothing it asks of the engine is answered, said in words
+        with self.assertRaisesRegex(Exception, 'made in no read of the frames'):
+            self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')")
+
+    def test_a_library_call_on_datacubes_thread_waits_on_no_pool_thread(self):
+        # every compiler thread busy -- as when each waits for DataCube's turn while a call in it asks its host
+        busy, free = threading.Semaphore(0), threading.Event()
+        started = [_pool._workers().submit(lambda: (busy.release(), free.wait(30))) for _ in range(_pool._WORKERS)]
+        self.addCleanup(free.set)
+        for _ in started:
+            self.assertTrue(busy.acquire(timeout=10))
+
+        def fetched(method, url, body):
+            # a host answer that calls the library (a model home's fetch does), as _home.home_call calls it
+            return 200, json.dumps(_pool._on_compiler_threads(lambda: threading.current_thread().name))
+
+        with mock.patch('legend_lite._headless.answer_fetch', fetched), self.frames.reading():
+            said = self.headless.evaluate("legendLiteHost.fetch('GET', '/sdlc/api/projects', null)", timeout=20)
+        # before D15 it waited for a pool thread that was waiting for it
+        self.assertEqual(json.loads(json.loads(said)['body']), 'legend-lite-datacube')
+        free.set()
+        for f in started:
+            f.result(10)
 
 
 if __name__ == '__main__':

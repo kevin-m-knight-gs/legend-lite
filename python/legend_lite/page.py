@@ -246,7 +246,7 @@ class Grid(Tile):
         the cube document DataCube writes, its open groups kept as the screen keeps them."""
         self._page._current(self._view['cube'], 5)
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading():
             said = json.loads(engine.call('gridApply', self._spec(engine, frames), _json.dumps(commands)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
@@ -278,16 +278,15 @@ class Grid(Tile):
 
     def _headless(self) -> tuple[Any, Any]:
         """The session's headless engine, got first (the session's lock, taken and let go), and the frames: a caller then
-        holds the frames still (the frames' lock) -- the order a frame's registering takes the two, so neither waits on
-        the other."""
+        reads them (``Frames.reading``: the frames' lock taken only to begin it, D15) -- the order a frame's registering
+        takes the two, so neither waits on the other."""
         session = self._page._session
         return session.headless(), session.frames
 
     def _spec(self, engine: Any, frames: Any, live: bool = False) -> dict[str, Any]:
-        """This grid's cube and its base, as the bundle's grid functions take them (the frames held still), asked of
-        ``engine`` -- got before the frames were held (``_headless``): getting it takes the session's lock, which a
-        frame's registering takes before the frames', so asking for it here, the frames held, could wait on it forever.
-        A snapped grid's base is its copy (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), unless ``live``: what it is
+        """This grid's cube and its base, as the bundle's grid functions take them (in one read of the frames), asked of
+        ``engine`` -- got before the read began (``_headless``): getting it takes the session's lock, which a frame's
+        registering takes before the frames'. A snapped grid's base is its copy (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), unless ``live``: what it is
         a copy of (what a snap pulls, what a class is made of)."""
         return _cube_spec(self._page._session, self._cube, frames, engine,
                           None if live else self._page._snapped(self._view['cube']), self._page._doc, self._view['cube'])
@@ -300,7 +299,7 @@ class Grid(Tile):
 
         from ._headless import cells
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading():
             # DataCube's cells are exact as it gives them (an Integer or a Float a number, a Decimal its text): read as
             # JSON reads them, an integer past 2^53 and a non-finite float from their tags
             return GridView(cells(json.loads(engine.call('gridView', self._spec(engine, frames)))))
@@ -311,7 +310,7 @@ class Grid(Tile):
         innermost group when it is grouped (a flat grid's rows as they are) -- the relation DataCube's Create a Class
         makes a class of: over its live base, a snapped grid's too (its copy lasts only as long as this session)."""
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading():
             return engine.call('gridRelation', self._spec(engine, frames, live=True))
 
     def to_pandas(self) -> Any:
@@ -323,15 +322,15 @@ class Grid(Tile):
         from . import compiler
         from .frames import to_pandas
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading() as over:
             spec = self._spec(engine, frames)
             tree = compiler.parse(engine.call('gridRelation', spec))
             if spec.get('runs') == 'engine':
-                return to_pandas(_engine_rows(self._page._session, tree, spec['model'], spec['runtime']))
-            held = frames.model_for(spec['model'])
-            if held is None:
+                return to_pandas(_engine_rows(self._page._session, tree, spec['model'], spec['runtime'], over))
+            plan = frames.plan_over(spec['model'], lambda held: held.plan(tree, spec['runtime']))
+            if plan is None:
                 raise ValueError(f'{self._cube["source"]["name"]}: its model reads a table this session does not serve')
-            return to_pandas(frames.run(held.plan(tree, spec['runtime'])))
+            return to_pandas(over.run(plan))
 
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
@@ -341,7 +340,7 @@ class Grid(Tile):
         given ``to``, writes it there and answers the path."""
         import base64
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading():
             said = _json.loads(engine.call('gridExport', self._spec(engine, frames), kind))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
@@ -374,7 +373,7 @@ class Grid(Tile):
         given = {'place': 'Python', 'cube': self._view['cube'], 'source': self._cube['source']['name'],
                  **_model_given(name=name, package=package, documentation=documentation, columns=columns,
                                 project=project, sdlc=sdlc, writer=writer)}
-        with frames.serving():
+        with frames.reading():
             said = _json.loads(engine.call('modelClass', _json.dumps(self._page._doc),
                                            self._spec(engine, frames, live=True), given))
         return self._page._model_said(said, 'class')
@@ -419,7 +418,7 @@ class Grid(Tile):
             return self._apply([{'kind': 'filter', 'filter': None}])
         self._page._current(self._view['cube'], 4)
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading():
             said = json.loads(engine.call('gridFilter', self._spec(engine, frames), _json.dumps(_tagged(condition))))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
@@ -475,7 +474,7 @@ class Grid(Tile):
             raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
         self._page._current(self._view['cube'], 5)
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading():
             said = json.loads(engine.call('gridCalculate', self._spec(engine, frames), name, f'x|{expression}', kind,
                                           replacing))
         if 'problems' in said:
@@ -560,7 +559,7 @@ class Grid(Tile):
         _ = self._view
         page, session = self._page, self._page._session
         engine, frames = self._headless()
-        with frames.serving():
+        with frames.reading():
             spec = self._spec(engine, frames, live=True)
             pull = engine.call('gridSnapPull', spec)
         # copied outside the frames: the engine holds them itself, on its own thread
@@ -634,7 +633,7 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
     page._current(cube, 5)
     session = page._session
     engine, frames = session.headless(), session.frames
-    with frames.serving():
+    with frames.reading():
         made = _json.loads(engine.call('gridChart', _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube)),
                                        _json.dumps(given), None if before is None else _json.dumps(before)))
     if made['problems']:
@@ -645,7 +644,7 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
 def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
                snapped: Mapping[str, Any] | None = None, page: Mapping[str, Any] | None = None,
                id: str | None = None) -> dict[str, Any]:
-    """A cube document and its base, as the bundle's grid functions take them (the frames held still): its base on the
+    """A cube document and its base, as the bundle's grid functions take them (in one read of the frames): its base on the
     host as DataCube says it is (headless gridBaseOn, the one rule: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z15) -- over
     the frames this session serves (a frame's own model, a join's of frames one model of them; never by the cube's kind
     here), or, its grid ``snapped`` (the page's copy for it), over the copy as its engine modelled it as it landed,
@@ -661,17 +660,16 @@ def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
     return {'cube': text, **said}
 
 
-def _engine_rows(session: Any, tree: Any, model: str, runtime: str) -> Any:
+def _engine_rows(session: Any, tree: Any, model: str, runtime: str, over: Any) -> Any:
     """A query's rows planned and run by the session's engine where they are (its plan-and-run: a project's own database,
-    a warehouse, the frames'), as Arrow typed by the plan -- asked with the frames held, so on this thread (``answer_here``),
-    by the engine a page reading such a base made (``Page.load``, a tab). Refused in the planner's or the database's
-    words."""
+    a warehouse, the frames' as the read ``over`` sees them: D15), as Arrow typed by the plan, by the engine a page
+    reading such a base made (``Page.load``, a tab). Refused in the planner's or the database's words."""
     from . import compiler
     engine = session._engine
     if engine is None:
         raise ValueError('this session has no engine yet to read a grid that reads more than its frames and files')
-    status, kind, body = engine.answer_here('/plan-and-run.json', json.dumps({'lambda': _json.dumps(tree), 'model': model,
-                                                                              'runtime': runtime}))
+    status, kind, body = engine.answer_over('/plan-and-run.json', json.dumps({'lambda': _json.dumps(tree), 'model': model,
+                                                                              'runtime': runtime}), over)
     if status == 200 and not kind.startswith('application/json'):
         import pyarrow.ipc
         return pyarrow.ipc.open_stream(body).read_all()
@@ -1095,7 +1093,7 @@ class Page:
         ``create_class`` takes them. Answers the association's path."""
         engine = self._session.headless()
         given = {'place': 'Python', 'ends': _carried([a, b]), **_model_given(name=name, sdlc=sdlc, writer=writer)}
-        with self._session.frames.serving():
+        with self._session.frames.reading():
             said = _json.loads(engine.call('modelAssociation', _json.dumps(self._doc), given))
         return self._model_said(said, 'association')
 
@@ -1114,7 +1112,7 @@ class Page:
         given = {'place': 'Python', 'associations': _carried(list(associations)),
                  **_model_given(name=name, title=title, description=description, project=project, sdlc=sdlc,
                                 writer=writer)}
-        with frames.serving():
+        with frames.reading():
             # each grid as the host reads it: of its live base, a snapped grid's too (a class maps tables, never a copy)
             grids = [{'cube': g._view['cube'], 'source': g._cube['source']['name'],
                       'spec': g._spec(engine, frames, live=True)} for g in self.grids]
@@ -1275,7 +1273,7 @@ class Page:
         # the tables its leaves read, each grid read as the page has it, under the name it shows, and the join's grid placed
         # beside the first, are DataCube's (headless joinCube: host-tables.ts leafTables, joinInputOf): Python hands in
         # what it serves
-        with frames.serving():
+        with frames.reading():
             made = _json.loads(engine.call('joinCube', _json.dumps({
                 'page': self._doc, 'mine': mine.id, 'theirs': theirs.id, 'how': how, 'host': frames.hosted(),
                 'sheet': target.id, 'title': title})))
@@ -1648,7 +1646,7 @@ class Page:
         says of what changed, whether the page takes it (cubeTaken), and the source as it is now, which the page's
         ``rebuilt`` command carries."""
         engine, frames = self._session.headless(), self._session.frames
-        with frames.serving():
+        with frames.reading():
             made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
                                           len(self._doc['cubes']), dict(given)))
         return list(made['notes']), made['taken'], _plain(_json.loads(made['opened']))
@@ -1660,7 +1658,7 @@ class Page:
         it, are more than one: DataCube's gridCapped), or ``saved`` rebuilt over the frame as it is now; what DataCube
         says of what changed; and whether it left a part out."""
         engine, frames = self._session.headless(), self._session.frames
-        with frames.serving():
+        with frames.reading():
             table = frames[frame]
             spec = {'model': table.model, 'runtime': table.runtime, 'source': table.accessor, 'frame': frame}
             made = json.loads(engine.call(
@@ -1672,7 +1670,7 @@ class Page:
         ``leaf``), as DataCube makes one over it where this host reads it (headless leafCube, the file's source as the
         tab records it: cube-document.ts fileSourceOf, remoteSourceOf), named after the file."""
         engine, frames = self._session.headless(), self._session.frames
-        with frames.serving():
+        with frames.reading():
             made = json.loads(engine.call('leafCube', read['leaf'], frames.hosted(), self.name, grids_on_page))
         return _plain(_json.loads(made['cube']))
 

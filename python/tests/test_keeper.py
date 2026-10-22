@@ -387,7 +387,7 @@ class OpenPage:
         if view is None:
             raise ValueError(f'{grid} is no longer on the page')
         cube = next(c['cube'] for c in doc['cubes'] if c['id'] == view['cube'])
-        with session.frames.serving():
+        with session.frames.reading():
             spec = _cube_spec(session, cube, session.frames, self.headless, doc.get('copies', {}).get(view['cube']))
             said = json.loads(self.headless.call('gridApply', spec, _json.dumps([command])))
         if 'problems' in said:

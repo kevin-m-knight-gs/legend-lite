@@ -146,9 +146,9 @@ def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
     ``lite_saved_cubes``, legend-lite's own rules), under the lock every Python process takes on it, the library's call
     on one of the compiler's threads: its status and its body. A failure of the library's raised (``OSError``)."""
     from ._library import library
-    from ._pool import _workers
+    from ._pool import _on_compiler_threads
     with locked(folder):
-        said = _workers().submit(library().call, entry, str(folder), *asked).result()
+        said = _on_compiler_threads(lambda: library().call(entry, str(folder), *asked))
     tag, _, rest = said.partition('\n')
     if tag != 'OK':
         raise OSError(rest.partition('\n')[2] or rest)
@@ -163,11 +163,13 @@ def home_call(folder: Path, kind: str, method: str, path: str, body: str | None)
     host's fetch) reach it. The library makes each call under the repository's own lock, which every kind of process
     that opens it takes (the model home's server too; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G11); Python's own lock
     across its processes is taken first, on the caller's thread, so a call waiting on another Python process holds no
-    compiler thread. A failure of the library's raised (``OSError``)."""
+    compiler thread. Asked on a thread that calls the library itself (DataCube's engine's, its model actions' fetch), the
+    call runs there, never waiting on the pool (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D15). A failure of the
+    library's raised (``OSError``)."""
     from ._library import library
-    from ._pool import _workers
+    from ._pool import _on_compiler_threads
     with locked(folder):
-        said = _workers().submit(library().call, f'lite_{kind}_handle', str(folder), method, path, body or '').result()
+        said = _on_compiler_threads(lambda: library().call(f'lite_{kind}_handle', str(folder), method, path, body or ''))
     tag, _, rest = said.partition('\n')
     if tag != 'OK':
         raise OSError(rest.partition('\n')[2] or rest)
