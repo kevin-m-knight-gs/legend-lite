@@ -30,9 +30,10 @@ item below has its `file:line` there.
   frozen chart no longer takes its old grid's filter). The temporary editing grid and its Update go.
 - **D8** Python's chart API: `chart.select(value, split=...)` (a mark named by its value across, and its series'),
   `chart.select(None)`, `chart.selection`; `chart.drill(value)`, `chart.drill_up(levels=1)`, `chart.drilled` (the
-  browser's own `drillDown` and `drillUp`); `chart.grid` read-only -- the grid it follows, or None (a frozen chart's old
-  grid no more); `chart.backing_grid()` -- the same function as the browser's Show Grid, its grid made first when it has
-  none. Explicit in Python, no toggle: a click's toggling is the screen's; a range across an axis not at first.
+  browser's own `drillDown` and `drillUp`); `chart.grid()` -- the chart's grid, the same function as the browser's Show
+  Grid: the grid a following chart follows, or, for a frozen or detached chart, one made first (a method, as
+  `page.grid()` and `grid.chart()` are: the read-only `chart.grid` property it replaces goes). Explicit in Python, no
+  toggle: a click's toggling is the screen's; a range across an axis not at first.
 - **D9** Every ledger's growth waits on the user's dated sign-off, the growth this plan itself calls for included (rule
   1 as written: no standing approval).
 
@@ -362,7 +363,7 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **K8** sheets: reorder, remove — S6, L8
 - [ ] **K9** drill a chart, and back up — S6, L8 (D8: `drill`, `drill_up`, `drilled`)
 - [ ] **K10** Copy of Grid — S6, L8
-- [ ] **K11** a chart's Open in grid and Update — S6, L8 (D7: one Show Grid replaces them; D8: `backing_grid()`)
+- [ ] **K11** a chart's Open in grid and Update — S6, L8 (D7: one Show Grid replaces them; D8: `chart.grid()`)
 - [ ] **K12** open a saved page by id — S6, L8
 
 ### Found by the audits (rule 9: each added here, fixed with a test that fails without it, closed in that commit)
