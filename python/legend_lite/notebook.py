@@ -196,7 +196,6 @@ class PageCube(_EngineWidget):
 
     def __init__(self, page: Any, *, height: int = 640) -> None:
         self._closed = True
-        page._showable()
         session = page._session
         engine = session.engine()
         assert engine.site is not None  # the session's engine always has DataCube's site

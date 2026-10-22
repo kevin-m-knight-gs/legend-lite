@@ -21,6 +21,7 @@ import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
 import {
+  NOTHING_TO_SAVE,
   openedLive,
   openingOrder,
   pageContent,
@@ -1018,7 +1019,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // it is kept, what is saved and what is not (the rows), and what saving over would drop
     if (pages) saveCube = (asNew) => {
       if (page.empty) {
-        library?.say('There is nothing on this page to save: add a data source first.', 'warn');
+        library?.say(NOTHING_TO_SAVE, 'warn');
         return;
       }
       void (async () => {

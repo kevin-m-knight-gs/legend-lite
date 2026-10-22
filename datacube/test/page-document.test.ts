@@ -10,9 +10,9 @@ import { cubeToJson, frameSource, rawRows, writeCube, type FileSource } from '..
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import {
   FIRST_SHEET,
+  NOTHING_TO_SAVE,
   PAGE_KIND,
   PageDocumentError,
-  PageNoCubeError,
   oneSheet,
   pageDefinitionText,
   pageToJson,
@@ -25,7 +25,7 @@ import {
   type PageViews,
 } from '../src/page-document.ts';
 import { givenName } from '../src/page-names.ts';
-import { pageApply, pageNew } from '../src/headless/page.ts';
+import { pageApply, pageNew, pageRead, pageSaved } from '../src/headless/page.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
@@ -209,8 +209,8 @@ describe('a saved page', () => {
   it('says what is wrong with a page it cannot read', () => {
     const raw = JSON.parse(pageToJson(page()));
     const bad = (patch: Record<string, unknown>) => () => readPage(JSON.stringify({ ...raw, ...patch }));
-    // a page with no cube, refused by name (PageNoCubeError): a host says what makes one, never guessing it
-    assert.throws(bad({ cubes: [] }), PageNoCubeError);
+    // a page with no cube: DataCube opens no saved page of nothing (an open page of none is read with `empty`)
+    assert.throws(bad({ cubes: [] }), /^PageDocumentError: cannot read saved page: it has no cube$/);
     assert.throws(bad({ cubes: [] }), PageDocumentError);
     assert.throws(bad({ cubes: [] }), /no cube/);
     // two cubes of one id: a view could not say which it shows
@@ -349,6 +349,16 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     assert.match(cubeToJson(CUBE), /12\.30/);
     assert.match(add(cubeToJson(CUBE)).page!, /12\.30/);
     assert.match(add('{"bogus":1}').problems![0]!, /cannot read saved cube/);
+  });
+
+  it("saved or written as a file (headless pageSaved: Python's save and to_json) only with something on it, refused in the screen's words (B14)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    assert.deepEqual(JSON.parse(pageSaved(started)), { problems: [NOTHING_TO_SAVE] });
+    assert.equal(NOTHING_TO_SAVE, 'There is nothing on this page to save: add a data source first.');
+    const added = JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string };
+    assert.equal(JSON.parse(pageSaved(added.page)).page, JSON.parse(pageRead(added.page)).page, 'written as DataCube writes it');
+    assert.match(JSON.parse(pageSaved('{"bogus":1}')).problems[0], /^cannot read saved page/);
   });
 });
 

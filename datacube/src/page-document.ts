@@ -170,13 +170,12 @@ export class PageDocumentError extends Error {
   }
 }
 
-/** A page with no cube: DataCube opens none -- its own refusal, by name, so a host can say what makes one. */
-export class PageNoCubeError extends PageDocumentError {
-  constructor() {
-    super('it has no cube');
-    this.name = 'PageNoCubeError';
-  }
-}
+/**
+ * What a page with nothing on it is told when it is saved or written as a page file -- the one wording (B14) of the
+ * screen's Save and Export ▸ Page File (page-app.ts saveRefusal) and Python's `save` and `to_json` (headless pageSaved):
+ * DataCube opens no saved page with no cube (readPage).
+ */
+export const NOTHING_TO_SAVE = 'There is nothing on this page to save: add a data source first.';
 
 const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies']);
 
@@ -367,7 +366,7 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   if (!named('page', raw['name'])) throw new PageDocumentError("the page's name is blank");
 
   const cubesRaw = raw['cubes'];
-  if (!Array.isArray(cubesRaw) || (cubesRaw.length === 0 && options.empty !== true)) throw new PageNoCubeError();
+  if (!Array.isArray(cubesRaw) || (cubesRaw.length === 0 && options.empty !== true)) throw new PageDocumentError('it has no cube');
   const cubes = cubesRaw.map((c, i) => {
     if (!isObject(c) || typeof c['id'] !== 'string' || !isObject(c['cube'])) {
       throw new PageDocumentError(`cube ${i + 1} is not an id and a cube`);

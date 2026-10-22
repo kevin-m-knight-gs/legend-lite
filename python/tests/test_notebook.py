@@ -306,13 +306,14 @@ class InAKernel(Widget):
         self.assertEqual(cube.versions['frames'], {'moving': engine.version('moving')})
 
     def test_a_page_shows_under_the_cell_once_and_its_widget_is_shown_again(self):
+        # a page of no grid yet shows, as the tab's blank page does, its widget following it as Python adds to it (D2)
         page = ll.Page('P')
-        with self.assertRaisesRegex(ValueError, 'it has no cube'):
-            ll.show(page)
-        page.grid(trades(), name='t')
         first = ll.show(page)
         self.assertIsInstance(first, notebook.PageCube)
         self.assertEqual(len(self.displayed), 1)
+        empty = first.versions['version']
+        page.grid(trades(), name='t')
+        self.assertGreater(first.versions['version'], empty)
         first._ipython_display_()
         self.assertEqual(len(self.displayed), 1, 'the cell\'s result shows no second copy')
         # shown again: the page's own widget, displayed again here (not a second widget following the page)

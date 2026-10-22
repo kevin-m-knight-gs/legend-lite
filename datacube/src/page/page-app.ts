@@ -32,7 +32,7 @@ import { MenuView } from '../ui/menu-view.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
-import { filtersFor, pageToJson, writePageOf, type PageDocument, type PageView, type PageViews } from '../page-document.ts';
+import { filtersFor, NOTHING_TO_SAVE, pageToJson, writePageOf, type PageDocument, type PageView, type PageViews } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
@@ -695,7 +695,7 @@ export class PageApp {
   /** Why the page cannot be saved now, if it cannot: nothing on it, or a grid's own reason, named. */
   saveRefusal(): string | undefined {
     const ids = this.cubes;
-    if (ids.length === 0) return 'There is nothing on this page to save: add a data source first.';
+    if (ids.length === 0) return NOTHING_TO_SAVE;
     for (const id of ids) {
       const grid = this.grid(id);
       const refused = grid ? grid.saveRefusal() : 'a grid on it does not know its source.';

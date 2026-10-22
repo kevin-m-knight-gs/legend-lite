@@ -323,8 +323,8 @@ class _Session:
             return tab
 
     def serve(self, page: Page, view: PageTab | PageCube) -> None:
-        """``page`` served by the engine, shown in ``view`` (a tab's or a notebook's) and told of each change."""
-        page._showable()
+        """``page`` served by the engine, shown in ``view`` (a tab's or a notebook's) and told of each change -- a page of
+        no grid yet too, which DataCube shows and follows as Python adds to it (D2)."""
         with self._lock:
             # served when it is first shown; shown again, the engine has it as it is (served each time it changed), and
             # a page open on it stays as it is

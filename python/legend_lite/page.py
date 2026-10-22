@@ -1382,17 +1382,10 @@ class Page:
             raise ValueError(f'{tile!r} is another page\'s')
         _ = tile._view
         before = {v['id'] for v in self._doc['views']}
-
-        def shown(page: dict[str, Any]) -> None:
-            # a cube stays while a view shows it (a frozen chart's, its grid gone); a page with none is one DataCube does
-            # not read, and a shown page is served again: refused before anything changes
-            if not page['cubes'] and self._shown:
-                raise ValueError('a page that is shown has a grid at least (DataCube shows no empty page): add another '
-                                 'first, or close it')
-
         # as the screen removes one (page-commands.ts removeTile): a grid with the charts following it, a frozen one
-        # staying detached; a chart's selection taken off its grid's filter; the model kept for the cubes still held
-        self._apply_page([{'kind': 'removeTile', 'tile': tile._id}], check=shown)
+        # staying detached; a chart's selection taken off its grid's filter; the model kept for the cubes still held --
+        # its last grid too, a page shown following it empty as the tab's blank page is (D2)
+        self._apply_page([{'kind': 'removeTile', 'tile': tile._id}])
         self._forget(before - {v['id'] for v in self._doc['views']})
 
     # -- the document --------------------------------------------------------------------------------------------------
@@ -1406,7 +1399,7 @@ class Page:
 
     def to_json(self, indent: int | None = 2) -> str:
         """The page document as JSON text, its numbers exact, as DataCube writes it (what ``save`` writes): refused in
-        DataCube's words when DataCube would not open it (a page with no grid)."""
+        DataCube's words when DataCube's Save would refuse it (a page with nothing on it)."""
         return _json.dumps(self._written(), indent=indent)
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
@@ -1484,17 +1477,10 @@ class Page:
         """Its name on the engine (page.json?page=): this page object's own."""
         return self._key_name
 
-    def _showable(self) -> None:
-        """Refused when it cannot be shown: a page DataCube would not open (one with no grid), in DataCube's words."""
-        self._written()
-
     def _written(self) -> dict[str, Any]:
-        """The page as DataCube reads it, to be written, saved or shown: refused in DataCube's words -- a page DataCube
-        says has no cube with Python's own call to make one after them, as a filter's refusals say Python's call form."""
-        try:
-            return _read_page(self._doc, self._session)
-        except _NoCube as refused:
-            raise ValueError(f'{refused} -- in Python, page.grid(frame) adds one') from None
+        """The page as DataCube saves it, to be saved or written as a file: refused as DataCube's Save refuses it, in its
+        words (headless pageSaved) -- a page with nothing on it among them."""
+        return _read_page(self._doc, self._session, saved=True)
 
     def _changed(self) -> None:
         """What changed, written by the page's keeper (``_commit``), its commands with it -- what a page open on it
@@ -1526,21 +1512,18 @@ class Page:
 
     # -- the document's parts ------------------------------------------------------------------------------------------
 
-    def _apply_page(self, commands: list[dict[str, Any]], what: str | None = None,
-                    check: Any = None) -> list[dict[str, Any]]:
+    def _apply_page(self, commands: list[dict[str, Any]], what: str | None = None) -> list[dict[str, Any]]:
         """The page edited by commands, each the one DataCube's screen builds for the same edit (page-commands.ts:
         docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md), applied by DataCube's own function (headless pageApply): refused in
-        DataCube's words (``what`` before them), nothing changed; ``check`` may refuse the page they make, before it is
-        kept. Else the page as DataCube leaves it, the ids it has held, and the commands as applied -- an id DataCube
-        allocated in each that made a tile or a sheet -- recorded and returned."""
+        DataCube's words (``what`` before them), nothing changed. Else the page as DataCube leaves it, the ids it has
+        held, and the commands as applied -- an id DataCube allocated in each that made a tile or a sheet -- recorded and
+        returned."""
         said = json.loads(self._session.headless().call(
             'pageApply', _json.dumps(self._doc), json.dumps(sorted(self._ids)), _json.dumps(commands)))
         if 'problems' in said:
             words = '; '.join(said['problems'])
             raise ValueError(f'{what}: {words}' if what else words)
         page = _plain(_json.loads(said['page']))
-        if check is not None:
-            check(page)
         self._doc = page
         self._ids = set(said['held'])
         applied = [_plain(c) for c in said['commands']]
@@ -1705,22 +1688,18 @@ class _NotATable(ValueError):
     """A grid DataCube cannot make a class of, its source no table of its own: Create a Data Space… leaves it out."""
 
 
-class _NoCube(ValueError):
-    """DataCube's reader refused a page for having no cube (headless pageRead's ``noCube``): told, so Python can add
-    the call that makes one."""
-
-
-def _read_page(doc: Any, session: Any) -> dict[str, Any]:
+def _read_page(doc: Any, session: Any, saved: bool = False) -> dict[str, Any]:
     """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
-    (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own): of DataCube's
+    (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own) -- or, ``saved``,
+    as DataCube saves one (headless pageSaved: refused as its Save refuses it) -- of DataCube's
     own version, every rule of its reader held, and refused in its words otherwise -- Python
     keeps no second copy of them. Then what a page in Python adds: each cube reads frames -- its leaves, as DataCube says
     what a cube reads (headless cubeLeaves: a frame's grid its one, a join's of frames each;
     docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3)."""
     engine = session.headless()
-    said = json.loads(engine.call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
+    said = json.loads(engine.call('pageSaved' if saved else 'pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
     if 'problems' in said:
-        raise (_NoCube if said.get('noCube') else ValueError)('; '.join(said['problems']))
+        raise ValueError('; '.join(said['problems']))
     page: dict[str, Any] = _plain(_json.loads(said['page']))
     for c in page['cubes']:
         for leaf in json.loads(engine.call('cubeLeaves', _json.dumps(c['cube']))):

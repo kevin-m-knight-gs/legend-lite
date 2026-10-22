@@ -5,7 +5,7 @@
 
 import { CubeDocumentError, cubeToJson, readCube } from '../cube-document.ts';
 import {
-  gridCopyOf, openedLive, PageDocumentError, PageNoCubeError, pageToJson, readPage, startingViews, writePageOf,
+  gridCopyOf, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageToJson, readPage, startingViews, writePageOf,
   type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
@@ -27,8 +27,23 @@ export function pageRead(text: string): string {
     return JSON.stringify({ page: pageToJson(readPage(text)) });
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
-    // a page with no cube said as one (PageNoCubeError), so Python adds what makes one rather than guessing it
-    return JSON.stringify({ problems: [e.message], ...(e instanceof PageNoCubeError ? { noCube: true } : {}) });
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
+ * A PAGE DOCUMENT (JSON text) AS DATACUBE SAVES IT, or writes it as a page file -- what Python's `save` and `to_json`
+ * ask: read as an open page is (a page of no grid too, as one shown may be: D2) and refused as the screen's Save and
+ * Export ▸ Page File refuse it, in their words, when there is nothing on it (NOTHING_TO_SAVE, B14). JSON: `{page}`, the
+ * page's text as DataCube writes it, or `{problems}`, in DataCube's words.
+ */
+export function pageSaved(text: string): string {
+  try {
+    const page = readPage(text, { empty: true });
+    return JSON.stringify(page.cubes.length === 0 ? { problems: [NOTHING_TO_SAVE] } : { page: pageToJson(page) });
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
   }
 }
 
@@ -36,7 +51,7 @@ export function pageRead(text: string): string {
  * A NEW PAGE, as DataCube starts one (page-document.ts startingViews, written by writePageOf): named `name` by DataCube's
  * one rule (givenName), no cube yet, its one sheet an empty board -- so Python writes no page skeleton of its own. JSON:
  * `{page}`, its text as DataCube writes it, or `{problems}`, why the name was refused, in DataCube's words. A page with
- * no cube is not one DataCube opens (readPage's PageNoCubeError): Python's first grid makes it one.
+ * no cube is shown and followed (D2), never saved (pageSaved): Python's first grid makes it one DataCube saves.
  */
 export function pageNew(name: string): string {
   const given = givenName('page', name);

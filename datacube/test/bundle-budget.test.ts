@@ -451,8 +451,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  315,500 -> 316,000 (2026-10-21, step S3's P14 and step S2's audit round: a stack and an arrangement told as their own
  *  commands, a selection judged when its filter moves -- the grid's note of the same date). Measured 315,526.
  *  316,000 -> 322,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 322,107.
- *  322,500 -> 323,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 322,960. */
-const WIDGET_BUDGET = 323_500;
+ *  322,500 -> 323,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 322,960.
+ *  323,500 -> 324,000 (2026-10-22, step S5's B8, B14 and B6: setChart's refusal of a detached chart told to follow, and
+ *  the one "nothing to save" sentence, DataCube's, which Python says too). Measured 323,533. */
+const WIDGET_BUDGET = 324_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

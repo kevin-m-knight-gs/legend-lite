@@ -15,8 +15,8 @@ import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelInto, pageModelNames } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  gridSnapped, nameGiven, pageApply, pageFilter, pageNew, pageOpenedLive, pageRead, pageReads, pageRebase, pageWithCube,
-  pageWritten,
+  gridSnapped, nameGiven, pageApply, pageFilter, pageNew, pageOpenedLive, pageRead, pageReads, pageRebase, pageSaved,
+  pageWithCube, pageWritten,
 } from './page.ts';
 import { joinCube, joinQuestions } from './join.ts';
 
@@ -50,9 +50,10 @@ export { classDuplicate, pageModelInto, pageModelNames };
 export { layoutBands, layoutTiles };
 
 /** A page document read as DataCube reads it (its own version, every rule held) and written as DataCube writes
- *  it: what Python's pages ask when one is loaded, read back, laid out or saved. And a new page as DataCube starts one:
- *  what Python's ll.Page() asks. And a page edited by commands (page-commands.ts): what Python's page edits send. */
-export { pageApply, pageNew, pageOpenedLive, pageRead };
+ *  it: what Python's pages ask when one is loaded or read back (pageRead), and saved or written as a file, refused as
+ *  the screen's Save refuses it (pageSaved). And a new page as DataCube starts one: what Python's ll.Page() asks. And a
+ *  page edited by commands (page-commands.ts): what Python's page edits send. */
+export { pageApply, pageNew, pageOpenedLive, pageRead, pageSaved };
 /** A grid's edit on a page: the page with its cube as the edit left it, its charts following it (V1, V2). */
 export { pageWithCube };
 /** The page's keeper (Python's: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) asks DataCube what it never reads itself: a

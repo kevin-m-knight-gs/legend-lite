@@ -335,7 +335,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **B3** one default page name — S5, L10
 - [ ] **B4** saving under a name renames the page, on both sides — S5, L10
 - [ ] **B5** one page-file rule — S5, L10
-- [ ] **B6** empty pages allowed on both sides (D2) — S5, L10
+- [x] **B6** empty pages allowed on both sides (D2) — closed S5: Python shows a page of no grid yet and takes a shown
+  page's last grid off, followed empty as the tab's blank page is (`_showable` and `remove`'s refusal deleted); neither
+  side saves one (B14) (test_page.py `test_an_empty_page_is_shown_and_never_saved`, test_notebook.py)
 - [ ] **B7** sources on a Python page (D3, with X1-X5) — S5, L10
 - [x] **B8** one rule for a detached chart going live — closed S5: DataCube's `setChart` refuses a detached chart
   (no grid shows its cube) told to follow, in its words, for Python as for the screen, whose pill is off for it
@@ -349,7 +351,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   that leaves the page as it was holds its ids with no new version; an editor that then gives one out has it given out
   afresh by the keeper
 - [ ] **B13** one saved record per page: the record's id kept in the page document, so both sides save to it — S5, L10
-- [ ] **B14** one "nothing to save" wording — S5, L10
+- [x] **B14** one "nothing to save" wording — closed S5: page-document.ts `NOTHING_TO_SAVE`, the screen's Save and
+  Page File's, which Python's `save` and `to_json` say through headless `pageSaved`; Python's own wording and the
+  reader's `PageNoCubeError` (its one use) deleted (page-document.test.ts, test_page.py)
 
 ### Every source on both sides (D3)
 - [ ] **X1** headless `gridBase` for file, remote file, warehouse table, saved query, class (the planning code the

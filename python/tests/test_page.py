@@ -167,9 +167,9 @@ class Document(Paged):
         # deleted meanwhile (in DataCube's Open…): saved again as a new one under its id
         self.assertEqual(engine.answer('DELETE', f'/api/pure/v1/query/dataCube/{first}', '', None).status, 204)
         self.assertEqual(page.save(), first)
-        # another page is another saved page; one DataCube would not open (no grid) is not saved, in DataCube's words
+        # another page is another saved page; one with nothing on it is not saved, as DataCube's Save refuses it (B14)
         other = ll.Page('Other')
-        with self.assertRaisesRegex(ValueError, 'it has no cube'):
+        with self.assertRaisesRegex(ValueError, r'^There is nothing on this page to save: add a data source first\.$'):
             other.save()
         other.grid(trades(), name='other_trades')
         self.assertNotEqual(other.save(), first)
@@ -1152,9 +1152,9 @@ class Live(Paged):
         after = self.get(f'/version.json?page={page._key}')[1]
         self.assertEqual(after['version'], before['version'])
         self.assertEqual(after['frames']['trades'], before['frames']['trades'] + 1)
-        # a page shown keeps a grid: DataCube shows no empty page
-        with self.assertRaisesRegex(ValueError, 'a grid at least'):
-            page.remove(grid)
+        # its last grid taken off: the page shown is followed empty, as the tab's blank page is (D2, B6)
+        page.remove(grid)
+        self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['cubes'], [])
         tab.close()
         self.assertEqual(self.get(f'/page.json?page={page._key}')[0], 404)
 
@@ -1228,15 +1228,21 @@ class Live(Paged):
         self.assertEqual(moved[1], {'grid': live.id, 'command': {'kind': 'group', 'rows': ['desk']}})
         tab.close()
 
-    def test_an_empty_page_is_not_shown(self):
-        # DataCube opens no page without a grid: refused in its words, then Python's call that makes one, and never
-        # written either
-        with self.assertRaisesRegex(ValueError, r'^cannot read saved page: it has no cube -- in Python, page\.grid\(frame\) '
-                                                r'adds one$'):
-            ll.Page('Empty').to_json()
-        with self.assertRaisesRegex(ValueError, 'it has no cube'):
-            ll.show(ll.Page('Empty'), browser=False)
-        self.assertEqual(datacube._session.pages, [])
+    def test_an_empty_page_is_shown_and_never_saved(self):
+        # (D2, B6, B14) a page of no grid yet is shown, as the tab's blank page is, and followed as Python adds to it; it
+        # is never saved nor written as a file, refused as DataCube's Save and Page File refuse it, in their words
+        empty = ll.Page('Empty')
+        nothing = r'^There is nothing on this page to save: add a data source first\.$'
+        with self.assertRaisesRegex(ValueError, nothing):
+            empty.to_json()
+        with self.assertRaisesRegex(ValueError, nothing):
+            empty.save(Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))) / 'empty.json')
+        tab = ll.show(empty, browser=False)
+        self.assertEqual(datacube._session.pages, [tab])
+        self.assertEqual(self.get(f'/page.json?page={empty._key}')[1]['page']['cubes'], [])
+        empty.grid(trades(), name='t')
+        self.assertEqual(len(self.get(f'/page.json?page={empty._key}')[1]['page']['cubes']), 1)
+        tab.close()
 
     def test_what_the_open_page_writes_is_the_page_python_holds(self):
         # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) one copy of the page: a write from the open page is Python's page at
@@ -1734,10 +1740,10 @@ class Snapped(Paged):
         grid = page.grid(trades(), name='trades')
         real = page._apply_page
 
-        def refused(commands, what=None, check=None):
+        def refused(commands, what=None):
             if commands[0]['kind'] == 'snap':
                 raise ValueError('a snap: refused')
-            return real(commands, what, check)
+            return real(commands, what)
 
         page._apply_page = refused
         with self.assertRaisesRegex(ValueError, 'a snap: refused'):

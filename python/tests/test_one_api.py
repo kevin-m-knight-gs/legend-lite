@@ -42,7 +42,7 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # 2026-10-21 (One API S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N1, N2): L9_KEEPER 6 -> 8 -- the page written whole
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10)
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 14, 'L9_KEEPER': 8,
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 12, 'L9_KEEPER': 8,
             'BEHAVIOUR': 0}
 
 
@@ -248,9 +248,7 @@ MARKERS = [
     (ENGINE, "reads = {'frames': sorted(set(frames)), 'copies': [], 'ids': []}", ('Y6',), 1),
     (PAGE, "def __init__(self, name: str = 'Untitled page') -> None:", ('B3',), 1),
     (PAGE, "Path(path).write_text(self.to_json() + '\\n', 'utf-8', newline='')", ('B5',), 1),
-    (PAGE, '(DataCube shows no empty page)', ('B6',), 1),
     (PAGE, 'id = self._saved if self._saved is not None else str(uuid.uuid4())', ('B13',), 1),
-    (PAGE, '-- in Python, page.grid(frame) adds one', ('B14',), 1),
     # the page _apply_page assigns is headless pageApply's, as read (L5 pins the assignment, this its binding)
     (PAGE, "page = _plain(_json.loads(said['page']))", ALLOWED, 1),
 ]
