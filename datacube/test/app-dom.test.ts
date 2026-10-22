@@ -683,11 +683,12 @@ describe('the app', () => {
     };
     await app.edit([{ kind: 'configure', patch: { showGroupedColumns: true } }], 'settings');
     await settle();
-    const head = root.querySelector('.dc-th[data-column="desk"]') as HTMLElement | null;
+    // the grid grouped by region: region's own header painted beside the tree's
+    const head = root.querySelector('.dc-th[data-column="region"]') as HTMLElement | null;
     assert.ok(head, 'its header painted');
     head.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     await settle();
-    assert.deepEqual(app.snapshot.sorts, [{ column: 'desk', direction: 'asc' }]);
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'region', direction: 'asc' }]);
   });
 
   it('tells a host only the commands the cube kept: a change undone as it runs is never told, one carried is, in order', async () => {
