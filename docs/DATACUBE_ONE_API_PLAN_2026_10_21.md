@@ -307,7 +307,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 ### Python's copies of TypeScript rules (audit §5)
 - [x] **Z1** `_with_cube` — closed S2 (early): a grid's edit is kept by headless `pageWithCube` (the cube spliced and
   its charts following it by DataCube's rule: V1, V2); `_with_cube` deleted
-- [ ] **Z2** `_ids` — S5, L6
+- [x] **Z2** `_ids` — closed S5: deleted; a page's ids are DataCube's (pageReads), as its keeper keeps them with each
+  write -- every id it has held (`keeper.held`) at its start and each pull, the ids it holds now (`keeper.now`) for the
+  handles it forgets, a loaded page's from pageReads -- a page filter's id among them, which Python's own left out
 - [x] **Z3** `_into` / `_keep` (with Y1) — closed S1: where a model action writes is TS's (headless `pageModelInto`:
   PageModel.into); `_keep` is gone, `_into` is `_model_action`, glue that asks and applies
 - [ ] **Z4** `_class` action — S5, L6

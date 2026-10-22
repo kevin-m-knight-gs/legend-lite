@@ -954,8 +954,9 @@ class Page:
         self._handles: dict[tuple[type[Any], str], Any] = {}
         # the ids the last commit gave out afresh, old to new (its edits made again on top of an open page's write)
         self._regiven: dict[str, str] = {}
-        # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
-        self._ids: set[str] = _ids(self._doc)
+        # every id the page has held, as its keeper has them (DataCube's: pageReads): none is given out again, so no
+        # handle meets a new tile under its old one's id
+        self._ids: set[str] = set(self._session.keeper.held(self._key_name))
         # where it is shown (datacube.show_page): told each time it changes
         self._shown: list[Any] = []
         self._quiet = 0
@@ -978,16 +979,16 @@ class Page:
         self._dirty = True
 
     def _pull(self) -> None:
-        """The keeper's document taken, when it moved on (an open page wrote it): a handle of a tile it no longer has,
-        gone; every id it holds, held."""
-        kept = self._session.keeper.current(self._key_name)
+        """The keeper's document taken, when it moved on (an open page wrote it): a handle of a tile or a sheet it no
+        longer holds, gone -- the ids it holds as DataCube says (pageReads, kept with it); every id it has held, held."""
+        kept = self._session.keeper.now(self._key_name)
         if kept is None or kept[0] == self._version:
             return
-        version, doc = kept
+        version, doc, holds = kept
         doc = copy.deepcopy(doc)
-        self._forget(_ids(self._document) - _ids(doc))
+        self._forget({id for _, id in self._handles} - set(holds))
         self._document, self._version = doc, version
-        self._ids |= _ids(doc) | set(self._session.keeper.held(self._key_name))
+        self._ids |= set(self._session.keeper.held(self._key_name))
         self._unserved = []
 
     @contextlib.contextmanager
@@ -1460,7 +1461,8 @@ class Page:
                 warnings.warn(note, stacklevel=2)
             doc = _plain(_json.loads(opened['page']))
             page._doc = doc
-            page._ids |= _ids(doc)
+            # every id it holds, as DataCube says (pageReads)
+            page._ids |= set(page._reads()['ids'])
             # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out
             # here too and said once, so no later call on the grid sends it -- each its command, none written alone
             with page._batch(tell=False):
@@ -1677,11 +1679,6 @@ def _copy_base_of(session: Any, doc: dict[str, Any], cube: str) -> dict[str, Any
         raise ValueError(f'{name}: its snap ({snapped["label"]}) is no longer held by this session: grid.live() reads its '
                          'rows live again, grid.snap() snaps it anew')
     return held
-
-
-def _ids(doc: dict[str, Any]) -> set[str]:
-    """The ids a page document gives its cubes, views and sheets."""
-    return {x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]}
 
 
 class _NotATable(ValueError):

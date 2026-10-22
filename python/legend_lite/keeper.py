@@ -108,6 +108,13 @@ class PageKeeper:
             kept = self._pages.get(key)
             return None if kept is None else (kept.version, kept.doc)
 
+    def now(self, key: str) -> tuple[int, dict[str, Any], list[str]] | None:
+        """The page's version, its document -- the keeper's own: read it, never change it -- and the ids it holds, as
+        DataCube said with its last write (pageReads), read together; or None."""
+        with self._lock:
+            kept = self._pages.get(key)
+            return None if kept is None else (kept.version, kept.doc, list(kept.reads['ids']))
+
     def frames(self, key: str) -> list[str] | None:
         """The frames the page reads, as DataCube said with its last write, or None."""
         with self._lock:

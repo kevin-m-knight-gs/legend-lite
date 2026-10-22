@@ -43,7 +43,7 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10).
 # 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 10, 'L9_KEEPER': 6,
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 10, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -227,7 +227,6 @@ class Static(unittest.TestCase):
 # -- L6 ------------------------------------------------------------------------------------------------------------
 
 L6_FUNCTIONS = {
-    '_ids': ('Z2',),
     '_class': ('Z4',),
     '_facts': ('Z5',),
     '_column_choices': ('Z7',),
