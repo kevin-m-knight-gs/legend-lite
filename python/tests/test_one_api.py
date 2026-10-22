@@ -41,8 +41,9 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # each ledger's size, pinned: lower it with the fix that shrank it; raise it only with a dated note here
 # 2026-10-21 (One API S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N1, N2): L9_KEEPER 6 -> 8 -- the page written whole
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
-# open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10)
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 12, 'L9_KEEPER': 8,
+# open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10).
+# 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 11, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -245,7 +246,6 @@ MARKERS = [
     (ENGINE, 'row snap limit. Narrow the filter, ', ('Z16',), 2),
     (ENGINE, 'self._claimed: set[str] = set()', ('Z17',), 1),
     (PAGE, "record = _json.dumps({'id': id, 'name': named, 'content': self._written()}, indent=None)", ('Z18', 'B4'), 1),
-    (ENGINE, "reads = {'frames': sorted(set(frames)), 'copies': [], 'ids': []}", ('Y6',), 1),
     (PAGE, "def __init__(self, name: str = 'Untitled page') -> None:", ('B3',), 1),
     (PAGE, "Path(path).write_text(self.to_json() + '\\n', 'utf-8', newline='')", ('B5',), 1),
     (PAGE, 'id = self._saved if self._saved is not None else str(uuid.uuid4())', ('B13',), 1),
@@ -261,8 +261,6 @@ L9_KEEPER = {
     'page.py:Page._commit:restore': (ALLOWED, 1),  # N1: a page loaded, written whole at the version it was made at
     'engine.py:Engine._page_said:settle': (ALLOWED, 1),  # an open page's write: its commands, applied (H1)
     'engine.py:Engine._page_said:restore': (ALLOWED, 1),  # N2: an open page's undo or redo, at its version only
-    'engine.py:Engine.serve_page:keep': (('Y6',), 1),
-    'engine.py:Engine.serve_page:write': (('Y6',), 1),
     'datacube.py:_Session.sweep:forget': (ALLOWED, 1),  # a page gone: no longer kept
 }
 

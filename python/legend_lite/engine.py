@@ -1463,24 +1463,6 @@ class Engine:
         return Answer(200, 'application/json', json.dumps({'version': settled.version, 'combined': settled.combined,
                                                            'renamed': settled.renamed}).encode('utf-8'))
 
-    def serve_page(self, name: str, document: dict[str, Any], frames: Iterable[str],
-                   commands: list[Any] | None = None) -> int:
-        """A host's page served as ``document`` -- one no Python page keeps (a page the host replaces whole, as a test
-        serves one) -- its cubes over this engine's ``frames``: kept and served, or, kept already, its document replaced
-        (moved by ``commands``, when they say what moved it). Returns its version."""
-        reads = {'frames': sorted(set(frames)), 'copies': [], 'ids': []}
-        kept = self.keeper.current(name)
-        if kept is None:
-            version = self.keeper.keep(name, document, reads, [])
-        else:
-            version = self.keeper.write(name, kept[0], document, reads, commands, [])
-        self.keeper.serve(name, True)
-        return version
-
-    def close_page(self, name: str) -> None:
-        """Stops serving a page: one open on it stops following it (the keeper keeps it while its page lives)."""
-        self.keeper.serve(name, False)
-
     def page_versions(self, name: str) -> dict[str, Any] | None:
         """A page's version, and each of its frames' (the frames its cubes read), or None when it serves no such page."""
         kept = self.keeper.current(name) if self.keeper.served(name) else None

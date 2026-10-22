@@ -981,10 +981,22 @@ class Page(Cube):
            'cubes': [{'id': 'grid-1', 'cube': {'source': {'_type': 'frame', 'name': 'trades', 'columns': []}}}],
            'views': [], 'sheets': []}
 
+    def serve_page(self, name, document, commands=None):
+        """``document`` served as page ``name`` over the frame trades, as the session serves a Python page (its keeper,
+        told to serve it), written whole -- moved by ``commands``, when they say what moved it: what these routes answer
+        from, whoever wrote it. Returns its version."""
+        keeper = self.server.engine.keeper
+        reads = {'frames': ['trades'], 'copies': [], 'ids': []}
+        kept = keeper.current(name)
+        version = (keeper.keep(name, document, reads, []) if kept is None
+                   else keeper.write(name, kept[0], document, reads, commands, []))
+        keeper.serve(name, True)
+        return version
+
     def test_a_page_served_its_document_and_version_moving_when_served_again(self):
         auth = {'Authorization': self.server.authorization}
         self.assertEqual(self.get('/page.json?page=q3', auth)[0], 404)
-        self.assertEqual(self.server.engine.serve_page('q3', self.DOC, ['trades']), 1)
+        self.assertEqual(self.serve_page('q3', self.DOC), 1)
         status, content_type, body = self.get('/page.json?page=q3', auth)
         self.assertEqual((status, content_type), (200, 'application/json'))
         self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC, 'held': []})
@@ -993,9 +1005,9 @@ class Page(Cube):
         self.server.engine.changed('trades')
         self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 1}})
         # served again: its version moves
-        self.assertEqual(self.server.engine.serve_page('q3', {**self.DOC, 'name': 'Q4'}, ['trades']), 2)
+        self.assertEqual(self.serve_page('q3', {**self.DOC, 'name': 'Q4'}), 2)
         self.assertEqual(json.loads(self.get('/page.json?page=q3', auth)[2])['page']['name'], 'Q4')
-        self.server.engine.close_page('q3')
+        self.server.engine.keeper.serve('q3', False)
         self.assertEqual(self.get('/version.json?page=q3', auth)[0], 404)
 
     def test_a_page_open_at_a_version_asks_what_moved_it_since_and_is_told_the_commands_or_the_page(self):
@@ -1004,36 +1016,36 @@ class Page(Cube):
         auth = {'Authorization': self.server.authorization}
         engine = self.server.engine
         asked = lambda since: json.loads(self.get(f'/page.json?page=q3&since={since}', auth)[2])
-        engine.serve_page('q3', self.DOC, ['trades'])
+        self.serve_page('q3', self.DOC)
         self.assertEqual(asked(1), {'version': 1, 'commands': []}, 'nothing moved it')
         self.assertEqual(asked(0), {'version': 1, 'page': self.DOC, 'held': []},
                          'first served: no version before it it was moved from')
         sheet = {'page': {'kind': 'addSheet', 'id': 'sheet-2', 'name': None}}
         group = {'grid': 'grid-1', 'command': {'kind': 'group', 'rows': ['desk']}}
-        engine.serve_page('q3', {**self.DOC, 'name': 'Q4'}, ['trades'], [sheet])
-        engine.serve_page('q3', {**self.DOC, 'name': 'Q5'}, ['trades'], [group])
+        self.serve_page('q3', {**self.DOC, 'name': 'Q4'}, [sheet])
+        self.serve_page('q3', {**self.DOC, 'name': 'Q5'}, [group])
         self.assertEqual(asked(1), {'version': 3, 'commands': [sheet, group]}, "each version's commands, in order")
         self.assertEqual(asked(2), {'version': 3, 'commands': [group]})
         # a change by no command: a page open before it opens the page again
-        engine.serve_page('q3', {**self.DOC, 'name': 'Q6'}, ['trades'])
+        self.serve_page('q3', {**self.DOC, 'name': 'Q6'})
         self.assertEqual(asked(2)['page']['name'], 'Q6')
         self.assertEqual(asked(4), {'version': 4, 'commands': []})
         self.assertEqual(self.get('/page.json?page=q3&since=x', auth)[0], 400)
         # closed and shown again: kept as it was (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md), so a tab still open on its
         # earlier showing follows by the commands since; served again unchanged, no new version
-        engine.close_page('q3')
+        self.server.engine.keeper.serve('q3', False)
         self.assertEqual(self.get('/page.json?page=q3&since=4', auth)[0], 404, 'closed: served no more')
-        engine.serve_page('q3', self.DOC, ['trades'], [sheet])
+        self.serve_page('q3', self.DOC, [sheet])
         self.assertEqual(asked(4), {'version': 5, 'commands': [sheet]})
-        self.assertEqual(engine.serve_page('q3', self.DOC, ['trades'], [sheet]), 5)
+        self.assertEqual(self.serve_page('q3', self.DOC, [sheet]), 5)
         # the commands of its last 64 versions are kept: a page open at an older one opens it again
         for n in range(70):
-            engine.serve_page('q3', {**self.DOC, 'name': f'Q{n}'}, ['trades'], [sheet])
+            self.serve_page('q3', {**self.DOC, 'name': f'Q{n}'}, [sheet])
         self.assertIn('page', asked(5))
         self.assertEqual(len(asked(75 - 63)['commands']), 63)
 
     def test_a_page_asked_with_the_token_only(self):
-        self.server.engine.serve_page('q3', self.DOC, ['trades'])
+        self.serve_page('q3', self.DOC)
         self.assertEqual(self.get('/page.json?page=q3')[0], 401)
         self.assertEqual(self.get('/version.json?page=q3')[0], 401)
 
@@ -1041,7 +1053,7 @@ class Page(Cube):
         # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) an engine with no DataCube code to read a page with keeps no page an
         # open page writes; one with it: test_page.py Live
         engine = self.server.engine
-        engine.serve_page('q3', self.DOC, ['trades'])
+        self.serve_page('q3', self.DOC)
         said = json.dumps({**self.DOC, 'name': 'Renamed there'})
         self.assertEqual(engine.answer('POST', '/page.json', 'page=q3', said).status, 400, 'no version named')
         self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 404)
@@ -1052,7 +1064,7 @@ class Page(Cube):
         engine = self.server.engine
         lambda_ = {'_type': 'lambda', 'body': [{'_type': 'decimal', 'value': Decimal('12.30')},
                                                {'_type': 'integer', 'value': 2 ** 70}], 'parameters': []}
-        engine.serve_page('q3', {**self.DOC, 'lambda': lambda_}, ['trades'])
+        self.serve_page('q3', {**self.DOC, 'lambda': lambda_})
         body = self.get('/page.json?page=q3', {'Authorization': self.server.authorization})[2].decode('utf-8')
         self.assertIn('12.30', body)
         self.assertIn(str(2 ** 70), body)

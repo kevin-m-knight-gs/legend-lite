@@ -126,6 +126,18 @@ def main() -> None:
     def served_frames(doc: dict) -> list[str]:
         # the frames the test's page reads: each of its cubes over one (the test sends no join)
         return sorted({c['cube']['source']['name'] for c in doc.get('cubes', [])})
+
+    def serve_whole(doc: dict) -> None:
+        # the test's page written whole into the session's keeper and served, as no Python page writes one (a page
+        # replaced whole, by no command): what a tab open on it follows by opening it again
+        keeper = web.engine.keeper
+        reads = {'frames': served_frames(doc), 'copies': [], 'ids': []}
+        kept = keeper.current('q3')
+        if kept is None:
+            keeper.keep('q3', doc, reads, [])
+        else:
+            keeper.write('q3', kept[0], doc, reads, None, [])
+        keeper.serve('q3', True)
     # a remote file a page reads from Python (step 2b): a Parquet file served by a server on this machine, read by
     # Python's DuckDB through the httpfs extension the wheel carries -- nothing leaves the machine
     remote = tempfile.TemporaryDirectory()
@@ -189,11 +201,11 @@ def main() -> None:
                 notebook_page.sheet('Added in Python')
             elif command.startswith('page '):
                 served_page.update(json.loads(command[len('page '):]))
-                web.engine.serve_page('q3', served_page, served_frames(served_page))
+                serve_whole(served_page)
                 command = 'page'
             elif command == 'page-again':
                 served_page['sheets'][1]['name'] = 'Desks (v2)'
-                web.engine.serve_page('q3', served_page, served_frames(served_page))
+                serve_whole(served_page)
             elif command == 'py-page':
                 # a page built in Python (ll.Page), as a person builds one, and shown (the test opens the tab)
                 pypage = ll.Page('Built in Python')

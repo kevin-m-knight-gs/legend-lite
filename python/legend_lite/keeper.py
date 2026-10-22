@@ -125,7 +125,7 @@ class PageKeeper:
         """The page made ``doc`` (reading what ``reads`` says), moved there from version ``base`` by ``edits`` (None: whole):
         its new version -- or, the page no longer at ``base``, ``Stale``. A document the page has already is no new
         version. A page not kept is a ``KeyError``. What the keeper takes from its editors is ``settle``'s and
-        ``restore``'s; this is theirs, and a host's that replaces a page whole it serves alone (engine.py serve_page)."""
+        ``restore``'s; this is theirs."""
         kept_doc = copy.deepcopy(doc)
         kept_edits = None if edits is None else copy.deepcopy(edits)
         kept_reads = _reads(reads)

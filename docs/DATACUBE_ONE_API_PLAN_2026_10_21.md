@@ -268,7 +268,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   `taken` (cubeTaken) and `_reopened` applies `rebuilt` through pageApply (test_page.py)
 - [x] **Y3** `_kept` with notes → `rebuilt` — closed S1: a grid edit opens its cube again first (`_current`: its
   `rebuilt`), so `_kept` notes the edit's commands alone (test_page.py, a Live frame changed in place)
-- [ ] **Y6** `serve_page` works out reads in Python → `pageReads`, or deleted — S5, L5
+- [x] **Y6** `serve_page` works out reads in Python → `pageReads`, or deleted — closed S5: deleted, with the engine's
+  `close_page` -- test-only hooks in product code, no product caller; the engine's tests serve a page through the keeper
+  themselves (test_engine.py `Page.serve_page`)
 
 ### Derived state (audit §3)
 - [x] **V1** a following chart re-followed when its grid changes, by one rule on every path — closed S2: page-commands.ts
