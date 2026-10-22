@@ -114,7 +114,13 @@ final class ChannelBLane {
                     "Unclassified", new Pins(93, 0, 0)),
             "snowflake", Map.of(
                     "Essential", new Pins(334, 1, 0),
-                    "Grammar", new Pins(133, 2, 0),
+                    // wire bugs 2 -> 4 (2026-10-22, measured by the Snowflake lane at 81960bf7 against the merge-base
+                    // 59b547a5e): channel A now passes eq's and equal's testEqNonPrimitive pair (the ledger REMOVEs),
+                    // which channel B still refuses here as at the merge-base, "a field '__canon' of unknown type
+                    // reached Snowflake", the same four tests with the same message; they failed on both before, so
+                    // the pass floor holds -- Postgres's move of 2026-10-20, the same pairs; the judges move to plans
+                    // in the plan path program's step 10
+                    "Grammar", new Pins(133, 4, 0),
                     "Relation", new Pins(467, 2, 2),
                     "Standard", new Pins(204, 1, 0),
                     "Unclassified", new Pins(93, 0, 0)),

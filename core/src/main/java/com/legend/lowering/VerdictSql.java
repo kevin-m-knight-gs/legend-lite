@@ -1297,6 +1297,17 @@ public final class VerdictSql {
         // a canon-ordered side re-orders by __c in the aggregate; the wrap's
         // own ORDER BY is the row number's window otherwise
         List<SqlSelect.SortKey> order = s.byCanonText() ? List.of() : ws.orderBy();
+        SqlSource from = ws.from();
+        if (!s.byCanonText() && order.isEmpty() && from instanceof SqlSource.Subselect sub
+                && SideOrdinal.defined(sub.inner()) instanceof SqlQuery ordered) {
+            // the order the side's own plan defines (its sort, a literal's rows), numbered inside it (SideOrdinal),
+            // never its rows' arrival through the derived table, which a database need not keep: Snowflake numbered
+            // sort's testSimpleSortShared [2, 3, 1, 1, 5, 4, 2] by ORDER BY NULL at 81960bf7 (and Trino, the residue
+            // GATES records), where 9dfb0ae1 had fixed a layered side only (2026-10-22)
+            from = new SqlSource.Subselect(ordered, sub.alias(), sub.frameName());
+            order = List.of(new SqlSelect.SortKey(SqlExpr.Column.of(sub.alias(), ordered.outputs(), SideOrdinal.ORD),
+                    true, null, null));
+        }
         SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                 List.of(), order, null);
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
@@ -1310,7 +1321,7 @@ public final class VerdictSql {
             ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
             outs.add(vOut);
         }
-        return new SqlSelect(ps, false, ws.from(), where, List.of(), null, null, List.of(),
+        return new SqlSelect(ps, false, from, where, List.of(), null, null, List.of(),
                 null, null, List.copyOf(outs));
     }
 

@@ -61,7 +61,7 @@ final class SideOrdinal {
     }
 
     /** {@code q} with the ordinal its plan defines, or null where it defines none. */
-    private static @com.legend.base.Nullable SqlQuery defined(SqlQuery q) {
+    static @com.legend.base.Nullable SqlQuery defined(SqlQuery q) {
         if (!(q instanceof SqlSelect s)) {
             return null;
         }
