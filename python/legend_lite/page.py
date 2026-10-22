@@ -290,7 +290,7 @@ class Grid(Tile):
         A snapped grid's base is its copy (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), unless ``live``: what it is
         a copy of (what a snap pulls, what a class is made of)."""
         return _cube_spec(self._page._session, self._cube, frames, engine,
-                          None if live else self._page._snapped(self._view['cube']))
+                          None if live else self._page._snapped(self._view['cube']), self._page._doc, self._view['cube'])
 
     def view(self) -> GridView:
         """What the grid shows, as DataCube computes it: its columns and rows, their groups and totals, its pivot, and
@@ -317,16 +317,21 @@ class Grid(Tile):
     def to_pandas(self) -> Any:
         """Every row of ``relation``, as a pandas DataFrame: DataCube says the query, Python plans it over the grid's base
         model (a frame's, a join's of frames: what DataCube says it is over; a snapped grid's, its copy's) and its own
-        database answers it, typed by the plan, the rows coming to Python from there (never through DataCube's engine)."""
+        database answers it, typed by the plan, the rows coming to Python from there (never through DataCube's engine).
+        A base its engine reads (``runs``: a class, a saved query, a warehouse table, host-tables.ts) is planned and run
+        by the engine's own plan-and-run, where its rows are."""
         from . import compiler
         from .frames import to_pandas
         engine, frames = self._headless()
         with frames.serving():
             spec = self._spec(engine, frames)
+            tree = compiler.parse(engine.call('gridRelation', spec))
+            if spec.get('runs') == 'engine':
+                return to_pandas(_engine_rows(self._page._session, tree, spec['model'], spec['runtime']))
             held = frames.model_for(spec['model'])
             if held is None:
                 raise ValueError(f'{self._cube["source"]["name"]}: its model reads a table this session does not serve')
-            return to_pandas(frames.run(held.plan(compiler.parse(engine.call('gridRelation', spec)), spec['runtime'])))
+            return to_pandas(frames.run(held.plan(tree, spec['runtime'])))
 
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
@@ -638,19 +643,47 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
 
 
 def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
-               snapped: Mapping[str, Any] | None = None) -> dict[str, Any]:
+               snapped: Mapping[str, Any] | None = None, page: Mapping[str, Any] | None = None,
+               id: str | None = None) -> dict[str, Any]:
     """A cube document and its base, as the bundle's grid functions take them (the frames held still): its base on the
     host as DataCube says it is (headless gridBaseOn, the one rule: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z15) -- over
     the frames this session serves (a frame's own model, a join's of frames one model of them; never by the cube's kind
     here), or, its grid ``snapped`` (the page's copy for it), over the copy as its engine modelled it as it landed,
     refused in DataCube's words when the session no longer holds it (never read live in its place). The cube document
-    never carries its base, so one opened over its copy is written as the live one is."""
+    never carries its base, so one opened over its copy is written as the live one is. ``page`` and ``id``, the page it
+    is on and its id there: what the page's filters are to it is said with its base (``lens``), as the screen's page
+    gives its grid (page-filters.ts gridLens: B1)."""
     text = _json.dumps(cube)
     said = json.loads(engine.call('gridBaseOn', text, None if snapped is None else _carried(snapped), frames.hosted(),
-                                  session.held_copies()))
+                                  session.held_copies(), None if page is None else _json.dumps(page), id))
     if 'problems' in said:
         raise ValueError('; '.join(said['problems']))
     return {'cube': text, **said}
+
+
+def _engine_rows(session: Any, tree: Any, model: str, runtime: str) -> Any:
+    """A query's rows planned and run by the session's engine where they are (its plan-and-run: a project's own database,
+    a warehouse, the frames'), as Arrow typed by the plan -- asked with the frames held, so on this thread (``answer_here``),
+    by the engine a page reading such a base made (``Page.load``, a tab). Refused in the planner's or the database's
+    words."""
+    from . import compiler
+    engine = session._engine
+    if engine is None:
+        raise ValueError('this session has no engine yet to read a grid that reads more than its frames and files')
+    status, kind, body = engine.answer_here('/plan-and-run.json', json.dumps({'lambda': _json.dumps(tree), 'model': model,
+                                                                              'runtime': runtime}))
+    if status == 200 and not kind.startswith('application/json'):
+        import pyarrow.ipc
+        return pyarrow.ipc.open_stream(body).read_all()
+    try:
+        said = json.loads(body)
+    except ValueError:
+        raise ValueError(body.decode('utf-8', errors='replace')) from None
+    if isinstance(said, dict) and said.get('error'):
+        raise ValueError(said['error'])
+    if isinstance(said, dict) and isinstance(said.get('plan'), str):
+        compiler.read_planned(said['plan'])
+    raise ValueError(body.decode('utf-8', errors='replace'))
 
 
 def _cube_leaves(session: Any, cube: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -1399,8 +1432,10 @@ class Page:
             for name in wanted:
                 page._session.register(frames[name], name)
             # each file given read in, once for its bytes (its table the keeper's while a page reads it: X3), each remote
-            # file mounted again -- each read for this page let go of at once when the page is refused
-            engine = session.engine() if named or remotes else None
+            # file mounted again -- each read for this page let go of at once when the page is refused; the engine made
+            # first for a page that reads anything but its frames (what it reads beside them: a class, a saved query, a
+            # warehouse table, read where the engine reads it as the page opens)
+            engine = session.engine() if any(leaf['_type'] != 'frame' for leaf in leaves) else None
             read: list[dict[str, Any]] = []
             try:
                 given: dict[str, str] = {}

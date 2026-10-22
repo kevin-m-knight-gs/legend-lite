@@ -45,7 +45,6 @@ import type { GridMaker } from '../page/page-app.ts';
 import type { ModelOptions } from '../planner.ts';
 import { inferFormat, type S3Credentials } from '../remote.ts';
 import type { PlanAndRun, QueryRunner } from '../runner.ts';
-import type { ModelElement } from '../saved-queries.ts';
 import { SAMPLES, sampleById, sampleFileName, type Sample } from '../samples.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
@@ -971,7 +970,7 @@ export function pageSources(d: SourcesOf): PageSources {
     // read by the host's compiler (the tab's planner, Python's native library: C5), planned over its project's
     // mapping, its rows the project's own Data rows where the host's runs its project databases (C5)
     const { reading } = services.engine;
-    const { contextOf, enumerationsOf, enumsAsStrings, projectOf, sourceOf } = await savedQueries();
+    const { projectOf, savedQueryOpened } = await savedQueries();
     const project = projectFor(q);
     if (!project && !modelHome) throw new Error(`“${q.name}” belongs to ${projectOf(q)}, which this page has no model for (config.json projects[], or a depot)`);
     const key = projectOf(q);
@@ -979,31 +978,24 @@ export function pageSources(d: SourcesOf): PageSources {
     const model = await once(projectModels, key, async () => (project
       ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
       : (await import('../../../depot-client/src/model-text.ts')).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
-    const elements = await reading.elements(model) as ModelElement[];
-    const context = contextOf(q, elements);
-    const lambdaOf = await reading.parse(q.content);
-    const values = new Map<string, ValueSpecification>();
-    for (const v of q.defaultParameterValues ?? []) {
-      const parsed = await reading.parse(`|${v.content}`);
-      if (parsed.body[0]) values.set(v.name, parsed.body[0]);
-    }
-    let source = sourceOf(lambdaOf, values);
     // in the tab, a project brings its own rows: its Data elements' tables, in a database of the version's own inside
     // the tab's DuckDB (C5, engine-client's project-data.ts) -- another version may be on the page beside it, in its
     // own. On Python, Python runs a project's model in its own (the host's runner).
     const versioned: QueryEngine | undefined = local
       ? (await (await local.projects()).engineFor(model, local.engine)).engine : undefined;
-    const how: ModelOptions = { mapping: context.mapping, enumerations: [...enumerationsOf(elements)] };
-    const rows = services.engine.rows(model, context.runtime, how);
-    // rule 4: an enumeration column is read as its value's name
-    const named = new Set((await typer(rows).relationType(lambda([], source))).filter((c) => c.enumeration).map((c) => c.name));
-    if (named.size > 0) source = enumsAsStrings(source, named);
+    // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them
+    let rows: GridRows | undefined;
+    const { runtime, how, source } = await savedQueryOpened(q, model, reading, (at, options) => {
+      rows = services.engine.rows(model, at, options);
+      return typer(rows);
+    });
+    if (rows === undefined) throw new Error('unreachable: a saved query is typed over its rows');
     const columns = await sourceColumns(typer(rows), source);
     const { sharedPart } = await queryStores();
     const cubeSource: QuerySource = {
       _type: 'savedQuery', name: q.name, query: sharedPart(q), columns: columns.map((c) => ({ name: c.name, type: c.type })),
     };
-    return { label: q.name, model, runtime: context.runtime, how, source, columns, rows, cubeSource, ...(versioned ? { engine: versioned } : {}) };
+    return { label: q.name, model, runtime, how, source, columns, rows, cubeSource, ...(versioned ? { engine: versioned } : {}) };
   }
 
   /** A saved query for a grid: its own planner over its project's model, its version's rows; the query written down. */
@@ -1032,13 +1024,12 @@ export function pageSources(d: SourcesOf): PageSources {
     const name = at.class.slice(at.class.lastIndexOf(':') + 1);
     if (!modelHome) throw new Error(`“${name}” is a class of ${at.project}: this page reaches no model home`);
     // fetched the first time a class is opened: a page with no class grid never downloads them
-    const [{ classProperties, classRelation }, { projectText }, home] = await Promise.all([
-      import('../class-source.ts'), import('../../../sdlc-client/src/project-text.ts'), modelHome.connect()]);
-    const model = projectText(await home.client.pure({ project: at.project, workspace: at.workspace, revision: at.revision }));
-    const { shown, left } = classProperties(await services.engine.reading.elements(model) as ClassElement[], at.class);
+    const [{ classOpened }, home] = await Promise.all([import('../class-source.ts'), modelHome.connect()]);
+    const { model, left, source } = await classOpened(at,
+      await home.client.pure({ project: at.project, workspace: at.workspace, revision: at.revision }),
+      async (text) => await services.engine.reading.elements(text) as ClassElement[]);
     const rows = services.engine.rows(model, at.runtime, { mapping: at.mapping });
     try {
-      const source = classRelation(at.class, shown);
       const columns = await sourceColumns(typer(rows), source);
       // its rows, asked for once: a table its store names that is not open in this tab is said now, by the database
       const first = lambda([], from(source).limit(1).node);

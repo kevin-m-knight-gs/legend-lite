@@ -283,10 +283,12 @@ function pythonWorker(link: PythonLink): PlannerWorker {
  * (`plan-and-run.json`) that plans the query against the model Python holds and runs its SQL on Python's DuckDB --
  * the page sends Pure, never SQL (R4). Python answers the database's rows as Arrow, the planner's answer in their
  * metadata; the page reads the plan as its planner reads its own, and the rows typed by it as the tab's executor types
- * the tab's (engine.ts typedByPlan, §15.3a).
+ * the tab's (engine.ts typedByPlan, §15.3a). `worker`: the compiler's questions' worker -- Python's over the link, or,
+ * DataCube's code run inside the host, the host's own (headless host.ts hostWorker).
  */
-export function pythonRunner(link: PythonLink, model: string, runtime: string, how: ModelOptions = {}): PlanAndRun {
-  const { planner, request, read } = planning(link, model, runtime, how);
+export function pythonRunner(link: PythonLink, model: string, runtime: string, how: ModelOptions = {},
+  worker: () => PlannerWorker = () => pythonWorker(link)): PlanAndRun {
+  const { planner, request, read } = planning(model, runtime, how, worker);
   const readPlan = (answer: string, query: Lambda): Plan => {
     try {
       return read(answer, query);
@@ -356,13 +358,13 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
  * takes; and the reading of the plan it answers with the rows. Over a mapping (a saved query's project, C5), the query
  * is planned as `->from(mapping, runtime)`, as Query sends it.
  */
-function planning(link: PythonLink, model: string, runtime: string, how: ModelOptions): {
+function planning(model: string, runtime: string, how: ModelOptions, worker: () => PlannerWorker): {
   readonly planner: LitePlanner;
   readonly request: (query: Lambda) => { readonly lambda: string; readonly model: string; readonly runtime: string };
   readonly read: (answer: string, query: Lambda) => Plan;
 } {
   const planner = new LitePlanner({
-    model, runtime, worker: () => pythonWorker(link),
+    model, runtime, worker,
     ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
     ...(how.enumerations === undefined ? {} : { enumerations: how.enumerations }),
   });

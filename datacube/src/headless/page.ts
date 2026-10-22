@@ -322,7 +322,7 @@ export async function pageRebase(page: string, held: string, edits: string, know
     const was = new Map(now.cubes.map((c) => [c.id, c.cube.source]));
     for (const c of done.page.cubes) {
       if ((done.page.copies ?? {})[c.id] !== undefined) continue;
-      if (!sameValue(was.get(c.id), c.cube.source)) onHost(c.cube.source, host);
+      if (!sameValue(was.get(c.id), c.cube.source)) await onHost(c.cube.source, host);
     }
     return `{"page":${JSON.stringify(pageToJson(done.page))},"held":${JSON.stringify(done.held)},`
       + `"edits":[${done.edits.map((e) => toJson(e)).join(',')}],"renamed":${JSON.stringify(done.renamed)},`

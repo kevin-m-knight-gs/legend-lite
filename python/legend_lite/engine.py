@@ -514,6 +514,23 @@ class Engine:
             return Answer(200, 'application/json', json.dumps(kept).encode('utf-8'))
         return self._file(path)
 
+    def answer_here(self, path: str, body: str) -> tuple[int, str, bytes]:
+        """A call of DataCube's code run headless for a grid of a page in Python (headless calls.ts ``engine``), answered
+        by this engine's own code ON THE CALLER'S THREAD -- the thread whose call into DataCube asked it, which holds the
+        frames still, so nothing here waits on another thread for them: ``/plan-and-run.json`` (a grid's query planned and
+        run where its rows are: the frames' database, a project's own, a warehouse) and ``/warehouse.json`` (a warehouse
+        table opened under the session this engine holds: D13). Any other path refused. Its status, media type, body."""
+        if path == _PLAN_AND_RUN:
+            table = self._warehouse_table_of(body)
+            said = (_answered(lambda b: self._warehouse_plan_and_run(table, b), body) if table is not None
+                    else _answered(self._plan_and_run, body))
+        elif path == _WAREHOUSE:
+            said = _answered(self._warehouse, body)
+        else:
+            said = _said(404, f'DataCube asks the engine to plan and run ({_PLAN_AND_RUN}) or open a warehouse table '
+                              f'({_WAREHOUSE}), not {path}')
+        return said.status, said.content_type, said.body
+
     def services(self) -> dict[str, Any]:
         """What this engine offers the page beside its frames (services.json, asked once as the page starts): whether
         it reads a page's file, and where it plans -- the plane it plans on (Python's own, in this process: R3's "shown",

@@ -401,7 +401,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   fixed — S6, L8
 
 ### Same job, different rule (audit §6)
-- [ ] **B1** page filters reach Python's `view()`, `to_pandas()`, `export()` (headless through `gridLens`) — S5, L10
+- [x] **B1** page filters reach Python's `view()`, `to_pandas()`, `export()` (headless through `gridLens`) — closed S5:
+  headless `gridBaseOn`, given the grid's page and id, says what the page's filters are to it (its filters and the grid's
+  charts) with its base, and every grid call reads its rows through page-filters.ts `gridLens`, the screen's own rule --
+  its controller's lens, its relation's (test_page.py
+  `OverClasses.test_the_pages_filters_reach_its_rows_as_they_reach_the_screens_grid`)
 - [x] **B2** a tile renamed to its made title stores no title: the rule inside `renameTile` — closed S1: renameTile drops a
   grid's title equal to `gridTitle(id)`; the screen sends what was typed (page-commands.test.ts)
 - [x] **B3** one default page name — closed S5 (D11): a page nobody named is unnamed on both sides (''), shown as
@@ -419,7 +423,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **B6** empty pages allowed on both sides (D2) — closed S5: Python shows a page of no grid yet and takes a shown
   page's last grid off, followed empty as the tab's blank page is (`_showable` and `remove`'s refusal deleted); neither
   side saves one (B14) (test_page.py `test_an_empty_page_is_shown_and_never_saved`, test_notebook.py)
-- [ ] **B7** sources on a Python page (D3, with X1-X5) — S5, L10
+- [x] **B7** sources on a Python page (D3, with X1-X5) — closed S5 (X1, D13): every source kind is read on a Python
+  page by one rule, headless host-tables.ts `leafOnHost`; the refusal of the rest is gone (test_page.py `OverFiles`,
+  `OverClasses`, `OverSavedQueries`, `OverWarehouse`)
 - [x] **B8** one rule for a detached chart going live — closed S5: DataCube's `setChart` refuses a detached chart
   (no grid shows its cube) told to follow, in its words, for Python as for the screen, whose pill is off for it
   (page-commands.ts; page-commands.test.ts, test_one_api.py `OneRule`)
@@ -446,9 +452,19 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   reader's `PageNoCubeError` (its one use) deleted (page-document.test.ts, test_page.py)
 
 ### Every source on both sides (D3)
-- [ ] **X1** headless `gridBase` for file, remote file, warehouse table, saved query, class (the planning code the
-  browser uses) — S5, L8
-- [ ] **X2** Python reads, edits and saves a page over any source — S5, L8
+- [x] **X1** headless `gridBase` for file, remote file, warehouse table, saved query, class (the planning code the
+  browser uses) — closed S5 (D13, D14): host-tables.ts `leafOnHost`, the one rule -- a file and a remote file on the
+  host's database; a class through its project at its revision in the host's model home (class-source.ts `classOpened`,
+  which the tab's openedClass asks too), a saved query through its project's version in the host's depot
+  (saved-queries.ts `savedQueryOpened`, the tab's openedRecord's rules 1-4), a warehouse table under the session the
+  host's engine holds, signed in by a tab (D13). Such a base's rows are read where the host's engine reads them: every
+  grid call's runner is the tab's own `pythonRunner` over the host's engine (host.ts `hostEngine`, calls.ts `engine`),
+  answered on the thread of the Python caller that holds the frames (`_headless.py` `_engine`, `Engine.answer_here`),
+  so nothing waits on a lock its caller holds; Python's `to_pandas` asks the same plan-and-run (test_page.py
+  `OverClasses`, `OverSavedQueries`, `OverWarehouse`)
+- [x] **X2** Python reads, edits and saves a page over any source — closed S5: `Page.load` opens each cube over its
+  source as the host reads it (X1, X3), its grids read, edited by DataCube's commands and saved over the same source
+  (test_page.py `OverFiles`, `OverClasses`, `OverSavedQueries`, `OverWarehouse`)
 - [x] **X3** the keeper keeps the file and remote tables a page reads, as it keeps copies (`pageReads` says them) —
   closed S5 (D14): page-rebase.ts `pageReads` says a page's files (by their bytes' hash) and remote files (by URL);
   keeper.py's `HOLDS` (copies, files, remotes) each the reader's until a kept page reads it, the keeper's after; the
@@ -461,7 +477,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **X4** Python adds such grids: `page.grid(file=…)`, remote, warehouse, saved query, class — S6, L8 (S5: `file=`
   and `remote=` added, each read in once — for its bytes, for its URL — test_page.py `OverFiles`, test_headless.py
   `Remote`; warehouse, saved query and class with X1's rest)
-- [ ] **X5** saved queries and classes through Python's project routes — S5, L8
+- [x] **X5** saved queries and classes through Python's project routes — closed S5: a class's project read from the
+  host's model home (`/sdlc/api`) and a saved query's version from its depot (`/depot/api`), by the host's fetch, as its
+  engine answers a tab; their rows the engine's plan-and-run (the frames' database, a project's own: C5)
 
 ### Capability parity (audit §7; Python's API, names reviewed with the user before S6)
 - [ ] **K1** sorts: replace, clear one, clear all — S6, L8

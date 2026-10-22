@@ -446,5 +446,18 @@ class OnThePage(unittest.TestCase):
                          ['tradesByDesk::domain::ModelDesk', 'tradesByDesk::domain::ModelTrade'])
 
 
+
+class AtTheEnd(unittest.TestCase):
+    """A process that made DataCube's engine ends as it should: the engine is never kept alive by what it answers
+    DataCube's calls through (a weak method of its session's), so it is never left in a cycle with its session to be
+    collected as the interpreter ends -- where tearing V8 down crashed the process after every test had passed."""
+
+    def test_a_process_that_made_datacubes_engine_ends_cleanly(self):
+        import subprocess
+        code = 'from legend_lite import datacube\ndatacube._session.headless()\nprint("made")\n'
+        done = subprocess.run([sys.executable, '-c', code], env={**os.environ, 'PYTHONPATH': os.pathsep.join(sys.path)},
+                              capture_output=True, text=True, timeout=300)
+        self.assertEqual((done.returncode, done.stdout.strip()), (0, 'made'), done.stderr[-2000:])
+
 if __name__ == '__main__':
     unittest.main()

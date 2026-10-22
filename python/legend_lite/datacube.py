@@ -189,7 +189,23 @@ class _Session:
             if self._headless is None:
                 from ._headless import Headless, bundle
                 self._headless = Headless(bundle(), connection=self.frames.connection)
+                # what DataCube's code asks of the engine beside it (a grid's rows where they are), answered by this
+                # session's engine -- by a weak method: the session holds its DataCube engine, never the other way round
+                # (any function of this module would reach the session through the module's globals, and an engine in
+                # such a cycle is collected at the interpreter's end, where tearing V8 down crashes the process)
+                self._headless.answers = weakref.WeakMethod(self._answer_here)
             return self._headless
+
+    def _answer_here(self, path: str, body: str) -> tuple[int, str, bytes]:
+        """A call of DataCube's code to the engine (headless calls.ts ``engine``), answered by this session's engine on
+        the caller's thread (``Engine.answer_here``). Asked with the frames held, so it takes no session lock: an engine
+        not made yet is said -- a page whose grids read anything but its frames and files is opened by it (``Page.load``,
+        a tab), which makes it first."""
+        engine = self._engine
+        if engine is None:
+            raise RuntimeError('this session has no engine yet to plan and run a grid that reads more than its frames '
+                               'and files: Page.load and a tab make it')
+        return engine.answer_here(path, body)
 
     def held_copies(self) -> dict[str, dict[str, Any]]:
         """Every snap's copy this session's engine holds, by its table (its model, runtime and relation, as DataCube

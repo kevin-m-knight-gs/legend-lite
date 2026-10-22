@@ -7,6 +7,8 @@
 import {
   derive, element, fn, isIdentifier, lambda, projectObjects, property, variable, type Lambda, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { projectText } from '../../sdlc-client/src/project-text.ts';
+import type { PureFile } from '../../sdlc-client/src/wire.ts';
 import type { PageModelRef } from './page-model.ts';
 
 /** Where a class is read (cube-document.ts ClassSource, without what it shows): its project at a revision, through its
@@ -108,6 +110,21 @@ export function classRelation(cls: string, properties: readonly string[], where?
   const all = fn('getAll', element(cls));
   const rows = where === undefined ? all : fn('filter', all, lambda(['x'], where));
   return projectObjects(rows, properties.map((p) => derive(p, lambda(['x'], property(variable('x'), p))))).node;
+}
+
+/**
+ * A CLASS OPENED AS A GRID'S BASE, the one rule (the tab's sources.ts openedClass; headless host-tables.ts, a page on
+ * the host: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1): its project's files at its revision as one model text, read by
+ * the host's compiler (`elements`), the properties a grid shows and those it leaves out, each with why, and its rows as
+ * a grid reads them (classRelation).
+ */
+export async function classOpened(at: ClassAt, files: readonly Pick<PureFile, 'pureCode'>[],
+  elements: (model: string) => Promise<readonly ClassElement[]>): Promise<{
+  readonly model: string; readonly shown: readonly string[]; readonly left: readonly string[]; readonly source: ValueSpecification;
+}> {
+  const model = projectText(files);
+  const { shown, left } = classProperties(await elements(model), at.class);
+  return { model, shown, left, source: classRelation(at.class, shown) };
 }
 
 /** The class source's query as a lambda of no parameters: what the planner types and plans. */

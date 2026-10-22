@@ -2077,8 +2077,8 @@ class OverFiles(Paged):
         page = ll.Page('Files')
         page.grid(file=path)
         page.grid(trades(), name='refused_trades')
-        # its file's bytes changed since: read anew for the load, then the page refused over a source the host does not
-        # read -- the file read for it let go of at once
+        # its file's bytes changed since: read anew for the load, then the page refused over a class its model home does
+        # not hold -- the file read for it let go of at once
         changed = self.file('desk,qty\nFX,10\n')
         refused = page.to_dict()
         refused['cubes'][1]['cube']['source'] = {
@@ -2092,7 +2092,7 @@ class OverFiles(Paged):
         import hashlib
         held = set(datacube._session.frames.read_files())
         self.assertNotIn(refused['cubes'][0]['cube']['source']['sha256'], held)
-        with self.assertRaisesRegex(Exception, 'Trade is not read here'):
+        with self.assertRaisesRegex(Exception, "Trade is a class of g:trades, which this host's model home cannot read"):
             ll.Page.load(refused, files={'trades.csv': changed})
         self.assertNotIn(hashlib.sha256(changed.read_bytes()).hexdigest(), datacube._session.frames.read_files(),
                          'the file read for it let go of')
@@ -2106,16 +2106,267 @@ class OverFiles(Paged):
         joined = page.join(mine, theirs, {'form': 'join', 'kind': 'left', 'prefix': 'h_', 'keep': None,
                                           'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]}})
         self.assertEqual(len(joined.to_pandas()), 3)
-        # Python keeps no list of the sources a page may read (Z14): DataCube says which it does not read here
+        # Python keeps no list of the sources a page may read (Z14): DataCube says which it cannot read here -- a class
+        # its model home does not hold
         doc = page.to_dict()
         doc['cubes'][0]['cube']['source'] = {
             '_type': 'class', 'name': 'Trade', 'class': 'trades::Trade', 'project': 'g:trades', 'workspace': 'datacube',
             'revision': 'r1', 'mapping': 'trades::Mapping', 'runtime': 'trades::Runtime',
             'columns': doc['cubes'][0]['cube']['source']['columns']}
-        with self.assertRaisesRegex(Exception, 'Trade is not read here: a page on this host reads frames, files and '
-                                               'remote files'):
+        with self.assertRaisesRegex(Exception, "Trade is a class of g:trades, which this host's model home cannot read "
+                                               'at revision r1'):
             ll.Page.load(doc, frames={'heads': pd.DataFrame({'desk': ['FX', 'EQ'], 'head': ['Ana', 'Ben']})},
                          files={'trades.csv': path})
+
+
+class OverClasses(Paged):
+    """A page over a class (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, X2, X5): a grid over a class Create a Class
+    made, as the tab adds one (class-source.ts classAt) -- opened through the class's project at its revision in this
+    user's model home (class-source.ts classOpened, the tab's own rule), planned through its mapping by Python's compiler
+    and run where its rows are by the engine's own plan-and-run (headless calls.ts ``engine``) -- loaded, read, edited
+    and saved in Python."""
+
+    def setUp(self):
+        super().setUp()
+        home = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
+        patched = mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': home})
+        patched.start()
+        self.addCleanup(patched.stop)
+
+    def classed(self):
+        """A page whose grid is over the class its frame's grid made, as the tab's Add a Grid over a class writes it."""
+        page = ll.Page('Classes')
+        path = page.grid(trades(), name='trades').create_class('Trade')
+        model = page.model
+        doc = page.to_dict()
+        cube = doc['cubes'][0]['cube']
+        cube['source'] = {'_type': 'class', 'name': 'Trade', 'class': path, 'project': model['project'],
+                          'workspace': model['workspace'], 'revision': model['revision'],
+                          'mapping': f"{model['package']}::mapping::Model",
+                          'runtime': f"{model['package']}::runtime::Python", 'columns': cube['source']['columns']}
+        return page, doc
+
+    def test_a_page_over_a_class_is_loaded_read_edited_and_saved(self):
+        _, doc = self.classed()
+        loaded = ll.Page.load(doc)
+        grid = loaded.grids[0]
+        self.assertEqual(loaded.to_dict()['cubes'][0]['cube']['source']['class'], doc['cubes'][0]['cube']['source']['class'])
+        # its rows, planned through the class's mapping and run where they are
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 100.0, 250.0])
+        # edited as any grid is: by DataCube's commands, judged over the class's columns as the compiler types them now
+        grid.group('region')
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5, 'AMER': 250.0})
+        with self.assertRaisesRegex(ValueError, 'nope'):
+            grid.group('nope')
+        # and saved as it is: still over the class
+        saved = loaded.to_dict()
+        self.assertEqual(saved['cubes'][0]['cube']['source']['_type'], 'class')
+        self.assertEqual(saved['cubes'][0]['cube']['query']['rows'], ['region'])
+
+    def test_the_pages_filters_reach_its_rows_as_they_reach_the_screens_grid(self):
+        # (B1) a page filter on the class: every grid over the class reads its rows through it -- what it shows, its rows,
+        # its export -- as the screen's page gives its grid (page-filters.ts gridLens)
+        _, doc = self.classed()
+        path = doc['cubes'][0]['cube']['source']['class']
+        doc['filters'] = [{'id': 'filter-1', 'class': path,
+                           'condition': {'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': 'EMEA'}}]
+        loaded = ll.Page.load(doc)
+        grid = loaded.grids[0]
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 100.0])
+        grid.group('region')
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5})
+        self.assertNotIn('AMER', grid.export('csv'))
+        self.assertIn('EMEA', grid.export('csv'))
+
+    def test_a_class_its_model_home_does_not_hold_is_refused_in_words(self):
+        _, doc = self.classed()
+        doc['cubes'][0]['cube']['source']['revision'] = 'no-such-revision'
+        with self.assertRaisesRegex(Exception, 'Trade is a class of .*, which this host\'s model home cannot read at '
+                                               'revision no-such-revision'):
+            ll.Page.load(doc)
+
+
+class OverWarehouse(Paged):
+    """A page over a warehouse table (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, X2, D13): opened by the engine under
+    the session it holds for the table's warehouse, signed in by a tab -- Python carries no credentials -- its rows read on
+    the warehouse by the engine's own plan-and-run; with no session, refused in words. Against a stand-in for the driver
+    (legend_lite.warehouse's Warehouse and connect, as test_engine.py WarehouseOnPython stands in for it)."""
+
+    URL = 'https://wh.example'
+    COLUMNS = [{'name': 'desk', 'type': 'VARCHAR', 'logicalType': 'VARCHAR', 'precision': None, 'scale': None,
+                'notNull': False},
+               {'name': 'qty', 'type': 'INTEGER', 'logicalType': 'INTEGER', 'precision': None, 'scale': None,
+                'notNull': False}]
+
+    def setUp(self):
+        super().setUp()
+        import pyarrow as pa
+        import pyarrow.ipc
+        from legend_lite import warehouse
+        objects = [{'catalog': 'main', 'databaseType': 'DuckDB', 'schema': 'trading', 'name': 'POSITIONS', 'kind': 'table',
+                    'columns': self.COLUMNS}]
+
+        class Reader:
+            def __init__(self, session, catalog='main', clock=None):
+                self._session, self.catalog = session, catalog
+            session = property(lambda self: self._session)
+            principal = property(lambda self: self._session.principal)
+            base_url = property(lambda self: self._session.base_url)
+
+            def renew(self, session):
+                self._session = session
+
+            def objects(self):
+                return objects
+
+            def arrow_chunks(self, sql, on_receipt=None):
+                rows = pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': pa.array([10, 5, 3], pa.int32())})
+                sink = pa.BufferOutputStream()
+                with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+                    w.write_table(rows)
+                yield sink.getvalue().to_pybytes()
+
+        def connect(url, user, password):
+            return warehouse.Session(url, 'tok', user, '2099-01-01T00:00:00Z'), objects
+        for patched in (mock.patch.object(warehouse, 'Warehouse', Reader), mock.patch.object(warehouse, 'connect', connect)):
+            patched.start()
+            self.addCleanup(patched.stop)
+
+    def page_over_the_table(self):
+        """A page whose grid reads the warehouse table, as the tab's grid over it is written."""
+        page = ll.Page('Positions')
+        page.grid(pd.DataFrame({'desk': ['FX'], 'qty': [1]}), name='positions')
+        doc = page.to_dict()
+        cube = doc['cubes'][0]['cube']
+        cube['source'] = {'_type': 'warehouseTable', 'name': 'trading.POSITIONS', 'warehouse': self.URL, 'catalog': 'main',
+                          'schema': 'trading', 'table': 'POSITIONS', 'columns': cube['source']['columns']}
+        return doc
+
+    def test_a_page_over_a_warehouse_table_reads_it_under_the_session_a_tab_signed_in(self):
+        doc = self.page_over_the_table()
+        # no tab signed in to the warehouse: refused in words, never asked for credentials
+        with self.assertRaisesRegex(Exception, 'trading.POSITIONS is read on the warehouse at https://wh.example, which no '
+                                               'tab of this host has signed in to: sign in to it in DataCube first'):
+            ll.Page.load(doc)
+        # a tab signs in, as the engine's route takes its sign-in
+        engine = datacube._session.engine()
+        said = engine.answer('POST', '/warehouse.json', '', json.dumps(
+            {'op': 'connect', 'url': self.URL, 'user': 'rita', 'password': 'pw'}))
+        self.assertEqual(said.status, 200, said.body)
+        loaded = ll.Page.load(doc)
+        grid = loaded.grids[0]
+        rows = grid.to_pandas()
+        self.assertEqual((list(rows['desk']), list(rows['qty'])), (['FX', 'EQ', 'FX'], [10, 5, 3]))
+        # edited as any grid, judged over the table's columns as the compiler types them now; saved still over it
+        grid.sort('qty', 'desc')
+        self.assertEqual(loaded.to_dict()['cubes'][0]['cube']['source']['_type'], 'warehouseTable')
+
+
+class OverSavedQueries(Paged):
+    """A page over a saved query (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, X2, X5): opened as the tab opens one
+    (saved-queries.ts savedQueryOpened, its rules 1-4) over its project's version as this host's depot gives it, its
+    rows its project's own Data rows, read in the project's own database by the engine's plan-and-run (C5). The depot's
+    answer for the version is served here (the host's fetch, watched); everything after it is the product's."""
+
+    PARTY = """Class demo::party::Party
+{
+  id: Integer[1];
+  name: String[1];
+}
+
+###Relational
+Database demo::party::PartyDB
+(
+  Schema PARTY
+  (
+    Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+  )
+)
+
+###Mapping
+Mapping demo::party::PartyMapping
+(
+  *demo::party::Party: Relational
+  {
+    ~primaryKey ([demo::party::PartyDB] PARTY.PARTY.ID)
+    ~mainTable [demo::party::PartyDB] PARTY.PARTY
+    id: [demo::party::PartyDB] PARTY.PARTY.ID,
+    name: [demo::party::PartyDB] PARTY.PARTY.NAME
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::party::Connection
+{
+  store: demo::party::PartyDB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime demo::party::Runtime
+{
+  mappings: [demo::party::PartyMapping];
+  connections: [demo::party::PartyDB: [db: demo::party::Connection]];
+}
+
+###Data
+Data demo::party::PartyData
+{
+  Relational
+  #{
+    PARTY.PARTY:
+      'ID,NAME\\n1,Meridian Capital\\n2,Halberd Securities\\n';
+  }#
+}
+"""
+
+    def setUp(self):
+        super().setUp()
+        answer = _headless.answer_fetch
+        self.asked = []
+
+        def depot(method, url, body):
+            if url.startswith('/depot/api/projects/dependencies/pure'):
+                self.asked.append(json.loads(body))
+                return 200, json.dumps([{'groupId': 'demo', 'artifactId': 'party', 'versionId': '1.0.0',
+                                         'files': [{'path': 'party.pure', 'pureCode': self.PARTY}]}])
+            return answer(method, url, body)
+        patched = mock.patch.object(_headless, 'answer_fetch', depot)
+        patched.start()
+        self.addCleanup(patched.stop)
+
+    def page_over_the_query(self, version='1.0.0'):
+        """A page whose grid reads the saved query, as the tab writes a grid over one."""
+        page = ll.Page('Parties')
+        page.grid(pd.DataFrame({'name': ['x']}), name='parties')
+        doc = page.to_dict()
+        cube = doc['cubes'][0]['cube']
+        cube['source'] = {'_type': 'savedQuery', 'name': 'Parties', 'columns': cube['source']['columns'], 'query': {
+            'name': 'Parties', 'groupId': 'demo', 'artifactId': 'party', 'versionId': version,
+            'content': '|demo::party::Party.all()->project(~[name: p|$p.name])',
+            'executionContext': {'_type': 'explicitExecutionContext', 'mapping': 'demo::party::PartyMapping',
+                                 'runtime': 'demo::party::Runtime'}}}
+        return doc
+
+    def test_a_page_over_a_saved_query_reads_its_projects_own_rows(self):
+        loaded = ll.Page.load(self.page_over_the_query())
+        self.assertEqual(self.asked[-1], [{'groupId': 'demo', 'artifactId': 'party', 'versionId': '1.0.0'}])
+        grid = loaded.grids[0]
+        self.assertEqual(sorted(grid.to_pandas()['name']), ['Halberd Securities', 'Meridian Capital'])
+        # edited as any grid, and saved still over the query
+        grid.sort('name', 'desc')
+        self.assertEqual([row[0] for row in grid.view().rows], ['Meridian Capital', 'Halberd Securities'])
+        self.assertEqual(loaded.to_dict()['cubes'][0]['cube']['source']['query']['versionId'], '1.0.0')
+
+    def test_a_query_whose_version_the_depot_does_not_hold_is_refused_in_words(self):
+        def none(method, url, body):
+            return 404, json.dumps({'message': 'no such version'})
+        with mock.patch.object(_headless, 'answer_fetch', none), \
+                self.assertRaisesRegex(Exception, "Parties is a saved query of demo:party:1.0.0, which this host's depot "
+                                                  'does not hold'):
+            ll.Page.load(self.page_over_the_query())
 
 
 class CorpusPage(unittest.TestCase):

@@ -540,6 +540,14 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /**
+   * The query as it is sent to be planned: over a mapping, `->from(mapping, runtime)` outermost (#overMapping); else as
+   * it is -- what a host plans when it is handed a grid's query as text (headless grid.ts gridRelation).
+   */
+  sent(query: Lambda): Lambda {
+    return this.#overMapping(query);
+  }
+
+  /**
    * Over a mapping, the query as Query sends it: `->from(mapping, runtime)` outermost. Without
    * one the runtime travels beside the query, as it always has here.
    */

@@ -20,12 +20,14 @@ import contextlib
 import hashlib
 import io
 import json
+import queue
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
 
@@ -126,6 +128,12 @@ class Headless:
         self._memory_limit = memory_limit
         # one call into the context at a time, made on the engine's loop
         self._turn: asyncio.Lock | None = None
+        # the caller whose call holds the turn: what it is asked to answer on its own thread (``engine``), while it waits
+        self._caller: queue.SimpleQueue[Any] | None = None
+        # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
+        # a warehouse table opened under the session it holds), given by the engine's owner as a weak reference to them
+        # (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone: no such call answered
+        self.answers: Callable[[], Callable[[str, str], tuple[int, str, bytes]] | None] | None = None
         self.broken = False
         try:
             self._run(self._open(bundle, memory_limit))
@@ -166,6 +174,19 @@ class Headless:
         status, text = answer_fetch(method, url, body)
         return json.dumps({'status': status, 'body': text})
 
+    async def _engine(self, path: str, body: str) -> str:
+        """One call of DataCube's to the engine it runs beside (calls.ts ``engine``: ``/plan-and-run.json``,
+        ``/warehouse.json``), answered by the engine's own code on the thread of the caller whose call asked it -- which
+        holds what it held as it called (the frames, still), so the answer takes what it takes as that caller, never
+        waiting on a lock the caller holds. ``{status, contentType, body}`` (the body base64), as JSON."""
+        caller, answers = self._caller, None if self.answers is None else self.answers()
+        if caller is None or answers is None:
+            raise RuntimeError('this host answers no call of the engine\'s: it was given none to answer')
+        answered: asyncio.Future[tuple[int, str, bytes]] = self._loop.create_future()
+        caller.put((answers, (path, body), answered))
+        status, content_type, data = await answered
+        return json.dumps({'status': status, 'contentType': content_type, 'body': base64.b64encode(data).decode('ascii')})
+
     async def _digest(self, algorithm: str, data: str) -> str:
         name = _DIGESTS.get(str(algorithm).upper())
         if name is None:
@@ -192,9 +213,9 @@ class Headless:
                       ' globalThis.setTimeout = (f, ms, ...args) => engines(f, Math.max(1, Number(ms) || 0), ...args); }')
         # the host's calls first, as a browser's globals are there before a page's scripts: a module may plan as it loads
         calls = [await self._stack.enter_async_context(self._mr.wrap_py_function(f))
-                 for f in (self._planner, self._query, self._register_file, self._digest, self._fetch)]
-        define = self._mr.eval('(planner, query, registerFile, digest, fetch) => {'
-                               ' globalThis.legendLiteHost = { planner, query, registerFile, digest, fetch }; }')
+                 for f in (self._planner, self._query, self._register_file, self._digest, self._fetch, self._engine)]
+        define = self._mr.eval('(planner, query, registerFile, digest, fetch, engine) => {'
+                               ' globalThis.legendLiteHost = { planner, query, registerFile, digest, fetch, engine }; }')
         define(*calls)
         self._mr.eval(bundle)
         # a bundle whose modules await as they load (a test bundle's fixtures) says when it has: legendLiteReady
@@ -202,22 +223,49 @@ class Headless:
         check_interface(json.loads(self._mr.eval('JSON.stringify(legendLiteHeadless.REQUEST_KINDS)')), self._lib)
         self._mr.eval('globalThis.legendLite = legendLiteHeadless.start();')
 
-    def _run(self, coroutine: Coroutine[Any, Any, Any], timeout: float | None = None) -> Any:
+    def _run(self, coroutine: Coroutine[Any, Any, Any], timeout: float | None = None,
+             asks: queue.SimpleQueue[Any] | None = None) -> Any:
+        """``coroutine`` run on the engine's loop, waited for -- and, while it runs, each call of the engine's it asks
+        (``asks``: ``_engine``'s) answered here, on this thread."""
         if threading.current_thread() is self._thread:
             raise RuntimeError("the engine's own thread cannot wait for the engine")
         if self.broken:
             coroutine.close()
             raise RuntimeError('this engine ran out of its memory and is closed to calls: its owner makes another')
         future = asyncio.run_coroutine_threadsafe(coroutine, self._loop)
-        try:
-            return future.result(timeout)
-        except TimeoutError:
-            future.cancel()
-            raise TimeoutError(f'DataCube did not answer within {timeout} s') from None
+        if asks is None:
+            try:
+                return future.result(timeout)
+            except TimeoutError:
+                future.cancel()
+                raise TimeoutError(f'DataCube did not answer within {timeout} s') from None
+        future.add_done_callback(lambda _: asks.put(None))
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            try:
+                asked = asks.get(timeout=None if deadline is None else max(0.0, deadline - time.monotonic()))
+            except queue.Empty:
+                future.cancel()
+                raise TimeoutError(f'DataCube did not answer within {timeout} s') from None
+            if asked is None:
+                return future.result()
+            answer, args, answered = asked
+            try:
+                said = answer(*args)
+            except Exception as failure:  # noqa: BLE001 -- handed to DataCube's call, which says it
+                self._loop.call_soon_threadsafe(_settle, answered, None, failure)
+            except BaseException:
+                # an interrupt of this thread: DataCube's call is let go, as a call that ran out of time is
+                future.cancel()
+                raise
+            else:
+                self._loop.call_soon_threadsafe(_settle, answered, said, None)
 
-    async def _evaluate(self, expression: str) -> Any:
+    async def _evaluate(self, expression: str, asks: queue.SimpleQueue[Any] | None = None) -> Any:
         assert self._turn is not None
         async with self._turn:
+            # the caller of this call, while it holds the turn: what DataCube's code asks of the engine, it answers
+            self._caller = asks
             try:
                 promise = self._mr.eval(f'Promise.resolve({expression}).then((v) => JSON.stringify(v === undefined ? null : v))')
                 return json.loads(await promise)
@@ -227,11 +275,15 @@ class Headless:
                     self.broken = True
                     raise MemoryError(f"DataCube's engine reached its memory cap ({self._memory_limit} bytes)") from e
                 raise
+            finally:
+                self._caller = None
 
     def evaluate(self, expression: str, timeout: float | None = None) -> Any:
         """A JavaScript expression's value, awaited when it is a Promise, as JSON gives it to Python: within ``timeout``
-        seconds when given (it then raises TimeoutError), else as long as it takes."""
-        return self._run(self._evaluate(expression), timeout)
+        seconds when given (it then raises TimeoutError), else as long as it takes. What it asks of the engine
+        (``answers``) is answered on this thread meanwhile."""
+        asks: queue.SimpleQueue[Any] = queue.SimpleQueue()
+        return self._run(self._evaluate(expression, asks), timeout, asks)
 
     def call(self, function: str, *args: Any, timeout: float | None = None) -> Any:
         """One of the bundle's functions (``legendLiteHeadless.<function>``) called with ``args`` as JSON gives them,
@@ -269,6 +321,16 @@ class Headless:
 
     def __exit__(self, *_exc: object) -> None:
         self.close()
+
+
+def _settle(answered: asyncio.Future[Any], said: Any, failure: BaseException | None) -> None:
+    """An engine's call's answer handed back to DataCube's call waiting on it, on the engine's loop."""
+    if answered.done():
+        return
+    if failure is not None:
+        answered.set_exception(failure)
+    else:
+        answered.set_result(said)
 
 
 # the product's bundle: beside this module in the wheel (the `datacube` extra, step 4), or where LEGEND_LITE_DATACUBE says

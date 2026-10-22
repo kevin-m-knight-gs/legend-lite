@@ -21,7 +21,8 @@ import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, fileChanged, fileSourceOf, frameSource, gridCapped, leavesOf, openCube,
-  readCube, rebuilt, remoteSourceOf, writeCube, type CubeDocument, type CubeSource, type JoinSource, type OpenedCube,
+  readCube, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinSource,
+  type OpenedCube, type QuerySource, type WarehouseSource,
 } from '../cube-document.ts';
 import {
   OPERATORS, isCompatible, newCondition, newGroup, toFilterNode, type DraftCondition, type DraftNode,
@@ -35,11 +36,12 @@ import { LitePlanner } from '../lite-planner.ts';
 import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
 import type { GridDraft } from '../grid-edits.ts';
-import { readGridCopy, type GridCopy } from '../page-document.ts';
+import { readGridCopy, readPage, type GridCopy } from '../page-document.ts';
+import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
-import { PlanError } from '../planner.ts';
+import { PlanError, type ModelOptions } from '../planner.ts';
 import { classBasis, classLambda, snapPull, type ClassBasis } from '../query.ts';
-import { PlanThenRun } from '../runner.ts';
+import { PlanThenRun, type PlanAndRun, type QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
 import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
 import { formatOf } from '../upload.ts';
@@ -50,7 +52,8 @@ import {
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
-import { hostCalls, hostDatabase, hostWorker } from './host.ts';
+import { pythonRunner } from '../services/python-host.ts';
+import { hostCalls, hostDatabase, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { joinOpenedOn } from './join.ts';
 import { base64 } from './web.ts';
@@ -66,21 +69,52 @@ export interface GridSpec {
   readonly source?: string;
   /** Its base relation as a lambda, as the protocol's JSON text (gridBase's, a join's: its numbers exact). */
   readonly relation?: string;
+  /** Read through a mapping (a class, a saved query): the mapping, and the model's enumerations (planner.ts ModelOptions). */
+  readonly mapping?: string;
+  readonly enumerations?: readonly string[];
+  /** `engine`: its rows read where the host's engine reads them (host-tables.ts HostBase), not on the host's database. */
+  readonly runs?: 'engine';
+  /** What the page's filters are to it (gridBaseOn's, its page given): the page's filters and the grid's charts, as the
+   *  protocol's JSON text -- what a page's grid reads through, as the screen's grid does (page-filters.ts gridLens). */
+  readonly lens?: string;
 }
 
 interface Opened {
   readonly planner: LitePlanner;
+  /** What answers its queries: the planner and the host's database, or the host's engine (`runs`). */
+  readonly runner: PlanAndRun;
+  /** The page's filters' rewrite of its queries, as the screen's grid takes it (page-filters.ts gridLens); none, none. */
+  readonly lens?: QueryLens;
   readonly cube: OpenedCube;
   /** Its state as the query sees it: the configuration folded into the snapshot. */
   readonly state: CubeState;
 }
 
-/** A source as the compiler types it now: its planner over the host's worker, its relation, its columns. */
-async function typed(spec: Omit<GridSpec, 'cube'>): Promise<{
-  readonly planner: LitePlanner; readonly relation: ValueSpecification; readonly columns: ColumnSpec[];
-}> {
+/**
+ * What answers a base's queries: its planner over the host's worker, and -- its rows on the host's database -- that
+ * database; or, read where the host's engine reads them (`runs: 'engine'`: a project's own database, a warehouse), the
+ * tab's own runner over the host's engine (services/python-host.ts pythonRunner), as a tab on the host reads such a
+ * base. Through its mapping, when it has one.
+ */
+function runnerOf(spec: Omit<GridSpec, 'cube'>): { readonly planner: LitePlanner; readonly runner: PlanAndRun } {
   const calls = hostCalls();
-  const planner = new LitePlanner({ model: spec.model, runtime: spec.runtime, worker: () => hostWorker(calls) });
+  const how: ModelOptions = {
+    ...(spec.mapping !== undefined ? { mapping: spec.mapping } : {}),
+    ...(spec.enumerations !== undefined ? { enumerations: spec.enumerations } : {}),
+  };
+  if (spec.runs === 'engine') {
+    const runner = pythonRunner(hostEngine(calls), spec.model, spec.runtime, how, () => hostWorker(calls));
+    return { planner: runner.host.planner as LitePlanner, runner };
+  }
+  const planner = new LitePlanner({ model: spec.model, runtime: spec.runtime, worker: () => hostWorker(calls), ...how });
+  return { planner, runner: new PlanThenRun(planner, new DuckDbEngine(hostDatabase(calls).connection)) };
+}
+
+/** A source as the compiler types it now: its planner and runner (runnerOf), its relation, its columns. */
+async function typed(spec: Omit<GridSpec, 'cube'>): Promise<{
+  readonly planner: LitePlanner; readonly runner: PlanAndRun; readonly relation: ValueSpecification; readonly columns: ColumnSpec[];
+}> {
+  const { planner, runner } = runnerOf(spec);
   try {
     if ((spec.source === undefined) === (spec.relation === undefined)) {
       throw new Error('a grid is given its base as Pure text (source) or as a lambda (relation), one of the two');
@@ -89,7 +123,7 @@ async function typed(spec: Omit<GridSpec, 'cube'>): Promise<{
       ? (fromJson(spec.relation) as unknown as Lambda).body[0]
       : (await planner.parse(`|${spec.source}`)).body[0]) as ValueSpecification | undefined;
     if (relation === undefined) throw new Error(`the source is not a relation: ${spec.source ?? spec.relation}`);
-    return { planner, relation, columns: await sourceColumns(planner, relation) };
+    return { planner, runner, relation, columns: await sourceColumns(planner, relation) };
   } catch (e) {
     planner.dispose();
     throw e;
@@ -98,12 +132,15 @@ async function typed(spec: Omit<GridSpec, 'cube'>): Promise<{
 
 /** The grid opened: its planner over the host's worker, its cube over the source as the compiler types it now. */
 async function opened(spec: GridSpec): Promise<Opened> {
-  const { planner, relation, columns } = await typed(spec);
+  const { planner, runner, relation, columns } = await typed(spec);
   try {
-    const was = openCube(readCube(fromJson(spec.cube)), { query: relation }, columns);
+    const doc = readCube(fromJson(spec.cube));
+    const was = openCube(doc, { query: relation }, columns);
     // the cube as the screen opens it (cube-state.ts openedState): what the query carries read back, then folded
     const state = openedState(was.snapshot, was.configuration, was.tree);
-    return { planner, cube: { ...was, configuration: state.configuration }, state };
+    // what the page's filters do to it, as the screen's page gives its grid (page-app.ts #lensOf: one rule)
+    const lens = spec.lens === undefined ? undefined : lensOf(spec.lens, doc.source);
+    return { planner, runner, ...(lens ? { lens } : {}), cube: { ...was, configuration: state.configuration }, state };
   } catch (e) {
     planner.dispose();
     throw e;
@@ -111,16 +148,21 @@ async function opened(spec: GridSpec): Promise<Opened> {
 }
 
 /** A frame as Python hands one in for a grid's cube: its source's model and relation (as GridSpec's), and its name -- or
- *  the file or remote file its host read in as a table (`leaf`, HostLeaf), which the cube's source records. */
+ *  the file or remote file its host read in as a table (`leaf`, HostLeaf), which the cube's source records; or a source
+ *  read where the host's engine reads it, as saved (`as`: a saved cube opened again, gridOpened). */
 export interface FrameSpec extends Omit<GridSpec, 'cube'> {
   /** The frame's name on the host: the cube's source, `{_type: 'frame', name}`. */
   readonly frame: string;
   /** Not a frame: the file or remote file the host read in, the cube's source then (fileSourceOf, remoteSourceOf). */
   readonly leaf?: HostLeaf;
+  /** Neither: a class, a saved query or a warehouse table, as the cube saved it -- written again with its columns now. */
+  readonly as?: ClassSource | QuerySource | WarehouseSource;
 }
 
-/** The source a cube over a host's table records (gridCube): a frame's, else the file's or remote file's it is. */
+/** The source a cube over a host's table records (gridCube): a frame's, else the file's or remote file's it is -- or one
+ *  read where the host's engine reads it, as saved, its columns as the compiler types them now. */
 function sourceOfSpec(spec: FrameSpec, columns: readonly ColumnSpec[]): CubeSource {
+  if (spec.as !== undefined) return { ...spec.as, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
   if (spec.leaf === undefined) return frameSource(spec.frame, columns);
   return spec.leaf._type === 'file'
     ? fileSourceOf(spec.leaf, formatOf(spec.leaf.name), columns) : remoteSourceOf(spec.leaf.url, columns);
@@ -164,7 +206,7 @@ export async function gridCube(spec: FrameSpec, saved: string | null, name: stri
  * as the host read it in (headless ingest's and mount's `leaf`). JSON: as gridCube's.
  */
 export async function leafCube(leaf: HostLeaf, host: HostTables, name: string, gridsOnPage: number): Promise<string> {
-  const on = leafOnHost(leaf, host);
+  const on = await leafOnHost(leaf, host);
   return gridCube({ ...on.base, frame: leaf.name, ...(on.leaf !== undefined ? { leaf: on.leaf } : {}) }, null, name, leaf.name, gridsOnPage);
 }
 
@@ -189,7 +231,7 @@ export function cubeLeaves(cube: string): string {
  * the protocol writes it, as text).
  */
 export async function gridBase(cube: string, host: HostTables): Promise<string> {
-  const on = onHost(readCube(fromJson(cube)).source, host);
+  const on = await onHost(readCube(fromJson(cube)).source, host);
   if ('leaf' in on) return JSON.stringify(on.leaf.base);
   const opened = await joinOpenedOn(on.join, on.tables);
   return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
@@ -230,9 +272,15 @@ export async function baseOnHost(cube: string, snapped: GridCopy | undefined, ho
  * runtime, source}` or `{model, runtime, relation}`, as gridBase says it -- or `{problems}`, in DataCube's words.
  */
 export async function gridBaseOn(cube: string, snapped: unknown, host: HostTables,
-  copies: Readonly<Record<string, HeldCopy>>): Promise<string> {
+  copies: Readonly<Record<string, HeldCopy>>, page: string | null = null, id: string | null = null): Promise<string> {
   try {
-    return JSON.stringify(await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), host, copies));
+    const base = await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), host, copies);
+    if (page === null || id === null) return JSON.stringify(base);
+    // its page given: what its filters are to it, the grid's charts with them (a click's filter is not its own chart's
+    // grid's), carried as the protocol's JSON (their values exact) for each grid call to read it through (GridSpec.lens)
+    const doc = readPage(page, { empty: true });
+    const charts = doc.views.filter((v) => v.kind === 'chart' && v.cube === id).map((v) => v.id);
+    return JSON.stringify({ ...base, lens: toJson({ filters: doc.filters ?? [], charts }) });
   } catch (e) {
     if (!(e instanceof CubeRefusal) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -255,12 +303,14 @@ export async function gridBaseOn(cube: string, snapped: unknown, host: HostTable
 export async function gridOpened(cube: string, host: HostTables, name: string, gridsOnPage: number,
   given: Readonly<Record<string, string>> = {}): Promise<string> {
   const was = readCube(fromJson(cube));
-  const on = onHost(was.source, host, given);
+  const on = await onHost(was.source, host, given);
   if ('leaf' in on) {
     const { base, leaf } = on.leaf;
     // the leaf's columns as the compiler types them now (gridCube): the source as it is now
-    const made = JSON.parse(await gridCube({ ...base, frame: was.source.name, ...(leaf !== undefined ? { leaf } : {}) }, cube,
-      name, was.source.name, gridsOnPage)) as { cube: string };
+    const read = was.source;
+    const as = read._type === 'class' || read._type === 'savedQuery' || read._type === 'warehouseTable' ? read : undefined;
+    const made = JSON.parse(await gridCube({ ...base, frame: read.name, ...(leaf !== undefined ? { leaf } : {}),
+      ...(as !== undefined ? { as } : {}) }, cube, name, read.name, gridsOnPage)) as { cube: string };
     const now = readCube(fromJson(made.cube)).source;
     return openedAgain(was, now, now._type === 'file' ? fileChanged(was.source, now) : [], base);
   }
@@ -366,18 +416,30 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
   });
 }
 
+/** What a page's filters (GridSpec.lens) do to a grid over `source`: the screen's own rule (page-filters.ts gridLens). */
+function lensOf(text: string, source: CubeSource): QueryLens | undefined {
+  const said = fromJson(text) as unknown as { readonly filters: unknown; readonly charts: readonly string[] };
+  const charts = new Set(said.charts);
+  return gridLens(readPageFilters(said.filters, charts), source, charts).lens;
+}
+
 /** The grid's columns as the compiler types them now, its calculated ones too: the controller's step 0 (plan.ts
  *  typeColumns), compile-only -- the snapshot the screen's editors work on. */
-async function typedColumns(planner: LitePlanner, snapshot: CubeSnapshot): Promise<CubeSnapshot> {
-  const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
+async function typedColumns(runner: PlanAndRun, snapshot: CubeSnapshot): Promise<CubeSnapshot> {
   return (await typeColumns(snapshot, runner)).snapshot;
 }
 
 /** The cube compiled as a refresh would send it (CubeController.compile: its columns typed, every query), never run. */
-async function compiled(planner: LitePlanner, state: { snapshot: CubeSnapshot; tree: CubeState['tree'] }):
+async function compiled(o: Opened, state: { snapshot: CubeSnapshot; tree: CubeState['tree'] }):
   Promise<{ readonly refusal: string | null }> {
-  const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
-  return controller.compile(state, null);
+  return controllerOf(o).compile(state, null);
+}
+
+/** The grid's controller as the screen's grid has it: its runner, the page's filters' lens on it. */
+function controllerOf(o: Opened): CubeController {
+  const controller = new CubeController(o.runner);
+  controller.setLens(o.lens);
+  return controller;
 }
 
 /** A filter as Python hands one in: its own conditions' operands, not yet the editor's values or columns. */
@@ -555,7 +617,7 @@ export async function gridFilter(spec: GridSpec, given: string): Promise<string>
   const read = readGivenFilter(JSON.parse(given));
   if (typeof read === 'string') return JSON.stringify({ problems: [read] });
   return using(spec, async (o) => {
-    const typed = await typedColumns(o.planner, o.state.snapshot);
+    const typed = await typedColumns(o.runner, o.state.snapshot);
     const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
     const made = draftFrom(read, types);
     if (typeof made === 'string') return JSON.stringify({ problems: [`${made} -- ${CONDITION_FORM}`] });
@@ -574,10 +636,10 @@ export async function gridFilter(spec: GridSpec, given: string): Promise<string>
  * -- or `{problems}`, why it was refused, in the screen's words.
  */
 async function applied(spec: GridSpec, o: Opened, commands: readonly GridCommand[]): Promise<string> {
-  const { planner, cube } = o;
+  const { runner, cube } = o;
   let d: Required<GridDraft>;
   try {
-    d = applyGridCommands({ snapshot: await typedColumns(planner, cube.snapshot), config: cube.configuration, tree: cube.tree },
+    d = applyGridCommands({ snapshot: await typedColumns(runner, cube.snapshot), config: cube.configuration, tree: cube.tree },
       commands);
   } catch (e) {
     if (!(e instanceof CubeRefusal)) throw e;
@@ -585,10 +647,10 @@ async function applied(spec: GridSpec, o: Opened, commands: readonly GridCommand
   }
   const tree = d.tree;
   const snapshot = applyToSnapshot(d.snapshot, d.config);
-  const outcome = await compiled(planner, { snapshot, tree });
+  const outcome = await compiled(o, { snapshot, tree });
   if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
   // as the screen's state lands after the edit: its columns typed by the run (the controller's step 0), folded
-  const landed = fold({ snapshot: await typedColumns(planner, snapshot), configuration: d.config, tree });
+  const landed = fold({ snapshot: await typedColumns(runner, snapshot), configuration: d.config, tree });
   const doc = readCube(fromJson(spec.cube));
   const written = writeCube({
     name: doc.name, source: doc.source, snapshot: landed.snapshot, configuration: landed.configuration, tree,
@@ -680,8 +742,9 @@ export async function gridApply(spec: GridSpec, given: string): Promise<string> 
 
 /** What the grid shows, as DataCube computes it: JSON text (viewJson). */
 export async function gridView(spec: GridSpec): Promise<string> {
-  return using(spec, async ({ planner, state }) => {
-    const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
+  return using(spec, async (o) => {
+    const { planner, state } = o;
+    const controller = controllerOf(o);
     const view = await controller.run({ snapshot: state.snapshot, tree: state.tree });
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     return viewJson(view, state.configuration, await planner.compose(view.query, 'STANDARD'));
@@ -690,7 +753,12 @@ export async function gridView(spec: GridSpec): Promise<string> {
 
 /** The grid's rows at their finest level as Pure, as Create a Class makes its class of them (classLambda). */
 export async function gridRelation(spec: GridSpec): Promise<string> {
-  return using(spec, async ({ planner, state }) => planner.compose(classLambda(state.snapshot), 'STANDARD'));
+  // through the page's filters, as it is sent to be planned (over its mapping: `->from(mapping, runtime)`), so its host
+  // plans it as it is
+  return using(spec, async ({ planner, lens, state }) => {
+    const rows = classLambda(state.snapshot);
+    return planner.compose(planner.sent(lens ? lens(rows) : rows), 'STANDARD');
+  });
 }
 
 /**
@@ -727,7 +795,7 @@ export interface GridClassed {
  * (`{problems}`: the window refuses the whole action).
  */
 export async function gridClassed(spec: GridSpec): Promise<GridClassed | { readonly refused: string } | { readonly problems: string[] }> {
-  return using(spec, async ({ planner, state }) => {
+  return using(spec, async ({ planner, runner, state }) => {
     let basis: ClassBasis;
     try {
       basis = classBasis(state.snapshot);
@@ -735,7 +803,6 @@ export async function gridClassed(spec: GridSpec): Promise<GridClassed | { reado
       if (!(e instanceof CubeRefusal)) throw e;
       return { refused: e.message };
     }
-    const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
     try {
       return { basis, source: planner.source(), samples: await classSamples(runner, basis) };
     } catch (e) {
@@ -759,8 +826,9 @@ export async function gridExport(spec: GridSpec, kind: string): Promise<string> 
     const kinds = EXPORT_KINDS.map((k) => `'${k}'`).join(', ');
     return JSON.stringify({ problems: [`a grid exports as one of ${kinds}, not ${JSON.stringify(kind)}`] });
   }
-  return using(spec, async ({ planner, state }) => {
-    const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
+  return using(spec, async (o) => {
+    const { state } = o;
+    const controller = controllerOf(o);
     const view = await controller.run({ snapshot: state.snapshot, tree: state.tree });
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     const config = state.configuration;
@@ -786,12 +854,11 @@ export async function gridExport(spec: GridSpec, kind: string): Promise<string> 
  * (`problems` empty when it draws).
  */
 export async function gridChart(spec: GridSpec, given: string, before: string | null): Promise<string> {
-  return using(spec, async ({ planner, state }) => {
+  return using(spec, async ({ runner, state }) => {
     const was = before === null ? undefined : readChart(JSON.parse(before));
     if (typeof was === 'string') return JSON.stringify({ problems: [`DataCube cannot read the chart as it was: ${was}.`] });
     // the grid's columns as the compiler types them now, its calculated ones too: the controller's step 0 (plan.ts
     // typeColumns), compile-only -- what the grid's run would type them as before its chart is drawn
-    const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
     const { snapshot } = await typeColumns(state.snapshot, runner);
     const told = JSON.parse(given) as Record<string, unknown>;
     const made = chartFrom(told, snapshot, was);

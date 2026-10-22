@@ -8,7 +8,7 @@ import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
 import { cubeToJson, gridCapped, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin, type TableKind } from '../join-open.ts';
+import { openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
 import { joinInputOf } from '../page-commands.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
@@ -16,7 +16,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { TreeState } from '../tree.ts';
 import { catalogColumns } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
-import { leafTables, type HostTables } from './host-tables.ts';
+import { HOST_TABLES, leafTables, type HostTables } from './host-tables.ts';
 
 /** What a host hands in: its page, the two grids joined, how they join, and the table of its database each one reads. */
 export interface JoinSpec {
@@ -38,20 +38,17 @@ export interface JoinAdded {
   readonly title: string | null;
 }
 
-/** The kinds of source that are tables of a host's database: its frames, the files and remote files it read in. */
-const HOST_TABLES: readonly TableKind[] = ['frame', 'file', 'remoteFile'];
-
-function read(spec: string): {
+async function read(spec: string): Promise<{
   readonly page: PageDocument; readonly mine: string; readonly left: JoinInput; readonly right: JoinInput; readonly how: JoinHow;
   readonly tables: readonly string[]; readonly added?: JoinAdded;
-} {
+}> {
   // the protocol's exact JSON: a cube's numbers, and a condition's in Pure, kept as they are
   const s = fromJson(spec) as unknown as JoinSpec & Partial<JoinAdded>;
   const page = readPage(s.page, { empty: true });
   const left = joinInputOf(page, s.mine);
   const right = joinInputOf(page, s.theirs);
   // each input's leaves' tables, as the host reads them (the one rule: host-tables.ts leafTables), mine's then theirs'
-  const tables = [...leafTables(left.source, s.host), ...leafTables(right.source, s.host)];
+  const tables = [...await leafTables(left.source, s.host), ...await leafTables(right.source, s.host)];
   return {
     page, mine: s.mine, left, right, how: readJoinHow(s.how), tables,
     ...(s.sheet !== undefined ? { added: { sheet: s.sheet, title: s.title ?? null } } : {}),
@@ -90,7 +87,7 @@ async function using<T>(use: (o: JoinOpening & { readonly engine: DuckDbEngine; 
  * drifted in an input, and the join's model, runtime and relation (a lambda) a host plans its rows over.
  */
 export async function joinCube(spec: string): Promise<string> {
-  const s = read(spec);
+  const s = await read(spec);
   if (!s.added) throw new Error('a join\'s grid is added on a sheet: {"sheet", "title"}');
   const { sheet, title } = s.added;
   const name = s.page.name;
@@ -131,7 +128,7 @@ export async function joinOpenedOn(source: JoinSource, tables: readonly string[]
  * database -- and in the window's words. JSON: `{counts, words}`.
  */
 export async function joinQuestions(spec: string): Promise<string> {
-  const s = read(spec);
+  const s = await read(spec);
   return using(async (o) => {
     const inputs = await openInputs(s.left, s.right, o);
     const planner = o.typer(inputs.model, inputs.runtime) as LitePlanner;

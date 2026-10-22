@@ -10,6 +10,7 @@
 import { arrowIpcTable } from '../../../engine-client/src/arrow-ipc.ts';
 import type { ArrowishConnection, ArrowishTable } from '../../../engine-client/src/duckdb.ts';
 import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
+import type { PythonLink } from '../services/python-host.ts';
 import { hostCalls, type HostCalls } from './calls.ts';
 import { base64, fromBase64 } from './web.ts';
 
@@ -63,6 +64,33 @@ export function hostFetch(calls: HostCalls): typeof fetch {
     };
   };
   return carried as unknown as typeof fetch;
+}
+
+/**
+ * THE ENGINE THE HOST RUNS BESIDE DATACUBE, as a tab on it reaches it (services/python-host.ts PythonLink): its calls
+ * carried by the host (calls.ts `engine`) -- a grid's query planned and run where its rows are, a warehouse table opened
+ * under the session it holds -- each answer's status, media type, text and bytes as a browser's Response gives them. So
+ * a grid of a page on the host reads a base its database does not hold by the tab's own runner (pythonRunner).
+ */
+export function hostEngine(calls: HostCalls): PythonLink {
+  const carried = async (input: unknown, init?: { readonly method?: string; readonly body?: unknown }): Promise<unknown> => {
+    const body = init?.body;
+    if (typeof body !== 'string') throw new Error("the engine's calls carry a body of text");
+    if (typeof input !== 'string' || !input.startsWith('/')) throw new Error(`the engine is asked at a path of its own, not ${String(input)}`);
+    const said = JSON.parse(await calls.engine(input, body)) as { status: number; contentType: string; body: string };
+    const bytes = fromBase64(said.body);
+    return {
+      ok: said.status >= 200 && said.status < 300,
+      status: said.status,
+      statusText: '',
+      headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? said.contentType : null) },
+      text: async () => new TextDecoder().decode(bytes),
+      json: async () => JSON.parse(new TextDecoder().decode(bytes)) as unknown,
+      arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    };
+  };
+  // its paths its own (`/plan-and-run.json`): no address before them
+  return { baseUrl: '', fetch: carried as unknown as typeof fetch };
 }
 
 /** What a host's database gives beside its connection: DuckDB-WASM's file registration, the host's folder behind it. */

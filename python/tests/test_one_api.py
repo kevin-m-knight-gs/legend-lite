@@ -333,9 +333,9 @@ class HostApplies(Session):
         self.assertEqual(page.sheet('Mine').id, 'sheet-10')
 
     def test_a_grid_the_host_cannot_hold_is_refused_as_the_write_adds_it(self):
-        # (the S4 audit's 2) a page on Python holds grids over what it reads -- its frames, files and remote files -- and
-        # joins of them (headless host-tables.ts onHost): one over any other source is refused as the write adds it, in
-        # DataCube's words, and nothing is kept
+        # (the S4 audit's 2) a page on Python holds grids over what it reads -- its frames, files and remote files, joins
+        # of them, and a class its model home holds (headless host-tables.ts onHost): one over a class it cannot read is
+        # refused as the write adds it, in DataCube's words, and nothing is kept
         page, engine = self.served('holds')
         at = datacube._session.keeper.current(page._key)[0]
         cube = copy.deepcopy(page.to_dict()['cubes'][0]['cube'])
@@ -345,7 +345,8 @@ class HostApplies(Session):
         said = self.written(engine, page, {'edits': [{'page': {'kind': 'addGrid', 'document': cube, 'sheet': 'sheet-1',
                                                                 'near': None, 'title': None, 'columns': None}}]})
         self.assertEqual(said.status, 409, said)
-        self.assertIn('Trade is not read here: a page on this host reads frames, files and remote files', said.body.decode('utf-8'))
+        self.assertIn("Trade is a class of datacube:trades, which this host's model home cannot read at revision 3",
+                      said.body.decode('utf-8'))
         self.assertEqual(datacube._session.keeper.current(page._key)[0], at, 'nothing kept')
 
     def test_a_failure_of_the_librarys_is_said_as_one_never_as_a_refusal(self):
