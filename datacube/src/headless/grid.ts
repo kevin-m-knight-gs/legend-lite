@@ -35,12 +35,12 @@ import { LitePlanner } from '../lite-planner.ts';
 import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, type GridCommand } from '../grid-commands.ts';
 import type { GridDraft } from '../grid-edits.ts';
-import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError } from '../planner.ts';
 import { classBasis, classLambda, snapPull, type ClassBasis } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
-import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
+import { classSamples } from '../model-plans.ts';
+import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
@@ -604,52 +604,42 @@ export function snapRefused(rows: string, limit: string): string {
   return snapRefusal(Number(rows), Number(limit));
 }
 
+/** A grid's rows as a class's (gridClassed): what a class of it is made over, where its rows are read from, and each
+ *  table's sample. */
+export interface GridClassed {
+  readonly basis: ClassBasis;
+  readonly source: { readonly model: string; readonly runtime: string };
+  readonly samples: Readonly<Record<string, SampleRows>>;
+}
+
 /**
- * A grid's rows as a class's, as Create a Class… asks for one (model-actions.ts `pageGrids`): what the class is made
- * over (query.ts classBasis: its rows at their finest level, the Database and every table they read -- a join's each,
- * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), each table's first rows as the window writes them into the project
- * (run on the host's database by sample-rows.ts sampleOf: item 7 of docs/PYTHON_ASKS_DATACUBE_2026_10_15.md), the
- * source they are read from, and the names the window offers (`named`: the grid's source's and the page's) -- DataCube's
- * own semantics, which Python's `grid.create_class()` asks of DataCube's code before it calls the generic library
- * (legend_lite/model.py; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4). JSON, each query as the protocol writes it, the
- * samples by table; rows read from no table refused in words (`{"refused"}`: the window leaves such a grid out of a data
- * space), a sample it cannot carry in its own (`{"problems"}`: the window refuses the whole action).
+ * A GRID'S ROWS AS A CLASS'S, HEADLESS (the model actions': headless model.ts modelClass, modelDataSpace): what a class
+ * of it is made over (query.ts classBasis: its rows at their finest level, the Database and every table they read -- a
+ * join's each, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), where they are read from, and each table's first rows as
+ * the window writes them into the project, read on the host's database (model-plans.ts classSamples). Rows read from no table
+ * refused in words (`{refused}`: the window leaves such a grid out of a data space); a sample it cannot carry
+ * (`{problems}`: the window refuses the whole action).
  */
-export async function gridClass(spec: GridSpec, named: { readonly source: string; readonly page: string }):
-  Promise<string> {
+export async function gridClassed(spec: GridSpec): Promise<GridClassed | { readonly refused: string } | { readonly problems: string[] }> {
   return using(spec, async ({ planner, state }) => {
-    // what a class of it is made over: its rows at their finest level and every table they read, a join's each (§18.3);
-    // refused in words, as the window leaves such a grid out (model-actions.ts pageGrids): rows read from no table
     let basis: ClassBasis;
     try {
       basis = classBasis(state.snapshot);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
-      return JSON.stringify({ refused: e.message });
+      return { refused: e.message };
     }
-    // the names the window offers before a person changes them (model-names.ts)
-    const names = {
-      className: suggestedClassName(named.source), package: suggestedPackage(named.page),
-      dataSpace: suggestedDataSpaceName(named.page),
-    };
-    // each table's first rows as the window writes them into the project (sample-rows.ts sampleOf), read on the host's
-    // database
     const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
-    const samples: Record<string, SampleRows> = {};
     try {
-      for (const t of basis.tables) samples[t.table] = await sampleOf(runner.host, t.sample);
+      return { basis, source: planner.source(), samples: await classSamples(runner, basis) };
     } catch (e) {
       // refused in words, as the window says it (a NaN or an infinity the sample cannot carry): not a grid the window
       // leaves out, an action it refuses
       if (!(e instanceof SampleRefusal)) throw e;
-      return JSON.stringify({ problems: [e.message] });
+      return { problems: [e.message] };
     }
-    return `{"query":${toJson(basis.query)},"samples":${JSON.stringify(samples)},`
-      + `"database":${JSON.stringify(basis.database)},"tables":${JSON.stringify(basis.tables.map((t) => t.table))},`
-      + `"source":${JSON.stringify(planner.source())},"names":${JSON.stringify(names)}}`;
   });
 }
-
 
 /**
  * The grid exported, as its Export menu makes the file (export-render.ts, the screen's own core): what it shows, its

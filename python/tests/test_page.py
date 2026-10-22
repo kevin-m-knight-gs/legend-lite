@@ -17,11 +17,12 @@ import urllib.request
 import warnings
 from decimal import Decimal
 from pathlib import Path
+from unittest import mock
 
 import pandas as pd
 
 import legend_lite as ll
-from legend_lite import _json, datacube
+from legend_lite import _headless, _json, datacube
 from legend_lite import page as page_module
 from legend_lite._types import plain_type
 
@@ -789,9 +790,19 @@ class Document(Paged):
         # sample writes it as null, as every missing value is -- only a NaN the data holds is refused (test_model)
         missing = ll.Page('Missing').grid(pd.DataFrame({'desk': ['FX', 'EQ'], 'rate': [1.5, float('nan')]}),
                                           name='missing_rate')
-        cls, asked = missing._class()
-        (table,) = asked['tables']
-        rows = cls['where']['samples'][table]['rows']
+        # the sample DataCube's Create a Class… writes, as the writer is sent it (the host's fetch, watched here alone),
+        # into a model home of the test's own
+        home = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
+        sent = []
+        answer = _headless.answer_fetch
+
+        def watched(method, url, body):
+            if url.endswith('/model/createClass'):
+                sent.append(json.loads(body))
+            return answer(method, url, body)
+        with mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': home}), mock.patch.object(_headless, 'answer_fetch', watched):
+            missing.create_class('Missing')
+        rows = sent[-1]['class']['where']['samples']['missing_rate']['rows']
         self.assertEqual(sorted(r[1] is None for r in rows), [False, True])
 
     def test_a_sort_is_a_column_or_a_pivots_header_and_an_edit_keeps_its_open_groups(self):
@@ -1745,12 +1756,25 @@ class Snapped(Paged):
             grid.live()
 
     def test_a_class_of_a_snapped_grid_is_of_its_live_base(self):
+        # a class maps the tables its rows are read from, never a copy, which lasts only as long as this session (§18.8):
+        # what DataCube's Create a Class… sends the writer (the host's fetch, watched here alone), into a model home of
+        # the test's own
         page = ll.Page('Snaps')
         grid = page.grid(trades(), name='trades')
         grid.snap()
-        cls, asked = grid._class()
-        self.assertNotIn('snap', json.dumps(cls['query']))
-        self.assertEqual((asked['tables'], list(asked['samples'])), (['trades'], ['trades']))
+        home = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
+        sent = []
+        answer = _headless.answer_fetch
+
+        def watched(method, url, body):
+            if url.endswith('/model/createClass'):
+                sent.append(json.loads(body))
+            return answer(method, url, body)
+        with mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': home}), mock.patch.object(_headless, 'answer_fetch', watched):
+            grid.create_class('Trade')
+        self.assertNotIn('snap', json.dumps(sent[-1]['class']['lambda']))
+        self.assertEqual(list(sent[-1]['class']['where']['samples']), ['trades'])
+        self.assertEqual(page.model['tables'], {grid._view['cube']: ['trades']})
 
     def test_snap_true_reads_a_frame_once_and_a_snap_refused_leaves_the_page_as_it_was(self):
         state, frame = self.moving()

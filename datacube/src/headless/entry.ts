@@ -8,11 +8,11 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridOpened,
+  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
   gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
-import { classDuplicate, pageModelInto, pageModelNames } from './model.ts';
+import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
   gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOpenedLive, pageRead, pageReads, pageRebase,
@@ -23,7 +23,7 @@ import { joinCube, joinQuestions } from './join.ts';
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
 
-/** A grid, headless (§4): its view, its rows as a relation, its rows as a class's (B4), its export (D), a chart of it
+/** A grid, headless (§4): its view, its rows as a relation, its export (D), a chart of it
  *  as DataCube makes and judges one (chart-spec.ts chartFrom and chartProblems: written once, which Python asks), and
  *  its cube over a frame as DataCube makes one, new or rebuilt over the frame as it is now (cube-document.ts
  *  rebuilt), and a calculated column added to it, its filter set as the screen's editors do, and the grid edited as the
@@ -31,7 +31,7 @@ export { REQUEST_KINDS };
  *  (cubeLeaves), its base over the host's frames (gridBase) and a saved cube opened over them as it is now (gridOpened):
  *  a frame's, or a join's of frames (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). */
 export {
-  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridOpened,
+  cubeLeaves, gridApply, gridBase, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
   gridRelation, gridSnapPull, gridView,
 };
 
@@ -44,9 +44,11 @@ export { gridSetUp, snapRefused };
  *  checks what it names). */
 export { forget, ingest, landed, mount, remoteAccess };
 
-/** The page's model as DataCube names it, and a class's key's facts (B4): what Python asks beside the generic library.
- *  (The model a page keeps for the cubes it still holds is the page commands' rule: pageApply.) */
-export { classDuplicate, pageModelInto, pageModelNames };
+/** The model actions, headless (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): Create a Class… of a grid, Create
+ *  an Association… and Create a Data Space… of the page, as the windows make them, into a project through the host's
+ *  fetch -- each answering the page commands of its record of the page. (The model a page keeps for the cubes it still
+ *  holds is the page commands' rule: pageApply.) */
+export { modelAssociation, modelClass, modelDataSpace };
 
 /** A sheet's layout read by DataCube's own rules (layout/bands.ts): its tiles, and bands of tiles as the layout
  *  picker's shape -- what Python's pages ask, so they walk no layout by rules of their own (a layout is edited by page

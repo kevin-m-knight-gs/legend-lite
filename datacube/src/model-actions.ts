@@ -15,7 +15,7 @@ import type { PageCommand } from './page-commands.ts';
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from './model-names.ts';
-import { sampleOf } from './sample-rows.ts';
+import { classAction, classSamples, keyUnique, noRow } from './model-plans.ts';
 import { associationDialog } from './ui/association-dialog.ts';
 import { dataSpaceDialog, type DataSpaceChoice, type DataSpaceGrid } from './ui/data-space-dialog.ts';
 import type { CreatedClass } from './ui/class-dialog.ts';
@@ -95,15 +95,6 @@ export interface ModelActionsOf {
   readonly call: (fn: string) => ValueSpecification;
 }
 
-/** Whether the planned query answers no row: the column is unique over the rows; undefined when it cannot be run. */
-async function noRow(rows: PlanAndRun, query: Lambda): Promise<boolean | undefined> {
-  try {
-    return (await rows.host.planAndRun(query, 0)).rows.rowCount === 0;
-  } catch {
-    // the rows are not in this tab (a class made in another browser, its table not opened here): asked, not guessed
-    return undefined;
-  }
-}
 
 /** The facts' rows over the project's files: the place's runtime, through the model's mapping. */
 function projectRows(o: ModelActionsOf, project: string, pkg: string): PlanAndRun {
@@ -129,12 +120,8 @@ export async function createAssociationOf(o: ModelActionsOf, first?: string): Pr
       joinable: start.joinable,
       suggestions: start.suggestions,
       ...(first !== undefined ? { first } : {}),
-      unique: async (cls, on) => {
-        const j = start.joinable.find((x) => x.class === cls);
-        const column = j?.keys.find((k) => k.name === on)?.column;
-        if (j?.function === undefined || column === undefined) return undefined;
-        return noRow(facts, o.duplicate(o.call(j.function), column));
-      },
+      // the class's key read over its rows, as Python's create_association presets it (model-plans.ts keyUnique)
+      unique: (cls, on) => keyUnique(facts, start.joinable, cls, on, o),
       preview: (a) => o.writer.createAssociation(state.text, pkg, a),
       create: async (a): Promise<CreatedClass> => {
         const done = await createAssociation({ sdlc: o.client, writer: o.writer, ...model.into(o.pageName, pkg), association: a });
@@ -167,20 +154,15 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<readonly Pag
   const pkg = o.model?.package ?? suggestedPackage(o.pageName);
   const state = o.model ? await projectState(o.client, o.model) : { text: '', revision: '' };
   // each grid not yet a class, as a class action: each of its tables' first rows read once
-  const samples = new Map<string, Record<string, Awaited<ReturnType<typeof sampleOf>>>>();
+  const samples = new Map<string, Awaited<ReturnType<typeof classSamples>>>();
   for (const g of o.grids) {
     if (g.cls !== undefined || 'refused' in g.made) continue;
-    const read: Record<string, Awaited<ReturnType<typeof sampleOf>>> = {};
-    for (const t of g.made.basis.tables) read[t.table] = await sampleOf(g.rows.host, t.sample);
-    samples.set(g.id, read);
+    samples.set(g.id, await classSamples(g.rows, g.made.basis));
   }
   const actions = (choice: DataSpaceChoice): ClassAction[] => choice.made.flatMap((m) => {
     const g = o.grids.find((x) => x.id === m.id);
     if (!g || 'refused' in g.made) return [];
-    return [{
-      query: g.made.basis.query, source: g.made.source, name: m.className,
-      where: { from: g.made.basis.database, as: o.place, samples: samples.get(g.id)! },
-    }];
+    return [classAction(g.made, o.place, samples.get(g.id)!, { className: m.className })];
   });
   let last: ModelAnswer | undefined;
   let lastChoice: DataSpaceChoice | undefined;
@@ -200,7 +182,7 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<readonly Pag
         const column = j?.keys.find((k) => k.name === on)?.column;
         const made = lastChoice?.made.find((m) => `${pkg}::domain::${m.className}` === cls);
         if (made === undefined && j?.function !== undefined && column !== undefined && state.text !== '') {
-          return noRow(facts, o.duplicate(o.call(j.function), column));
+          return keyUnique(facts, last!.joinable, cls, on, o);
         }
         // a class still to be made: its grid's own rows
         const g = made ? o.grids.find((x) => x.id === made.id) : undefined;

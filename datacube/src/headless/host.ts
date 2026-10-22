@@ -44,6 +44,27 @@ export function hostWorker(calls: HostCalls): PlannerWorker {
   return worker;
 }
 
+/**
+ * THE FETCH THE HOST ANSWERS (calls.ts `fetch`): what a client of a service takes -- the SDLC client, the model writer
+ * (model-changes/) -- its calls carried by the host, each answer's status and text as a browser's Response gives them.
+ */
+export function hostFetch(calls: HostCalls): typeof fetch {
+  const carried = async (input: unknown, init?: { readonly method?: string; readonly body?: unknown }): Promise<unknown> => {
+    const body = init?.body;
+    if (body !== undefined && body !== null && typeof body !== 'string') throw new Error("the host's fetch carries a body of text");
+    if (typeof input !== 'string') throw new Error("the host's fetch is asked by an address, as text");
+    const said = JSON.parse(await calls.fetch(init?.method ?? 'GET', input, body ?? null)) as { status: number; body: string };
+    return {
+      ok: said.status >= 200 && said.status < 300,
+      status: said.status,
+      statusText: '',
+      text: async () => said.body,
+      json: async () => JSON.parse(said.body) as unknown,
+    };
+  };
+  return carried as unknown as typeof fetch;
+}
+
 /** What a host's database gives beside its connection: DuckDB-WASM's file registration, the host's folder behind it. */
 export interface HostDatabase {
   readonly connection: ArrowishConnection;

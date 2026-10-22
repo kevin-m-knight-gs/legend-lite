@@ -538,7 +538,7 @@ class Engine:
         sdlc = path.startswith(_SDLC_API)
         root = _SDLC_API if sdlc else _DEPOT_API
         target = '/' + path[len(root):] + (f'?{query}' if query else '')
-        from .model import home_call
+        from ._home import home_call
         try:
             status, answered = home_call(self.model_home_folder(), 'sdlc' if sdlc else 'depot', method, target, body)
         except OSError as refused:

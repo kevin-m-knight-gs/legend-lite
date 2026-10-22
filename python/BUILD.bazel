@@ -22,7 +22,7 @@ load(
 )
 
 # the compiler's bindings, and what reaches the native library beside them -- this user's legend-lite folder and its saved
-# pages and queries (_home.py), a model home (model.py), the compiler's threads (_pool.py): no package beyond Python's
+# pages and queries and its model home (_home.py), the compiler's threads (_pool.py): no package beyond Python's
 # own (the compiler-only install, //python:wheel_test)
 py_library(
     name = "compiler",
@@ -266,11 +266,11 @@ py_test(
     ],
 )
 
-# INTO A PROJECT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4; legend_lite/model.py): the twin of model-changes/, held
-# to the same recorded cases (each call a create makes, to the SDLC and the writer, with its exact body), then a page's
-# grids made classes, an association and a data space by DataCube's request (headless) into this user's model home.
-# `MODEL_CHANGES_RECORD=1 bazel run //python:model_test` records the cases again.
-_MODEL_ENV = _ENV | _HEADLESS_ENV | {"LEGEND_LITE_MODEL_CASES": "$(rlocationpaths //model-changes:cases)"}
+# INTO A PROJECT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): a
+# page's grids made classes, an association and a data space by DataCube's model actions run headless (model-changes/
+# through the host's fetch) into this user's model home. `MODEL_CHANGES_RECORD=1 bazel run //python:model_test` records
+# model-changes' cases again, the library's calls as this host answered them.
+_MODEL_ENV = _ENV | _HEADLESS_ENV
 
 py_test(
     name = "model_test",
@@ -283,7 +283,6 @@ py_test(
     data = [
         ":wheel_duckdb",
         "//datacube:headless_bundle",
-        "//model-changes:cases",
         "//native:compiler",
     ],
     env = select({

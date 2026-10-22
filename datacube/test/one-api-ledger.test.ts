@@ -268,6 +268,10 @@ describe('L8: every command kind and source kind, against who makes and reads it
     // and what a page opened again tells of its cubes opened over their frames (rebuiltCommands, the screen's)
     + functionBody(page, 'rebuiltCommands');
   const made = (text: string, kind: string): boolean => new RegExp(`(?<!readonly )kind: '${kind}'`).test(text);
+  // 2026-10-22 (S5, Z4-Z7): a headless model action makes the page's model commands by the record the screen keeps
+  // (page-model.ts PageModel, which a model action's export makes), so what PageModel makes, it makes
+  const pageModel = SOURCES.read('src/page-model.ts');
+  const exportMakes = (body: string, kind: string): boolean => made(body, kind) || (/\bnew PageModel\(/.test(body) && made(pageModel, kind));
 
   it('each command kind is in its list, read by its reader, renamed by the rebase', () => {
     assert.deepEqual(listed(grid, 'GRID_COMMAND_KINDS'), gridKinds, 'GRID_COMMAND_KINDS is every grid command kind');
@@ -285,7 +289,7 @@ describe('L8: every command kind and source kind, against who makes and reads it
     for (const kind of [...gridKinds, ...pageKinds]) {
       const has: Record<Cell, boolean> = {
         screen: made(screen, kind),
-        python: new RegExp(`'kind': '${kind}'`).test(python) || exported.some((e) => made(e.body, kind) && asked(e.name)),
+        python: new RegExp(`'kind': '${kind}'`).test(python) || exported.some((e) => exportMakes(e.body, kind) && asked(e.name)),
       };
       for (const cell of ['screen', 'python'] as const) {
         const entry = L8_KINDS[kind]?.[cell];

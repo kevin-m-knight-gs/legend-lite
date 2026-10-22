@@ -1,7 +1,7 @@
 """The threads that call the compiler: ONE fixed pool for every caller in the process, as the native library asks of a
 host (each thread that calls it stays attached to its isolate), so opening engine after engine in a notebook attaches
 no new threads. On Python's standard library alone: the compiler-only install (``pip install legend-lite``) calls the
-native library through it too -- a model home's changes (model.py), the saved pages and queries (_home.py) -- and
+native library through it too -- a model home's calls, the saved pages and queries (_home.py) -- and
 DataCube's engine (engine.py) through the same pool. A connection is read and written on a thread of its own, which
 never calls the compiler: an idle connection holds no compiler thread."""
 

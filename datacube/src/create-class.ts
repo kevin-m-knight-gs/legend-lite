@@ -13,7 +13,7 @@ import { createClass, projectState } from '../../model-changes/src/index.ts';
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelWriter } from './model-writer.ts';
 import { suggestedClassName, suggestedPackage } from './model-names.ts';
-import { sampleOf } from './sample-rows.ts';
+import { classAction, classSamples } from './model-plans.ts';
 import { classDialog, type ClassChoice, type ClassPreview, type CreatedClass } from './ui/class-dialog.ts';
 import type { ModelAnswer } from './model-writer.ts';
 import type { PageCommand } from './page-commands.ts';
@@ -61,17 +61,10 @@ export async function createClassOf(o: CreateClassOf): Promise<readonly PageComm
   const { basis } = o;
   const model = new PageModel(o.model);
   // each table's first rows, as the database has them: the class's samples (a Data element each), written by the one
-  // writer (sample-rows.ts sampleOf: a NaN or an infinity refused, naming its column and row, never written as null)
-  const samples: Record<string, Awaited<ReturnType<typeof sampleOf>>> = {};
-  for (const t of basis.tables) samples[t.table] = await sampleOf(o.rows.host, t.sample);
-  const action = (c: ClassChoice): ClassAction => ({
-    query: basis.query,
-    source: o.source,
-    name: c.className,
-    ...(c.documentation ? { documentation: c.documentation } : {}),
-    columns: c.columns,
-    where: { from: basis.database, as: o.place, samples },
-  });
+  // writer (model-plans.ts classSamples: a NaN or an infinity refused, naming its column and row, never written as null)
+  const samples = await classSamples(o.rows, basis);
+  // the grid's rows as the class the person named, as Python's create_class makes it (model-plans.ts classAction)
+  const action = (c: ClassChoice): ClassAction => classAction({ basis, source: o.source }, o.place, samples, c);
   const preview = (answer: ModelAnswer): ClassPreview => ({
     changes: answer.changes, properties: answer.classes[0]?.properties ?? [], notes: answer.notes,
   });

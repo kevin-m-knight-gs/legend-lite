@@ -124,7 +124,7 @@ def locked(folder: Path) -> Iterator[None]:
 
 def model_home_folder() -> Path:
     """Where this user's model home keeps its projects: a git repository in their legend-lite folder, as it is now
-    (the program's B3; Python's engine serves it, legend_lite.model writes into it)."""
+    (the program's B3; Python's engine serves it, DataCube's model actions write into it through the host's fetch)."""
     return home() / 'projects'
 
 
@@ -149,6 +149,25 @@ def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
     from ._pool import _workers
     with locked(folder):
         said = _workers().submit(library().call, entry, str(folder), *asked).result()
+    tag, _, rest = said.partition('\n')
+    if tag != 'OK':
+        raise OSError(rest.partition('\n')[2] or rest)
+    status, _, answered = rest.partition('\n')
+    return int(status), answered
+
+
+def home_call(folder: Path, kind: str, method: str, path: str, body: str | None) -> tuple[int, str]:
+    """One call of the model home in this process (``kind``: ``'sdlc'`` or ``'depot'``): the native library's SDLC or
+    Depot over the git repository in ``folder``, the library's call on one of the compiler's threads -- the one way
+    Python's engine (its ``/sdlc/api``, ``/depot/api``) and DataCube's code headless (its model actions' SDLC, through the
+    host's fetch) reach it. The library makes each call under the repository's own lock, which every kind of process
+    that opens it takes (the model home's server too; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G11); Python's own lock
+    across its processes is taken first, on the caller's thread, so a call waiting on another Python process holds no
+    compiler thread. A failure of the library's raised (``OSError``)."""
+    from ._library import library
+    from ._pool import _workers
+    with locked(folder):
+        said = _workers().submit(library().call, f'lite_{kind}_handle', str(folder), method, path, body or '').result()
     tag, _, rest = said.partition('\n')
     if tag != 'OK':
         raise OSError(rest.partition('\n')[2] or rest)

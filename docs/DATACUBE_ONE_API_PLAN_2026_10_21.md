@@ -322,10 +322,24 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   handles it forgets, a loaded page's from pageReads -- a page filter's id among them, which Python's own left out
 - [x] **Z3** `_into` / `_keep` (with Y1) — closed S1: where a model action writes is TS's (headless `pageModelInto`:
   PageModel.into); `_keep` is gone, `_into` is `_model_action`, glue that asks and applies
-- [ ] **Z4** `_class` action — S5, L6
-- [ ] **Z5** `_facts` association uniqueness — S5, L6
-- [ ] **Z6** Create a Data Space orchestration — S5, L6
-- [ ] **Z7** `model.py` (D4) — S5, L6
+- [x] **Z4** `_class` action — closed S5: headless `modelClass` is Create a Class… of a grid, the window's own plan
+  (model-plans.ts `classSamples`, `classAction`, over headless `gridClassed`) and model-changes' `createClass`, into
+  the page's project (page-model.ts `PageModel.into`) -- its record of the page answered as the commands `modelInto`,
+  `modelPin`, `modelKeep`, which Python's `grid.create_class` applies (even when refused after its project was made);
+  `_class`, `gridClass`, `pageModelInto`, `pageModelNames` deleted (test_model.py OnThePage)
+- [x] **Z5** `_facts` association uniqueness — closed S5: headless `modelAssociation` presets each end as the window
+  does (model-plans.ts `keyUnique`: the key read through the class's relation function over the project, planned by
+  the native library and run on the host's database); `_facts` and `classDuplicate` deleted (test_model.py
+  `test_a_grid_made_a_class_then_an_association_and_a_data_space`)
+- [x] **Z6** Create a Data Space orchestration — closed S5: headless `modelDataSpace` is the window's whole-page action
+  (each grid not yet a class made one, a grid over no table of its own left out, a sample a class cannot hold refusing
+  the whole), each made class kept by its full path as the window keeps it -- Python matched paths by their last
+  segment; that marker is gone with it (test_model.py `test_a_whole_page_made_in_one_go`)
+- [x] **Z7** `model.py` (D4) — closed S5: deleted, with `_json.protocol`; the SDLC and the writer are reached through
+  the host's `fetch` (headless calls.ts, host.ts `hostFetch`), which Python answers (`_headless.answer_fetch`: its model
+  home and legend-lite's writer at a path of its own, a server's address over HTTP: `sdlc=`, `writer=` are addresses
+  now); model-changes' cases are recorded from the headless actions through it (test_model.py `record`;
+  model-changes/test/replay.test.ts), and the writer's refusal from the host's own root says its route alone
 - [x] **Z8** `Page.grid`'s command order → TypeScript builds a grid's commands — closed S5: headless `gridSetUp`
   builds them in a person's order (as `draftCommands` orders an editor's) and refuses a part it cannot read, in words;
   Python's `page.grid(...)` applies what it gives (test_page.py `test_a_grid_in_one_call_is_the_commands_datacube_orders_and_reads`)

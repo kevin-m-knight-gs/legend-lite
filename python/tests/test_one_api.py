@@ -43,7 +43,8 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
 # open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10).
 # 2026-10-22 (S5, Y6): L9_KEEPER 8 -> 6 -- the engine's serve_page, a test-only hook, deleted with its two writes
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 7, 'MARKERS': 4, 'L9_KEEPER': 6,
+# 2026-10-22 (S5, Z4-Z7): L6_FUNCTIONS 7 -> 3, MARKERS 4 -> 3 -- the model actions run headless; model.py gone
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 3, 'MARKERS': 3, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -200,7 +201,8 @@ class Static(unittest.TestCase):
         defined = {node.name for node, _, _ in _where(self.tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
         gone = [f'{name} ({", ".join(items)})' for name, items in L6_FUNCTIONS.items() if name not in defined]
         self.assertEqual(gone, [], 'gone from page.py: close their items and take them off')
-        self.assertTrue(MODEL.exists(), 'model.py is gone: close Z7 and take it off')
+        # Z7 (D4): Python keeps no copy of model-changes -- its model actions run DataCube's headless
+        self.assertFalse(MODEL.exists(), 'model.py is back: the model actions are headless (headless/model.ts)')
         self.assertEqual(len(L6_FUNCTIONS), CEILINGS['L6_FUNCTIONS'])
 
     def test_markers_the_code_that_is_each_gap(self):
@@ -227,10 +229,6 @@ class Static(unittest.TestCase):
 # -- L6 ------------------------------------------------------------------------------------------------------------
 
 L6_FUNCTIONS = {
-    '_class': ('Z4',),
-    '_facts': ('Z5',),
-    '_column_choices': ('Z7',),
-    '_end': ('Z7',),
     '_value': ('Z12',),
     '_given_filter': ('Z12',),
     '_copy_base_of': ('Z15',),
@@ -238,7 +236,6 @@ L6_FUNCTIONS = {
 
 # (file, the code that is the gap, its items, how many times it is there)
 MARKERS = [
-    (PAGE, "path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)", ('Z6',), 1),
     (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
     (PAGE, "def __init__(self, name: str = 'Untitled page') -> None:", ('B3',), 1),
     # the page _apply_page assigns is headless pageApply's, as read (L5 pins the assignment, this its binding)

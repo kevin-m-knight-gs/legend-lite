@@ -345,32 +345,6 @@ class Grid(Tile):
                 raise ValueError(f'{self._cube["source"]["name"]}: its model reads a table this session does not serve')
             return to_pandas(frames.run(held.plan(compiler.parse(engine.call('gridRelation', spec)), spec['runtime'])))
 
-    def _class(self, name: str | None = None, columns: Mapping[str, Any] | None = None,
-               documentation: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Its rows as a class's, as the window asks for them: DataCube's own request (headless ``gridClass``: its rows
-        at their finest level, every table they read -- a join's each (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3)
-        -- and each one's first rows as the window writes them into the project, planned and run on Python's database,
-        as every headless grid's are, and the names offered), with the frames held still. Answers the writer's class
-        action and what DataCube said; a grid whose rows cannot be a class refused in DataCube's words
-        (``ValueError``)."""
-        engine, frames = self._headless()
-        # named as the window names it: by its source's name (a frame's, a join's title)
-        source = self._cube['source']['name']
-        with frames.serving():
-            # of its live base, a snapped grid's too: a class maps the tables its rows are read from, never a copy, which
-            # lasts only as long as this session (§18.8)
-            asked = _json.loads(engine.call('gridClass', self._spec(engine, frames, live=True),
-                                            {'source': source, 'page': self._page.name}))
-        if 'refused' in asked:
-            raise _NotATable(f'{source!r} cannot be a class: {asked["refused"]}')
-        if 'problems' in asked:
-            raise ValueError(f'{source!r} cannot be a class: {"; ".join(asked["problems"])}')
-        cls = {'query': asked['query'], 'source': asked['source'], 'name': name or asked['names']['className'],
-               **({'documentation': documentation} if documentation else {}),
-               **({'columns': _column_choices(columns)} if columns else {}),
-               'where': {'from': asked['database'], 'as': 'Python', 'samples': asked['samples']}}
-        return cls, asked
-
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
         shows, with its formats, appearance and heatmaps -- ``'csv'`` (raw values), ``'excel'`` (a workbook, the tree
@@ -393,26 +367,29 @@ class Grid(Tile):
 
     def create_class(self, name: str | None = None, *, package: str | None = None,
                      columns: Mapping[str, Any] | None = None, documentation: str | None = None,
-                     project: str | None = None, sdlc: Any = None, writer: Any = None) -> str:
-        """Its rows at their finest level (``relation``) made a class of the page's model, as DataCube's Create a Class…
-        makes it (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): with everything it needs to run (its relation function,
-        mapping, the frames' store, connection and runtime -- the place ``Python`` -- and its first rows as sample
-        data), into the page's project in this user's model home, made with the page's first class. ``name``: the
-        class's (suggested from its source's name, as the window suggests it); ``package``: the page's (suggested from
-        the page's name before its first class). ``columns``: by column, ``'property'`` (the default), ``'key'`` (kept
-        for an association to join on, not shown) or ``'omit'``, or ``{'as', 'name', 'documentation'}``. ``project``:
-        the name of the project made with the page's first class (the page's name unless given, as the window offers
-        it). ``sdlc`` and ``writer``: another SDLC or writer than this user's (legend_lite.model). Answers the class's
-        path."""
-        from . import model as models
-        cls, asked = self._class(name, columns, documentation)
-        made = self._page._model_action(package or asked['names']['package'], sdlc, writer,
-                                        lambda s, w, at, made: models.create_class(s, w, *at, cls, made=made), project)
-        path = next((c['class'] for c in made.answer.get('classes', [])), None)
-        # the grid's tables and its class, kept by the page's model (page-commands.ts modelKept)
-        self._page._apply_page([{'kind': 'modelKeep', 'cube': self._view['cube'], 'tables': list(asked['tables']),
-                                 'class': path}])
-        return path or cls['name']
+                     project: str | None = None, sdlc: str | None = None, writer: str | None = None) -> str:
+        """Its rows at their finest level (``relation``) made a class of the page's model by DataCube's Create a Class…,
+        run headless (headless ``modelClass``; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z4): with everything it needs to
+        run (its relation function, mapping, the frames' store, connection and runtime -- the place ``Python`` -- and its
+        first rows as sample data), of its live base -- a snapped grid's too: a class maps the tables its rows are read
+        from, never a copy (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8) -- into the page's project in this user's
+        model home, made with the page's first class. ``name``: the class's (suggested from its source's name, as the
+        window suggests it); ``package``: the page's (suggested from the page's name before its first class).
+        ``columns``: by column, ``'property'`` (the default), ``'key'`` (kept for an association to join on, not shown)
+        or ``'omit'``, or ``{'as', 'name', 'documentation'}``. ``project``: the name of the project made with the page's
+        first class (the page's name unless given, as the window offers it). ``sdlc`` and ``writer``: another SDLC's API
+        root (``http://host:port/sdlc/api``) or legend-lite server than this user's model home and this process's
+        writer. What it changes of the page applied as DataCube applies it (the project made, the revision pinned, the
+        grid's tables and class kept: no step of its history); refused in DataCube's or the writer's words
+        (``ValueError``) -- the project it made before then still the page's. Answers the class's path."""
+        engine, frames = self._headless()
+        given = {'place': 'Python', 'cube': self._view['cube'], 'source': self._cube['source']['name'],
+                 **_model_given(name=name, package=package, documentation=documentation, columns=columns,
+                                project=project, sdlc=sdlc, writer=writer)}
+        with frames.serving():
+            said = _json.loads(engine.call('modelClass', _json.dumps(self._page._doc),
+                                           self._spec(engine, frames, live=True), given))
+        return self._page._model_said(said, 'class')
 
     def group(self, *rows: str) -> Grid:
         """Grouped by ``rows``, outermost first (the Rows zone): dimensions, as the screen offers them
@@ -1077,116 +1054,54 @@ class Page:
         ref = self._doc.get('model')
         return _copied(ref) if ref else None
 
-    def _names(self) -> dict[str, Any]:
-        """The page's model as DataCube's windows name it before its first class (headless ``pageModelNames``): its
-        package, its data space, its project to make and DataCube's workspace in it."""
-        return _json.loads(self._session.headless().call('pageModelNames', self.name))
+    def _model_said(self, said: dict[str, Any], made: str) -> str:
+        """A model action's answer (headless ``modelClass``, ``modelAssociation``, ``modelDataSpace``): its record of the
+        page applied as DataCube applies it -- ``modelInto`` when it made the page's project, ``modelPin`` to the
+        revision it saved, a grid's ``modelKeep`` (page-model.ts PageModel; no step of the page's history: P15) -- even
+        when it was refused after its project was made, so the project stays the page's. Refused, in its words
+        (``ValueError``); else the path of what it ``made``."""
+        if said['commands']:
+            self._apply_page(said['commands'])
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said[made]
 
-    def _model_action(self, package: str, sdlc: Any, writer: Any, call: Any, project: str | None = None) -> Any:
-        """A model action into the page's project (this user's model home, unless ``sdlc`` and ``writer`` say otherwise),
-        where DataCube's page model says it writes (headless ``pageModelInto``: page-model.ts ``into`` -- the page's own,
-        or one to make named ``project`` or after the page), and what it changes of the page applied as DataCube applies
-        it: ``modelInto`` when it makes the page's project, ``modelPin`` to the revision it saved (page-commands.ts)."""
-        from . import model as models
-        into = _json.loads(self._session.headless().call('pageModelInto', _json.dumps(self._doc), package, project))
-        target = into['project']
-        at = (target if isinstance(target, str) else models.NewProject(target['name'], target['group'], target['description']),
-              into['workspace'], into['package'])
-
-        def made(project_id: str) -> None:
-            self._apply_page([{'kind': 'modelInto', 'project': project_id, 'workspace': at[1], 'package': at[2]}])
-        created = call(sdlc if sdlc is not None else models.local_sdlc(),
-                       writer if writer is not None else models.local_writer(), at, made)
-        self._apply_page([{'kind': 'modelPin', 'revision': created.revision}])
-        return created
-
-    def create_association(self, a: Any, b: Any, *, name: str | None = None, sdlc: Any = None,
-                           writer: Any = None) -> str:
-        """An association between two of the page's classes, as DataCube's Create an Association… makes it: each end
-        a class and what it is joined on -- ``(class, on)``, or ``{'class', 'on', 'name', 'multiplicity', 'unique'}``
-        with the name the other class reaches it by and how many of it one of the other has -- preset, as the window
-        presets it, from whether its key is unique over its class's rows when its class was made from one of this page's
-        grids. Answers the association's path."""
-        from . import model as models
-        ref = self._doc.get('model')
-        if not ref:
-            raise ValueError("an association relates two of the page's classes: make them first (grid.create_class, or "
-                             'page.create_data_space for the whole page)')
-        ends = [_end(a), _end(b)]
-
-        def made_with_facts(s: Any, w: Any, at: Any, m: Any) -> Any:
-            self._facts(s, w, at, ends)
-            return models.create_association(s, w, *at, {**({'name': name} if name else {}), 'ends': ends}, made=m)
-        made = self._model_action(ref['package'], sdlc, writer, made_with_facts)
-        return next((x['association'] for x in made.answer.get('associations', [])), name or 'the association')
-
-    def _facts(self, sdlc: Any, writer: Any, at: Any, ends: list[dict[str, Any]]) -> None:
-        """Each end that says neither how many nor whether its key is unique given the fact, as Create an Association…
-        presets it (model-actions.ts ``unique``): the class's key read through its relation function over the project
-        (the writer's ``joinable`` names the function and the column), DataCube's query for a value held twice
-        (headless ``classDuplicate``) planned over the project's model through its place's runtime and run on Python's
-        database -- no row, and the key is unique. An end whose facts cannot be read (the project's tables not Python's)
-        is left for the writer to refuse in words, as the window leaves it for the person."""
-        from . import model as models
-        open_ends = [e for e in ends if 'unique' not in e and 'multiplicity' not in e]
-        if not open_ends:
-            return
-        text, _ = models.project_state(sdlc, at[0], at[1])
-        joinable = {j['class']: j for j in writer.create_association(text, at[2], None).get('joinable', [])}
-        frames, headless = self._session.frames, self._session.headless()
-        for end in open_ends:
-            j = joinable.get(end['class'], {})
-            column = next((k.get('column') for k in j.get('keys', []) if k['name'] == end['on']), None)
-            if j.get('function') is None or column is None:
-                continue
-            query, runtime = headless.call('classDuplicate', j['function'], column), f'{at[2]}::runtime::Python'
-            # planned as the page's own grids are, by Python's own compiler over the model it holds, and run there
-            with frames.serving():
-                held = frames.model_for(text)
-                if held is None:
-                    continue
-                end['unique'] = frames.run(held.plan(_json.loads(query), runtime)).num_rows == 0
+    def create_association(self, a: Any, b: Any, *, name: str | None = None, sdlc: str | None = None,
+                           writer: str | None = None) -> str:
+        """An association between two of the page's classes, by DataCube's Create an Association… run headless
+        (headless ``modelAssociation``; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z5): each end a class and what it is
+        joined on -- ``(class, on)``, or ``{'class', 'on', 'name', 'multiplicity', 'unique'}`` with the name the other
+        class reaches it by and how many of it one of the other has -- preset, as the window presets it, from whether
+        its key is unique over its class's rows (read through the class's relation function over the project, planned
+        by the native library and run on Python's database) when it says neither. ``sdlc`` and ``writer`` as
+        ``create_class`` takes them. Answers the association's path."""
+        engine = self._session.headless()
+        given = {'place': 'Python', 'ends': _carried([a, b]), **_model_given(name=name, sdlc=sdlc, writer=writer)}
+        with self._session.frames.serving():
+            said = _json.loads(engine.call('modelAssociation', _json.dumps(self._doc), given))
+        return self._model_said(said, 'association')
 
     def create_data_space(self, name: str | None = None, *, title: str | None = None, description: str | None = None,
-                          associations: Sequence[Any] = (), project: str | None = None, sdlc: Any = None,
-                          writer: Any = None) -> str:
-        """The whole page in one go, as DataCube's Create a Data Space… makes it: each grid not yet a class made one
-        (named as the window suggests; a grid over no table of its own left out, as the window leaves it; a sample a
-        class cannot hold refuses the whole, as the window refuses it, before anything is written), the
-        associations given (as ``create_association`` takes them: pairs of ends, or ``{'name', 'ends'}``) made, and a
-        data space over the page's classes -- one revision, the project made with it when the page has none (named
-        ``project``, else after the page). ``name``: the data space's (suggested from the page's name). Answers the data
-        space's path."""
-        from . import model as models
-        ref = self._doc.get('model')
-        names = self._names()
-        taken = (ref or {}).get('classes', {})
-        classes, kept = [], []
-        for grid in self.grids:
-            cube = grid._view['cube']
-            if cube in taken:
-                continue
-            try:
-                cls, asked = grid._class()
-            except _NotATable:
-                continue
-            classes.append(cls)
-            kept.append((cube, asked['tables'], cls['name']))
-        package = ref['package'] if ref else names['package']
-        data_space = {'name': name or names['dataSpace'], **({'title': title} if title else {}),
-                      **({'description': description} if description else {})}
-        joined = [x if isinstance(x, Mapping) else {'ends': [_end(x[0]), _end(x[1])]} for x in associations]
-        made = self._model_action(package, sdlc, writer, lambda s, w, at, m: models.create_data_space(
-            s, w, *at, data_space, classes, [{**j, 'ends': [_end(e) for e in j['ends']]} for j in joined], made=m),
-            project)
-        made_classes = [c['class'] for c in made.answer.get('classes', [])]
-        keeps = []
-        for cube, tables, class_name in kept:
-            path = next((c for c in made_classes if c.rsplit('::', 1)[-1] == class_name), None)
-            keeps.append({'kind': 'modelKeep', 'cube': cube, 'tables': list(tables), 'class': path})
-        if keeps:
-            self._apply_page(keeps)
-        return made.answer.get('dataSpace') or data_space['name']
+                          associations: Sequence[Any] = (), project: str | None = None, sdlc: str | None = None,
+                          writer: str | None = None) -> str:
+        """The whole page in one go, by DataCube's Create a Data Space… run headless (headless ``modelDataSpace``;
+        docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z6): each grid not yet a class made one (named as the window suggests;
+        a grid over no table of its own left out, as the window leaves it; a sample a class cannot hold refuses the
+        whole, as the window refuses it, before anything is written), the associations given (as ``create_association``
+        takes them: pairs of ends, or ``{'name', 'ends'}``) made, and a data space over the page's classes -- one
+        revision, the project made with it when the page has none (named ``project``, else after the page). ``name``:
+        the data space's (suggested from the page's name). ``sdlc`` and ``writer`` as ``create_class`` takes them.
+        Answers the data space's path."""
+        engine, frames = self._session.headless(), self._session.frames
+        given = {'place': 'Python', 'associations': _carried(list(associations)),
+                 **_model_given(name=name, title=title, description=description, project=project, sdlc=sdlc,
+                                writer=writer)}
+        with frames.serving():
+            # each grid as the host reads it: of its live base, a snapped grid's too (a class maps tables, never a copy)
+            grids = [{'cube': g._view['cube'], 'source': g._cube['source']['name'],
+                      'spec': g._spec(engine, frames, live=True)} for g in self.grids]
+            said = _json.loads(engine.call('modelDataSpace', _json.dumps(self._doc), grids, given))
+        return self._model_said(said, 'dataSpace')
 
     @property
     def name(self) -> str:
@@ -1689,10 +1604,6 @@ def _copy_base_of(session: Any, doc: dict[str, Any], cube: str) -> dict[str, Any
     return held
 
 
-class _NotATable(ValueError):
-    """A grid DataCube cannot make a class of, its source no table of its own: Create a Data Space… leaves it out."""
-
-
 def _read_page(doc: Any, session: Any, saved: bool = False) -> dict[str, Any]:
     """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
     (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own) -- or, ``saved``,
@@ -1714,22 +1625,6 @@ def _read_page(doc: Any, session: Any, saved: bool = False) -> dict[str, Any]:
     return page
 
 
-def _column_choices(columns: Mapping[str, Any]) -> dict[str, dict[str, str]]:
-    """A person's choices for the class's columns, as the window gives them (model-changes' ``ColumnChoice``)."""
-    out: dict[str, dict[str, str]] = {}
-    for column, choice in columns.items():
-        if isinstance(choice, str):
-            choice = {'as': choice}
-        # its role ('property', 'key' or 'omit') is the writer's to judge (CreateClass refuses another, by name)
-        out[column] = {k: v for k, v in choice.items() if k in ('as', 'name', 'documentation')}
-    return out
-
-
-def _end(end: Any) -> dict[str, Any]:
-    """An association's end as the writer takes it (model-changes' ``AssociationEnd``): ``(class, on)`` or a mapping."""
-    if isinstance(end, Mapping):
-        if not isinstance(end.get('class'), str) or not isinstance(end.get('on'), str):
-            raise ValueError(f"an association's end names its class and what it is joined on: {dict(end)!r}")
-        return {k: end[k] for k in ('class', 'on', 'name', 'multiplicity', 'unique') if k in end}
-    cls, on = end
-    return {'class': cls, 'on': on}
+def _model_given(**given: Any) -> dict[str, Any]:
+    """What a person gave a model action, as JSON carries it: what they did not give left out, for DataCube's default."""
+    return {k: _carried(v) for k, v in given.items() if v is not None}

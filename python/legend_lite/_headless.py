@@ -22,6 +22,9 @@ import io
 import json
 import tempfile
 import threading
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
@@ -36,6 +39,46 @@ _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512'
 
 # how much of V8's heap the engine may use: past it, the call that needs more fails, not the process
 DEFAULT_MEMORY_LIMIT = 2 * 1024 ** 3
+
+# a server is given this long to answer one fetch (seconds)
+_FETCH_TIMEOUT = 60
+
+# the paths this host answers a fetch at itself: its model home's SDLC and Depot, and legend-lite's API
+_HOME_APIS = (('/sdlc/api/', 'sdlc'), ('/depot/api/', 'depot'))
+_LITE_API = '/api/lite/v1/'
+
+
+def answer_fetch(method: str, url: str, body: str | None) -> tuple[int, str]:
+    """A fetch DataCube's code makes headless (its model actions' SDLC and model writer: calls.ts ``fetch``), answered
+    as this process answers it: a path of its own -- this user's model home (``/sdlc/api/...``, ``/depot/api/...``:
+    the native library's SDLC and Depot, as the engine's routes answer them) or legend-lite's API (``/api/lite/v1/...``:
+    the model writer, the native library's) -- or a server's address, over HTTP. Its status and its body; a failure of
+    the library's said in its words (500), never raised into DataCube's code."""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme in ('http', 'https'):
+        request = urllib.request.Request(url, data=None if body is None else body.encode('utf-8'), method=method,
+                                         headers={} if body is None else {'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT) as answered:
+                return answered.status, answered.read().decode('utf-8')
+        except urllib.error.HTTPError as refused:
+            return refused.code, refused.read().decode('utf-8', errors='replace')
+    if parts.scheme or parts.netloc:
+        return 400, json.dumps({'message': f'this host fetches over HTTP, or answers a path of its own: not {url}'})
+    for root, kind in _HOME_APIS:
+        if parts.path.startswith(root):
+            from ._home import home_call, model_home_folder
+            target = '/' + parts.path[len(root):] + (f'?{parts.query}' if parts.query else '')
+            try:
+                return home_call(model_home_folder(), kind, method, target, body)
+            except OSError as refused:
+                return 500, json.dumps({'message': str(refused)})
+    if parts.path.startswith(_LITE_API):
+        from . import compiler
+        answered = compiler.pure_v1(parts.path, parts.query, body or '')
+        return answered.status, answered.body
+    return 404, json.dumps({'message': f"this host answers its model home ({', '.join(r for r, _ in _HOME_APIS)}) and "
+                                       f'legend-lite\'s API ({_LITE_API}) at a path: not {url}'})
 
 
 class InterfaceMismatch(RuntimeError):
@@ -119,6 +162,10 @@ class Headless:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(base64.b64decode(data))
 
+    async def _fetch(self, method: str, url: str, body: str | None) -> str:
+        status, text = answer_fetch(method, url, body)
+        return json.dumps({'status': status, 'body': text})
+
     async def _digest(self, algorithm: str, data: str) -> str:
         name = _DIGESTS.get(str(algorithm).upper())
         if name is None:
@@ -145,9 +192,9 @@ class Headless:
                       ' globalThis.setTimeout = (f, ms, ...args) => engines(f, Math.max(1, Number(ms) || 0), ...args); }')
         # the host's calls first, as a browser's globals are there before a page's scripts: a module may plan as it loads
         calls = [await self._stack.enter_async_context(self._mr.wrap_py_function(f))
-                 for f in (self._planner, self._query, self._register_file, self._digest)]
-        define = self._mr.eval('(planner, query, registerFile, digest) => {'
-                               ' globalThis.legendLiteHost = { planner, query, registerFile, digest }; }')
+                 for f in (self._planner, self._query, self._register_file, self._digest, self._fetch)]
+        define = self._mr.eval('(planner, query, registerFile, digest, fetch) => {'
+                               ' globalThis.legendLiteHost = { planner, query, registerFile, digest, fetch }; }')
         define(*calls)
         self._mr.eval(bundle)
         # a bundle whose modules await as they load (a test bundle's fixtures) says when it has: legendLiteReady
