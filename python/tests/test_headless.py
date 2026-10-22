@@ -827,6 +827,21 @@ class OneRead(unittest.TestCase):
         with self.frames.reading():
             self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 2}], 'a read after it reads it as it is')
 
+    def test_a_read_sees_a_table_as_it_was_when_it_began_though_it_is_replaced_before_its_first_query(self):
+        # DuckDB begins a transaction on a database at its first read, not at BEGIN: the read pins it as it begins, so a
+        # table replaced before the read's first query (a frame read once, a copied table of the database's own) is
+        # still read as it was
+        self.frames.register('streamed', pyarrow.RecordBatchReader.from_batches(
+            pyarrow.schema([('n', pyarrow.int64())]), [pyarrow.record_batch([[1, 2, 3, 4, 5, 6]], names=['n'])]))
+        with self.frames.reading():
+            replacing = threading.Thread(target=self.frames.register, args=('streamed', TRADES.head(2)))
+            replacing.start()
+            replacing.join(10)
+            self.assertFalse(replacing.is_alive())
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 6}])
+        with self.frames.reading():
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 2}])
+
     def test_what_a_call_asks_of_the_engine_is_answered_on_datacubes_thread_over_its_read(self):
         answered = []
 

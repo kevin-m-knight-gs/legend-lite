@@ -582,9 +582,9 @@ class Frames:
                     if table.live:
                         cursor.register(table._registered, table._arrow)
                 cursor.begin()
-                # a transaction is begun on a database when it is first read: read every database's catalog now, so
-                # this read sees each as it is while the lock is held
-                cursor.execute('SELECT 1 FROM duckdb_tables() LIMIT 0').fetchall()
+                # a transaction is begun on a database when it is first read: read this database's catalog now (one
+                # of Frames' own names asked for: never a table), so this read sees it as it is while the lock is held
+                _host.count(cursor, {'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
             except BaseException:
                 cursor.close()
                 raise
