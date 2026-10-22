@@ -165,6 +165,14 @@ public final class BigQuery extends AnsiSqlRenderer {
         return true;
     }
 
+    /** A Float's print forms over the value and its text bound once: the portable spellings read the text nine times
+     *  (Pure's) and over a thousand (legend-engine's), each read this dialect's text of a double, its own subquery (the
+     *  served statement for {@code 1.5 + 2.25} was 321 KB, measured 2026-10-22). */
+    @Override
+    protected boolean bindsFloatPrint() {
+        return true;
+    }
+
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new FoldsAsRecursiveCtes(),
@@ -1449,6 +1457,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());

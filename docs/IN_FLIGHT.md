@@ -2192,3 +2192,10 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   unmeasured (the environment has no credentials). Its files: `sql/dialect/{ClickHouse,Databricks,Trino,MySql}.java`,
   `lowering/{SideOrdinal (new),VerdictSql,CanonicalRenderSql,LiteralSpelling}.java`,
   `exec/{JdbcDecode,CanonRider,JdbcStatements,PlanRunner}.java`, `SideOrdinalTest` (new), the Databricks ledgers.
+  **Announced 2026-10-22 — Snowflake and BigQuery, the Float's print forms read once** (GATES "the Float's print
+  forms read once"): `sql/SqlFn` (`FLOAT_PRINT`, `FLOAT_PRINT_ENGINE`), `sql/SqlTyping`, `sql/dialect/FloatPrintText`
+  (new: the portable spellings moved unchanged from `lowering/LiteralSpelling`), `AnsiSqlRenderer` (the expansion and
+  its two hooks), every dialect's arm, `Snowflake` and `BigQuery` (their own forms), `docs/dialect-capability/`
+  (regenerated). Every other database's SQL is byte-identical. **Proposed, not ratified:**
+  `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (one plan, one result, output formats as host renderers; awaiting the
+  user). Nothing in it is built.

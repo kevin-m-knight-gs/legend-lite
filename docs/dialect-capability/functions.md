@@ -202,6 +202,8 @@ Database types planned with it: H2.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | 14 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -388,6 +390,8 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `TO_VARIANT` | emulated | `variantConstruct` | `as H2` | — |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` | `as H2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as H2` | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as H2` | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as H2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as H2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | emulated | `variantGet` | `as H2` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as H2` | — |
@@ -420,7 +424,7 @@ Database types planned with it: Postgres.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 522 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
-| `COALESCE` | spelled | `coalesce` |  | 552 |
+| `COALESCE` | emulated | `by its operands: coalesce(, '{}'…) / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
 | `LENGTH` | emulated | `by its operands: length(…) / length(CAST(… AS VARCHAR))` |  | 73 |
@@ -574,6 +578,8 @@ Database types planned with it: Postgres.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -606,7 +612,7 @@ Database types planned with it: Snowflake.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 519 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inArm` |  | 6 |
-| `COALESCE` | spelled | `coalesce` |  | 552 |
+| `COALESCE` | emulated | `by its operands: coalesce(, PARSE_JSON(…)TO_VARIANT(…)…) / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `stringLit: CAST(CASE WHEN REGEXP_LIKE(…, \s*[-+]?[0-9]+\s*) THEN … ELSE … \|\| ' is not an...` |  | 11 |
 | `CONCAT` | emulated | `concat, flattenConcat` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
@@ -753,13 +759,15 @@ Database types planned with it: Snowflake.
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(…)) AS TIMESTAMP_NTZ)` |  | 4 |
 | `LIST_REVERSE` | spelled | `array_reverse` |  | 4 |
-| `TYPEOF` | refused | `TYPEOF names Snowflake's variant types, not DuckDB's reached Snowflake:` | `via Snowflake.list` | 0 |
+| `TYPEOF` | emulated | `TYPEOF(TO_VARIANT(…))` | `via Snowflake.list` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
-| `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_CANON` | emulated | `floatCanon` |  | 0 |
+| `FLOAT_PRINT` | emulated | `by its operands: composed / composed` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `by its operands: composed / composed` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...` |  | 1 |
@@ -792,7 +800,7 @@ Database types planned with it: Trino.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 519 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
-| `COALESCE` | spelled | `coalesce` |  | 552 |
+| `COALESCE` | emulated | `by its operands: coalesce(, json_parse(…)…) / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat: concat_ws('', , )` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
@@ -939,13 +947,15 @@ Database types planned with it: Trino.
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(6))` |  | 4 |
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
-| `TYPEOF` | refused | `typeof reached Trino: its type names are Trino's` | `via Trino.listCall` | 0 |
+| `TYPEOF` | spelled | `typeof` | `via Trino.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -978,7 +988,7 @@ Database types planned with it: BigQuery.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 522 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `in` |  | 6 |
-| `COALESCE` | spelled | `COALESCE` |  | 552 |
+| `COALESCE` | emulated | `by its operands: COALESCE(, PARSE_JSON(…)…) / …COALESCE` |  | 552 |
 | `PARSE_INT` | emulated | `CAST(… AS INT64)` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat, asText: CONCAT(, IFNULL(…, ''))` |  | 756 |
 | `LENGTH` | emulated | `asText: LENGTH(…)` |  | 73 |
@@ -990,7 +1000,7 @@ Database types planned with it: BigQuery.
 | `LIST_FILTER` | emulated | `listFilter` |  | 23 |
 | `LIST_TRANSFORM` | emulated | `listTransform` |  | 31 |
 | `LIST_CONCAT` | emulated | `emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))` |  | 2 |
-| `LIST_GET` | emulated | `(…)[SAFE_OFFSET(CASE WHEN … < 0 THEN ARRAY_LENGTH(…) + CAST(… AS INT64) ELSE ...` |  | 79 |
+| `LIST_GET` | emulated | `by its operands: composed / (…)[SAFE_OFFSET(CASE WHEN … < 0 THEN ARRAY_LENGTH(…) + CAST(… AS INT64) ELSE ...` |  | 79 |
 | `LIST_POSITION` | emulated | `param, elements: (SELECT MIN(__o) + 1 FROM …__e__o WHERE __e IS NOT DISTINCT FROM …)` |  | 39 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
@@ -1132,6 +1142,8 @@ Database types planned with it: BigQuery.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `stringLit: (CASE JSON_TYPE(…) WHEN 'null' THEN 'NULL' WHEN 'string' THEN 'VARCHAR' WHEN ...` |  | 1 |
@@ -1248,7 +1260,7 @@ Database types planned with it: Databricks.
 | `ENCODE_BASE64` | emulated | `replace(replace(base64(CAST(… AS BINARY)), chr(13), ''), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | spelled | `uuid` |  | 2 |
-| `FORMAT` | spelled | `format_string` |  | 42 |
+| `FORMAT` | emulated | `format_string(, CAST(… AS DOUBLE)…)` |  | 42 |
 | `HASH` | emulated | `hashSigned` |  | 5 |
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
@@ -1311,13 +1323,15 @@ Database types planned with it: Databricks.
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
-| `TYPEOF` | refused | `typeof reached Databricks: its type names are Spark's` | `via Databricks.listCall` | 0 |
+| `TYPEOF` | spelled | `typeof` | `via Databricks.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
 | `ERROR` | emulated | `raiseEnvelope: raise_error` |  | 70 |
 | `FLOOR_RAW` | emulated | `(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1504,6 +1518,8 @@ Database types planned with it: DuckDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -1683,13 +1699,15 @@ Database types planned with it: ClickHouse.
 | `STRPTIME` | emulated | `composed in a block` | `via ClickHouse.temporal` | 0 |
 | `PARSE_DATE` | emulated | `parseDateTime64BestEffort(…, 6, 'UTC')` | `via ClickHouse.temporal` | 4 |
 | `LIST_REVERSE` | spelled | `arrayReverse` |  | 4 |
-| `TYPEOF` | refused | `typeof reached ClickHouse: its type names are ClickHouse's` | `via ClickHouse.listCall` | 0 |
+| `TYPEOF` | emulated | `replaceRegexpOne(toTypeName(…), '^Nullable\((.*)\)$', '\1')` | `via ClickHouse.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...` |  | 1 |
@@ -1876,6 +1894,8 @@ Database types planned with it: SQLite.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...` |  | 1 |
@@ -2062,6 +2082,8 @@ Database types planned with it: MariaDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatLayout` |  | 40 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` |  | 1 |
@@ -2248,6 +2270,8 @@ Database types planned with it: MySQL.
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
 | `FLOAT_CANON` | emulated | `floatLayout` | `as MariaDb` | 40 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` | `as MariaDb` | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` | `as MariaDb` | 1 |
@@ -2434,6 +2458,8 @@ Database types planned with it: MongoDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
 | `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 0 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 0 |
@@ -2620,6 +2646,8 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` |  | — |
@@ -2806,6 +2834,8 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleH2` | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleH2` | — |
@@ -2992,6 +3022,8 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleDB2, as EngineStyleH2` | — |

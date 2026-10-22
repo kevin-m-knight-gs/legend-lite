@@ -175,6 +175,13 @@ public final class Snowflake extends AnsiSqlRenderer {
         return true;
     }
 
+    /** {@inheritDoc} Spelled here ({@link #floatPrint}, {@link #floatPrintEngine}): the portable spellings read this
+     *  dialect's long double text some nine times (Pure's print form) and over a thousand (legend-engine's text). */
+    @Override
+    protected boolean spellsFloatPrint() {
+        return true;
+    }
+
     /** A dynamic pivot is discovered first: the static form is emulated (PivotAsGroupBy). */
     // the probe plan's facts (2026-10-20): Snowflake: READ COMMITTED only, each statement its own snapshot; no result column limit documented
     @Override
@@ -1361,6 +1368,11 @@ public final class Snowflake extends AnsiSqlRenderer {
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
             case FLOAT_CANON -> floatCanon(writer, a.get(0));
+            // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
+            // it, which is exact, as the portable spelling read it
+            case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT_ENGINE -> isDouble(a.get(0)) ? floatPrintEngine(writer, a.get(0))
+                    : floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1807,6 +1819,49 @@ public final class Snowflake extends AnsiSqlRenderer {
         return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
                 + " AS VARCHAR) || '.0' WHEN " + d.value() + " = 0 THEN '0.0' ELSE " + d.sign() + " || " + d.unfolded()
                 + " END"));
+    }
+
+    /**
+     * Pure's print form of a Float ({@link SqlFn#FLOAT_PRINT}), spelled here from {@link #floatText}'s digits, the value
+     * read once: what the portable spelling (dialect/FloatPrintText) makes of {@link #floatText}'s text, which it read
+     * nine times (Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB, 46 KB of it the text nine times, measured
+     * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value's exact digits under
+     * 10^38 with {@code .0}; a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros trimmed; else
+     * the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
+     */
+    private SqlWriter floatPrint(SqlWriter writer, SqlExpr v) {
+        return writer.piece(shortestDigits(v, d -> {
+            String x = d.value();
+            String fractionFree = x + " = FLOOR(" + x + ") AND ABS(" + x + ") < 1e38";
+            String inRange = "ABS(" + x + ") >= 1e-17 AND ABS(" + x + ") < 9.007199254740992e15";
+            String fixed = "RTRIM(CAST(CAST(IFF(" + inRange + ", " + x + ", NULL) AS NUMBER(38, 18)) AS VARCHAR), '0')";
+            return "CASE WHEN " + nonFinite(x) + " THEN " + javaNonFinite(x) + " WHEN " + x + " = 0 THEN '0.0' WHEN "
+                    + d.exponent() + " BETWEEN -4 AND 15 THEN " + d.sign() + " || " + d.unfolded() + " WHEN "
+                    + fractionFree + " THEN CAST(CAST(IFF(" + fractionFree + ", " + x + ", NULL) AS NUMBER(38, 0)) AS"
+                    + " VARCHAR) || '.0' WHEN " + inRange + " THEN IFF(ENDSWITH(" + fixed + ", '.'), " + fixed + " || '0', "
+                    + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
+                    + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
+        }));
+    }
+
+    /**
+     * legend-engine's text of a Float ({@link SqlFn#FLOAT_PRINT_ENGINE}), spelled here from {@link #floatText}'s digits,
+     * the value read once: Java's {@code Double.toString} layout, plain where the exponent is from -3 to 6 with at least
+     * one fraction digit, else one digit, a point, the rest (or {@code 0}) and {@code E} with the exponent. The portable
+     * spelling took {@link #floatText}'s text apart over a thousand times (Snowflake's served statement for
+     * {@code 1.5 + 2.25} was 6 MB, measured 2026-10-22).
+     */
+    private SqlWriter floatPrintEngine(SqlWriter writer, SqlExpr v) {
+        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN "
+                + javaNonFinite(d.value()) + " WHEN " + d.value() + " = 0 THEN '0.0' WHEN " + d.exponent()
+                + " BETWEEN -3 AND 6 THEN " + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT("
+                + d.digits() + ", 1) || '.' || IFF(LENGTH(" + d.digits() + ") > 1, SUBSTR(" + d.digits() + ", 2), '0')"
+                + " || 'E' || TO_VARCHAR(" + d.exponent() + ") END"));
+    }
+
+    /** Java's name of the non-finite double {@code x}: Snowflake's NaN equals itself and exceeds every number. */
+    private static String javaNonFinite(String x) {
+        return "CASE WHEN " + x + " = 'NaN'::FLOAT THEN 'NaN' WHEN " + x + " > 0 THEN 'Infinity' ELSE '-Infinity' END";
     }
 
     /** A Float's shortest digits as {@link #shortestDigits} reads them: the value (for NaN and the infinities), its

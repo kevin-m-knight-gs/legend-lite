@@ -36,22 +36,22 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 84 | 70 | 50 | 15 | 23 |
-| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 83 | 72 | 49 | 15 | — |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 121 | 8 | 15 | 29 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 103 | 6 | 15 | 32 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 81 | 118 | 5 | 15 | 32 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 123 | 11 | 15 | 30 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 95 | 102 | 7 | 15 | 30 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 59 | 0 | 15 | 38 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 133 | 7 | 15 | 30 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 141 | 7 | 15 | 32 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 146 | 7 | 15 | 31 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 146 | 7 | 15 | 31 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 194 | 10 | 15 | 194 |
-| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 104 | 82 | 18 | 15 | — |
-| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 106 | 80 | 18 | 15 | — |
-| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 107 | 79 | 18 | 15 | — |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 84 | 72 | 50 | 15 | 25 |
+| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 83 | 74 | 49 | 15 | — |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 74 | 124 | 8 | 15 | 31 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 107 | 5 | 15 | 35 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 81 | 121 | 4 | 15 | 35 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 69 | 126 | 11 | 15 | 32 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 95 | 105 | 6 | 15 | 33 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 61 | 0 | 15 | 40 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 136 | 6 | 15 | 33 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 143 | 7 | 15 | 34 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 148 | 7 | 15 | 33 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 148 | 7 | 15 | 33 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 196 | 10 | 15 | 196 |
+| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 104 | 84 | 18 | 15 | — |
+| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 106 | 82 | 18 | 15 | — |
+| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 107 | 81 | 18 | 15 | — |
 
 ## Functions
 
@@ -77,7 +77,7 @@ input).
 | `IS_NULL` | S | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
 | `IS_NOT_NULL` | S | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
 | `IN` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `COALESCE` | S | S | S | S | S | S | S | S | S | E | E | E | E· | E | E | E |
+| `COALESCE` | S | S | E | E | E | E | S | S | S | E | E | E | E· | E | E | E |
 | `PARSE_INT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `CONCAT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `LENGTH` | S | S | E | S | S | E | S | E | E | E | E | E | E· | S | E | S |
@@ -161,7 +161,7 @@ input).
 | `ENCODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | E· | E | E | E |
 | `LEVENSHTEIN` | S | S | E | S | S | S | S | S | E | E | E | E | E· | S | S | S |
 | `GUID` | E | E | E | S | E | S | S | E | E | E | E | E | E· | E | E | E |
-| `FORMAT` | E | E | E | E | S | E | S | S | E | E | E | E | E· | S | S | S |
+| `FORMAT` | E | E | E | E | S | E | E | S | E | E | E | E | E· | S | S | S |
 | `HASH` | R | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `MD5` | E | E | S | S | E | E | S | S | E | E | S | S | R | E | E | E |
 | `SHA1` | E | E | E | S | E | E | S | S | E | E | S | S | R | E | E | E |
@@ -224,13 +224,15 @@ input).
 | `STRPTIME` | S· | S | R | E· | E· | E· | E· | S· | E· | R | R | R | E· | E | E | E |
 | `PARSE_DATE` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `LIST_REVERSE` | R | R | E | S | S | S | S | S | S | E | E | E | E· | E | E | E |
-| `TYPEOF` | R | R | R | R | R | R | R | S· | R | R | R | R | E· | E | E | E |
+| `TYPEOF` | R | R | R | E· | S· | R | S· | S· | E· | R | R | R | E· | E | E | E |
 | `ROUND_HALF_UP` | S | S | E | E | E | E | S | S | E | E | E | E | E· | S | S | S |
 | `ERROR` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
 | `FLOOR_RAW` | S | S | S | S | S | S | E | S | S | S | S | S | E· | S | S | S |
 | `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `BOOL_TO_TEXT` | E | E | E | E | E | E | E | E | S | E | E | E | E· | E | E | E |
 | `FLOAT_CANON` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E· | E | E | E |
+| `FLOAT_PRINT` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
+| `FLOAT_PRINT_ENGINE` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `VARIANT_ELEMENTS` | R | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `VARIANT_GET` | R | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `JSON_TYPE` | S | S | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |

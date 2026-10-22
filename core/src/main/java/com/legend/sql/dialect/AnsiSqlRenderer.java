@@ -118,6 +118,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  dialect's pass list can leave the reads out. */
     protected final java.util.List<com.legend.sql.SqlRewriter> renderPasses() {
         java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
+        // a Float's print forms, expanded before every other pass unless this dialect spells them itself
+        if (!spellsFloatPrint()) {
+            ps.add(new FloatPrintText.Expansion(bindsFloatPrint()));
+        }
         // a Float's literal spelling, expanded before every other pass unless this dialect spells it itself
         if (!spellsFloatCanon()) {
             ps.add(new FloatCanonText.Expansion(bindsFloatText()));
@@ -135,6 +139,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_CANON} itself; else it is expanded before every
      *  other pass ({@link FloatCanonText.Expansion}) to the portable spelling over the double's text. */
     protected boolean spellsFloatCanon() {
+        return false;
+    }
+
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} and
+     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} itself; else they are expanded before every other pass
+     *  ({@link FloatPrintText.Expansion}) to the portable spellings over the double's text. */
+    protected boolean spellsFloatPrint() {
+        return false;
+    }
+
+    /** Whether the print forms' expansion reads the value and its text from a one-row derived table, each written once
+     *  (a dialect whose double text is a long expression and whose derived tables read the row around them). */
+    protected boolean bindsFloatPrint() {
         return false;
     }
 
@@ -987,6 +1004,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  long spells it once, its own way). */
     protected final SqlWriter floatCanonByText(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
         return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
+    }
+
+    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} or
+     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} call): the portable decomposition over the double's text (a
+     *  dialect whose double text is long spells it once, its own way). */
+    protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return writer.expr(FloatPrintText.of(c.fn(), c.args().get(0)), parentPrec);
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----

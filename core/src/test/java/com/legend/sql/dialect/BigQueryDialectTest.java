@@ -45,6 +45,20 @@ class BigQueryDialectTest {
         assertFalse(sql.contains("`t`.`x` AS STRING"), sql);
     }
 
+    /** A Float's print forms read its text once (2026-10-22): the value and its text bound in a one-row derived table
+     *  under a scalar subquery, as the canon's binding; the portable spellings read the text nine times and over a
+     *  thousand, each read its own subquery here (the served statement for {@code 1.5 + 2.25} was 321 KB). */
+    @Test
+    void aFloatsPrintFormsReadItsTextOnce() {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT, SqlFn.FLOAT_PRINT_ENGINE)) {
+            String sql = render(SqlExpr.Call.of(fn, X), null);
+            assertTrue(sql.split("AS BIGNUMERIC", -1).length - 1 == 1, fn + ": " + sql);
+            assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, fn + ": " + sql);
+            assertTrue(sql.contains("AS `__fp0`"), fn + ": " + sql);
+            assertTrue(sql.length() < (fn == SqlFn.FLOAT_PRINT ? 4_000 : 24_000), fn + ": " + sql.length() + ": " + sql);
+        }
+    }
+
     /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError); a DATETIME
      *  through text, since an IF of a DATETIME with an ERROR branch fails before it raises. */
     @Test

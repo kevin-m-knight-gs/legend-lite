@@ -80,6 +80,41 @@ class SnowflakeDialectTest {
     }
 
     /**
+     * A Float's print forms are spelled here, from its digits read once (2026-10-22): Pure's {@code toString} plain where
+     * the exponent is from -4 to 15, legend-engine's text plain from -3 to 6 and with an {@code E} past it. The portable
+     * spellings read the double's text nine times and over a thousand, each read this dialect's long text of it:
+     * the PCT statement for {@code 1.5 + 2.25} was 48 KB and the served one 6 MB. A literal is no double here and
+     * prints through the database's own text of it, as before.
+     */
+    @Test
+    void aFloatsPrintFormsAreSpelledHere_theValueReadOnce() {
+        SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT, SqlFn.FLOAT_PRINT_ENGINE)) {
+            String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+                    SqlExpr.Call.of(fn, x), "p", null)), false, new SqlSource.Table("t", "t",
+                    List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
+                    com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
+            assertTrue(sql.split("\"t\"\\.\"x\"", -1).length - 1 == 1, fn + ": " + sql);
+            assertTrue(sql.split("AS NUMBER\\(38, 28\\)", -1).length - 1 == 1, fn + ": " + sql);
+            assertTrue(sql.length() < 8_000, fn + ": " + sql.length() + " characters: " + sql);
+            assertFalse(sql.contains("(SELECT"), fn + ": " + sql);
+            if (fn == SqlFn.FLOAT_PRINT) {
+                assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
+                assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
+                assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
+            } else {
+                assertTrue(sql.contains(" BETWEEN -3 AND 6 THEN "), sql);
+                assertTrue(sql.contains(" || 'E' || TO_VARCHAR("), sql);
+            }
+            assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
+        }
+        String literal = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+                SqlExpr.Call.of(SqlFn.FLOAT_PRINT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
+                new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
+        assertFalse(literal.contains("NUMBER(38, 28)"), literal);
+    }
+
+    /**
      * A ranking window with no order is ordered by a constant (2026-10-21): Snowflake refuses ROW_NUMBER() OVER ()
      * ("requires ORDER BY in window specification"), which the judges' verdict numbers a side with -- 261 channel B
      * tests on the lane at 08ac296d. A value's type is its VARIANT's TYPEOF, a DATE's 'DATE' (SYSTEM$TYPEOF aborted
