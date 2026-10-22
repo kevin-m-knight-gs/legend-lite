@@ -52,7 +52,9 @@ class BigQueryDialectTest {
     void aFloatsPrintFormsReadItsTextOnce() {
         for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT, SqlFn.FLOAT_PRINT_ENGINE)) {
             String sql = render(SqlExpr.Call.of(fn, X), null);
-            assertTrue(sql.split("AS BIGNUMERIC", -1).length - 1 == 1, fn + ": " + sql);
+            // the double's text once (its own BIGNUMERIC read; the print form's HUGEINT and DECIMAL casts are BIGNUMERIC
+            // here too)
+            assertTrue(sql.split("SAFE_CAST\\(`__fv` AS BIGNUMERIC\\)", -1).length - 1 == 1, fn + ": " + sql);
             assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, fn + ": " + sql);
             assertTrue(sql.contains("AS `__fp0`"), fn + ": " + sql);
             assertTrue(sql.length() < (fn == SqlFn.FLOAT_PRINT ? 4_000 : 24_000), fn + ": " + sql.length() + ": " + sql);
