@@ -54,6 +54,14 @@ item below has its `file:line` there.
   files={name: path})`), each checked against the hash the page names; one not given is refused in words, as the tab asks
   the person for it. A remote file is mounted again by its URL. The keeper keeps each file's table while a page reads
   it, as it keeps copies.
+- **D15** (the user, 2026-10-22, after S5) No lock held across a call into DataCube's code and back: the `engine`
+  host call answered on its caller's thread, holding the frames' lock (S5's way of asking Python's engine from inside
+  V8), is replaced -- each call into DataCube works from what Python serves as the call starts (a snapshot of its own),
+  so a callback it makes is answered with no lock its caller holds and no plan on the caller's thread. Built after S5,
+  before S6.
+- **D16** (the user, 2026-10-22, after S5) One rows path: a grid's rows planned and run one way, whatever its base and
+  whoever asks (the tab, a widget, Python's `view` and `to_pandas`), not a frame's path and an engine leaf's chosen by
+  the base's `runs`. Built after S5, before S6.
 
 ## 0. Why the nine attempts before this one did not finish
 
@@ -398,7 +406,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **Z18** the saved-page record — closed S5: page-document.ts `savedRecord(id, name, page)`, the Save window's,
   which Python's `save()` asks through headless `pageRecord` (page-document.test.ts, test_page.py)
 - [ ] **Z19** headless exports Python never calls (`pageFilter`, `joinQuestions`) used by S6's API, stale comments
-  fixed — S6, L8
+  fixed — S6, L8 (S5, B11: `joinQuestions` is asked now, by engine.py's `join.json` for the tab's Join…; `pageFilter`
+  is left)
 
 ### Same job, different rule (audit §6)
 - [x] **B1** page filters reach Python's `view()`, `to_pandas()`, `export()` (headless through `gridLens`) — closed S5:
@@ -436,7 +445,15 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   kept page, opened again over the frame's new columns as the page has it -- in Python by the page, in a tab or a
   widget by `followed` opening the page (datacube-app.ts) -- the grid's edits kept (test_show.py
   `test_a_frame_s_new_columns_keep_the_grid_s_edits`)
-- [ ] **B11** Join on both sides over every source kind — S5, L10
+- [x] **B11** Join on both sides over every source kind — closed S5: the tab's Join… on a Python page (which has no
+  database of its own there) asks Python each of its window's answers -- the two sides, what the join will do, the
+  join's grid -- and Python answers each by DataCube's own code over its tables (engine.py `join.json`: headless
+  `joinSides`, `joinQuestions`, `joinCube`, as `page.join` asks them; join-flow.ts `hostJoinFlow`), the grid it made
+  opened as a saved join of the page is (`opened.json`) and added beside the grid joined. Each side joins the tables of
+  the database it plans on by one rule (join-open.ts `leafRefusal` over `TAB_TABLES`, `HOST_TABLES`): a class, a saved
+  query or a warehouse table is refused as a join's input on both, in the same words (§17.3: one model, one
+  connection) -- a limit both share, said, not a difference between them (host-join-flow.test.ts, test_page.py
+  `Joined.test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers`)
 - [x] **B12** ids held (with H3) — closed S4: one held set -- the keeper's, from the applied commands, which the tab
   reads with the page and its state holds (`PageApp.restore`'s `held`) and Python takes with it -- so neither side gives
   out an id the keeper has said it held (test_one_api.py, page-app.test.ts, datacube-app-live.test.ts: F23). A write
@@ -979,3 +996,64 @@ against the code without it and failed. CI: not run -- still waiting on the user
 `gate.yml` on `claude/datacube-query-base`).
 
 **Next.** S5.
+
+## As built (S5, 2026-10-22)
+
+**Built** (the step's commits after ad5e07aca, each closing its items with a test that fails without it):
+
+- *Python's copies gone.* Each rule Python kept of its own is DataCube's function, asked headless: the model actions
+  over `model-changes/`, `model.py` deleted (Z4-Z7, D4), the page's state holding its model and a model action's record
+  applied as commands, no undo step (P15, D5); a grid's base on the host (Z15); a filter's shape and values -- Python
+  only tags what JSON cannot carry (Z12, D12); a page's ids (Z2); a new grid's commands in a person's order (Z8); a
+  join's inputs' names and places (Z9); the snap limit's sentence (Z16); the saved-page record (Z18, B4); whose a copy
+  is, the keeper's one model (Z17: known limit 6 closed); a stack and a detached chart (Z13, B8). Python's
+  `L6_FUNCTIONS` 8 -> 0.
+- *One rule for each §6 row.* One unnamed new page and one skeleton (B3, B9, D11); one page-file rule (B5); one
+  "nothing to save" sentence, empty pages shown from Python (B14, B6); one saved record per page, kept in the page
+  (B13); `ll.show(df)` a kept page of one grid whose frame's new columns keep its edits (P12, B10); the engine's
+  `serve_page` and `close_page` deleted (Y6); the tab's Join… on a Python page (B11).
+- *Every source on a Python page* (D3; X1-X3, X5, B7, Z14; D13, D14). headless host-tables.ts `leafOnHost`, the one
+  rule of where a cube's leaf is read: a frame, a file (by its bytes' hash) or a remote file (by URL) on the host's
+  database; a class through its project at its revision in the host's model home; a saved query through its project's
+  version in the host's depot; a warehouse table under the session the host's engine holds, signed in by a tab (D13).
+  The class and saved-query rules are the tab's own, moved out to be shared (class-source.ts `classOpened`,
+  saved-queries.ts `savedQueryOpened`). Python's frames-only check is deleted; the keeper keeps the files and remote
+  files a page reads as it keeps copies (`pageReads`, keeper.py `HOLDS`); `Page.load(..., files=)` is given a page's
+  files, each checked against the hash the page names (D14); `page.grid(file=, remote=)` adds such grids. A page's
+  filters reach Python's `view`, rows and export by the screen's own rule (B1: page-filters.ts `gridLens`).
+
+**Deviations from the plan's wording, and limits, each said.**
+
+- *Callbacks under the frames' lock.* A class, saved-query or warehouse leaf's rows are planned by Python's engine,
+  asked from inside DataCube's code in V8 (a new host call, `engine`). Python answers it on the thread of the caller
+  whose call asked it, which holds the frames' lock (re-entrant), so nothing waits on a lock its caller holds. It works
+  and is tested, but it plans some queries on the caller's thread rather than the compiler's pool, and the lock is held
+  across calls into V8 and back. The user approved replacing it after S5 (D15).
+- *Two rows paths.* A frame's, a file's or a remote file's grid is planned by DataCube's PlanThenRun over the host's
+  DuckDB; an engine leaf's by the tab's own `pythonRunner` over Python's engine; Python's `to_pandas` chooses between
+  them by the base's `runs`. One rows path for every caller is D16, after S5.
+- *Added from Python is S6's.* S5 reads, edits and saves a page over a warehouse table, a saved query or a class (loaded
+  from a saved page, or added by the tab); a Python method that adds such a grid is X4, open, S6's.
+- *Stand-ins.* The container has no warehouse and no depot holding saved queries: `OverWarehouse` runs against a
+  stand-in driver, and `OverSavedQueries` patches the host's fetch to serve a saved query's project as the depot's API
+  does. X5's saved-query half is so tested against DataCube's client and Python's route, not a real depot.
+- *A join reads one database.* A class, a saved query or a warehouse table is refused as a join's input, on both sides,
+  in the same words (§17.3) -- B11 closed on the same rule both sides run, not on every kind joined.
+- *Rewritten tests.* Tests that pinned the old refusals ("Trade is not read here", the frames-only rule) now pin the
+  model home's refusal and the leaves read; `cubeOpenedAgain`'s guard against non-frame sources is deleted (which
+  sources a host reads is `onHost`'s to say), with a test of a cube over a file opened again.
+- *Exit crash fixed on the way.* The session handed its engine a function of the module to answer through; the cycle
+  through the module's globals crashed the interpreter as it ended (model_test exited 139 after passing). It is a
+  `weakref.WeakMethod` now, with a subprocess test that fails without it (test_model.py `AtTheEnd`).
+
+**Ledgers** (from the step's start, after D10's sign-off). TS: `L1_REACH` 9 -> 6, `L1_PLANE` 4 -> 3, `L1_HOST`
+12 -> 8, `L8_SOURCES` 5 -> 3, `L8_UNASKED` 2 -> 1, `MARKERS` 10 -> 0. Python: `L6_FUNCTIONS` 8 -> 0, `MARKERS` 15 -> 1
+(the one left pins `_apply_page`'s binding, allowed), `BEHAVIOUR` 1 -> 0, `L9_KEEPER` 8 -> 6. Each move dated in its
+file. Nothing grew.
+
+**Gates.** `//datacube/... //python:engine_test //python:headless_test //python:notebook_test //python:model_test //model-changes:replay_test` (196 targets: at the step's last run 194 passed, and the two that failed -- B11's own new tests, one missing its fixture's Bazel data, one asserting the wrong protocol node -- pass since), `verify_app` as the container's unprivileged user and `//python:wheel_test` green at each of the step's commits. CI on pull request #64: f77075161 green on every job; 0ab550e5b green but one lane, parser equivalence, which failed fetching a reference file from gitlab.com (a 404 from outside this change; a re-run not permitted to this session), re-run by the next push.
+
+**Not done in S5.** The independent audit of S5's commits has not run; whether to run it now (a fresh reviewer looking
+for test-gaming, overclaimed items and the stand-ins above) is with the user.
+
+**Next.** D15 and D16, then S6.

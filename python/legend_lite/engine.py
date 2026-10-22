@@ -90,6 +90,10 @@ _FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
 # a saved grid of a page Python serves, opened by Python over its frames as they are now (§18.3): a join of frames, which
 # the page cannot open itself -- it has no compiler and no database of its own on Python's page
 _OPENED = '/opened.json'
+# a join of two of a page's grids asked by a tab on a page Python serves, which has no database of its own here
+# (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11): its two sides, what it will do, its grid -- each DataCube's own code's,
+# headless, over the tables Python serves, as page.join asks it
+_JOIN = '/join.json'
 # the most rows a Snap copies into Python's DuckDB: Python's own limit, a fact of the database the copy lands in (this
 # machine's), as the tab's (snap.ts MAX_SNAP_ROWS) is of its own (the browser's memory) -- the two need not agree (the
 # user and the DataCube + Python line, 2026-10-15)
@@ -257,7 +261,7 @@ def private(path: str) -> bool:
     token. The site's files are the page's own and carry no secret."""
     return path.startswith('/api/') or _model_home(path) or path in (
         '/cube.json', '/version.json', '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _SERVICES,
-        _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP, _OPENED)
+        _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP, _OPENED, _JOIN)
 
 
 def _saved_query(path: str) -> bool:
@@ -492,6 +496,8 @@ class Engine:
                 return self._snap_said(body or '')
             if path == _OPENED:
                 return _workers().submit(self._opened_said, body or '').result()
+            if path == _JOIN:
+                return _workers().submit(self._join_said, body or '').result()
             if not path.startswith(_API):
                 return _said(404, f'no such path: {path}')
             return _workers().submit(self._api, path, query, body or '').result()
@@ -1091,6 +1097,52 @@ class Engine:
         read = sorted({leaf['name'] for leaf in leaves if leaf['_type'] == 'frame'})
         answer = {**made, 'frames': {name: self.version(name) for name in read}}
         return Answer(200, 'application/json', _json.dumps(answer).encode('utf-8'))
+
+    def _join_said(self, body: str) -> Answer:
+        """A JOIN OF TWO OF A PAGE'S GRIDS for a tab on a page Python serves, which has no database of its own here
+        (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11): ``{"op", "page", "mine", "theirs", "how", "sheet"}`` -- the page
+        as the tab holds it (its document's text), the grids joined by their tiles' ids, how they join (not asked of
+        ``sides``), the sheet a join's grid goes on (``cube``'s alone) -- answered by DataCube's own code, headless, over
+        the frames held still and the files and remote files this engine read in, as page.join asks it: ``sides``
+        (joinSides: each side's relation and columns, and what drifted), ``questions`` (joinQuestions: what it will do)
+        and ``cube`` (joinCube: the addGrid command of its grid, which the tab opens as a saved join of the page). Read
+        and written exactly (a condition's decimal keeps its digits); refused in DataCube's words."""
+        try:
+            asked = _json.loads(body)
+        except ValueError:
+            return _said(400, 'a join is JSON')
+        shape = 'a join is {"op": "sides" | "questions" | "cube", "page": its document\'s text, "mine", "theirs", ' \
+                '"how" (but sides), "sheet" (cube)}'
+        if not isinstance(asked, dict) or asked.get('op') not in ('sides', 'questions', 'cube') \
+                or not all(isinstance(asked.get(k), str) for k in ('page', 'mine', 'theirs')):
+            return _said(400, shape)
+        op = asked['op']
+        if (op != 'sides' and 'how' not in asked) or (op == 'cube' and not isinstance(asked.get('sheet'), str)):
+            return _said(400, shape)
+        if self._headless is None:
+            return _said(404, 'this engine makes no join: legend-lite makes one with DataCube\'s own code, headless, '
+                              'which this engine was not given')
+        try:
+            # asked for before the frames are held (the session's lock first, then the frames')
+            headless = self._headless()
+        except Exception as failure:
+            return _said(422, f'{type(failure).__name__}: {failure}')
+        spec = {'page': asked['page'], 'mine': asked['mine'], 'theirs': asked['theirs']}
+        with self.frames.serving():
+            spec['host'] = self.frames.hosted()
+            try:
+                if op == 'sides':
+                    said = headless.call('joinSides', _json.dumps(spec))
+                elif op == 'questions':
+                    said = headless.call('joinQuestions', _json.dumps({**spec, 'how': asked['how']}))
+                else:
+                    said = headless.call('joinCube', _json.dumps({**spec, 'how': asked['how'], 'sheet': asked['sheet'],
+                                                                  'title': None}))
+            except Exception as refused:
+                # DataCube's refusal (a grid not on the page, a leaf read elsewhere, a condition the compiler refuses),
+                # in its words, from V8
+                return _said(422, f'{type(refused).__name__}: {refused}')
+        return Answer(200, 'application/json', said.encode('utf-8'))
 
     def snap_copy(self, model: str, runtime: str, pull: str) -> dict[str, Any]:
         """A GRID'S BASE QUERY COPIED (Snap, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8), for a page in Python: the
@@ -1849,7 +1901,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         # saved pages, the page's settings, PlanAndRun's calls, a warehouse's and a grid's Snap
         if not (url.path.startswith(_API) or url.path.startswith(_LITE_API) or _model_home(url.path) or url.path in (
                 '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLAN, _WAREHOUSE,
-                _SNAP, _OPENED)):
+                _SNAP, _OPENED, _JOIN)):
             self._refuse_unread(404, f'no such path: {url.path}')
             return
         if not self._admitted(url.path):

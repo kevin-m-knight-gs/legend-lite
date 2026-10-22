@@ -1701,6 +1701,51 @@ class Joined(Paged):
         # every column of theirs kept (keep None): the new one among them, under its own name (mine has none of it)
         self.assertIn('floor', list(grid.to_pandas().columns))
 
+    def test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers(self):
+        # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11: the tab's Join… on a page Python serves, which has no database of
+        # its own here -- each of its window's asks answered by DataCube's own code over Python's tables (join.json:
+        # headless joinSides, joinQuestions, joinCube), as page.join asks them; applied, the grid it made opened as a
+        # saved join of the page is (opened.json)
+        page = ll.Page('Joins')
+        mine = page.grid(trades(), name='trades')
+        theirs = page.grid(desks(), name='desks')
+        engine = datacube._session.engine()
+        doc = _json.dumps(page.to_dict())
+
+        def asked(op, **more):
+            answer = engine.answer('POST', '/join.json', '', _json.dumps(
+                {'op': op, 'page': doc, 'mine': mine.id, 'theirs': theirs.id, **more}))
+            return answer.status, answer.body.decode('utf-8')
+
+        status, body = asked('sides')
+        self.assertEqual(status, 200, body)
+        sides = json.loads(body)
+        self.assertEqual([sides['left']['name'], sides['right']['name']], ['trades', 'desks'])
+        self.assertEqual([c['name'] for c in sides['right']['columns']], ['desk', 'head'])
+        self.assertEqual(sides['left']['relation']['_type'], 'func', 'the relation a join reads, as the protocol writes it')
+        self.assertEqual(sides['notes'], [])
+        status, body = asked('questions', how=self.HOW)
+        self.assertEqual(status, 200, body)
+        said = json.loads(body)
+        self.assertEqual((said['counts']['mine'], said['counts']['matched']), (3, 3))
+        self.assertTrue(said['words'], 'and in the window\'s words')
+        status, body = asked('cube', how=self.HOW, sheet=page.sheets[0].id)
+        self.assertEqual(status, 200, body)
+        command = json.loads(body)['command']
+        self.assertEqual((command['kind'], command['near'], command['sheet']), ('addGrid', mine.id, page.sheets[0].id))
+        self.assertEqual(command['document']['source']['name'], 'trades \u22c8 desks', 'named as page.join names it')
+        opened = engine.answer('POST', '/opened.json', '', json.dumps(
+            {'cube': json.dumps(command['document']), 'page': page.name, 'gridsOnPage': 3}))
+        self.assertEqual(opened.status, 200, opened.body)
+        self.assertEqual(sorted(json.loads(opened.body)['frames']), ['desks', 'trades'], 'its rows read over both frames')
+        # refused in DataCube's words (the compiler's: a column neither grid has), and a malformed ask in the route's
+        status, body = asked('questions', how={**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
+        self.assertEqual(status, 422)
+        self.assertIn('nope', body)
+        self.assertEqual(asked('cube', how=self.HOW)[0], 400, 'a grid is added on a sheet')
+        self.assertEqual(engine.answer('POST', '/join.json', '', '{"op": "sides"}').status, 400)
+        self.assertEqual(len(page.grids), 2, 'asking adds nothing to the page: the tab adds the grid')
+
     def test_shown_served_with_both_frames_versions(self):
         page, joined = self.joined()
         tab = ll.show(page, browser=False)

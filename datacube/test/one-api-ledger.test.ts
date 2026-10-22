@@ -53,9 +53,12 @@ interface Entry {
 // rows where the host's engine reads them; the refusal of the rest gone with them
 // 2026-10-22 (S5, B1): MARKERS 2 -> 1 -- a page's filters reach Python's view, rows and export (headless grid.ts lensOf:
 // page-filters.ts gridLens, the screen's own rule)
+// 2026-10-22 (S5, B11): MARKERS 1 -> 0, L8_UNASKED 2 -> 1 -- the tab's Join… on a Python page, each of its window's asks
+// answered by Python over its tables (engine.py join.json: headless joinSides, joinQuestions, joinCube; join-flow.ts
+// hostJoinFlow), tested by host-join-flow.test.ts and test_page.py Joined
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 11, L8_SOURCES: 3, L8_UNASKED: 2, MARKERS: 1, UNCHECKED: 7,
+  L8_KINDS: 11, L8_SOURCES: 3, L8_UNASKED: 1, MARKERS: 0, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -238,7 +241,6 @@ const PYTHON_ADDS: Record<string, string> = { frame: 'gridCube', join: 'joinCube
 /** Headless exports Python never asks (`call('<name>'`): each one Python should. */
 const L8_UNASKED: Record<string, Entry> = {
   pageFilter: { items: ['Z19'] },
-  joinQuestions: { items: ['Z19'] },
 };
 
 /**
@@ -369,7 +371,6 @@ const MARKERS: readonly Marker[] = [
   // the board a cube alone shows its charts on is given no way to tell its page's edits
   // derived state, and what the keeper keeps
   // the browser's half of the same jobs done by different rules
-  { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
 ];
 
 describe('the gaps no scan reaches, pinned by their code', () => {

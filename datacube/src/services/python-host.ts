@@ -47,6 +47,9 @@ import { ExactNumber, fromJson, readValueSpecification, type ValueSpecification 
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
 import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
+import { readCube } from '../cube-document.ts';
+import type { JoinHow, JoinSide } from '../join-how.ts';
+import type { JoinSummaryCounts } from '../join.ts';
 import { PlanAndRun, QueryFailure } from '../runner.ts';
 import { readGridCommand } from '../grid-commands.ts';
 import type { InferredModel } from '../infer.ts';
@@ -457,10 +460,19 @@ function pythonModelHome(link: PythonLink, where: string, apps: readonly string[
 
 /** A call carrying JSON to Python: its answer's text, or -- refused -- Python's reason. */
 async function posted(link: PythonLink, path: string, body: unknown, keepalive = false): Promise<string> {
+  return postedText(link, path, JSON.stringify(body), keepalive);
+}
+
+/** A join.json call's page and grids, as JSON members. */
+const joinOf = (page: string, mine: string, theirs: string): string =>
+  `"page":${JSON.stringify(page)},"mine":${JSON.stringify(mine)},"theirs":${JSON.stringify(theirs)}`;
+
+/** The same, its body JSON text already (a join's condition written as the protocol writes it: its numbers exact). */
+async function postedText(link: PythonLink, path: string, body: string, keepalive = false): Promise<string> {
   const answer = await link.fetch(`${link.baseUrl}/${path}`, {
     method: 'POST',
     headers: { ...headers(link), 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body,
     // a request that outlives its page (a copy let go as the tab closes)
     ...(keepalive ? { keepalive } : {}),
   }).catch((e: unknown) => { throw new Error(`the engine did not answer: ${String(e)}`); });
@@ -492,6 +504,29 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
           cube: said.cube, notes: said.notes, taken: said.taken, model: said.model, runtime: said.runtime, relation: relation.body[0]!,
           frames: Object.fromEntries(Object.entries(said.frames).map(([name, v]) => [name, Number(v.text)])),
         };
+      },
+    } : {}),
+    // a join of two of the page's grids, made by Python over its tables -- this page has no database of its own there
+    // (B11): each answer DataCube's own code's, run there (headless join.ts), read as the protocol's exact JSON
+    ...(offers.files ? {
+      join: {
+        sides: async (page: string, mine: string, theirs: string) => {
+          const said = fromJson(await posted(link, 'join.json', { op: 'sides', page, mine, theirs })) as {
+            left: { name: string; relation: unknown; columns: { name: string; type: string }[] };
+            right: { name: string; relation: unknown; columns: { name: string; type: string }[] }; notes: string[];
+          };
+          const side = (s: typeof said.left): JoinSide => ({ name: s.name, relation: readValueSpecification(s.relation), columns: s.columns });
+          return { left: side(said.left), right: side(said.right), notes: said.notes };
+        },
+        questions: async (page: string, mine: string, theirs: string, how: JoinHow) => (JSON.parse(await postedText(link, 'join.json',
+          `{"op":"questions",${joinOf(page, mine, theirs)},"how":${toJson(how)}}`)) as { counts: JoinSummaryCounts }).counts,
+        cube: async (page: string, mine: string, theirs: string, how: JoinHow, sheet: string) => {
+          const said = fromJson(await postedText(link, 'join.json',
+            `{"op":"cube",${joinOf(page, mine, theirs)},"how":${toJson(how)},"sheet":${JSON.stringify(sheet)}}`)) as {
+            command: { document: unknown };
+          };
+          return readCube(said.command.document);
+        },
       },
     } : {}),
     // a grid's Snap (§18.3): the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are

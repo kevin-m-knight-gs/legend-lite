@@ -11,7 +11,7 @@ import { classOpened, type ClassElement } from '../class-source.ts';
 import {
   leavesOf, type ClassSource, type CubeSource, type JoinSource, type LeafSource, type QuerySource, type WarehouseSource,
 } from '../cube-document.ts';
-import { leafRefusal, type TableKind } from '../join-open.ts';
+import { HOST_TABLES, leafRefusal } from '../join-open.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { savedQueryOpened, type QueryReading } from '../saved-queries.ts';
 import { CubeRefusal } from '../snapshot.ts';
@@ -67,9 +67,6 @@ export interface LeafOnHost {
   readonly table?: string;
   readonly leaf?: HostLeaf;
 }
-
-/** The kinds of leaf that are tables of the host's database (join-open.ts TableKind): what a join on the host reads. */
-export const HOST_TABLES: readonly TableKind[] = ['frame', 'file', 'remoteFile'];
 
 /**
  * WHERE A CUBE'S LEAF IS READ ON ITS HOST, the one rule (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B7, X1, D13, D14): a

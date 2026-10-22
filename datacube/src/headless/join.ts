@@ -8,7 +8,7 @@ import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
 import { cubeToJson, gridCapped, rebuilt, writeCube, type JoinInput, type JoinSource } from '../cube-document.ts';
-import { openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
+import { HOST_TABLES, openInputs, openJoin, summaryCounts, type JoinOpening, type OpenedJoin } from '../join-open.ts';
 import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from '../join.ts';
 import { joinInputOf } from '../page-commands.ts';
 import { readPage, type PageDocument } from '../page-document.ts';
@@ -16,7 +16,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { TreeState } from '../tree.ts';
 import { catalogColumns } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
-import { HOST_TABLES, leafTables, type HostTables } from './host-tables.ts';
+import { leafTables, type HostTables } from './host-tables.ts';
 
 /** What a host hands in: its page, the two grids joined, how they join, and the table of its database each one reads. */
 export interface JoinSpec {
@@ -38,9 +38,11 @@ export interface JoinAdded {
   readonly title: string | null;
 }
 
-async function read(spec: string): Promise<{
-  readonly page: PageDocument; readonly mine: string; readonly left: JoinInput; readonly right: JoinInput; readonly how: JoinHow;
-  readonly tables: readonly string[]; readonly added?: JoinAdded;
+/** A join's two inputs as a host hands them in (JoinSpec, its `how` aside): each grid as the page has it, and the tables
+ *  they read. */
+async function inputsOf(spec: string): Promise<{
+  readonly s: JoinSpec & Partial<JoinAdded>; readonly page: PageDocument; readonly mine: string; readonly left: JoinInput;
+  readonly right: JoinInput; readonly tables: readonly string[];
 }> {
   // the protocol's exact JSON: a cube's numbers, and a condition's in Pure, kept as they are
   const s = fromJson(spec) as unknown as JoinSpec & Partial<JoinAdded>;
@@ -49,8 +51,16 @@ async function read(spec: string): Promise<{
   const right = joinInputOf(page, s.theirs);
   // each input's leaves' tables, as the host reads them (the one rule: host-tables.ts leafTables), mine's then theirs'
   const tables = [...await leafTables(left.source, s.host), ...await leafTables(right.source, s.host)];
+  return { s, page, mine: s.mine, left, right, tables };
+}
+
+async function read(spec: string): Promise<{
+  readonly page: PageDocument; readonly mine: string; readonly left: JoinInput; readonly right: JoinInput; readonly how: JoinHow;
+  readonly tables: readonly string[]; readonly added?: JoinAdded;
+}> {
+  const { s, ...inputs } = await inputsOf(spec);
   return {
-    page, mine: s.mine, left, right, how: readJoinHow(s.how), tables,
+    ...inputs, how: readJoinHow(s.how),
     ...(s.sheet !== undefined ? { added: { sheet: s.sheet, title: s.title ?? null } } : {}),
   };
 }
@@ -120,6 +130,21 @@ export async function joinCube(spec: string): Promise<string> {
  */
 export async function joinOpenedOn(source: JoinSource, tables: readonly string[]): Promise<OpenedJoin> {
   return using((o) => openJoin(source, o), tables);
+}
+
+/**
+ * A JOIN'S TWO SIDES, BEFORE IT IS MADE (what the Join window shows and suggests keys from: join.ts suggestedKeys): each
+ * grid's result as a join reads it, its columns as the compiler types them, and what drifted in an input since -- for a
+ * tab on the host's page, which has no database of its own there (its Join…: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+ * B11). JoinSpec, its `how` not asked. JSON: `{left, right, notes}`, each side `{name, relation, columns}` (join-how.ts
+ * JoinSide), as the protocol writes it.
+ */
+export async function joinSides(spec: string): Promise<string> {
+  const s = await inputsOf(spec);
+  return using(async (o) => {
+    const inputs = await openInputs(s.left, s.right, o);
+    return toJson({ left: inputs.left, right: inputs.right, notes: inputs.notes });
+  }, s.tables);
 }
 
 /**

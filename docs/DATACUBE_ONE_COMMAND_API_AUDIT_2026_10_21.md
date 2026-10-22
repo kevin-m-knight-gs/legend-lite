@@ -164,7 +164,7 @@ Python never calls two headless exports: `pageFilter` and `joinQuestions` (`entr
 | A detached chart going live | not allowed (cube-page.ts:999) | allowed (page.py:747-763) |
 | New page skeleton | `page.clear()`, name `''` | `pageNew`, which refuses a blank name |
 | Frame columns change | `ll.show(df)` loses grid edits | `ll.Page` keeps them |
-| Join | local engine only; not of frames | of frames |
+| ✓ Join | local engine only; not of frames | of frames |
 | Ids held | the board's held set | `freshId(takenIds)`; the host records only the written page's ids (an id given and removed within one write may be given again) |
 | Saved-page id | `crypto.randomUUID`, `current.cubeId` | `uuid4`, `page._saved`: saving one live page on both sides makes two records |
 | "Nothing to save" | "There is nothing on this page to save: add a data source first." | "cannot read saved page: it has no cube -- in Python, page.grid(frame) adds one" |

@@ -18,7 +18,7 @@ import {
   gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOpenedLive, pageRead, pageReads, pageRebase,
   pageRecord, pageSaved, pageWithCube, pageWritten,
 } from './page.ts';
-import { joinCube, joinQuestions } from './join.ts';
+import { joinCube, joinQuestions, joinSides } from './join.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -84,9 +84,9 @@ export { gridSnapped };
 export { nameGiven };
 
 /** A join of two of a page's cubes over the host's tables (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.4): the join's
- *  grid's cube document, for the page command addGrid, and what the join will do before it is made -- the tab's Join…,
- *  with no screen. */
-export { joinCube, joinQuestions };
+ *  grid's cube document, for the page command addGrid, what the join will do before it is made, and its two sides as the
+ *  Join window shows them -- the tab's Join…, with no screen, and its answers for a tab on the host's page (B11). */
+export { joinCube, joinQuestions, joinSides };
 
 /** What DataCube's code runs on in this host: its planner's worker, and the database. */
 export interface Headless {

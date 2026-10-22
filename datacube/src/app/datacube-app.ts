@@ -240,12 +240,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             ...(cls !== undefined && classGrid
               ? [{ id: CLASS_GRID_ID, label: `Add a Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'data' as const }] : []),
             // a grid that reads tables of the tab's database: a join of it reads them in one place (§17.3)
-            ...(joinGrid && place.tables ? [JOIN] : []),
+            ...(joinGrid?.offered(place) ? [JOIN] : []),
           ];
         },
         onHostMenu: (item) => {
           if (item.id === CLASS_GRID_ID) classGrid?.(spawned.id);
-          else if (item.id === JOIN.id) joinGrid?.(spawned.id);
+          else if (item.id === JOIN.id) joinGrid?.open(spawned.id);
           else if (item.id === CREATE_CLASS.id) createClass?.(created, place, spawned.id);
           else if (item.id === CREATE_ASSOCIATION.id) createAssociation?.(spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id]);
           else onHostItem(item);
@@ -359,8 +359,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let createDataSpace: (() => void) | undefined;
   /** ADD A GRID OVER <CLASS> (§16.1): the class grid `cube` was made, read beside it at the page's pin. */
   let classGrid: ((cube: string | undefined) => void) | undefined;
-  /** JOIN… (§17.5): grid `cube` joined to another of the page, in the tab, where a grid reads tables of its database. */
-  let joinGrid: ((cube: string | undefined) => void) | undefined;
+  /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
+   *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
+  let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined) => void } | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
@@ -1233,17 +1234,25 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page.addGrid(opened.make, { near: cube });
       })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
-    // JOIN… (§17.5): only where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); its
-    // flow fetched with the first Join… (app/join-app.ts)
+    // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
+    // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).
+    // Its flow fetched with the first Join… (app/join-app.ts)
     const localEngine = services.engine.local;
-    if (localEngine) joinGrid = (cube) => {
-      if (cube === undefined) return;
-      const shown = placed;
-      void import('./join-app.ts').then(({ joinFlow }) => joinFlow({
-        cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } },
-        stillShown: () => placed === shown,
-        say: (text) => library?.say(text, 'warn'),
-      })).catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
+    const hostJoin = services.engine.database.join;
+    if (localEngine || hostJoin) joinGrid = {
+      // a grid of the tab's tables; on a host's page any grid written down by a source (what it reads is the host's to
+      // refuse, in words, before the window opens: join-flow.ts hostJoinFlow)
+      offered: (place) => (localEngine ? place.tables !== undefined : place.cubeSource !== undefined),
+      open: (cube) => {
+        if (cube === undefined) return;
+        const shown = placed;
+        const stillShown = () => placed === shown;
+        const say = (text: string) => library?.say(text, 'warn');
+        void import('./join-app.ts').then(({ joinFlow, hostJoinFlow }) => (localEngine
+          ? joinFlow({ cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } }, stillShown, say })
+          : hostJoinFlow({ cube, page, sources, join: hostJoin!, parse: (text) => services.engine.reading.parse(text), stillShown, say })))
+          .catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
+      },
     };
 
     /** The chosen source IN PLACE of the page: it empties, then one grid over the source (its only one: gridCapped). */

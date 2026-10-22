@@ -2,5 +2,5 @@
 // opened, behind one import -- each lazy module that shares the page's start-up code splits it into more chunks, so the
 // join's code is one (test/bundle-budget.test.ts).
 
-export { joinFlow } from './join-flow.ts';
+export { hostJoinFlow, joinFlow } from './join-flow.ts';
 export { openedJoin } from './join-sources.ts';

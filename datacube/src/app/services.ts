@@ -17,9 +17,12 @@ import type { QueryReader } from '../../../query-store/src/index.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { Planner } from '../cube.ts';
+import type { CubeDocument } from '../cube-document.ts';
 import type { CubeStore } from '../cube-store.ts';
 import type { FileHandles } from '../file-handles.ts';
 import type { InferredModel, TableModels } from '../infer.ts';
+import type { JoinHow, JoinSide } from '../join-how.ts';
+import type { JoinSummaryCounts } from '../join.ts';
 import type { PageDocument } from '../page-document.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { GridCommand } from '../grid-commands.ts';
@@ -181,6 +184,23 @@ export interface DatabaseService {
    * §18.3). `cube`: its document's text; `page`: its page's name; `gridsOnPage`: how many grids the page holds.
    */
   readonly opened?: (cube: string, page: string, gridsOnPage: number) => Promise<HostOpened>;
+  /** A join of two of the page's grids made by the host over its tables (HostJoin): where the page has no database of
+   *  its own there, its Join… asks the host (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11). */
+  readonly join?: HostJoin;
+}
+
+/**
+ * A JOIN MADE BY THE HOST (Python's `join.json`: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11), for a page with no
+ * database of its own there: each answer DataCube's own code's, run by the host over its tables (headless join.ts). `page`
+ * is the page as the tab holds it, its document's text; `mine` and `theirs` the grids joined, by their tiles' ids.
+ */
+export interface HostJoin {
+  /** The two sides as the Join window shows them (headless joinSides), and what drifted in an input since. */
+  sides(page: string, mine: string, theirs: string): Promise<{ readonly left: JoinSide; readonly right: JoinSide; readonly notes: readonly string[] }>;
+  /** What the join will do (headless joinQuestions). */
+  questions(page: string, mine: string, theirs: string, how: JoinHow): Promise<JoinSummaryCounts>;
+  /** The join's grid's cube document, as the page command addGrid carries it onto `sheet` (headless joinCube). */
+  cube(page: string, mine: string, theirs: string, how: JoinHow, sheet: string): Promise<CubeDocument>;
 }
 
 /** A saved cube the host opened (`DatabaseService.opened`): rebuilt as it opens now, and the base its rows are read over. */

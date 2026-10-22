@@ -21,6 +21,8 @@ import { CubeRefusal, type ColumnSpec } from './snapshot.ts';
 export type TableKind = 'file' | 'remoteFile' | 'frame';
 /** The tab's: what its own DuckDB holds. */
 export const TAB_TABLES: readonly TableKind[] = ['file', 'remoteFile'];
+/** A host's (Python's): its frames, and the files and remote files it read in (headless host-tables.ts leafTables). */
+export const HOST_TABLES: readonly TableKind[] = ['frame', 'file', 'remoteFile'];
 
 const WHAT: Readonly<Record<Exclude<CubeSource['_type'], 'join'>, string>> = {
   file: 'a file, read in another database',
