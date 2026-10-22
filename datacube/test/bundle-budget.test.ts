@@ -247,8 +247,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  bullet names this raise). Measured 314,140.
  *  314,500 -> 315,500 (2026-10-21, step S3's audit round, the plan's F6-F17: a cube alone's board kept as its grid's own
  *  changes land, its ids held across its lifetimes, a detached chart's Update told and its query read by sync, an editing
- *  grid drawn in a band of its own, every grid's document said). Measured 314,975. */
-const BUDGET = 315_500;
+ *  grid drawn in a band of its own, every grid's document said). Measured 314,975.
+ *  315,500 -> 316,000 (2026-10-22, step S5's B8, B14, B6 and B5: setChart's refusal of a detached chart told to follow,
+ *  the one "nothing to save" sentence and the one page-file rule, DataCube's, which Python says and asks too). Measured
+ *  315,525. */
+const BUDGET = 316_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

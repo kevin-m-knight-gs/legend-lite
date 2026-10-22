@@ -342,7 +342,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   grid's title equal to `gridTitle(id)`; the screen sends what was typed (page-commands.test.ts)
 - [ ] **B3** one default page name — S5, L10
 - [ ] **B4** saving under a name renames the page, on both sides — S5, L10
-- [ ] **B5** one page-file rule — S5, L10
+- [x] **B5** one page-file rule — closed S5: page-document.ts `pageFile`, Export ▸ Page File's, which Python's
+  `save(path)` asks through headless `pageFile`: DataCube's one-line text with a newer writer's fields kept (the tab's
+  export now writes the page as the tab keeps it, as Save does), refused in one wording when there is nothing on it or
+  its classes are kept in a project (page-document.test.ts, test_page.py)
 - [x] **B6** empty pages allowed on both sides (D2) — closed S5: Python shows a page of no grid yet and takes a shown
   page's last grid off, followed empty as the tab's blank page is (`_showable` and `remove`'s refusal deleted); neither
   side saves one (B14) (test_page.py `test_an_empty_page_is_shown_and_never_saved`, test_notebook.py)

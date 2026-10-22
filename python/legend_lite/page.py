@@ -1397,8 +1397,9 @@ class Page:
         return _copied(self._doc)
 
     def to_json(self, indent: int | None = 2) -> str:
-        """The page document as JSON text, its numbers exact, as DataCube writes it (what ``save`` writes): refused in
-        DataCube's words when DataCube's Save would refuse it (a page with nothing on it)."""
+        """The page document as JSON text, its numbers exact, as DataCube writes it -- indented by ``indent`` (None: one
+        line, as ``save(path)`` writes a page file): refused in DataCube's words when DataCube's Save would refuse it (a
+        page with nothing on it)."""
         return _json.dumps(self._written(), indent=indent)
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
@@ -1410,7 +1411,12 @@ class Page:
         if path is not None:
             if name is not None:
                 raise ValueError("a page saved as a file takes no name: its document carries the page's own")
-            Path(path).write_text(self.to_json() + '\n', 'utf-8', newline='')
+            # as DataCube's Export > Page File writes one, by its one rule (headless pageFile): refused in its words when
+            # it is none -- nothing on it, or classes kept in a project
+            said = json.loads(self._session.headless().call('pageFile', _json.dumps(self._doc)))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            Path(path).write_text(said['file'] + '\n', 'utf-8', newline='')
             return None
         from ._home import THIS_USER, pages_folder, store_call
         named = _given_name(self._session, 'page', name if name is not None else self.name, "a saved page's name")

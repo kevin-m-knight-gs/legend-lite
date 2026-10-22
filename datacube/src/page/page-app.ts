@@ -32,7 +32,7 @@ import { MenuView } from '../ui/menu-view.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
-import { filtersFor, NOTHING_TO_SAVE, pageToJson, writePageOf, type PageDocument, type PageView, type PageViews } from '../page-document.ts';
+import { filtersFor, NOTHING_TO_SAVE, pageFile, writePageOf, type PageDocument, type PageView, type PageViews } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, namedProperties, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
@@ -132,10 +132,10 @@ export interface PageAppOptions {
   /** Hand a file to the user: Export ▸ Page File. */
   readonly download?: (name: string, mime: string, content: string) => void;
   /**
-   * Why the page cannot be exported as a file now, when the host says it cannot: its classes are in this browser's
-   * project, which a file cannot carry yet (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.3). Said, and nothing written.
+   * The page named `name` as its host keeps it, when it keeps more than the board does -- what a newer writer put in it,
+   * its model -- for Export ▸ Page File, which writes it by DataCube's one rule (page-document.ts pageFile).
    */
-  readonly exportRefusal?: () => string | undefined;
+  readonly pageNow?: (name: string) => PageDocument | undefined;
   /** Say a refusal to the person (the host's way: a page of its own alerts). */
   readonly refuse?: (text: string) => void;
   /**
@@ -1251,14 +1251,17 @@ export class PageApp {
         this.#page.setEditing(!this.#page.editing);
         return;
       case 'page.export': {
-        const refused = this.#options.exportRefusal?.();
-        if (refused !== undefined) {
-          this.#options.refuse?.(refused);
+        // the page as its host keeps it, when it keeps more than the board (a newer writer's fields, its model), as a
+        // page file by DataCube's one rule (pageFile: Python's save(path) asks it too), or refused in its words
+        const name = this.suggestedName || 'page';
+        const doc = this.#options.pageNow ? this.#options.pageNow(name) : this.document(name);
+        if (!doc) return;
+        const made = pageFile(doc);
+        if ('refused' in made) {
+          this.#options.refuse?.(made.refused);
           return;
         }
-        const name = this.suggestedName || 'page';
-        const doc = this.document(name);
-        if (doc) this.#options.download?.(`${name}.page.json`, 'application/json', pageToJson(doc));
+        this.#options.download?.(`${name}.page.json`, 'application/json', made.file);
         return;
       }
       case 'view.settings': {

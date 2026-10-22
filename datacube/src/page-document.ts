@@ -177,6 +177,20 @@ export class PageDocumentError extends Error {
  */
 export const NOTHING_TO_SAVE = 'There is nothing on this page to save: add a data source first.';
 
+/**
+ * A PAGE AS A PAGE FILE -- Export ▸ Page File, and Python's `save(path)` (headless pageFile): its text as DataCube
+ * writes it, what a newer writer put in it kept -- or why it is none, in one wording for both (B5): nothing on it
+ * (NOTHING_TO_SAVE), or classes kept in a project, which a page file cannot carry yet (§15.3).
+ */
+export function pageFile(page: PageDocument): { readonly file: string } | { readonly refused: string } {
+  if (page.cubes.length === 0) return { refused: NOTHING_TO_SAVE };
+  if (page.model) {
+    return { refused: `This page's classes are in ${page.model.project}: a page file cannot carry them yet -- save the `
+      + 'page where its classes are kept.' };
+  }
+  return { file: pageToJson(page) };
+}
+
 const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies']);
 
 /** The one cube of a step-1 page. */

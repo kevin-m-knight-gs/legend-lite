@@ -5,8 +5,8 @@
 
 import { CubeDocumentError, cubeToJson, readCube } from '../cube-document.ts';
 import {
-  gridCopyOf, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageToJson, readPage, startingViews, writePageOf,
-  type PageDocument,
+  gridCopyOf, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage, startingViews,
+  writePageOf, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, readPageCommand, type PageCommand } from '../page-commands.ts';
@@ -41,6 +41,20 @@ export function pageSaved(text: string): string {
   try {
     const page = readPage(text, { empty: true });
     return JSON.stringify(page.cubes.length === 0 ? { problems: [NOTHING_TO_SAVE] } : { page: pageToJson(page) });
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
+ * A PAGE DOCUMENT (JSON text) AS A PAGE FILE -- what Python's `save(path)` writes -- by DataCube's one rule, Export ▸
+ * Page File's (page-document.ts pageFile, B5). JSON: `{file}`, the file's text, or `{problems}`, why it is none.
+ */
+export function pageFile(text: string): string {
+  try {
+    const made = fileOf(readPage(text, { empty: true }));
+    return JSON.stringify('refused' in made ? { problems: [made.refused] } : { file: made.file });
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });

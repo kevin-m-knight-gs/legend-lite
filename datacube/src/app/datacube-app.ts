@@ -365,6 +365,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let joinGrid: ((cube: string | undefined) => void) | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
+  /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
+   *  up (below): what Export ▸ Page File writes. */
+  let pageKept: ((name: string) => PageDocument | undefined) | undefined;
   /** The page renamed in its name box: its name from now (once the page can be saved, a change until it is). */
   let renamePage = (name: string): void => page.rename(name);
   /** Told when a grid is made on the page, by its tile's id: what the page keeps of it (its file). */
@@ -422,12 +425,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       ...planeMenu(),
     ],
     onHostMenu: (item) => onHostItem(item),
-    // A PAGE FILE carries the page, not the classes of its project in this browser's model home: refused while it has
-    // them (§15.3; a file carrying its model comes with the Studio line's export, S23)
-    exportRefusal: () => (pageModelNow?.()
-      ? `This page's classes are in ${pageModelNow()!.project}, in this browser: a page file cannot carry them yet. `
-        + 'Save the page here, or open the project in Studio.'
-      : undefined),
+    // A PAGE FILE: the page as this tab keeps it, which the page writes by DataCube's one rule (pageFile) -- refused while
+    // its classes are in a project (§15.3; a file carrying its model comes with the Studio line's export, S23)
+    pageNow: (name) => pageKept!(name),
     refuse: (text) => window.alert(text),
     // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's, at the
     // right of its status bar -- a readout belongs there, not in the bar that says what is on screen. MOVED rather than
@@ -574,6 +574,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
       ...(current.model ? { model: current.model } : {}),
     }, empty);
+    pageKept = (name) => pageNow(name);
     const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
       const doc = pageNow(name);
       return doc && { content: pageContent(doc), definition: pageDefinitionText(doc) };

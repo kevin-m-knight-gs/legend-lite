@@ -11,6 +11,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import {
   FIRST_SHEET,
   NOTHING_TO_SAVE,
+  pageFile,
   PAGE_KIND,
   PageDocumentError,
   oneSheet,
@@ -25,7 +26,7 @@ import {
   type PageViews,
 } from '../src/page-document.ts';
 import { givenName } from '../src/page-names.ts';
-import { pageApply, pageNew, pageRead, pageSaved } from '../src/headless/page.ts';
+import { pageApply, pageFile as pageFileJson, pageNew, pageRead, pageSaved } from '../src/headless/page.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
@@ -359,6 +360,23 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
       `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string };
     assert.equal(JSON.parse(pageSaved(added.page)).page, JSON.parse(pageRead(added.page)).page, 'written as DataCube writes it');
     assert.match(JSON.parse(pageSaved('{"bogus":1}')).problems[0], /^cannot read saved page/);
+  });
+
+  it("as a page file (Export ▸ Page File; headless pageFile: Python's save(path)): DataCube's text, or refused in one wording (B5)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    assert.deepEqual(JSON.parse(pageFileJson(started)), { problems: [NOTHING_TO_SAVE] });
+    const added = (JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
+    const page = readPage(added);
+    assert.deepEqual(pageFile(page), { file: pageToJson(page) });
+    assert.deepEqual(JSON.parse(pageFileJson(added)), { file: pageToJson(page) });
+    // a newer writer's field kept, as Save keeps it
+    const newer = readPage({ ...JSON.parse(added), variables: [{ name: 'asOf' }] });
+    assert.match((pageFile(newer) as { file: string }).file, /"variables":\[\{"name":"asOf"\}\]/);
+    // classes kept in a project: a page file cannot carry them yet
+    const modelled = readPage({ ...JSON.parse(added), model: { project: 'demo:trades', workspace: 'datacube', package: 'demo', tables: {} } });
+    assert.deepEqual(pageFile(modelled), { refused: "This page's classes are in demo:trades: a page file cannot carry them yet -- "
+      + 'save the page where its classes are kept.' });
   });
 });
 

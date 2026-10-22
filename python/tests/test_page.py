@@ -149,6 +149,14 @@ class Document(Paged):
         path = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), 'q3.page.json')
         page.save(path)
         self.assertIn('1.50', open(path, encoding='utf-8').read())
+        # as DataCube's Export > Page File writes it (headless pageFile, B5): its text, one line
+        self.assertEqual(open(path, encoding='utf-8').read().count('\n'), 1)
+        # classes kept in a project: refused in DataCube's words, as Export > Page File refuses it
+        modelled = ll.Page.load({**page.to_dict(), 'model': {'project': 'demo:trades', 'workspace': 'datacube',
+                                                             'package': 'demo', 'tables': {}}}, frames={'trades': trades()})
+        with self.assertRaisesRegex(ValueError, r"^This page's classes are in demo:trades: a page file cannot carry them "
+                                                r'yet -- save the page where its classes are kept\.$'):
+            modelled.save(os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), 'modelled.page.json'))
         again = ll.Page.load(path, frames={'trades': trades()})
         self.assertEqual(again.to_json(), page.to_json())
         with self.assertRaises(ValueError):
