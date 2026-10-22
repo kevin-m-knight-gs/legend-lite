@@ -11958,7 +11958,14 @@ finding probed on DuckDB, H2, Postgres 16 and the local Neo4j before it was fixe
   raising EntityNotFound (graph B); a domain model's CREATE one insert, its writes running on H2, and a MERGE, DELETE,
   REMOVE or read-back SET over classes sharing ids refused by name; the judge's refusal REFUSED where Neo4j raises;
   the native lane in `//gates:core`.
-- **The lanes,** in update mode: LANES_PLACEHOLDER
+- **The lanes,** in update mode, of 5075 cases (five new lite cases, `lite/writes.yaml`, judged by Neo4j):
+  - DuckDB and Postgres alike: PASS 4262, BOTH_ERROR 766, REFUSED 46, FAIL 1;
+  - the native store: PASS 4292, BOTH_ERROR 771, REFUSED 11, FAIL 1;
+  - new: three PASS on every lane; the CREATE from a deleted node BOTH_ERROR on the native store (Neo4j's
+    EntityNotFound raised) and REFUSED over a domain model (its edge classes join no such pair); the several-rows SET
+    FAIL (S98);
+  - moved: eight cases from BOTH_ERROR to REFUSED on DuckDB and Postgres (four on the native store), refusals the
+    judge had counted as Neo4j's error caught; nothing else.
 - **Registered, for the user:** several rows writing one property from itself (S98, the corpus's one FAIL), and nine
   decisions (the review's §4).
 

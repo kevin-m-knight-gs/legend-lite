@@ -650,12 +650,12 @@ tck/clauses/merge/Merge6/[1] Using ON CREATE on a node	PASS
 tck/clauses/merge/Merge6/[2] Using ON CREATE on a relationship	PASS
 tck/clauses/merge/Merge6/[3] Updating one property with ON CREATE	PASS
 tck/clauses/merge/Merge6/[4] Null-setting one property with ON CREATE	PASS
-tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	BOTH_ERROR
+tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	REFUSED
 tck/clauses/merge/Merge6/[7] Copying properties from literal map with ON CREATE	PASS
 tck/clauses/merge/Merge7/[1] Using ON MATCH on created node	PASS
 tck/clauses/merge/Merge7/[2] Using ON MATCH on created relationship	PASS
 tck/clauses/merge/Merge7/[3] Using ON MATCH on a relationship	PASS
-tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	BOTH_ERROR
+tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	REFUSED
 tck/clauses/merge/Merge7/[5] Copying properties from literal map with ON MATCH	PASS
 tck/clauses/merge/Merge8/[1] Using ON CREATE and ON MATCH	PASS
 tck/clauses/merge/Merge9/[1] UNWIND with one MERGE	PASS
@@ -1282,7 +1282,7 @@ tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad a
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #1	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	REFUSED
 tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	PASS
 tck/expressions/aggregation/Aggregation8/[2] Distinct on null	PASS
 tck/expressions/aggregation/Aggregation8/[3] Collect distinct nulls	PASS
@@ -4637,7 +4637,7 @@ lite/rows/a_fresh_match_with_a_relationship_after_rows	PASS
 lite/rows/a_fresh_untyped_match_after_rows_aggregated	PASS
 lite/rows/a_fresh_match_after_rows_counted	PASS
 lite/rows/a_fresh_match_after_rows_keeps_no_row_over_no_node	PASS
-lite/rows/a_match_binding_a_projected_variable_after_rows_refused	BOTH_ERROR
+lite/rows/a_match_binding_a_projected_variable_after_rows_refused	REFUSED
 lite/shapes/list_of_one_row_value	PASS
 lite/shapes/list_with_a_null_element	PASS
 lite/shapes/list_of_mixed_kinds	PASS
@@ -5053,6 +5053,11 @@ lite/withlists/a_list_of_row_values_through_with_unwound	PASS
 lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS
 lite/withlists/a_map_of_row_values_through_with	PASS
 lite/withlists/a_list_of_row_strings_through_with	PASS
+lite/writes/an_undirected_merge_over_both_orders_creates_one	PASS
+lite/writes/an_undirected_merge_binds_the_one_relationship_on_both_rows	PASS
+lite/writes/a_set_after_a_delete_writes_nothing_back	PASS
+lite/writes/a_relationship_from_a_deleted_node_is_neo4js_error	BOTH_ERROR
+lite/writes/several_rows_setting_one_property_from_itself	FAIL
 lite/zones/stored_offset_fields	PASS
 lite/zones/stored_offset_through_with	PASS
 lite/zones/stored_offset_texts	PASS
