@@ -4,6 +4,7 @@ Pure, as Create a Class makes them; ``grid.to_pandas()``, every one of those row
 checked against pandas computing the same, in the same cell, with no browser."""
 
 import base64
+import contextlib
 import datetime
 import json
 import os
@@ -842,6 +843,28 @@ class OneRead(unittest.TestCase):
         with self.frames.reading():
             self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 2}])
 
+    def test_nothing_is_written_inside_a_read_on_its_thread_and_a_page_is_shown_only_with_datacubes_site(self):
+        # F39: a write the read would not see is refused in words, on the read's own thread; F40: what shows a page asks
+        # for DataCube's site, refused in words where the install carries none (this lane's engine has none)
+        with self.frames.reading():
+            for write in (lambda: self.frames.register('other', TRADES), lambda: self.frames.unregister('trades')):
+                with self.assertRaisesRegex(RuntimeError, 'a write inside it would not be read'):
+                    write()
+        self.assertIn('trades', self.frames)
+        session = datacube._session
+        self.assertIsNone(session.engine().site, "this lane's install carries no site")
+        with self.assertRaisesRegex(ValueError, "is not a directory: DataCube's pages are not in this install"):
+            session.shown_engine()
+        with self.assertRaisesRegex(ValueError, "is not a directory: DataCube's pages are not in this install"):
+            ll.show(TRADES, 'not_shown', browser=False, inline=False)
+
+    def test_a_query_that_fails_as_it_runs_leaves_the_reads_next_query_able_to_run(self):
+        # F36: a value that does not convert aborts DuckDB's transaction; the read begins another, so its next query runs
+        with self.frames.reading():
+            with self.assertRaisesRegex(Exception, 'Conversion'):
+                self.rows("SELECT CAST('x' AS INTEGER) AS n")
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
+
     def test_what_a_call_asks_of_the_engine_is_answered_on_datacubes_thread_over_its_read(self):
         answered = []
 
@@ -857,6 +880,16 @@ class OneRead(unittest.TestCase):
         # a call made in no read: nothing it asks of the engine is answered, said in words
         with self.assertRaisesRegex(Exception, 'made in no read of the frames'):
             self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')")
+
+    def test_a_call_made_from_datacubes_own_thread_is_refused_never_left_waiting(self):
+        # F38: an answer of the engine's that called DataCube again would wait on its own caller's turn for ever
+        def answers(path, body, over):
+            self.headless.evaluate('1')
+            return 200, 'application/json', b'{}'
+
+        self.headless.answers = lambda: answers
+        with self.frames.reading(), self.assertRaisesRegex(Exception, "the engine's own thread cannot wait for the engine"):
+            self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')", timeout=20)
 
     def test_a_library_call_on_datacubes_thread_waits_on_no_pool_thread(self):
         # every compiler thread busy -- as when each waits for DataCube's turn while a call in it asks its host
@@ -880,10 +913,10 @@ class OneRead(unittest.TestCase):
 
 
 class OneRowsPath(unittest.TestCase):
-    """ONE WAY TO A GRID'S ROWS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D16): what a grid shows, its rows and its export
-    -- a frame's grid as a class's -- are each read by the engine's plan-and-run, which says where its rows are, as a tab
-    on the page reads them; the session's engine made with DataCube's, with no site where this install carries none (this
-    lane's)."""
+    """ONE WAY TO A GRID'S ROWS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D16): what a frame's grid shows, its rows and its
+    export are each read by the engine's plan-and-run, as a tab on the page reads them (a class's grid is read the same
+    way: test_page.py OverClasses); the session's engine made with DataCube's, with no site where this install carries
+    none (this lane's)."""
 
     def test_a_frames_grid_is_read_by_the_engines_plan_and_run_for_its_view_rows_and_export(self):
         page = ll.Page('One rows path')
@@ -892,9 +925,9 @@ class OneRowsPath(unittest.TestCase):
         asked = []
         planned = engine._plan_and_run_over
 
-        def counted(question, over, refused):
+        def counted(question, over):
             asked.append(question['model'])
-            return planned(question, over, refused)
+            return planned(question, over)
 
         with mock.patch.object(engine, '_plan_and_run_over', counted):
             view = grid.view()
@@ -910,6 +943,25 @@ class OneRowsPath(unittest.TestCase):
         self.assertEqual(set(asked), {model}, "each over the frame's own model")
         self.assertEqual(sorted(groups(view, 'notional')), ['AMER', 'APAC', 'EMEA'])
         self.assertEqual(sorted(rows['region']), ['AMER', 'APAC', 'EMEA'], 'its rows at their finest level: by region')
+
+    def test_a_read_that_began_before_a_frame_changed_says_no_change_of_it(self):
+        # F30: a Python call's queries note the frames' models as they are now -- never as its read began, which would say
+        # the frame changed back (and on again at a tab's next query): a page told of changes that never were
+        page = ll.Page('Noted')
+        grid = page.grid(TRADES, name='trades_noted')
+        engine, frames = datacube._session.engine(), datacube._session.frames
+        grid.view()
+        with frames.reading():
+            changing = threading.Thread(target=datacube._session.register, args=(TRADES.assign(extra=1), 'trades_noted'))
+            changing.start()
+            changing.join(20)
+            # as a tab's next query notes it: the frame as it is now
+            engine._noted(frames.models())
+            before = engine.version('trades_noted')
+            # read over the frame as the read began: refused (F28), and noting nothing stale
+            with contextlib.suppress(Exception):
+                grid.view()
+            self.assertEqual(engine.version('trades_noted'), before, 'no change said of a frame that did not change')
 
 
 if __name__ == '__main__':

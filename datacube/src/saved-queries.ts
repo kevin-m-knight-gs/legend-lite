@@ -148,7 +148,8 @@ export async function savedQueryOpened(
     if (value) values.set(v.name, value);
   }
   let source = sourceOf(parsed, values);
-  const how: ModelOptions = { mapping: context.mapping, enumerations: [...enumerationsOf(elements)] };
+  // its rows its project's own (C5): a host that plans and runs them reads them there, never its own tables (F28)
+  const how: ModelOptions = { mapping: context.mapping, enumerations: [...enumerationsOf(elements)], project: true };
   // rule 4: an enumeration column is read as its value's name
   const named = new Set((await typerOf(context.runtime, how).relationType(lambda([], source))).filter((c) => c.enumeration).map((c) => c.name));
   if (named.size > 0) source = enumsAsStrings(source, named);

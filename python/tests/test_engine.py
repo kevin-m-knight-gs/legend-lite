@@ -259,17 +259,24 @@ class ProjectQueries(Served):
 
     def test_a_page_plans_and_runs_a_projects_query_on_its_own_rows(self):
         # a saved query opened on Python's page (C5): planned over the project's model held beside its database, its
-        # mapping in the query, and run there -- and its dry run (the page's compile check) planned over that model too
-        status, headers, body = self.post('/plan-and-run.json', json.dumps({
-            'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}))
+        # mapping in the query, and run there -- and its dry run (the page's compile check) planned over that model too.
+        # Its rows are its project's because the request says so (``project``, F28)
+        asked = {'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}
+        status, headers, body = self.post('/plan-and-run.json', json.dumps({**asked, 'project': True}))
         self.assertEqual((status, headers['Content-Type']), (200, 'application/vnd.apache.arrow.stream'), body[:300])
         rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
         self.assertEqual(rows.column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
-        status, _, body = self.post('/plan.json', json.dumps({
-            'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}))
+        status, _, body = self.post('/plan.json', json.dumps({**asked, 'project': True}))
         self.assertEqual(status, 200, body)
         self.assertTrue(json.loads(body)['plan'].startswith('OK\n'), body)
         self.assertEqual(len(self.server.engine.projects.names), 1)
+        # not said: the same model reads only the tables this engine serves -- refused naming the one it does not, never
+        # read from the project's own rows in their place (F28), by the run and the dry run alike
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            self.assertRegex(json.loads(body)['plan'], r'reads only the tables it serves.*it reads PARTY\.PARTY, which it '
+                                                       r'does not serve now', path)
 
     def test_kept_for_the_process_and_named_by_what_it_holds(self):
         for _ in range(2):

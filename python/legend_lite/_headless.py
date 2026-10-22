@@ -16,7 +16,7 @@ D15): a call made inside a read of the frames (``Frames.reading``) queries throu
 of Python's engine (``engine``: a grid's rows planned and run where they are) is answered over that read too; the engine's
 thread is one of the compiler's (``_pool.library_thread``), so a library call it makes runs there. A call is made in its
 turn (``turn``), which a caller that writes the frames' database through DataCube's code takes before it holds the frames
-(the order every lock is taken in: the turn, then the warehouse's, then the frames'): no one holds a lock a call's answer
+(the order every lock is taken in: the turn, then the frames', then the warehouse's): no one holds a lock a call's answer
 takes while waiting for the call's turn.
 """
 
@@ -183,7 +183,7 @@ class Headless:
         import pyarrow as pa
 
         # a call made in a read of the frames queries through it: the database as it was when the read began
-        result = (self._db if self._over is None else self._over.cursor).execute(sql)
+        result = self._db.execute(sql) if self._over is None else self._over.execute(sql)
         table = result.to_arrow_table() if result.description is not None else pa.table({})
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
@@ -286,9 +286,15 @@ class Headless:
         """A JavaScript expression's value, awaited when it is a Promise, as JSON gives it to Python: within ``timeout``
         seconds when given (it then raises TimeoutError), else as long as it takes. Made in this thread's turn, over the
         read of the frames this thread is in (``reading``), if any."""
+        self._not_its_own()
         over = None if self._reading is None else self._reading()
         with self._turn:
             return self._run(self._evaluate(expression, over), timeout)
+
+    def _not_its_own(self) -> None:
+        # before the turn is asked for: the engine's thread asking would wait on its own caller's turn for ever (F38)
+        if threading.current_thread() is self._thread:
+            raise RuntimeError("the engine's own thread cannot wait for the engine")
 
     def call(self, function: str, *args: Any, timeout: float | None = None) -> Any:
         """One of the bundle's functions (``legendLiteHeadless.<function>``) called with ``args`` as JSON gives them,
@@ -299,6 +305,7 @@ class Headless:
         """JavaScript code run in the engine's context, for its effects."""
         async def run() -> None:
             self._mr.eval(code)
+        self._not_its_own()
         with self._turn:
             self._run(run())
 

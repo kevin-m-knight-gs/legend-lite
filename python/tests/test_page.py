@@ -11,6 +11,7 @@ import gc
 import json
 import os
 import tempfile
+import threading
 import unittest
 import urllib.error
 import urllib.request
@@ -22,7 +23,7 @@ from unittest import mock
 import pandas as pd
 
 import legend_lite as ll
-from legend_lite import _headless, _json, datacube
+from legend_lite import _headless, _json, _pool, datacube
 from legend_lite import page as page_module
 from legend_lite._types import plain_type
 
@@ -2223,6 +2224,22 @@ class OverClasses(Paged):
         self.assertNotIn('AMER', grid.export('csv'))
         self.assertIn('EMEA', grid.export('csv'))
 
+    def test_a_class_whose_table_is_not_served_is_refused_never_read_from_its_sample_rows(self):
+        # F28: a class's rows are the tables this host serves -- the sample rows Create a Class wrote into its project are
+        # never read in their place, as the tab never reads them (its class rows run on its own database)
+        _, doc = self.classed()
+        loaded = ll.Page.load(doc)
+        grid = loaded.grids[0]
+        datacube._session.frames.unregister('trades')
+        try:
+            for read in (grid.to_pandas, grid.view):
+                with self.subTest(read=read.__name__), self.assertRaisesRegex(
+                        Exception, 'this engine reads only the tables it serves.*it reads trades, which it does not serve'):
+                    read()
+        finally:
+            datacube._session.register(trades(), 'trades')
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 100.0, 250.0], 'served again: read again')
+
     def test_a_class_its_model_home_does_not_hold_is_refused_in_words(self):
         _, doc = self.classed()
         doc['cubes'][0]['cube']['source']['revision'] = 'no-such-revision'
@@ -2245,11 +2262,20 @@ class OverWarehouse(Paged):
 
     def setUp(self):
         super().setUp()
+        import duckdb
         import pyarrow as pa
         import pyarrow.ipc
         from legend_lite import warehouse
         objects = [{'catalog': 'main', 'databaseType': 'DuckDB', 'schema': 'trading', 'name': 'POSITIONS', 'kind': 'table',
                     'columns': self.COLUMNS}]
+        # the warehouse's own database, as a DuckDB warehouse holds the table: the SQL Python planned runs on it, so a
+        # wrong plan answers wrong rows (the review's F33: a stand-in that answers the same rows for any SQL proves none)
+        held = duckdb.connect()
+        held.execute('CREATE SCHEMA trading')
+        held.execute('CREATE TABLE trading."POSITIONS" (desk VARCHAR, qty INTEGER)')
+        held.execute("INSERT INTO trading.\"POSITIONS\" VALUES ('FX', 10), ('EQ', 5), ('FX', 3)")
+        self.addCleanup(held.close)
+        self.ran = ran = []
 
         class Reader:
             def __init__(self, session, catalog='main', clock=None):
@@ -2265,7 +2291,8 @@ class OverWarehouse(Paged):
                 return objects
 
             def arrow_chunks(self, sql, on_receipt=None):
-                rows = pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': pa.array([10, 5, 3], pa.int32())})
+                ran.append(sql)
+                rows = held.cursor().execute(sql).to_arrow_table()
                 sink = pa.BufferOutputStream()
                 with pyarrow.ipc.new_stream(sink, rows.schema) as w:
                     w.write_table(rows)
@@ -2301,10 +2328,37 @@ class OverWarehouse(Paged):
         loaded = ll.Page.load(doc)
         grid = loaded.grids[0]
         rows = grid.to_pandas()
-        self.assertEqual((list(rows['desk']), list(rows['qty'])), (['FX', 'EQ', 'FX'], [10, 5, 3]))
-        # edited as any grid, judged over the table's columns as the compiler types them now; saved still over it
-        grid.sort('qty', 'desc')
+        self.assertEqual(sorted(zip(rows['desk'], rows['qty'])), [('EQ', 5), ('FX', 3), ('FX', 10)])
+        # edited as any grid, judged over the table's columns as the compiler types them now -- its view the warehouse's
+        # answer to the plan of what it shows; saved still over it
+        grid.group('desk')
+        self.assertEqual(groups_of(grid.view(), 'qty'), {'FX': 13, 'EQ': 5})
+        grid.filter(('qty', 'greaterThan', 4))
+        self.assertEqual(groups_of(grid.view(), 'qty'), {'FX': 10, 'EQ': 5})
+        self.assertTrue(all('POSITIONS' in sql for sql in self.ran), self.ran)
         self.assertEqual(loaded.to_dict()['cubes'][0]['cube']['source']['_type'], 'warehouseTable')
+
+    def test_a_warehouse_grid_is_read_while_every_compiler_thread_waits(self):
+        # F29: what DataCube's thread asks of the warehouse (its table opened, as every grid call over it asks) runs on that
+        # thread, never waiting on the compiler's pool -- whose threads may all be waiting for DataCube's turn
+        doc = self.page_over_the_table()
+        engine = datacube._session.engine()
+        self.assertEqual(engine.answer('POST', '/warehouse.json', '', json.dumps(
+            {'op': 'connect', 'url': self.URL, 'user': 'rita', 'password': 'pw'})).status, 200)
+        grid = ll.Page.load(doc).grids[0]
+        busy, free = threading.Semaphore(0), threading.Event()
+        waiting = [_pool._workers().submit(lambda: (busy.release(), free.wait(60))) for _ in range(_pool._WORKERS)]
+        try:
+            for _ in waiting:
+                self.assertTrue(busy.acquire(timeout=10))
+            seen = {}
+            reading = threading.Thread(target=lambda: seen.setdefault('view', grid.view()))
+            reading.start()
+            reading.join(30)
+            self.assertFalse(reading.is_alive(), "a warehouse grid's call waited on the compiler's pool")
+            self.assertEqual(len(seen['view'].rows), 3)
+        finally:
+            free.set()
 
 
 class OverSavedQueries(Paged):

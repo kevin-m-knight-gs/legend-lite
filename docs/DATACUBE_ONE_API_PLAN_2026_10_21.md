@@ -484,11 +484,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   host's database; a class through its project at its revision in the host's model home (class-source.ts `classOpened`,
   which the tab's openedClass asks too), a saved query through its project's version in the host's depot
   (saved-queries.ts `savedQueryOpened`, the tab's openedRecord's rules 1-4), a warehouse table under the session the
-  host's engine holds, signed in by a tab (D13). Such a base's rows are read where the host's engine reads them: every
-  grid call's runner is the tab's own `pythonRunner` over the host's engine (host.ts `hostEngine`, calls.ts `engine`),
-  answered on the thread of the Python caller that holds the frames (`_headless.py` `_engine`, `Engine.answer_here`),
-  so nothing waits on a lock its caller holds; Python's `to_pandas` asks the same plan-and-run (test_page.py
-  `OverClasses`, `OverSavedQueries`, `OverWarehouse`)
+  host's engine holds, signed in by a tab (D13). Every base's rows are read by the host's engine's plan-and-run (D16:
+  the tab's own `pythonRunner` over host.ts `hostEngine`, answered on DataCube's thread over the call's read, D15) --
+  a class's from the tables the host serves, a saved query's from its project's own (F28); Python's `to_pandas` asks
+  the same plan-and-run (test_page.py `OverClasses`, `OverSavedQueries`, `OverWarehouse`)
 - [x] **X2** Python reads, edits and saves a page over any source — closed S5: `Page.load` opens each cube over its
   source as the host reads it (X1, X3), its grids read, edited by DataCube's commands and saved over the same source
   (test_page.py `OverFiles`, `OverClasses`, `OverSavedQueries`, `OverWarehouse`)
@@ -613,6 +612,55 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **F27** a failure of the engine's while it took an open page's write was said as no such page (a KeyError) or as a
   refusal (any other) — closed S4: said as a failure, 500, naming it (engine.py `_page_said`; test_one_api.py) — found
   reviewing S4's own code
+- [x] **F28** a class's grid on a Python page read its project's sample rows (Create a Class's `Data` elements) when its
+  table was not served -- plan-and-run fell back to a project's database whenever the frames refused a model, a
+  fallback (AGENTS.md invariant 4) the tab never makes; model actions' key facts the same — closed (D18's review, 1):
+  a saved query's base says its rows are its project's (planner.ts `ModelOptions.project`, carried by plan-and-run and
+  the dry run -- from the tab, from a headless grid's runner, and from Python's own `to_pandas`, which sends what
+  DataCube's base says); any other model reads only the tables the engine serves, refused in words naming each one not
+  served, of any schema (engine.py `_plan_and_run`, `_plan`, `_unserved`; frames.py `unserved`) (test_page.py
+  `OverClasses` `test_a_class_whose_table_is_not_served_is_refused_never_read_from_its_sample_rows`, test_engine.py
+  `ProjectQueries`, python-runner.test.ts)
+- [x] **F29** opening a warehouse table waited on the compiler's pool from DataCube's thread (`_warehouse_table`'s
+  direct pool calls): four tab requests waiting for DataCube's turn would hang the process — closed (review, 2): on the
+  compiler's threads in place (test_page.py `OverWarehouse` `test_a_warehouse_grid_is_read_while_every_compiler_thread_waits`)
+- [x] **F30** a read that began before a frame changed noted the frame's old model, saying it changed back (and on again
+  at a tab's next query) — closed (review, 3): plan-and-run notes the frames' models as last read (`Frames.models`,
+  which reads no frame again: a live frame is still read once a query)
+  (test_headless.py `OneRowsPath` `test_a_read_that_began_before_a_frame_changed_says_no_change_of_it`)
+- [x] **F31** As built (D15, D16) said a read keeps reading a table dropped after it began; plan-and-run plans against the
+  models served now, so such a query is refused — declared (review, 4): the claim corrected; a read sees the rows of the
+  tables it began with, and a query over a table dropped since is refused in words (F28's); the copies a grid's base is
+  told of are those held now
+- [x] **F32** the ledger's "a source kind is read on the host" check passed for every case but the last whatever it did
+  (it read on into the next case's `return`) — closed (review, 5): each case read up to the next (one-api-ledger.test.ts;
+  a `class` case that throws now fails it, checked)
+- [x] **F33** the warehouse stand-in answered the same rows for any SQL; the saved-query test never runs Python's own depot
+  route — closed in part (review, 6): the stand-in runs the planned SQL on a DuckDB of its own, and its grid's view and
+  filter are checked (test_page.py `OverWarehouse`); declared: the saved-query test stands in for the depot's answer, so
+  Python's `/depot/api` route under a saved query is untested end to end (a version needs the model home's review and
+  merge), As built (S5)'s words corrected
+- [x] **F34** every Python grid call over a warehouse table opens it again (lists the warehouse's objects, writes and
+  holds its model) — declared (review, 7): a cost, kept so a grid reads the table's columns as they are now; S7 measures it
+- [x] **F35** a Python call's queries waited on a tab's query in flight, which held the frames' lock while its SQL ran —
+  closed (review, 8): a tab's plan-and-run runs in a read of its own (`Engine._plan_and_run`), the lock held to begin it
+  and while a query plans, never while its SQL runs; said in As built (D15, D16)
+- [x] **F36** a query that failed as it ran (a value that does not convert) aborted the read's transaction, and every later
+  query of the call failed — closed (review, 9): the read begins and pins another (`Reading.execute`) (test_headless.py
+  `OneRead` `test_a_query_that_fails_as_it_runs_leaves_the_reads_next_query_able_to_run`)
+- [x] **F37** B11's wire between the tab and Python (python-host.ts `join`, its body and its answers read) had no test —
+  closed (review, 10): python-runner.test.ts (each ask's path, token, body, `how` as the protocol writes it, answers read,
+  a refusal said); the item's narrower scope is said in B11
+- [x] **F38** a call into DataCube from DataCube's own thread waited for ever on its caller's turn instead of being refused
+  — closed (review, 11): refused before the turn is asked for (test_headless.py `OneRead`
+  `test_a_call_made_from_datacubes_own_thread_is_refused_never_left_waiting`)
+- [x] **F39** stale words since D15 (the lock order, X1's text, `_answer_here`, docstrings), a write inside a read refused
+  only by two of the writers, and no test of that refusal or of `shown_engine`'s — closed (review, 12): corrected;
+  `register` and `unregister` refuse too (test_headless.py `OneRead`
+  `test_nothing_is_written_inside_a_read_on_its_thread_and_a_page_is_shown_only_with_datacubes_site`)
+- [x] **F40** a join's dead `engine` field (headless join.ts); `ll.show(df)` on an install with no DataCube site made a cube
+  that failed only when asked its link — closed (review, 13): the field gone; showing is refused in words first (the
+  test of F39); 669caa699's message claimed every target green where As built (S5) says two failed and pass since: said
 
 ## 5. The steps
 
@@ -1046,7 +1094,7 @@ against the code without it and failed. CI: not run -- still waiting on the user
   from a saved page, or added by the tab); a Python method that adds such a grid is X4, open, S6's.
 - *Stand-ins.* The container has no warehouse and no depot holding saved queries: `OverWarehouse` runs against a
   stand-in driver, and `OverSavedQueries` patches the host's fetch to serve a saved query's project as the depot's API
-  does. X5's saved-query half is so tested against DataCube's client and Python's route, not a real depot.
+  does. X5's saved-query half is so tested against DataCube's client, not Python's depot route (F33).
 - *A join reads one database.* A class, a saved query or a warehouse table is refused as a join's input, on both sides,
   in the same words (§17.3) -- B11 closed on the same rule both sides run, not on every kind joined.
 - *Rewritten tests.* Tests that pinned the old refusals ("Trade is not read here", the frames-only rule) now pin the
@@ -1096,7 +1144,12 @@ test_headless.py `OneRowsPath`. With D16's rows-path change taken out and the re
 0 : its view`).
 
 **Said, not changed.** A read sees the frames as they were when it began. A frame registered during a long call is read
-by the next read, not by this one. A tab's query no longer waits for a Python call to end (a read's start still waits
-for a tab's query in flight, a moment: both take the frames' lock). A grid's base
-whose tables were dropped after a read began reads on as the read saw them. The engine's own HTTP routes still take
-the frames' lock while they plan and run (`serving`); no call into DataCube is made inside one.
+by the next read, not by this one. A tab's query no longer waits for a Python call to end, nor a call's query for a
+tab's SQL: a tab's plan-and-run runs in a read of its own too (F35); the frames' lock is held a moment, to begin a read
+and while a query plans. A query over a table dropped after its read began is refused in words (F31). A query that
+fails as it runs begins the read again (F36). The engine's legend-engine routes (`execute`, `cube.json`) still take the
+frames' lock while they plan and run (`serving`); no call into DataCube is made inside one.
+
+**The independent review (D18)** of S5, D15 and D16 found thirteen things, registered as F28-F40 and each closed in the
+same commit or declared: F28 (a class's grid read its project's sample rows for a table not served: the one high), F29,
+F30, F32, F35-F40 fixed with a test that fails without the fix; F31, F33's saved-query half and F34 declared.

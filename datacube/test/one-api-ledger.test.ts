@@ -317,10 +317,14 @@ describe('L8: every command kind and source kind, against who makes and reads it
     // onHost: a join of the leaves leafOnHost reads)
     const onHostBody = exported.find((e) => e.name === 'onHost')!.body;
     const leafRule = exported.find((e) => e.name === 'leafOnHost')!.body;
-    /** A leaf kind the host reads: its case returns where it is read. */
+    /** A leaf kind the host reads: its own case -- up to the next case, never a later one's (the review's F32) --
+     *  returns where it is read. */
     const leafReads = (kind: string): boolean => {
       const at = leafRule.indexOf(`case '${kind}':`);
-      return at >= 0 && leafRule.slice(at).includes('return ');
+      if (at < 0) return false;
+      const rest = leafRule.slice(at + `case '${kind}':`.length);
+      const next = rest.search(/\bcase '/);
+      return (next < 0 ? rest : rest.slice(0, next)).includes('return ');
     };
     const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source') : leafReads(kind));
     const problems: string[] = [];
@@ -427,7 +431,9 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   + 'F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15 F16 F17 F18 F19 F20 F21 F22 F23 F24 F25 F26 F27 '
   // 2026-10-22, D10: S1's audit finding 10, registered with the user's sign-off (written with a space after it: a quoted
   // item alone is a ledger naming it, ITEM)
-  + 'P15 ').split(' ').filter((item) => item !== '');
+  + 'P15 '
+  // 2026-10-22, D18: the independent review of S5, D15 and D16, added by rule 9 and closed (or declared) with each fix
+  + 'F28 F29 F30 F31 F32 F33 F34 F35 F36 F37 F38 F39 F40 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

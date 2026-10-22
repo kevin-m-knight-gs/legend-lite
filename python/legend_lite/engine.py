@@ -87,6 +87,8 @@ _WAREHOUSE = '/warehouse.json'
 _SNAP = '/snap.json'
 # the id a page open on another asks by (follower=): a tab's or a notebook widget's, made by DataCube's code
 _FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
+# a saved query's rows are its project's own Data rows (C5): one whose project has none is refused in these words
+_NO_PROJECT_ROWS = 'a saved query\'s rows are its project\'s own Data rows: this model has none'
 # a saved grid of a page Python serves, opened by Python over its frames as they are now (§18.3): a join of frames, which
 # the page cannot open itself -- it has no compiler and no database of its own on Python's page
 _OPENED = '/opened.json'
@@ -994,11 +996,12 @@ class Engine:
             return _said(404, f'{schema}.{name} is not a table {signed.principal} may read in {catalog}')
         spec = {'table': name, 'schema': schema, 'convertible': False, 'databaseType': found['databaseType'],
                 'columns': [{**c, 'dataType': c['type']} for c in found['columns']]}
-        written = _workers().submit(compiler.table_model, spec).result()
+        # on the compiler's threads -- in place on one, DataCube's thread among them (F29: never waiting on the pool)
+        written = _on_compiler_threads(lambda: compiler.table_model(spec))
         if self.frames.held_for(written['model']) is not None:
             # a frame or a page's file whose model is this text: the warehouse's would answer for it
             return _said(409, f'a frame or file of this Python is {schema}.{name} with the same columns: rename one')
-        held = _workers().submit(compiler.HeldModel, written['model']).result()
+        held = _on_compiler_threads(lambda: compiler.HeldModel(written['model']))
         refusal, spare = None, held
         with self._warehouse_lock:
             kept = self._warehouse_tables.get(written['model'])
@@ -1014,7 +1017,7 @@ class Engine:
                 refusal = (f'{schema}.{name} is open already as {kept.warehouse.principal}: what a grid reads is one '
                            f"person's, so it is read as them until Python restarts")
         if spare is not None:
-            _workers().submit(spare.close).result()
+            _on_compiler_threads(spare.close)
         if refusal is not None:
             return _said(409, refusal)
         said = {k: v for k, v in written.items() if k != 'accessor'}
@@ -1202,7 +1205,7 @@ class Engine:
 
     def copy_of(self, table: str) -> dict[str, Any] | None:
         """A snap's copy this engine holds, by its table: its model, runtime and relation (a grid snapped onto it reads
-        them), or None. Asked with the frames held: it takes no session lock, only this engine's own."""
+        them), or None. It takes no session lock, only this engine's own."""
         with self._warehouse_lock:
             return self._copies.get(table)
 
@@ -1400,55 +1403,39 @@ class Engine:
         return _arrow_rows(rows, planned, receipt)
 
     def _plan_and_run(self, body: str, over: Reading | None = None) -> Answer:
-        """PLANANDRUN on Python (§15.2): ``{"lambda", "model", "runtime"}`` -- the plan request the page's planner makes
-        (lite-planner.ts ``planRequest``), its model as text -- planned against the model Python holds of that text
-        (``Frames.held_for``: only the models this engine serves, R4) by the planner function the tab's worker calls
-        (``planJson``), its SQL run on the frames' DuckDB, all in this one call: the page sends Pure, never SQL. The
-        answer is the database's rows as Arrow, the planner's answer in their schema's metadata (``legend.plan``),
-        which the page reads as its planner reads its own; or, no rows, JSON: the planner's refusal (``plan``), or its
-        plan and why its SQL was refused (``error``). ``over``: a read of the frames (D15) -- a call of DataCube's made in
-        one, or Python's own rows -- whose database it runs on as the read sees it."""
+        """PLANANDRUN on Python (§15.2): ``{"lambda", "model", "runtime", "project"?}`` -- the plan request the page's
+        planner makes (lite-planner.ts ``planRequest``), its model as text -- planned against the model Python holds of
+        that text by the planner function the tab's worker calls (``planJson``), its SQL run where its rows are, all in
+        this one call: the page sends Pure, never SQL. A model's rows are the tables this engine serves (a page's frames
+        and files, a snap's copies; a model that reads only them, R4) -- or, ``project`` (a saved query's: C5), its
+        project's own Data rows, in a database of the project's own; never one read in the other's place (F28: a table
+        not served is refused, never a project's sample rows read instead). The answer is the database's rows as Arrow,
+        the planner's answer in their schema's metadata (``legend.plan``), which the page reads as its planner reads its
+        own; or, no rows, JSON: the planner's refusal (``plan``), or its plan and why its SQL was refused (``error``).
+        ``over``: the read of the frames it runs in (D15) -- a call of DataCube's made in one, or Python's own rows;
+        none, a read of its own (a tab's call: the frames' lock held only to begin it, F35)."""
         try:
             asked = json.loads(body)
         except ValueError:
             return _said(400, 'a plan-and-run is {"lambda", "model", "runtime"}, as JSON')
         if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime'))):
             return _said(400, 'a plan-and-run is {"lambda", "model", "runtime"}, each a string')
-        refused = self.planner.refused_plan('this engine plans only over the tables it serves: a page\'s frames and '
-                                            'files, a model that reads only them, and a project\'s model with Data rows')
-        if over is not None:
-            return self._plan_and_run_over(asked, over, refused)
-        with self.frames.serving() as models:
-            self._noted(models)
-            served = self.frames.model_for(asked['model']) is not None
-        if not served:
-            return self._project_plan_and_run(asked, refused)
-        with self.frames.serving() as models:
-            self._noted(models)
-            held = self.frames.model_for(asked['model'])
-            if held is None:
-                return _planned({'plan': refused})
-            # Python's own planner, over the model this process holds
-            planned = self.planner.plan(asked['lambda'], held, asked['runtime'])
-            try:
-                plan = self.planner.read(planned)
-            except LegendError:
-                return _planned({'plan': planned})
-            try:
-                # Python's executor, as Python's own queries are run: the rows typed by the plan (frames.typed_by_plan)
-                rows = self.frames.run(plan)
-            except (duckdb.Error, UntypedColumn) as refused:
-                return _planned({'plan': planned, 'error': f'{type(refused).__name__}: {refused}'}, 422)
-        return _arrow_rows(rows, planned)
+        if asked.get('project') is True:
+            return self._project_plan_and_run(asked, self.planner.refused_plan(_NO_PROJECT_ROWS))
+        if over is None:
+            with self.frames.reading() as read:
+                return self._plan_and_run_over(asked, read)
+        return self._plan_and_run_over(asked, over)
 
-    def _plan_and_run_over(self, asked: dict[str, str], over: Reading, refused: str) -> Answer:
+    def _plan_and_run_over(self, asked: dict[str, str], over: Reading) -> Answer:
         """A plan-and-run over a read of the frames (D15): planned by Python's planner against the model this engine
         serves of that text -- the tables as the read saw them, the frames' lock taken only while it plans -- and run on
-        the read's own cursor, as the read sees the database; a model of no table served, a project's (C5)."""
-        self._noted(over.models)
+        the read's own cursor, as the read sees the database. A model of a table not served now is refused, naming it
+        (F28). The frames' models noted as last read, never older than the read (F30)."""
+        self._noted(self.frames.models())
         planned = self.frames.plan_over(asked['model'], lambda held: self.planner.plan(asked['lambda'], held, asked['runtime']))
         if planned is None:
-            return self._project_plan_and_run(asked, refused)
+            return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         try:
             plan = self.planner.read(planned)
         except LegendError:
@@ -1458,6 +1445,13 @@ class Engine:
         except (duckdb.Error, UntypedColumn) as failure:
             return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
+
+    def _unserved(self, model: str) -> str:
+        """Why a model is not planned here, in words: the tables it reads that this engine does not serve now."""
+        missing = self.frames.unserved(model)
+        named = f': it reads {", ".join(missing)}, which it does not serve now' if missing else ''
+        return ('this engine reads only the tables it serves -- a page\'s frames and files, a snap\'s copies, a model '
+                f'that reads only them{named}')
 
     def _project_plan_and_run(self, asked: dict[str, str], refused: str) -> Answer:
         """A plan-and-run over a project's model (a saved query opened on Python's page: C5): planned against
@@ -1480,36 +1474,34 @@ class Engine:
 
     def _plan(self, body: str) -> Answer:
         """THE DRY RUN of a plan-and-run (§15.2 as amended 2026-10-15; the page's compile check, CubeController.compile):
-        ``{"lambda", "model", "runtime"}``, as plan-and-run takes it, planned by the same planner function against the
-        model Python holds of that text -- a page's frame or file, a warehouse table, a project's model with Data rows
-        (C5): only the models this engine serves (R4) -- and never run. JSON: ``{"plan"}``, the planner's answer, a
-        refusal too, as plan-and-run carries it (``legend.plan``)."""
+        ``{"lambda", "model", "runtime", "project"?}``, as plan-and-run takes it, planned by the same planner function
+        against the model Python holds of that text -- a page's frame or file, a warehouse table; ``project``, a saved
+        query's project's own (C5) -- by plan-and-run's one rule of where a model's rows are (F28), and never run. JSON:
+        ``{"plan"}``, the planner's answer, a refusal too, as plan-and-run carries it (``legend.plan``)."""
         try:
             asked = json.loads(body)
         except ValueError:
             return _said(400, 'a plan is {"lambda", "model", "runtime"}, as JSON')
         if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime'))):
             return _said(400, 'a plan is {"lambda", "model", "runtime"}, each a string')
-        refused = self.planner.refused_plan('this engine plans only over the tables it serves: a page\'s frames and '
-                                            'files, a model that reads only them, and a project\'s model with Data rows')
-        with self.frames.serving() as models:
-            self._noted(models)
-            held = self.frames.model_for(asked['model'])
-            if held is None:
-                with self._warehouse_lock:
-                    table = self._warehouse_tables.get(asked['model'])
-                if table is not None:
-                    # the runtime its run takes, refused as its run refuses it
-                    wrong = table.refused_runtime(asked['runtime'])
-                    if wrong is not None:
-                        return _planned({'plan': self.planner.refused_plan(wrong)})
-                    held = table.held
-            if held is not None:
-                return _planned({'plan': self.planner.plan(asked['lambda'], held, asked['runtime'])})
+        if asked.get('project') is True:
             with self.projects.using(asked['model']) as project:
                 if project is None:
-                    return _planned({'plan': refused})
+                    return _planned({'plan': self.planner.refused_plan(_NO_PROJECT_ROWS)})
                 return _planned({'plan': self.planner.plan(asked['lambda'], project.held, asked['runtime'])})
+        with self._warehouse_lock:
+            table = self._warehouse_tables.get(asked['model'])
+        if table is not None:
+            # the runtime its run takes, refused as its run refuses it
+            wrong = table.refused_runtime(asked['runtime'])
+            if wrong is not None:
+                return _planned({'plan': self.planner.refused_plan(wrong)})
+            return _planned({'plan': self.planner.plan(asked['lambda'], table.held, asked['runtime'])})
+        self._noted(self.frames.models())
+        planned = self.frames.plan_over(asked['model'], lambda held: self.planner.plan(asked['lambda'], held, asked['runtime']))
+        if planned is None:
+            return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
+        return _planned({'plan': planned})
 
     def _execute(self, body: str) -> Answer:
         """execute in upstream's Arrow format: the compiler plans over the frames' models, DuckDB runs its SQL,

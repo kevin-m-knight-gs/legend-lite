@@ -27,10 +27,12 @@ export interface HostFrame {
 /** A grid's base on the host, as every grid call is given it (GridSpec without its cube): its model and runtime, the
  *  relation it reads -- Pure text (a frame's accessor) or a lambda as the protocol writes it -- and, read through a
  *  mapping (a class, a saved query), that mapping and the model's enumerations. Its rows are the host's plan-and-run's
- *  to read, wherever they are (D16): nothing here says where. */
+ *  to read (D16): from the tables the host serves -- or, a saved query's, its project's own (`project`: C5, F28). */
 export type HostBase = {
   readonly model: string; readonly runtime: string;
   readonly mapping?: string; readonly enumerations?: readonly string[];
+  /** Its rows its project's own (a saved query's: planner.ts ModelOptions.project, F28). */
+  readonly project?: true;
 } & ({ readonly source: string } | { readonly relation: string });
 
 /** The file a host read in as a table, as a cube records it: a file's name, size and bytes' hash; a remote file's URL. */

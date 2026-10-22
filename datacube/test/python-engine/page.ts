@@ -330,7 +330,7 @@ async function run(): Promise<void> {
     equal(shape((await copy.run(two, { epoch: 0 } as CubeSnapshot)).rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]',
       'the copy\'s rows, read in Python\'s DuckDB:');
     await services.engine.database.release!(frozen.table);
-    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /plans only over the tables it serves/);
+    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /reads only the tables it serves.*which it does not serve now/);
     // and a frame's grid snaps the same way (one Snap), its copy read through Python's own model of it
     const fm = await services.engine.database.frame!('trades');
     const frameRows = services.engine.rows(fm.model, fm.runtime).runner!;

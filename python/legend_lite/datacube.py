@@ -206,12 +206,12 @@ class _Session:
                 # session's engine -- by a weak method: the session holds its DataCube engine, never the other way round
                 # (any function of this module would reach the session through the module's globals, and an engine in
                 # such a cycle is collected at the interpreter's end, where tearing V8 down crashes the process)
-                self._headless.answers = weakref.WeakMethod(self._answer_here)
+                self._headless.answers = weakref.WeakMethod(self._answer_over)
                 # every grid's rows are read by the engine's plan-and-run (D16): made with it, before any call asks it
                 self.engine()
             return self._headless
 
-    def _answer_here(self, path: str, body: str, over: Any) -> tuple[int, str, bytes]:
+    def _answer_over(self, path: str, body: str, over: Any) -> tuple[int, str, bytes]:
         """A call of DataCube's code to the engine (headless calls.ts ``engine``), answered by this session's engine on
         DataCube's thread over the read the call was made in (``Engine.answer_over``: D15) -- made with DataCube's engine
         (``headless``), so it takes no session lock (the call's caller may hold it, waiting)."""
@@ -222,9 +222,10 @@ class _Session:
 
     def held_copies(self) -> dict[str, dict[str, Any]]:
         """Every snap's copy this session's engine holds, by its table (its model, runtime and relation, as DataCube
-        modelled it as it landed: headless grid.ts HeldCopy) -- none made yet, no engine yet: none. Asked with the frames
-        held (a snapped grid's base, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): it takes no session lock, which a
-        frame's registering takes before the frames', only the engine's own."""
+        modelled it as it landed: headless grid.ts HeldCopy) -- none made yet, no engine yet: none. Asked as a read of the
+        frames begins (a snapped grid's base, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): the copies held now, which
+        a copy made after the read began is among though the read does not see it (F31). It takes no session lock, only
+        the engine's own."""
         engine = self._engine
         return {} if engine is None else engine.held_copies()
 
@@ -314,7 +315,9 @@ class _Session:
         return named, page
 
     def show(self, frame: Any, name: str | None, snap: bool = False) -> Cube:
-        """The frame shown in a tab (frame_page): its name's cube there, the one it has, else a new one."""
+        """The frame shown in a tab (frame_page): its name's cube there, the one it has, else a new one -- refused in words
+        first where this install carries no DataCube site to show it in (F40)."""
+        self.shown_engine()
         name, page = self.frame_page(frame, name, snap)
         with self._lock:
             cube = self.cubes.get(name.lower())
@@ -366,8 +369,8 @@ class _Session:
             # served when it is first shown; shown again, the engine has it as it is (served each time it changed), and
             # a page open on it stays as it is
             if not page._shown:
-                # its engine made, to serve it; the page kept already, as every page is from its start
-                self.engine()
+                # its engine made, to serve it -- with DataCube's site, or refused in words; the page kept already
+                self.shown_engine()
                 self.keeper.serve(page._key, True)
             page._shown.append(view)
             self.pages.append(view)

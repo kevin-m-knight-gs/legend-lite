@@ -66,8 +66,9 @@ async function read(spec: string): Promise<{
   };
 }
 
-/** Legend-lite's writer and the planners a call makes over the host's worker, the host's database, let go after. */
-async function using<T>(use: (o: JoinOpening & { readonly engine: DuckDbEngine; readonly planners: LitePlanner[] }) => Promise<T>,
+/** Legend-lite's writer and the planners a call makes over the host's worker, let go after; the host's database read
+ *  for its tables' catalog alone (every row a join reads is the host's plan-and-run's: D16). */
+async function using<T>(use: (o: JoinOpening & { readonly planners: LitePlanner[] }) => Promise<T>,
   tables: readonly string[]): Promise<T> {
   const calls = hostCalls();
   // the model writer needs no model of its own: it writes one (the worker's tableModel)
@@ -76,7 +77,7 @@ async function using<T>(use: (o: JoinOpening & { readonly engine: DuckDbEngine; 
   const planners: LitePlanner[] = [];
   try {
     return await use({
-      here: HOST_TABLES, tables, models, engine, planners, databaseType: 'DuckDB',
+      here: HOST_TABLES, tables, models, planners, databaseType: 'DuckDB',
       catalog: (table) => catalogColumns(engine, models, table),
       typer: (model, runtime) => {
         const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });

@@ -71,6 +71,8 @@ export interface GridSpec {
   /** Read through a mapping (a class, a saved query): the mapping, and the model's enumerations (planner.ts ModelOptions). */
   readonly mapping?: string;
   readonly enumerations?: readonly string[];
+  /** Its rows its project's own (a saved query's: host-tables.ts HostBase, F28). */
+  readonly project?: true;
   /** What the page's filters are to it (gridBaseOn's, its page given): the page's filters and the grid's charts, as the
    *  protocol's JSON text -- what a page's grid reads through, as the screen's grid does (page-filters.ts gridLens). */
   readonly lens?: string;
@@ -89,16 +91,17 @@ interface Opened {
 
 /**
  * What answers a base's queries, ONE WAY WHATEVER THE BASE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D16): the host's
- * plan-and-run, which says where its rows are -- the host's database (a frame, a file, a copy), a project's own, a
- * warehouse -- asked by the tab's own runner over the host's engine (services/python-host.ts pythonRunner), as a tab on
- * the host reads every grid; its planner, over the host's worker, typing what the grid shows. Through its mapping, when
- * it has one.
+ * plan-and-run, which reads them where they are -- the tables the host serves (a frame, a file, a copy, a class's), a
+ * warehouse table on its warehouse, a saved query's project's own (`project`: F28) -- asked by the tab's own runner over
+ * the host's engine (services/python-host.ts pythonRunner), as a tab on the host reads every grid; its planner, over the
+ * host's worker, typing what the grid shows. Through its mapping, when it has one.
  */
 function runnerOf(spec: Omit<GridSpec, 'cube'>): { readonly planner: LitePlanner; readonly runner: PlanAndRun } {
   const calls = hostCalls();
   const how: ModelOptions = {
     ...(spec.mapping !== undefined ? { mapping: spec.mapping } : {}),
     ...(spec.enumerations !== undefined ? { enumerations: spec.enumerations } : {}),
+    ...(spec.project === true ? { project: true as const } : {}),
   };
   const runner = pythonRunner(hostEngine(calls), spec.model, spec.runtime, how, () => hostWorker(calls));
   return { planner: runner.host.planner as LitePlanner, runner };

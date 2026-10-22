@@ -325,7 +325,7 @@ class Grid(Tile):
         with frames.reading() as over:
             spec = self._spec(engine, frames)
             tree = compiler.parse(engine.call('gridRelation', spec))
-            return to_pandas(_engine_rows(self._page._session, tree, spec['model'], spec['runtime'], over))
+            return to_pandas(_engine_rows(self._page._session, tree, spec, over))
 
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
@@ -655,13 +655,15 @@ def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
     return {'cube': text, **said}
 
 
-def _engine_rows(session: Any, tree: Any, model: str, runtime: str, over: Any) -> Any:
-    """A query's rows planned and run by the session's engine where they are (its plan-and-run: a project's own database,
-    a warehouse, the frames' as the read ``over`` sees them: D15), as Arrow typed by the plan -- every grid's rows, by one
-    plan-and-run (D16). Refused in the planner's or the database's words."""
+def _engine_rows(session: Any, tree: Any, base: Mapping[str, Any], over: Any) -> Any:
+    """A query's rows planned and run by the session's engine where they are (its plan-and-run: the frames' database as
+    the read ``over`` sees them, D15; a warehouse; a saved query's project's own, as its ``base`` from DataCube says:
+    F28), as Arrow typed by the plan -- every grid's rows, by one plan-and-run (D16). Refused in the planner's or the
+    database's words."""
     from . import compiler
-    status, kind, body = session.engine().answer_over('/plan-and-run.json', json.dumps({'lambda': _json.dumps(tree), 'model': model,
-                                                                              'runtime': runtime}), over)
+    asked = {'lambda': _json.dumps(tree), 'model': base['model'], 'runtime': base['runtime'],
+             **({'project': True} if base.get('project') is True else {})}
+    status, kind, body = session.engine().answer_over('/plan-and-run.json', json.dumps(asked), over)
     if status == 200 and not kind.startswith('application/json'):
         import pyarrow.ipc
         return pyarrow.ipc.open_stream(body).read_all()

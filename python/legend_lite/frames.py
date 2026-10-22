@@ -287,9 +287,31 @@ class Reading:
         self.hosted = hosted
         self.models = models
 
+    def execute(self, sql: str) -> duckdb.DuckDBPyConnection:
+        """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
+        overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
+        database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was."""
+        try:
+            return self.cursor.execute(sql)
+        except duckdb.Error:
+            try:
+                _pin(self.cursor)
+            except duckdb.TransactionException:
+                with contextlib.suppress(duckdb.Error):
+                    self.cursor.rollback()
+                self.cursor.begin()
+                _pin(self.cursor)
+            raise
+
     def run(self, plan: compiler.Plan) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.cursor.execute(plan.sql).to_arrow_table(), plan)
+        return typed_by_plan(self.execute(plan.sql).to_arrow_table(), plan)
+
+
+def _pin(cursor: duckdb.DuckDBPyConnection) -> None:
+    """The transaction just begun on ``cursor`` pinned: DuckDB begins one on a database when it is first read, so this
+    database's catalog is read now (one of Frames' own names asked for: never a table)."""
+    _host.count(cursor, {'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
 
 
 class Frames:
@@ -333,6 +355,7 @@ class Frames:
         and the old handle stops working."""
         if not _NAME.match(name):
             raise ValueError(f"a frame's name is a plain identifier (letters, digits, '_'), not {name!r}")
+        self._writing()
         if name in _LITERALS:
             raise ValueError(f"a frame cannot be named {name!r}: Pure reads it as a literal, so no package can be")
         read: Callable[[], Any] = frame if callable(frame) else (lambda: frame)
@@ -400,6 +423,51 @@ class Frames:
                     return f.held
         return None
 
+    def models(self) -> dict[str, str]:
+        """Each frame's and file's model as it was last read, by its name: what the engine notes a frame's change by. No
+        frame is read again -- a live one is read once a query, as its read begins (``reading``) -- and none is older
+        than a read's own (F30)."""
+        with self._lock:
+            return {**{t.name: t.model for t in self._tables.values()}, **{f.name: f.model for f in self._files.values()}}
+
+    def unserved(self, model: str) -> list[str]:
+        """The tables ``model``'s Databases declare that this database does not serve now -- one of its own schema
+        lower-cased, one of another schema (never a table of this database) as ``SCHEMA.TABLE`` -- none when it does not
+        read as a model: what a refusal of it names."""
+        declared = self._tables_of(model)
+        if declared is None:
+            return []
+        own, other = declared
+        with self._lock:
+            served = set(self._tables) | set(self._files)
+        return sorted(t for t in own if t not in served) + sorted(other)
+
+    @staticmethod
+    def _declared(model: str) -> set[str] | None:
+        """The tables a model's Databases declare in the database's own schema, lower-cased -- or None: it does not read
+        as a model, or declares a table of another schema (no table of this database)."""
+        declared = Frames._tables_of(model)
+        return None if declared is None or declared[1] else declared[0]
+
+    @staticmethod
+    def _tables_of(model: str) -> tuple[set[str], set[str]] | None:
+        """The tables a model's Databases declare: those of the database's own schema, lower-cased, and those of another,
+        as ``SCHEMA.TABLE`` -- or None: it does not read as a model."""
+        try:
+            elements = compiler.model_elements(model)
+        except compiler.LegendError:
+            return None
+        own: set[str] = set()
+        other: set[str] = set()
+        for element in elements:
+            for schema in element.get('schemas', []) if element.get('_type') == 'relational' else []:
+                names = {str(t.get('name', '')) for t in schema.get('tables', [])}
+                if schema.get('name') in ('default', 'main'):
+                    own |= {n.lower() for n in names}
+                else:
+                    other |= {f'{schema.get("name")}.{n}' for n in names}
+        return own, other
+
     def model_for(self, model: str) -> compiler.HeldModel | None:
         """The model a page's query may be planned over (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B3; the user's ruling,
         option (c)): one held for a frame or a page's file (``held_for``), or a model the page sent -- its project's, say
@@ -415,16 +483,9 @@ class Frames:
                 held, tables = self._admitted.pop(model)
                 self._admitted[model] = (held, tables)
                 return held if tables <= served else None
-            try:
-                elements = compiler.model_elements(model)
-            except compiler.LegendError:
+            tables = self._declared(model)
+            if tables is None:
                 return None
-            tables: set[str] = set()
-            for element in elements:
-                for schema in element.get('schemas', []) if element.get('_type') == 'relational' else []:
-                    if schema.get('name') not in ('default', 'main') and schema.get('tables'):
-                        return None
-                    tables |= {str(t.get('name', '')).lower() for t in schema.get('tables', [])}
             if not tables <= served:
                 return None
             try:
@@ -535,6 +596,7 @@ class Frames:
 
     def unregister(self, name: str) -> None:
         """Takes a frame's table out of the database; its handle stops working."""
+        self._writing()
         with self._lock:
             self._tables.pop(name.lower())._drop()
 
@@ -564,8 +626,9 @@ class Frames:
         frame called once), registered on the read's own cursor; a transaction begun and pinned, so the frames' tables,
         the files' and the copies' are read as they are now whatever is made or dropped meanwhile; and what is served
         now (``hosted``). The lock is taken only to begin it: nothing waits on this read while it runs. A read inside a
-        read on the same thread is the one read. Nothing is written inside one (``holding``, ``reading_file``): what a
-        read would not see is written before it begins."""
+        read on the same thread is the one read. Nothing is written inside one on its thread (``register``,
+        ``unregister``, ``holding``, ``reading_file``: refused in words): what a read would not see is written before it
+        begins."""
         outer: Reading | None = getattr(self._local, 'reading', None)
         if outer is not None:
             yield outer
@@ -582,9 +645,8 @@ class Frames:
                     if table.live:
                         cursor.register(table._registered, table._arrow)
                 cursor.begin()
-                # a transaction is begun on a database when it is first read: read this database's catalog now (one
-                # of Frames' own names asked for: never a table), so this read sees it as it is while the lock is held
-                _host.count(cursor, {'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
+                # pinned while the lock is held: this read sees the database as it is now
+                _pin(cursor)
             except BaseException:
                 cursor.close()
                 raise

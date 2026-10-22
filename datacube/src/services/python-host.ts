@@ -209,7 +209,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
  * its model's text by the handle this gives, and the dry run sends that text, Python planning against the model it
  * holds of that text.
  */
-function pythonWorker(link: PythonLink): PlannerWorker {
+function pythonWorker(link: PythonLink, project = false): PlannerWorker {
   const held = new Map<number, string>();
   let next = 1;
   let alive = true;
@@ -263,8 +263,9 @@ function pythonWorker(link: PythonLink): PlannerWorker {
             reply({ id, ok: true, answer: `ERR\nMODEL\nno model held as ${body.handle} on this page` });
             return;
           }
-          // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run
-          call('/plan.json', JSON.stringify({ lambda: body.lambda, model, runtime: body.runtime }), (answer, text) =>
+          // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run -- a project's
+          // own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
+          call('/plan.json', JSON.stringify({ lambda: body.lambda, model, runtime: body.runtime, ...(project ? { project } : {}) }), (answer, text) =>
             (answer.ok
               ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
               : { id, ok: false, error: `the engine answered ${answer.status}: ${text}` }));
@@ -290,7 +291,7 @@ function pythonWorker(link: PythonLink): PlannerWorker {
  * DataCube's code run inside the host, the host's own (headless host.ts hostWorker).
  */
 export function pythonRunner(link: PythonLink, model: string, runtime: string, how: ModelOptions = {},
-  worker: () => PlannerWorker = () => pythonWorker(link)): PlanAndRun {
+  worker: () => PlannerWorker = () => pythonWorker(link, how.project === true)): PlanAndRun {
   const { planner, request, read } = planning(model, runtime, how, worker);
   const readPlan = (answer: string, query: Lambda): Plan => {
     try {
@@ -363,7 +364,9 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
  */
 function planning(model: string, runtime: string, how: ModelOptions, worker: () => PlannerWorker): {
   readonly planner: LitePlanner;
-  readonly request: (query: Lambda) => { readonly lambda: string; readonly model: string; readonly runtime: string };
+  readonly request: (query: Lambda) => {
+    readonly lambda: string; readonly model: string; readonly runtime: string; readonly project?: true;
+  };
   readonly read: (answer: string, query: Lambda) => Plan;
 } {
   const planner = new LitePlanner({
@@ -371,7 +374,13 @@ function planning(model: string, runtime: string, how: ModelOptions, worker: () 
     ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
     ...(how.enumerations === undefined ? {} : { enumerations: how.enumerations }),
   });
-  return { planner, request: (query) => planner.planRequest(query), read: (answer, query) => planner.readPlan(answer, query) };
+  return {
+    planner,
+    // a project's own rows (a saved query's: C5) said so, where the host reads them; any other model's, only the tables
+    // the host serves (F28)
+    request: (query) => ({ ...planner.planRequest(query), ...(how.project ? { project: true as const } : {}) }),
+    read: (answer, query) => planner.readPlan(answer, query),
+  };
 }
 
 /** A frame as Python says it is now (`cube.json`): the model Python wrote for it, and its version. */
