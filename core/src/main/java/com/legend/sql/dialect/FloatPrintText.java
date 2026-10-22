@@ -31,7 +31,7 @@ final class FloatPrintText {
     static final class Expansion extends com.legend.sql.SqlRewriter {
 
         private final boolean bind;
-        private int fresh;
+        private final int[] fresh = {0};
         private final java.util.Map<SqlExpr.Call, SqlExpr> spelledCalls = new java.util.HashMap<>();
 
         /** {@code bind}: the value and its text are columns of a one-row derived table, each written once, under a
@@ -59,8 +59,8 @@ final class FloatPrintText {
         }
 
         private SqlExpr bound(SqlFn fn, SqlExpr x) {
-            String inner = "__fp" + fresh++;
-            String outer = "__fp" + fresh++;
+            String inner = "__fp" + fresh[0]++;
+            String outer = "__fp" + fresh[0]++;
             com.legend.sql.SqlSelect value = select(List.of(projection(x, "v", SqlType.Scalar.DOUBLE)),
                     new com.legend.sql.SqlSource.Dual());
             SqlExpr v = column(inner, "v", SqlType.Scalar.DOUBLE);
