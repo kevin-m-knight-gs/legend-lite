@@ -84,9 +84,10 @@ public final class PctBackend {
      * opens its own session from its target ({@link com.legend.exec.PlanSessions#shared}: the declared in-memory
      * database, set up by the plan), as MongoDB's does through its connector. A SERVER lane's plan runs on the
      * harness's own session, as the legacy route's did ({@code PctExecuteNative} opened one per case, a cloud lane's
-     * the suite's held one): where the backend holds a system session ({@link TestBackend#heldSystem}: a cloud's),
-     * on it for a plan whose session statements are its dialect's options alone; else a NEW session per plan, opened
-     * as the lane's SYSTEM session ({@link TestBackend#openSystem}: the one that holds a session's own tables --
+     * the suite's held one): where the backend holds a session ({@link TestBackend#held}: a cloud's, the one the
+     * merge-base's route ran every case on), on it for a plan whose session statements are its dialect's options
+     * alone; else a NEW session per plan, opened as the lane's SYSTEM session ({@link TestBackend#openSystem}: the
+     * one that holds a session's own tables --
      * ClickHouse's HTTP session, Snowflake's schema, BigQuery's session -- which the plan's session statements make
      * for the system metamodel store), checked by the runner against the plan's target and given the target's
      * session statements as any session is, and closed after. The platform cannot open it itself: the storeless
@@ -109,7 +110,7 @@ public final class PctBackend {
             }
             Connection held;
             try {
-                held = optionsOnly(target) ? backend.heldSystem() : null;
+                held = optionsOnly(target) ? backend.held() : null;
             } catch (SQLException e) {
                 throw new IllegalStateException("the " + name() + " lane's held session could not be opened: "
                         + e.getMessage(), e);

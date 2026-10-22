@@ -42,8 +42,6 @@ abstract class CloudBackend implements TestBackend {
      *  for every cloud was safe while a JVM ran one lane, not behind a registry of every backend). */
     private static final java.util.Map<String, Connection> SESSIONS = new java.util.HashMap<>();
     private static final java.util.Map<String, IllegalStateException> FAILED = new java.util.HashMap<>();
-    /** Each cloud's one held system session ({@link #heldSystem}), by its name. */
-    private static final java.util.Map<String, Connection> SYSTEMS = new java.util.HashMap<>();
 
     /** The runtime's connection declaration: the coordinates as they are, the credential by reference. */
     abstract String specificationAndAuth(Properties p);
@@ -107,27 +105,10 @@ abstract class CloudBackend implements TestBackend {
         }
     }
 
-    /** {@inheritDoc} The suite's one, opened as {@link #openSystem} opens a new one and held as {@link #open}'s is
-     *  (the PCT harness's {@code CloudLane.system}, 2026-10-21, moved here at main's merge, 2026-10-22). */
+    /** {@inheritDoc} {@link #open}'s: the suite's one session. */
     @Override
-    public final Connection heldSystem() throws SQLException {
-        synchronized (CloudBackend.class) {
-            Connection held = SYSTEMS.get(name());
-            if (held == null || held.isClosed()) {
-                Connection opened = openSystem();
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    try {
-                        opened.close();
-                    } catch (SQLException e) {
-                        System.err.println("[LegendLite PCT] closing the " + name() + " system session: "
-                                + e.getMessage());
-                    }
-                }));
-                SYSTEMS.put(name(), opened);
-                held = opened;
-            }
-            return unclosable(held);
-        }
+    public final Connection held() throws SQLException {
+        return open();
     }
 
     /** {@code held}, its {@code close()} a no-op. */

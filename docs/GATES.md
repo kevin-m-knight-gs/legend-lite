@@ -11559,6 +11559,28 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-22 — PCT on the clouds: channel A's plans run on the suite's held session, not a session-mode system one
+
+The BigQuery lane measured channel A at 78bd5da3 against the merge-base: essential 615 s against 256 s, standard 567 s
+against 237 s, relation 381 s against 215 s. A proxy over every connection the harness opens put all of it inside
+BigQuery. Planning and the harness took the same time at both, and the statement counts were nearly equal (essential
+815 and 836). Each query took twice as long (median 216 ms against 514 ms, the same for statements under 1,000
+characters).
+
+The cause is the connection. Since eee1e560 a cloud's plans whose session statements are its dialect's options alone
+ran on one held SYSTEM session (`openSystem`). BigQuery's system connection adds `EnableSession`, which its temporary
+tables need. On it the same `SELECT 1` takes 421 ms against 216 ms on the plain session (sixteen interleaved runs
+each). The merge-base ran every case on the suite's plain session (`CloudLane.connect`).
+
+Such a plan now runs on that session again: `TestBackend.held()`, a cloud's `open()`, replaces `heldSystem()`. A plan
+that makes a table of the session's own (the system metamodel store) still runs on a new system session, as before.
+A server lane still opens a session per plan.
+
+The mixed-number statements were not BigQuery's cause: about 20 s at head, against a 334 s and a 283 s difference.
+
+BEING MEASURED: channel A's timings on BigQuery, Snowflake and Databricks at this commit. Local: //pct:pct_discipline,
+//core:core_tests_root and //core:core_tests_architecture green; the three clouds' PCT targets build.
+
 ## 2026-10-22 — main (bff1c703f, PR #65 and the dialect program's Phases 5 to 7) merged into the plan path branch
 
 The Studio session relayed the user's word, "Merged, tell parity": PR #65 is on main, and this branch merges main
