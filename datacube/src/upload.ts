@@ -376,8 +376,9 @@ export async function mountRemoteView(engine: DuckDbEngine, models: TableModels,
 
 /** A file's table dropped: its name is free again (the caller lets go of the file itself, where it keeps one). */
 export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
-  table: string): Promise<void> {
-  await runHostOperations(models, engine, [{ op: 'drop', kind: 'table', target: { name: table } }]);
+  table: string, view = false): Promise<void> {
+  // a remote file's is a view (mountRemoteView)
+  await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } }]);
 }
 
 /**

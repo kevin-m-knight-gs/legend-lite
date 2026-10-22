@@ -126,6 +126,20 @@ class Keeper(unittest.TestCase):
         self.assertFalse(keeper.served('p'))
 
 
+    def test_each_file_a_page_read_is_kept_by_the_same_rule_as_a_copy(self):
+        # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X3: a page's files by their bytes' hash, its remote files by URL -- each
+        # kept apart from the copies, by its own key, as a copy is
+        keeper = PageKeeper()
+        keeper.keep('p', {}, {**reads(copies=['snap']), 'files': ['abc'], 'remotes': ['https://x/y.csv']}, [])
+        self.assertEqual([keeper.has_read('abc', 'files'), keeper.has_read('abc'), keeper.has_read('https://x/y.csv', 'remotes')],
+                         [True, False, True], 'each kind by its own key')
+        self.assertEqual(keeper.letting_go(['abc', 'def'], 'files'), [], 'read now, or its reader\'s')
+        keeper.write('p', 1, {'v': 2}, reads(copies=['snap']), None, [])
+        self.assertEqual(keeper.letting_go(['abc'], 'files'), ['abc'], 'read by the page as it was only')
+        self.assertEqual(keeper.letting_go(['snap']), [], 'the copy is still read')
+        keeper.gone('abc', 'files')
+        self.assertFalse(keeper.has_read('abc', 'files'))
+
     def test_a_page_open_on_it_keeps_the_copies_of_the_version_it_shows_and_of_every_one_since(self):
         # the keeper's known limit 6 (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md), closed by Z17: an open page that has not
         # followed yet reads the copies of the version it shows, and follows through every version since

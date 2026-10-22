@@ -720,7 +720,8 @@ class Joins(unittest.TestCase):
         self.customers = customers = self.page.grid(self.CUSTOMERS, name='join_customers')
         # each grid as the page has it, under the name it shows: its tile's title, else what it reads (joinInputOf)
         trades.title = 'trades'
-        self.spec = {'mine': trades.id, 'theirs': customers.id, 'tables': ['join_trades', 'join_customers']}
+        # what the host serves, as DataCube takes it: its frames, files and remote files (host-tables.ts HostTables)
+        self.spec = {'mine': trades.id, 'theirs': customers.id, 'host': datacube._session.frames.hosted()}
         self.headless = datacube._session.headless()
 
     def ask(self, function, how, **added):

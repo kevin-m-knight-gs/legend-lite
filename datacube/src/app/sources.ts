@@ -22,11 +22,14 @@ import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
 import {
   cubeTaken,
   cubeToJson,
+  fileChanged,
   fileSource,
   frameSource,
+  lastSegment,
   leavesOf,
   readCube,
   rebuilt,
+  remoteSourceOf,
   type ClassSource,
   type CubeDocument,
   type CubeSource,
@@ -244,7 +247,6 @@ function bytes(n: number): string {
 type FileCube = CubeDocument & { readonly source: FileSource };
 const isFileCube = (doc: CubeDocument): doc is FileCube => doc.source._type === 'file';
 
-const lastSegment = (url: string): string => url.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop() || url;
 
 const detectFormat = (url: string): string | undefined => ({ parquet: 'Parquet', csv: 'CSV', iceberg: 'Iceberg' })[inferFormat(url)];
 
@@ -681,9 +683,7 @@ export function pageSources(d: SourcesOf): PageSources {
       const r = rebuilt(saved, opened.source, columns, opened.fileName, how.capped === true);
       const notes = saved
         ? [
-          ...(saved.source._type !== 'file' || source.sha256 !== saved.source.sha256
-            ? [`${file.name} is not the file this cube was saved over (its contents differ)`]
-            : []),
+          ...fileChanged(saved.source, source),
           ...(how.table !== undefined && table !== how.table
             ? [`${file.name} is read as ${table} in this tab, not ${how.table} as the page's classes read it: `
               + (kept === undefined
@@ -814,8 +814,8 @@ export function pageSources(d: SourcesOf): PageSources {
     const m = await database.mountRemote(url, s3, view);
     const rows = services.engine.rows(m.model, m.runtime, { bitColumns: m.bitColumns });
     const columns = await sourceColumns(typer(rows), m.source);
-    const name = lastSegment(url);
-    const cubeSource: RemoteSource = { _type: 'remoteFile', name, url, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+    const cubeSource = remoteSourceOf(url, columns);
+    const { name } = cubeSource;
     const r = rebuilt(saved, m.source, columns, name, capped);
     return {
       label: name,

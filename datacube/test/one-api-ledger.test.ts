@@ -46,9 +46,11 @@ interface Entry {
 // 10 registered as P15, pinned by its code
 // 2026-10-22 (S5, B3/B9, D11): L1_HOST 10 -> 8, MARKERS 5 -> 4 -- one unnamed new page (PageApp.clear: newPage) names
 // itself, no host's setTitle(''); one name (the page's, no host's current.name)
+// 2026-10-22 (S5, X1-X4, D14): L8_SOURCES 5 -> 3, MARKERS 4 -> 3 -- a file and a remote file read and added on a Python
+// page (host-tables.ts leafOnHost; page.grid(file=, remote=)), and kept by the keeper while a page reads them (pageReads)
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 11, L8_SOURCES: 5, L8_UNASKED: 2, MARKERS: 4, UNCHECKED: 7,
+  L8_KINDS: 11, L8_SOURCES: 3, L8_UNASKED: 2, MARKERS: 3, UNCHECKED: 7,
 };
 
 function pinned(name: string, size: number): void {
@@ -218,15 +220,15 @@ const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */
 const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }> = {
-  file: { read: { items: ['X1', 'X2', 'B7'] }, add: { items: ['X4'] } },
-  remoteFile: { read: { items: ['X1', 'X2', 'B7'] }, add: { items: ['X4'] } },
   warehouseTable: { read: { items: ['X1', 'X2', 'B7'] }, add: { items: ['X4'] } },
   savedQuery: { read: { items: ['X1', 'X5'] }, add: { items: ['X4'] } },
   class: { read: { items: ['X1', 'X5'] }, add: { items: ['X4'] } },
 };
 /** The headless functions by which Python adds a grid over a source kind today -- pinned: a new entry is S5/S6's,
  *  with a test that adds such a grid from Python. */
-const PYTHON_ADDS: Record<string, string> = { frame: 'gridCube', join: 'joinCube' };
+// 2026-10-22 (S5, X1-X4, D14): a file and a remote file added by Python too (page.grid(file=..., remote=...): leafCube
+// over the file read in, where the host reads it), tested by test_page.py OverFiles
+const PYTHON_ADDS: Record<string, string> = { frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube' };
 
 /** Headless exports Python never asks (`call('<name>'`): each one Python should. */
 const L8_UNASKED: Record<string, Entry> = {
@@ -304,11 +306,20 @@ describe('L8: every command kind and source kind, against who makes and reads it
 
   it('each source kind is read and added by Python, or listed', () => {
     const kinds = unionTypes(SOURCES.read('src/cube-document.ts'), 'CubeSource');
-    // what a page on the host holds is one rule, which gridBase, gridOpened and the keeper ask (headless grid.ts onHost)
-    const base = exported.find((e) => e.name === 'onHost')!.body.split('\n');
-    /** A kind the host holds: its own branch (no refusal on its line), or the one a refusal of every other lets by. */
-    const reads = (kind: string): boolean => base.some((line) => line.includes(`_type === '${kind}'`) && !line.includes('throw'))
-      || base.some((line) => line.includes(`_type !== '${kind}'`) && line.includes('throw'));
+    // what a page on the host holds is one rule, which gridBase, gridOpened and the keeper ask (headless host-tables.ts
+    // onHost: a join of the leaves leafOnHost reads)
+    const onHostBody = exported.find((e) => e.name === 'onHost')!.body;
+    const leafRule = exported.find((e) => e.name === 'leafOnHost')!.body;
+    /** A leaf kind the host reads: its case returns where it is read before the refusal of every kind it does not. */
+    const leafReads = (kind: string): boolean => {
+      const at = leafRule.indexOf(`case '${kind}':`);
+      if (at < 0) return false;
+      const rest = leafRule.slice(at);
+      const returned = rest.indexOf('return ');
+      const refused = rest.indexOf('is not read here: a page on this host reads');
+      return returned >= 0 && (refused < 0 || returned < refused);
+    };
+    const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source') : leafReads(kind));
     const problems: string[] = [];
     for (const kind of kinds) {
       const read = reads(kind);
@@ -319,7 +330,8 @@ describe('L8: every command kind and source kind, against who makes and reads it
     }
     for (const kind of Object.keys(L8_SOURCES)) if (!kinds.includes(kind)) problems.push(`${kind}: no such source kind`);
     assert.deepEqual(problems, []);
-    assert.deepEqual(PYTHON_ADDS, { frame: 'gridCube', join: 'joinCube' }, 'a new way for Python to add a grid comes with its test');
+    assert.deepEqual(PYTHON_ADDS, { frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube' },
+      'a new way for Python to add a grid comes with its test');
     pinned('L8_SOURCES', Object.keys(L8_SOURCES).length);
   });
 
@@ -355,10 +367,9 @@ const MARKERS: readonly Marker[] = [
   // the page
   // the board a cube alone shows its charts on is given no way to tell its page's edits
   // derived state, and what the keeper keeps
-  { file: 'src/page-rebase.ts', text: 'export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {', items: ['X3'] },
   // the browser's half of the same jobs done by different rules
   { file: 'src/headless/grid.ts', text: 'gridLens(', items: ['B1'], absent: true },
-  { file: 'src/headless/grid.ts', text: 'a page on Python reads frames', items: ['B7'], count: 2 },
+  { file: 'src/headless/host-tables.ts', text: 'is not read here: a page on this host reads frames, files and remote files', items: ['B7'] },
   { file: 'src/app/datacube-app.ts', text: 'if (localEngine) joinGrid = (cube) => {', items: ['B11'] },
 ];
 

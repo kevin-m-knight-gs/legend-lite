@@ -14,7 +14,8 @@ import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
 import { CubeRefusal, sameValue } from '../snapshot.ts';
 import { toFilterNode } from '../filter-operators.ts';
-import { baseOnHost, draftFrom, gridApply, onHost, type GivenFilter, type HeldCopy, type HostFrame } from './grid.ts';
+import { baseOnHost, draftFrom, gridApply, type GivenFilter, type HeldCopy } from './grid.ts';
+import { onHost, type HostTables } from './host-tables.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -294,22 +295,22 @@ export function pageWritten(text: string): string {
  * a write's commands make (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4, H1) -- at the version they were made at there is
  * nothing to combine; at one the page has moved on from, they are made again on top: `page` and `held` as the keeper has
  * them, `edits` as the writer made them (JSON lists), `known` every id the page had held at the version they were made at
- * (a JSON list: a page filter the writer made is told from one it set, H3), `frames` the frames the host serves (grid.ts
- * HostFrame, by name) and `copies` the copies it holds (by table), over which a grid's edit is applied as gridApply
+ * (a JSON list: a page filter the writer made is told from one it set, H3), `host` the tables the host serves (grid.ts
+ * HostTables: its frames, files and remote files) and `copies` the copies it holds (by table), over which a grid's edit is applied as gridApply
  * applies one -- a snapped grid's over its copy, as the writer applied it. JSON: `{page, held, edits, renamed, reads}`
  * -- the page they make (as DataCube writes it), the ids it has held, the edits as applied there, each id given out
  * afresh (the writer's name -> the page's), and what the page reads -- or `{problems}`: one does not apply, or a cube
  * they add is over a source the host cannot hold (grid.ts onHost), in DataCube's words, and nothing was applied.
  */
 export async function pageRebase(page: string, held: string, edits: string, known: string,
-  frames: Readonly<Record<string, HostFrame>>, copies: Readonly<Record<string, HeldCopy>>): Promise<string> {
+  host: HostTables, copies: Readonly<Record<string, HeldCopy>>): Promise<string> {
   try {
     const now = heldPage(page);
     const done = await rebaseEdits({ page: now, held: JSON.parse(held) as string[] }, readEdits(edits),
       async (at, cube, id, commands) => {
         const text = cubeToJson(cube);
         // a snapped grid's edit over its copy, as the writer applied it (baseOnHost: the one rule)
-        const base = await baseOnHost(text, (at.copies ?? {})[id], frames, copies);
+        const base = await baseOnHost(text, (at.copies ?? {})[id], host, copies);
         const said = JSON.parse(await gridApply({ cube: text, ...base } as Parameters<typeof gridApply>[0],
           `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));
@@ -321,7 +322,7 @@ export async function pageRebase(page: string, held: string, edits: string, know
     const was = new Map(now.cubes.map((c) => [c.id, c.cube.source]));
     for (const c of done.page.cubes) {
       if ((done.page.copies ?? {})[c.id] !== undefined) continue;
-      if (!sameValue(was.get(c.id), c.cube.source)) onHost(c.cube.source, frames);
+      if (!sameValue(was.get(c.id), c.cube.source)) onHost(c.cube.source, host);
     }
     return `{"page":${JSON.stringify(pageToJson(done.page))},"held":${JSON.stringify(done.held)},`
       + `"edits":[${done.edits.map((e) => toJson(e)).join(',')}],"renamed":${JSON.stringify(done.renamed)},`

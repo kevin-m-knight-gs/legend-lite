@@ -188,9 +188,30 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
  * sheets', and its page filters' (a writer's edit of a filter the page held then is told from one it made: H3, the S4
  * audit's 3).
  */
-export function pageReads(page: PageDocument): { frames: string[]; copies: string[]; ids: string[] } {
-  const frames = [...new Set(page.cubes.flatMap((c) => leavesOf(c.cube.source)
-    .filter((leaf) => leaf._type === 'frame').map((leaf) => leaf.name)))].sort();
-  const copies = [...new Set(Object.values(page.copies ?? {}).map((c) => c.table))].sort();
-  return { frames, copies, ids: [...idsOf(page), ...(page.filters ?? []).map((f) => f.id)] };
+export function pageReads(page: PageDocument): PageReads {
+  const leaves = page.cubes.flatMap((c) => leavesOf(c.cube.source));
+  const sorted = (keys: readonly string[]): string[] => [...new Set(keys)].sort();
+  return {
+    frames: sorted(leaves.flatMap((leaf) => (leaf._type === 'frame' ? [leaf.name] : []))),
+    copies: sorted(Object.values(page.copies ?? {}).map((c) => c.table)),
+    // the files it reads by their bytes' hash, the remote files by URL: what a host holds a table for while a page reads
+    // it, as it holds a copy (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X3, D14)
+    files: sorted(leaves.flatMap((leaf) => (leaf._type === 'file' ? [leaf.sha256] : []))),
+    remotes: sorted(leaves.flatMap((leaf) => (leaf._type === 'remoteFile' ? [leaf.url] : []))),
+    ids: [...idsOf(page), ...(page.filters ?? []).map((f) => f.id)],
+  };
+}
+
+/** What a page reads, as its keeper takes it (pageReads). */
+export interface PageReads {
+  /** The frames its cubes read, by name. */
+  readonly frames: string[];
+  /** The copies its snapped grids read, by table. */
+  readonly copies: string[];
+  /** The files its cubes read, by their bytes' SHA-256. */
+  readonly files: string[];
+  /** The remote files its cubes read, by URL. */
+  readonly remotes: string[];
+  /** Every id it holds. */
+  readonly ids: string[];
 }

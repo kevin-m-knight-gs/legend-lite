@@ -21,6 +21,11 @@ on goes only when nothing reads it any more (``letting_go``): no page as it is, 
 reads it, or any version since. Each open page says the version it shows (``follow``), as it asks and writes; one that
 says nothing for ``FOLLOWED_FOR`` seconds (its tab closed, its machine asleep) keeps nothing. So a page open somewhere
 that has not followed yet still reads its copies, and follows by the commands since (the keeper's known limit 6).
+
+AND SO IS EACH FILE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X3, D14): a page's file read into a table, by the hash of its
+bytes, and a remote file mounted as a view, by its URL -- what DataCube says a page reads beside its copies (headless
+pageReads: ``files``, ``remotes``) -- is kept by the same rule: its reader's until a kept page reads it, the keeper's from
+then on, let go when nothing reads it any more (``HOLDS``: each kind kept alike, by its key).
 """
 
 from __future__ import annotations
@@ -40,6 +45,9 @@ COMBINED_AT_MOST = 64
 # how long a page open somewhere is taken to show the version it last said (seconds): a tab asks about once a second,
 # and a hidden one about once a minute; one that says nothing for longer -- closed, asleep -- keeps no copy
 FOLLOWED_FOR = 300.0
+# what a page reads that its host holds a table for: a snap's copies by table, its files by their bytes' hash, its remote
+# files by URL -- each kept while a page reads it (``letting_go``)
+HOLDS = ('copies', 'files', 'remotes')
 
 
 class Stale(Exception):
@@ -69,7 +77,7 @@ class Settled:
 class _Kept:
     version: int
     doc: dict[str, Any]
-    # what the page reads, as DataCube said with its last write: {frames, copies, ids}
+    # what the page reads, as DataCube said with its last write: {frames, copies, files, remotes, ids}
     reads: dict[str, list[str]]
     # every id the page has held: none is given out again
     held: list[str]
@@ -78,8 +86,9 @@ class _Kept:
     # the ids the page had held at each version kept: what a write made at it knew (a page filter it made, told from one
     # another writer made since under the same id: H3)
     helds: dict[int, list[str]] = field(default_factory=dict)
-    # the copies the page read at each version kept: what a page open at that version, or following past it, reads
-    copies: dict[int, list[str]] = field(default_factory=dict)
+    # what the page read at each version kept that its host holds (HOLDS: its copies, files, remote files): what a page
+    # open at that version, or following past it, reads
+    holds: dict[int, dict[str, list[str]]] = field(default_factory=dict)
     # the pages open on it, each by the id it asks by: the version it said it shows, and when (time.monotonic)
     followers: dict[str, tuple[int, float]] = field(default_factory=dict)
     # shown somewhere (a tab, a notebook widget): what an open page may read and write
@@ -100,8 +109,9 @@ class PageKeeper:
     def __init__(self, on_write: Callable[[str, int], None] | None = None, combine: Combine | None = None) -> None:
         self._lock = threading.Lock()
         self._pages: dict[str, _Kept] = {}
-        # every copy a page kept has read: the keeper's to let go from then on, never its maker's
-        self._read: set[str] = set()
+        # every copy, file and remote file a page kept has read (HOLDS, each by its key): the keeper's to let go from then
+        # on, never its maker's
+        self._read: dict[str, set[str]] = {kind: set() for kind in HOLDS}
         # told each new version (its page's key, the version), outside the lock: where the page is shown follows it
         self.on_write = on_write
         # how a write's edits are applied to the page as it is (asked outside the lock: DataCube's, headless)
@@ -112,8 +122,8 @@ class PageKeeper:
         kept_reads = _reads(reads)
         with self._lock:
             ids = sorted(set(held))
-            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, ids, {1: None}, {1: ids}, {1: kept_reads['copies']})
-            self._read |= set(kept_reads['copies'])
+            self._pages[key] = _Kept(1, copy.deepcopy(doc), kept_reads, ids, {1: None}, {1: ids}, {1: _holds(kept_reads)})
+            self._have_read(kept_reads)
         return 1
 
     def forget(self, key: str) -> None:
@@ -167,12 +177,12 @@ class PageKeeper:
             kept.reads = kept_reads
             kept.steps[kept.version] = kept_edits
             kept.helds[kept.version] = list(kept.held)
-            kept.copies[kept.version] = kept_reads['copies']
-            self._read |= set(kept_reads['copies'])
+            kept.holds[kept.version] = _holds(kept_reads)
+            self._have_read(kept_reads)
             for old in [v for v in kept.steps if v <= kept.version - STEPS_KEPT]:
                 del kept.steps[old]
                 kept.helds.pop(old, None)
-                kept.copies.pop(old, None)
+                kept.holds.pop(old, None)
             version = kept.version
         if self.on_write is not None:
             self.on_write(key, version)
@@ -262,34 +272,45 @@ class PageKeeper:
             kept = self._pages.get(key)
             return kept is not None and kept.served
 
-    def has_read(self, table: str) -> bool:
-        """Whether a page kept has read the copy ``table``: the keeper's to let go from then on (``letting_go``), never
-        its maker's."""
-        with self._lock:
-            return table in self._read
+    def _have_read(self, reads: Mapping[str, list[str]]) -> None:
+        for kind in HOLDS:
+            self._read[kind] |= set(reads[kind])
 
-    def letting_go(self, copies: Iterable[str]) -> list[str]:
-        """Of ``copies`` (the copies held, by table), the ones nothing reads any more, to let go: read by a page kept once,
-        and now by none -- neither by a page as it is, nor at a version a page open on it shows (as it last said within
-        ``FOLLOWED_FOR`` seconds), nor at any version since, which that page follows by. A page collected reads none."""
+    def has_read(self, key: str, kind: str = 'copies') -> bool:
+        """Whether a page kept has read ``key`` -- a copy by its table, a file by its bytes' hash, a remote file by its URL
+        (``kind``, one of HOLDS): the keeper's to let go from then on (``letting_go``), never its maker's."""
+        with self._lock:
+            return key in self._read[kind]
+
+    def letting_go(self, held: Iterable[str], kind: str = 'copies') -> list[str]:
+        """Of ``held`` (the copies, files or remote files its host holds, ``kind``, by their keys), the ones nothing reads
+        any more, to let go: read by a page kept once, and now by none -- neither by a page as it is, nor at a version a
+        page open on it shows (as it last said within ``FOLLOWED_FOR`` seconds), nor at any version since, which that
+        page follows by. A page collected reads none."""
         now = time.monotonic()
         with self._lock:
             read: set[str] = set()
             for kept in self._pages.values():
                 kept.followers = {f: said for f, said in kept.followers.items() if now - said[1] <= FOLLOWED_FOR}
                 oldest = min((v for v, _ in kept.followers.values()), default=kept.version)
-                read.update(kept.reads['copies'])
-                for version, then in kept.copies.items():
+                read.update(kept.reads[kind])
+                for version, then in kept.holds.items():
                     if version >= oldest:
-                        read.update(then)
-            return sorted(t for t in set(copies) if t in self._read and t not in read)
+                        read.update(then[kind])
+            return sorted(k for k in set(held) if k in self._read[kind] and k not in read)
 
-    def gone(self, table: str) -> None:
-        """The copy ``table`` let go of (its name is never given again)."""
+    def gone(self, key: str, kind: str = 'copies') -> None:
+        """``key`` let go of (a copy's table is never given again; a file read anew is the keeper's once a page reads it
+        again)."""
         with self._lock:
-            self._read.discard(table)
+            self._read[kind].discard(key)
 
 
 def _reads(reads: Mapping[str, list[str]]) -> dict[str, list[str]]:
-    """What a page reads, as kept: its frames, its copies and its ids, each a sorted list."""
-    return {part: sorted(set(reads.get(part, []))) for part in ('frames', 'copies', 'ids')}
+    """What a page reads, as kept: its frames, its copies, its files, its remote files and its ids, each a sorted list."""
+    return {part: sorted(set(reads.get(part, []))) for part in ('frames', *HOLDS, 'ids')}
+
+
+def _holds(reads: Mapping[str, list[str]]) -> dict[str, list[str]]:
+    """What a page reads that its host holds a table for (HOLDS), as kept for a version."""
+    return {kind: list(reads[kind]) for kind in HOLDS}

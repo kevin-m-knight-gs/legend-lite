@@ -1116,13 +1116,16 @@ class Page:
 
     # -- building ------------------------------------------------------------------------------------------------------
 
-    def grid(self, frame: Any, *, name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
+    def grid(self, frame: Any = None, *, file: str | Path | None = None, remote: str | None = None,
+             name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
              measures: Mapping[str, str] | Sequence[tuple[str, str]] | None = None, filter: Any = None,
              sort: Sequence[tuple[str, str]] = (), dimensions: Sequence[str] = (), title: str | None = None,
              sheet: Sheet | None = None, snap: bool = False) -> Grid:
         """A grid over ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one), served
-        under ``name`` (``frame``, ``frame_2``, ... unless given), in a band of its own at the bottom of ``sheet`` (the
-        first unless given). Each query reads the frame as it is then; the grid's Snap keeps its rows as they are. A
+        under ``name`` (``frame``, ``frame_2``, ... unless given) -- or over a ``file`` (its path; ``name`` the file's
+        name, its path's unless given), read in as the tab reads a file it is given (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+        X4: once for its bytes), or a ``remote`` file (its URL), mounted as the tab mounts one (once for its URL) -- in a band of its own at
+        the bottom of ``sheet`` (the first unless given). Each query reads the frame as it is then; the grid's Snap keeps its rows as they are. A
         name served already is this grid's when it serves this same frame (two grids over one frame), and refused
         when it serves another: ``grid.update(frame)`` replaces a frame, every grid
         over it showing the new one. ``rows``, ``columns``, ``measures`` (``{column: aggregate}`` or ``[(column,
@@ -1138,12 +1141,25 @@ class Page:
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
         session = self._session
-        if name is not None and name in session.frames:
+        if (frame is not None) + (file is not None) + (remote is not None) != 1:
+            raise ValueError('a grid is over a frame, a file (file=path) or a remote file (remote=url): one of them')
+        if remote is not None and name is not None:
+            raise ValueError("a remote file is named after its URL: it takes no name")
+        # what the grid reads: a frame served (``served``, ``new``: served for it), or a file or remote file read in
+        # (``read``: as DataCube read it; ``fresh``: read for it)
+        served, new, read, fresh = None, False, None, False
+        if frame is None:
+            engine = session.engine()
+            if file is not None:
+                read, fresh = engine.read_file_once(file, name if name is not None else Path(file).name)
+            else:
+                read, fresh = engine.mount_remote_once(remote)
+        elif name is not None and name in session.frames:
             table = session.frames[name]
             if table.given is not frame:
                 raise ValueError(f'{name!r} serves another frame already: grid.update(frame) replaces a frame, every grid '
                                  f'over it showing the new one; or give this grid a name of its own')
-            served, new = table.name, False
+            served = table.name
         else:
             served, new = session.register(frame, name), True
         # the page as it was, to go back to when the grid is refused
@@ -1151,8 +1167,10 @@ class Page:
                None if self._unserved is None else list(self._unserved), self._dirty)
         id = None
         try:
-            # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
-            cube, _, _ = self._frame_cube(served, len(self._doc['cubes']) + 1)
+            # its cube as DataCube makes a grid's over a frame, a file or a remote file: capped at the row limit when it is
+            # not the page's only grid
+            cube = (self._frame_cube(served, len(self._doc['cubes']) + 1)[0] if read is None
+                    else self._leaf_cube(read, len(self._doc['cubes']) + 1))
             # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band at
             # the bottom, told nothing yet
             with self._batch(tell=False):
@@ -1192,6 +1210,8 @@ class Page:
                 self._forget({id})
             if new:
                 session.unregister(served)
+            if fresh and read is not None:
+                session.engine().forget_read(read)
             raise
         self._changed()
         return grid
@@ -1219,13 +1239,13 @@ class Page:
             title = _given_name(self._session, 'tile', title, 'a title')
         session = self._session
         engine, frames = session.headless(), session.frames
-        # the tables its leaves read, in their order: a frame's its own name. Each grid read as the page has it, under the
-        # name it shows, and the join's grid placed beside the first, are DataCube's (headless joinCube: joinInputOf)
-        tables = [leaf['name'] for g in (mine, theirs) for leaf in _cube_leaves(session, g._cube)]
+        # the tables its leaves read, each grid read as the page has it, under the name it shows, and the join's grid placed
+        # beside the first, are DataCube's (headless joinCube: host-tables.ts leafTables, joinInputOf): Python hands in
+        # what it serves
         with frames.serving():
             made = _json.loads(engine.call('joinCube', _json.dumps({
-                'page': self._doc, 'mine': mine.id, 'theirs': theirs.id, 'how': how, 'tables': tables, 'sheet': target.id,
-                'title': title})))
+                'page': self._doc, 'mine': mine.id, 'theirs': theirs.id, 'how': how, 'host': frames.hosted(),
+                'sheet': target.id, 'title': title})))
         for note in made['notes']:
             warnings.warn(note, stacklevel=2)
         was = (self._doc, set(self._ids), len(self._page_commands),
@@ -1341,45 +1361,84 @@ class Page:
         return id
 
     @classmethod
-    def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any]) -> Page:
-        """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
-        cube's ``{"_type": "frame", "name": ...}``), each served: the document as DataCube reads it (its own version
-        only; refused in its words when DataCube would not open it), each cube as DataCube opens it
-        over its frame as it is now -- what DataCube leaves out of it warned, in its words. A grid saved snapped opens
-        live, said: its copy lasted only as long as the session that made it (``grid.snap()`` takes one anew)."""
+    def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any] | None = None, *,
+             files: Mapping[str, str | Path] | None = None) -> Page:
+        """A page document (a file, or its dict) as a page again: the document as DataCube reads it (its own version
+        only; refused in its words when DataCube would not open it), each cube as DataCube opens it over what this host
+        serves now -- what DataCube leaves out of it warned, in its words. Its grids read ``frames`` by their frame names
+        (each cube's ``{"_type": "frame", "name": ...}``), each served; the files it reads given by their names
+        (``files``: a file's name, its path -- docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D14), each read in, one that is
+        not the file a cube was saved over opened over all the same and said, as DataCube's tab says a file picked for
+        it; its remote files mounted again by their URLs. A frame or a file not given is refused in words. A grid saved
+        snapped opens live, said: its copy lasted only as long as the session that made it (``grid.snap()`` takes one
+        anew)."""
         from .datacube import _current
         # read on the session the page will be made on (Page() takes the current one)
         doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'),
                          _current())
         session = _current()
-        wanted = sorted({f for c in doc['cubes'] for f in _cube_frames(session, c['cube'])})
+        frames, files = frames or {}, files or {}
+        # what it reads, as DataCube says (headless cubeLeaves: each leaf's kind, its name, a file's hash, a remote URL)
+        leaves = [leaf for c in doc['cubes'] for leaf in _cube_leaves(session, c['cube'])]
+        wanted = sorted({leaf['name'] for leaf in leaves if leaf['_type'] == 'frame'})
         missing = [n for n in wanted if n not in frames]
         if missing:
             raise ValueError(f'the page reads the frames {", ".join(missing)}: give them, frames={{name: frame}}')
-        # its own name, or none: a page nobody named loads unnamed (D11)
+        # a file given is read and opened over (one of other bytes said), one not given read where it was read in already
+        held = session.frames.read_files()
+        named = {leaf['name'] for leaf in leaves if 'sha256' in leaf} & set(files)
+        unread = sorted({leaf['name'] for leaf in leaves if 'sha256' in leaf and leaf['sha256'] not in held} - set(files))
+        if unread:
+            raise ValueError(f'the page reads the files {", ".join(unread)}: give them, files={{name: path}}')
+        remotes = sorted({leaf['url'] for leaf in leaves if 'url' in leaf} - set(session.frames.hosted()['remotes']))
+        # its name, or none: a page nobody named loads unnamed (D11)
         page = cls(doc['name'] or None)
         # loaded as one call on the page: written once, whole, when it ends (a public call inside, as a cube opens,
         # never writes a page half loaded)
         with page._call():
             for name in wanted:
                 page._session.register(frames[name], name)
-            # live: a copy lasts only as long as the session that made it, so a page saved with a snapped grid opens
-            # with it reading its frames, each said (DataCube's own rule, headless pageOpenedLive: §18.8)
-            opened = json.loads(session.headless().call('pageOpenedLive', _json.dumps(doc)))
-            for note in opened['notes']:
-                warnings.warn(note, stacklevel=2)
-            doc = _plain(_json.loads(opened['page']))
-            page._doc = doc
-            # every id it holds, as DataCube says (pageReads)
-            page._ids |= set(page._reads()['ids'])
-            # each cube as DataCube opens it over its frame as it is now (served above): what it leaves out, left out
-            # here too and said once, so no later call on the grid sends it -- each its command, none written alone
-            with page._batch(tell=False):
-                for c in doc['cubes']:
-                    page._reopened(c['id'], 3)
-            # a page loaded is a page made whole, by no command
-            page._unnoted()
+            # each file given read in, once for its bytes (its table the keeper's while a page reads it: X3), each remote
+            # file mounted again -- each read for this page let go of at once when the page is refused
+            engine = session.engine() if named or remotes else None
+            read: list[dict[str, Any]] = []
+            try:
+                given: dict[str, str] = {}
+                for name in sorted(named):
+                    assert engine is not None
+                    file, fresh = engine.read_file_once(files[name], name)
+                    read += [file] if fresh else []
+                    given[name] = file['leaf']['sha256']
+                for url in remotes:
+                    assert engine is not None
+                    read.append(engine.mount_remote(url))
+                page._opened_all(doc, given)
+            except BaseException:
+                for file in read:
+                    assert engine is not None
+                    engine.forget_read(file)
+                raise
         return page
+
+    def _opened_all(self, doc: dict[str, Any], given: Mapping[str, str]) -> None:
+        """The page ``load`` makes of ``doc``: each cube opened as DataCube opens it over what this host serves now
+        (``given``: a file's name, the hash of the file given for it), what DataCube says warned at ``load``'s caller."""
+        # live: a copy lasts only as long as the session that made it, so a page saved with a snapped grid opens with it
+        # reading its frames, each said (DataCube's own rule, headless pageOpenedLive: §18.8)
+        opened = json.loads(self._session.headless().call('pageOpenedLive', _json.dumps(doc)))
+        for note in opened['notes']:
+            warnings.warn(note, stacklevel=3)
+        doc = _plain(_json.loads(opened['page']))
+        self._doc = doc
+        # every id it holds, as DataCube says (pageReads)
+        self._ids |= set(self._reads()['ids'])
+        # each cube as DataCube opens it over what this host serves now (above): what it leaves out, left out here too
+        # and said once, so no later call on the grid sends it -- each its command, none written alone
+        with self._batch(tell=False):
+            for c in doc['cubes']:
+                self._reopened(c['id'], 4, given)
+        # a page loaded is a page made whole, by no command
+        self._unnoted()
 
     # -- shown ---------------------------------------------------------------------------------------------------------
 
@@ -1467,7 +1526,8 @@ class Page:
 
     def _reads(self) -> dict[str, list[str]]:
         """What the page as this call has it reads, as DataCube says (headless pageReads, one call): its frames, its
-        copies, its ids -- what its keeper keeps with it and never reads from the page itself."""
+        copies, its files (by their bytes' hash), its remote files (by URL), its ids -- what its keeper keeps with it and
+        never reads from the page itself."""
         return _json.loads(self._session.headless().call('pageReads', _json.dumps(self._document)))
 
     def _frames(self) -> set[str]:
@@ -1516,7 +1576,7 @@ class Page:
             for id in reading:
                 self._reopened(id, 4)
 
-    def _reopened(self, id: str, stacklevel: int) -> bool:
+    def _reopened(self, id: str, stacklevel: int, given: Mapping[str, str] | None = None) -> bool:
         """The page's cube ``id`` as DataCube opens it over its frame as the compiler types it now (``_frame_cube``:
         cube-document.ts rebuilt -- a new column hidden; a gone one left out; the open groups dropped when the grouping
         changed), taken when it is
@@ -1524,13 +1584,14 @@ class Page:
         DataCube's words. So the page holds the cube every headless call opens, and no later call sends a part DataCube
         leaves out. Whether it was taken. Asked when a page is loaded (``load``: its frames served), when a frame is
         served again (``_update``), and before a filter, a calculated column or a chart is checked against it
-        (``_current``: a frame changed in place)."""
+        (``_current``: a frame changed in place). ``given``: as the page loads, each file given for it by its name, the
+        hash of the file read in for it (headless gridOpened)."""
         if id in self._doc.get('copies', {}):
             # snapped: it reads its copy, which its frames do not move (it is opened over them again when it goes live)
             return False
         held = next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
         label = held['source']['name']
-        notes, taken, opened = self._opened_cube(held)
+        notes, taken, opened = self._opened_cube(held, given or {})
         # whether it is taken is DataCube's rule (headless gridOpened `taken`): not, the cube stands as it is
         if not taken:
             return False
@@ -1546,7 +1607,7 @@ class Page:
         calculated column that read it left out) is the cube DataCube checks, never the one held before."""
         self._reopened(cube, stacklevel + 1)
 
-    def _opened_cube(self, saved: dict[str, Any]) -> tuple[list[str], bool, dict[str, Any]]:
+    def _opened_cube(self, saved: dict[str, Any], given: Mapping[str, str]) -> tuple[list[str], bool, dict[str, Any]]:
         """A saved cube as DataCube opens it over the frames as they are now -- a frame's, a join's of frames (headless
         gridOpened, by the rule of the page's ``rebuilt`` command: cube-document.ts cubeOpenedAgain) -- what DataCube
         says of what changed, whether the page takes it (cubeTaken), and the source as it is now, which the page's
@@ -1554,7 +1615,7 @@ class Page:
         engine, frames = self._session.headless(), self._session.frames
         with frames.serving():
             made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
-                                          len(self._doc['cubes'])))
+                                          len(self._doc['cubes']), dict(given)))
         return list(made['notes']), made['taken'], _plain(_json.loads(made['opened']))
 
     def _frame_cube(self, frame: str, grids_on_page: int,
@@ -1571,6 +1632,15 @@ class Page:
                 'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, grids_on_page))
         return _plain(_json.loads(made['cube'])), list(made['notes']), made['changed']
 
+    def _leaf_cube(self, read: Mapping[str, Any], grids_on_page: int) -> dict[str, Any]:
+        """A new grid's cube over a file or remote file read in (``read``: as DataCube read it, the file it is its
+        ``leaf``), as DataCube makes one over it where this host reads it (headless leafCube, the file's source as the
+        tab records it: cube-document.ts fileSourceOf, remoteSourceOf), named after the file."""
+        engine, frames = self._session.headless(), self._session.frames
+        with frames.serving():
+            made = json.loads(engine.call('leafCube', read['leaf'], frames.hosted(), self.name, grids_on_page))
+        return _plain(_json.loads(made['cube']))
+
     def __repr__(self) -> str:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'
 
@@ -1580,19 +1650,13 @@ def _read_page(doc: Any, session: Any, saved: bool = False) -> dict[str, Any]:
     (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own) -- or, ``saved``,
     as DataCube saves one (headless pageSaved: refused as its Save refuses it) -- of DataCube's
     own version, every rule of its reader held, and refused in its words otherwise -- Python
-    keeps no second copy of them. Then what a page in Python adds: each cube reads frames -- its leaves, as DataCube says
-    what a cube reads (headless cubeLeaves: a frame's grid its one, a join's of frames each;
-    docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3)."""
+    keeps no second copy of them. What its cubes read is DataCube's to judge too, where each is opened over what this
+    host serves (headless host-tables.ts onHost: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z14)."""
     engine = session.headless()
     said = json.loads(engine.call('pageSaved' if saved else 'pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
     if 'problems' in said:
         raise ValueError('; '.join(said['problems']))
     page: dict[str, Any] = _plain(_json.loads(said['page']))
-    for c in page['cubes']:
-        for leaf in json.loads(engine.call('cubeLeaves', _json.dumps(c['cube']))):
-            if leaf['_type'] != 'frame':
-                raise ValueError(f'the cube {c["id"]} reads {leaf["name"]}, which is no frame (a page in Python is over '
-                                 'frames)')
     return page
 
 

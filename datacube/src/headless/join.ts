@@ -16,6 +16,7 @@ import { LitePlanner } from '../lite-planner.ts';
 import { TreeState } from '../tree.ts';
 import { catalogColumns } from '../upload.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
+import { leafTables, type HostTables } from './host-tables.ts';
 
 /** What a host hands in: its page, the two grids joined, how they join, and the table of its database each one reads. */
 export interface JoinSpec {
@@ -26,8 +27,9 @@ export interface JoinSpec {
   readonly theirs: string;
   /** How they combine (join-how.ts JoinHow), read strictly. */
   readonly how: unknown;
-  /** The table of the host's database each of their sources reads, mine's then theirs' (cube-document.ts leavesOf). */
-  readonly tables: readonly string[];
+  /** What the host serves (host-tables.ts HostTables): the table each of their sources' leaves reads is DataCube's to say
+   *  (leafTables), mine's then theirs'. */
+  readonly host: HostTables;
 }
 
 /** A join's grid added (joinCube): on which sheet, and the title a person gave it (none: the join's own). */
@@ -46,8 +48,12 @@ function read(spec: string): {
   // the protocol's exact JSON: a cube's numbers, and a condition's in Pure, kept as they are
   const s = fromJson(spec) as unknown as JoinSpec & Partial<JoinAdded>;
   const page = readPage(s.page, { empty: true });
+  const left = joinInputOf(page, s.mine);
+  const right = joinInputOf(page, s.theirs);
+  // each input's leaves' tables, as the host reads them (the one rule: host-tables.ts leafTables), mine's then theirs'
+  const tables = [...leafTables(left.source, s.host), ...leafTables(right.source, s.host)];
   return {
-    page, mine: s.mine, left: joinInputOf(page, s.mine), right: joinInputOf(page, s.theirs), how: readJoinHow(s.how), tables: s.tables,
+    page, mine: s.mine, left, right, how: readJoinHow(s.how), tables,
     ...(s.sheet !== undefined ? { added: { sheet: s.sheet, title: s.title ?? null } } : {}),
   };
 }

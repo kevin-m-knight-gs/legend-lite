@@ -32,7 +32,8 @@ import contextlib
 import re
 import sys
 import threading
-from typing import Any, Callable, Iterator
+from dataclasses import dataclass
+from typing import Any, Callable, Iterator, Mapping
 
 from ._extra import require_datacube
 
@@ -246,6 +247,27 @@ class Table:
             return self._frames.run(self._model().plan(self._tree(query), self.runtime))
 
 
+@dataclass
+class _File:
+    """A table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy, as
+    DataCube's code read it: its name as written, its model (and that model held: planned against while it is kept, as a
+    frame's is, docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15.3), its runtime, the relation that reads it (``source``,
+    as the protocol writes one), and -- a page's file or remote file -- the file it is (headless ingest's and mount's
+    ``leaf``), by which a page names it."""
+
+    name: str
+    model: str
+    view: bool
+    held: compiler.HeldModel
+    runtime: str
+    source: Any
+    leaf: dict[str, Any] | None
+
+    def hosted(self) -> dict[str, Any]:
+        """As DataCube's headless code takes it (headless host-tables.ts HostFile)."""
+        return {'model': self.model, 'runtime': self.runtime, 'source': self.source, 'table': self.name, 'leaf': self.leaf}
+
+
 class Frames:
     """Frames in one duckdb-python database, each a Legend table the compiler plans queries over.
 
@@ -268,10 +290,9 @@ class Frames:
         # DuckDB matches names without regard to case, quoted or not: so does this
         self._tables: dict[str, Table] = {}
         # the tables a page's files were read into on this connection by DataCube's own code (the engine's file.json),
-        # and the views a page's remote files are read through (remote.json; docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md
-        # §4.3), each by its name: its name as written, its model, whether it is a view, and its model held (planned
-        # against while it is kept, as a frame's is: §15.3)
-        self._files: dict[str, tuple[str, str, bool, compiler.HeldModel]] = {}
+        # the views a page's remote files are read through (remote.json; docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md
+        # §4.3) and the snaps' copies, each by its name (_File)
+        self._files: dict[str, _File] = {}
         # the models a page sent that read only what Python serves (model_for), each held with the tables it declares
         # (checked again at each use: a table no longer served is no longer read), while recent: a page's project, most
         # recent last
@@ -296,7 +317,7 @@ class Frames:
             # meanwhile (a tab asking its version, which takes no lock) finds it all along, never a frame gone
             old = self._tables.get(key)
             if key in self._files:
-                raise ValueError(f'a page\'s file was read into a table named {self._files[key][0]!r}: '
+                raise ValueError(f'a page\'s file was read into a table named {self._files[key].name!r}: '
                                  'a frame takes another name')
             if old is not None:
                 old._drop()
@@ -333,7 +354,7 @@ class Frames:
             self._still += 1
             try:
                 yield {**{table.name: table.model for table in self._tables.values()},
-                       **{name: model for name, model, _view, _held in self._files.values()}}
+                       **{f.name: f.model for f in self._files.values()}}
             finally:
                 self._still -= 1
 
@@ -345,9 +366,9 @@ class Frames:
             for table in self._tables.values():
                 if table.model == model and table.held is not None:
                     return table.held
-            for _name, kept, _view, held in self._files.values():
-                if kept == model:
-                    return held
+            for f in self._files.values():
+                if f.model == model:
+                    return f.held
         return None
 
     def model_for(self, model: str) -> compiler.HeldModel | None:
@@ -409,20 +430,23 @@ class Frames:
                 # what the read made of the name taken out again: the name was free, so nothing else is under it
                 dropped = self._files.pop(name.lower(), None)
                 if dropped is not None:
-                    dropped[3].close()
+                    dropped.held.close()
                 _host.run(self.connection, {'op': 'drop', 'kind': 'view' if view else 'table',
                                             'target': _host.name(name, schema='main')})
                 raise
 
-    def keep_file(self, name: str, model: str, view: bool = False) -> None:
-        """The table a page's file was read into, or the view a remote file is read through (``reading_file``'s name),
-        and the model DataCube's code wrote for it: served beside the frames' from now on."""
-        held = compiler.HeldModel(model)
+    def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False) -> None:
+        """The table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy
+        (``reading_file``'s name), as DataCube's code read it (``made``: its model, runtime and the relation that reads
+        it -- ``source`` -- and, a page's file or remote file, the file it is: headless ingest's and mount's ``leaf``):
+        served beside the frames' from now on, a file by what a page names it by (``hosted``)."""
+        held = compiler.HeldModel(made['model'])
+        kept = _File(name, made['model'], view, held, made.get('runtime', ''), made.get('source'), made.get('leaf'))
         with self._lock:
             before = self._files.get(name.lower())
-            self._files[name.lower()] = (name, model, view, held)
+            self._files[name.lower()] = kept
         if before is not None:
-            before[3].close()
+            before.held.close()
 
     def file_table(self, name: str) -> str | None:
         """The table a page's file was read into, by the name a page gives it, as Frames named it -- or None when no
@@ -431,14 +455,14 @@ class Frames:
             return None
         with self._lock:
             kept = self._files.get(name.lower())
-            return None if kept is None or kept[2] else kept[0]
+            return None if kept is None or kept.view else kept.name
 
     def forget_file(self, name: str) -> None:
         """A page's file let go of, its table dropped (by DataCube's code, inside ``holding``): its model served no more."""
         with self._lock:
             gone = self._files.pop(name.lower(), None)
         if gone is not None:
-            gone[3].close()
+            gone.held.close()
 
     @contextlib.contextmanager
     def holding(self) -> Iterator[None]:
@@ -476,23 +500,33 @@ class Frames:
             self._tables.clear()
             files, self._files = list(self._files.values()), {}
             try:
-                for name, _model, view, _held in files:
-                    _host.run(self.connection, {'op': 'drop', 'kind': 'view' if view else 'table',
-                                                'target': _host.name(name, schema='main')})
+                for f in files:
+                    _host.run(self.connection, {'op': 'drop', 'kind': 'view' if f.view else 'table',
+                                                'target': _host.name(f.name, schema='main')})
             finally:
                 # every model let go, a drop that failed or not, and every model a page sent
-                for _name, _model, _view, held in files:
-                    held.close()
+                for f in files:
+                    f.held.close()
                 admitted, self._admitted = list(self._admitted.values()), {}
                 for held, _tables in admitted:
                     held.close()
 
-    def hosted(self) -> dict[str, dict[str, str]]:
-        """Each frame as DataCube's headless code takes it (headless grid.ts HostFrame), by its name: its model, its runtime
-        and the accessor that reads it -- what a page's cube is opened over (gridBase, gridOpened). Asked inside
-        ``serving``, the frames held still."""
+    def hosted(self) -> dict[str, dict[str, Any]]:
+        """What this database serves a page's cubes over, as DataCube's headless code takes it (headless host-tables.ts
+        HostTables): each frame by its name -- its model, its runtime and the accessor that reads it -- and each page's
+        file and remote file it read in by what a page names it by (the file's bytes' hash, the remote file's URL: its
+        ``leaf``), with its table -- what a page's cube is opened over (gridBaseOn, gridOpened, pageRebase, joinCube).
+        Asked inside ``serving``, the frames held still."""
         with self._lock:
-            return {t.name: {'model': t.model, 'runtime': t.runtime, 'accessor': t.accessor} for t in self._tables.values()}
+            frames = {t.name: {'model': t.model, 'runtime': t.runtime, 'accessor': t.accessor} for t in self._tables.values()}
+            read = [f for f in self._files.values() if f.leaf is not None]
+        return {'frames': frames, 'files': {f.leaf['sha256']: f.hosted() for f in read if 'sha256' in f.leaf},
+                'remotes': {f.leaf['url']: f.hosted() for f in read if 'url' in f.leaf}}
+
+    def read_files(self) -> dict[str, str]:
+        """Each page's file this database read in, by its bytes' hash (its ``leaf``'s): the table it was read into."""
+        with self._lock:
+            return {f.leaf['sha256']: f.name for f in self._files.values() if f.leaf is not None and 'sha256' in f.leaf}
 
     def __getitem__(self, name: str) -> Table:
         return self._tables[name.lower()]

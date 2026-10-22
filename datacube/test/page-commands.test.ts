@@ -495,13 +495,20 @@ describe("a grid's cube opened again over its source as it is now, by its comman
     assert.deepEqual(rebuiltCommands(snapped, opened, [cube.id]), []);
   });
 
-  it('refused in words: no such cube, a snapped grid (its copy does not move), another source, a source no host opens again', () => {
+  it('refused in words: no such cube, a snapped grid (its copy does not move), another source', () => {
     refused(() => applyPageCommand(draftOf(trades), { kind: 'rebuilt', cube: 'nope', source: now }), /'nope' is no grid's cube/);
     const snapped = applyPageCommand(draftOf(trades), { kind: 'snap', grid: view.id, copy: SNAP }).draft;
     refused(() => applyPageCommand(snapped, { kind: 'rebuilt', cube: cube.id, source: now }), /reads its snap/);
     refused(() => applyPageCommand(draftOf(trades), { kind: 'rebuilt', cube: cube.id, source: { ...now, name: 'elsewhere' } }),
       /a cube rebuilt reads the same source/);
-    assert.throws(() => cubeOpenedAgain(cube.cube, { _type: 'savedQuery', name: 'q' } as unknown as CubeSource),
-      /its host opens again a frame's cube or a join's of frames/);
+  });
+
+  it('opens a cube again over any source, its columns as they are now: which sources a host reads is host-tables.ts onHost', () => {
+    // (X1, X3) a file's cube opened again over the file read in again, a new column hidden
+    const file: CubeSource = { _type: 'file', name: 'trades.csv', format: 'csv', size: 3, sha256: 'ab'.repeat(32),
+      columns: [...now.columns, { name: 'extra', type: 'Integer' }] } as unknown as CubeSource;
+    const again = cubeOpenedAgain(cube.cube, file);
+    assert.equal(again.document.source._type, 'file');
+    assert.match(again.notes.join('; '), /2 new columns since this cube was saved, hidden: book, extra/);
   });
 });

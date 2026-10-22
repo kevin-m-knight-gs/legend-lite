@@ -30,6 +30,7 @@ import base64
 import binascii
 import contextlib
 import functools
+import hashlib
 import hmac
 import http.server
 import json
@@ -223,6 +224,16 @@ def _extensions_folder() -> Path:
 
     explicit = os.environ.get('LEGEND_LITE_DUCKDB_EXTENSIONS')
     return Path(explicit) if explicit else Path(__file__).with_name('_duckdb')
+
+
+def _bytes_of(path: Path) -> tuple[int, str]:
+    """A file's size and the lower-case hex SHA-256 of its bytes: what a page names a file by (cube-document.ts
+    FileSource.sha256), the digest the host computes for DataCube (as its ``digest`` call does), read in parts."""
+    digest = hashlib.sha256()
+    with path.open('rb') as file:
+        for part in iter(lambda: file.read(1 << 20), b''):
+            digest.update(part)
+    return path.stat().st_size, digest.hexdigest()
 
 
 def remote_url(url: str) -> bool:
@@ -629,29 +640,64 @@ class Engine:
         refused = self.remote_refusal()
         if refused is not None:
             return _said(404, f'this engine reads no remote file: {refused}')
-        extensions = duckdb_extensions()
-        assert extensions is not None
-        assert self._headless is not None
         try:
-            # asked for before the frames are held (the session's lock first, then the frames')
-            headless = self._headless()
-            with self.frames.reading_file(asked['name'], view=True) as name:
-                self._extensions_here(extensions)
-                mount = {'url': url, 'name': name, **({'s3': asked['s3']} if asked.get('s3') else {})}
-                # the source's extensions and keys first, then what it names checked, before any view of it reads it
-                scan = json.loads(headless.call('remoteAccess', json.dumps(mount)))
-                if scan['format'] == 'iceberg':
-                    refused = self._iceberg_refusal(scan['url'])
-                    if refused is not None:
-                        raise ValueError(refused)
-                said = headless.call('mount', json.dumps(mount))
-                self.frames.keep_file(name, json.loads(said)['model'], view=True)
+            said = self._mount(url, asked['name'], asked.get('s3'))
         except ValueError as refused:
             return _said(400, str(refused))
         except Exception as failure:
             # the file not read (not there, its keys refused, a format DuckDB cannot read): said, as the tab says it
             return _said(422, f'{type(failure).__name__}: {failure}')
-        return Answer(200, 'application/json', said.encode('utf-8'))
+        return Answer(200, 'application/json', json.dumps(said).encode('utf-8'))
+
+    def _mount(self, url: str, asked: str, s3: Mapping[str, Any] | None) -> dict[str, Any]:
+        """A remote file mounted as a view of its own, named ``asked`` when it is free (else numbered), by DataCube's own
+        code: its extensions and keys first, then -- an Iceberg table -- every file it names checked remote, before any
+        view of it reads it; kept by its URL (its ``leaf``) from then on. DataCube's answer: its model, runtime, accessor
+        and the file it is. A URL or an engine that reads no remote file refused in words (``ValueError``)."""
+        if not remote_url(url):
+            raise ValueError(f'a remote file is read from {", ".join(s + "://" for s in _REMOTE_SCHEMES)}, never from '
+                             f'this machine: {url!r} is not such a URL (a file of yours: give its path)')
+        refused = self.remote_refusal()
+        if refused is not None:
+            raise ValueError(f'this engine reads no remote file: {refused}')
+        extensions = duckdb_extensions()
+        assert extensions is not None
+        assert self._headless is not None
+        # asked for before the frames are held (the session's lock first, then the frames')
+        headless = self._headless()
+        with self.frames.reading_file(asked, view=True) as name:
+            self._extensions_here(extensions)
+            mount = {'url': url, 'name': name, **({'s3': dict(s3)} if s3 else {})}
+            # the source's extensions and keys first, then what it names checked, before any view of it reads it
+            scan = json.loads(headless.call('remoteAccess', json.dumps(mount)))
+            if scan['format'] == 'iceberg':
+                refused = self._iceberg_refusal(scan['url'])
+                if refused is not None:
+                    raise ValueError(refused)
+            said: dict[str, Any] = json.loads(headless.call('mount', json.dumps(mount)))
+            self.frames.keep_file(name, said, view=True)
+        return {**said, 'table': name}
+
+    def mount_remote(self, url: str, s3: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """A page's remote file mounted again by its URL (``Page.load``: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D14),
+        under the view DataCube names one (headless tableFor), as the tab's mount does (``_mount``). One not read (not
+        there, its keys refused, a format DuckDB cannot read) refused in words (``ValueError``), as the tab says it."""
+        assert self._headless is not None
+        try:
+            return self._mount(url, self._headless().call('tableFor', None), s3)
+        except ValueError:
+            raise
+        except Exception as failure:
+            raise ValueError(f'the remote file {url} is not read: {type(failure).__name__}: {failure}') from failure
+
+    def mount_remote_once(self, url: str) -> tuple[dict[str, Any], bool]:
+        """A remote file mounted for a grid (``page.grid(remote=...)``), once for its URL: the view a remote file of the
+        same URL is read through already, as this engine serves it, or the file mounted now (``mount_remote``) -- and
+        whether it was mounted now."""
+        held = self.frames.hosted()['remotes'].get(url)
+        if held is not None:
+            return held, False
+        return self.mount_remote(url), True
 
     def _iceberg_refusal(self, url: str) -> str | None:
         """Why a page's Iceberg table is not read here, or None: its metadata names its files by path, so every manifest
@@ -753,13 +799,7 @@ class Engine:
         if path is None:
             return _said(404, f'no file came in as {asked["upload"]!r}: send its parts first (file-part.json)')
         try:
-            # asked for before the frames are held: the session takes its own lock first, then the frames' (register)
-            headless = self._headless()
-            # the table the page asked for when it is free, else the next free name: the answer says which
-            with self.frames.reading_file(asked['table']) as table:
-                said = headless.call('ingest', json.dumps({'path': str(path), 'name': asked['name'], 'table': table}))
-                read = json.loads(said)
-                self.frames.keep_file(table, read['model'])
+            said = json.dumps(self._read_in(path, asked['name'], asked['table']))
         except ValueError as refused:
             return _said(400, str(refused))
         except Exception as failure:
@@ -771,6 +811,50 @@ class Engine:
             with contextlib.suppress(OSError):
                 path.unlink(missing_ok=True)
         return Answer(200, 'application/json', said.encode('utf-8'))
+
+    def _read_in(self, path: Path, name: str, asked: str) -> dict[str, Any]:
+        """A file read into a table of its own, named ``asked`` when it is free (else the next free name: the answer says
+        which), by DataCube's own code (headless ingest, upload.ts readFileInto), told its bytes' size and hash -- by which
+        a page names it (``_bytes_of``) -- and kept by them from then on. DataCube's answer: what arrived (its model,
+        runtime, accessor, table and rows) and the file it is (its ``leaf``)."""
+        assert self._headless is not None
+        # asked for before the frames are held: the session takes its own lock first, then the frames' (register)
+        headless = self._headless()
+        size, sha256 = _bytes_of(path)
+        with self.frames.reading_file(asked) as table:
+            read: dict[str, Any] = json.loads(headless.call('ingest', json.dumps(
+                {'path': str(path), 'name': name, 'table': table, 'size': size, 'sha256': sha256})))
+            self.frames.keep_file(table, read)
+        return read
+
+    def read_file(self, path: str | Path, name: str) -> dict[str, Any]:
+        """A page's file read in from ``path`` under ``name`` (``Page.load``'s files: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+        D14), into the table DataCube names one (headless tableFor), as the tab's file is read (``_read_in``). The file is
+        the caller's: it is read, never moved or deleted. An engine that reads no file refused in words (``ValueError``)."""
+        if not self.takes_files():
+            raise ValueError('this engine reads no file: legend-lite reads one with DataCube\'s own code, headless, which '
+                             'this engine was not given')
+        assert self._headless is not None
+        return self._read_in(Path(path), name, self._headless().call('tableFor', name))
+
+    def read_file_once(self, path: str | Path, name: str) -> tuple[dict[str, Any], bool]:
+        """A file read in for a grid (``page.grid(file=...)``: X4), once for its bytes: the table a file of the same
+        bytes was read into already, as this engine serves it, or the file read in now (``read_file``) -- and whether it
+        was read now."""
+        size, sha256 = _bytes_of(Path(path))
+        held = self.frames.hosted()['files'].get(sha256)
+        if held is not None:
+            return held, False
+        return self.read_file(path, name), True
+
+    def forget_read(self, read: Mapping[str, Any]) -> None:
+        """A file or remote file read in for a grid that was refused (``read``: as DataCube read it): let go of at once,
+        nothing reading it -- a remote file's view dropped as a view."""
+        assert self._headless is not None
+        headless = self._headless()
+        with self.frames.holding():
+            headless.call('forget', json.dumps({'table': read['table'], 'view': 'url' in read['leaf']}))
+            self.frames.forget_file(read['table'])
 
     def _file_out(self, body: str) -> Answer:
         """A page's file let go of (``{"name", "table"}``): its table dropped by DataCube's own code, its model served no
@@ -787,6 +871,10 @@ class Engine:
             copy = table in self._copies
         if table is None or copy or not self.takes_files():
             return _said(404, f'{asked["table"]!r} is no table a page\'s file was read into')
+        # a page the keeper keeps reads it: the keeper's from then on, it goes when nothing reads it any more (sweep: X3)
+        sha256 = next((key for key, held in self.frames.read_files().items() if held == table), None)
+        if sha256 is not None and self.keeper.has_read(sha256, 'files'):
+            return Answer(200, 'application/json', b'{"kept": "a page reads it: it goes when nothing reads it any more"}')
         assert self._headless is not None
         try:
             # asked for before the frames are held (the session's lock first, then the frames')
@@ -1018,6 +1106,24 @@ class Engine:
         for table in self.keeper.letting_go(held):
             # a drop that fails leaves it served, as any copy whose drop failed, tried again at the next sweep
             self._drop_copy(table)
+        # and each page's file a kept page read, by the same rule (X3: a remote file's view stays while the engine does)
+        files = self.frames.read_files()
+        for sha256 in self.keeper.letting_go(files, 'files'):
+            self._drop_file(sha256, files[sha256])
+
+    def _drop_file(self, sha256: str, table: str) -> None:
+        """A page's file no page reads any more: its table dropped by DataCube's code, and only then served no more; a
+        drop that fails leaves it served, tried again at the next sweep."""
+        assert self._headless is not None
+        try:
+            headless = self._headless()
+            with self.frames.holding():
+                headless.call('forget', json.dumps({'table': table}))
+                self.frames.forget_file(table)
+        except Exception:
+            traceback.print_exc()
+            return
+        self.keeper.gone(sha256, 'files')
 
     def copy_of(self, table: str) -> dict[str, Any] | None:
         """A snap's copy this engine holds, by its table: its model, runtime and relation (a grid snapped onto it reads
@@ -1080,7 +1186,7 @@ class Engine:
             with self.frames.reading_file(asked) as name:
                 land(self.frames.connection, _host.name(name, schema='main'))
                 made = json.loads(headless.call('landed', json.dumps({'table': name})))
-                self.frames.keep_file(name, made['model'])
+                self.frames.keep_file(name, made)
                 # a copy from the moment it is served, before the frames are let go: no page's file forget drops it
                 with self._warehouse_lock:
                     self._copies[name] = made

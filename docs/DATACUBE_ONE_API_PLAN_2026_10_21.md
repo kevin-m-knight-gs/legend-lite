@@ -372,7 +372,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   `_given_filter` are deleted (test_page.py `test_names_and_values_outside_datacubes_words_are_refused_where_they_are_written`)
 - [x] **Z13** stack needs two tiles (duplicate check) — closed S5: Python sends the stack and DataCube refuses it in its
   own words (page-commands.ts `stack`; test_page.py)
-- [ ] **Z14** frames-only rule (D3) — S5, L6
+- [x] **Z14** frames-only rule (D3) — closed S5 (with X3, D14): Python's own check (`_read_page`: "which is no frame")
+  deleted; what a page on the host reads is DataCube's one rule, headless host-tables.ts `leafOnHost` -- frames, files
+  and remote files, any other source refused in its words until X1's rest (B7) (test_page.py `OverFiles`, test_one_api.py
+  `test_a_grid_the_host_cannot_hold_is_refused_as_the_write_adds_it`)
 - [x] **Z15** a snapped grid's base and refusal → exported from headless — closed S5: headless grid.ts `baseOnHost`,
   the one rule -- a snapped grid reads its copy as the host holds it, one no longer held refused in one wording (go live,
   or snap it anew), never read live in its place; any other grid, or a snapped one's live base, over the host's frames
@@ -446,9 +449,18 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [ ] **X1** headless `gridBase` for file, remote file, warehouse table, saved query, class (the planning code the
   browser uses) — S5, L8
 - [ ] **X2** Python reads, edits and saves a page over any source — S5, L8
-- [ ] **X3** the keeper keeps the file and remote tables a page reads, as it keeps copies (`pageReads` says them) —
-  S5, L9
-- [ ] **X4** Python adds such grids: `page.grid(file=…)`, remote, warehouse, saved query, class — S6, L8
+- [x] **X3** the keeper keeps the file and remote tables a page reads, as it keeps copies (`pageReads` says them) —
+  closed S5 (D14): page-rebase.ts `pageReads` says a page's files (by their bytes' hash) and remote files (by URL);
+  keeper.py's `HOLDS` (copies, files, remotes) each the reader's until a kept page reads it, the keeper's after; the
+  engine's `/forget.json` keeps a file a kept page reads, and its sweep drops it when nothing reads it any more; a remote
+  view is kept, never dropped (as before). A cube over a file or a remote file opens on the host through headless
+  host-tables.ts (`HostTables`: frames, files, remotes; `onHost`), and `Page.load(..., files={name: path})` reads each
+  file a page reads, checked against its hash, a file not given refused in words, a remote file mounted again by URL
+  (page-rebase.test.ts, test_keeper.py `test_each_file_a_page_read_is_kept_by_the_same_rule_as_a_copy`, test_page.py
+  `OverFiles`)
+- [ ] **X4** Python adds such grids: `page.grid(file=…)`, remote, warehouse, saved query, class — S6, L8 (S5: `file=`
+  and `remote=` added, each read in once — for its bytes, for its URL — test_page.py `OverFiles`, test_headless.py
+  `Remote`; warehouse, saved query and class with X1's rest)
 - [ ] **X5** saved queries and classes through Python's project routes — S5, L8
 
 ### Capability parity (audit §7; Python's API, names reviewed with the user before S6)

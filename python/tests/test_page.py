@@ -27,6 +27,13 @@ from legend_lite import page as page_module
 from legend_lite._types import plain_type
 
 
+def groups_of(view, measure):
+    """A grouped view's level-1 groups: label -> the measure's value."""
+    labels = [row[[c['name'] for c in view.columns].index('__tree')] for row in view.rows]
+    values = [row[[c['name'] for c in view.columns].index(measure)] for row in view.rows]
+    return {labels[i]: values[i] for i, t in enumerate(view.tree) if t['level'] == 1}
+
+
 def trades():
     return pd.DataFrame({'region': ['EMEA', 'AMER', 'EMEA'], 'desk': ['FX', 'Rates', 'Rates'],
                          'notional': [100.0, 250.0, 75.5], 'pnl': [1.5, -2.0, 0.25]})
@@ -1175,13 +1182,6 @@ class Document(Paged):
         # an older page is not read (the user, 2026-10-17), in DataCube's words
         with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 6\): it is no longer read'):
             ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()})
-        # and what Python adds: a page in Python is over frames
-        elsewhere = copy.deepcopy(doc)
-        elsewhere['cubes'][0]['cube']['source'] = {'_type': 'remoteFile', 'name': 'trades.parquet',
-                                                   'url': 'https://example.com/trades.parquet',
-                                                   'columns': doc['cubes'][0]['cube']['source']['columns']}
-        with self.assertRaisesRegex(ValueError, 'reads trades.parquet, which is no frame'):
-            ll.Page.load(elsewhere, frames={'trades': trades()})
 
 
 class Live(Paged):
@@ -1961,6 +1961,161 @@ class Snapped(Paged):
             self.assertFalse(self.held('snap'))
         finally:
             tab.close()
+
+
+class OverFiles(Paged):
+    """A page over a file (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1-X4, D14): ``page.grid(file=path)`` reads it in as
+    the tab reads a file it is given -- once for its bytes, named by their hash, as the page's cube names it -- and the
+    page keeper keeps its table while a page reads it, as it keeps a copy (X3); a page saved over a file is loaded given
+    its file by name, one that is not the file it was saved over opened all the same and said, as the tab says it. A
+    remote file (``page.grid(remote=url)``) is mounted as the tab mounts one, here from a server on this machine."""
+
+    @classmethod
+    def setUpClass(cls):
+        import functools
+        import http.server
+        import threading
+        cls.served = tempfile.TemporaryDirectory(dir=os.environ.get('TEST_TMPDIR'))
+        Path(cls.served.name, 'desks.csv').write_text('desk,qty\nFX,1\nEQ,2\nFX,3\n')
+
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+        cls.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=cls.served.name))
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.base = f'http://127.0.0.1:{cls.server.server_address[1]}'
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.served.cleanup()
+
+    def file(self, text, name='trades.csv'):
+        folder = Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')))
+        path = folder / name
+        path.write_text(text)
+        return path
+
+    def held(self, sha256):
+        return sha256 in datacube._session.frames.read_files()
+
+    def test_a_file_grid_read_once_kept_while_a_page_reads_it_and_let_go_after(self):
+        import hashlib
+        path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
+        sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+        page = ll.Page('Files')
+        grid = page.grid(file=path, rows=['desk'], measures={'qty': 'sum'})
+        source = page.to_dict()['cubes'][0]['cube']['source']
+        self.assertEqual((source['_type'], source['name'], source['sha256'], source['size']),
+                         ('file', 'trades.csv', sha256, path.stat().st_size))
+        self.assertEqual(groups_of(grid.view(), 'qty'), {'FX': 5, 'EQ': 2})
+        self.assertEqual(page._reads()['files'], [sha256])
+        # a second grid over the same bytes reads the same table
+        page.grid(file=path)
+        self.assertEqual(list(datacube._session.frames.read_files()), [sha256])
+        # the tab letting go of it keeps it while a page the keeper keeps reads it (X3, as a copy is kept)
+        engine = datacube._session.engine()
+        table = datacube._session.frames.read_files()[sha256]
+        kept = engine.answer('POST', '/forget.json', '', json.dumps({'name': 'trades.csv', 'table': table}))
+        self.assertEqual(json.loads(kept.body), {'kept': 'a page reads it: it goes when nothing reads it any more'})
+        self.assertTrue(self.held(sha256))
+        # the page collected: let go at the session's next safe moment
+        del page, grid
+        gc.collect()
+        ll.Page('Another').grid(desks(), name='desks_again')
+        self.assertFalse(self.held(sha256), 'let go once nothing reads it')
+
+    def test_a_page_saved_over_a_file_loads_given_its_file_and_is_refused_without_it(self):
+        path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
+        page = ll.Page('Files')
+        page.grid(file=path, rows=['desk'], measures={'qty': 'sum'})
+        saved = os.path.join(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')), 'files.page.json')
+        page.save(saved)
+        sha256 = page.to_dict()['cubes'][0]['cube']['source']['sha256']
+        del page
+        gc.collect()
+        ll.Page('Another').grid(desks(), name='desks_again')
+        self.assertFalse(self.held(sha256))
+        with self.assertRaisesRegex(ValueError, r"the page reads the files trades\.csv: give them, files=\{name: path\}"):
+            ll.Page.load(saved)
+        again = ll.Page.load(saved, files={'trades.csv': path})
+        self.assertEqual(groups_of(again.grids[0].view(), 'qty'), {'FX': 5, 'EQ': 2})
+        self.assertTrue(self.held(sha256))
+        # a file of other bytes under its name: opened over it all the same, said in the tab's words, and the page's cube
+        # names the file it reads now
+        changed = self.file('desk,qty\nFX,10\nEQ,20\n')
+        with self.assertWarnsRegex(UserWarning, r'trades\.csv is not the file this cube was saved over \(its contents differ\)'):
+            other = ll.Page.load(saved, files={'trades.csv': changed})
+        self.assertEqual(groups_of(other.grids[0].view(), 'qty'), {'FX': 10, 'EQ': 20})
+        self.assertNotEqual(other.to_dict()['cubes'][0]['cube']['source']['sha256'], sha256)
+
+    def test_a_remote_file_grid_is_mounted_once_for_its_url_and_one_not_read_is_refused_in_words(self):
+        url = f'{self.base}/desks.csv'
+        page = ll.Page('Remote')
+        grid = page.grid(remote=url, rows=['desk'], measures={'qty': 'sum'})
+        source = page.to_dict()['cubes'][0]['cube']['source']
+        self.assertEqual((source['_type'], source['name'], source['url']), ('remoteFile', 'desks.csv', url))
+        self.assertEqual(groups_of(grid.view(), 'qty'), {'FX': 4, 'EQ': 2})
+        self.assertEqual(page._reads()['remotes'], [url])
+        # a second grid over the same URL reads the view the first mounted
+        remotes = datacube._session.frames.hosted()['remotes']
+        page.grid(remote=url)
+        self.assertEqual(datacube._session.frames.hosted()['remotes'], remotes)
+        with self.assertRaisesRegex(ValueError, 'it takes no name'):
+            page.grid(remote=url, name='desks')
+        with self.assertRaisesRegex(ValueError, 'one of them'):
+            page.grid(remote=url, file=Path(self.served.name, 'desks.csv'))
+        # a remote file that is not there: refused in words, nothing mounted for it, the page as it was
+        gone = f'{self.base}/gone.csv'
+        with self.assertRaisesRegex(ValueError, f'the remote file {gone} is not read: '):
+            page.grid(remote=gone)
+        self.assertNotIn(gone, datacube._session.frames.hosted()['remotes'])
+        self.assertEqual(len(page.grids), 2)
+
+    def test_a_page_refused_as_it_loads_lets_go_of_the_files_it_read_for_it(self):
+        path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
+        page = ll.Page('Files')
+        page.grid(file=path)
+        page.grid(trades(), name='refused_trades')
+        # its file's bytes changed since: read anew for the load, then the page refused over a source the host does not
+        # read -- the file read for it let go of at once
+        changed = self.file('desk,qty\nFX,10\n')
+        refused = page.to_dict()
+        refused['cubes'][1]['cube']['source'] = {
+            '_type': 'class', 'name': 'Trade', 'class': 'trades::Trade', 'project': 'g:trades', 'workspace': 'datacube',
+            'revision': 'r1', 'mapping': 'trades::Mapping', 'runtime': 'trades::Runtime',
+            'columns': refused['cubes'][1]['cube']['source']['columns']}
+        # the page that read it gone, and its file let go of at the session's next safe moment
+        del page
+        gc.collect()
+        ll.Page('Another').grid(desks(), name='desks_again')
+        import hashlib
+        held = set(datacube._session.frames.read_files())
+        self.assertNotIn(refused['cubes'][0]['cube']['source']['sha256'], held)
+        with self.assertRaisesRegex(Exception, 'Trade is not read here'):
+            ll.Page.load(refused, files={'trades.csv': changed})
+        self.assertNotIn(hashlib.sha256(changed.read_bytes()).hexdigest(), datacube._session.frames.read_files(),
+                         'the file read for it let go of')
+        self.assertEqual(set(datacube._session.frames.read_files()), held)
+
+    def test_a_file_grid_joins_a_frames_and_a_source_the_host_does_not_read_is_refused_in_datacubes_words(self):
+        path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
+        page = ll.Page('Files')
+        mine = page.grid(file=path)
+        theirs = page.grid(pd.DataFrame({'desk': ['FX', 'EQ'], 'head': ['Ana', 'Ben']}), name='heads')
+        joined = page.join(mine, theirs, {'form': 'join', 'kind': 'left', 'prefix': 'h_', 'keep': None,
+                                          'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]}})
+        self.assertEqual(len(joined.to_pandas()), 3)
+        # Python keeps no list of the sources a page may read (Z14): DataCube says which it does not read here
+        doc = page.to_dict()
+        doc['cubes'][0]['cube']['source'] = {
+            '_type': 'class', 'name': 'Trade', 'class': 'trades::Trade', 'project': 'g:trades', 'workspace': 'datacube',
+            'revision': 'r1', 'mapping': 'trades::Mapping', 'runtime': 'trades::Runtime',
+            'columns': doc['cubes'][0]['cube']['source']['columns']}
+        with self.assertRaisesRegex(Exception, 'Trade is not read here: a page on this host reads frames, files and '
+                                               'remote files'):
+            ll.Page.load(doc, frames={'heads': pd.DataFrame({'desk': ['FX', 'EQ'], 'head': ['Ana', 'Ben']})},
+                         files={'trades.csv': path})
 
 
 class CorpusPage(unittest.TestCase):

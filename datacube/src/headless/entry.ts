@@ -8,10 +8,10 @@ import './install-url.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
-  cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
+  cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened, leafCube,
   gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
 } from './grid.ts';
-import { forget, ingest, landed, mount, remoteAccess } from './data-in.ts';
+import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
@@ -32,7 +32,7 @@ export { REQUEST_KINDS };
  *  -- and a saved cube opened over them as it is now (gridOpened): a frame's, or a join's of frames
  *  (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). */
 export {
-  cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened,
+  cubeLeaves, gridApply, gridBaseOn, gridCalculate, gridChart, gridCube, gridExport, gridFilter, gridOpened, leafCube,
   gridRelation, gridSnapPull, gridView,
 };
 
@@ -43,7 +43,7 @@ export { gridSetUp, snapRefused };
 /** Data in (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.3): a file read into the host's database by upload.ts, its
  *  table dropped again, and a remote file mounted as a view (its extensions and keys put in place first, where the host
  *  checks what it names). */
-export { forget, ingest, landed, mount, remoteAccess };
+export { forget, ingest, landed, mount, remoteAccess, tableFor };
 
 /** The model actions, headless (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): Create a Class… of a grid, Create
  *  an Association… and Create a Data Space… of the page, as the windows make them, into a project through the host's

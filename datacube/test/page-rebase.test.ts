@@ -198,15 +198,24 @@ describe("what a page on its host holds (headless pageRebase: the S4 audit's 2)"
   it('a grid over a source the host cannot base its edits on is refused as the write adds it, in DataCube\'s words', async () => {
     // the trades page over the host's frames; the dashboard page's grids read a file
     const files = (await corpus())['charts-dashboard.page.json']!;
-    const frames = Object.fromEntries(pageReads(trades).frames.map((f) => [f, { model: '', runtime: '', accessor: '' }]));
+    const table = { model: '', runtime: '', accessor: '' };
+    const frames = Object.fromEntries(pageReads(trades).frames.map((f) => [f, table]));
+    const host = { frames, files: {}, remotes: {} };
     const ids = JSON.stringify(pageReads(trades).ids);
     const adding = (document: PageDocument['cubes'][number]['cube']): string =>
       `[${toJson({ page: { kind: 'addGrid', document, sheet: 'sheet-1', near: null, title: null, columns: null } })}]`;
-    const refused = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(files.cubes[0]!.cube), ids, frames, {})) as { problems?: string[] };
-    assert.match((refused.problems ?? []).join('; '), /is no frame and no join of frames: a page on Python reads frames/);
-    // one over a frame the host serves is kept
-    const kept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(trades.cubes[0]!.cube), ids, frames, {})) as { problems?: string[] };
+    const file = files.cubes[0]!.cube;
+    assert.equal(file.source._type, 'file');
+    const refused = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(file), ids, host, {})) as { problems?: string[] };
+    assert.match((refused.problems ?? []).join('; '), /the file .* is not read here: the page is given its file as it opens/);
+    // one over a frame the host serves is kept, and one over a file it read in (by the file's bytes' hash: X1, X3)
+    const kept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(trades.cubes[0]!.cube), ids, host, {})) as { problems?: string[] };
     assert.equal(kept.problems, undefined);
+    if (file.source._type !== 'file') throw new Error('unreachable');
+    const leaf = { _type: 'file' as const, name: file.source.name, size: file.source.size, sha256: file.source.sha256 };
+    const read = { ...host, files: { [file.source.sha256]: { model: '', runtime: '', source: {}, table: 'trades', leaf } } };
+    const fileKept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(file), ids, read, {})) as { problems?: string[] };
+    assert.equal(fileKept.problems, undefined);
   });
 });
 
@@ -217,6 +226,16 @@ describe('what a page reads, for its keeper', () => {
     assert.deepEqual(reads.copies, ['snap']);
     assert.deepEqual(reads.ids.sort(), idsOf(snapped).sort(), 'no page filter here: its tiles\', cubes\' and sheets\'');
     assert.ok(reads.frames.length > 0 && reads.frames.every((f) => typeof f === 'string'));
+    assert.deepEqual([reads.files, reads.remotes], [[], []]);
+  });
+
+  it('the files it reads by their bytes\' hash, the remote files by URL (X3: what its host holds a table for)', async () => {
+    const dashboard = (await corpus())['charts-dashboard.page.json']!;
+    const reads = pageReads(dashboard);
+    const hashes = [...new Set(dashboard.cubes.flatMap((c) => (c.cube.source._type === 'file' ? [c.cube.source.sha256] : [])))].sort();
+    assert.ok(hashes.length > 0);
+    assert.deepEqual(reads.files, hashes);
+    assert.deepEqual(reads.frames, []);
   });
 });
 

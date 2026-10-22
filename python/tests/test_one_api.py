@@ -47,7 +47,9 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # 2026-10-22 (S5, Z15): L6_FUNCTIONS 3 -> 2 -- a grid's base on the host is DataCube's one rule (gridBaseOn)
 # 2026-10-22 (S5, B3/B9, D11): MARKERS 3 -> 2 -- a page nobody named is unnamed on both sides (newPage)
 # 2026-10-22 (S5, Z12, D12): L6_FUNCTIONS 2 -> 0 -- a filter's shape and values are DataCube's reader's (readGivenFilter)
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 0, 'MARKERS': 2, 'L9_KEEPER': 6,
+# 2026-10-22 (S5, Z14, X3, D14): MARKERS 2 -> 1 -- Python's frames-only rule deleted: what a page on the host reads is
+# DataCube's one rule (host-tables.ts leafOnHost), frames, files and remote files
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 0, 'MARKERS': 1, 'L9_KEEPER': 6,
             'BEHAVIOUR': 0}
 
 
@@ -88,7 +90,8 @@ def _held_to(test, found, ledger, what, ceiling):
 # -- L4 ------------------------------------------------------------------------------------------------------------
 
 L4_WHOLE = {
-    'Page.load': (ALLOWED, 1),  # N1: a page born whole
+    # 2026-10-22 (S5, X3, D14): moved from Page.load with the code, which now lets go of what a refused load read
+    'Page._opened_all': (ALLOWED, 1),  # N1: a page born whole (Page.load's)
 }
 
 # every assignment of the write's flags, by where and what: `_unserved = None` is a whole write as `_unnoted` is
@@ -118,7 +121,7 @@ L5_DOCUMENT = {
     'Page._apply_page': (ALLOWED, 1, 'page'),  # headless pageApply's page (its binding pinned in MARKERS)
     'Page.grid': (ALLOWED, 1, '(was[0], was[1])'),  # a refused call puts back the page as it was
     'Page.join': (ALLOWED, 1, '(was[0], was[1])'),
-    'Page.load': (ALLOWED, 1, 'doc'),  # N1: headless pageRead's page
+    'Page._opened_all': (ALLOWED, 1, 'doc'),  # N1: headless pageRead's page (Page.load's)
     'Grid._kept': (ALLOWED, 1, "_plain(_json.loads(kept['page']))"),  # headless pageWithCube's page
 }
 
@@ -235,7 +238,6 @@ L6_FUNCTIONS: dict[str, tuple[str, ...]] = {}
 
 # (file, the code that is the gap, its items, how many times it is there)
 MARKERS = [
-    (PAGE, 'which is no frame (a page in Python is over ', ('Z14', 'B7'), 1),
     # the page _apply_page assigns is headless pageApply's, as read (L5 pins the assignment, this its binding)
     (PAGE, "page = _plain(_json.loads(said['page']))", ALLOWED, 1),
 ]
@@ -331,8 +333,9 @@ class HostApplies(Session):
         self.assertEqual(page.sheet('Mine').id, 'sheet-10')
 
     def test_a_grid_the_host_cannot_hold_is_refused_as_the_write_adds_it(self):
-        # (the S4 audit's 2) a page on Python holds grids over its frames and joins of them (headless grid.ts onHost, until
-        # S5): one over any other source is refused as the write adds it, in DataCube's words, and nothing is kept
+        # (the S4 audit's 2) a page on Python holds grids over what it reads -- its frames, files and remote files -- and
+        # joins of them (headless host-tables.ts onHost): one over any other source is refused as the write adds it, in
+        # DataCube's words, and nothing is kept
         page, engine = self.served('holds')
         at = datacube._session.keeper.current(page._key)[0]
         cube = copy.deepcopy(page.to_dict()['cubes'][0]['cube'])
@@ -342,7 +345,7 @@ class HostApplies(Session):
         said = self.written(engine, page, {'edits': [{'page': {'kind': 'addGrid', 'document': cube, 'sheet': 'sheet-1',
                                                                 'near': None, 'title': None, 'columns': None}}]})
         self.assertEqual(said.status, 409, said)
-        self.assertIn('is no frame and no join of frames: a page on Python reads frames', said.body.decode('utf-8'))
+        self.assertIn('Trade is not read here: a page on this host reads frames, files and remote files', said.body.decode('utf-8'))
         self.assertEqual(datacube._session.keeper.current(page._key)[0], at, 'nothing kept')
 
     def test_a_failure_of_the_librarys_is_said_as_one_never_as_a_refusal(self):

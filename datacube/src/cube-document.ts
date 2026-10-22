@@ -558,17 +558,14 @@ export function openCube(
 
 /**
  * A SAVED CUBE OPENED AGAIN OVER ITS SOURCE AS IT IS NOW, as a document (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11): the
- * page command `rebuilt`'s rule. `source` is the source written as it is now -- a frame's or a join's of the host's
- * frames, its columns as the compiler types them -- and the cube is opened over its columns by openCube's own rule (a
- * new column hidden, a gone one's parts left out, a retyped one said), whatever the cube is now: a grid regrouped by
- * another writer meanwhile keeps its grouping. The notes said, and whether a part was left out.
+ * page command `rebuilt`'s rule. `source` is the source written as it is now -- its columns as the compiler types them,
+ * over what its host reads (which headless host-tables.ts onHost says, X1) -- and the cube is opened over its columns by
+ * openCube's own rule (a new column hidden, a gone one's parts left out, a retyped one said), whatever the cube is now: a
+ * grid regrouped by another writer meanwhile keeps its grouping. The notes said, and whether a part was left out.
  */
 export function cubeOpenedAgain(doc: CubeDocument, source: CubeSource): {
   readonly document: CubeDocument; readonly notes: readonly string[]; readonly changed: boolean;
 } {
-  if (source._type !== 'frame' && source._type !== 'join') {
-    throw new CubeRefusal(`${source.name} is a ${source._type}: its host opens again a frame's cube or a join's of frames`);
-  }
   const { query, configuration, tree, notes, changed } = reopened(doc, source.columns);
   // as the screen holds a cube it opens (cube-state.ts openedState): what only its query carries read back into its
   // configuration, then folded into its query
@@ -831,15 +828,46 @@ export async function fileSource(
   columns: readonly ColumnSpec[],
   sample?: { readonly id: string; readonly rows: number },
 ): Promise<FileSource> {
+  return fileSourceOf({ name: file.name, size: file.size, sha256: await sha256(await file.arrayBuffer()) }, format, columns, sample);
+}
+
+/**
+ * A FILE AS A CUBE RECORDS IT, the one writer (fileSource's, and a host's that hashed the file it read: headless
+ * data-in.ts fileRead): its name, its format, its size, the lower-case hex SHA-256 of its bytes, its columns as the
+ * compiler types them.
+ */
+export function fileSourceOf(
+  file: { readonly name: string; readonly size: number; readonly sha256: string },
+  format: UploadFormat,
+  columns: readonly ColumnSpec[],
+  sample?: { readonly id: string; readonly rows: number },
+): FileSource {
   return {
     _type: 'file',
     name: file.name,
     format,
     size: file.size,
-    sha256: await sha256(await file.arrayBuffer()),
+    sha256: file.sha256,
     columns: columns.map((c) => ({ name: c.name, type: c.type })),
     ...(sample ? { sample } : {}),
   };
+}
+
+/** What a person calls a remote file: its URL's last part (its query and fragment aside). */
+export const lastSegment = (url: string): string => url.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop() || url;
+
+/** A REMOTE FILE AS A CUBE RECORDS IT, the one writer (the tab's and a host's): its name, its URL, its columns. */
+export function remoteSourceOf(url: string, columns: readonly ColumnSpec[]): RemoteSource {
+  return { _type: 'remoteFile', name: lastSegment(url), url, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+}
+
+/**
+ * WHAT A CUBE SAVED OVER A FILE IS TOLD when it opens over `now` (the tab's file picked, a host's file given): that `now`
+ * is not the file it was saved over, its contents differ (its source no file, or another hash).
+ */
+export function fileChanged(saved: CubeSource, now: FileSource): string[] {
+  return saved._type !== 'file' || saved.sha256 !== now.sha256
+    ? [`${now.name} is not the file this cube was saved over (its contents differ)`] : [];
 }
 
 export async function sha256(bytes: ArrayBuffer): Promise<string> {
