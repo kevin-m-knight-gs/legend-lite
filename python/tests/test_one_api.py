@@ -41,7 +41,7 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # each ledger's size, pinned: lower it with the fix that shrank it; raise it only with a dated note here
 # 2026-10-21 (One API S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N1, N2): L9_KEEPER 6 -> 8 -- the page written whole
 # is its own keeper write now (`restore`), split from `settle`, which takes commands only: Python's load (N1) and an
-# open page's undo or redo (N2), both named exceptions the plan's end state keeps
+# open page's undo or redo (N2), both named exceptions the plan's end state keeps; signed off by the user, 2026-10-22 (D10)
 CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 8, 'MARKERS': 15, 'L9_KEEPER': 8,
             'BEHAVIOUR': 1}
 

@@ -36,6 +36,10 @@ item below has its `file:line` there.
   toggle: a click's toggling is the screen's; a range across an axis not at first.
 - **D9** Every ledger's growth waits on the user's dated sign-off, the growth this plan itself calls for included (rule
   1 as written: no standing approval).
+- **D10** Signed off: the S1 raises of `L8_KINDS` (13 -> 15 for `select` and `refilter`, K7; 12 -> 13 for
+  `setChartCube`, K11) and S4's of `L9_KEEPER` (6 -> 8, the restore writes N1 and N2); and S1's audit finding 10
+  registered as P15 (`MARKERS` 9 -> 10). Each is fixed for real, not only listed: K7 and K11 in S6 (D7, D8), P15 in S5
+  with Z4-Z7 (D5).
 
 ## 0. Why the nine attempts before this one did not finish
 
@@ -240,6 +244,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   document) and is applied by one rule to the cube the page holds then (cube-document.ts `cubeOpenedAgain`), so made
   again on top of another writer's edit of the grid it keeps that edit
 - [ ] **P12** `ll.show(df)` page unkept; a frame's column change loses grid edits → a kept page of one grid — S5, L10
+- [ ] **P15** a model action's page record (`modelInto`, `modelKeep`, `modelPin`) is set outside the tab's page state and
+  told by its difference, not applied as commands by the one function -- S1's audit finding 10, registered 2026-10-22
+  (D10) → applied as commands, no undo step (D5) — S5, with Z4-Z7, MARKERS
 - [x] **P13** charts on a cube alone (embedded CubeApp) tell nothing → the same state and commands — closed S3: a cube
   alone's board keeps a page state (page-state.ts) and applies each edit by the same one step as a page of its own
   (page-commands.ts applyToState), then puts the board at what it makes (CubePage.sync), and tells the commands
