@@ -5,6 +5,7 @@
 // No DOM, no planner: what needs the compiler (a calculated column's parse) is done before the command is built.
 
 import { nameProblem } from './calc.ts';
+import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import {
   APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, renameColumnConfig, withConfiguration,
   type CubeConfiguration, type Patch,
@@ -77,6 +78,19 @@ export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
   'refilter', 'calculate', 'measures', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
 ] as const satisfies readonly GridCommand['kind'][];
+
+/** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
+export const GRID_COMMAND_FIELDS = {
+  group: ['rows'], pivot: ['columns'], sorts: ['sorts'], addSort: ['column', 'direction'],
+  clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
+  filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column'],
+  measures: ['measures'], editCalculated: ['name', 'level', 'column'], removeCalculated: ['name'], open: ['path', 'open'],
+  collapseAll: [],
+} as const satisfies CommandFields<GridCommand>;
+// every field of every kind listed: a field the list leaves out is a type error naming it
+const gridFieldsWhole: [MissingFields<GridCommand, typeof GRID_COMMAND_FIELDS>] extends [never] ? true
+  : MissingFields<GridCommand, typeof GRID_COMMAND_FIELDS> = true;
+void gridFieldsWhole;
 
 /** A command applied: the grid as the screen's rules leave it, or a refusal in their words (CubeRefusal). */
 export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCommand): D {
@@ -404,7 +418,8 @@ function directionFrom(v: unknown): SortDirection {
 }
 
 /** A command's fields, exactly: a field it does not take is refused, never passed over. */
-function fields(o: Record<string, unknown>, kind: string, allowed: readonly string[], what = `a '${kind}' command`): void {
+function fields(o: Record<string, unknown>, kind: string, listed: readonly string[], what = `a '${kind}' command`): void {
+  const allowed = fieldNames(listed);
   const odd = Object.keys(o).filter((k) => k !== 'kind' && !allowed.includes(k));
   if (odd.length > 0) throw new CubeRefusal(`${what} takes ${allowed.join(', ') || 'nothing more'}, not ${odd.join(', ')}`);
 }
@@ -559,13 +574,13 @@ export function readGridCommand(given: unknown): GridCommand {
   const kind = o['kind'] as string;
   switch (kind) {
     case 'group':
-      fields(o, kind, ['rows']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, rows: namesFrom(o['rows'], 'the row groups') };
     case 'pivot':
-      fields(o, kind, ['columns']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, columns: namesFrom(o['columns'], 'the pivot') };
     case 'sorts': {
-      fields(o, kind, ['sorts']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (!Array.isArray(o['sorts'])) throw new CubeRefusal('the sorts are a list');
       return { kind, sorts: o['sorts'].map((x) => {
         if (!isObject(x)) throw new CubeRefusal(`a sort is {column, direction}, not ${JSON.stringify(x)}`);
@@ -573,19 +588,19 @@ export function readGridCommand(given: unknown): GridCommand {
       }) };
     }
     case 'addSort':
-      fields(o, kind, ['column', 'direction']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, column: textFrom(o['column'], 'a sort'), direction: directionFrom(o['direction']) };
     case 'clickSort':
-      fields(o, kind, ['column', 'first', 'chained']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (typeof o['chained'] !== 'boolean') throw new CubeRefusal('a header click is chained or not: true or false');
       if (o['first'] === undefined) throw new CubeRefusal("a header click says the direction it starts with: first, 'asc' or 'desc'");
       return { kind, column: textFrom(o['column'], 'a header click'), first: directionFrom(o['first']), chained: o['chained'] };
     case 'clickTreeSort':
-      fields(o, kind, ['chained']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (typeof o['chained'] !== 'boolean') throw new CubeRefusal('a tree header click is chained or not: true or false');
       return { kind, chained: o['chained'] };
     case 'column': {
-      fields(o, kind, ['name', 'change']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       const change = o['change'];
       if (!isObject(change)) throw new CubeRefusal(`a column's properties are {kind, aggregate, weight}, not ${JSON.stringify(change)}`);
       const { kind: k, aggregate, weight, ...other } = change;
@@ -599,20 +614,20 @@ export function readGridCommand(given: unknown): GridCommand {
       } };
     }
     case 'configure':
-      fields(o, kind, ['patch']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (!isObject(o['patch'])) throw new CubeRefusal("a grid's configuration is its settings by name, in its document's own keys");
       return { kind, patch: o['patch'] };
     case 'filter':
-      fields(o, kind, ['filter']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, filter: o['filter'] === null ? null : readFilterNode(o['filter']) };
     case 'addFilter':
-      fields(o, kind, ['condition']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (!isObject(o['condition']) || o['condition']['kind'] !== 'condition') {
         throw new CubeRefusal(`a filter added is one condition, not ${JSON.stringify(o['condition'])}`);
       }
       return { kind, condition: readFilterNode(o['condition']) };
     case 'refilter': {
-      fields(o, kind, ['remove', 'add']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       const conditions = (v: unknown, what: string): FilterNode[] => {
         if (!Array.isArray(v)) throw new CubeRefusal(`${what} is a list of conditions, not ${JSON.stringify(v)}`);
         return v.map(readFilterNode);
@@ -620,18 +635,18 @@ export function readGridCommand(given: unknown): GridCommand {
       return { kind, remove: conditions(o['remove'], 'what a refilter takes off'), add: conditions(o['add'], 'what a refilter adds') };
     }
     case 'calculate':
-      fields(o, kind, ['level', 'column']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);
       return { kind, level: o['level'], column: calculatedFrom(o['column']) };
     case 'editCalculated':
-      fields(o, kind, ['name', 'level', 'column']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);
       return { kind, name: textFrom(o['name'], "the calculated column's name"), level: o['level'], column: calculatedFrom(o['column']) };
     case 'removeCalculated':
-      fields(o, kind, ['name']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, name: textFrom(o['name'], "the calculated column's name") };
     case 'open': {
-      fields(o, kind, ['path', 'open']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       const path = o['path'];
       if (!Array.isArray(path) || !path.every((k) => k === null || typeof k === 'string')) {
         throw new CubeRefusal(`a group's path is its keys from the top down, each text or null, not ${JSON.stringify(path)}`);
@@ -640,10 +655,10 @@ export function readGridCommand(given: unknown): GridCommand {
       return { kind, path: path as RowPath, open: o['open'] };
     }
     case 'collapseAll':
-      fields(o, kind, []);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind };
     case 'measures': {
-      fields(o, kind, ['measures']);
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (!Array.isArray(o['measures'])) throw new CubeRefusal('the measures are a list');
       return { kind, measures: o['measures'].map((m) => {
         if (!isObject(m)) throw new CubeRefusal(`a measure is {name, column, fn[, weight]}, not ${JSON.stringify(m)}`);

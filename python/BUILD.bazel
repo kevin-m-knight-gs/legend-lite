@@ -49,9 +49,11 @@ py_library(
 # `bazel run //python:update_generated`
 write_source_files(
     name = "update_generated",
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe type facts changed: bazel run //python:update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe type facts or DataCube's commands changed: bazel run //python:update_generated",
     files = {
         "legend_lite/_type_facts.py": "//engine-client:lite_facts_py",
+        # DataCube's commands, one builder each (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D17)
+        "legend_lite/_commands.py": "//datacube:python_commands",
     },
     visibility = ["//:__pkg__"],
 )

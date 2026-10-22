@@ -718,6 +718,27 @@ write_source_files(
     tags = ["manual"],
 )
 
+# PYTHON'S COMMAND LAYER (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D17): one builder per command kind, written from the
+# command modules' field lists (GRID_COMMAND_FIELDS, PAGE_COMMAND_FIELDS); committed as python/legend_lite/_commands.py
+# and diff-tested by //python:update_generated
+js_binary(
+    name = "emit_python_commands",
+    data = [":src"],
+    entry_point = "tools/python-commands/emit.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "python_commands",
+    srcs = ["tools/python-commands/emit.ts"],
+    stdout = "generated/commands.gen.py",
+    tool = ":emit_python_commands",
+    visibility = ["//python:__pkg__"],
+)
+
 js_run_binary(
     name = "offer_queries",
     srcs = ["tools/offer-facts/emit.ts"],

@@ -263,9 +263,14 @@ describe('L8: every command kind and source kind, against who makes and reads it
   const page = SOURCES.read('src/page-commands.ts');
   const gridKinds = unionKinds(grid, 'GridCommand');
   const pageKinds = unionKinds(page, 'PageCommand');
-  const python = SOURCES.under(PY, '.py').map((f) => pythonCode(SOURCES.read(f))).join('\n');
+  // Python's own code: its generated builders (_commands.py, one per kind: D17) make nothing until it calls one
+  const ownPython = SOURCES.under(PY, '.py').filter((f) => !f.endsWith('/_commands.py'));
+  const python = ownPython.map((f) => pythonCode(SOURCES.read(f))).join('\n');
   const exported = SOURCES.under('src/headless', '.ts').flatMap((f) => exportedFunctions(SOURCES.read(f)));
   const asked = (name: string): boolean => python.includes(`'${name}'`);
+  /** Python's own code calls the generated builder of `kind` (`_commands.grid_add_sort(`, `_commands.page_move_sheet(`). */
+  const builds = (kind: string): boolean =>
+    new RegExp(`\\b_commands\\.(?:grid|page)_${kind.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}\\(`).test(python);
   /** The modules that make commands: each one naming the command types or telling page edits (a new one is read too). */
   const producers = SOURCES.under('src', '.ts')
     .filter((f) => !f.startsWith('src/headless/') && !['src/grid-commands.ts', 'src/page-commands.ts', 'src/page-rebase.ts'].includes(f))
@@ -293,12 +298,21 @@ describe('L8: every command kind and source kind, against who makes and reads it
     assert.deepEqual(pageKinds.filter((k) => !renaming.includes(`case '${k}'`)), [], 'page kinds the rebase does not rename');
   });
 
+  it('Python writes a command only by its generated builder (D17): none of its own', () => {
+    const kinds = [...gridKinds, ...pageKinds];
+    const own = ownPython.flatMap((f) => {
+      const code = pythonCode(SOURCES.read(f));
+      return kinds.filter((k) => new RegExp(`['"]kind['"]\\s*:\\s*['"]${k}['"]`).test(code)).map((k) => `${f}: ${k}`);
+    });
+    assert.deepEqual(own, [], 'a command Python writes itself: build it by its _commands builder');
+  });
+
   it('each command kind is made by the screen and by Python, or listed', () => {
     const problems: string[] = [];
     for (const kind of [...gridKinds, ...pageKinds]) {
       const has: Record<Cell, boolean> = {
         screen: made(screen, kind),
-        python: new RegExp(`'kind': '${kind}'`).test(python) || exported.some((e) => exportMakes(e.body, kind) && asked(e.name)),
+        python: builds(kind) || exported.some((e) => exportMakes(e.body, kind) && asked(e.name)),
       };
       for (const cell of ['screen', 'python'] as const) {
         const entry = L8_KINDS[kind]?.[cell];

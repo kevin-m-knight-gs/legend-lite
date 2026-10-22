@@ -49,7 +49,7 @@ from ._extra import require_datacube
 # DataCube's: the datacube extra's packages, or one sentence saying to install it (_extra.py)
 require_datacube()
 
-from . import _json
+from . import _commands, _json
 from ._types import is_boolean, is_decimal, is_float, is_integer, is_number
 from .keeper import Refused, Settled
 
@@ -194,7 +194,7 @@ class Tile:
         if title is not None and not isinstance(title, str):
             raise ValueError(f'a title is a name, not {title!r}')
         # by the command the screen's rename builds (a chart has a title; a grid's None takes its own off)
-        self._page._apply_page([{'kind': 'renameTile', 'tile': self._id, 'title': title}], 'a title')
+        self._page._apply_page([_commands.page_rename_tile(tile=self._id, title=title)], 'a title')
 
     @property
     def sheet(self) -> Sheet:
@@ -240,8 +240,8 @@ class Grid(Tile):
 
     def _apply(self, commands: list[dict[str, Any]]) -> Grid:
         """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
-        docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md) -- ``{'kind': 'group', 'rows': [...]}``, ``{'kind': 'addSort',
-        ...}``, ``{'kind': 'configure', 'patch': {...}}`` and the rest -- applied by DataCube's own function in order
+        docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), each written by its generated builder (``_commands``: D17) --
+        ``grid_group``, ``grid_add_sort``, ``grid_configure`` and the rest -- applied by DataCube's own function in order
         (headless gridApply), the grid then compiled as Apply compiles it: refused in DataCube's words, nothing set; else
         the cube document DataCube writes, its open groups kept as the screen keeps them."""
         self._page._current(self._view['cube'], 5)
@@ -376,11 +376,11 @@ class Grid(Tile):
     def group(self, *rows: str) -> Grid:
         """Grouped by ``rows``, outermost first (the Rows zone): dimensions, as the screen offers them
         (``column(name, kind='dimension')`` makes one); none, not grouped."""
-        return self._apply([{'kind': 'group', 'rows': list(rows)}])
+        return self._apply([_commands.grid_group(rows=list(rows))])
 
     def pivot(self, *columns: str) -> Grid:
         """Pivoted on ``columns`` (the Columns zone): dimensions, as for ``group``; none, not pivoted."""
-        return self._apply([{'kind': 'pivot', 'columns': list(columns)}])
+        return self._apply([_commands.grid_pivot(columns=list(columns))])
 
     def column(self, name: str, *, kind: str | None = None, aggregate: Any = _KEEP, weight: Any = _KEEP) -> Grid:
         """``name``'s Column Properties, as the panel sets them: its ``kind`` (``'dimension'``, which can be grouped and
@@ -390,7 +390,7 @@ class Grid(Tile):
         change = {**({'kind': kind} if kind is not None else {}),
                   **({'aggregate': aggregate} if aggregate is not _KEEP else {}),
                   **({'weight': weight} if weight is not _KEEP else {})}
-        return self._apply([{'kind': 'column', 'name': name, 'change': change}])
+        return self._apply([_commands.grid_column(name=name, change=change)])
 
     def measure(self, column: str, fn: str, name: str | None = None, *, weight: str | None = None) -> Grid:
         """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type, and none is assumed:
@@ -401,7 +401,7 @@ class Grid(Tile):
         as the screen would add one. A grouped ``column`` takes no Aggregation of its own: give the measure a ``name``."""
         measure = {'name': column if name is None else name, 'column': column, 'fn': fn,
                    **({'weight': weight} if weight is not None else {})}
-        return self._apply([{'kind': 'measures', 'measures': [measure]}])
+        return self._apply([_commands.grid_measures(measures=[measure])])
 
     def filter(self, condition: Any) -> Grid:
         """Its filter: a condition ``(column, operator[, value])``, a list of them (all of them), a group
@@ -410,7 +410,7 @@ class Grid(Tile):
         column), one a column of its type is offered, the grid with it compiled, in the editor's normal form (a group of
         one is that one, an empty one none: ``[]`` takes the filter off, as ``None`` does); ``None`` for none."""
         if condition is None:
-            return self._apply([{'kind': 'filter', 'filter': None}])
+            return self._apply([_commands.grid_filter(filter=None)])
         self._page._current(self._view['cube'], 4)
         engine, frames = self._headless()
         with frames.reading():
@@ -424,21 +424,21 @@ class Grid(Tile):
         """A sort, after those it has, as the header menu's Add Ascending and Add Descending add one (grid-edits.ts
         addSort: a sort it had of ``column`` taken first; one it has already changes nothing): ``column`` (one of the
         grid's columns, or a pivot's header) ``'asc'`` or ``'desc'``."""
-        return self._apply([{'kind': 'addSort', 'column': column, 'direction': direction}])
+        return self._apply([_commands.grid_add_sort(column=column, direction=direction)])
 
     def expand(self, *path: str | None) -> Grid:
         """The group at ``path`` open, as its chevron opens it (an ``open`` command): its keys from the top group down,
         each the text the grid shows (None, an empty group) -- its parents open with it. Saved with the page, so a page
         shared or reopened shows it open. A path deeper than the row groups opens nothing."""
-        return self._apply([{'kind': 'open', 'path': list(path), 'open': True}])
+        return self._apply([_commands.grid_open(path=list(path), open=True)])
 
     def collapse(self, *path: str | None) -> Grid:
         """The group at ``path`` closed, as its chevron closes it, the groups under it with it (an ``open`` command)."""
-        return self._apply([{'kind': 'open', 'path': list(path), 'open': False}])
+        return self._apply([_commands.grid_open(path=list(path), open=False)])
 
     def collapse_all(self) -> Grid:
         """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
-        return self._apply([{'kind': 'collapseAll'}])
+        return self._apply([_commands.grid_collapse_all()])
 
     def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
@@ -462,7 +462,7 @@ class Grid(Tile):
     def remove_calculated(self, name: str) -> Grid:
         """The calculated column ``name`` taken out, as Edit Column's Delete takes it (a ``removeCalculated`` command):
         refused, in the compiler's words, while another column reads it."""
-        return self._apply([{'kind': 'removeCalculated', 'name': name}])
+        return self._apply([_commands.grid_remove_calculated(name=name)])
 
     def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None) -> Grid:
         if not isinstance(name, str) or not isinstance(expression, str):
@@ -484,7 +484,7 @@ class Grid(Tile):
         setting) and folded into its query as the screen folds it, by a configure command (headless gridApply). A
         column's ``kind``, ``aggregateFn`` and ``aggregationParameters`` go by Column Properties' rules, as ``column()``
         does: a kind is set, never cleared; ``excludedFromPivot`` is True or False."""
-        return self._apply([{'kind': 'configure', 'patch': _copied(settings)}])
+        return self._apply([_commands.grid_configure(patch=_copied(settings))])
 
     def chart(self, mark: str, *, x: Any = _KEEP, y: Sequence[Any] | None = None,
               split: Any = _KEEP, title: str | None = None, frozen: bool | None = None,
@@ -525,8 +525,8 @@ class Grid(Tile):
         if title is not None and not isinstance(title, str):
             raise ValueError(f'a title is a name, not {title!r}')
         # beside this grid, titled by its number unless given one, as the screen adds a chart (page-commands.ts addChart)
-        applied = self._page._apply_page([{'kind': 'addChart', 'near': self._id, 'spec': spec, 'title': title,
-                                           'columns': None}], 'a title')
+        applied = self._page._apply_page([_commands.page_add_chart(near=self._id, spec=spec, title=title, columns=None)],
+                                         'a title')
         return self._page._tile(applied[0]['id'], Chart)
 
     @property
@@ -577,7 +577,7 @@ class Grid(Tile):
         _ = self._view
         page = self._page
         with page._batch():
-            page._apply_page([{'kind': 'live', 'grid': self._id}], 'go live')
+            page._apply_page([_commands.page_live(grid=self._id)], 'go live')
             page._current(self._view['cube'], 3)
         return self
 
@@ -776,16 +776,16 @@ class Chart(Tile):
                  **({'split': split} if split is not _KEEP else {}),
                  **({'at': None if at is None else _carried(at)} if at is not _KEEP else {}),
                  **({'frozen': True if frozen else None} if frozen is not None else {})}
-        self._page._apply_page([{'kind': 'setChart', 'chart': self._id,
-                                 'spec': _made(self._page, view['cube'], given, view['spec'])}])
+        self._page._apply_page([_commands.page_set_chart(chart=self._id,
+                                                         spec=_made(self._page, view['cube'], given, view['spec']))])
         return self
 
     def options(self, settings: Mapping[str, Any]) -> Chart:
         """The chart's Options (``orientation``, ``stack``, ``sort``, ``limit``, ``labels``, ``legend``), in its spec's own
         keys; one left out is the chart's default. DataCube makes the edit and judges it (_made)."""
         view = self._view
-        self._page._apply_page([{'kind': 'setChart', 'chart': self._id,
-                                 'spec': _made(self._page, view['cube'], {'options': _carried(settings)}, view['spec'])}])
+        spec = _made(self._page, view['cube'], {'options': _carried(settings)}, view['spec'])
+        self._page._apply_page([_commands.page_set_chart(chart=self._id, spec=spec)])
         return self
 
     def __repr__(self) -> str:
@@ -827,7 +827,7 @@ class Sheet:
         _ = self._doc
         if name is not None and not isinstance(name, str):
             raise ValueError(f"a sheet's name is a name, not {name!r}")
-        self._page._apply_page([{'kind': 'renameSheet', 'sheet': self._id, 'name': name}], "a sheet's name")
+        self._page._apply_page([_commands.page_rename_sheet(sheet=self._id, name=name)], "a sheet's name")
 
     @property
     def tiles(self) -> list[Tile]:
@@ -842,7 +842,7 @@ class Sheet:
             if tile._page is not self._page:
                 raise ValueError(f'{tile!r} is another page\'s')
             _ = tile._view
-        self._page._apply_page([{'kind': 'moveTile', 'tile': t._id, 'sheet': self._id, 'columns': None} for t in tiles])
+        self._page._apply_page([_commands.page_move_tile(tile=t._id, sheet=self._id, columns=None) for t in tiles])
         return self
 
     def layout(self, *bands: Sequence[Tile]) -> Sheet:
@@ -878,7 +878,7 @@ class Sheet:
         """Its places arranged as the screen's layout picker arranges them (page-commands.ts arrange), in ``order`` (their
         tiles; None: reading order)."""
         try:
-            self._page._apply_page([{'kind': 'arrange', 'sheet': self._id, 'preset': preset, 'order': order}])
+            self._page._apply_page([_commands.page_arrange(sheet=self._id, preset=preset, order=order)])
         except ValueError as e:
             raise ValueError(f'{e} (a shape as the layout picker names it, or sheet.layout(...) band by band)') from None
         return self
@@ -891,7 +891,7 @@ class Sheet:
         _ = self._doc  # a sheet no longer on its page refused, as every sheet call refuses one
         if not isinstance(layout, Mapping):
             raise ValueError(f"a sheet's layout is {{'kind': 'bands', 'fit': ..., 'bands': [...]}}, not {layout!r}")
-        self._page._apply_page([{'kind': 'layout', 'sheet': self._id, 'layout': _copied(layout)}])
+        self._page._apply_page([_commands.page_layout(sheet=self._id, layout=_copied(layout))])
         return self
 
     def __repr__(self) -> str:
@@ -1124,7 +1124,7 @@ class Page:
         if not isinstance(name, str):
             raise ValueError(f"a page's name is a name, not {name!r}")
         # the page's name is each cube's too: DataCube writes them (page-commands.ts renamePage), as the screen does
-        self._apply_page([{'kind': 'renamePage', 'name': name}], "a page's name")
+        self._apply_page([_commands.page_rename_page(name=name)], "a page's name")
 
     @property
     def sheets(self) -> list[Sheet]:
@@ -1199,8 +1199,8 @@ class Page:
             # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band at
             # the bottom, told nothing yet
             with self._batch(tell=False):
-                applied = self._apply_page([{'kind': 'addGrid', 'document': cube, 'sheet': target.id, 'near': None,
-                                             'title': title, 'columns': None}], 'a title')
+                applied = self._apply_page([_commands.page_add_grid(document=cube, sheet=target.id, near=None, title=title,
+                                                                    columns=None)], 'a title')
             id = applied[0]['id']
             grid = self._tile(id, Grid)
             # set before it is placed, nothing told meanwhile: its query's parts as one, as DataCube sets them (a new
@@ -1298,7 +1298,7 @@ class Page:
         if name is not None and not isinstance(name, str):
             raise ValueError(f"a sheet's name is a name, not {name!r}")
         # as the screen adds one (page-commands.ts addSheet): its id after every one the page has held
-        applied = self._apply_page([{'kind': 'addSheet', 'name': name}], "a sheet's name")
+        applied = self._apply_page([_commands.page_add_sheet(name=name)], "a sheet's name")
         return self._sheet(applied[0]['id'])
 
     def stack(self, *tiles: Tile) -> None:
@@ -1313,7 +1313,7 @@ class Page:
             raise ValueError('the tiles of a stack are of this page')
         for t in tiles:
             _ = t._view
-        self._apply_page([{'kind': 'stack', 'tiles': [t._id for t in tiles]}])
+        self._apply_page([_commands.page_stack(tiles=[t._id for t in tiles])])
 
     def remove(self, tile: Tile) -> None:
         """A tile off the page, its neighbours closing over its place: a grid with its charts, but a frozen one, which
@@ -1325,7 +1325,7 @@ class Page:
         # as the screen removes one (page-commands.ts removeTile): a grid with the charts following it, a frozen one
         # staying detached; a chart's selection taken off its grid's filter; the model kept for the cubes still held --
         # its last grid too, a page shown following it empty as the tab's blank page is (D2)
-        self._apply_page([{'kind': 'removeTile', 'tile': tile._id}])
+        self._apply_page([_commands.page_remove_tile(tile=tile._id)])
         self._forget(before - {v['id'] for v in self._doc['views']})
 
     # -- the document --------------------------------------------------------------------------------------------------
@@ -1381,8 +1381,8 @@ class Page:
             raise ValueError(f'the page was not saved: {said}')
         # the saved page it is, told (savedAs: an open page saves over it too, B13); saved under a name, the page is that
         # name, as DataCube's Save renames it (renamePage, B4) -- neither a step of its history
-        self._apply_page([{'kind': 'savedAs', 'record': id},
-                          *([{'kind': 'renamePage', 'name': made['name']}] if made['name'] != self.name else [])])
+        self._apply_page([_commands.page_saved_as(record=id),
+                          *([_commands.page_rename_page(name=made['name'])] if made['name'] != self.name else [])])
         return id
 
     @classmethod
@@ -1621,7 +1621,7 @@ class Page:
         for note in notes:
             warnings.warn(f'{label}: {note}', stacklevel=stacklevel)
         # taken by the page command that says so, applied as DataCube applies it: a page open on it opens it again
-        self._apply_page([{'kind': 'rebuilt', 'cube': id, 'source': opened}])
+        self._apply_page([_commands.page_rebuilt(cube=id, source=opened)])
         return True
 
     def _current(self, cube: str, stacklevel: int) -> None:

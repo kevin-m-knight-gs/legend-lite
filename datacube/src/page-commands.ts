@@ -5,6 +5,7 @@
 // tile goes, names. No DOM, no planner: what needs either (a cube's document, a chart's spec) is made before the
 // command is built, as a grid command's calculated column is parsed first (grid-commands.ts).
 
+import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import { followCube, readChart, type ChartSpec } from './chart-spec.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, readCube, readCubeSource, type CubeDocument, type CubeSource, type JoinInput,
@@ -139,6 +140,22 @@ export const PAGE_COMMAND_KINDS = [
   'setChartCube', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
   'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
+
+/** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
+ *  builders write (D17). */
+export const PAGE_COMMAND_FIELDS = {
+  renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
+  removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
+  addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], setChartCube: ['chart', 'document'],
+  select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
+  arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
+  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'],
+  modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
+} as const satisfies CommandFields<PageCommand>;
+// every field of every kind listed: a field the list leaves out is a type error naming it
+const pageFieldsWhole: [MissingFields<PageCommand, typeof PAGE_COMMAND_FIELDS>] extends [never] ? true
+  : MissingFields<PageCommand, typeof PAGE_COMMAND_FIELDS> = true;
+void pageFieldsWhole;
 
 /** What a command applied gives: the page, and the command as applied (its id allocated, when it made something). */
 export interface PageApplied {
@@ -587,7 +604,8 @@ export function idsOf(page: PageDocument): string[] {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-function fields(o: Record<string, unknown>, kind: string, allowed: readonly string[]): void {
+function fields(o: Record<string, unknown>, kind: string, listed: readonly string[]): void {
+  const allowed = fieldNames(listed);
   const odd = Object.keys(o).filter((k) => k !== 'kind' && !allowed.includes(k));
   if (odd.length > 0) throw new CubeRefusal(`a '${kind}' command takes ${allowed.join(', ')}, not ${odd.join(', ')}`);
 }
@@ -711,67 +729,67 @@ export function readPageCommand(given: unknown): PageCommand {
   const kind = o['kind'] as string;
   switch (kind) {
     case 'renamePage':
-      fields(o, kind, ['name']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, name: text(o['name'], "a page's name") };
     case 'savedAs': {
-      fields(o, kind, ['record']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const record = textOrNull(o['record'], "a saved page's id");
       if (record === '') throw new CubeRefusal("a saved page's id is not blank");
       return { kind, record };
     }
     case 'addSheet':
-      fields(o, kind, ['id', 'name']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, ...optionalId(o['id'], "a sheet's id"), name: textOrNull(o['name'], "a sheet's name") };
     case 'renameSheet':
-      fields(o, kind, ['sheet', 'name']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, sheet: text(o['sheet'], 'a sheet'), name: textOrNull(o['name'], "a sheet's name") };
     case 'moveSheet':
-      fields(o, kind, ['sheet', 'to']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (typeof o['to'] !== 'number') throw new CubeRefusal(`a sheet's place is a number, not ${JSON.stringify(o['to'])}`);
       return { kind, sheet: text(o['sheet'], 'a sheet'), to: o['to'] };
     case 'removeSheet':
-      fields(o, kind, ['sheet']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, sheet: text(o['sheet'], 'a sheet') };
     case 'renameTile':
-      fields(o, kind, ['tile', 'title']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, tile: text(o['tile'], 'a tile'), title: textOrNull(o['title'], "a tile's title") };
     case 'addGrid':
-      fields(o, kind, ['id', 'document', 'sheet', 'near', 'title', 'columns']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return {
         kind, ...optionalId(o['id'], "a grid's id"), document: cubeOf(o['document']),
         sheet: text(o['sheet'], 'a sheet'), near: textOrNull(o['near'], 'a tile'), title: textOrNull(o['title'], "a tile's title"),
         columns: columnsFrom(o['columns']),
       };
     case 'addChart':
-      fields(o, kind, ['id', 'near', 'spec', 'title', 'columns']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!isObject(o['spec'])) throw new CubeRefusal("a chart's spec is an object");
       return {
         kind, ...optionalId(o['id'], "a chart's id"), near: text(o['near'], 'a grid'), spec: o['spec'] as unknown as ChartSpec,
         title: textOrNull(o['title'], "a tile's title"), columns: columnsFrom(o['columns']),
       };
     case 'setChart':
-      fields(o, kind, ['chart', 'spec']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!isObject(o['spec'])) throw new CubeRefusal("a chart's spec is an object");
       return { kind, chart: text(o['chart'], 'a chart'), spec: o['spec'] as unknown as ChartSpec };
     case 'setChartCube':
-      fields(o, kind, ['chart', 'document']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, chart: text(o['chart'], 'a chart'), document: cubeOf(o['document']) };
     case 'select':
-      fields(o, kind, ['chart', 'conditions']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!Array.isArray(o['conditions'])) throw new CubeRefusal("a chart's selection is a list of conditions");
       return { kind, chart: text(o['chart'], 'a chart'), conditions: o['conditions'].map(readFilterNode) };
     case 'moveTile':
-      fields(o, kind, ['tile', 'sheet', 'columns']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, tile: text(o['tile'], 'a tile'), sheet: text(o['sheet'], 'a sheet'), columns: columnsFrom(o['columns']) };
     case 'stack':
-      fields(o, kind, ['tiles']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!Array.isArray(o['tiles'])) throw new CubeRefusal('a stack is a list of tiles');
       return { kind, tiles: o['tiles'].map((t) => text(t, 'a tile')) };
     case 'removeTile':
-      fields(o, kind, ['tile']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, tile: text(o['tile'], 'a tile') };
     case 'arrange': {
-      fields(o, kind, ['sheet', 'preset', 'order']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const order = o['order'];
       if (order !== null && !Array.isArray(order)) throw new CubeRefusal('an arrangement\'s order is a list of tiles, or null');
       return {
@@ -780,20 +798,20 @@ export function readPageCommand(given: unknown): PageCommand {
       };
     }
     case 'layout':
-      fields(o, kind, ['sheet', 'layout']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!isObject(o['layout'])) throw new CubeRefusal("a sheet's layout is {kind: 'bands', fit, bands}");
       return { kind, sheet: text(o['sheet'], 'a sheet'), layout: o['layout'] as unknown as PageLayout };
     case 'setPageFilter':
-      fields(o, kind, ['id', 'class', 'condition', 'from']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return {
         kind, ...optionalId(o['id'], "a page filter's id"), class: text(o['class'], "a page filter's class"),
         condition: readFilterNode(o['condition']), from: textOrNull(o['from'], 'the chart a page filter came from'),
       };
     case 'removePageFilter':
-      fields(o, kind, ['filter']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, filter: text(o['filter'], 'a page filter') };
     case 'snap': {
-      fields(o, kind, ['grid', 'copy']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       let copy: GridCopy;
       try {
         copy = readGridCopy(o['copy']);
@@ -803,20 +821,20 @@ export function readPageCommand(given: unknown): PageCommand {
       return { kind, grid: text(o['grid'], 'a grid'), copy };
     }
     case 'live':
-      fields(o, kind, ['grid']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, grid: text(o['grid'], 'a grid') };
     case 'rebuilt':
-      fields(o, kind, ['cube', 'source']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, cube: text(o['cube'], "a grid's cube"), source: sourceOf(o['source']) };
     case 'modelInto':
-      fields(o, kind, ['project', 'workspace', 'package']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, project: text(o['project'], "a page model's project"), workspace: text(o['workspace'], "a page model's workspace"),
         package: text(o['package'], "a page model's package") };
     case 'modelPin':
-      fields(o, kind, ['revision']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, revision: text(o['revision'], "a page model's revision") };
     case 'modelKeep': {
-      fields(o, kind, ['cube', 'tables', 'class']);
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const tables = o['tables'];
       if (tables !== null && !(Array.isArray(tables) && tables.every((t) => typeof t === 'string'))) {
         throw new CubeRefusal(`a grid's tables are a list of names, or null, not ${JSON.stringify(tables)}`);
