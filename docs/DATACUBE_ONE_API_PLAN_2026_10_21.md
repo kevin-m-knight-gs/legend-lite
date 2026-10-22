@@ -1217,3 +1217,59 @@ frames' lock while they plan and run (`serving`); no call into DataCube is made 
 **The independent review (D18)** of S5, D15 and D16 found thirteen things, registered as F28-F40 and each closed in the
 same commit or declared: F28 (a class's grid read its project's sample rows for a table not served: the one high), F29,
 F30, F32, F35-F40 fixed with a test that fails without the fix; F31, F33's saved-query half and F34 declared.
+
+## As built (S6, 2026-10-22)
+
+**Built** (the step's commits after a66b75c89, each closing its items with a test that fails without it):
+
+- *Python's command layer, generated (D17).* Each command module lists its kinds' fields as data (`GRID_COMMAND_FIELDS`,
+  `PAGE_COMMAND_FIELDS`, held to the command types both ways by the compiler: command-fields.ts), and
+  datacube/tools/python-commands/emit.ts writes `python/legend_lite/_commands.py` from them: one keyword-only builder
+  per kind, diff-tested (`bazel run //python:update_generated`). Python writes a command no other way (a new L8 check
+  refuses a command dict outside `_commands.py`).
+- *A Python method for every gesture (D21's names, D6: each calls the screen's own function, moved out of screen code
+  first where it sat there).* K1 sorts (a new `clearSort` command the header menu builds too); K2 a condition added; K3
+  K5 (S5); K4 every column the column editor makes and the header menu's presets (grid-presets.ts `presetCommands`, the
+  menu's own rule now); K6 named dimensions; K7 page filters and a chart's selection (page-filters.ts `classPick`,
+  moved out of page-app.ts); K8 sheets moved and removed; K9 a chart drilled and back up (`drillRefusal`); K10 Copy of
+  Grid (cube-document.ts `cubeCopied`); K11 Show Grid (below); K12 a saved page opened by id (page-document.ts
+  `savedPage`, moved out of the app); Z19 `pageFilter` reads Python's filter form.
+- *Show Grid (D7)* replaces Open in grid and its Update: a following chart's grid shown; a frozen or detached chart's
+  grid of its own grouping made in one step -- `addGrid`, a new `followGrid`, `setChart` -- by chart-spec.ts
+  `chartGrid`, the screen's gesture and Python's `chart.grid()` (headless `chartOwnGrid`) alike. `setChartCube`, the
+  editing grid, its Update and the board's kept `<chart>-query` grids are deleted.
+- *Python adds a grid over every source the tab does (X4):* a class (`cls=`, `project=`, `revision=`), a saved query
+  (`query=`), a warehouse table (`warehouse=`, `table=`, `catalog=`), each named as the tab records it (headless
+  `givenSource`) and made where the host reads it (headless `sourceCube`).
+- *F33 closed end to end:* a project made by Create a Class…, reviewed, approved, committed and published by the model
+  home's SDLC, a query of its version saved and a grid added over it, read through the host's own `/depot/api`.
+
+**Found and fixed on the way** (rule 9): F41 (chart-tiles awaited the board it opened: CI's macOS lane), F42 (a page
+filter with a number broke every Python read of the page's grids), F43 (a chart's click compared a reopened page's
+filter as JSON text, so the same mark again set it instead of taking it off). **Found and declared:** F44 (core's
+DuckDB DDL folds an unquoted column to upper case, so a grid over a DataCube-made project's saved query is refused on
+Python: the dialect line's, said in IN_FLIGHT; `PublishedQueries` asserts the refusal until it is fixed).
+
+**Deviations, and limits, each said.**
+
+- *A cube alone gives no chart a grid of its own.* It saves its own grid and its charts alone, so a chart moved onto
+  another grid there would be lost on save: Show Grid only shows a following chart's grid there (found by the test
+  rewrite; tested by chart-tiles.test.ts and cube-page-shell.test.ts).
+- *Python names, never toggles.* `chart.select(value)` keeps a mark selected when named again; a click's toggle is the
+  screen's (D8). A period or a bin across (a range ending where the database says) is not selected from Python, nor a
+  mark of a chart whose marks are not values across (a scatter, a treemap, a stream): refused in words.
+- *A class of another project* is read through what DataCube's writer makes beside it (`<package>::domain::<Name>`, its
+  package's `mapping::Model`): a class of a project DataCube did not write is not added by name.
+- *Show Grid's first selection step.* A selected frozen chart's selection comes off its old grid's filter through the
+  click's own `#select` (its grid's refilter), told as the step's `select`, so the one-API ledger's routes did not grow.
+
+**Ledgers** (from the step's start). TS: `L8_KINDS` 11 -> 3 (the three left are by nature, reviewed at S7),
+`L8_UNASKED` 1 -> 0, `L8_SOURCES` 3 -> 0, `UNCHECKED` 7 -> 0. Each move dated in its file. Nothing grew.
+
+**Gates.** The full local set (`//datacube/...` and every `//python` test target, `//model-changes:replay_test`: 203
+targets) green at each of the step's commits but the last, where two failed: `create_class_test` and
+`update_generated_1_test`, both the generated test imports missing class-source.ts, which model-actions.ts imports
+now; regenerated in the close-out, both pass. `verify_app` as the container's unprivileged user and
+`//python:wheel_test` green. CI on pull request #64: a66b75c89 and 243a0fa8a green on every job, 24196c82d green.
+
+**Next.** S7, the final audit; then D19, the single writer's client side.

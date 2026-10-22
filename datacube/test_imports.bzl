@@ -1020,6 +1020,7 @@ TEST_IMPORTS = {
         "src/calc-presets.ts",
         "src/calc.ts",
         "src/chart-spec.ts",
+        "src/class-source.ts",
         "src/column-draft.ts",
         "src/command-fields.ts",
         "src/config.ts",
