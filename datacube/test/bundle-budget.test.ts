@@ -353,8 +353,11 @@ const BUDGET = 323_500;
  *  311,000 -> 312,500 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
  *  312,050.
  *  312,500 -> 313,500 (2026-10-23, the grid's menu button gone and a long press as the right-click -- the grid's note of
- *  the same date). Measured 312,770. */
-const ENGINE_BUDGET = 313_500;
+ *  the same date). Measured 312,770.
+ *  313,500 -> 314,000 (2026-10-23, KPIs as stat tiles, with Show Grid on every chart kind (PR #69) merged beside them:
+ *  the tile's lines and the headline format the grid's formatter writes -- the notebook widget's note of the same
+ *  date). Measured 313,533. */
+const ENGINE_BUDGET = 314_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
