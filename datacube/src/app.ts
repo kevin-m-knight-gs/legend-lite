@@ -38,7 +38,6 @@ import {
   type CubeConfiguration,
 } from './config.ts';
 import type { Dimension } from './dimensions.ts';
-import { availableDimensions } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
@@ -120,7 +119,9 @@ import { FilterEditor } from './ui/filter-editor.ts';
 import {
   buildMenu,
   calcStageOf,
+  createItems,
   menuGesture,
+  menuItems,
   columnLabel,
   emailItems,
   exportItems,
@@ -128,6 +129,7 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
+import { longPressMenus } from './ui/long-press.ts';
 import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
   PivotPanel,
@@ -139,6 +141,7 @@ import {
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
 import { isVariant } from '../../engine-client/src/types.ts';
+import { lazily } from './lazily.ts';
 
 
 /** Rows sampled to infer what a JSON column holds. */
@@ -255,6 +258,11 @@ export interface CubeAppBaseOptions {
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
   /**
+   * The host's Join ▸ for the right-click on `column` (the user, 2026-10-23): a quick join to each grid sharing a column,
+   * the other ways, the window -- each entry the host's, given back through `onHostMenu`. Absent, or empty: no Join ▸.
+   */
+  readonly joinMenu?: (column: string | undefined) => readonly MenuItem[];
+  /**
    * Where the cube's rows come from, as a saved cube names it (a file by its fingerprint).
    * Given, the cube can write itself down (`cubeDocument`, Export > Cube File); absent, it
    * cannot -- a cube over a model waits for the model home.
@@ -287,6 +295,12 @@ export interface CubeAppBaseOptions {
   readonly onBlankPage?: () => void;
   /** A grid on a page: its New ▸ Data Source… goes to the page, as `onNewGrid` does. */
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
+  /**
+   * A grid on a page whose host picks sources itself (DataCube's app: PageApp.addSource): its Create ▸ Data Source…
+   * asks the host, which adds the grid beside this one -- in place of `openSource`, which answers a source for the cube
+   * to place.
+   */
+  readonly onOpenSource?: () => void;
   /** A grid on a page of its own: its menu's Remove from Page, the page taking its tile off. */
   readonly onRemove?: () => void;
   /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
@@ -441,7 +455,7 @@ function refusal(out: Outcome): string | null {
  */
 let pageModule: Promise<typeof import('./page/cube-page.ts')> | undefined;
 function loadPage(): Promise<typeof import('./page/cube-page.ts')> {
-  pageModule ??= import('./page/cube-page.ts');
+  pageModule ??= lazily(() => import('./page/cube-page.ts'));
   return pageModule;
 }
 
@@ -452,6 +466,15 @@ export class CubeApp {
   /** The page's filters on it (setLens), and in words: said in its status bar. */
   #lens: QueryLens | undefined;
   #lensSaid: string | undefined;
+  /** What its status bar says beside its rows until it is put away (`note`): what a quick join did, say. */
+  #note: string | undefined;
+  /** Whether its Create ▸ offers Data Source…: its host answers a source, or adds one beside it. */
+  get #canOpenSource(): boolean {
+    return this.#options.openSource !== undefined || this.#options.onOpenSource !== undefined;
+  }
+
+  /** The host's entries of the last right-click (its Join ▸): given back through `onHostMenu` when picked. */
+  #cellHost: readonly MenuItem[] = [];
   /** The grids it spawned (Copy of Grid, a chart's Show Grid on a cube alone's board): given its lens whenever it is given one. */
   readonly #spawnedGrids = new Set<CubeApp>();
   readonly #grid: DataGrid;
@@ -802,6 +825,8 @@ export class CubeApp {
     this.#listenForKeys();
 
     this.#wireContextMenu();
+    // on a touch screen a long press is the right-click (an iPad fires none of its own): once for the document
+    longPressMenus(this.#doc);
     this.#buildToolbar();
     this.#applyChrome();
     // A DRAG BRINGS THE ZONES BACK. Both listeners are on the app's
@@ -1450,6 +1475,25 @@ export class CubeApp {
       + 'query took.';
     this.#receiptChip(right, view);
 
+    if (this.#note !== undefined) {
+      right.append(this.#statusSeparator());
+      const note = doc.createElement('div');
+      note.className = 'dc-status-note';
+      note.setAttribute('role', 'status');
+      const said = doc.createElement('span');
+      said.className = 'dc-status-note-text';
+      said.textContent = this.#note;
+      said.title = this.#note;
+      const away = doc.createElement('button');
+      away.type = 'button';
+      away.className = 'dc-status-note-close';
+      away.textContent = '×';
+      away.setAttribute('aria-label', 'Put the note away');
+      away.addEventListener('click', () => this.note(undefined));
+      note.append(said, away);
+      right.append(note);
+    }
+
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
       right.append(this.#statusSeparator());
       const warn = doc.createElement('div');
@@ -1706,6 +1750,17 @@ export class CubeApp {
       'dc-collapsed',
       !this.#config.showTitleBar,
     );
+  }
+
+  /**
+   * A NOTE on its status bar, beside its rows, until it is put away (its ×) or another replaces it: what a quick join
+   * did, what opening it left out (app/join-flow.ts) -- said where the grid is, not in a window that may be closed.
+   * Undefined: none.
+   */
+  note(text: string | undefined): void {
+    this.#note = text;
+    const view = this.#view;
+    if (view) this.#renderStatusBar(view, view.columns.leaves.length);
   }
 
   /**
@@ -1999,14 +2054,26 @@ export class CubeApp {
         && column !== TREE_COLUMN
         ? facts.pivotBase ?? column
         : undefined;
+      // the host's Join ▸ on the column clicked, and its Create ▸ entries: theirs to answer (#onHostAction)
+      const join = this.#options.joinMenu?.(column !== TREE_COLUMN ? column : undefined) ?? [];
+      this.#cellHost = join;
       const groups = buildMenu({
         snapshot: this.#shown,
+        ...(join.length > 0 && !this.#adhoc ? { join } : {}),
+        create: this.#hostItems('create'),
+        canOpenSource: this.#canOpenSource,
         ...(propertiesColumn !== undefined ? { propertiesColumn } : {}),
         ...(column !== undefined ? { column } : {}),
         isRowDimension: column
           ? this.#shown.rows.includes(column)
           : false,
         hasSelection: this.#selection !== null,
+        // Edit ▸ Undo and Redo: the grid's own history (Ad Hoc's right-click is its own)
+        ...(this.#owner.canUndo ? { canUndo: true } : {}),
+        ...(this.#owner.canRedo ? { canRedo: true } : {}),
+        // Tile ▸, on a page: Move to Sheet (disabled while the page is locked) and Remove from Page
+        ...(this.#options.onMoveToSheet ? { sheets: this.#options.sheets?.().locked ? 'locked' as const : this.#sheetItems() } : {}),
+        ...(this.#options.onRemove ? { canRemove: true } : {}),
         // a group open by hand, or by the level its settings open it to: Collapse All closes both (the S7 audit's G-5)
         hasExpanded: this.#owner.current.tree.opensAny(this.#shown.rows.length),
         hasHeatmap:
@@ -2519,6 +2586,10 @@ export class CubeApp {
    * cube's board, or the page this grid is on.
    */
   async newSource(): Promise<void> {
+    if (this.#options.onOpenSource) {
+      this.#options.onOpenSource();
+      return;
+    }
     const source = await this.#options.openSource?.();
     if (source === undefined) return;
     const make = this.#gridOver(source);
@@ -3151,11 +3222,12 @@ export class CubeApp {
 
   // -- dimensions ----------------------------------------------------------
 
-  /** A named dimension used (the Dimensions tab, a host's): the grid grouped by its first level (grid-gestures.ts
-   *  view.dimension), by the command the Rows zone builds. */
-  #useDimension(dimension: Dimension): void {
+  /** A named dimension used (the Dimensions tab's Group Rows by): the grid grouped by its first level (grid-gestures.ts
+   *  view.dimension, which refuses in words a dimension the grid lacks or whose columns it lacks), by the command the
+   *  Rows zone builds. */
+  #useDimension(name: string): void {
     if (this.#cubeOnly()) return;
-    void this.#gesture('view.dimension', { name: dimension.name, move: 'use' }, `dimension ${dimension.name}`);
+    void this.#gesture('view.dimension', { name, move: 'use' }, `dimension ${name}`);
   }
 
   // -- the dialogs ----------------------------------------------------------
@@ -3202,6 +3274,9 @@ export class CubeApp {
         {
           onApply: (draft, base) => this.#applyDraft(draft, base),
           onClose: close,
+          // the Dimensions tab's own: once the draft is applied, the rows grouped by a dimension, or Ad Hoc Analysis
+          onUseDimension: (name) => this.#useDimension(name),
+          onAdHoc: () => void this.enterAdHoc(),
           ...(column !== undefined ? { initialColumn: column } : {}),
         },
       );
@@ -3985,23 +4060,10 @@ export class CubeApp {
     if (!this.#inTile) return;
     const source = this.#sourceName();
     if (source !== undefined) head.append(this.#sourceTag(source));
-    head.append(this.#snapPill(), this.#gridMenuButton());
+    // no menu button of its own (the user, 2026-10-23): its right-click has all a grid's menu had
+    head.append(this.#snapPill());
     // the zones' way back LAST: in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
-  }
-
-  /** The grid's own menu button, in its tile's header (`#gridMenu`); a second press shuts the menu, as the bar's does. */
-  #gridMenuButton(): HTMLElement {
-    const button = this.#doc.createElement('button');
-    button.type = 'button';
-    button.className = 'dc-tile-button dc-tile-menu';
-    button.textContent = '\u2261';
-    button.title = 'This grid\'s menu';
-    button.setAttribute('aria-label', 'Grid menu');
-    button.setAttribute('aria-haspopup', 'menu');
-    button.setAttribute('aria-expanded', 'false');
-    button.addEventListener('click', () => this.#toggleMenu(button, () => this.#gridMenu()));
-    return button;
   }
 
   /**
@@ -4029,7 +4091,7 @@ export class CubeApp {
    * named; an empty group or submenu is not shown.
    */
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
-  #hostItems(section: 'file' | 'view' | 'data' | 'plane'): MenuItem[] {
+  #hostItems(section: 'file' | 'view' | 'data' | 'create' | 'plane'): MenuItem[] {
     return (this.#options.hostMenu?.() ?? []).filter((i) => (i.section ?? 'file') === section);
   }
 
@@ -4037,17 +4099,15 @@ export class CubeApp {
     const host = (section: 'file' | 'view' | 'data'): MenuItem[] => this.#hostItems(section);
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
+    const adhoc = this.#adhoc !== null;
     const submenu = (label: string, items: MenuItem[]): MenuItem[] =>
       (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
-      // NEW, first (the user, 2026-10-01): a data source -- through the host's picker -- a
-      // visualization or a copy of this grid, all beside what is there; or a blank page, apart,
-      // which replaces everything
-      { label: '', items: submenu('New', [
-        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...cubeOnly }] : []),
-        { id: 'chart.plot', label: 'Visualization', ...cubeOnly },
-        { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
+      // CREATE, first (the user, 2026-10-01; "Create", not "New", 2026-10-23): a data source -- through the host's
+      // picker -- a copy of this grid or a chart of it, all beside what is there, and the host's (a class...); or a
+      // blank page, apart, which replaces everything
+      { label: '', items: submenu('Create', [
+        ...createItems({ source: this.#canOpenSource, host: this.#hostItems('create'), disabled: adhoc }),
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
       // THE PAGE'S LAYOUT, while there is a page of tiles: its layouts, and locking it so nothing moves by accident
@@ -4064,33 +4124,6 @@ export class CubeApp {
       { label: '', items: [{ id: 'view.settings', label: 'Settings...' }] },
     ];
     return groups.filter((g) => g.items.length > 0);
-  }
-
-  /**
-   * A GRID'S OWN MENU, under the menu button in its tile's header on a page (the design's §3.1: each grid's header
-   * carries only that grid's things, the same for the first grid and the fifth): a chart or a copy of it, its Undo,
-   * its Export and Email, its Properties, Ad Hoc and Dimensions.
-   */
-  #gridMenu(): MenuGroup[] {
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
-    return [
-      { label: '', items: [{ label: 'New', submenu: [
-        { id: 'chart.plot', label: 'Visualization', ...cubeOnly },
-        { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
-      ] }] },
-      // a host's entries on this grid's rows (Create a Class…): a group only when there are some -- each group is
-      // drawn with its separator
-      ...(this.#hostItems('data').length > 0 ? [{ label: '', items: this.#hostItems('data') }] : []),
-      { label: '', items: this.#undoItems() },
-      { label: '', items: this.#outputItems() },
-      { label: '', items: this.#viewItems() },
-      // on a page of its own: onto another sheet (its charts stay where they are, following it), and taken off it, as
-      // its tile's x does (and as the one way when it is alone in the bar)
-      // locked: offered disabled, with nothing under it
-      ...(this.#options.onMoveToSheet ? [{ label: '', items: [{ label: 'Move to Sheet',
-        ...(this.#options.sheets?.().locked ? { disabled: true } : { submenu: this.#sheetItems() }) }] }] : []),
-      ...(this.#options.onRemove ? [{ label: '', items: [{ id: 'grid.remove' as const, label: 'Remove from Page' }] }] : []),
-    ];
   }
 
   /** Move to Sheet's entries: each other sheet, then a new one. */
@@ -4124,19 +4157,14 @@ export class CubeApp {
     ];
   }
 
-  /** Properties, Ad Hoc Analysis, and the named hierarchies (Dimensions) when there are any. */
+  /**
+   * Properties. Ad Hoc Analysis and a named dimension's grouping are started from its Dimensions tab, not a menu (the
+   * user, 2026-10-23); Ad Hoc is left by its own bar's Exit, or its right-click's.
+   */
   #viewItems(): MenuItem[] {
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
-    const dimensions = availableDimensions(this.#snapshot, this.#dimensions())
-      .map((d): MenuItem => ({ id: 'view.dimension', label: d.name, column: d.name, ...cubeOnly }));
-    return [
-      { id: 'view.properties', label: 'Properties...', ...cubeOnly },
-      // the other way to work the cube: checked while it is on; choosing it again leaves
-      { id: 'view.adhoc', label: 'Ad Hoc Analysis', ...(this.#adhoc ? { checked: true } : {}) },
-      ...(dimensions.length > 0 ? [{ label: 'Dimensions', submenu: dimensions }] : []),
-    ];
+    return [{ id: 'view.properties', label: 'Properties...', ...(this.#adhoc ? { disabled: true } : {}) }];
   }
 
   /**
@@ -4265,22 +4293,14 @@ export class CubeApp {
       case 'view.settings':
         this.openSettings();
         return true;
-      case 'view.adhoc':
-        if (this.#adhoc) this.exitAdHoc();
-        else void this.enterAdHoc();
-        return true;
-      case 'view.dimension': {
-        const found = this.#dimensions().find((d) => d.name === item.column);
-        if (found) this.#useDimension(found);
-        return true;
-      }
       default: {
         // ANYTHING THE CUBE DOES NOT KNOW belongs to whoever put it
         // there. Without this a host could add an entry to the menu
         // and watch it do nothing, which is the dead-button fault
         // `menu-ids.test.ts` exists to prevent -- one layer up.
         const host = this.#options.onHostMenu;
-        const mine = this.#options.hostMenu?.() ?? [];
+        // the host's entries, a submenu's too (Create ▸, Model ▸), and those of the last right-click (its Join ▸)
+        const mine = menuItems([{ label: '', items: [...(this.#options.hostMenu?.() ?? []), ...this.#cellHost] }]);
         if (host && item.id !== undefined
           && mine.some((m) => m.id === item.id)) {
           host(item);

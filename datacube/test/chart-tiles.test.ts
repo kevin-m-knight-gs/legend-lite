@@ -31,11 +31,15 @@ afterEach(tearDown);
 const charts = (): ChartView[] => app.pageViews().views.filter((v): v is ChartView => v.kind === 'chart');
 const chart = (id: string): ChartView => charts().find((c) => c.id === id)!;
 const tile = (id: string): HTMLElement => root.querySelector(`[data-tile="${id}"]`) as HTMLElement;
-/** A chart's Dynamic / Frozen / Detached pill: what it says. */
+/** A chart's Dynamic / Pinned / Frozen / Detached pill: what it says. */
 const pill = (id: string): string => tile(id).querySelector('.dc-tile-actions .dc-titlebar-toggle')?.textContent ?? '';
-/** Toggle a chart between Dynamic and Frozen, by its pill. */
-const togglePill = async (id: string): Promise<void> => {
+/** A chart put in a state by its pill: the pill opened, the state's entry picked (each says what it does). */
+const choose = async (id: string, state: 'Dynamic' | 'Pinned' | 'Frozen'): Promise<void> => {
   (tile(id).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+    .find((e) => e.textContent?.startsWith(`${state} \u2014 `));
+  assert.ok(item, `the pill offers ${state}`);
+  item.click();
   await settle();
 };
 /** The entries of a tile's right-click menu, opened on its body. */
@@ -68,7 +72,7 @@ const chartOf = async (gridTile: string): Promise<void> => {
   await settle();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
     .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Visualization'
-      && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Insert');
+      && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
   assert.ok(item, 'Insert > Chart');
   item.click();
   await settle();
@@ -103,17 +107,39 @@ describe('charts follow the grid until frozen', () => {
     assert.deepEqual([chart(a).spec.split, chart(b).spec.split], [undefined, undefined]);
   });
 
-  it('a frozen chart keeps its grouping; Follow the grid takes the grid\'s again', async () => {
+  it('a pinned chart keeps its grouping; Dynamic takes the grid\'s again', async () => {
     const [a, b] = await twoCharts();
-    await togglePill(a);
-    assert.equal(pill(a), 'Frozen');
+    await choose(a, 'Pinned');
+    assert.equal(pill(a), 'Pinned');
     assert.equal(offersShowGrid(a), false, 'a cube alone saves its own grid alone: no grid of its own for a frozen chart');
     await ungroup(mainZone(), 'desk');
     assert.equal(chart(a).spec.split, 'desk', 'frozen: the pivot did not change it');
     assert.equal(chart(b).spec.split, undefined, 'the other still follows');
-    await togglePill(a);
+    await choose(a, 'Dynamic');
     assert.equal(chart(a).spec.split, undefined, 'following again, it took the grid\'s grouping');
     assert.equal(pill(a), 'Dynamic');
+  });
+
+  // the user, 2026-10-23: "frozen charts don't freeze filters -- seems to only freeze pivots"
+  it('a frozen chart keeps the grid\'s filter as it was too; a pinned one follows the filter; each says which', async () => {
+    const [a, b] = await twoCharts();
+    const emea = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    await app.edit([{ kind: 'filter', filter: emea }], 'filter');
+    await settle();
+    await choose(a, 'Frozen');
+    await choose(b, 'Pinned');
+    assert.deepEqual([pill(a), pill(b)], ['Frozen', 'Pinned']);
+    assert.deepEqual(chart(a).spec.kept, { filter: emea }, 'the grid\'s filter as it was, kept with the chart');
+    assert.equal(chart(b).spec.kept, undefined);
+    assert.match(tile(a).querySelector<HTMLElement>('.dc-titlebar-toggle')!.title, /keeps its grouping and the grid's filter/);
+    // the grid's filter taken off: the frozen chart's query still reads EMEA alone, the pinned one's every region
+    await app.edit([{ kind: 'filter', filter: null }], 'filter');
+    await settle();
+    assert.deepEqual(chart(a).spec.kept, { filter: emea }, 'still kept');
+    // put back to dynamic: it follows the grid's filter (none) and grouping again, keeping nothing
+    await choose(a, 'Dynamic');
+    assert.equal(chart(a).spec.kept, undefined);
+    assert.equal(chart(a).spec.frozen, undefined);
   });
 });
 
@@ -131,7 +157,7 @@ describe('Show Grid: the grid a chart follows, or a grid of its own grouping, wh
     const told: PageCommand[] = [];
     await remount({ onPageCommand: (c) => told.push(c) });
     const [a] = await twoCharts();
-    await togglePill(a);
+    await choose(a, 'Pinned');
     await ungroup(mainZone(), 'desk');
     assert.equal(chart(a).spec.split, 'desk', 'frozen: its own grouping');
     assert.equal(offersShowGrid(a), false);
@@ -142,13 +168,13 @@ describe('Show Grid: the grid a chart follows, or a grid of its own grouping, wh
     assert.deepEqual(addedGrids(), [], 'no grid made');
     assert.deepEqual(told, [], 'nothing told');
     assert.equal(JSON.stringify(app.pageViews()), before, 'the page as it was');
-    assert.equal(chart(a).spec.frozen, true, 'still frozen, and saved with the cube');
-    assert.equal(pill(a), 'Frozen');
+    assert.equal(chart(a).spec.frozen, true, 'still pinned, and saved with the cube');
+    assert.equal(pill(a), 'Pinned');
     assert.deepEqual(app.snapshot.rows, ['region'], 'the cube\'s grid never moved');
   });
 });
 
-describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
+describe('the page\'s layout: placed under, arranged, undone, locked', () => {
   /** The title bar's menu, opened: its entries by what a person reads. */
   const titleMenu = (): HTMLElement[] => {
     // a menu left open is shut first: the button toggles it
@@ -173,9 +199,10 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
       .map(([, ids]) => ids.sort((x, y) => parseFloat(tile(x).style.left) - parseFloat(tile(y).style.left)));
   };
 
-  it('a new chart goes beside its grid; Arrange lays the page out; Undo Layout and Redo Layout step through it', async () => {
+  it('a new chart goes under its grid, beside its other charts; Arrange lays the page out; Undo Layout and Redo Layout step through it', async () => {
     const [a, b] = await twoCharts();
-    assert.deepEqual(bands(), [['grid', a, b]], 'beside the grid, in its band');
+    // the user, 2026-10-23: under the grid, which keeps the page's width -- never beside it, halving it
+    assert.deepEqual(bands(), [['grid'], [a, b]], 'under the grid, the charts in one band');
     assert.equal(pick('Undo Layout').getAttribute('aria-disabled'), 'true', 'nothing arranged yet');
     pick('Arrange\u2026').click();
     await settle();
@@ -186,7 +213,7 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.deepEqual(bands(), [['grid'], [a], [b]]);
     pick('Undo Layout').click();
     await settle();
-    assert.deepEqual(bands(), [['grid', a, b]], 'back as it was');
+    assert.deepEqual(bands(), [['grid'], [a, b]], 'back as it was');
     pick('Redo Layout').click();
     await settle();
     assert.deepEqual(bands(), [['grid'], [a], [b]]);
@@ -196,7 +223,7 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.deepEqual(rows, ['region'], 'the cube changed after the arrangement');
     tile(a).dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
     await settle();
-    assert.deepEqual(bands(), [['grid', a, b]]);
+    assert.deepEqual(bands(), [['grid'], [a, b]]);
     assert.equal(app.snapshot.rows, rows, 'the cube\'s own undo was not taken');
   });
 
@@ -241,18 +268,15 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.deepEqual(bands(), arranged);
   });
 
-  it('a grid\'s menu button opens its menu even while the title bar\'s is open, and says when it is open', async () => {
+  it('a grid\'s tile has no menu button (the user, 2026-10-23): its right-click opens even while the title bar\'s is open', async () => {
     await twoCharts();
+    assert.equal(root.querySelector('.dc-tile-menu'), null, 'no grid menu button on the board');
     titleMenu();
-    const button = [...tile('grid').querySelectorAll<HTMLElement>('.dc-tile-menu')][0]!;
-    button.click();
+    (tile('grid').querySelector('.dc-row .dc-cell') as HTMLElement)
+      .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const labels = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu > [role^="menuitem"]')]
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent);
-    assert.deepEqual(labels, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis'], 'the grid\'s, not shut');
-    assert.equal(button.getAttribute('aria-expanded'), 'true');
-    button.click();
-    assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'its own button again shuts it');
-    assert.equal(button.getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(labels.slice(0, 3), ['Export', 'Email', 'Edit'], 'the grid\'s right-click, the title bar\'s shut');
   });
 });
 
@@ -274,27 +298,31 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
   });
 
-  it('every grid has its own menu in its tile\'s header, the same for the cube\'s grid and an added one', async () => {
+  it('every grid\'s right-click is its own menu: Edit ▸ its own Undo, Tile ▸ Remove from Page for an added one', async () => {
     await app.newGrid();
     await settle();
     const id = added()[0]!.dataset['tile']!;
-    /** A grid's own menu, opened from its tile: its entries at the top level, by what a person reads. */
-    const gridMenu = (tileId: string): HTMLElement[] => {
+    /** A grid's right-click, opened on its first cell: every entry, a submenu's too. */
+    const rightClick = (tileId: string): HTMLElement[] => {
       dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
-      const buttons = [...tile(tileId).querySelectorAll<HTMLElement>('.dc-tile-menu')]
-        .filter((b) => b.closest('[data-tile]') === tile(tileId));
-      assert.equal(buttons.length, 1, `${tileId} has one menu button of its own`);
-      buttons[0]!.click();
-      return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu > [role^="menuitem"]')];
+      (tile(tileId).querySelector('.dc-row .dc-cell') as HTMLElement)
+        .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')];
     };
-    const labels = (items: HTMLElement[]): string[] => items.map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
-    const theirs = labels(gridMenu(id));
-    assert.deepEqual(theirs, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis', 'Remove from Page']);
-    // the cube's own grid is its host's: the same menu, but it cannot be taken off the page
-    assert.deepEqual(labels(gridMenu('grid')), theirs.filter((l) => l !== 'Remove from Page'), 'the cube\'s own grid has the same menu');
+    const under = (items: HTMLElement[], parent: string): string[] => items
+      .filter((i) => i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === parent)
+      .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
+    const top = (items: HTMLElement[]): string[] => items.filter((i) => i.parentElement?.closest('.dc-menu-item') === null)
+      .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
+    assert.deepEqual(under(rightClick(id), 'Tile'), ['Hide Controls', 'Remove from Page']);
+    // the cube's own grid is its host's: it cannot be taken off the page, so its switch stands alone
+    assert.equal(top(rightClick('grid')).at(-1), 'Hide Controls', 'the cube\'s own grid: no Tile ▸');
     // its Undo is its own: the added grid's change undone, the cube's grid untouched
     await ungroup(zoneOf(id), 'desk');
-    menuEntry(gridMenu(id), 'Undo')!.click();
+    const undo = rightClick(id).find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'Undo'
+      && i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Edit');
+    assert.ok(undo && undo.getAttribute('aria-disabled') !== 'true', 'Edit ▸ Undo, live after a change');
+    undo.click();
     await settle();
     assert.deepEqual(chips(zoneOf(id)), ['region', 'desk']);
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
@@ -324,7 +352,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     await chartOf(id);
     const ofGrid = [...root.querySelectorAll<HTMLElement>('[data-tile^="chart-"]')].map((t) => t.dataset['tile']!);
     assert.equal(ofGrid.length, 2);
-    await togglePill(ofGrid[0]!);
+    await choose(ofGrid[0]!, 'Pinned');
     (tile(id).querySelector('.dc-tile-remove') as HTMLElement).click();
     await settle();
     assert.equal(tile(id), null, 'the grid is gone');
@@ -350,8 +378,8 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     await settle();
     // Insert > Grid, by its own label (Insert's entry holds its submenu's words too)
     const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Copy of Grid'
-        && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Insert');
+      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Copy of This Grid'
+        && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
     assert.ok(item, 'the added grid\'s menu offers Insert > Grid');
     item.click();
     await settle();
@@ -435,7 +463,7 @@ describe('New > Source: a grid over another source, with its own planner and eng
     (first.querySelector('.dc-row .dc-cell') as HTMLElement)
       .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     await settle();
-    const item = entry('Copy of Grid', 'Insert');
+    const item = entry('Copy of This Grid', 'Create');
     assert.ok(item, 'the added grid offers Insert > Grid');
     item.click();
     await settle();
@@ -446,12 +474,12 @@ describe('New > Source: a grid over another source, with its own planner and eng
   it('the hamburger offers New > Source… only when the host can open one', async () => {
     (root.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
     await settle();
-    assert.ok(entry('Data Source\u2026', 'New'), 'New > Data Source…');
-    assert.ok(entry('Visualization', 'New') && entry('Copy of Grid', 'New'), 'New > Visualization and Copy of Grid');
+    assert.ok(entry('Data Source\u2026', 'Create'), 'Create > Data Source…');
+    assert.ok(entry('Visualization', 'Create') && entry('Copy of This Grid', 'Create'), 'Create > Visualization and Copy of This Grid');
     await remount({});
     (root.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
     await settle();
-    assert.equal(entry('Data Source\u2026', 'New'), undefined);
+    assert.equal(entry('Data Source\u2026', 'Create'), undefined);
   });
 });
 

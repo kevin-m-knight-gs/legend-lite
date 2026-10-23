@@ -18,6 +18,7 @@ import { binColumns, binName, grainColumn, grainEndColumn, grainName, marimekkoC
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
+  CubeRefusal,
   rowColumns,
   type AggregateFn,
   type CubeShape,
@@ -31,6 +32,7 @@ import {
   withoutConditions,
 } from './snapshot.ts';
 import { applyToSnapshot, type CubeConfiguration } from './config.ts';
+import { readFilterNode } from './grid-commands.ts';
 import { defaultKind, familyOf, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 
@@ -248,11 +250,27 @@ export interface ChartSpec {
   readonly drill?: ChartDrill;
   readonly options: ChartOptions;
   /**
-   * Frozen: the chart keeps its own grouping. Absent, it is LIVE -- it
-   * follows the cube's pivots (`followCube`) as they change.
+   * The chart keeps its own grouping (PINNED: a hand on its axes pins it). Absent, it is DYNAMIC -- it follows the
+   * cube's pivots (`followCube`) as they change. Either way it follows the grid's filter, unless `kept`.
    */
   readonly frozen?: boolean;
+  /**
+   * FROZEN: what it keeps of its grid's query as it was when it was frozen -- the grid's filter then (none: it had none)
+   * -- so a filter put on the grid since, or a selection clicked on another chart, leaves it as it was (the user,
+   * 2026-10-23: "frozen charts don't freeze filters"). Only a chart that keeps its grouping too (`frozen`). chartState.
+   */
+  readonly kept?: ChartKept;
 }
+
+/** What a frozen chart keeps of its grid's query (ChartSpec.kept). */
+export interface ChartKept {
+  readonly filter?: FilterNode;
+}
+
+/** A chart's state, as its pill says it: following its grid, its grouping its own, or all it draws its own. */
+export type ChartState = 'dynamic' | 'pinned' | 'frozen';
+/** Its states, in the order a pill offers them. */
+export const CHART_STATES: readonly ChartState[] = ['dynamic', 'pinned', 'frozen'];
 
 export interface ChartOptions {
   readonly orientation: 'vertical' | 'horizontal';
@@ -328,8 +346,9 @@ const known = (words: Readonly<Record<string, true>>, v: unknown): boolean => ty
 // it has no place for -- a newer DataCube's, or one misspelt -- is refused by name, never ignored
 const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
   version: true, mark: true, x: true, grain: true, bins: true, y: true, split: true, size: true, label: true,
-  tooltip: true, facet: true, at: true, layers: true, calcs: true, drill: true, options: true, frozen: true,
+  tooltip: true, facet: true, at: true, layers: true, calcs: true, drill: true, options: true, frozen: true, kept: true,
 };
+const KEPT_KEYS: Readonly<Record<keyof ChartKept, true>> = { filter: true };
 const PLACE_KEYS: Readonly<Record<keyof ChartPlace, true>> = { lat: true, lon: true };
 const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = { column: true, fn: true, mark: true, axis: true, showAs: true };
 const FACET_KEYS: Readonly<Record<keyof ChartFacet, true>> = { row: true, column: true };
@@ -439,6 +458,20 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   }
   if (spec['frozen'] !== undefined && typeof spec['frozen'] !== 'boolean') {
     return `its frozen ${JSON.stringify(spec['frozen'])} is not true or false`;
+  }
+  const kept = spec['kept'];
+  if (kept !== undefined) {
+    if (!isRecord(kept)) return `what it keeps ${JSON.stringify(kept)} is not an object`;
+    const extraKept = unknownKey(kept, KEPT_KEYS, 'what it keeps');
+    if (extraKept) return extraKept;
+    if (kept['filter'] !== undefined) {
+      try {
+        readFilterNode(kept['filter']);
+      } catch (e) {
+        return `the filter it keeps is not one: ${e instanceof Error ? e.message : String(e)}`;
+      }
+    }
+    if (spec['frozen'] !== true) return 'a chart that keeps its grid\'s filter keeps its grouping too: it is frozen';
   }
   if (o['labelRotate'] !== undefined && typeof o['labelRotate'] !== 'number') {
     return `its labelRotate ${JSON.stringify(o['labelRotate'])} is not a number`;
@@ -943,13 +976,14 @@ export function chartGrid(draft: GridDraft, spec: ChartSpec, selection: readonly
 } | string {
   const refused = ownGridRefusal(spec);
   if (refused !== null) return refused;
-  const { filter: was, ...query } = draft.snapshot;
-  const filter = withoutConditions(was, selection) ?? undefined;
+  const { filter: now, ...query } = draft.snapshot;
+  // a frozen chart's grid: the filter it kept (its selection was put on its grid's filter since, never on that)
+  const filter = spec.kept !== undefined ? spec.kept.filter : withoutConditions(now, selection) ?? undefined;
   const rows = [spec.x!, ...(spec.split !== undefined ? [spec.split] : [])];
   const made = chartValuesAsColumns({ ...draft, snapshot: { ...query, ...(filter ? { filter } : {}), rows, pivotOn: [] } }, spec.y);
   // folded: the grid reads its query back over its configuration, whose Aggregations are the chart's values now
   const snapshot = applyToSnapshot(made.draft.snapshot, made.draft.config);
-  const { frozen: _frozen, ...following } = spec;
+  const { frozen: _frozen, kept: _kept, ...following } = spec;
   return { snapshot, configuration: made.draft.config, spec: followCube(following, snapshot, made.carriedBy), notes: made.notes };
 }
 
@@ -1124,6 +1158,8 @@ export type ChartChange = {
   readonly mark?: ChartMark;
   readonly y?: readonly ChartMeasure[];
   readonly options?: { readonly [K in keyof ChartOptions]?: ChartOptions[K] | null };
+  /** Its state told, as its pill sets it (chartState): what it keeps follows from it. */
+  readonly state?: ChartState;
 };
 
 /**
@@ -1143,8 +1179,38 @@ export function editChart(spec: ChartSpec, change: ChartChange, s: CubeSnapshot)
   // the reader to refuse by name
   const laid = options === undefined ? moved.options
     : isRecord(options) ? withoutNulls({ ...moved.options, ...options }) : options;
-  const made = withoutNulls({ ...moved, ...slots, options: laid }) as ChartSpec;
+  const { state, ...kept } = slots;
+  const made = withoutNulls({ ...moved, ...kept, options: laid }) as ChartSpec;
+  if (state !== undefined) {
+    if (!CHART_STATES.includes(state)) throw new CubeRefusal(`a chart's state is one of ${CHART_STATES.join(', ')}, not ${JSON.stringify(state)}`);
+    return chartState(made, state, s);
+  }
   return !told('frozen') && freezesOn(made, Object.keys(change)) ? { ...made, frozen: true } : made;
+}
+
+/** A chart's state, as its pill says it (ChartState): frozen, it keeps what it drew; pinned, its grouping alone. */
+export function chartStateOf(spec: ChartSpec): ChartState {
+  return spec.kept !== undefined ? 'frozen' : spec.frozen === true ? 'pinned' : 'dynamic';
+}
+
+/**
+ * A CHART PUT IN A STATE -- its pill's three (the user, 2026-10-23: one word each), and Python's chart.state: DYNAMIC,
+ * following its grid again, regrouped the way the grid is now (followCube); PINNED, its grouping its own (as a hand on
+ * its axes leaves it), still following the grid's filter and the selections clicked on its page; FROZEN, all it draws
+ * its own -- its grouping, and the grid's filter as it is now (`s`), kept (ChartSpec.kept) whatever is put on the grid
+ * after. Put in the state it is in, a chart stays as it is: freezing again does not take the grid's filter afresh.
+ */
+export function chartState(spec: ChartSpec, state: ChartState, s: CubeSnapshot): ChartSpec {
+  if (chartStateOf(spec) === state) return spec;
+  const { frozen: _frozen, kept: _kept, ...following } = spec;
+  if (state === 'dynamic') return followCube(following, s);
+  if (state === 'pinned') return { ...following, frozen: true };
+  return { ...following, frozen: true, kept: s.filter ? { filter: s.filter } : {} };
+}
+
+/** The filter a chart's query reads: the grid's now, or -- frozen -- the one it kept (none, if the grid had none). */
+export function chartFilter(spec: ChartSpec, gridFilter: FilterNode | undefined): FilterNode | undefined {
+  return spec.kept !== undefined ? spec.kept.filter : gridFilter;
 }
 
 /** What the charts' panel says of a cube it can make no chart of (defaultChart: no column to put across). */
@@ -1161,8 +1227,15 @@ export function chartFrom(
 ): ChartSpec | string {
   const start = before ?? defaultChart(s);
   if (!start) return NO_CHART;
-  // what Python told, untyped: whatever is not a chart's the reader refuses by name
-  const read = readChart(editChart(start, given as ChartChange, s));
+  // what Python told, untyped: whatever is not a chart's the reader refuses by name (a state that is none, the edit)
+  let edited: ChartSpec;
+  try {
+    edited = editChart(start, given as ChartChange, s);
+  } catch (e) {
+    if (e instanceof CubeRefusal) return `DataCube cannot read this chart: ${e.message}.`;
+    throw e;
+  }
+  const read = readChart(edited);
   return typeof read === 'string' ? `DataCube cannot read this chart: ${read}.` : read;
 }
 
@@ -1259,6 +1332,10 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   }
   if (spec.split !== undefined && !gridKind && !known.has(spec.split)) {
     out.push(`The cube has no column '${spec.split}'.`);
+  }
+  // a frozen chart's filter, kept as the grid had it: a column the grid has no more is said, never quietly unfiltered
+  for (const column of new Set(filterColumns(spec.kept?.filter))) {
+    if (!known.has(column)) out.push(`The filter it keeps reads '${column}', which the cube has no more: make it dynamic or pinned to drop it.`);
   }
   const needs = SPLIT_NEEDED[spec.mark];
   if (needs !== undefined && spec.split === undefined) out.push(needs);
@@ -1451,8 +1528,9 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
   // a gauge is one value: its query groups by nothing, as a KPI's total does
   const { x: _gx, split: _gs, ...ungrouped } = view.spec;
   const spec: ChartSpec = view.spec.mark === 'gauge' ? ungrouped : view.spec;
-  const filter: FilterNode | undefined = conditions.length === 0 ? s.filter
-    : { kind: 'and', children: [...(s.filter ? [s.filter] : []), ...conditions] };
+  const base = chartFilter(drilled, s.filter);
+  const filter: FilterNode | undefined = conditions.length === 0 ? base
+    : { kind: 'and', children: [...(base ? [base] : []), ...conditions] };
   // a scatter, or a scatter matrix: rows as they are, not groups
   const scatter = plotsRows(spec);
   const across = axisName(spec);
@@ -1556,9 +1634,10 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     ? [{ column: measureName(first), direction: spec.options.sort.direction },
       ...(across !== undefined ? [{ column: across, direction: 'asc' as const }] : [])]
     : across !== undefined ? [{ column: across, direction: spec.options.sort.direction }] : [])];
+  // the grid's filter is the chart's only as chartFilter says (a frozen chart's kept one in its place, none included)
   const {
     pivotValues: _pv, pivotTotal: _pt, groupDerived: _gd, window: _w,
-    leafCount: _lc, childCount: _cc, ...rest
+    leafCount: _lc, childCount: _cc, filter: _gridFilter, ...rest
   } = s as CubeSnapshot & Record<string, unknown>;
   // a chart of periods or bins carries each category's end: the most of its rows' (AXIS_UPPER)
   if (!scatter && rangesAcross(spec) && across !== undefined) {

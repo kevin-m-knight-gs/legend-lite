@@ -11,9 +11,10 @@ import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
 import {
-  chartFrom, chartProblems, DEFAULT_CHART_LIMIT, defaultChart, DEFAULT_OPTIONS, editChart, followCube, followRefusal, NO_CHART,
-  TIME_LIMIT, type ChartSpec,
+  chartFrom, chartGrid, chartProblems, chartQuery, chartStateOf, DEFAULT_CHART_LIMIT, defaultChart, DEFAULT_OPTIONS, editChart,
+  followCube, followRefusal, NO_CHART, readChart, TIME_LIMIT, type ChartSpec,
 } from '../src/chart-spec.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
@@ -172,3 +173,67 @@ describe('a change by hand (editChart: the charts\' form, and chartFrom)', () =>
     assert.equal(followCube(start, GROUPED), start);
   });
 });
+
+// the user, 2026-10-23: "frozen charts don't freeze filters -- seems to only freeze pivots"; one word per state
+describe('a chart\'s state: dynamic, pinned (its grouping its own) or frozen (its grouping and the grid\'s filter kept)', () => {
+  const EMEA = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+  const APAC = { kind: 'condition', column: 'region', operator: 'equal', value: 'APAC' } as const;
+  const FILTERED: CubeSnapshot = { ...CUBE, rows: ['region', 'channel'], filter: EMEA };
+  const UNFILTERED: CubeSnapshot = { ...CUBE, rows: ['region', 'channel'] };
+  const made = (given: Record<string, unknown>, before?: ChartSpec, s: CubeSnapshot = FILTERED): ChartSpec => {
+    const spec = chartFrom(given, s, before);
+    if (typeof spec === 'string') throw new Error(spec);
+    return spec;
+  };
+
+  it('frozen keeps the grid\'s filter as it is then; its query reads that, whatever the grid\'s filter is after', () => {
+    const frozen = made({ state: 'frozen' }, made({ mark: 'bar' }));
+    assert.equal(chartStateOf(frozen), 'frozen');
+    assert.deepEqual(frozen.kept, { filter: EMEA });
+    assert.equal(frozen.frozen, true, 'its grouping kept too');
+    // the grid filtered otherwise since, or not at all: the chart's query is EMEA's
+    assert.deepEqual(chartQuery({ ...FILTERED, filter: APAC }, frozen).snapshot.filter, EMEA);
+    assert.deepEqual(chartQuery(UNFILTERED, frozen).snapshot.filter, EMEA);
+    // frozen on a grid with no filter: it keeps none, and a filter put on the grid after does not reach it
+    const bare = made({ state: 'frozen' }, made({ mark: 'bar' }, undefined, UNFILTERED), UNFILTERED);
+    assert.deepEqual(bare.kept, {});
+    assert.equal(chartQuery(FILTERED, bare).snapshot.filter, undefined);
+    // frozen again, it stays as it was: the filter it kept is not taken afresh
+    assert.deepEqual(made({ state: 'frozen' }, frozen, { ...FILTERED, filter: APAC }).kept, { filter: EMEA });
+  });
+
+  it('pinned keeps its grouping and follows the grid\'s filter; dynamic follows both; a hand on the axes pins', () => {
+    const pinned = made({ state: 'pinned' }, made({ state: 'frozen' }, made({ mark: 'bar' })));
+    assert.equal(chartStateOf(pinned), 'pinned');
+    assert.equal(pinned.kept, undefined, 'its kept filter let go');
+    assert.deepEqual(chartQuery({ ...FILTERED, filter: APAC }, pinned).snapshot.filter, APAC);
+    const dynamic = made({ state: 'dynamic' }, pinned);
+    assert.equal(chartStateOf(dynamic), 'dynamic');
+    assert.equal(dynamic.frozen, undefined);
+    assert.equal(chartStateOf(made({ mark: 'bar', x: 'channel' })), 'pinned', 'a hand on what the grouping sets pins it');
+    // a state that is none, refused in words
+    assert.equal(chartFrom({ state: 'stuck' }, FILTERED, made({ mark: 'bar' })),
+      'DataCube cannot read this chart: a chart\'s state is one of dynamic, pinned, frozen, not "stuck".');
+  });
+
+  it('a kept filter is read as a page reads one: a filter, on a chart that keeps its grouping, else refused by name', () => {
+    const base = made({ mark: 'bar' });
+    assert.notEqual(typeof readChart({ ...base, frozen: true, kept: { filter: EMEA } }), 'string');
+    assert.match(String(readChart({ ...base, kept: { filter: EMEA } })), /keeps its grouping too: it is frozen/);
+    assert.match(String(readChart({ ...base, frozen: true, kept: { filter: { kind: 'nope' } } })), /the filter it keeps is not one/);
+    assert.match(String(readChart({ ...base, frozen: true, kept: { rows: [] } })), /there is no "rows" in what it keeps/);
+    // a column its kept filter reads that the grid has no more: said, never quietly unfiltered
+    const gone = made({ state: 'frozen' }, base, { ...FILTERED, filter: { ...EMEA, column: 'channel' } });
+    const without = { ...FILTERED, columns: FILTERED.columns.filter((c) => c.name !== 'channel'), rows: ['region'] };
+    assert.match(chartProblems(gone, without).join(' '), /The filter it keeps reads 'channel'/);
+  });
+
+  it('Show Grid on a frozen chart: a grid of its own over the filter it kept, the chart following it, keeping nothing', () => {
+    const frozen = made({ state: 'frozen' }, made({ mark: 'bar' }));
+    const own = chartGrid({ snapshot: { ...FILTERED, filter: APAC }, config: DEFAULT_CONFIGURATION }, frozen, []);
+    if (typeof own === 'string') throw new Error(own);
+    assert.deepEqual(own.snapshot.filter, EMEA);
+    assert.equal(chartStateOf(own.spec), 'dynamic');
+  });
+});
+

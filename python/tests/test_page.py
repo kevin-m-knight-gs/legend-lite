@@ -139,11 +139,10 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "follows its grid takes 'region' across, not 'desk'"):
             grid.chart('bar', x='desk', frozen=False)
         self.assertEqual(spec['options']['sort'], {'by': 'y', 'direction': 'desc'})
-        # one sheet: the grid in a band of its own -- the page's first, the whole screen, as a page started on the screen
-        # has it -- the chart beside it, as DataCube places them
+        # one sheet: the grid in a band of its own, the chart in a band under it, sharing the screen the grid's band had
+        # alone, as DataCube places them (bands.ts add; the user, 2026-10-23: a new chart goes below, not beside)
         self.assertEqual(doc['sheets'], [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': [
-            {'height': 1, 'node': {'split': 'row', 'parts': [
-                {'node': {'tile': grid.id}, 'size': 0.5}, {'node': {'tile': chart.id}, 'size': 0.5}]}}]}}])
+            {'height': 0.5, 'node': {'tile': grid.id}}, {'height': 0.5, 'node': {'tile': chart.id}}]}}])
 
     def test_the_document_is_a_copy_and_its_numbers_exact(self):
         page, grid, _ = self.built()
@@ -151,7 +150,7 @@ class Document(Paged):
         doc['cubes'][0]['cube']['query']['rows'].append('desk')
         doc['sheets'][0]['layout']['bands'].clear()
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['rows'], ['region'], 'what is done to it is not done to the page')
-        self.assertEqual(len(page.to_dict()['sheets'][0]['layout']['bands']), 1)
+        self.assertEqual(len(page.to_dict()['sheets'][0]['layout']['bands']), 2)
         # a calculated column's decimal stays its digits, in the document and the file
         grid.calculate('scaled', '$x.notional->toOne() * 1.50D')
         lambda_ = page.to_dict()['cubes'][0]['cube']['query']['derived'][0]['lambda']
@@ -270,17 +269,18 @@ class Document(Paged):
     def test_tiles_are_placed_and_taken_off_as_datacube_places_them(self):
         page, grid, chart = self.built()
         sheet = page.sheets[0]
-        # four places to a band at most: a chart beyond goes into a band of its own below its grid's
-        more = [grid.chart('line', title=f'line {i}') for i in range(3)]
-        self.assertEqual([len(b['node']['parts']) if 'split' in b['node'] else 1 for b in self.bands(sheet)], [4, 1])
+        # under its grid, beside its grid's other charts, four to a band at most: a chart beyond goes into a band of its
+        # own under its grid's
+        more = [grid.chart('line', title=f'line {i}') for i in range(4)]
+        self.assertEqual([len(b['node']['parts']) if 'split' in b['node'] else 1 for b in self.bands(sheet)], [1, 1, 4])
         # a grid goes into a band of its own at the bottom
         other = page.grid(desks(), name='desks')
         self.assertEqual(self.bands(sheet)[-1], {'height': 0.5, 'node': {'tile': other.id}})
         # taken off: its neighbours close over its place, a band it emptied gone
+        page.remove(more[3])
+        self.assertEqual([len(b['node']['parts']) if 'split' in b['node'] else 1 for b in self.bands(sheet)], [1, 4, 1])
         page.remove(more[2])
-        self.assertEqual([len(b['node']['parts']) if 'split' in b['node'] else 1 for b in self.bands(sheet)], [4, 1])
-        page.remove(more[1])
-        self.assertEqual(self.bands(sheet)[0]['node']['parts'][2], {'node': {'tile': more[0].id}, 'size': 1 / 3})
+        self.assertEqual(self.bands(sheet)[1]['node']['parts'][2], {'node': {'tile': more[1].id}, 'size': 1 / 3})
         # a grid removed takes the charts that follow it
         page.remove(grid)
         self.assertEqual((page.grids, page.charts), ([other], []))
@@ -390,11 +390,10 @@ class Document(Paged):
         page.remove(chart)
         self.assertEqual(self.bands(sheet)[0], {'height': 1.2, 'node': {'split': 'row', 'parts': [
             {'node': {'tile': grid.id}, 'size': 0.7}, {'node': {'tile': other.id}, 'size': 0.3}]}})
-        # a chart goes beside its grid, its band's places evened out, as DataCube adds one
+        # a chart goes under its grid, as DataCube adds one: a band of its own there, the band under holding a grid
         added = other.chart('pie', x='desk', y=[('desk', 'count')], title='Desks')
-        self.assertEqual([p['node'] for p in self.bands(sheet)[0]['node']['parts']],
-                         [{'tile': grid.id}, {'tile': other.id}, {'tile': added.id}])
-        self.assertEqual([p['size'] for p in self.bands(sheet)[0]['node']['parts']], [1 / 3] * 3)
+        self.assertEqual([b['node'] for b in self.bands(sheet)[1:]], [{'tile': added.id}, {'tile': heads.id}])
+        self.assertEqual(self.bands(sheet)[0]['node']['parts'][1], {'node': {'tile': other.id}, 'size': 0.3})
         with self.assertRaisesRegex(ValueError, 'cannot be laid out: band 0: shares summing to 1.4'):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'split': 'row', 'parts': [
                 {'node': {'tile': grid.id}, 'size': 0.7}, {'node': {'tile': other.id}, 'size': 0.7}]}},
@@ -453,8 +452,9 @@ class Document(Paged):
         page.stack(other, chart)
         self.assertEqual(self.bands(summary), [{'height': 0.5, 'node': {'stack': [other.id, chart.id]}}])
         # onto a tile stacked already, as DataCube drops one on its middle: its place keeps its tabs, the new one after
+        # (a new chart is put under its grid's band first, as DataCube adds one)
         third = other.chart('pie', x='desk', y=[('desk', 'count')], title='Desks')
-        self.assertEqual(self.bands(summary)[0]['node']['parts'][1]['node'], {'tile': third.id})
+        self.assertEqual(self.bands(summary)[1]['node'], {'tile': third.id})
         page.stack(other, third)
         self.assertEqual(self.bands(summary), [{'height': 0.5, 'node': {'stack': [other.id, chart.id, third.id]}}])
         with self.assertRaisesRegex(ValueError, 'one sheet'):
@@ -683,6 +683,28 @@ class Document(Paged):
                                  ('gantt', {'x': 'desk', 'y': [('day', 'min'), ('pnl', 'max')]}, 'min or max of a date column')]:
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
                 grid.chart(mark, **given)
+
+    def test_a_charts_state_dynamic_pinned_or_frozen_as_its_pill_puts_it(self):
+        # the user, 2026-10-23: "frozen charts don't freeze filters" -- pinned keeps the grouping, frozen the filter too
+        page, grid, chart = self.built()
+        self.assertEqual(chart.state, 'dynamic')
+        grid.filter(('region', 'equal', 'EMEA'))
+        emea = page.to_dict()['cubes'][0]['cube']['query']['filter']
+        chart.state = 'frozen'
+        self.assertEqual(chart.state, 'frozen')
+        spec = page.to_dict()['views'][1]['spec']
+        self.assertEqual((spec['frozen'], spec['kept']), (True, {'filter': emea}), "the grid's filter as it was, kept")
+        # the grid filtered otherwise since: the frozen chart keeps what it kept
+        grid.filter(('region', 'equal', 'AMER'))
+        self.assertEqual(page.to_dict()['views'][1]['spec']['kept'], {'filter': emea})
+        chart.state = 'pinned'
+        self.assertEqual(chart.state, 'pinned')
+        self.assertNotIn('kept', page.to_dict()['views'][1]['spec'])
+        chart.state = 'dynamic'
+        self.assertNotIn('frozen', page.to_dict()['views'][1]['spec'])
+        with self.assertRaisesRegex(ValueError, "a chart's state is one of dynamic, pinned, frozen, not \"stuck\""):
+            chart.state = 'stuck'
+        self.assertEqual(chart.state, 'dynamic')
 
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()
@@ -1332,7 +1354,7 @@ class Abilities(Paged):
         # a cube of its own: an edit of the copy leaves the grid as it was
         copied.group('desk')
         self.assertEqual(grid._query['rows'], ['region'])
-        # added as the screen adds it: beside the grid copied
+        # added as the screen adds it: on the sheet of the grid copied (at its bottom: page-commands.ts addGrid)
         self.assertIn(('addGrid', grid.id), [(c['kind'], c.get('near')) for c in page._page_commands])
 
     def test_a_sheet_is_moved_among_the_sheets_and_removed_with_its_tiles(self):
@@ -1874,7 +1896,8 @@ class Live(Paged):
         open_now['sheets'][0]['name'] = 'Renamed in DataCube'
         open_now['cubes'][0]['cube']['query']['rows'] = ['desk']
         open_now['views'] = [v for v in open_now['views'] if v['id'] != chart.id]
-        open_now['sheets'][0]['layout']['bands'][0]['node'] = {'tile': grid.id}
+        open_now['sheets'][0]['layout']['bands'] = [
+            b for b in open_now['sheets'][0]['layout']['bands'] if b['node'] != {'tile': chart.id}]
         at = self.version(page)
         self.assertEqual(self.wrote(page, open_now), (200, at + 1))
         self.assertEqual(page.sheets[0].name, 'Renamed in DataCube')
@@ -1901,7 +1924,8 @@ class Live(Paged):
         # ids it has)
         open_now = page.to_dict()
         open_now['views'] = [v for v in open_now['views'] if v['id'] != chart.id]
-        open_now['sheets'][0]['layout']['bands'][0]['node'] = {'tile': grid.id}
+        open_now['sheets'][0]['layout']['bands'] = [
+            b for b in open_now['sheets'][0]['layout']['bands'] if b['node'] != {'tile': chart.id}]
         self.assertEqual(self.said(page, open_now), 200)
         self.assertEqual(page.charts, [])
         again = copy.deepcopy(open_now)
@@ -2210,12 +2234,12 @@ class Joined(Paged):
         # edited as any grid is, run by DataCube over the join's base
         joined.group('head')
         self.assertEqual(sorted(r[0] for r in joined.view().rows if r[0] is not None), ['Ana', 'Ben'])
-        # a refusal in the compiler's words, nothing added (the join sits beside its first input: the desks' grid last)
+        # a refusal in the compiler's words, nothing added (the join at the bottom of its sheet: the desks' grid second)
         with self.assertRaisesRegex(Exception, 'nope'):
-            page.join(page.grids[0], page.grids[2], {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
+            page.join(page.grids[0], page.grids[1], {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'desk'}]}})
         self.assertEqual(len(page.grids), 3)
 
-    def test_placed_beside_its_first_input_and_named_as_its_grids_show(self):
+    def test_placed_on_its_first_inputs_sheet_and_named_as_its_grids_show(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z9: as the tab's Join… places and names one (join-flow.ts), by
         # DataCube's rule (page-commands.ts joinInputOf, headless joinCube)
         page = ll.Page('Joins')
@@ -2223,17 +2247,19 @@ class Joined(Paged):
         theirs = page.grid(desks(), name='desks')
         mine.title = 'Book'
         joined = page.join(mine, theirs, self.HOW)
-        self.assertEqual([t.id for t in page.sheets[0].tiles], [mine.id, joined.id, theirs.id], 'beside the grid joined')
+        # a band of its own at the bottom of its first input's sheet, as every new grid (page-commands.ts addGrid; the
+        # user, 2026-10-23: a new grid goes below, not beside)
+        self.assertEqual([t.id for t in page.sheets[0].tiles], [mine.id, theirs.id, joined.id], 'at the bottom of the sheet')
         self.assertEqual(joined._cube['source']['name'], 'Book \u22c8 desks', "each grid's title, else what it reads")
         on_second = page.sheet('Second')
         other = page.join(theirs, mine, self.HOW, sheet=on_second)
         self.assertEqual([t.id for t in on_second.tiles], [other.id], 'on another sheet: where it is asked for')
-        # its first input on another sheet: beside it there, as the tab places it (the S7 audit's Y-3: it went on the
+        # its first input on another sheet: on that sheet, as the tab places it (the S7 audit's Y-3: it went on the
         # first sheet)
         third = page.sheet('Third')
         far = page.grid(desks(), name='far_desks', sheet=third)
-        beside = page.join(far, mine, self.HOW)
-        self.assertEqual([t.id for t in third.tiles], [far.id, beside.id], "beside its first input, on that input's sheet")
+        there = page.join(far, mine, self.HOW)
+        self.assertEqual([t.id for t in third.tiles], [far.id, there.id], "on its first input's sheet")
 
     def test_saved_and_loaded_over_its_frames_and_reopened_when_one_is_served_again(self):
         page, joined = self.joined()
@@ -2769,7 +2795,7 @@ class OverClasses(Paged):
         self.addCleanup(patched.stop)
 
     def classed(self):
-        """A page whose grid is over the class its frame's grid made, as the tab's Add a Grid over a class writes it."""
+        """A page whose grid is over the class its frame's grid made, as the tab's Create ▸ Grid over a class writes it."""
         page = ll.Page('Classes')
         path = page.grid(trades(), name='trades').create_class('Trade')
         model = page.model
@@ -2812,7 +2838,7 @@ class OverClasses(Paged):
             ll.Page('Bare').grid(cls='Trade')
 
     def test_a_tab_on_the_page_asks_python_for_a_grid_over_a_class_as_page_grid_makes_one(self):
-        # (K16, K17) the tab's Add a Grid over a class and its Classes, on a page Python serves, which has no compiler or
+        # (K16, K17) the tab's Create ▸ Grid over a class and its Classes, on a page Python serves, which has no compiler or
         # model home of its own here: the class's cube made by DataCube's own code where Python reads it (source.json:
         # headless sourceCube, page.grid's own), then opened as every grid of the page is (opened.json)
         page = ll.Page('Classes')

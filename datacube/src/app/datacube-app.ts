@@ -37,7 +37,9 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
-import type { PageCommand } from '../page-commands.ts';
+import { joinInputOf, type PageCommand } from '../page-commands.ts';
+import type { JoinAsk } from './join-flow.ts';
+import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
@@ -52,21 +54,22 @@ import type { Sample, Services, Versions } from './services.ts';
 import { applyLive, followBy } from './live-follow.ts';
 import { LiveChannel } from './live-channel.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
+import { lazily } from '../lazily.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
 // downloads it (test/bundle-budget.test.ts)
-const queryStores = () => import('../../../query-store/src/index.ts');
+const queryStores = () => lazily(() => import('../../../query-store/src/index.ts'));
 
-/** CREATE A CLASS… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.1): a grid's own entry, in its menu's data group. */
-const CREATE_CLASS = { id: 'host.createClass', label: 'Create a Class\u2026', section: 'data' } as const;
-/** CREATE AN ASSOCIATION… and A DATA SPACE… (§15.1, §15.6a): the page's, in its menu's Model group; the first a grid's
- *  too, its class one end. */
-const CREATE_ASSOCIATION = { id: 'host.createAssociation', label: 'Create an Association\u2026', section: 'data' } as const;
-const CREATE_DATA_SPACE = { id: 'host.createDataSpace', label: 'Create a Data Space\u2026', section: 'data' } as const;
-/** ADD A GRID OVER <CLASS> (§16.1): a grid made a class, its class read beside it -- a dashboard's tile. */
+/** CREATE ▸ CLASS… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.1): a grid's own entry, under every menu's Create ▸
+ *  (the user, 2026-10-23: one Create, in every menu; its window is still Create a Class). */
+const CREATE_CLASS = { id: 'host.createClass', label: 'Class\u2026', section: 'create' } as const;
+/** CREATE ▸ ASSOCIATION… and DATA SPACE… (§15.1, §15.6a): the page's and each grid's -- a grid's class one end of the
+ *  first. */
+const CREATE_ASSOCIATION = { id: 'host.createAssociation', label: 'Association\u2026', section: 'create' } as const;
+const CREATE_DATA_SPACE = { id: 'host.createDataSpace', label: 'Data Space\u2026', section: 'create' } as const;
+/** CREATE ▸ GRID OVER <CLASS> (§16.1): a grid made a class, its class read beside it -- a dashboard's tile; first of the
+ *  model's entries under Create ▸ (the user, 2026-10-23: "Add Grid over Class is great under Create"). */
 const CLASS_GRID_ID = 'host.classGrid' as const;
-/** JOIN… (§17.5): a grid joined to another of the page, the rows they make together a grid beside them. */
-const JOIN = { id: 'host.join', label: 'Join\u2026', section: 'data' } as const;
 
 /** What the app opens first. */
 export type AppStart =
@@ -197,6 +200,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // `start`: a copy of a grid of this source (Copy of Grid), starting where that grid is now
     return (gridHost, spawned, start) => {
       let printed = 0;
+      /** What each entry of its last right-click's Join ▸ asks (joinMenuOf), until one is picked. */
+      let joinAsks = new Map<string, JoinAsk>();
       const kept = services.browser.readSettings();
       // THE ONE BRANCH ON THE ROWS' SHAPE (§4.5): planned here and run here, or planned and run by the host
       const rows: CubeAppQuerySource = place.runner
@@ -236,18 +241,27 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           const cls = spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id];
           return [
             ...planeMenu(),
+            ...(cls !== undefined && classGrid
+              ? [{ id: CLASS_GRID_ID, label: `Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'create' as const }] : []),
             // of any grid: a class is made over every table its rows read, a join's each (§18.3); refused in words when
             // it cannot be one
             ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
-            ...(cls !== undefined && classGrid
-              ? [{ id: CLASS_GRID_ID, label: `Add a Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'data' as const }] : []),
-            // a grid that reads tables of the tab's database: a join of it reads them in one place (§17.3)
-            ...(joinGrid?.offered(place) ? [JOIN] : []),
+            ...(createDataSpace ? [CREATE_DATA_SPACE] : []),
           ];
         },
+        // its Create ▸ Data Source…: a grid over a source picked now, beside this one (the page's own Data Source…'s way)
+        ...(picks ? { onOpenSource: () => { if (spawned.id !== undefined) void page.addSource(spawned.id); } } : {}),
+        // ITS RIGHT-CLICK JOIN ▸ (the user, 2026-10-23), built as it opens: what each entry asks kept until one is picked
+        joinMenu: (column) => {
+          const built = spawned.id !== undefined && joinMenuOf ? joinMenuOf(spawned.id, column) : undefined;
+          joinAsks = built?.asks ?? new Map();
+          return built?.items ?? [];
+        },
         onHostMenu: (item) => {
-          if (item.id === CLASS_GRID_ID) classGrid?.(spawned.id);
-          else if (item.id === JOIN.id) joinGrid?.open(spawned.id);
+          const ask = item.id !== undefined ? joinAsks.get(item.id) : undefined;
+          if (ask !== undefined) joinGrid?.open(spawned.id, ask);
+          else if (item.id === JOIN_SOURCE) joinSource?.(spawned.id);
+          else if (item.id === CLASS_GRID_ID) classGrid?.(spawned.id);
           else if (item.id === CREATE_CLASS.id) createClass?.(created, place, spawned.id);
           else if (item.id === CREATE_ASSOCIATION.id) createAssociation?.(spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id]);
           else onHostItem(item);
@@ -363,7 +377,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let classGrid: ((cube: string | undefined) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
-  let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined) => void } | undefined;
+  let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined, ask?: JoinAsk) => void } | undefined;
+  /** A grid's right-click Join ▸ on a column: its entries, and what each asks (join-flow.ts JoinAsk). */
+  let joinMenuOf: ((cube: string, column: string | undefined) => { readonly items: MenuItem[]; readonly asks: Map<string, JoinAsk> }) | undefined;
+  /** Join ▸ ▸ Join a Data Source…: a grid over a source picked now, then the window joining grid `cube` to it. */
+  let joinSource: ((cube: string | undefined) => void) | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
@@ -417,8 +435,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // the page's settings in a link: never a row of data (src/share/link.ts)
       ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const }] : []),
       { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
-      // THE PAGE'S MODEL: its associations and its data space, once the page has a model home
-      ...(createDataSpace ? [{ label: 'Model', section: 'data' as const, submenu: [CREATE_ASSOCIATION, CREATE_DATA_SPACE] }] : []),
+      // THE PAGE'S MODEL, under its Create ▸: its associations and its data space, once the page has a model home
+      ...(createDataSpace ? [CREATE_ASSOCIATION, CREATE_DATA_SPACE] : []),
       // The planes, as entries rather than a control: the bar is
       // for what you watch, the menu for what you do occasionally.
       // The one you are ON is disabled rather than hidden, so the
@@ -526,15 +544,24 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+    // each grid's place told to the sources as it is made -- the start's grid, below, included: its tables are then
+    // what a join of it reads
+    madeGrid = (id, place) => sources.madeGrid(id, place);
+    dropUnread = () => sources.dropUnread();
 
     if (start.kind === 'sample') {
       const { sample } = start;
       // generated rows are a copy in the tab from the start; a remote file read through the sample's model is live, and
       // snaps into a copy of its own, as any grid's rows not in the tab do (§18.3)
       const snapTarget = sources.snapTarget();
-      page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions,
-        sample.heldCopy ? { heldCopy: sample.heldCopy } : snapTarget ? { snapTarget } : {}));
+      page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions, {
+        ...(sample.heldCopy ? { heldCopy: sample.heldCopy } : snapTarget ? { snapTarget } : {}),
+        // what its rows are, written down: a page it starts is saved, shared and joined as any file's is
+        ...(sample.source ? { cubeSource: sample.source.cube, tables: sample.source.tables } : {}),
+      }));
       await page.ready();
+      // the page the app starts with: no step of a person's to undo
+      page.started();
     }
     // WHAT LEAVING WOULD LOSE, asked in this order: the warehouse's session, unsaved changes, the files opened
     work.add(() => sources.sessionHeld());
@@ -561,8 +588,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       page.rename(name);
       onCubeView?.();
     };
-    madeGrid = (id, place) => sources.madeGrid(id, place);
-    dropUnread = () => sources.dropUnread();
 
     /**
      * What saving now would write -- always ONE kind of thing, the page (page-document.ts): one cube per grid, its
@@ -1141,7 +1166,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         window.alert(`Cannot create a class of this grid: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
-      const [{ createClassOf }, home] = await Promise.all([import('../create-class.ts'), modelHome.connect()]);
+      const [{ createClassOf }, home] = await Promise.all([lazily(() => import('../create-class.ts')), modelHome.connect()]);
       const commands = await createClassOf({
         basis,
         // the names its leaves' tables have in this tab, one per leaf (a file's, a join's each), which reopening reads
@@ -1172,7 +1197,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const modelActions = async (): Promise<{ actions: typeof import('../model-actions.ts'); of: import('../model-actions.ts').ModelActionsOf } | undefined> => {
       const writing = services.engine.modelWriting;
       if (!modelHome || !writing) return undefined;
-      const [actions, home] = await Promise.all([import('../model-actions.ts'), modelHome.connect()]);
+      const [actions, home] = await Promise.all([lazily(() => import('../model-actions.ts')), modelHome.connect()]);
       const grids = actions.pageGrids(page.grids, (id) => {
         const place = sources.place(id);
         const grid = page.grid(id);
@@ -1231,7 +1256,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           return;
         }
         page.addGrid(opened.make, { near: cube });
-      })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
+      })().catch((e: unknown) => window.alert(`Create ▸ Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
     // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
     // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).
@@ -1242,17 +1267,44 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // a grid of the tab's tables; on a host's page any grid written down by a source (what it reads is the host's to
       // refuse, in words, before the window opens: join-flow.ts hostJoinFlow)
       offered: (place) => (localEngine ? place.tables !== undefined : place.cubeSource !== undefined),
-      open: (cube) => {
+      open: (cube, ask) => {
         if (cube === undefined) return;
         const shown = placed;
         const stillShown = () => placed === shown;
-        const say = (text: string) => library?.say(text, 'warn');
-        void import('./join-app.ts').then(({ joinFlow, hostJoinFlow }) => (localEngine
-          ? joinFlow({ cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } }, stillShown, say })
-          : hostJoinFlow({ cube, page, sources, join: hostJoin!, parse: (text) => services.engine.reading.parse(text), stillShown, say })))
+        const asked = ask !== undefined ? { ask } : {};
+        void lazily(() => import('./join-app.ts')).then(({ joinFlow, hostJoinFlow }) => (localEngine
+          ? joinFlow({ cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } }, stillShown, ...asked })
+          : hostJoinFlow({ cube, page, sources, join: hostJoin!, parse: (text) => services.engine.reading.parse(text), stillShown, ...asked })))
           .catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
       },
     };
+    // A GRID'S RIGHT-CLICK JOIN ▸, as its Filter ▸ (join-menu.ts): the page's grids it can join gathered here, as it
+    // opens -- the grid's own and every other's columns, a pivoted one (no fixed columns) left out. A pivoted grid's own
+    // Join ▸ is the window alone, as on no column: no quick join of columns it does not have fixed, but Join… still
+    // there (the start's grid is pivoted; its menu button, which offered it, went 2026-10-23)
+    if (joinGrid) {
+      const joins = joinGrid;
+      const joinable = (id: string): boolean => { const p = sources.place(id); return p !== undefined && joins.offered(p); };
+      joinMenuOf = (cube, column) => {
+        const now = page.document(page.title);
+        if (!now || !joinable(cube)) return { items: [], asks: new Map() };
+        const input = (id: string) => {
+          const i = joinInputOf(now, id);
+          return { id, name: i.name, columns: i.query.columns, pivoted: i.query.pivotOn.length > 0 };
+        };
+        const mine = input(cube);
+        const others = page.grids.filter((id) => id !== cube && joinable(id)).map(input).filter((o) => !o.pivoted);
+        return joinMenu({ column: mine.pivoted ? undefined : column, mine, others, source: picker !== undefined });
+      };
+      joinSource = (cube) => {
+        if (cube === undefined) return;
+        void page.addSource(cube).then(async (their) => {
+          if (their === undefined) return;
+          await page.ready();
+          joins.open(cube, { their });
+        }).catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
+      };
+    }
 
     /** The chosen source IN PLACE of the page: it empties, then one grid over the source (its only one: gridCapped). */
     async function openInPlace(chosen: Chosen): Promise<void> {
@@ -1374,7 +1426,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
       // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
       const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
-      const [{ applyPageCommands, rebuiltCommands }, { pageCommand }] = await Promise.all([import('../page-commands.ts'), import('../page-gestures.ts')]);
+      const [{ applyPageCommands, rebuiltCommands }, { pageCommand }] = await Promise.all([lazily(() => import('../page-commands.ts')), lazily(() => import('../page-gestures.ts'))]);
       // a snapped grid whose copy was not read here reads its rows live: told so (the S7 audit's G-3) -- first, so a
       // grid it leaves over frames that changed meanwhile is told rebuilt too, as Python's Grid.live tells both (the S7
       // confirmation audit's H2-4: judged against the copy, it never was)

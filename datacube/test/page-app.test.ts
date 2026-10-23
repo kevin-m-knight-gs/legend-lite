@@ -16,6 +16,7 @@ import { configurationOf, treeOf, type CubeDocument, type FileSource } from '../
 import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
 import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
+import { HOLD_MS } from '../src/ui/long-press.ts';
 import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, type PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
@@ -105,6 +106,15 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
 }
 
 const tile = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
+/** A chart pinned by its pill (its grouping its own): the pill opened, Pinned picked from its menu. */
+async function pin(chart: string): Promise<void> {
+  (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+    .find((e) => e.textContent?.startsWith('Pinned \u2014 '));
+  if (!item) throw new Error('the pill offers no Pinned');
+  item.click();
+  await settle();
+}
 /** The sheets' tabs, as they read. */
 const tabs = (): string[] => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].map((t) => t.querySelector('.dc-sheet-label')?.textContent ?? '');
 const tabOf = (label: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')]
@@ -124,11 +134,11 @@ function pageMenu(): HTMLElement[] {
 }
 const label = (item: HTMLElement): string => item.querySelector(':scope > .dc-menu-label')?.textContent ?? '';
 const entry = (items: HTMLElement[], text: string): HTMLElement | undefined => items.find((i) => label(i) === text);
-/** An entry of a grid's own menu (its tile's, or the bar's while it is alone), by what it says. */
+/** An entry of a grid's right-click (a submenu's too: Create ▸, Tile ▸ Move to Sheet ▸), by what it says. */
 function gridMenuItem(gridTile: string, text: string): HTMLElement {
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
-  const button = (tile(gridTile).querySelector('.dc-tile-menu') ?? bar().querySelector('.dc-page-alone .dc-tile-menu')) as HTMLElement;
-  button.click();
+  (tile(gridTile).querySelector('.dc-row .dc-cell') as HTMLElement)
+    .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === text);
   assert.ok(item, `${gridTile}'s menu has ${text}`);
   return item;
@@ -140,7 +150,7 @@ async function chartOf(gridTile: string): Promise<string> {
     .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   await settle();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((el) => label(el) === 'Visualization' && label(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Insert');
+    .find((el) => label(el) === 'Visualization' && label(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Create');
   assert.ok(item, 'Insert > Visualization');
   item.click();
   await settle();
@@ -185,8 +195,7 @@ describe('a page of its own', () => {
     const strip = bar().querySelector('.dc-page-alone')!;
     assert.match(strip.textContent ?? '', /trades\.csv/);
     assert.ok(strip.querySelector('.dc-titlebar-toggle'), 'its Live/Snapped pill');
-    assert.ok(strip.querySelector('.dc-tile-menu'), 'its own menu');
-    assert.equal(tile(id).querySelector('.dc-tile-menu'), null, 'not in the tile as well');
+    assert.equal(host.querySelector('.dc-tile-menu'), null, 'no menu button: its right-click is its menu (the user, 2026-10-23)');
   });
 
   it('a second tile moves the lone grid\'s header back into its tile; every grid alike, the first one removable', async () => {
@@ -197,7 +206,6 @@ describe('a page of its own', () => {
     assert.equal(host.querySelector('.dc-bands')!.classList.contains('dc-bands-alone'), false);
     assert.equal(bar().querySelector('.dc-page-alone')!.children.length, 0);
     for (const id of [a, b]) {
-      assert.ok(tile(id).querySelector('.dc-tile-menu'), `${id} has its own menu`);
       assert.equal(tile(id).querySelector<HTMLButtonElement>('.dc-tile-remove')!.hidden, false, `${id} can be removed`);
     }
     // the first one removed: the other alone in the bar
@@ -205,11 +213,8 @@ describe('a page of its own', () => {
     await settle();
     assert.deepEqual(page.grids, [b]);
     assert.match(bar().querySelector('.dc-page-alone')!.textContent ?? '', /orders\.csv/);
-    // and the last, from its own menu (its tile has no remove button while alone): the empty page
-    (bar().querySelector('.dc-tile-menu') as HTMLElement).click();
-    const remove = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove from Page');
-    assert.ok(remove, 'Remove from Page, in the grid\'s own menu');
-    remove.click();
+    // and the last, from its right-click's Tile ▸ (its tile has no remove button while alone): the empty page
+    gridMenuItem(b, 'Remove from Page').click();
     await settle();
     assert.deepEqual(page.grids, []);
     assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, false);
@@ -256,8 +261,7 @@ describe('a page of its own', () => {
     const b = page.addGrid(over('orders.csv'), { near: a });
     await settle();
     const chart = await chartOf(b);
-    (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
-    await settle();
+    await pin(chart);
     tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     assert.equal(tile(chart).querySelector('.dc-titlebar-toggle')!.textContent, 'Detached');
@@ -317,7 +321,7 @@ describe('a page of its own', () => {
     await settle();
     (tile(a).querySelector('.dc-zone-rows .dc-chip[data-column="desk"] .dc-chip-remove') as HTMLElement).click();
     await settle();
-    gridMenuItem(a, 'Copy of Grid').click();
+    gridMenuItem(a, 'Copy of This Grid').click();
     await settle();
     assert.equal(page.grids.length, 2);
     const copy = page.grids.find((id) => id !== a)!;
@@ -337,8 +341,7 @@ describe('a page of its own', () => {
     const b = page.addGrid(over('orders.csv'), { near: a });
     await settle();
     const chart = await chartOf(b);
-    (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
-    await settle();
+    await pin(chart);
     tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
@@ -446,6 +449,25 @@ describe('a page of its own', () => {
     assert.ok(page.grid(a));
   });
 
+  // the user, 2026-10-23: the grid's menu button gone, its right-click is its menu -- and an iPad fires no right-click
+  it('a long press on a touch screen opens the right-click menu: a grid cell\'s, a sheet tab\'s (ui/long-press.ts)', async () => {
+    newPage();
+    const id = page.addGrid(over('trades.csv'));
+    await settle();
+    const hold = async (el: Element): Promise<HTMLElement[]> => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      el.dispatchEvent(new dom.window.PointerEvent('pointerdown', {
+        bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: 40, clientY: 60,
+      }));
+      await new Promise((r) => setTimeout(r, HOLD_MS + 50));
+      return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+    };
+    const onCell = await hold(tile(id).querySelector('.dc-row .dc-cell') as HTMLElement);
+    assert.ok(['Edit', 'Create', 'Tile'].every((l) => onCell.some((i) => label(i) === l)), onCell.map(label).join(' | '));
+    const onTab = await hold(bar().querySelector('.dc-sheet-tab') as HTMLElement);
+    assert.ok(onTab.some((i) => /^Rename/.test(label(i))), `the tab's own menu: ${onTab.map(label).join(' | ')}`);
+  });
+
   it('a second sheet: +, shown and empty; a grid moved onto it from its menu; its chart, on the first, follows it', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));
@@ -535,7 +557,8 @@ describe('a page of its own', () => {
     [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'New Sheet')?.click();
     await settle();
     assert.equal(page.sheets.length, 2);
-    assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [1, 0]);
+    // the grid and its chart under it (two bands since 2026-10-23: a chart goes under its grid) stay where they were
+    assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [2, 0]);
   });
 
   it('a grid behind a chart in a stack still exports its table, beside the charts of its sheet', async () => {
@@ -592,6 +615,18 @@ describe('a page of its own', () => {
     tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!;
     assert.equal(last.getAttribute('aria-disabled'), 'true', 'the last sheet stays');
+  });
+
+  it('started with a grid its host made (the app\'s start\'s sample), it has no step to undo; an edit after is one', async () => {
+    newPage({ confirm: () => true });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    assert.equal(page.undoLabel, 'Add Grid', 'a grid a person adds: a step');
+    page.started();
+    assert.equal(page.undoLabel, undefined, 'a fresh page offered "Undo Add Grid", which left it blank (2026-10-23)');
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(page.undoLabel, 'Add Sheet');
   });
 
   it("renamed by its editor, it tells renamePage -- no step of its history; a name it has tells nothing (P1, P2)", async () => {
@@ -847,7 +882,7 @@ describe('a page of its own', () => {
       download: (name, _mime, content) => files.push([name, content]),
     });
     const items = pageMenu();
-    const newItem = entry(items, 'New')!;
+    const newItem = entry(items, 'Create')!;
     (newItem.querySelector('[role^="menuitem"]') as HTMLElement).click();
     await settle();
     assert.equal(page.grids.length, 1);

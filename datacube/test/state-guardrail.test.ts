@@ -141,6 +141,9 @@ const STATE_SITES: Record<string, Record<string, string>> = {
   'src/page/page-app.ts': {
     'constructor:this.#state = ': 'a page made',
     'clear:this.#state = ': 'a blank page',
+    // 2026-10-23 (the user's bulletproofing round: the start offered "Undo Add Grid", which left the page blank): the page
+    // as it starts, its first grid made, with no history behind it
+    'started:this.#state = ': 'a page as it starts: its first grid made, no step to undo',
     'restore:this.#state = ': 'a saved page put back',
     'follow:this.#state = ': "another editor's commands, applied by the rules: the page they made, whole",
     'setTitle:this.#state.keep(': "the page's name, its host's (no step): N1, a page opened named",

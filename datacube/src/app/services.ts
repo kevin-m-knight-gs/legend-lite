@@ -17,7 +17,7 @@ import type { QueryReader } from '../../../query-store/src/index.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { Planner } from '../cube.ts';
-import type { CubeDocument } from '../cube-document.ts';
+import type { CubeDocument, CubeSource } from '../cube-document.ts';
 import type { CubeStore } from '../cube-store.ts';
 import type { FileHandles } from '../file-handles.ts';
 import type { InferredModel, TableModels } from '../infer.ts';
@@ -402,6 +402,12 @@ export interface BrowserService {
 export interface Sample {
   /** Its opening view, typed by the compiler over its source. */
   readonly snapshot: () => Promise<CubeSnapshot>;
+  /**
+   * What its rows are, written down (a generated sample's file: sample-trades.ts DESK_TRADES_FILE), and the tables of
+   * the host's database they are in: its grid is then saved, shared and joined as any file's is. Absent (a remote file
+   * named in the address), the page it starts says it cannot be saved.
+   */
+  readonly source?: { readonly cube: CubeSource; readonly tables: readonly string[] };
   /** Generated rows are a copy in the host's database from the start; a mounted remote file is live, and snaps as any
    *  grid does (PageSources.snapTarget). */
   readonly heldCopy?: HeldCopy;
