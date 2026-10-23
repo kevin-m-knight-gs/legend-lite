@@ -79,6 +79,12 @@ item below has its `file:line` there.
   `sheet.move(position)`, `page.remove(sheet)`; `ll.Page.open(id)`; `page.grid(cls=..., project=..., revision=...)`,
   `page.grid(query=...)`, `page.grid(warehouse=..., table=..., catalog=...)`; the charts' as D7/D8. A class is named by
   `cls=`; option values are DataCube's own spellings (`'greaterThan'`), no Python aliases.
+- **D23** (the user, 2026-10-23, "Why wouldn't python get save as and delete and saved pages and class grid work? Names
+  and size are fine"; then "Fix the python stuff first, then PR, then live edit") The S7 audits' four asked items are
+  built, not declared: Python's Save As, delete and list of saved pages (K13-K15: `page.save_as(name)`,
+  `ll.Page.delete(id)`, `ll.Page.saved()`), and the tab's class grid on a Python host and a class of another project
+  (K16, K17). S8's bundle budgets and its Python names stand. D19 follows the PR in its smaller form (undo stays a
+  whole-page restore, N2; the tab keeps and re-applies the edits not yet confirmed).
 - **D22** (the user, 2026-10-22) A query over a table dropped since its read began is refused, in words: that is the
   rule, not a limit (F31). A call never reads rows the session no longer serves.
 
@@ -566,6 +572,24 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   cube-page-shell.test.ts, verify-charts.mjs, tour.mjs)
 - [x] **K12** open a saved page by id — closed S6: `ll.Page.open(id)`, the record read as the tab's Open… reads it
   (page-document.ts `savedPage`, moved out of the app: D6; headless `pageOfRecord`) (test_page.py `Abilities`)
+- [x] **K13** Save As (the S7 audits' Y-6, H-9; D23) — closed: `page.save_as(name)`, the record by the Save window's one
+  rule, page-document.ts `pageSaving` (Save, or Save As: the record the page was saved as left alone), which the tab's
+  Save As now asks too in place of the screen's own (headless `pageRecord` takes `asNew`) (page-document.test.ts,
+  test_page.py `Abilities`)
+- [x] **K14** delete a saved page (Y-6, H-9; D23) — closed: `ll.Page.delete(id)`, by the store's own rules (only its
+  owner's), and each page of the session saved as it told `savedAs` of none, as Open… tells the tab's page (the
+  session's `page_objects`) (test_page.py `Abilities`)
+- [x] **K15** list the saved pages (Y-6, H-9; D23) — closed: `ll.Page.saved(search, sort=, limit=)`, the search Open…
+  asks, cube-store.ts `savedSearch` and `SAVED_SORTS` (the library's own moved out of the window; headless
+  `pageSearch`), answered by the store's rules (cube-library.test.ts, test_page.py `Abilities`)
+- [x] **K16** the tab's Add a Grid over a class on a page Python serves (Y-7, H-8; D23) — closed: the stale guard
+  (`services.engine.local`) gone; the class's cube made by the host where it reads the class (engine.py `source.json`:
+  headless `sourceCube`, page.grid(cls=...)'s own; python-host.ts `made`), then opened as every grid of that page is
+  (`opened.json`) (test_page.py `OverClasses`, python-runner.test.ts)
+- [x] **K17** a class of another project, at a revision, in the tab (Y-7, H-8; D23) — closed: the source picker's Classes
+  (a class by its path or name, a project, a revision), named by the one rule Python's `cls=` is, class-source.ts
+  `classGiven` (moved out of headless givenSource); opened here where the page plans its own SQL, by the host on
+  Python's page (class-source.test.ts, datacube-app-live.test.ts)
 
 ### Found by the audits (rule 9: each added here, fixed with a test that fails without it, closed in that commit)
 - [x] **F1** a chart's selection taken off by a grid edit made while its click's refilter was in flight (the page's
@@ -801,7 +825,7 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   board back only at its next sync, no refusal being reachable today (P-6); PageApp's name, filters and model are fields
   beside its state, set from it at every step (P-9). Asked of the user at S7's close: Python's Save As, delete and list
   of saved pages (Y-6, H-9: their names), and the tab's class grid on a Python host and a class of another project (Y-7,
-  H-8: a gesture, or an exception)
+  H-8: a gesture, or an exception) -- built, D23: K13-K17
 - [x] **F71** a header's sort click was listed "by nature" the screen's, Python reaching its states another way (the
   user, 2026-10-22: "Why are clickSort exempt? ... There should be single sort API that UI actions call that also can be
   called programmatic") -- and the click's first direction was worked out in screen code -- fixed S7: header-sort.ts
@@ -1736,3 +1760,44 @@ a menu entry's undo step is named as the entry is ("Collapse All", not "collapse
 
 **Next.** D19, the single writer's client side, with H-5, H-11, H-13, F90's race and F97; and the user's answers on the
 Python names (S8's surface; Y-6, H-9: Save As, delete and list; Y-7, H-8: the tab's class grid on a Python host).
+
+## As built (D23, 2026-10-23)
+
+The S7 audits' four asked items, built (D23): what the tab does with saved pages and classes, Python does too, and the
+reverse -- each by one rule both call.
+
+- **Save As (K13).** page-document.ts `pageSaving`: the Save window's one rule -- over the saved page it is, or, Save As,
+  a new record under the id it is handed, the record it was saved as left alone. The tab's Save As asked it in place of
+  its own two lines (`const { record: _was, ...asItself } = doc`); headless `pageRecord` takes `asNew`; Python's
+  `page.save_as(name)` and `save()` share one path (`_saved`).
+- **Delete (K14).** `ll.Page.delete(id)`: the store's DELETE, its rules (only the owner's); then every page of the
+  session saved as it is told `savedAs` of none -- as Open… tells the tab's page -- so its next save is a new record,
+  never a refusal. The session keeps a weak set of its pages (`page_objects`) for it.
+- **List (K15).** cube-store.ts `savedSearch` and `SAVED_SORTS`, moved out of the Open… window (its term trimmed, its
+  menu's order, its first the default); headless `pageSearch` reads Python's arguments and refuses in words;
+  `ll.Page.saved(search, sort=, limit=)` posts it to the store, which answers by its rules (this user's first, newest
+  first, upstream's cap of 100).
+- **The tab's class grid on a Python host (K16).** The guard `if (services.engine.local)` (its comment stale since X1,
+  X4) is gone. A class the tab names is opened by sources' new `class` kind: here, where the page plans its own SQL
+  (class-source.ts `classGiven`, then `openedClass`); on Python's page, its cube made by the host (engine.py
+  `source.json`: headless `sourceCube`, page.grid(cls=...)'s own; python-host.ts `made`) and then opened as every
+  grid of that page is (`opened.json`).
+- **A class of another project, in the tab (K17).** The source picker's **Classes**: a class by its path (or name), a
+  project, a revision. class-source.ts `classGiven` is the one rule naming it -- moved out of headless `givenSource`,
+  which asks it too.
+
+**Tests (each fails without its change):** page-document.test.ts (Save As: the new record, `over`, the refusals),
+cube-library.test.ts (the window and Python ask the same search; `pageSearch`'s refusals), class-source.test.ts
+(`classGiven`'s cases and refusals), python-runner.test.ts (`made` posts `source.json`, its refusal said),
+datacube-app-live.test.ts (on Python's page, Classes asks the host to make the cube, then to open it), test_page.py
+(Save As, list, delete and the pages saved as it; `source.json` makes page.grid's cube, opened by `opened.json`, its
+refusals).
+
+**Ledgers.** No ceiling moved; K13-K17 added to the register and closed (one-api-ledger.test.ts `ALL`).
+
+**Gates.** The full local set, 205 of 205.
+
+**Next.** The PR (S8 and D23), then D19 in its smaller form (D23): the tab keeps the edits not yet confirmed and
+re-applies them, no reopen on a collision; Save on a served page saves the keeper's page (H-5); H-11, H-13, F90's race
+and F97; undo stays a whole-page restore (N2), said when another editor has moved the page since.
+

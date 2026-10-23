@@ -185,6 +185,15 @@ export interface DatabaseService {
    * page's name; `gridsOnPage`: how many grids the page holds.
    */
   readonly opened?: (cube: string, page: string, gridsOnPage: number) => Promise<HostOpened>;
+  /**
+   * A new grid's cube over a class made by the host where it reads it (Python's `source.json`: headless sourceCube, as
+   * Python's page.grid(cls=...) makes one: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md K16, K17) -- for a page with no
+   * compiler or model home of its own there. `model`: the page's model (its text), or null; `given`: the class as
+   * class-source.ts classGiven takes it (its text); `page`: the page's name; `gridsOnPage`: how many grids the page holds
+   * with it. Its cube document's text, then opened as every grid of the host's page is (`opened`); refused in DataCube's
+   * words.
+   */
+  readonly made?: (model: string | null, given: string, page: string, gridsOnPage: number) => Promise<string>;
   /** A join of two of the page's grids made by the host over its tables (HostJoin): where the page has no database of
    *  its own there, its Join… asks the host (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11). */
   readonly join?: HostJoin;

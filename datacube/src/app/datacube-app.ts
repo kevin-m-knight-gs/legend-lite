@@ -32,9 +32,8 @@ import {
   leftOutNote,
   leftOutWhenUnopened,
   noneOpened,
+  pageSaving,
   savedPage,
-  savedRecord,
-  savesOver,
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
@@ -866,14 +865,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if (refused) throw new Error(refused);
       const doc = pageNow(name);
       if (!doc) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
-      // the record by DataCube's one rule (savedRecord: Python's save() asks it too): over the saved page it is, or, Save
-      // As, a new one; the page named as it is saved
-      const { record: _was, ...asItself } = doc;
-      const saving = asNew ? asItself : doc;
-      const record = savedRecord(name, saving, crypto.randomUUID());
-      if ('refused' in record) throw new Error(record.refused);
+      // the record by DataCube's one rule (pageSaving: Python's save() and save_as() ask it too): over the saved page it
+      // is, or, Save As, a new one; the page named as it is saved
+      const saving = pageSaving(name, doc, crypto.randomUUID(), asNew);
+      if ('refused' in saving) throw new Error(saving.refused);
+      const { record } = saving;
       const id = record.id;
-      if (savesOver(saving)) await store.update(id, record);
+      if (saving.over) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
       current = { ...current, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
@@ -1218,20 +1216,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     createClass = (grid, place, cube) => {
       void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
     };
-    // only where the page plans and runs its own SQL (the tab): a page another editor serves (Python's) holds no grid
-    // over a class until its pages can follow one (the model plan's step 3b)
-    if (services.engine.local) classGrid = (cube) => {
+    // ADD A GRID OVER <class>: the class this grid was made (Create a Class…), read where the page reads a class -- here,
+    // where it plans and runs its own SQL, or, on a page its other editor serves (Python's), by that host (K16) -- by the
+    // one rule Python's page.grid(cls=...) names it by (sources' class kind), beside the grid
+    if (services.engine.local || services.engine.database.made) classGrid = (cube) => {
       void (async () => {
-        const model = page.model;
-        const cls = cube === undefined ? undefined : model?.classes?.[cube];
-        const writing = services.engine.modelWriting;
-        if (!model || cls === undefined || cube === undefined) throw new Error('this grid was made no class of the page');
-        if (!writing) throw new Error('this page writes no model');
+        const cls = cube === undefined ? undefined : page.model?.classes?.[cube];
+        if (cls === undefined || cube === undefined) throw new Error('this grid was made no class of the page');
         // the page on screen now: one put in its place meanwhile (another opened, a blank page) gets no grid of this one
         const shown = placed;
-        // the class at the page's pin, through the place's runtime: the tables its store names are the page's own
-        const { classAt } = await import('../class-source.ts');
-        const opened = await sources.openedClass(classAt(model, cls, writing.place), undefined, gridCapped(page.cubes.length + 1));
+        const opened = await sources.opened({ kind: 'class', given: { class: cls } }, gridCapped(page.cubes.length + 1));
         if (placed !== shown) {
           await opened.discard?.();
           return;

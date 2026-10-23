@@ -16,7 +16,7 @@ import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
   chartDrill, chartPick, cubeOpensAgain, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
-  pageReads, pageRebase, pageRecord, pageSaved, pageWithCube, pageWritten,
+  pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube, pageWritten,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides } from './join.ts';
 
@@ -80,8 +80,9 @@ export { layoutBands, layoutTiles };
  *  DataCube starts one: what Python's ll.Page() asks. And a
  *  page edited by commands (page-commands.ts): what Python's page edits send. */
 export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
-/** A page saved in the page store as it opens (pageOfRecord: the tab's Open…, Python's Page.open). */
-export { pageOfRecord };
+/** A page saved in the page store as it opens (pageOfRecord: the tab's Open…, Python's Page.open); the saved pages
+ *  searched as Open… searches them (pageSearch: Python's Page.saved). */
+export { pageOfRecord, pageSearch };
 /** Whether a page's cube opens again over its source as it is now (cubeOpensAgain: a snapped grid's does not); why a
  *  page none of whose cubes opened is not opened (pageNoneOpened: the tab's Open…'s rule, Python's load's). */
 export { cubeOpensAgain, pageNoneOpened };

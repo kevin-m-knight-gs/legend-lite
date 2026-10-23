@@ -465,6 +465,17 @@ export function savedRecord(name: string, page: PageDocument, fresh: string): Sa
   return { id, name: given.name, content: pageContent({ ...page, name: given.name, record: id }) };
 }
 
+/** A page saved as the Save window saves it -- the tab's Save and Save As, Python's save() and save_as() (headless
+ *  pageRecord): over the saved page it is, or, Save As (`asNew`), as a new one under `fresh`, the record it was saved as
+ *  left alone (K13); its record (savedRecord) and whether it saves over one (`over`), or why not, in its words. */
+export function pageSaving(name: string, page: PageDocument, fresh: string, asNew: boolean):
+  { readonly record: SavedRecord; readonly over: boolean } | { readonly refused: string } {
+  const { record: _was, ...asItself } = page;
+  const saving = asNew ? asItself : page;
+  const record = savedRecord(name, saving, fresh);
+  return 'refused' in record ? record : { record, over: savesOver(saving) };
+}
+
 /** The page as JSON text (exact numbers kept, as the cube's own document keeps them). */
 export function pageToJson(page: PageDocument): string {
   return protocolJson(pageContent(page));

@@ -16,6 +16,10 @@ import { applyPageCommands, idsOf } from '../src/page-commands.ts';
 import type { LiveWrite } from '../src/app/services.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { GateEngine, StubPlanner } from './cube-fixture.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { cubeToJson, writeCube } from '../src/cube-document.ts';
+import type { CubeSnapshot } from '../src/snapshot.ts';
+import { TreeState } from '../src/tree.ts';
 
 /** A promise held until the test settles it. */
 function held<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
@@ -63,8 +67,9 @@ afterEach(() => {
   dom.window.close();
 });
 
-/** The app opened on `editor`'s page, as a tab opens it: what it watches through, and its page's text. */
-async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>):
+/** The app opened on `editor`'s page, as a tab opens it: what it watches through, and its page's text. `host`: more of
+ *  the host's database (its asks a test holds). */
+async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>, host: Record<string, unknown> = {}):
   Promise<{ moved: (version: number) => void; unwatched: () => boolean; text: () => string; shown: () => number | undefined }> {
   const watchers: ((now: { version: number; frames: Record<string, number> } | string) => void)[] = [];
   let unwatched = false;
@@ -77,7 +82,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
       // a frame's rows, planned and run here over the fixture's planner and engine: what opening a page's grid asks
       rows: () => ({ planner: new StubPlanner(), engine: new GateEngine() }),
       // a source to pick: the page offers New ▸ Blank Page; the host's frames, as the test says them
-      database: { ingestFile: async () => { throw new Error('no file here'); }, ...(frame ? { frame } : {}) },
+      database: { ingestFile: async () => { throw new Error('no file here'); }, ...(frame ? { frame } : {}), ...host },
     },
     live: {
       page: editor,
@@ -175,6 +180,38 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     await settle();
     assert.equal(doc.querySelector('.dc-picker-title')?.textContent, 'Add a source', 'added to the page, not opened in place of it');
     assert.equal(app.unwatched(), false, 'the page Python serves is still the one on screen');
+  });
+
+  it("a class added from the picker's Classes is made by the host and opened there, as page.grid(cls=...) makes one (K16, K17)", async () => {
+    const asked: unknown[][] = [];
+    const cube = cubeToJson(writeCube({
+      name: 'Q3', source: { _type: 'class', name: 'Trade', class: 'p::domain::Trade', project: 'p:q', workspace: 'datacube',
+        revision: 'r1', mapping: 'p::mapping::Model', runtime: 'p::runtime::Python', columns: [{ name: 'desk', type: 'String' }] },
+      snapshot: { source: { query: { _type: 'var', name: 'x' } }, columns: [{ name: 'desk', type: 'String' }], derived: [],
+        rows: [], pivotOn: [], sorts: [], epoch: 0 } as unknown as CubeSnapshot,
+      configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty(),
+    }));
+    await opened(new Editor(), undefined, {
+      made: async (...args: unknown[]) => { asked.push(['made', ...args]); return cube; },
+      opened: async (...args: unknown[]) => { asked.push(['opened', ...args]); throw new Error('the host read no rows'); },
+    });
+    await settle();
+    const doc = dom.window.document;
+    [...doc.querySelectorAll<HTMLButtonElement>('.dc-blank-actions button')].find((b) => b.textContent === 'Add a data source')!.click();
+    await settle();
+    (doc.querySelector('[data-section="classes"]') as HTMLElement).click();
+    const [cls, project, revision] = [...doc.querySelectorAll<HTMLInputElement>('.dc-picker-panel .dc-picker-field input')];
+    cls!.value = ' p::domain::Trade ';
+    project!.value = 'p:q';
+    revision!.value = 'r1';
+    (doc.querySelector('.dc-picker-panel form') as HTMLFormElement).requestSubmit();
+    for (let i = 0; i < 5; i += 1) await settle();
+    // made by the host -- the page's model (none yet), the class as class-source.ts classGiven takes it -- then opened as
+    // every grid of the page Python serves is
+    assert.deepEqual(asked[0], ['made', null, '{"class":"p::domain::Trade","project":"p:q","revision":"r1"}', 'Q3', 1]);
+    assert.deepEqual(asked[1]!.slice(0, 1), ['opened']);
+    assert.equal(JSON.parse(asked[1]![1] as string).source.class, 'p::domain::Trade');
+    assert.equal(doc.querySelector('.dc-picker-status')?.textContent, 'the host read no rows', 'its refusal said in the window');
   });
 
   it('the editor is told, as it is asked, the version on screen: the copies it reads stay until it moves past them (Z17)', async () => {

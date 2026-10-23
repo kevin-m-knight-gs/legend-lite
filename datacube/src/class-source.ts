@@ -9,7 +9,7 @@ import {
 } from '../../pure-protocol/src/index.ts';
 import { projectText } from '../../sdlc-client/src/project-text.ts';
 import type { PureFile } from '../../sdlc-client/src/wire.ts';
-import type { PageModelRef } from './page-model.ts';
+import { PAGE_WORKSPACE, type PageModelRef } from './page-model.ts';
 
 /** Where a class is read (cube-document.ts ClassSource, without what it shows): its project at a revision, through its
  *  mapping and runtime. */
@@ -37,6 +37,51 @@ export function classAt(ref: PageModelRef, cls: string, place: string): ClassAt 
     class: cls, project: ref.project, workspace: ref.workspace, revision: ref.revision,
     mapping: `${ref.package}::mapping::Model`, runtime: `${ref.package}::runtime::${place}`,
   };
+}
+
+/** A class a new grid is over, as a person names it: by its path or its name, of `project` (absent, the page's) at
+ *  `revision` (absent, the page's pin). */
+export interface ClassGiven {
+  readonly class?: unknown;
+  readonly project?: unknown;
+  readonly revision?: unknown;
+}
+
+/**
+ * WHERE A NEW GRID'S CLASS IS READ, by the one rule every editor names it by (Python's page.grid(cls=...), headless
+ * givenSource; the tab's Classes and Add a Grid over a class: K16, K17): a class of the page's model by its name (made a
+ * path as the writer makes one, writerClass) or its path, at the page's pin or at `revision`; a class of another project
+ * by its path as DataCube's writer makes one (package::domain::Name), at a `revision` of it, read through what the
+ * writer makes beside it (its package's `mapping::Model`, the `place`'s runtime) in DataCube's workspace. Or why not, in
+ * words.
+ */
+export function classGiven(model: PageModelRef | null, given: ClassGiven, place: string): ClassAt | string {
+  const { class: cls, project, revision } = given;
+  if (typeof cls !== 'string' || cls === '') return `a class is named by its path or its name, not ${JSON.stringify(cls)}`;
+  if (project !== undefined && (typeof project !== 'string' || project === '')) return `a project is named group:artifact, not ${JSON.stringify(project)}`;
+  if (revision !== undefined && (typeof revision !== 'string' || revision === '')) return `a revision is named by its id, not ${JSON.stringify(revision)}`;
+  let ref: PageModelRef;
+  let path: string;
+  if (project === undefined || project === model?.project) {
+    if (model === null) return "the page has no model of its own: name the class's project (project=...) and its revision";
+    path = cls.includes('::') ? cls : writerClass(model.package, cls);
+    ref = revision === undefined ? model : { ...model, revision };
+  } else {
+    const pkg = writerPackageOf(cls);
+    if (pkg === undefined) {
+      return `a class of ${project} is named by its path as DataCube's writer makes one (package::domain::Name), not ${JSON.stringify(cls)}`;
+    }
+    if (revision === undefined) return `a class of ${project} is read at a revision of it: name it (revision=...)`;
+    path = cls;
+    ref = { project, workspace: PAGE_WORKSPACE, package: pkg, tables: {}, revision };
+  }
+  try {
+    return classAt(ref, path, place);
+  } catch (e) {
+    // its one refusal, in its words: the page's project has no saved revision to read the class at
+    if (ref.revision !== undefined || !(e instanceof Error)) throw e;
+    return e.message;
+  }
 }
 
 /** A class DataCube's writer makes, by its name: `<package>::domain::<Name>`, where Create a Class… makes every one. */

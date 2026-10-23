@@ -15,7 +15,7 @@ import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import type { ClassAt, ClassElement } from '../class-source.ts';
+import type { ClassAt, ClassElement, ClassGiven } from '../class-source.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
@@ -42,6 +42,7 @@ import {
 import { canKeepHandles, handleKey, pickDataFile, readHandle, type FileHandle } from '../file-handles.ts';
 import type { InferredModel } from '../infer.ts';
 import type { GridMaker } from '../page/page-app.ts';
+import type { PageModelRef } from '../page-model.ts';
 import type { ModelOptions } from '../planner.ts';
 import { inferFormat, type S3Credentials } from '../remote.ts';
 import type { PlanAndRun, QueryRunner } from '../runner.ts';
@@ -140,7 +141,8 @@ export type Chosen =
   | { readonly kind: 'file'; readonly file: File; readonly handle?: FileHandle; readonly sample?: { readonly id: string; readonly rows: number } }
   | { readonly kind: 'table'; readonly session: WarehouseSession; readonly object: CatalogObject }
   | { readonly kind: 'remote'; readonly url: string; readonly s3?: S3Credentials }
-  | { readonly kind: 'saved'; readonly query: OpenedQuery };
+  | { readonly kind: 'saved'; readonly query: OpenedQuery }
+  | { readonly kind: 'class'; readonly given: ClassGiven & { readonly class: string } };
 
 /** A file a grid reads, as the page keeps it by the grid's id. */
 export interface GridFile {
@@ -164,7 +166,11 @@ export interface SourcesOf {
    * The page: the cubes it holds now (a file's table goes with its last grid), and the grids it let go that an undo can
    * bring back (theirs are kept while it can).
    */
-  readonly page: { readonly cubes: readonly string[]; readonly recoverable?: readonly string[] };
+  readonly page: {
+    readonly cubes: readonly string[]; readonly recoverable?: readonly string[];
+    /** Its name ('' before it has one) and its model, where it has one: what a class it names is read by (K16, K17). */
+    readonly title: string; readonly model: PageModelRef | undefined;
+  };
   /** How a grid is made over a source: the app's grid maker. */
   readonly gridMaker: (snapshot: CubeSnapshot, configuration: CubeConfiguration, dimensions: { name: string; columns: string[] }[],
     place: GridPlace) => GridMaker;
@@ -1066,10 +1072,34 @@ export function pageSources(d: SourcesOf): PageSources {
     }
   }
 
+  /**
+   * A CLASS A PERSON NAMED for a new grid (the picker's Classes, Add a Grid over a class: K16, K17), by the one rule
+   * Python's page.grid(cls=...) names it by (class-source.ts classGiven): opened here where the page plans and runs its
+   * own SQL; on a page its other editor serves (Python's), which has no compiler or model home of its own there, its cube
+   * made by the host where it reads the class (DatabaseService.made: headless sourceCube, page.grid's own) and opened as
+   * every grid of that page is (openedOnHost).
+   */
+  async function openedGivenClass(given: ClassGiven, capped: boolean): Promise<Opened> {
+    const model = page.model ?? null;
+    if (local) {
+      const writing = services.engine.modelWriting;
+      if (!writing) throw new Error('this page writes no model: a class is read through the runtime its place writes');
+      const { classGiven } = await import('../class-source.ts');
+      const at = classGiven(model, given, writing.place);
+      if (typeof at === 'string') throw new Error(at);
+      return openedClass(at, undefined, capped);
+    }
+    if (!database.made) throw new Error('this page reaches no host that reads a class');
+    const doc = readCube(fromJson(await database.made(model === null ? null : JSON.stringify(model), JSON.stringify(given),
+      page.title, capped ? 2 : 1)));
+    return openedOnHost(doc.source, doc, capped);
+  }
+
   // -- every kind --------------------------------------------------------------------------------------------------
 
   function opened(chosen: Chosen, capped: boolean): Promise<Opened> {
     if (chosen.kind === 'saved') return Promise.resolve(openedSavedQuery(chosen.query, undefined, capped));
+    if (chosen.kind === 'class') return openedGivenClass(chosen.given, capped);
     if (chosen.kind === 'file') {
       return openedFile(chosen.file, {
         ...(chosen.sample ? { sample: chosen.sample } : {}),
@@ -1085,7 +1115,8 @@ export function pageSources(d: SourcesOf): PageSources {
   }
 
   const named = (chosen: Chosen): string => (chosen.kind === 'saved' ? chosen.query.label : chosen.kind === 'file' ? chosen.file.name
-    : chosen.kind === 'table' ? `${chosen.object.schema}.${chosen.object.name}` : lastSegment(chosen.url));
+    : chosen.kind === 'table' ? `${chosen.object.schema}.${chosen.object.name}` : chosen.kind === 'class' ? chosen.given.class
+      : lastSegment(chosen.url));
 
   /**
    * A saved cube's source opened again, the least intrusive way that works (a file asked for, a saved query rerun, a
@@ -1163,6 +1194,11 @@ export function pageSources(d: SourcesOf): PageSources {
         detect: detectFormat,
         reader: remoteReader,
         open: (url: string, credentials?: RemoteCredentials) => act({ kind: 'remote', url, ...(credentials ? { s3: s3Of(credentials) } : {}) }),
+      } } : {}),
+      // a class of a project at a revision (K17): where the page reads a model home and writes a place's runtime, or its
+      // host makes the class's cube
+      ...((local && modelHome && services.engine.modelWriting) || database.made ? { classes: {
+        open: (given: { readonly class: string; readonly project?: string; readonly revision?: string }) => act({ kind: 'class', given }),
       } } : {}),
     };
     const made = await pickSource(document, { purpose, sections, ...(start ? { start } : {}) });

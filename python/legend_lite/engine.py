@@ -96,6 +96,9 @@ _OPENED = '/opened.json'
 # (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11): its two sides, what it will do, its grid -- each DataCube's own code's,
 # headless, over the tables Python serves, as page.join asks it
 _JOIN = '/join.json'
+# a new grid's cube over a class asked by a tab on a page Python serves, which has no compiler or model home of its own
+# here (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md K16, K17): made by DataCube's own code, headless, as page.grid makes one
+_SOURCE = '/source.json'
 # the most rows a Snap copies into Python's DuckDB: Python's own limit, a fact of the database the copy lands in (this
 # machine's), as the tab's (snap.ts MAX_SNAP_ROWS) is of its own (the browser's memory) -- the two need not agree (the
 # user and the DataCube + Python line, 2026-10-15)
@@ -264,7 +267,7 @@ def private(path: str) -> bool:
     token. The site's files are the page's own and carry no secret."""
     return path.startswith('/api/') or _model_home(path) or path in (
         '/cube.json', '/version.json', '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _SERVICES,
-        _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP, _OPENED, _JOIN)
+        _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP, _OPENED, _JOIN, _SOURCE)
 
 
 def _saved_query(path: str) -> bool:
@@ -501,6 +504,8 @@ class Engine:
                 return _workers().submit(self._opened_said, body or '').result()
             if path == _JOIN:
                 return _workers().submit(self._join_said, body or '').result()
+            if path == _SOURCE:
+                return _workers().submit(self._source_said, body or '').result()
             if not path.startswith(_API):
                 return _said(404, f'no such path: {path}')
             return _workers().submit(self._api, path, query, body or '').result()
@@ -1105,6 +1110,41 @@ class Engine:
         read = sorted({leaf['name'] for leaf in leaves if leaf['_type'] == 'frame'})
         answer = {**made, 'frames': {name: self.version(name) for name in read}}
         return Answer(200, 'application/json', _json.dumps(answer).encode('utf-8'))
+
+    def _source_said(self, body: str) -> Answer:
+        """A NEW GRID'S CUBE OVER A CLASS for a tab on a page Python serves, which has no compiler or model home of its own
+        here (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md K16, K17): ``{"model", "given", "page", "gridsOnPage"}`` -- the
+        page's model (its text, or null), the class as DataCube names one (its text: ``{class, project?, revision?}``),
+        the page's name, how many grids it holds with this one -- made by DataCube's own code, headless (sourceCube, as
+        ``page.grid(cls=...)`` makes one), where this host reads the class. The answer is ``{cube}``, its document's
+        text, which the tab then opens as it opens every grid of Python's page (``opened.json``); a class refused in
+        DataCube's words."""
+        try:
+            asked = _json.loads(body)
+        except ValueError:
+            return _said(400, 'a new grid is JSON')
+        if not isinstance(asked, dict) or not (asked.get('model') is None or isinstance(asked.get('model'), str)) \
+                or not isinstance(asked.get('given'), str) or not isinstance(asked.get('page'), str) \
+                or not isinstance(asked.get('gridsOnPage'), int):
+            return _said(400, 'a new grid is {"model": the page\'s model\'s text or null, "given": the class\'s text, "page", '
+                              '"gridsOnPage"}')
+        if self._headless is None:
+            return _said(404, 'this engine makes no grid: legend-lite makes one with DataCube\'s own code, headless, which '
+                              'this engine was not given')
+        try:
+            # asked for before the frames are held (the session's lock first, then the frames')
+            headless = self._headless()
+        except Exception as failure:
+            return _said(422, f'{type(failure).__name__}: {failure}')
+        with self.frames.reading() as over:
+            try:
+                made = _json.loads(headless.call('sourceCube', asked['model'], asked['given'], over.hosted, asked['page'],
+                                                 asked['gridsOnPage'], 'Python'))
+            except Exception as refused:
+                return _said(422, f'{type(refused).__name__}: {refused}')
+        if 'problems' in made:
+            return _said(422, '; '.join(made['problems']))
+        return Answer(200, 'application/json', _json.dumps({'cube': made['cube']}).encode('utf-8'))
 
     def _join_said(self, body: str) -> Answer:
         """A JOIN OF TWO OF A PAGE'S GRIDS for a tab on a page Python serves, which has no database of its own here
@@ -1919,7 +1959,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         # saved pages, the page's settings, PlanAndRun's calls, a warehouse's and a grid's Snap
         if not (url.path.startswith(_API) or url.path.startswith(_LITE_API) or _model_home(url.path) or url.path in (
                 '/page.json', _FILE_IN, _FILE_PART, _FILE_OUT, _REMOTE, _SETTINGS, _PLAN_AND_RUN, _PLAN, _WAREHOUSE,
-                _SNAP, _OPENED, _JOIN)):
+                _SNAP, _OPENED, _JOIN, _SOURCE)):
             self._refuse_unread(404, f'no such path: {url.path}')
             return
         if not self._admitted(url.path):

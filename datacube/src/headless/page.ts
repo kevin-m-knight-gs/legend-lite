@@ -6,9 +6,10 @@
 import { CubeDocumentError, cubeCopied, cubeToJson, readCube } from '../cube-document.ts';
 import {
   gridCopyOf, newPage, noneOpened, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage,
-  readSaved, savedPage, savedRecord, savesOver, suggestedName, type ChartView, type PageDocument,
+  pageSaving, readSaved, savedPage, suggestedName, type ChartView, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
+import { SAVED_SORTS, savedSearch, type QuerySearchSortBy } from '../cube-store.ts';
 import { applyPageCommands, EXACT_FIELD, followedPage, opensAgain, readPageCommand, type PageCommand } from '../page-commands.ts';
 import { readGridCommand, type GridCommand } from '../grid-commands.ts';
 import { pageReads as readsOf, rebaseEdits, withCube, type PageEdit } from '../page-rebase.ts';
@@ -71,22 +72,24 @@ export function pageFile(text: string): string {
 }
 
 /**
- * A PAGE DOCUMENT (JSON text) SAVED UNDER `name` AS THE PAGE STORE KEEPS IT -- what Python's `save()` sends the store
- * -- by the Save window's one rule (page-document.ts savedRecord, Z18, B4 and B13): over the record the page was last
- * saved as, whichever editor saved it, else a new one under `fresh` -- named `name`, else as the Save window suggests
- * (page-document.ts suggestedName: an unnamed page by its first sheet, D11). JSON: `{record, id, name}`, the record's
- * text (its numbers exact), its id and the name it is saved under, or `{problems}`, why it is not saved.
+ * A PAGE DOCUMENT (JSON text) SAVED UNDER `name` AS THE PAGE STORE KEEPS IT -- what Python's `save()` and `save_as()`
+ * send the store -- by the Save window's one rule (page-document.ts pageSaving, Z18, B4, B13 and K13): over the record
+ * the page was last saved as, whichever editor saved it, else -- or, Save As (`asNew`), always -- a new one under
+ * `fresh`; named `name`, else as the Save window suggests (page-document.ts suggestedName: an unnamed page by its first
+ * sheet, D11). JSON: `{record, id, name, over}`, the record's text (its numbers exact), its id, the name it is saved
+ * under and whether it saves over the record it is, or `{problems}`, why it is not saved.
  */
-export function pageRecord(fresh: string, name: string | null, text: string): string {
+export function pageRecord(fresh: string, name: string | null, text: string, asNew: unknown): string {
+  if (typeof asNew !== 'boolean') throw new Error('pageRecord: asNew is true or false');
   try {
     const page = readPage(text, { empty: true });
     if (page.cubes.length === 0) return JSON.stringify({ problems: [NOTHING_TO_SAVE] });
     // a name given, else the one the Save window suggests (D11: an unnamed page, its first sheet's)
-    const made = savedRecord(name ?? suggestedName(page), page, fresh);
-    // `over`: saved over the record it is, else made a new one (savesOver, the tab's Save's rule)
-    return 'refused' in made ? JSON.stringify({ problems: [made.refused] })
-      : `{"record":${JSON.stringify(toJson(made))},"id":${JSON.stringify(made.id)},"name":${JSON.stringify(made.name)},`
-        + `"over":${JSON.stringify(savesOver(page))}}`;
+    const made = pageSaving(name ?? suggestedName(page), page, fresh, asNew);
+    if ('refused' in made) return JSON.stringify({ problems: [made.refused] });
+    const { record } = made;
+    return `{"record":${JSON.stringify(toJson(record))},"id":${JSON.stringify(record.id)},`
+      + `"name":${JSON.stringify(record.name)},"over":${JSON.stringify(made.over)}}`;
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -359,6 +362,24 @@ export function pageOfRecord(record: string): string {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
   }
+}
+
+/**
+ * A SEARCH OF THE SAVED PAGES AS OPEN… ASKS THE STORE IT (cube-store.ts savedSearch, the tab's library's: K15) -- what
+ * Python's `ll.Page.saved()` sends the store: the pages `term` matches, in `sort`'s order (DataCube's spellings, as Open…'s
+ * menu: null, its first), the first `limit` (null, as many as the store answers). JSON: `{spec}`, the search's
+ * specification, or `{problems}`, what was given that is none, in words.
+ */
+export function pageSearch(term: unknown, sort: unknown, limit: unknown): string {
+  const problems = [
+    ...(typeof term === 'string' ? [] : [`a search is text, not ${JSON.stringify(term)}`]),
+    ...(sort === null || SAVED_SORTS.some(([s]) => s === sort) ? []
+      : [`a sort is one of ${SAVED_SORTS.map(([s]) => s).join(', ')}, not ${JSON.stringify(sort)}`]),
+    ...(limit === null || (Number.isInteger(limit) && (limit as number) >= 0) ? []
+      : [`a limit is a whole number, 0 or more, not ${JSON.stringify(limit)}`]),
+  ];
+  return JSON.stringify(problems.length > 0 ? { problems }
+    : { spec: savedSearch(term as string, sort as QuerySearchSortBy | null, limit as number | null) });
 }
 
 /**

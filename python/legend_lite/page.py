@@ -91,6 +91,14 @@ def _expression(expression: Any) -> None:
         raise ValueError(f'an expression is text, not {expression!r}')
 
 
+def _store_said(said: str) -> str:
+    """What the saved pages' store said refusing a call: its ``{"message"}``, else its answer as it came."""
+    try:
+        return str(json.loads(said).get('message', said))
+    except (ValueError, AttributeError):
+        return said  # not the store's {"message"}: said as it came
+
+
 def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
     """A name a page, a tile or a sheet is given, by DataCube's one rule (page-names.ts givenName, asked headless:
     nameGiven, as the screen's renames ask it): its text trimmed, a page's or a tile's blank refused in DataCube's words,
@@ -1219,6 +1227,7 @@ class Page:
         self._depth = 0
         # collected, forgotten by the keeper at the session's next safe moment (never in the collector), its copies with it
         weakref.finalize(self, self._session.gone.append, self._key_name)
+        self._session.page_objects.add(self)
         # every grid command DataCube applied for this page's grids, in order, as the screen would have built them
         self._commands: list[dict[str, Any]] = []
         # every page command DataCube applied to this page, in order, as applied (page-commands.ts)
@@ -1693,11 +1702,11 @@ class Page:
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
         """Saved. With no ``path``, as DataCube's Save keeps a page: into this user's saved pages (``ll.home()/pages``,
-        what Open… lists in DataCube shown from Python), by legend-lite's own saved-page rules (the native library's,
-        the page's and the server's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B6) -- over the copy this page was last
-        saved as, else as a new one -- named ``name``, else as DataCube's Save suggests (the page's own name; an unnamed
-        page's, its first sheet's: D11); its id is returned. With a
-        ``path``, the page document as a file instead (as DataCube's Export > Page File writes it)."""
+        what Open… lists in DataCube shown from Python, and ``Page.saved()``), by legend-lite's own saved-page rules (the
+        native library's, the page's and the server's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B6) -- over the copy this
+        page was last saved as, else as a new one -- named ``name``, else as DataCube's Save suggests (the page's own
+        name; an unnamed page's, its first sheet's: D11); its id is returned. With a ``path``, the page document as a
+        file instead (as DataCube's Export > Page File writes it)."""
         if path is not None:
             if name is not None:
                 raise ValueError("a page saved as a file takes no name: its document carries the page's own")
@@ -1709,31 +1718,79 @@ class Page:
             # the file as DataCube writes it, byte for byte (the S7 audit's Y-4: Python added a newline)
             Path(path).write_text(said['file'], 'utf-8', newline='')
             return None
+        return self._saved(name, as_new=False)
+
+    def save_as(self, name: str | None = None) -> str:
+        """Saved as a new page in this user's saved pages, as DataCube's Save As saves one (K13): the copy this page was
+        saved as left as it is, this page that new one from now on -- saved again, over it -- named ``name``, else as
+        DataCube's Save suggests; its id is returned."""
+        return self._saved(name, as_new=True)
+
+    def _saved(self, name: str | None, as_new: bool) -> str:
         from ._home import THIS_USER, pages_folder, store_call
         # the record by DataCube's one rule, the Save window's (headless pageRecord): over the saved page it is, which
-        # either editor saved it as (the page's `record`, B13), else a new one; the page named as it is saved
-        doc = self._doc
-        made = json.loads(self._session.headless().call('pageRecord', str(uuid.uuid4()), name, _json.dumps(doc)))
+        # either editor saved it as (the page's `record`, B13), else -- or, Save As, always -- a new one; the page named
+        # as it is saved
+        made = json.loads(self._session.headless().call('pageRecord', str(uuid.uuid4()), name, _json.dumps(self._doc),
+                                                        as_new))
         if 'problems' in made:
             raise ValueError('; '.join(made['problems']))
         id, record = made['id'], made['record']
         # over the record it is saved as, else a new one, as the tab's Save decides (headless pageRecord's `over`:
-        # page-document.ts savesOver -- the S7 confirmation audit's Y2-5) -- a record deleted since (in DataCube's
+        # page-document.ts pageSaving -- the S7 confirmation audit's Y2-5) -- a record deleted since (in DataCube's
         # Open…) refused, as the tab's Save is refused, never made again under its id (the S7 audit's Y-8)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
                         if made['over'] else
                         store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', record, THIS_USER))
         if status != 200:
-            try:
-                said = json.loads(said).get('message', said)
-            except (ValueError, AttributeError):
-                pass  # not the store's {"message"}: said as it came
-            raise ValueError(f'the page was not saved: {said}')
+            raise ValueError(f'the page was not saved: {_store_said(said)}')
         # the saved page it is, told (savedAs: an open page saves over it too, B13); saved under a name, the page is that
         # name, as DataCube's Save renames it (renamePage, B4) -- neither a step of its history
         self._apply_page([_commands.page_saved_as(record=id),
                           *([_commands.page_rename_page(name=made['name'])] if made['name'] != self.name else [])])
         return id
+
+    @staticmethod
+    def saved(search: str = '', *, sort: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
+        """This user's saved pages (``ll.home()/pages``), as DataCube's Open… lists them (K15): each one's record without
+        its page -- its ``id`` (what ``Page.open`` and ``Page.delete`` take), ``name``, ``owner`` and times
+        (``createdAt``, ``lastUpdatedAt``, ``lastOpenAt``: epoch milliseconds) -- those ``search`` matches (its id, or
+        text in the name or the owner; blank, every one), this user's first, then newest first by ``sort`` (DataCube's
+        spellings, as Open…'s menu: ``'SORT_BY_VIEW'``, last opened -- Open…'s first, the one taken when none is given
+        --, ``'SORT_BY_UPDATE'``, last saved, ``'SORT_BY_CREATE'``, created), the first ``limit`` (none given, as many
+        as the store answers: 100 at most, upstream's cap). The search by DataCube's (headless pageSearch), which and in
+        what order by the store's own rules."""
+        from ._home import THIS_USER, pages_folder, store_call
+        from .datacube import _current
+        asked = json.loads(_current().headless().call('pageSearch', search, sort, limit))
+        if 'problems' in asked:
+            raise ValueError('; '.join(asked['problems']))
+        status, said = store_call('lite_saved_cubes', pages_folder(), 'POST', '/search', '', json.dumps(asked['spec']),
+                                  THIS_USER)
+        if status != 200:
+            raise ValueError(f'the saved pages were not read: {_store_said(said)}')
+        return list(json.loads(said))
+
+    @staticmethod
+    def delete(id: str) -> None:
+        """A page saved in this user's saved pages, by its id, deleted as DataCube's Open… deletes one (K14), by the
+        store's own rules (only its owner deletes it) -- and each page of this session saved as it no saved page any
+        more, as Open… tells the tab's page (``savedAs`` of none, B13): saved again, a new one."""
+        from ._home import THIS_USER, pages_folder, store_call
+        from .datacube import _current
+        status, said = store_call('lite_saved_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)
+        if status == 404:
+            raise ValueError(f'no saved page {id!r} in this user\'s saved pages')
+        if status not in (200, 204):
+            raise ValueError(f'the saved page {id!r} was not deleted: {_store_said(said)}')
+        for page in list(_current().page_objects):
+            page._record_gone(id)
+
+    @_operation
+    def _record_gone(self, id: str) -> None:
+        """The saved page ``id`` deleted: this page no saved page any more, if it was that one (savedAs of none)."""
+        if self._doc.get('record') == id:
+            self._apply_page([_commands.page_saved_as(record=None)])
 
     @classmethod
     def open(cls, id: str, frames: Mapping[str, Any] | None = None, *,

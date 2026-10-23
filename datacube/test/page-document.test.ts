@@ -15,6 +15,7 @@ import {
   newPage,
   pageContent,
   pageFile,
+  pageSaving,
   savedRecord,
   type SavedRecord,
   PAGE_KIND,
@@ -366,8 +367,8 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     assert.equal(suggestedName(page), 'trades.csv');
     assert.equal(suggestedName({ ...page, name: 'Q3' }), 'Q3');
     // headless pageRecord: Python's save() naming nothing, saved as the Save window suggests
-    assert.equal(JSON.parse(pageRecordJson('r-1', null, added.page)).name, 'trades.csv');
-    assert.equal(JSON.parse(pageRecordJson('r-1', 'Q4', added.page)).name, 'Q4');
+    assert.equal(JSON.parse(pageRecordJson('r-1', null, added.page, false)).name, 'trades.csv');
+    assert.equal(JSON.parse(pageRecordJson('r-1', 'Q4', added.page, false)).name, 'Q4');
     assert.equal(modelPageName('', suggestedName(page)), 'trades');
     assert.equal(modelPageName('Q3.final', 'x.csv'), 'Q3.final');
     assert.equal(modelPageName('', ''), 'page');
@@ -421,11 +422,11 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     assert.deepEqual(record, { id: 'r-1', name: 'Q4 review', content: pageContent({ ...page, name: 'Q4 review', record: 'r-1' }) });
     assert.deepEqual(savedRecord(' ', page, 'r-1'), { refused: "a page's name is not blank" });
     // headless: the record's text, its numbers exact, its id and the name it is saved under; nothing on the page, refused
-    const said = JSON.parse(pageRecordJson('r-1', 'Q4 review', added)) as { record: string; id: string; name: string };
+    const said = JSON.parse(pageRecordJson('r-1', 'Q4 review', added, false)) as { record: string; id: string; name: string };
     assert.deepEqual([said.id, said.name], ['r-1', 'Q4 review']);
     assert.equal(said.record, toJson(record));
     assert.match(said.record, /12\.30/);
-    assert.deepEqual(JSON.parse(pageRecordJson('r-1', 'Q4', started)), { problems: [NOTHING_TO_SAVE] });
+    assert.deepEqual(JSON.parse(pageRecordJson('r-1', 'Q4', started, false)), { problems: [NOTHING_TO_SAVE] });
   });
 
   it("the saved page it is, kept in the page: saved again, by either editor, over that record; never in a page file (B13)", () => {
@@ -439,7 +440,17 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     assert.equal(readPage(pageToJson(page)).record, 'r-1');
     // saved again, by the other: over r-1, whatever new id it was handed
     assert.equal((savedRecord('Q3', page, 'r-other') as SavedRecord).id, 'r-1');
-    assert.equal(JSON.parse(pageRecordJson('r-other', 'Q3', saved.page)).id, 'r-1');
+    assert.equal(JSON.parse(pageRecordJson('r-other', 'Q3', saved.page, false)).id, 'r-1');
+    // Save As, by either editor (pageSaving; the tab's Save As, Python's save_as(): K13): a new record under the id it was
+    // handed, the page it is saved from left saved as r-1 until it is told otherwise; Save, over r-1
+    const copy = pageSaving('Q3 copy', page, 'r-new', true) as { record: SavedRecord; over: boolean };
+    assert.deepEqual([copy.record.id, copy.record.name, copy.over], ['r-new', 'Q3 copy', false]);
+    assert.equal(readPage(toJson(copy.record.content)).record, 'r-new', 'the copy is the saved page it is');
+    assert.deepEqual(JSON.parse(pageRecordJson('r-new', 'Q3 copy', saved.page, true)).id, 'r-new');
+    assert.equal(JSON.parse(pageRecordJson('r-new', 'Q3 copy', saved.page, true)).over, false);
+    assert.equal(JSON.parse(pageRecordJson('r-new', 'Q3', saved.page, false)).over, true);
+    assert.deepEqual(pageSaving(' ', page, 'r-new', true), { refused: "a page's name is not blank" });
+    assert.throws(() => pageRecordJson('r-new', 'Q3', saved.page, 'yes' as unknown as boolean), /asNew is true or false/);
     // a page file carries none: opened elsewhere, its first save is a new record
     assert.equal(readPage((pageFile(page) as { file: string }).file).record, undefined);
     // its record deleted: the page no saved page any more

@@ -1617,6 +1617,47 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, "a scatter chart has no grouping of its own to show in a grid"):
             scatter.grid()
 
+    def test_saved_pages_are_saved_as_new_listed_and_deleted_as_datacubes_save_as_and_open_do(self):
+        # (K13-K15) the tab's Save As, Open…'s list and its Delete, from Python: each by DataCube's own rule (headless
+        # pageRecord's Save As, pageSearch) and the store's own rules
+        from legend_lite.engine import Engine
+        page = ll.Page('Saved as')
+        page.grid(trades(), name='saved_as_trades', rows=['region'], measures={'notional': 'sum'})
+        first = page.save()
+        # Save As: a new saved page, the first left as it was; the page that one from now on, saved again over it
+        copy = page.save_as('Saved as, again')
+        self.assertNotEqual(copy, first)
+        self.assertEqual(page.to_dict()['record'], copy)
+        self.assertEqual(page.name, 'Saved as, again')
+        engine = Engine(ll.Frames())
+        stored = lambda id: json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{id}', '', None).body)
+        self.assertEqual(stored(first)['name'], 'Saved as')
+        self.assertEqual(stored(copy)['content']['record'], copy)
+        self.assertEqual(page.save(), copy)
+        # listed as Open… lists them: searched by its id or by text in its name, this user's first, newest first
+        listed = ll.Page.saved()
+        self.assertLessEqual({first, copy}, {q['id'] for q in listed})
+        self.assertNotIn('content', listed[0])
+        self.assertEqual([q['id'] for q in ll.Page.saved(first)], [first])
+        self.assertEqual({q['id'] for q in ll.Page.saved('saved as, AGAIN')}, {copy})
+        self.assertEqual(len(ll.Page.saved(limit=1)), 1)
+        created = [q['createdAt'] for q in ll.Page.saved(sort='SORT_BY_CREATE')]
+        self.assertEqual(created, sorted(created, reverse=True), 'newest first')
+        with self.assertRaisesRegex(ValueError, 'a sort is one of SORT_BY_VIEW, SORT_BY_UPDATE, SORT_BY_CREATE'):
+            ll.Page.saved(sort='newest')
+        # deleted as Open… deletes one: gone from the list, and each page saved as it no saved page any more -- saved
+        # again, a new one, as the tab's page is told (savedAs of none)
+        other = ll.Page.open(copy, frames={'saved_as_trades': trades()})
+        ll.Page.delete(copy)
+        self.assertNotIn(copy, {q['id'] for q in ll.Page.saved()})
+        self.assertNotIn('record', page.to_dict())
+        self.assertNotIn('record', other.to_dict())
+        self.assertEqual(page._page_commands[-1], {'kind': 'savedAs', 'record': None})
+        self.assertNotIn(page.save(), (first, copy))
+        self.assertEqual(stored(first)['name'], 'Saved as', 'another saved page, left as it was')
+        with self.assertRaisesRegex(ValueError, "no saved page 'nope' in this user's saved pages"):
+            ll.Page.delete('nope')
+
     def test_a_saved_page_is_opened_by_its_id_as_datacubes_open_opens_it(self):
         # (K12) ll.Page.open: the record from this user's saved pages, opened as Open… opens it (headless pageOfRecord)
         from legend_lite._home import THIS_USER, pages_folder, store_call
@@ -2731,6 +2772,42 @@ class OverClasses(Paged):
         self.assertEqual(page.to_dict(), before)
         with self.assertRaisesRegex(ValueError, "the page has no model of its own"):
             ll.Page('Bare').grid(cls='Trade')
+
+    def test_a_tab_on_the_page_asks_python_for_a_grid_over_a_class_as_page_grid_makes_one(self):
+        # (K16, K17) the tab's Add a Grid over a class and its Classes, on a page Python serves, which has no compiler or
+        # model home of its own here: the class's cube made by DataCube's own code where Python reads it (source.json:
+        # headless sourceCube, page.grid's own), then opened as every grid of the page is (opened.json)
+        page = ll.Page('Classes')
+        path = page.grid(trades(), name='trades').create_class('Trade')
+        model = page.model
+        engine = datacube._session.engine()
+
+        def asked(given, model=model):
+            answer = engine.answer('POST', '/source.json', '', _json.dumps(
+                {'model': None if model is None else _json.dumps(model), 'given': _json.dumps(given), 'page': page.name,
+                 'gridsOnPage': 2}))
+            return answer.status, answer.body.decode('utf-8')
+
+        status, body = asked({'class': 'Trade'})
+        self.assertEqual(status, 200, body)
+        cube = json.loads(json.loads(body)['cube'])
+        grid = page.grid(cls='Trade')
+        self.assertEqual(cube, page.to_dict()['cubes'][-1]['cube'], 'the cube page.grid makes, as the tab asks it')
+        self.assertEqual(cube['source']['class'], path)
+        opened = engine.answer('POST', '/opened.json', '', json.dumps(
+            {'cube': json.dumps(cube), 'page': page.name, 'gridsOnPage': 2}))
+        self.assertEqual(opened.status, 200, opened.body)
+        self.assertEqual(json.loads(opened.body)['how']['mapping'], f"{model['package']}::mapping::Model")
+        # a class of another project, by its path at a revision: the same rule's (class-source.ts classGiven)
+        status, body = asked({'class': path, 'project': model['project'], 'revision': model['revision']})
+        self.assertEqual(status, 200, body)
+        # refused in DataCube's words, and a malformed ask in the route's; asking adds nothing to the page
+        self.assertEqual(asked({'class': 'Trade', 'project': 'other:project', 'revision': 'r1'})[0], 422)
+        self.assertIn("is named by its path as DataCube's writer makes one", asked({'class': 'Trade', 'project': 'other:project', 'revision': 'r1'})[1])
+        self.assertIn('the page has no model of its own', asked({'class': 'Trade'}, model=None)[1])
+        self.assertEqual(engine.answer('POST', '/source.json', '', '{"given": 1}').status, 400)
+        self.assertEqual(len(page.grids), 2)
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 100.0, 250.0])
 
     def test_a_page_over_a_class_is_loaded_read_edited_and_saved(self):
         _, doc = self.classed()

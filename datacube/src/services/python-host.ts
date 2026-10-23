@@ -517,6 +517,12 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
         };
       },
     } : {}),
+    // a new grid's cube over a class, made by Python where it reads the class (K16, K17): this page has no compiler or
+    // model home of its own there
+    ...(offers.files ? {
+      made: async (model: string | null, given: string, page: string, gridsOnPage: number): Promise<string> =>
+        (JSON.parse(await posted(link, 'source.json', { model, given, page, gridsOnPage })) as { cube: string }).cube,
+    } : {}),
     // a join of two of the page's grids, made by Python over its tables -- this page has no database of its own there
     // (B11): each answer DataCube's own code's, run there (headless join.ts), read as the protocol's exact JSON
     ...(offers.files ? {

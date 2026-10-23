@@ -10,7 +10,7 @@ import { openDatabase } from '#test-host';
 import { accessor, eq, from, lit, property, toJson, variable } from '../../pure-protocol/src/index.ts';
 import { projectText } from '../../model-changes/src/project.ts';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { classLambda, classProperties, classRelation, type ClassElement } from '../src/class-source.ts';
+import { classGiven, classLambda, classProperties, classRelation, type ClassElement } from '../src/class-source.ts';
 import { CubeController } from '../src/cube.ts';
 import { rawRows, type ClassSource } from '../src/cube-document.ts';
 import { gridLens } from '../src/page-filters.ts';
@@ -39,6 +39,27 @@ const ELEMENTS: ClassElement[] = [
   { _type: 'class', package: 'a', name: 'Book', properties: [prop('code')] },
   { _type: 'Enumeration', package: 'a', name: 'Side' },
 ];
+
+describe("where a new grid's class is read: the one rule every editor names it by (classGiven: K16, K17)", () => {
+  const MODEL = { project: 'p:q', workspace: 'datacube', package: 'p', tables: {}, revision: 'r1' };
+  it("a class of the page's model by its name or path, at its pin or a revision named; another project's by its path, at a revision", () => {
+    const at = { class: 'p::domain::Trade', project: 'p:q', workspace: 'datacube', revision: 'r1', mapping: 'p::mapping::Model', runtime: 'p::runtime::Browser' };
+    assert.deepEqual(classGiven(MODEL, { class: 'Trade' }, 'Browser'), at);
+    assert.deepEqual(classGiven(MODEL, { class: 'p::domain::Trade', revision: 'r2' }, 'Browser'), { ...at, revision: 'r2' });
+    assert.deepEqual(classGiven(null, { class: 'o::domain::Book', project: 'o:r', revision: 'v3' }, 'Python'), {
+      class: 'o::domain::Book', project: 'o:r', workspace: 'datacube', revision: 'v3', mapping: 'o::mapping::Model', runtime: 'o::runtime::Python',
+    });
+  });
+
+  it('refused in words', () => {
+    assert.equal(classGiven(MODEL, {}, 'Browser'), 'a class is named by its path or its name, not undefined');
+    assert.match(classGiven(null, { class: 'Trade' }, 'Browser') as string, /the page has no model of its own/);
+    assert.match(classGiven(MODEL, { class: 'Book', project: 'o:r', revision: 'v3' }, 'Browser') as string, /is named by its path as DataCube's writer makes one/);
+    assert.match(classGiven(MODEL, { class: 'o::domain::Book', project: 'o:r' }, 'Browser') as string, /is read at a revision of it/);
+    const { revision: _r, ...unpinned } = MODEL;
+    assert.match(classGiven(unpinned, { class: 'Trade' }, 'Browser') as string, /has no saved revision yet/);
+  });
+});
 
 describe('the properties a grid over a class shows', () => {
   it('its own to-one properties of a type a column has, then its supertypes\', in order, each once', () => {

@@ -151,3 +151,16 @@ describe("a join Python makes for a tab on its page: the wire (B11, the review's
     await assert.rejects(pythonDatabase(link, offers('local') as unknown as PythonOffers).join!.sides('PAGE', 'grid', 'grid-9'), /'grid-9' is not a tile of the page/);
   });
 });
+
+describe("a tab's grid over a class, on a page Python serves (K16, K17)", () => {
+  it('asks source.json for the cube page.grid makes -- the page\'s model and the class as their text -- and reads it; refused in its words', async () => {
+    const { link, calls } = python(() => json({ cube: 'CUBE TEXT' }));
+    const made = pythonDatabase(link, offers('local') as unknown as PythonOffers).made!;
+    assert.equal(await made('{"project":"p:q"}', '{"class":"Trade"}', 'Q3', 2), 'CUBE TEXT');
+    assert.deepEqual(calls.map((c) => [c.path, c.auth]), [['/source.json', 'Bearer t0ken']]);
+    assert.deepEqual(JSON.parse(calls[0]!.body), { model: '{"project":"p:q"}', given: '{"class":"Trade"}', page: 'Q3', gridsOnPage: 2 });
+    const refused = python(() => ({ ...json({}, 422), text: async () => 'the project has no class Nope' }) as unknown as Response);
+    await assert.rejects(pythonDatabase(refused.link, offers('local') as unknown as PythonOffers).made!(null, '{"class":"Nope"}', 'Q3', 1),
+      /the project has no class Nope/);
+  });
+});

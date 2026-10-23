@@ -59,8 +59,8 @@ import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
-import { classAt, className, writerClass, writerPackageOf, type ClassAt } from '../class-source.ts';
-import { PAGE_WORKSPACE, type PageModelRef } from '../page-model.ts';
+import { classGiven, className } from '../class-source.ts';
+import type { PageModelRef } from '../page-model.ts';
 import { sharedPart, type SharedQuery } from '../../../query-store/src/share.ts';
 import { joinOpenedOn } from './join.ts';
 import { base64 } from './web.ts';
@@ -219,10 +219,8 @@ export async function leafCube(leaf: HostLeaf, host: HostTables, name: string, g
  * WHAT PYTHON NAMES A NEW GRID'S SOURCE BY (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X4: page.grid's `cls=`, `query=`,
  * `warehouse=`), as the source the tab records when it adds a grid over it, its columns still to be typed -- read by the
  * cube's own reader (readCubeSource), refused in its words:
- * - a class (`{class, project?, revision?}`), read as the tab's Add a Grid reads one (class-source.ts classAt): the
- *   page's project at its pin unless `revision` names another, the class by its path or by its name where DataCube's
- *   writer makes it (writerClass); a class of another project by its path, at a `revision`, read through what the
- *   writer makes beside it (its package's `mapping::Model`, the `place`'s runtime) in DataCube's workspace;
+ * - a class (`{class, project?, revision?}`), by the one rule the tab's Classes and Add a Grid over a class name it by
+ *   too (class-source.ts classGiven: K16, K17);
  * - a saved query by its store's record (`{record}`): what the tab writes down of one (query-store sharedPart);
  * - a warehouse table (`{warehouse, catalog, table}`, its table `schema.name`, as the cube names it).
  */
@@ -230,34 +228,8 @@ export function givenSource(model: PageModelRef | null, given: Readonly<Record<s
   ClassSource | QuerySource | WarehouseSource | string {
   try {
     if (given['class'] !== undefined) {
-      const { class: cls, project, revision } = given;
-      if (typeof cls !== 'string' || cls === '') return `a class is named by its path or its name, not ${JSON.stringify(cls)}`;
-      if (project !== undefined && (typeof project !== 'string' || project === '')) return `a project is named group:artifact, not ${JSON.stringify(project)}`;
-      if (revision !== undefined && (typeof revision !== 'string' || revision === '')) return `a revision is named by its id, not ${JSON.stringify(revision)}`;
-      let ref: PageModelRef;
-      let path: string;
-      if (project === undefined || project === model?.project) {
-        if (model === null) return "the page has no model of its own: name the class's project (project=...) and its revision";
-        path = cls.includes('::') ? cls : writerClass(model.package, cls);
-        ref = revision === undefined ? model : { ...model, revision };
-      } else {
-        // read through what DataCube's writer makes beside the class: its package's mapping and the place's runtime
-        const pkg = writerPackageOf(cls);
-        if (pkg === undefined) {
-          return `a class of ${project} is named by its path as DataCube's writer makes one (package::domain::Name), not ${JSON.stringify(cls)}`;
-        }
-        if (revision === undefined) return `a class of ${project} is read at a revision of it: name it (revision=...)`;
-        path = cls;
-        ref = { project, workspace: PAGE_WORKSPACE, package: pkg, tables: {}, revision };
-      }
-      let at: ClassAt;
-      try {
-        at = classAt(ref, path, place);
-      } catch (e) {
-        // its one refusal, in its words: the page's project has no saved revision to read the class at
-        if (ref.revision !== undefined || !(e instanceof Error)) throw e;
-        return e.message;
-      }
+      const at = classGiven(model, given, place);
+      if (typeof at === 'string') return at;
       return readCubeSource({ _type: 'class', name: className(at.class), ...at, columns: [] }) as ClassSource;
     }
     if (given['record'] !== undefined) {
