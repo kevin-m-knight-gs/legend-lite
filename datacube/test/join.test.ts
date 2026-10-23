@@ -247,7 +247,7 @@ describe('a join in words', () => {
   });
 
   // the user, 2026-10-23: a right-click's Join ▸, a quick join to each grid sharing a column
-  it('quick joins: one per other grid -- on the column clicked when it has it, else its first key -- those first', () => {
+  it('quick joins on the column clicked: each other grid with a key on it, one each, in the page\'s order', () => {
     const mine = side('orders', [['customer_id', 'Integer'], ['sym', 'String'], ['region', 'String']]);
     const others = [
       { ...side('customers', [['id', 'Integer'], ['region', 'String']]), id: 'grid-2' },
@@ -255,10 +255,12 @@ describe('a join in words', () => {
       { ...side('labels', [['code', 'String']]), id: 'grid-4' },
     ];
     const say = (q: ReturnType<typeof quickJoins>) => q.map((j) => `${j.their} ${j.row.left}=${j.row.right}`);
-    assert.deepEqual(say(quickJoins(mine, others)), ['grid-2 customer_id=id', 'grid-3 sym=sym']);
-    assert.deepEqual(say(quickJoins(mine, others, 'sym')), ['grid-3 sym=sym', 'grid-2 customer_id=id']);
-    assert.deepEqual(say(quickJoins(mine, others, 'region')), ['grid-2 region=region', 'grid-3 sym=sym'], 'the column clicked, where a grid has it');
-    assert.deepEqual(quickJoins(mine, [others[2]!]), [], 'nothing shared: none');
+    assert.deepEqual(say(quickJoins(mine, others, 'customer_id')), ['grid-2 customer_id=id'], 'their id under their name');
+    assert.deepEqual(say(quickJoins(mine, others, 'sym')), ['grid-3 sym=sym']);
+    assert.deepEqual(say(quickJoins(mine, others, 'region')), ['grid-2 region=region']);
+    const both = [...others, { ...side('more', [['sym', 'String'], ['region', 'String']]), id: 'grid-5' }];
+    assert.deepEqual(say(quickJoins(mine, both, 'region')), ['grid-2 region=region', 'grid-5 region=region'], 'each grid with it, in order');
+    assert.deepEqual(quickJoins(mine, others, 'nope'), [], 'no grid has it: none');
   });
 
   it("a quick join's how: all of mine and matching only as a join, their columns whole; mine with or without a match", () => {

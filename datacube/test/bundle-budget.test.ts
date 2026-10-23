@@ -260,8 +260,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  and the filter a frozen chart keeps (chart-spec.ts chartState, ChartSpec.kept, its pill's menu), a part fetched after
  *  the site updated said in words (lazily.ts), a tile added under the one it came from (bands.ts add), and the samples
  *  the start page and the join example are written down as (sample-trades.ts sampleTradesCsv, samples.ts's desk trades
- *  and countries) -- the samples are the source picker's, which every page carries). Measured 320,489. */
-const BUDGET = 321_000;
+ *  and countries) -- the samples are the source picker's, which every page carries). Measured 320,489.
+ *  321,000 -> 322,500 (2026-10-23, the user's right-click Join ▸ and one Create ▸ in every menu: the quick joins built as
+ *  the menu opens -- each grid's keys suggested (join-how.ts suggestedKeys and quickJoins, moved from the join's own
+ *  chunk), the menu's entries (app/join-menu.ts) -- Create ▸'s one list (menu.ts createItems), a grid's status-bar note
+ *  (app.ts note); the join itself, its window and its flow still fetched with the first join). Measured 321,971. */
+const BUDGET = 322_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -342,8 +346,10 @@ const BUDGET = 321_000;
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
  *  306,214.
  *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694.
- *  310,000 -> 311,000 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 310,535. */
-const ENGINE_BUDGET = 311_000;
+ *  310,000 -> 311,000 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 310,535.
+ *  311,000 -> 312,500 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
+ *  312,050. */
+const ENGINE_BUDGET = 312_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -475,8 +481,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  324,000 -> 324,500 (2026-10-22, step S5's B5, Z18, B4 and B13 -- the engine page's note of the same date). Measured
  *  324,039.
  *  324,500 -> 328,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 327,491.
- *  328,000 -> 329,500 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 328,843. */
-const WIDGET_BUDGET = 329_500;
+ *  328,000 -> 329,500 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 328,843.
+ *  329,500 -> 331,000 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
+ *  330,421. */
+const WIDGET_BUDGET = 331_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -81,8 +81,7 @@ async function joinWindow() {
 const will = () => page.$$eval('.dc-join-will-line', (ls) => ls.map((l) => l.textContent));
 /** A right-click on a cell of `column` in `tile`, as a person does it. */
 async function rightClickIn(tile, column) {
-  const col = await tile.locator(`.dc-th[data-column="${column}"]`).first().getAttribute('data-col');
-  await tile.locator(`.dc-row .dc-cell[data-col="${col}"]`).first().click({ button: 'right' });
+  await tile.locator(`.dc-row .dc-cell[data-column="${column}"]`).first().click({ button: 'right' });
 }
 /** The entries of a right-click submenu, by its label, once it is pointed at. */
 async function submenu(label) {

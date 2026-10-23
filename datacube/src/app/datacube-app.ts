@@ -38,8 +38,8 @@ import {
   type SavedDocument,
 } from '../page-document.ts';
 import { joinInputOf, type PageCommand } from '../page-commands.ts';
-import { quickJoins, type JoinRow, type QuickForm } from '../join-how.ts';
 import type { JoinAsk } from './join-flow.ts';
+import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
@@ -71,10 +71,6 @@ const CREATE_DATA_SPACE = { id: 'host.createDataSpace', label: 'Data Space\u2026
 const CLASS_GRID_ID = 'host.classGrid' as const;
 /** JOIN… (§17.5): a grid joined to another of the page, the rows they make together a grid beside them. */
 const JOIN = { id: 'host.join', label: 'Join\u2026', section: 'data' } as const;
-/** A right-click's Join ▸ ▸ Join…, and Join a Data Source…; and how many grids' quick joins it lists at most. */
-const JOIN_WINDOW = 'host.join.window' as const;
-const JOIN_SOURCE = 'host.join.source' as const;
-const QUICK_JOINS = 6;
 
 /** What the app opens first. */
 export type AppStart =
@@ -1284,51 +1280,22 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           .catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
       },
     };
-    // A GRID'S RIGHT-CLICK JOIN ▸ (the user, 2026-10-23: "a fast option to join to another grid with the same column name
-    // and type, then more complex options, then the full join"): all of mine joined at once to each grid of the page
-    // sharing a column with it (join-how.ts quickJoins: the column clicked first) -- made unless it would repeat rows of
-    // mine, when the window opens on it (join-flow.ts); the other ways of each; the window on the column clicked; and a
-    // join to a data source not on the page yet. A pivoted grid joins as no fixed columns: none offered.
+    // A GRID'S RIGHT-CLICK JOIN ▸, as its Filter ▸ (join-menu.ts): the page's grids it can join gathered here, as it
+    // opens -- the grid's own and every other's columns, a pivoted one (no fixed columns) left out
     if (joinGrid) {
       const joins = joinGrid;
+      const joinable = (id: string): boolean => { const p = sources.place(id); return p !== undefined && joins.offered(p); };
       joinMenuOf = (cube, column) => {
-        const asks = new Map<string, JoinAsk>();
         const now = page.document(page.title);
-        const place = sources.place(cube);
-        if (!now || !place || !joins.offered(place)) return { items: [], asks };
+        if (!now || !joinable(cube)) return { items: [], asks: new Map() };
         const input = (id: string) => {
           const i = joinInputOf(now, id);
           return { id, name: i.name, columns: i.query.columns, pivoted: i.query.pivotOn.length > 0 };
         };
         const mine = input(cube);
-        if (mine.pivoted) return { items: [], asks };
-        const others = page.grids.filter((id) => id !== cube && (() => { const p = sources.place(id); return p !== undefined && joins.offered(p); })())
-          .map(input).filter((o) => !o.pivoted);
-        const quick = quickJoins(mine, others, column).slice(0, QUICK_JOINS);
-        const on = (row: JoinRow): string => (row.left === row.right ? row.left : `${row.left} = ${row.right}`);
-        const items: MenuItem[] = [];
-        quick.forEach((q, i) => {
-          const id = `host.join.with.${i}` as const;
-          asks.set(id, { their: q.their, row: q.row, quick: 'left' });
-          items.push({ id, label: `With ${q.name} on ${on(q.row)}` });
-        });
-        if (quick.length === 0) items.push({ label: others.length > 0 ? 'No other grid shares a column with this one' : 'No other grid on the page to join', disabled: true });
-        const other: MenuItem[] = [];
-        const ways: readonly [QuickForm, (name: string) => string][] = [
-          ['inner', (n) => `Matching only, with ${n}`], ['semi', (n) => `Mine with a match in ${n}`], ['anti', (n) => `Mine with none in ${n}`],
-        ];
-        quick.forEach((q, i) => ways.forEach(([form, words], w) => {
-          const id = `host.join.way.${i}.${form}` as const;
-          asks.set(id, { their: q.their, row: q.row, quick: form });
-          other.push({ id, label: `${words(q.name)} on ${on(q.row)}`, ...(w === 0 && i > 0 ? { separated: true } : {}) });
-        }));
-        if (other.length > 0) items.push({ label: 'Other Ways', submenu: other });
-        // the window: at the grid the column clicked joins, on its key, when one does
-        const first = quick.find((q) => q.row.left === column) ?? quick[0];
-        asks.set(JOIN_WINDOW, first ? { their: first.their, ...(first.row.left === column ? { row: first.row } : {}) } : {});
-        items.push({ id: JOIN_WINDOW, label: 'Join\u2026', separated: true, ...(others.length > 0 ? {} : { disabled: true }) });
-        if (picker) items.push({ id: JOIN_SOURCE, label: 'Join a Data Source\u2026' });
-        return { items, asks };
+        if (mine.pivoted) return { items: [], asks: new Map() };
+        const others = page.grids.filter((id) => id !== cube && joinable(id)).map(input).filter((o) => !o.pivoted);
+        return joinMenu({ column, mine, others, source: picker !== undefined });
       };
       joinSource = (cube) => {
         if (cube === undefined) return;

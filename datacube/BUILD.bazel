@@ -480,6 +480,7 @@ _HEADLESS_TESTS = [
     "infer",
     "join",
     "join-inputs",
+    "join-menu",
     "join-open",
     "json-shape",
     "lazily",

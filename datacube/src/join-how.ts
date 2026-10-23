@@ -186,19 +186,17 @@ export interface QuickJoin {
 }
 
 /**
- * A GRID'S QUICK JOINS (its right-click's Join ▸; the user, 2026-10-23: "a fast option to join to another grid with the
- * same column name and type"): one for each other grid with a key to suggest (suggestedKeys: their name's id, or a column
- * both have of one type) -- on the column clicked when that grid has it, else its first suggestion -- those on the column
- * clicked first, then in the page's order. One per grid: a grid made of this one shares every column of it, and a list
- * of each would bury the one meant. A grid that joins as no fixed columns (a pivoted one) is its caller's to leave out.
+ * A GRID'S QUICK JOINS ON THE COLUMN CLICKED (its right-click's Join ▸, as its Filter ▸ is the value clicked; the user,
+ * 2026-10-23: "a fast option to join to another grid with the same column name and type ... only if clicked on a column"):
+ * each other grid with a key on that column to suggest (suggestedKeys: a column of its of the same name and type, or its
+ * id under its name), in the page's order, one each. A grid that joins as no fixed columns (a pivoted one) is its
+ * caller's to leave out.
  */
-export function quickJoins(mine: JoinColumns, others: readonly (JoinColumns & { readonly id: string })[], clicked?: string): QuickJoin[] {
-  const all = others.flatMap((o) => {
-    const keys = suggestedKeys(mine, o);
-    const key = keys.find((k) => k.row.left === clicked) ?? keys[0];
+export function quickJoins(mine: JoinColumns, others: readonly (JoinColumns & { readonly id: string })[], clicked: string): QuickJoin[] {
+  return others.flatMap((o) => {
+    const key = suggestedKeys(mine, o).find((k) => k.row.left === clicked);
     return key ? [{ their: o.id, name: o.name, row: key.row, why: key.why }] : [];
   });
-  return [...all.filter((q) => q.row.left === clicked), ...all.filter((q) => q.row.left !== clicked)];
 }
 
 /** The forms a quick join is made in: all of mine (a lookup), matching only, mine with a match, mine with none. */
