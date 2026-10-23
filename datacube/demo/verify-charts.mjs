@@ -235,9 +235,13 @@ try {
     // a target of 1: the total is above it, which is good
     await fieldNamed('Target:').locator('input').fill('1');
     await fieldNamed('Target:').locator('input').dispatchEvent('change');
+    // a stat tile (2026-10-23): the difference from the target coloured good or bad, then in words; a meter of it
     const target = page.locator(`[data-tile="${id}"] .dc-kpi-target`);
     await target.waitFor({ timeout: 20_000 });
-    if (!(await target.getAttribute('class')).includes('dc-kpi-good')) throw new Error(`the target says ${await target.textContent()}, not good`);
+    const delta = target.locator('.dc-kpi-delta');
+    const said = `${await delta.textContent()} ${await target.locator('.dc-kpi-words').textContent()}`;
+    if (!(await delta.getAttribute('class')).includes('dc-kpi-good')) throw new Error(`the target says ${said}, not good`);
+    if (!(await page.locator(`[data-tile="${id}"] .dc-kpi-meter.dc-kpi-good`).count())) throw new Error('no meter of the target, good');
     // its trend by the grid's first row group: a line drawn under the number
     const across = await fieldNamed('Trend by:').locator('option').nth(1).getAttribute('value');
     await fieldNamed('Trend by:').locator('select').selectOption(across);
@@ -245,7 +249,7 @@ try {
     const saved = await page.evaluate((c) => window.__dataPage.views().views.find((v) => v.id === c)?.spec, id);
     if (saved.mark !== 'kpi' || saved.options.target !== 1 || saved.x !== across) throw new Error(`saved as ${JSON.stringify(saved)}`);
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('kpi.png') }); }
-    return `${id}: ${value}, ${await target.textContent()}, its trend by ${across}`;
+    return `${id}: ${value}, ${said}, its trend by ${across}`;
   });
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the

@@ -490,8 +490,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  329,500 -> 331,000 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
  *  330,421.
  *  331,000 -> 332,000 (2026-10-23, the grid's menu button gone and a long press as the right-click -- the grid's note of
- *  the same date). Measured 331,244. */
-const WIDGET_BUDGET = 332_000;
+ *  the same date). Measured 331,244.
+ *  332,000 -> 332,500 (2026-10-23, KPIs as stat tiles: the tile's headline, meter and change lines in the chart panel,
+ *  their styles, and the headline format the grid's formatter writes -- the drawing itself is the chart chunk's).
+ *  Measured 332,006. */
+const WIDGET_BUDGET = 332_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
