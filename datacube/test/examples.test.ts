@@ -74,7 +74,7 @@ describe('the example pages', () => {
       const source = cube(id).source;
       assert.ok(source._type === 'file' && source.sample?.id === sample, `${id} is the ${sample} sample`);
     }
-    // the joins: each over the two tables as their grids were, by the key the Join… window suggests
+    // the joins: each over the two tables as their grids were, by ISO code
     const joined = cube('joined').source;
     const unmatched = cube('unmatched').source;
     assert.ok(joined._type === 'join' && unmatched._type === 'join');

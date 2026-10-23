@@ -25,7 +25,8 @@ export const COUNTRY_SPECS: readonly ColumnSpec[] = [
   { name: 'population_m', type: 'Float', kind: 'measure' },
 ];
 
-/** What each order is joined to its country by: its ISO code (the key the Join… window suggests -- the same values). */
+/** What each order is joined to its country by: its ISO code, a key with one spelling each side (the Join… window
+ *  suggests the column both name `country`; a code is the surer key). */
 const ON = { rows: [{ left: 'country_code', op: '==', right: 'code' }] } as const;
 const ALL_OF_MINE: JoinHow = { form: 'join', kind: 'left', on: ON, prefix: 'their_', keep: null };
 const MINE_WITH_NONE: JoinHow = { form: 'anti', on: ON };

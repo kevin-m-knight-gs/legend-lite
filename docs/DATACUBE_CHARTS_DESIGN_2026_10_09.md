@@ -445,6 +445,15 @@ presets shared by the chart and the grid; an example page per batch, a sheet per
 and cross-filtering are not ported from the old `datacube-charts` branch: program step F1 rebuilds them on classes.
 Batch 2 is built on the session branch `claude/epic-rubin-ay7upl`, from main.
 
+**Decided (the user, 2026-10-23: "frozen charts ... don't freeze filters, seems to only freeze pivots"):** a chart has
+three states, one word each, set from its pill's menu (`chart-spec.ts` `chartState`, Python's `chart.state`):
+**Dynamic** follows its grid -- its grouping, its filters and the page's clicks; **Pinned** keeps its own grouping (a
+hand on its axes pins it, as "frozen" did before) and still follows the grid's filters and clicks; **Frozen** keeps its
+grouping and the grid's filter as it was when frozen (`ChartSpec.kept`), so a filter put on the grid after, or a click
+on another chart, leaves it as it was. A kept filter naming a column the cube has lost is said
+(`chartProblems`), never dropped. The same day, one gallery page of every kind (`examples/charts-gallery.ts`) leads the
+Open window's examples, each sheet fitting its window.
+
 **Open:**
 
 1. **Regions beyond countries and their provinces** (UK regions, EU regions): not planned; Natural Earth's provinces
