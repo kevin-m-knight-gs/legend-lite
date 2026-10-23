@@ -255,8 +255,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  every gesture's meaning in one module the screen's controls and Python's grid.gesture share -- grid-gestures.ts, its
  *  refusals in words, about 2.8 KB gzipped, and page-gestures.ts, 0.8 KB -- app.ts and the menu losing their copies,
  *  about 1 KB; making the gestures load later would put the selection-off path behind an await, F93's order). Measured
- *  318,627. */
-const BUDGET = 319_000;
+ *  318,627.
+ *  319,000 -> 321,000 (2026-10-23, the user's bulletproofing round: a chart's three states -- Dynamic, Pinned, Frozen --
+ *  and the filter a frozen chart keeps (chart-spec.ts chartState, ChartSpec.kept, its pill's menu), a part fetched after
+ *  the site updated said in words (lazily.ts), a tile added under the one it came from (bands.ts add), and the samples
+ *  the start page and the join example are written down as (sample-trades.ts sampleTradesCsv, samples.ts's desk trades
+ *  and countries) -- the samples are the source picker's, which every page carries). Measured 320,489. */
+const BUDGET = 321_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -336,8 +341,9 @@ const BUDGET = 319_000;
  *  306,000 -> 306,500 (2026-10-22, step S5's B8, B14, B6, B5, Z18, B4 and B13 -- the grid's note of the same date, and
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
  *  306,214.
- *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694. */
-const ENGINE_BUDGET = 310_000;
+ *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694.
+ *  310,000 -> 311,000 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 310,535. */
+const ENGINE_BUDGET = 311_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -468,8 +474,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  the one "nothing to save" sentence, DataCube's, which Python says too). Measured 323,533.
  *  324,000 -> 324,500 (2026-10-22, step S5's B5, Z18, B4 and B13 -- the engine page's note of the same date). Measured
  *  324,039.
- *  324,500 -> 328,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 327,491. */
-const WIDGET_BUDGET = 328_000;
+ *  324,500 -> 328,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 327,491.
+ *  328,000 -> 329,500 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 328,843. */
+const WIDGET_BUDGET = 329_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

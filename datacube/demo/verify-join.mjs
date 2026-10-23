@@ -1,8 +1,8 @@
 // JOIN… as a person does it (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5, the browser): two CSVs opened, the first
 // grid's Join… -- the key suggested, what it will do said before it is applied (the trades with no customer, the one
 // customer listed twice) -- a new grid of the rows they make together; then the trades with no customer, a second join;
-// both saved, reloaded and opened again, each file asked for once. The model of both tables, the join and each count are
-// the tab's own module's, run on its DuckDB.
+// both saved, reloaded and opened again, each file asked for once; the start page saved and joined; the join example opened.
+// The model of both tables, the join and each count are the tab's own module's, run on its DuckDB.
 //
 //   bazel test //datacube:verify_join_test        bazel run //datacube:verify_join (by hand)
 
@@ -267,6 +267,34 @@ try {
     `the saved start page reopens, its sample rebuilt, nothing asked: ${start.said} ${start.asked}`);
   await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length === 1, undefined, { timeout: 60_000 })
     .then(() => check(true, 'the start page reopened: its one grid'), async () => bad(`grids open: ${await page.locator('.dc-tile-menu').count()}`));
+
+  // THE JOIN EXAMPLE (the user, 2026-10-23: join prep was on the site, but nothing showed it): opened from Open…'s
+  // examples, its two samples made in this tab and its two joins made again -- every order beside its country, by
+  // continent, charted; the orders whose country the table lacks (Singapore's) -- nothing asked for
+  await page.click('.dc-titlebar-menu');
+  await item('Open…').click();
+  await page.locator('#cubeswin .dc-open-example[data-example="prep-joins"]').click();
+  await page.waitForFunction(() => (window.__dataPage?.views().views ?? []).some((v) => v.id === 'joined'), undefined, { timeout: 120_000 });
+  /** What a tile's grid shows, its rows' text, once it shows `want`. */
+  const shown = async (id, want) => {
+    await page.waitForFunction(([t, w]) => [...document.querySelectorAll(`[data-tile="${t}"] .dc-row`)].some((r) => (r.textContent ?? '').includes(w)),
+      [id, want], { timeout: 120_000 }).catch(() => undefined);
+    return page.locator(`[data-tile="${id}"] .dc-row`).evaluateAll((rows) => rows.map((r) => r.textContent ?? '').join(' | '));
+  };
+  const countries = await shown('countries', 'Mexico');
+  check(/Mexico/.test(countries) && /South Africa/.test(countries) && !/Singapore/.test(countries),
+    `the countries sample, made in the tab: Mexico and South Africa, no Singapore (${countries.slice(0, 120)}…)`);
+  await page.locator('.dc-sheet-tab[data-sheet="sheet-2"]').click();
+  const joinedRows = await shown('joined', 'Europe');
+  check(['Europe', 'North America', 'South America', 'Asia', 'Oceania'].every((c) => joinedRows.includes(c)) && !joinedRows.includes('Africa'),
+    `every order by its country's continent -- none in Africa, where it sells nothing (${joinedRows.slice(0, 160)}…)`);
+  await page.locator('[data-tile="by-continent"] .dc-chartpanel-chart canvas').waitFor({ timeout: 60_000 })
+    .then(() => check(true, 'the chart of the join draws'), async () => bad(`the chart of the join: ${await page.locator('[data-tile="by-continent"]').textContent()}`));
+  await page.locator('.dc-sheet-tab[data-sheet="sheet-3"]').click();
+  const unmatchedRows = await shown('unmatched', 'Singapore');
+  check(/Singapore/.test(unmatchedRows) && !/Germany|Japan|United States/.test(unmatchedRows),
+    `the orders with no country: Singapore's alone (${unmatchedRows.slice(0, 120)})`);
+
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
 } catch (e) {

@@ -482,6 +482,7 @@ _HEADLESS_TESTS = [
     "join-inputs",
     "join-open",
     "json-shape",
+    "lazily",
     "lite-planner",
     "menu",
     "menu-more",

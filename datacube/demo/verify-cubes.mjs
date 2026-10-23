@@ -615,7 +615,9 @@ try {
     const chart = page.locator('[data-tile^="chart-"]').first();
     await chart.waitFor({ timeout: 20_000 });
     const id = await chart.getAttribute('data-tile');
+    // pinned through its pill's menu (Dynamic / Pinned / Frozen): a chart that keeps its grouping outlives its grid
     await chart.locator('.dc-tile-actions .dc-titlebar-toggle').click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Pinned \u2014 / }) }).first().click();
     await page.locator('[data-tile="grid-2"] .dc-tile-remove').click();
     await page.locator('[data-tile="grid-2"]').waitFor({ state: 'detached', timeout: 10_000 });
     const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`).textContent();

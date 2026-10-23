@@ -79,8 +79,16 @@ try {
     await insert('Visualization');
     await drawn();
   };
-  /** A chart's Dynamic / Frozen / Detached pill. */
+  /** A chart's Dynamic / Pinned / Frozen / Detached pill. */
   const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+  /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
+  const choose = async (id, state) => {
+    await pill(id).click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+      .first().click();
+    await page.waitForFunction(([c, s]) => document.querySelector(`[data-tile="${c}"] .dc-tile-actions .dc-titlebar-toggle`)?.textContent === s,
+      [id, state], { timeout: 5_000 });
+  };
   /** A chart's right-click menu entry. */
   const chartMenu = async (id, label) => {
     await page.locator(`[data-tile="${id}"] .dc-chart-tile`).click({ button: 'right' });
@@ -102,9 +110,9 @@ try {
     return list.map((c) => `${c.title}: ${c.x} by ${c.split}`).join('; ');
   });
 
-  await check('Freeze keeps one chart\'s grouping while the other follows a pivot', async () => {
+  await check('Pinned keeps one chart\'s grouping while the other follows a pivot', async () => {
     const [a, b] = await charts();
-    await pill(a.id).click();
+    await choose(a.id, 'Pinned');
     await settle();
     await mainChip(before[1]).click();
     await settle();
@@ -202,7 +210,7 @@ try {
     await drawn();
     const ids = await page.locator('[data-tile^="chart-"]').evaluateAll((els) => els.map((e) => e.dataset.tile));
     const [frozenId, followingId] = ids.slice(-2);
-    await pill(frozenId).click();
+    await choose(frozenId, 'Pinned');
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('grids.png') }); }
     await page.locator(`[data-tile="${gridId}"] .dc-tile-remove`).click();
     await settle();
@@ -242,7 +250,8 @@ try {
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the
   // sales sample it makes itself; on each of its sheets every chart draws -- batch 2's, then batch 3's kinds
-  for (const [example, marker, least] of [['charts-dashboard', 'c-bars', 20], ['charts-kinds', 'k-lollipop', 20]]) {
+  // the gallery too (the user, 2026-10-23): one of each kind, every sheet fitting its window
+  for (const [example, marker, least] of [['charts-gallery', 'g-bar', 32], ['charts-dashboard', 'c-bars', 20], ['charts-kinds', 'k-lollipop', 20]]) {
     await check(`the example page ${example} opens from Open…, and every chart on every sheet draws`, async () => {
       await page.click('.dc-titlebar-menu');
       const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();
