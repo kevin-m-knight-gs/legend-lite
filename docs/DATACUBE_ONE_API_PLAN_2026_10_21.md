@@ -1614,7 +1614,18 @@ Python: the dialect line's, said in IN_FLIGHT; `PublishedQueries` asserts the re
 
 - *A cube alone gives no chart a grid of its own.* It saves its own grid and its charts alone, so a chart moved onto
   another grid there would be lost on save: Show Grid only shows a following chart's grid there (found by the test
-  rewrite; tested by chart-tiles.test.ts and cube-page-shell.test.ts).
+  rewrite; tested by chart-tiles.test.ts and cube-page-shell.test.ts). Since 2026-10-23 the greyed-out entry says so
+  on hover (`MenuItem.hint`).
+- *Show Grid on every chart kind (the user, 2026-10-23).* It was refused on a scatter, a scatter matrix, a map, a
+  gauge, a KPI, a treemap, a sunburst, a tree and a chart with nothing across ("no grouping of its own"), so those
+  could never show the grid behind them. One rule now decides, chart-spec.ts `showGridWay`, asked by the screen and by
+  headless `chartOwnGrid`: the grid the chart reads is shown when it holds what the chart draws -- a following chart;
+  a treemap, sunburst or tree (each draws the grid as shown); a pinned chart that takes nothing of its grid's grouping
+  (a scatter's rows, a map's places, a gauge's or KPI's one figure). Otherwise `chartGrid` makes the chart's own grid,
+  grouped as the chart groups it: a scatter's rows as they are with only its plotted columns shown; a map by its
+  places (a bubble map's latitude and longitude too); a gauge's or KPI's one figure as the grid's total; a treemap's
+  grid as it drew it. Tested by chart-rules.test.ts (`Show Grid on every kind`), cube-page-shell.test.ts and
+  test_page.py.
 - *Python names, never toggles.* `chart.select(value)` keeps a mark selected when named again; a click's toggle is the
   screen's (D8). A period or a bin across (a range ending where the database says) is not selected from Python, nor a
   mark of a chart whose marks are not values across (a scatter, a treemap, a stream): refused in words.
