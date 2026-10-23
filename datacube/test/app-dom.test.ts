@@ -515,6 +515,26 @@ describe('the app', () => {
     own.dispose();
   });
 
+  it('Group Rows by a dimension naming a column the grid lacks: refused in words, the rows as they were', async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const said: string[] = [];
+    const own = new CubeApp(host, SNAPSHOT, {
+      engine, planner, dimensions: [{ name: 'Ghost', columns: ['nope'] }], onStatus: (text) => said.push(text),
+    });
+    await own.open();
+    (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
+    pick('Properties...');
+    const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
+    [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    buttonIn(tab, 'Group Rows by Ghost').click();
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(own.snapshot.rows, ['region'], 'the rows as they were');
+    assert.ok(said.some((t) => /Ghost' names nope, which the grid does not have/.test(t)), `said: ${said.join(' | ')}`);
+    own.dispose();
+  });
+
   it('a disposed app no longer answers the shortcuts', () => {
     const undoKey = () => dom.window.document.dispatchEvent(
       new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));

@@ -3219,11 +3219,12 @@ export class CubeApp {
 
   // -- dimensions ----------------------------------------------------------
 
-  /** A named dimension used (the Dimensions tab, a host's): the grid grouped by its first level (grid-gestures.ts
-   *  view.dimension), by the command the Rows zone builds. */
-  #useDimension(dimension: Dimension): void {
+  /** A named dimension used (the Dimensions tab's Group Rows by): the grid grouped by its first level (grid-gestures.ts
+   *  view.dimension, which refuses in words a dimension the grid lacks or whose columns it lacks), by the command the
+   *  Rows zone builds. */
+  #useDimension(name: string): void {
     if (this.#cubeOnly()) return;
-    void this.#gesture('view.dimension', { name: dimension.name, move: 'use' }, `dimension ${dimension.name}`);
+    void this.#gesture('view.dimension', { name, move: 'use' }, `dimension ${name}`);
   }
 
   // -- the dialogs ----------------------------------------------------------
@@ -3271,10 +3272,7 @@ export class CubeApp {
           onApply: (draft, base) => this.#applyDraft(draft, base),
           onClose: close,
           // the Dimensions tab's own: once the draft is applied, the rows grouped by a dimension, or Ad Hoc Analysis
-          onUseDimension: (name) => {
-            const found = this.#dimensions().find((d) => d.name === name);
-            if (found) this.#useDimension(found);
-          },
+          onUseDimension: (name) => this.#useDimension(name),
           onAdHoc: () => void this.enterAdHoc(),
           ...(column !== undefined ? { initialColumn: column } : {}),
         },
