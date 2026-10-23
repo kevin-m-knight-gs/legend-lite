@@ -980,12 +980,14 @@ class Chart(Tile):
 
     def grid(self) -> Grid:
         """Its grid, as DataCube's Show Grid shows it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D7; DataCube's code,
-        headless chartOwnGrid: chart-spec.ts chartGrid, the screen's rule): the grid it follows; or -- frozen, or detached
-        (its grid removed) -- a grid of its own grouping and query, made beside it, which it follows from then on, drawn
-        as it was: its column across and its split the grid's rows, its values the grid's Column Properties, its
-        selection, and on a grid over a class its page filter, taken off as ``select(None)`` would (followGrid's own
-        rule, the screen's Show Grid's too). Refused in DataCube's words for a
-        chart with no grouping of its own (a scatter, a treemap, a map, a gauge)."""
+        headless chartOwnGrid: chart-spec.ts showGridWay and chartGrid, the screen's rule): the grid it reads, when that
+        grid holds what it draws (it follows it; or it draws it as shown, a treemap; or, pinned, it takes nothing of its
+        grouping, a scatter, a map, a gauge); else -- its grouping or its filter its own, or its grid removed -- a grid of
+        its own query, made beside it, which it follows from then on, drawn as it was: grouped as the chart groups it (its
+        column across and its split; a scatter's rows as they are, its plotted columns shown; a map by its places; a
+        gauge's one figure the grid's total), its values the grid's Column Properties, its selection, and on a grid over
+        a class its page filter, taken off as ``select(None)`` would (followGrid's own rule, the screen's Show Grid's
+        too)."""
         view = self._view
         page, cube = self._page, view['cube']
         page._current(cube, 3)

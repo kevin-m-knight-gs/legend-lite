@@ -1635,10 +1635,16 @@ class Abilities(Paged):
         self.assertEqual(made._query['rows'], ['region'])
         self.assertEqual(sorted(c['id'] for c in page.to_dict()['cubes']), sorted([own._view['cube'], made._view['cube']]))
         self.assertNotIn('frozen', lone._view['spec'])
-        # refused in DataCube's words: a chart with no grouping of its own
+        # every chart has a grid (the user, 2026-10-23): a pinned scatter takes nothing of its grid's grouping, so its
+        # grid is the one it reads; frozen -- the filter it keeps its own -- its rows in one of its own, ungrouped, its
+        # plotted columns shown
         scatter = own.chart('scatter', x='notional', y=[('pnl', 'sum')], frozen=True)
-        with self.assertRaisesRegex(ValueError, "a scatter chart has no grouping of its own to show in a grid"):
-            scatter.grid()
+        self.assertEqual(scatter.grid().id, own.id)
+        scatter.state = 'frozen'
+        rows = scatter.grid()
+        self.assertNotEqual(rows.id, own.id)
+        self.assertEqual(rows._query['rows'], [])
+        self.assertEqual(scatter.state, 'dynamic', 'it follows its own grid')
 
     def test_saved_pages_are_saved_as_new_listed_and_deleted_as_datacubes_save_as_and_open_do(self):
         # (K13-K15) the tab's Save As, Open…'s list and its Delete, from Python: each by DataCube's own rule (headless

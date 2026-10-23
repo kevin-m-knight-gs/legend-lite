@@ -35,7 +35,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { CHART_STATES, chartGrid, MAP_MARKS, ownGridRefusal, type ChartSpec, type ChartState } from '../chart-spec.ts';
+import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
 import { chartPicked, type PageFilter } from '../page-filters.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
@@ -1206,9 +1206,10 @@ export class CubePage {
     body.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       const spec = panel.spec;
-      // its grid shown: the one it follows, or one of its own grouping made (D7: Show Grid) -- on a page of its own
-      // (#ownGridRefusal: a cube alone saves its own grid alone)
-      const shows = spec !== null && ((link.grid !== null && !panel.frozen) || this.#ownGridRefusal(spec) === null);
+      // SHOW GRID (D7; the user, 2026-10-23: on every chart): the grid it reads shown, or one of its own made
+      // (chart-spec.ts showGridWay) -- off, and why said on the entry, only where no grid of its own can be made
+      const way = spec === null ? null : showGridWay(spec, link.grid !== null);
+      const refused = way === 'own' ? this.#ownGridRefusal() : null;
       this.#menuFor = (item) => {
         if (item.id === 'tile.options') panel.toggleForm();
         if (item.id === 'tile.grid') this.#showGrid(id);
@@ -1220,7 +1221,7 @@ export class CubePage {
       this.#menu.show([
         { label: '', items: [
           { id: 'tile.options', label: 'Options...' },
-          { id: 'tile.grid', label: 'Show Grid', ...(shows ? {} : { disabled: true }) },
+          { id: 'tile.grid', label: 'Show Grid', ...(way !== null && refused === null ? {} : { disabled: true, ...(refused ? { hint: refused } : {}) }) },
         ] },
         // a page of sheets: this chart onto another, or a new one (its grid stays where it is, and it follows it)
         // locked: offered disabled, with nothing under it
@@ -1617,14 +1618,13 @@ export class CubePage {
     const chart = this.#charts.get(chartId);
     const spec = chart?.panel.spec;
     if (!chart || !spec) return;
-    if (chart.link.grid !== null && !chart.panel.frozen) {
+    if (chart.link.grid !== null && showGridWay(spec, true) === 'reveal') {
       this.#reveal(chart.link.grid);
       return;
     }
-    if (this.#ownGridRefusal(spec) !== null) return;
+    if (this.#ownGridRefusal() !== null) return;
     const source = this.#sourceOf(chart.link);
     const made = chartGrid({ snapshot: source.snapshot, config: source.configuration }, spec, chart.conditions);
-    if (typeof made === 'string') return;
     const from = chart.link.grid ?? chart.link.detached?.from;
     if (from === undefined) return;
     this.addGridOver(this.#gridLike(from, source, made.snapshot, made.configuration), {
@@ -1635,13 +1635,12 @@ export class CubePage {
   }
 
   /**
-   * Why a frozen or detached chart gets no grid of its own here, in words (chart-spec.ts ownGridRefusal), or null. A cube
-   * alone's board saves its own grid and its charts alone (app.ts pageViews): a chart moved onto another grid there would
-   * be lost when the cube is saved, so it is never moved -- Show Grid only shows the grid a chart follows.
+   * Why a chart gets no grid of its own here, in words, or null. A cube alone's board saves its own grid and its charts
+   * alone (app.ts pageViews): a chart moved onto another grid there would be lost when the cube is saved, so it is never
+   * moved -- Show Grid only shows the grid a chart reads.
    */
-  #ownGridRefusal(spec: ChartSpec): string | null {
-    if (this.#options.grid !== undefined) return "a cube alone saves its own grid alone: a chart's own grid needs a page";
-    return ownGridRefusal(spec);
+  #ownGridRefusal(): string | null {
+    return this.#options.grid !== undefined ? "A cube on its own keeps its one grid: a chart's own grid needs a page." : null;
   }
 
   /** A sheet's layout as the page has it (P7): set whenever the board is put at a page. */
