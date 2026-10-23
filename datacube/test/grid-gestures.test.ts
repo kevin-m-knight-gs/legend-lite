@@ -10,7 +10,7 @@ import { element } from '../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts';
 import { applyGridCommands, readGridCommand } from '../src/grid-commands.ts';
 import {
-  GRID_GESTURES, columnOrderOf, gestureReadsView, gridGesture, isGridGesture, type GestureGrid, type GestureView,
+  GRID_GESTURES, columnOrderOf, gestureReadsView, gridGesture, gridGestureGiven, isGridGesture, type GestureGrid, type GestureView,
 } from '../src/grid-gestures.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot } from '../src/snapshot.ts';
 import { TREE_COLUMN } from '../src/treeview.ts';
@@ -58,8 +58,8 @@ describe('the row groups and the pivot', () => {
   });
 
   it("Measures First turns the setting the other way; an excluded column says so as Column Properties' setting", () => {
-    assert.deepEqual(gridGesture('pivot.measuresFirst', grid()), [{ kind: 'configure', patch: { pivotMeasuresFirst: true } }]);
-    assert.deepEqual(gridGesture('pivot.measuresFirst', grid({}, { ...DEFAULT_CONFIGURATION, pivotMeasuresFirst: true })),
+    assert.deepEqual(gridGesture('pivot.measuresFirst', grid(), {}), [{ kind: 'configure', patch: { pivotMeasuresFirst: true } }]);
+    assert.deepEqual(gridGesture('pivot.measuresFirst', grid({}, { ...DEFAULT_CONFIGURATION, pivotMeasuresFirst: true }), {}),
       [{ kind: 'configure', patch: { pivotMeasuresFirst: null } }]);
     assert.deepEqual(gridGesture('pivot.exclude', grid(), { column: 'notional' }),
       [{ kind: 'configure', patch: { columns: { notional: { excludedFromPivot: true } } } }]);
@@ -67,10 +67,25 @@ describe('the row groups and the pivot', () => {
 });
 
 describe("the columns' presentation", () => {
+  it("a setting a column has already, or a group it is not in taken out, is nothing to tell (the S8 audit's 6)", () => {
+    const config = withColumns({ desk: { pinned: 'left', hidden: true, width: 120 }, notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } });
+    assert.deepEqual(gridGesture('column.pinLeft', grid({}, config), { column: 'desk' }), []);
+    assert.deepEqual(gridGesture('column.hide', grid({}, config), { column: 'desk' }), []);
+    assert.deepEqual(gridGesture('column.resize', grid({}, config), { column: 'desk', width: 120 }), []);
+    assert.deepEqual(gridGesture('column.unpin', grid(), { column: 'desk' }), [], 'no pin to take off');
+    assert.deepEqual(gridGesture('heatmap.remove', grid(), { column: 'notional' }), [], 'no heatmap to take off');
+    assert.deepEqual(gridGesture('heatmap.add', grid({}, config), { column: 'notional' }), [], 'the heatmap it has');
+    assert.deepEqual(gridGesture('pivot.removeVertical', grid(), { column: 'desk' }), [], 'not a row group');
+    assert.deepEqual(gridGesture('pivot.removeHorizontal', grid(), { column: 'year' }), [], 'not pivoted on');
+    // and one it has not, told
+    assert.deepEqual(gridGesture('column.pinRight', grid({}, config), { column: 'desk' }),
+      [{ kind: 'configure', patch: { columns: { desk: { pinned: 'right' } } } }]);
+  });
+
   it('Unpin All unpins every pinned column, and is nothing when none is', () => {
-    assert.deepEqual(gridGesture('column.unpinAll', grid({}, withColumns({ desk: { pinned: 'left' }, year: { pinned: 'right' }, region: {} }))),
+    assert.deepEqual(gridGesture('column.unpinAll', grid({}, withColumns({ desk: { pinned: 'left' }, year: { pinned: 'right' }, region: {} })), {}),
       [{ kind: 'configure', patch: { columns: { desk: { pinned: null }, year: { pinned: null } } } }]);
-    assert.deepEqual(gridGesture('column.unpinAll', grid()), []);
+    assert.deepEqual(gridGesture('column.unpinAll', grid(), {}), []);
   });
 
   it("a reorder is merged into the grid's whole order, a column dragged in from the panel shown with it", () => {
@@ -93,7 +108,7 @@ describe("the columns' presentation", () => {
     assert.deepEqual(gridGesture('column.minimize', grid({}, config), { column: 'desk' }),
       [{ kind: 'configure', patch: { columns: { desk: { width: 70 } } } }]);
     assert.deepEqual(gridGesture('column.minimize', grid({}, config), { column: 'notional' }), [], 'fixed');
-    assert.deepEqual(gridGesture('column.minimizeAll', grid({}, config)),
+    assert.deepEqual(gridGesture('column.minimizeAll', grid({}, config), {}),
       [{ kind: 'configure', patch: { columns: { desk: { width: 70 } } } }], 'the tree column and a fixed one left');
   });
 
@@ -105,10 +120,11 @@ describe("the columns' presentation", () => {
   });
 
   it("a heatmap goes on a pivoted column's measure, so every value's column has it; a total's is its own", () => {
-    assert.deepEqual(gridGesture('heatmap.add', grid(), { column: '2021__|__notional' }),
+    assert.deepEqual(gridGesture('heatmap.add', grid({ pivotOn: ['year'] }), { column: '2021__|__notional' }),
       [{ kind: 'configure', patch: { columns: { notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } } } }]);
     const total = pivotTotalColumn('notional');
-    assert.deepEqual(gridGesture('heatmap.remove', grid(), { column: total }),
+    const heated = withColumns({ [total]: { heatmap: { from: '#ffffff', to: '#ff8a65' } } });
+    assert.deepEqual(gridGesture('heatmap.remove', grid({ pivotOn: ['year'] }, heated), { column: total }),
       [{ kind: 'configure', patch: { columns: { [total]: { heatmap: null } } } }]);
   });
 
@@ -134,32 +150,44 @@ describe('sorts, the tree and a dimension', () => {
     assert.deepEqual(gridGesture('view.dimension', grid({ rows: [] }), { name: 'Book', move: 'use' }), [{ kind: 'group', rows: ['region'] }]);
     assert.deepEqual(gridGesture('view.dimension', grid(), { name: 'Book', move: 'down' }), [{ kind: 'group', rows: ['region', 'desk'] }]);
     refused(() => gridGesture('view.dimension', grid(), { name: 'Geo', move: 'use' }), /the grid has no dimension 'Geo' \(its dimensions: Book\)/);
-    refused(() => gridGesture('view.dimension', grid(), { name: 'Book', move: 'sideways' }), /used, drilled down or drilled up/);
+    refused(() => gridGestureGiven('view.dimension', grid(), { name: 'Book', move: 'sideways' }), /used, drilled down or drilled up/);
   });
 });
 
 describe('what a gesture is given', () => {
-  it('an argument it does not take, or one it needs and is not given, is refused in words', () => {
-    refused(() => gridGesture('column.pinLeft', grid(), { column: 'desk', side: 'left' }), /'column.pinLeft' takes column, not side/);
-    refused(() => gridGesture('column.pinLeft', grid(), {}), /'column.pinLeft' needs column/);
-    refused(() => gridGesture('sort.clearAll', grid(), { column: 'desk' }), /'sort.clearAll' takes nothing, not column/);
-    refused(() => gridGesture('column.resize', grid(), { column: 'desk', width: 'wide' }), /a column's width is a number of pixels/);
+  it('named by text (a menu entry, Python), an argument it does not take, or one it needs and is not given, is refused in words', () => {
+    refused(() => gridGestureGiven('column.pinLeft', grid(), { column: 'desk', side: 'left' }), /'column.pinLeft' takes column, not side/);
+    refused(() => gridGestureGiven('column.pinLeft', grid(), {}), /'column.pinLeft' needs column/);
+    refused(() => gridGestureGiven('sort.clearAll', grid(), { column: 'desk' }), /'sort.clearAll' takes nothing, not column/);
+    refused(() => gridGestureGiven('column.resize', grid(), { column: 'desk', width: 'wide' }), /a column's width is a number of pixels/);
+    refused(() => gridGestureGiven('nope', grid(), {}), /'nope' is no gesture of a grid's: sort\.asc, /);
+    refused(() => gridGestureGiven('sort.clearAll', grid(), ['x']), /a gesture's arguments are given by name/);
+    // the same table as a control's: what one makes, the other does
+    assert.deepEqual(gridGestureGiven('pivot.addVertical', grid(), { column: 'desk' }), gridGesture('pivot.addVertical', grid(), { column: 'desk' }));
   });
 
   it("given from JSON, its commands are read by the commands' own reader, as Python's are (headless gridGesture)", () => {
-    const read = (name: Parameters<typeof gridGesture>[0], args: Record<string, unknown>) => gridGesture(name, grid(), args).map(readGridCommand);
+    const read = (name: string, args: Record<string, unknown>) => gridGestureGiven(name, grid(), args).map(readGridCommand);
     refused(() => read('filter.add', { column: 'desk', operator: 'nearly', value: 'FX' }), /a condition's operator is one of/);
     refused(() => read('tree.open', { path: 'EMEA', open: true }), /a group's path is its keys/);
-    refused(() => gridGesture('tree.open', grid(), { path: ['EMEA'], open: 'yes' }), /opened is true or false/);
+    refused(() => gridGestureGiven('tree.open', grid(), { path: ['EMEA'], open: 'yes' }), /opened is true or false/);
   });
 
-  it('a gesture that reads the view is said to; one given no view refuses to guess', () => {
-    assert.deepEqual(GRID_GESTURES.filter(gestureReadsView), ['header.sort', 'column.minimizeAll', 'heatmap.add', 'heatmap.remove']);
-    assert.throws(() => gridGesture('heatmap.add', grid({}, DEFAULT_CONFIGURATION, null), { column: 'notional' }), /given none/);
+  it('a gesture that reads the view is said to -- the heatmap only where a pivoted leaf can be named; one given no view refuses to guess', () => {
+    const pivoted: CubeSnapshot = { ...CUBE, pivotOn: ['year'] };
+    assert.deepEqual(GRID_GESTURES.filter((n) => gestureReadsView(n, pivoted, { column: '2021__|__notional' })),
+      ['header.sort', 'column.minimizeAll', 'heatmap.add', 'heatmap.remove']);
+    // a grid not pivoted, a column of the grid's own, a pivot's total: no view to read, the grid not run for it
+    assert.equal(gestureReadsView('heatmap.add', CUBE, { column: 'notional' }), false);
+    assert.equal(gestureReadsView('heatmap.add', pivoted, { column: 'notional' }), false);
+    assert.equal(gestureReadsView('heatmap.add', pivoted, { column: pivotTotalColumn('notional') }), false);
+    assert.deepEqual(gridGesture('heatmap.add', grid({}, DEFAULT_CONFIGURATION, null), { column: 'notional' }),
+      [{ kind: 'configure', patch: { columns: { notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } } } }]);
+    assert.throws(() => gridGesture('heatmap.add', grid({ pivotOn: ['year'] }, DEFAULT_CONFIGURATION, null), { column: '2021__|__notional' }), /given none/);
     assert.equal(isGridGesture('copy.selection'), false, 'the clipboard is the screen\'s own');
   });
 
-  it("each gesture's commands apply: what it makes, the grid can take", () => {
+  it("a gesture's commands apply: what it makes, the grid takes", () => {
     const d = { snapshot: CUBE, config: DEFAULT_CONFIGURATION };
     assert.deepEqual(applyGridCommands(d, gridGesture('pivot.addVertical', grid(), { column: 'desk' })).snapshot.rows, ['region', 'desk']);
   });

@@ -974,6 +974,37 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   headless too, or the screen's own, said why. Its first run found three the inventory missed: page-commands.ts
   selectionRefilters (the tab's page undo), rebuiltCommands (the tab opening a served page) -- the screen's own, listed
   -- and applyToState, an applier, not a maker (one-api-ledger.test.ts)
+- [x] **A50** a gesture's arguments in screen code were an untyped record, values passed on cast: a misnamed or mistyped
+  argument compiled (S8's review, 2026-10-23) -- fixed: GridGestureArgs, a control's gesture typed (gridGesture), one
+  named by text checked as it comes (gridGestureGiven) (grid-gestures.test.ts)
+- [x] **A51** L11 could not see a gesture's meaning decided before the call -- a list made, the grid's state read, in its
+  arguments (S8's review) -- fixed: L11's fourth check (one-api-ledger.test.ts)
+- [x] **A52** pageCommand wrote its fields unchecked, not as Python's builder does (S8's review) -- fixed: written from
+  PAGE_COMMAND_FIELDS, in order, a field the list has not thrown (page-gestures.test.ts)
+- [x] **A53** Python's grid.gesture sent a value JSON has no form for (a decimal, a date) untagged (S8's review) -- fixed:
+  tagged as add_filter's are, untagged by headless gridGesture (test_page.py)
+- [x] **A54** a sheet renamed to the label it shows, with no name of its own, told a rename that changes nothing (S8's
+  review) -- fixed: renameSheetCommand takes the label shown (page-gestures.test.ts)
+- [x] **A55** L8 credited headless pageGesture with every page command written in page-gestures.ts, not the two its
+  table makes (the S8 audit's 1) -- fixed: the table and the functions it calls alone, pinned (one-api-ledger.test.ts)
+- [x] **A56** L11 did not read an async function that makes commands, its last check passed whatever headless called (a
+  declaration or a comment counted), and its screen files and spellings left gaps (the S8 audit's 2, 3, 4) -- fixed:
+  async makers read, headless read as code, the grid's DOM, Ad Hoc mode's screens, the charts' drawing and the model
+  actions' flows screen files, any quoting of a kind, a kind chosen in screen code refused (one-api-ledger.test.ts)
+- [x] **A57** Python's grid.gesture could not give a gesture its own `name` argument (`view.dimension`,
+  `column.editCalculated`): a TypeError (the S8 audit's 5) -- fixed: the gesture's name positional (test_page.py)
+- [x] **A58** a gesture that changes nothing made a command all the same -- a group it is not in taken out, a heatmap it
+  has not taken off, a pin or a width it has: recorded on Python's page and followed by an open tab as another editor's
+  edit, its undo history cleared (the S8 audit's 6) -- fixed: none made (grid-gestures.test.ts; test_page.py)
+- [x] **A59** Python's heatmap ran the grid's whole query for a view it needs only on a pivoted leaf (the S8 audit's 8)
+  -- fixed: the view read only where a pivoted leaf can be named (grid-gestures.test.ts)
+- [x] **A60** a comment and a test said what is no longer so (the menu's exhaustiveness by applyMenuAction, a test of
+  one gesture titled as of each, As built's claim every gesture's commands are read), and menu-ids counted a gesture a
+  menu entry cannot carry the arguments of as handled (the S8 audit's 9) -- fixed (menu-ids.test.ts)
+- [x] **A61** declared by the S8 audit: menu steps named by their entries, Minimize All of the columns shown, no step for
+  a gesture that changes nothing, a disabled entry's refusal said (its 7: As built's behaviour changes); Chart.grid()'s
+  one more call for Show Grid's two steps, a moment's (its 8); the races, the ordering and Python's locking clean
+- [x] **A62** the columns panel's pick had no test through the app (S8's review) -- fixed: app-dom.test.ts
 
 ## 5. The steps
 
@@ -1625,8 +1656,9 @@ where the menu has the gesture (`pivot.addVertical`, `column.unpinAll`, `heatmap
 names of the same form where it has none (`zones.set`, `columns.reorder`, `tree.open`, `column.resize`, `view.chrome`,
 `header.sort`, `chart.refilter`, `view.dimension`, `column.calculate`, `filter.set`). Each takes the grid as it is
 (`GestureGrid`: its state, its dimensions, and -- for the four that read it, flagged -- the headers it paints and its
-pivot's columns) and its arguments by name, refuses an argument it does not take or is not given, and has its commands
-read by the commands' own reader (readGridCommand), as a command Python builds is. The screen keeps pixels only: Auto-size
+pivot's columns) and its arguments by name, refuses an argument it does not take or is not given; given from Python's
+JSON, its commands are read by the commands' own reader (readGridCommand), as a command Python builds is (the screen's,
+typed, are not: the reader stays out of the page's first download). The screen keeps pixels only: Auto-size
 measures the content and Size to Fit the widths drawn, then hand the numbers to `columns.autoSize` and
 `columns.sizeToFit`, whose floor, ceiling and scaling moved out of app.ts. The menu's dispatch is one line
 (`ui/menu.ts menuGesture`: the entry's id and what it carries of what the gesture takes); `menuCommand` and
@@ -1677,6 +1709,30 @@ JupyterLab's tests never ran) and found three reds: menu-ids.test.ts (a gesture'
 one menuGesture makes), the headless roster (the two new test files listed) and the bundle budgets (raised, above).
 After them, the whole local set: 205 of 205 targets green, and `//datacube:verify_app_test` and `//python:wheel_test`
 green. This run is also S7's fourth round's (its own was stopped by the user's no-more-CI word).
+
+**Behaviour changes, deliberate.** Minimize All minimizes the columns the grid shows (it took hidden ones too); a column
+picked in the columns panel that is a row group already changes nothing (it was refused, named twice); a gesture that
+changes nothing makes no undo step (Unpin All with none pinned did not either; Minimize with every column fixed did);
+a menu entry's undo step is named as the entry is ("Collapse All", not "collapse all").
+
+**The review's fixes (2026-10-23, the user: "do the fixes").** After a look back at S8 found its own weak spots:
+- *Arguments typed.* `gridGesture` takes each gesture's arguments as `GridGestureArgs` types them, so a misnamed or
+  mistyped argument in screen code does not compile (it had been an untyped record, checked only when run); a gesture
+  named by text -- a menu entry's, Python's -- goes through `gridGestureGiven`, checked as it comes. One table behind
+  both (`made`); headless asks the second, and L11 counts the two as one.
+- *L11's fourth check:* a screen's gesture arguments make no list and read no state of the grid -- the blind spot the
+  first three left (`zones.set` given `[...rows, c]` decides in screen code what `pivot.addVertical` decides).
+- *pageCommand written from the field lists,* as Python's builders are: the fields in `PAGE_COMMAND_FIELDS`' order, an
+  optional one not given left out, a field the list has not thrown.
+- *Python's gesture values tagged* (a decimal, a date) as `add_filter`'s are, and untagged by headless gridGesture.
+- *A sheet renamed to the label it shows,* with no name of its own, tells nothing (renameSheet would take it as none:
+  an empty undo step).
+- *An independent audit of S8* (the program's rule for every step), read-only over the commit: the races, the ordering
+  of a click's refilter against `#untold` (F91, F93) and Python's locking (D15) clean; every converted page-board site the
+  same commands; nine findings -- guard holes, Python's `name`, commands for nothing, a query the heatmap did not need,
+  words gone stale -- each fixed or declared (A55-A61). The review's own: A50-A54, A62. After them, the whole local set
+  again: 204 of 205 green, the one red the new Python test's own last check (written before its dimension step changed
+  the row groups), fixed and green; `//datacube:verify_app_test` and `//python:wheel_test` green.
 
 **Next.** D19, the single writer's client side, with H-5, H-11, H-13, F90's race and F97; and the user's answers on the
 Python names (S8's surface; Y-6, H-9: Save As, delete and list; Y-7, H-8: the tab's class grid on a Python host).

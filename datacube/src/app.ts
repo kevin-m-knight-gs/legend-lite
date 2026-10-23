@@ -47,7 +47,9 @@ import { findAll, type AppliedProperty, type ValueSpecification } from '../../pu
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
-import { gridGesture, type GestureArgs, type GestureGrid, type GridGestureName } from './grid-gestures.ts';
+import {
+  gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
+} from './grid-gestures.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -2052,7 +2054,7 @@ export class CubeApp {
     // away (#gesture).
     const gesture = menuGesture(item);
     if (gesture !== null) {
-      void this.#gesture(gesture.name, gesture.args, item.label);
+      void this.#gestureGiven(gesture.name, gesture.args, item.label);
       return;
     }
     const column = item.column;
@@ -2216,7 +2218,7 @@ export class CubeApp {
   #autoSize(columns: readonly string[] | null): void {
     // the content's widths are the screen's to measure; the widths they size the columns to, the gesture's
     // (grid-gestures.ts columns.autoSize, its floor and ceiling)
-    const commands = this.#gestured('columns.autoSize', { widths: this.#grid.measureColumns(columns ?? undefined) });
+    const commands = this.#gestured((g) => gridGesture('columns.autoSize', g, { widths: this.#grid.measureColumns(columns ?? undefined) }));
     if (typeof commands === 'string') return;
     if (commands.length === 0) {
       this.#status('nothing to resize', 'warn');
@@ -2280,10 +2282,11 @@ export class CubeApp {
   }
 
   /** A gesture's commands (grid-gestures.ts: the one rule Python's grid.gesture asks too) on the grid as it is -- none
-   *  when it would change nothing -- or, refused, its words, said. */
-  #gestured(name: GridGestureName, args: GestureArgs): GridCommand[] | string {
+   *  when it would change nothing -- or, refused, its words, said. `make`: the gesture, a control's (gridGesture, its
+   *  arguments typed) or a menu entry's (gridGestureGiven). */
+  #gestured(make: (grid: GestureGrid) => GridCommand[]): GridCommand[] | string {
     try {
-      return gridGesture(name, this.#gestureGrid(), args);
+      return make(this.#gestureGrid());
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       this.#status(e.message, 'warn');
@@ -2291,12 +2294,23 @@ export class CubeApp {
     }
   }
 
-  /** A gesture made: its commands applied as one step named `label` (#apply), none when it changes nothing. The
-   *  refusal, the gesture's words or the commands', or null. */
-  async #gesture(name: GridGestureName, args: GestureArgs, label: string): Promise<string | null> {
-    const commands = this.#gestured(name, args);
-    if (typeof commands === 'string') return commands;
-    return commands.length === 0 ? null : this.#apply(commands, label);
+  /** A control's gesture made: its commands applied as one step named `label` (#apply), none when it changes nothing.
+   *  The refusal, the gesture's words or the commands', or null. */
+  async #gesture<N extends GridGestureName>(name: N, args: GridGestureArgs[N], label: string): Promise<string | null> {
+    return this.#applyMade(this.#gestured((g) => gridGesture(name, g, args)), label);
+  }
+
+  /** A menu entry's gesture (ui/menu.ts menuGesture: named by the entry's id, given what the entry carries), made as a
+   *  control's is, its arguments checked as they come. */
+  async #gestureGiven(name: string, args: GestureArgs, label: string): Promise<string | null> {
+    return this.#applyMade(this.#gestured((g) => gridGestureGiven(name, g, args)), label);
+  }
+
+  /** Commands a gesture made applied as one step (#apply, called before this returns, so a host is told them in the
+   *  order made), none when they change nothing; a refusal, said already, handed back. */
+  #applyMade(made: GridCommand[] | string, label: string): Promise<string | null> {
+    if (typeof made === 'string') return Promise.resolve(made);
+    return made.length === 0 ? Promise.resolve(null) : this.#apply(made, label);
   }
 
   // -- selection -------------------------------------------------------
@@ -2638,7 +2652,7 @@ export class CubeApp {
       // followed as its change is -- never told back, no step of its own history; the person's own, a step of this
       // grid's, told after any of its own still running (the S7 confirmation audit's G2-2, B2-3)
       unselected: (old, theirs) => {
-        const off = this.#gestured('chart.refilter', { remove: old, add: [] });
+        const off = this.#gestured((g) => gridGesture('chart.refilter', g, { remove: old, add: [] }));
         if (typeof off === 'string') return;
         // the person's own step while the click that put the selection there is still to be told (its refilter in
         // flight): told after it, as the grid's own, so a host takes them in the order made (the S7 confirmation

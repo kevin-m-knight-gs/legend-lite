@@ -507,6 +507,19 @@ describe('the app', () => {
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
   });
 
+  it("a column double-clicked in the columns panel groups by it, last: the menu's Add Vertical Pivot (S8)", async () => {
+    // the panel's pick is the gesture pivot.addVertical (grid-gestures.ts), the one Python's add_group asks; what an
+    // app before this one tells late is let land first (its `commands` is this test's array)
+    await new Promise((r) => setTimeout(r, 0));
+    const from = commands.length;
+    const row = root.querySelector('.dc-tool-panel-row[data-column="desk"]');
+    assert.notEqual(row, null, 'the panel lists desk');
+    row!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(commands.slice(from), [{ kind: 'group', rows: ['region', 'desk'] }]);
+  });
+
   it('a measure dropped in the row zone is REFUSED', () => {
     setHeaderDrag({ column: 'notional' }, root.querySelector('.dc-zone-rows'));
     (

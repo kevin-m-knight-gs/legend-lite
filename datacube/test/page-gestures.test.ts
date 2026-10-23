@@ -50,10 +50,14 @@ describe('a hand move, told as what the hand did', () => {
 
 describe("a sheet's name and place", () => {
   it('renamed by the names\' one rule: trimmed; a blank is none of its own; the name it has, nothing', () => {
-    assert.deepEqual(renameSheetCommand('s1', '  Risk ', undefined), { kind: 'renameSheet', sheet: 's1', name: 'Risk' });
-    assert.deepEqual(renameSheetCommand('s1', '   ', 'Risk'), { kind: 'renameSheet', sheet: 's1', name: null });
-    assert.equal(renameSheetCommand('s1', 'Risk', 'Risk'), null);
-    assert.equal(renameSheetCommand('s1', undefined, undefined), null);
+    assert.deepEqual(renameSheetCommand('s1', '  Risk ', undefined, 'Trades'), { kind: 'renameSheet', sheet: 's1', name: 'Risk' });
+    assert.deepEqual(renameSheetCommand('s1', '   ', 'Risk', 'Risk'), { kind: 'renameSheet', sheet: 's1', name: null });
+    assert.equal(renameSheetCommand('s1', 'Risk', 'Risk', 'Risk'), null);
+    assert.equal(renameSheetCommand('s1', undefined, undefined, 'Trades'), null);
+    // with no name of its own, the label it shows is none of its own either (renameSheet's rule): nothing to tell
+    assert.equal(renameSheetCommand('s1', ' Trades ', undefined, 'Trades'), null);
+    // with a name of its own, the label it would show without it takes that name off: told
+    assert.deepEqual(renameSheetCommand('s1', 'Trades', 'Risk', 'Risk'), { kind: 'renameSheet', sheet: 's1', name: 'Trades' });
   });
 
   it("moved within the order's ends; where it is, nothing", () => {
@@ -84,7 +88,14 @@ describe("Show Grid's steps, the one rule the screen's and Python's ask", () => 
 });
 
 describe('a command of the person\'s input alone', () => {
-  it('is its kind and its fields, as Python\'s generated builder writes it', () => {
+  it('is its kind and its fields, as Python\'s generated builder writes it: in its list\'s order, an optional one not given left out', () => {
     assert.deepEqual(pageCommand('renameTile', { tile: 'g1', title: 'Book' }), { kind: 'renameTile', tile: 'g1', title: 'Book' });
+    const filter = { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } as const;
+    const made = pageCommand('setPageFilter', { from: null, condition: filter, class: 'x::Trade' });
+    assert.deepEqual(Object.keys(made), ['kind', 'class', 'condition', 'from'], 'id? not given: left out; the rest in order');
+    assert.deepEqual(Object.keys(pageCommand('setPageFilter', { id: 'f1', class: 'x::Trade', condition: filter, from: null })),
+      ['kind', 'id', 'class', 'condition', 'from']);
+    // a field the list has not, forced past the types: thrown, never written
+    assert.throws(() => pageCommand('removeTile', { tile: 'g1', extra: 1 } as unknown as { tile: string }), /a 'removeTile' command has no field extra/);
   });
 });

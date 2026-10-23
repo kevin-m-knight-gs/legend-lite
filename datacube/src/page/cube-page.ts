@@ -752,7 +752,7 @@ export class CubePage {
     if (!sheet) return;
     // the names' one rule (page-gestures.ts renameSheetCommand, page-names.ts givenName): trimmed, a blank none of its
     // own (named after its first grid); none, the name it has
-    const command = renameSheetCommand(id, name, sheet.name);
+    const command = renameSheetCommand(id, name, sheet.name, this.#options.sheetLabel?.(id));
     if (command !== null) this.#tell('Rename Sheet', command);
   }
 

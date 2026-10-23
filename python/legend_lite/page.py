@@ -399,7 +399,7 @@ class Grid(Tile):
 
     def remove_group(self, column: str) -> Grid:
         """Grouped by ``column`` no more, the other row groups kept in order, as the menu's Remove Vertical Pivot and a
-        drag out of the Rows zone take it off (the gesture ``pivot.removeVertical``)."""
+        drag out of the Rows zone take it off (the gesture ``pivot.removeVertical``); not a row group, nothing changes."""
         return self._gesture('pivot.removeVertical', {'column': column})
 
     def pivot(self, *columns: str) -> Grid:
@@ -413,22 +413,24 @@ class Grid(Tile):
 
     def remove_pivot(self, column: str) -> Grid:
         """Pivoted on ``column`` no more, as the menu's Remove Horizontal Pivot and a drag out of the Columns zone take
-        it off (the gesture ``pivot.removeHorizontal``)."""
+        it off (the gesture ``pivot.removeHorizontal``); not pivoted on, nothing changes."""
         return self._gesture('pivot.removeHorizontal', {'column': column})
 
     def heatmap(self, column: str, on: bool = True) -> Grid:
         """A heatmap on ``column`` -- or, ``on=False``, off -- as the header menu's Add Heatmap and Remove Heatmap paint
         it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted column's measure, so every value's column
-        under it has it; a pivot total's its own."""
+        under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
         return self._gesture('heatmap.add' if on else 'heatmap.remove', {'column': column})
 
-    def gesture(self, name: str, **args: Any) -> Grid:
+    def gesture(self, name: str, /, **args: Any) -> Grid:
         """Any gesture a person makes on the grid, by its name -- the menu's own ids where the menu has it
         (``'column.pinLeft'``, ``'column.unpinAll'``, ``'pivot.measuresFirst'``, ``'columns.reorder'``, ...: DataCube's
         GRID_GESTURES) -- given its arguments by name (``column='desk'``), made by the one function the screen's control
         calls (grid-gestures.ts gridGesture, headless gridGesture): what a gesture means is DataCube's alone (docs/
         DATACUBE_ONE_API_PLAN_2026_10_21.md S8). Refused in DataCube's words: a gesture a grid has not, an argument it
-        does not take or is not given; one that would change nothing changes nothing."""
+        does not take or is not given. One that changes nothing -- a column added to the row groups it is in already, a
+        setting a column has already, a group it is not in taken out -- makes no command. ``name`` is positional, so a
+        gesture's own ``name`` argument (``view.dimension``'s, ``column.editCalculated``'s) can be given."""
         return self._gesture(name, args)
 
     def _gesture(self, name: str, args: Mapping[str, Any]) -> Grid:
@@ -437,7 +439,8 @@ class Grid(Tile):
         self._page._current(self._view['cube'], 5)
         engine, frames = self._headless()
         with frames.reading():
-            said = json.loads(engine.call('gridGesture', self._spec(engine, frames), name, _json.dumps(dict(args))))
+            # each value JSON has no form for tagged, as a filter's is (D12): DataCube untags it
+            said = json.loads(engine.call('gridGesture', self._spec(engine, frames), name, _json.dumps(_tagged(dict(args)))))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         if not said['commands']:

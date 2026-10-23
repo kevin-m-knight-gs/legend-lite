@@ -1464,6 +1464,21 @@ class Abilities(Paged):
         self.assertNotIn('desk', grid._cube['configuration']['columns'])
         grid.gesture('pivot.addVertical', column='region')
         self.assertEqual(grid._query['rows'], ['desk', 'region'])
+        # a value JSON has no form for carried tagged, as add_filter carries it (D12): a decimal's exact text
+        grid.gesture('filter.add', column='notional', operator='greaterThan', value=Decimal('99.5'))
+        self.assertEqual(page._commands[-1], {'kind': 'addFilter', 'condition': {
+            'kind': 'condition', 'column': 'notional', 'operator': 'greaterThan', 'value': '99.5'}})
+        grid.gesture('filter.clearAll')
+        # a gesture whose own argument is called name (the S8 audit's 5): the gesture's name is positional
+        grid.configure({'dimensions': [{'name': 'Book', 'columns': ['region', 'desk']}]})
+        grid.gesture('view.dimension', name='Book', move='use')
+        self.assertEqual(grid._query['rows'], ['region'])
+        # nothing changed, nothing told: a group it is not in taken out, a heatmap it has not taken off (the S8 audit's 6)
+        told = len(page._commands)
+        grid.remove_group('desk')
+        grid.heatmap('notional', on=False)
+        grid.gesture('column.unpin', column='desk')
+        self.assertEqual(len(page._commands), told)
         # refused in DataCube's words, nothing changed
         with self.assertRaisesRegex(ValueError, r"'nope' is no gesture of a grid's: sort\.asc, "):
             grid.gesture('nope')
@@ -1471,7 +1486,7 @@ class Abilities(Paged):
             grid.gesture('column.pinLeft', column='desk', side='left')
         with self.assertRaisesRegex(ValueError, r"'column\.pinLeft' needs column"):
             grid.gesture('column.pinLeft')
-        self.assertEqual(grid._query['rows'], ['desk', 'region'])
+        self.assertEqual(grid._query['rows'], ['region'], 'the refusals changed nothing')
 
     def test_a_charts_mark_is_selected_its_selection_read_and_cleared(self):
         # (K7, D8) chart.select: the mark named by its value across, and its series', as a click selects it (headless

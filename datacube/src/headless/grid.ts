@@ -17,7 +17,9 @@ import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
-import { GRID_GESTURES, gestureReadsView, gridGesture as gestureCommands, isGridGesture, type GestureView } from '../grid-gestures.ts';
+import {
+  argumentsGiven, gestureNamed, gestureReadsView, gridGestureGiven, type GestureArgs, type GestureView, type GridGestureName,
+} from '../grid-gestures.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
@@ -609,16 +611,19 @@ export async function gridPreset(spec: GridSpec, given: string): Promise<string>
  * `{commands: []}` alone, a gesture that changes nothing; or `{problems}`, in DataCube's words.
  */
 export async function gridGesture(spec: GridSpec, name: string, given: string): Promise<string> {
-  if (!isGridGesture(name)) {
-    return JSON.stringify({ problems: [`'${name}' is no gesture of a grid's: ${GRID_GESTURES.join(', ')}`] });
-  }
-  const args: unknown = JSON.parse(given);
-  if (typeof args !== 'object' || args === null || Array.isArray(args)) {
-    return JSON.stringify({ problems: [`a gesture's arguments are given by name, not ${given}`] });
+  // named and given by name, judged before the grid is opened for it
+  let gesture: GridGestureName;
+  let args: GestureArgs;
+  try {
+    gesture = gestureNamed(name);
+    args = argumentsGiven(untaggedDeep(JSON.parse(given)));
+  } catch (e) {
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
   }
   return using(spec, async (o) => {
     let view: GestureView | null = null;
-    if (gestureReadsView(name)) {
+    if (gestureReadsView(gesture, o.state.snapshot, args)) {
       const shown = await controllerOf(o).run({ snapshot: o.state.snapshot, tree: o.state.tree });
       if (shown === STALE) throw new Error('the grid was asked again before its view was ready');
       view = { headers: shownColumns(shown, o.state.configuration).leaves, pivot: shown.pivot?.columns ?? [] };
@@ -627,9 +632,9 @@ export async function gridGesture(spec: GridSpec, name: string, given: string): 
     try {
       // its commands read by the commands' own reader, as every command Python builds is: what it carries from Python's
       // JSON unjudged (a filter, a group's path, a calculated column) judged there
-      commands = gestureCommands(name, {
+      commands = gridGestureGiven(gesture, {
         snapshot: o.state.snapshot, config: o.state.configuration, dimensions: o.cube.configuration.dimensions ?? [], view,
-      }, args as Readonly<Record<string, unknown>>).map(readGridCommand);
+      }, args).map(readGridCommand);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
@@ -695,6 +700,16 @@ export function untagged(v: unknown): unknown {
   const text = v['$date'] ?? v['$timestamp'] ?? v['$decimal'];
   if (typeof text !== 'string') return v;
   return v['$decimal'] !== undefined && !Number.isFinite(Number(text)) ? v : text;
+}
+
+/** A gesture's arguments as Python's JSON carries them (its `_tagged`), each tagged value untagged as a filter's is,
+ *  however deep it sits (a filter's value, a condition's in a refilter). */
+function untaggedDeep(v: unknown): unknown {
+  const flat = untagged(v);
+  if (flat !== v) return flat;
+  if (Array.isArray(v)) return v.map(untaggedDeep);
+  if (isRecord(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, untaggedDeep(x)]));
+  return v;
 }
 
 /**

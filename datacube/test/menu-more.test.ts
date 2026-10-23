@@ -18,7 +18,7 @@ import {
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type FilterNode } from '../src/snapshot.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
-import { gridGesture } from '../src/grid-gestures.ts';
+import { gridGestureGiven } from '../src/grid-gestures.ts';
 import { element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 
 // grouped by region, pivoted by year: the menu test's own cube
@@ -63,7 +63,7 @@ const submenu = (ctx: MenuContext, verb: string): MenuItem[] =>
 const menuCommands = (s: CubeSnapshot, item: MenuItem): GridCommand[] | null => {
   const gesture = menuGesture(item);
   return gesture === null ? null
-    : gridGesture(gesture.name, { snapshot: s, config: DEFAULT_CONFIGURATION, dimensions: [], view: null }, gesture.args);
+    : gridGestureGiven(gesture.name, { snapshot: s, config: DEFAULT_CONFIGURATION, dimensions: [], view: null }, gesture.args);
 };
 const applyMenuAction = (s: CubeSnapshot, item: MenuItem): CubeSnapshot => {
   const commands = menuCommands(s, item);

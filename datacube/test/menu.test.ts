@@ -10,7 +10,7 @@ import {
   type MenuItem,
 } from '../src/ui/menu.ts';
 import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
-import { gridGesture } from '../src/grid-gestures.ts';
+import { gridGestureGiven } from '../src/grid-gestures.ts';
 import { pivotTotalColumn, type CubeSnapshot } from '../src/snapshot.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { element } from '../../pure-protocol/src/index.ts';
@@ -20,7 +20,7 @@ import { element } from '../../pure-protocol/src/index.ts';
 const menuCommands = (s: CubeSnapshot, item: MenuItem): GridCommand[] | null => {
   const gesture = menuGesture(item);
   return gesture === null ? null
-    : gridGesture(gesture.name, { snapshot: s, config: DEFAULT_CONFIGURATION, dimensions: [], view: null }, gesture.args);
+    : gridGestureGiven(gesture.name, { snapshot: s, config: DEFAULT_CONFIGURATION, dimensions: [], view: null }, gesture.args);
 };
 const applyMenuAction = (s: CubeSnapshot, item: MenuItem): CubeSnapshot => {
   const commands = menuCommands(s, item);

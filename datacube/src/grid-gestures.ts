@@ -5,10 +5,12 @@
 // made. Named by the menu's own ids where the menu has the gesture. The screen keeps what is its alone -- pixels: a
 // column measured, the grid's width, where a drag let go -- and passes what it measured; the rest is here.
 //
-// What a gesture is given and carries into its commands unjudged (a filter, a group's path, a calculated column) is
-// typed where the screen gives it; given from JSON (Python's, headless gridGesture) the commands are read by the
-// commands' own reader, as every command Python builds is (grid-commands.ts readGridCommand) -- the reader kept out of
-// the page's first download.
+// Two ways in, one table: gridGesture, the screen's controls', each gesture's arguments typed (GridGestureArgs: a
+// misnamed or mistyped one does not compile); gridGestureGiven, the menu's and Python's, the gesture named by text and
+// its arguments checked as they come. What a gesture carries into its commands unjudged (a filter, a group's path, a
+// calculated column) is typed where the screen gives it; given from JSON (Python's, headless gridGesture) the commands
+// are read by the commands' own reader, as every command Python builds is (grid-commands.ts readGridCommand) -- the
+// reader kept out of the page's first download.
 
 import { columnConfig, mergeColumnOrder, withColumn, type CubeConfiguration } from './config.ts';
 import { availableDimensions, drillDown, drillUp, useDimension, type Dimension } from './dimensions.ts';
@@ -35,8 +37,48 @@ export interface GestureView {
   readonly pivot: readonly { readonly name: string; readonly measure: { readonly name: string } }[];
 }
 
-/** A gesture's arguments by name, as the screen passes them or Python's JSON carries them. */
+/** A gesture's arguments by name, as a menu entry carries them or Python's JSON does: checked by the gesture. */
 export type GestureArgs = Readonly<Record<string, unknown>>;
+
+/** A gesture that takes nothing. */
+type Nothing = Readonly<Record<string, never>>;
+type Column = { readonly column: string };
+type Widths = Readonly<Record<string, number>>;
+type Level = 'row' | 'group';
+
+/** Each gesture's arguments, by its name: what the screen's controls give (gridGesture), checked by the compiler. */
+export type GridGestureArgs = {
+  readonly 'sort.asc': Column; readonly 'sort.desc': Column; readonly 'sort.addAsc': Column; readonly 'sort.addDesc': Column;
+  readonly 'sort.clearColumn': Column; readonly 'sort.clearAll': Nothing;
+  /** `column` null: the tree column's */
+  readonly 'header.sort': { readonly column: string | null; readonly chained: boolean };
+  readonly 'filter.add': { readonly column: string; readonly operator: FilterOperator; readonly value?: FilterValue };
+  readonly 'filter.clearAll': Nothing;
+  readonly 'filter.set': { readonly filter: FilterNode | null };
+  readonly 'chart.refilter': { readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] };
+  readonly 'pivot.vertical': Column; readonly 'pivot.addVertical': Column; readonly 'pivot.removeVertical': Column;
+  readonly 'pivot.clearVertical': Nothing;
+  readonly 'pivot.horizontal': Column; readonly 'pivot.addHorizontal': Column; readonly 'pivot.removeHorizontal': Column;
+  readonly 'pivot.clearHorizontal': Nothing;
+  readonly 'zones.set': { readonly rows: readonly string[]; readonly columns: readonly string[] };
+  readonly 'pivot.measuresFirst': Nothing; readonly 'pivot.exclude': Column; readonly 'pivot.include': Column;
+  readonly 'column.hide': Column; readonly 'column.show': { readonly column: string; readonly visible: boolean };
+  readonly 'column.pinLeft': Column; readonly 'column.pinRight': Column; readonly 'column.unpin': Column;
+  readonly 'column.unpinAll': Nothing;
+  readonly 'column.resize': { readonly column: string; readonly width: number };
+  readonly 'columns.reorder': { readonly order: readonly string[]; readonly added?: string };
+  readonly 'columns.autoSize': { readonly widths: Widths };
+  readonly 'column.minimize': Column; readonly 'column.minimizeAll': Nothing;
+  readonly 'columns.sizeToFit': { readonly widths: Widths; readonly viewport: number };
+  readonly 'heatmap.add': Column; readonly 'heatmap.remove': Column;
+  readonly 'view.chrome': { readonly showDragZones?: boolean; readonly showTitleBar?: boolean };
+  readonly 'tree.open': { readonly path: RowPath; readonly open: boolean };
+  readonly 'tree.collapseAll': Nothing;
+  readonly 'view.dimension': { readonly name: string; readonly move: 'use' | 'down' | 'up' };
+  readonly 'column.calculate': { readonly level: Level; readonly column: DerivedColumn };
+  readonly 'column.editCalculated': { readonly name: string; readonly level: Level; readonly column: DerivedColumn };
+  readonly 'calc.delete': Column;
+};
 
 /** Room for a cell's own padding and its border (Auto-size). */
 const AUTO_SIZE_PAD = 8;
@@ -52,8 +94,8 @@ const HEATMAP = { from: '#ffffff', to: '#ff8a65' };
 interface Gesture {
   /** Its arguments by name; `name?` one it may go without. */
   readonly args: readonly string[];
-  /** It reads the grid's view (GestureGrid.view). */
-  readonly view?: true;
+  /** It reads the grid's view (GestureGrid.view): always, or where its arguments say it must on this grid. */
+  readonly view?: true | ((s: CubeSnapshot, a: GestureArgs) => boolean);
   /** Its commands; none, a gesture that would change nothing. */
   readonly make: (g: GestureGrid, a: GestureArgs) => GridCommand[];
 }
@@ -102,6 +144,14 @@ const configure = (columns: Readonly<Record<string, object>>, settings: object =
   kind: 'configure', patch: { ...settings, ...(Object.keys(columns).length > 0 ? { columns } : {}) },
 });
 const column = (name: string, patch: object): GridCommand => configure({ [name]: patch });
+/** A column's settings patched, or none when it has each already (null: a setting it has not) -- a pin it has, a width
+ *  it is, a heatmap it has not: nothing to tell, no step of the grid's history, nothing to Python's page (the S8
+ *  audit's 6). */
+const patched = (g: GestureGrid, name: string, patch: Readonly<Record<string, unknown>>): GridCommand[] => {
+  const has = columnConfig(g.config, name) as Readonly<Record<string, unknown>>;
+  const same = Object.entries(patch).every(([k, v]) => (v === null ? has[k] === undefined : JSON.stringify(has[k]) === JSON.stringify(v)));
+  return same ? [] : [column(name, patch)];
+};
 
 /** The columns' order as the grid shows it: the configured order, then any declared column it leaves out. */
 export function columnOrderOf(s: CubeSnapshot, config: CubeConfiguration): string[] {
@@ -118,15 +168,22 @@ const zone = (kind: 'group' | 'pivot', s: CubeSnapshot, change: (has: readonly s
   return [kind === 'group' ? { kind, rows: next } : { kind, columns: next }];
 };
 const added = (name: string) => (has: readonly string[]): string[] | null => (has.includes(name) ? null : [...has, name]);
-const removed = (name: string) => (has: readonly string[]): string[] => has.filter((x) => x !== name);
+const removed = (name: string) => (has: readonly string[]): string[] | null => (has.includes(name) ? has.filter((x) => x !== name) : null);
+
+/** Whether `column` can be a pivoted leaf, which only the view names the measure of: on a pivoted grid, no total and no
+ *  column of the grid's own (the heatmap asks the view only then -- headless runs the grid for it). */
+function pivotedLeaf(s: CubeSnapshot, a: GestureArgs): boolean {
+  const leaf = a['column'];
+  return s.pivotOn.length > 0 && typeof leaf === 'string' && !isPivotTotalColumn(leaf) && !rowColumns(s).some((c) => c.name === leaf);
+}
 
 /** A heatmap on or off for the column a leaf is of: a pivoted leaf's measure, so every value's leaf has it (a heatmap
  *  on one pivoted leaf and not its siblings is worse than none); a pivot total is a column of its own (the user,
  *  2026-10-18), its measure's leaves left alone (export-render.ts heatmapSetting). */
 const heatmap = (g: GestureGrid, leaf: string, on: boolean): GridCommand[] => {
-  const measure = isPivotTotalColumn(leaf) ? leaf : viewOf(g).pivot.find((c) => c.name === leaf)?.measure.name ?? leaf;
+  const measure = pivotedLeaf(g.snapshot, { column: leaf }) ? viewOf(g).pivot.find((c) => c.name === leaf)?.measure.name ?? leaf : leaf;
   // null takes it off, as JSON cannot write undefined
-  return [column(measure, { heatmap: on ? HEATMAP : null })];
+  return patched(g, measure, { heatmap: on ? HEATMAP : null });
 };
 
 const GESTURES = {
@@ -188,14 +245,14 @@ const GESTURES = {
 
   // -- the columns' presentation
   // a pivot's header or the tree column too
-  'column.hide': { args: ['column'], make: (_g, a) => [column(columnOf(a), { hidden: true })] },
+  'column.hide': { args: ['column'], make: (g, a) => patched(g, columnOf(a), { hidden: true }) },
   // the columns panel's tick
   'column.show': {
-    args: ['column', 'visible'], make: (_g, a) => [column(columnOf(a), { hidden: !flag(a, 'visible', 'shown') })],
+    args: ['column', 'visible'], make: (g, a) => patched(g, columnOf(a), { hidden: !flag(a, 'visible', 'shown') }),
   },
-  'column.pinLeft': { args: ['column'], make: (_g, a) => [column(columnOf(a), { pinned: 'left' })] },
-  'column.pinRight': { args: ['column'], make: (_g, a) => [column(columnOf(a), { pinned: 'right' })] },
-  'column.unpin': { args: ['column'], make: (_g, a) => [column(columnOf(a), { pinned: null })] },
+  'column.pinLeft': { args: ['column'], make: (g, a) => patched(g, columnOf(a), { pinned: 'left' }) },
+  'column.pinRight': { args: ['column'], make: (g, a) => patched(g, columnOf(a), { pinned: 'right' }) },
+  'column.unpin': { args: ['column'], make: (g, a) => patched(g, columnOf(a), { pinned: null }) },
   'column.unpinAll': {
     args: [],
     make: (g) => {
@@ -206,7 +263,7 @@ const GESTURES = {
   // a dragged edge: a width like Auto-size's, resizable again (unlike an explicit Fixed one)
   'column.resize': {
     args: ['column', 'width'],
-    make: (_g, a) => [column(columnOf(a), { width: pixels(a, 'width', "a column's width") })],
+    make: (g, a) => patched(g, columnOf(a), { width: pixels(a, 'width', "a column's width") }),
   },
   // REORDERED where the list is (the columns panel, the grid's header drag) -- MERGED, never written over: the list
   // reports only what it shows, so writing its report straight in dropped every grouped, pivoted and hidden column out
@@ -254,8 +311,8 @@ const GESTURES = {
       }])))];
     },
   },
-  'heatmap.add': { args: ['column'], view: true, make: (g, a) => heatmap(g, columnOf(a), true) },
-  'heatmap.remove': { args: ['column'], view: true, make: (g, a) => heatmap(g, columnOf(a), false) },
+  'heatmap.add': { args: ['column'], view: pivotedLeaf, make: (g, a) => heatmap(g, columnOf(a), true) },
+  'heatmap.remove': { args: ['column'], view: pivotedLeaf, make: (g, a) => heatmap(g, columnOf(a), false) },
   // the zones or the title bar folded away or brought back (a page's bar says so too)
   'view.chrome': {
     args: ['showDragZones?', 'showTitleBar?'],
@@ -298,17 +355,17 @@ const GESTURES = {
   // -- calculated columns (the column editor's Add, OK and Delete; the header menu's Delete)
   'column.calculate': {
     args: ['level', 'column'],
-    make: (_g, a) => [{ kind: 'calculate', level: a['level'] as 'row' | 'group', column: a['column'] as DerivedColumn }],
+    make: (_g, a) => [{ kind: 'calculate', level: a['level'] as Level, column: a['column'] as DerivedColumn }],
   },
   'column.editCalculated': {
     args: ['name', 'level', 'column'],
     make: (_g, a) => [{
-      kind: 'editCalculated', name: text(a, 'name', "the calculated column's name"), level: a['level'] as 'row' | 'group',
+      kind: 'editCalculated', name: text(a, 'name', "the calculated column's name"), level: a['level'] as Level,
       column: a['column'] as DerivedColumn,
     }],
   },
   'calc.delete': { args: ['column'], make: (_g, a) => [{ kind: 'removeCalculated', name: columnOf(a) }] },
-} satisfies Record<string, Gesture>;
+} satisfies { readonly [N in keyof GridGestureArgs]: Gesture };
 
 /** Minimize's widths: each column not fixed, to its own minimum or MINIMIZED_WIDTH; none when every one is fixed. */
 function minimized(g: GestureGrid, columns: readonly string[]): GridCommand[] {
@@ -319,7 +376,7 @@ function minimized(g: GestureGrid, columns: readonly string[]): GridCommand[] {
   return sized.length === 0 ? [] : [configure(Object.fromEntries(sized))];
 }
 
-export type GridGestureName = keyof typeof GESTURES;
+export type GridGestureName = keyof GridGestureArgs;
 /** Every grid gesture's name: what Python's grid.gesture takes. */
 export const GRID_GESTURES: readonly GridGestureName[] = Object.keys(GESTURES) as GridGestureName[];
 
@@ -333,18 +390,47 @@ export function gestureTakes(name: GridGestureName): readonly string[] {
   return gesture.args.map((n) => n.replace(/\?$/, ''));
 }
 
-/** Whether a gesture reads the grid's view: whoever asks it gives GestureGrid.view (headless runs the grid for it). */
-export function gestureReadsView(name: GridGestureName): boolean {
+/** Whether a gesture, given `args` on a grid of `snapshot`, reads the grid's view: whoever asks it gives GestureGrid.view
+ *  then (headless runs the grid for it). */
+export function gestureReadsView(name: GridGestureName, snapshot: CubeSnapshot, args: GestureArgs): boolean {
   const gesture: Gesture = GESTURES[name];
-  return gesture.view === true;
+  return typeof gesture.view === 'function' ? gesture.view(snapshot, args) : gesture.view === true;
 }
 
 /**
- * The commands gesture `name` makes on the grid as it is, given its arguments by name -- none when it would change
- * nothing (a column added to the row groups it is in already) -- or refused in words: an argument it does not take, one
- * it is not given, one it reads that is not what it takes. Given from JSON, read its commands (headless gridGesture).
+ * The commands gesture `name` makes on the grid as it is -- none when it would change nothing (a column added to the row
+ * groups it is in already) -- or refused in words, as the rules it asks refuse (a header the grid does not show, a
+ * dimension it has not). A screen control's way in: its arguments as GridGestureArgs types them.
  */
-export function gridGesture(name: GridGestureName, grid: GestureGrid, args: GestureArgs = {}): GridCommand[] {
+export function gridGesture<N extends GridGestureName>(name: N, grid: GestureGrid, args: GridGestureArgs[N]): GridCommand[] {
+  return made(name, grid, args);
+}
+
+/**
+ * A gesture named by text, its arguments as they come -- a menu entry's (ui/menu.ts menuGesture), Python's JSON (headless
+ * gridGesture) -- made as gridGesture makes it, or refused in words: a gesture a grid has not, arguments not given by
+ * name, one it does not take, one it needs and is not given, one that is not what it takes. Given from JSON, read its
+ * commands (readGridCommand) before applying them.
+ */
+export function gridGestureGiven(name: string, grid: GestureGrid, given: unknown): GridCommand[] {
+  return made(gestureNamed(name), grid, argumentsGiven(given));
+}
+
+/** A gesture named by text, or refused in words, naming every gesture a grid has. */
+export function gestureNamed(name: string): GridGestureName {
+  if (!isGridGesture(name)) throw new CubeRefusal(`'${name}' is no gesture of a grid's: ${GRID_GESTURES.join(', ')}`);
+  return name;
+}
+
+/** A gesture's arguments as they come: by name, or refused in words. */
+export function argumentsGiven(given: unknown): GestureArgs {
+  if (typeof given !== 'object' || given === null || Array.isArray(given)) {
+    throw new CubeRefusal(`a gesture's arguments are given by name, not ${JSON.stringify(given) ?? 'nothing'}`);
+  }
+  return given as GestureArgs;
+}
+
+function made(name: GridGestureName, grid: GestureGrid, args: GestureArgs): GridCommand[] {
   const gesture: Gesture = GESTURES[name];
   const takes = gestureTakes(name);
   const odd = Object.keys(args).filter((k) => !takes.includes(k));

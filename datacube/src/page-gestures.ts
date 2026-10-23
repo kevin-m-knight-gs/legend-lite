@@ -8,16 +8,29 @@
 
 import type { ChartSpec } from './chart-spec.ts';
 import { asSaved, remove, tiles, type Bands, type Preset } from './layout/bands.ts';
-import type { PageCommand } from './page-commands.ts';
+import { fieldNames } from './command-fields.ts';
+import { PAGE_COMMAND_FIELDS, type PageCommand } from './page-commands.ts';
 import type { PageLayout } from './page-document.ts';
 import { givenName } from './page-names.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** A page command of `kind` whose every field is the person's input -- what they typed, picked or pointed at -- built
- *  as Python's generated builder builds it: its kind and its fields, nothing decided. */
+ *  as Python's generated builder builds it (_commands.py, from the same list): its kind, then its fields in the order
+ *  PAGE_COMMAND_FIELDS lists them, an optional one not given left out; nothing decided. A field the list does not have
+ *  is a programming error, thrown. */
 export function pageCommand<K extends PageCommand['kind']>(kind: K, fields: Omit<Extract<PageCommand, { readonly kind: K }>, 'kind'>):
   Extract<PageCommand, { readonly kind: K }> {
-  return { kind, ...fields } as unknown as Extract<PageCommand, { readonly kind: K }>;
+  const listed: readonly string[] = PAGE_COMMAND_FIELDS[kind];
+  const given = fields as Readonly<Record<string, unknown>>;
+  const names = fieldNames(listed);
+  const odd = Object.keys(given).filter((k) => !names.includes(k));
+  if (odd.length > 0) throw new Error(`a '${kind}' command has no field ${odd.join(', ')}`);
+  const written: Record<string, unknown> = { kind };
+  for (const field of listed) {
+    const name = field.replace(/\?$/, '');
+    if (!field.endsWith('?') || given[name] !== undefined) written[name] = given[name];
+  }
+  return written as unknown as Extract<PageCommand, { readonly kind: K }>;
 }
 
 /** A sheet's layout as the page saves it: its saved tiles alone, each other one's place closed by its neighbours as a
@@ -56,12 +69,14 @@ export function movedCommand(sheet: string, before: Bands, move: HandMove | unde
 }
 
 /** A sheet's name given as typed (`name`; undefined, none), by the names' one rule (page-names.ts givenName: trimmed, a
- *  blank none of its own -- named after its first grid): its renameSheet, or null when it has that name already
- *  (`was`). */
-export function renameSheetCommand(sheet: string, name: string | undefined, was: string | undefined): PageCommand | null {
+ *  blank none of its own -- named after its first grid): its renameSheet, or null when it changes nothing -- the name
+ *  it has (`was`), or, with none of its own, the label it shows (`shown`), which renameSheet takes as none. */
+export function renameSheetCommand(sheet: string, name: string | undefined, was: string | undefined,
+  shown: string | undefined): PageCommand | null {
   const given = givenName('sheet', name ?? '');
   if ('refused' in given) throw new CubeRefusal(given.refused);
-  return given.name === was ? null : { kind: 'renameSheet', sheet, name: given.name ?? null };
+  if (given.name === was || (was === undefined && given.name === shown)) return null;
+  return { kind: 'renameSheet', sheet, name: given.name ?? null };
 }
 
 /** Sheet `sheet`, at `at` of `count`, moved to `to` in the order (counted with it taken out), held to the order's ends;
