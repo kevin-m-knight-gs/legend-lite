@@ -167,7 +167,7 @@ async function chartOf(gridTile: string): Promise<string> {
     .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   await settle();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((el) => label(el) === 'Visualization' && label(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Insert');
+    .find((el) => label(el) === 'Visualization' && label(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Create');
   assert.ok(item, 'Insert > Visualization');
   item.click();
   await settle();
@@ -845,7 +845,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     let copy = '';
     await step('a grid copied', told, async () => {
       const had = new Set(pg().grids);
-      gridMenuItem(a, 'Copy of Grid').click();
+      gridMenuItem(a, 'Copy of This Grid').click();
       await settle();
       copy = pg().grids.find((g) => !had.has(g))!;
     }, 'Add Grid');
@@ -1214,9 +1214,9 @@ describe('titles and ids: renamed tiles moved and saved, a new grid beside a kep
     assert.deepEqual(pg().cubes, [g1, g3], 'grid-3 kept for its chart');
     // Copy of Grid, twice: after every id the page holds (page-commands.ts nextPageId, the rule Python's ids are given
     // by too, 2026-10-18) -- grid-3, the kept grid's, never taken
-    gridMenuItem(g1, 'Copy of Grid').click();
+    gridMenuItem(g1, 'Copy of This Grid').click();
     await settle();
-    gridMenuItem(g1, 'Copy of Grid').click();
+    gridMenuItem(g1, 'Copy of This Grid').click();
     await settle();
     assert.deepEqual(pg().grids.slice().sort(), ['grid-1', 'grid-4', 'grid-5']);
     assert.equal(pill(chart!), 'Detached');

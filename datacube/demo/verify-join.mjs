@@ -79,6 +79,17 @@ async function joinWindow() {
     || document.querySelector('.dc-join .dc-picker-status.dc-failed'), undefined, { timeout: 60_000 });
 }
 const will = () => page.$$eval('.dc-join-will-line', (ls) => ls.map((l) => l.textContent));
+/** A right-click on a cell of `column` in `tile`, as a person does it. */
+async function rightClickIn(tile, column) {
+  const col = await tile.locator(`.dc-th[data-column="${column}"]`).first().getAttribute('data-col');
+  await tile.locator(`.dc-row .dc-cell[data-col="${col}"]`).first().click({ button: 'right' });
+}
+/** The entries of a right-click submenu, by its label, once it is pointed at. */
+async function submenu(label) {
+  const parent = page.locator('.dc-menu .dc-menu-item', { has: page.locator(`:scope > .dc-menu-label:text-is(${JSON.stringify(label)})`) }).first();
+  await parent.hover();
+  return parent.locator(':scope > .dc-submenu > .dc-menu-item > .dc-menu-label').allTextContents();
+}
 /** A saved page opened again after a reload: each file asked for answered (`given`), until it says it opened. */
 async function openSaved(name, given = { 'trades.csv': trades, 'customers.csv': customers }) {
   await page.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
@@ -109,15 +120,34 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   // a blank page, then the two sources
   await page.click('.dc-titlebar-menu');
-  await item('New').hover();
+  await item('Create').hover();
   await item('Blank Page').click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await openFile(trades, 1);
   await page.click('.dc-titlebar-menu');
-  await item('New').hover();
+  await item('Create').hover();
   await item('Data Source…').click();
   await openFile(customers, 2);
+
+  // JOIN ▸ ON THE RIGHT-CLICK (the user, 2026-10-23): a quick join to the grid sharing the column clicked -- but customer 5
+  // is listed twice, so all of mine would repeat its trades: the window opens on it instead, its warning said, nothing made
+  await rightClickIn(tileWith('trade_id').first(), 'customer_id');
+  const joinItems = await submenu('Join');
+  check(joinItems[0] === 'With customers.csv on customer_id' && joinItems.includes('Join\u2026'),
+    `Join ▸ offers the grid sharing the column clicked, first: ${joinItems.join(' | ')}`);
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("With customers.csv on customer_id")') }).first().click();
+  await page.locator('.dc-join').waitFor({ timeout: 60_000 }).then(async () => {
+    await page.waitForFunction(() => /more than once/.test(document.querySelector('.dc-join-will-list')?.textContent ?? ''), undefined, { timeout: 60_000 })
+      .catch(() => undefined);
+    const key = await page.$$eval('.dc-join-rows .dc-join-row select', (ss) => ss.map((x) => x.value));
+    const form = await page.locator('.dc-join-kind[aria-checked="true"]').getAttribute('data-kind');
+    check(JSON.stringify(key) === JSON.stringify(['customer_id', '==', 'customer_id']) && form === 'left'
+      && /appears more than once/.test((await will()).join(' ')) && await page.locator('.dc-tile-menu').count() === 2,
+    `a quick join that would repeat rows of mine: the window on it, its key and form, its warning, nothing made (${key}, ${form})`);
+    await page.locator('.dc-join .dc-picker-close').click();
+    await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 10_000 });
+  }, () => bad(`the repeating quick join opened no window: ${alerts.splice(0).join('; ')}`));
 
   // THE JOIN: the key suggested and taken, what it will do said before it is applied
   await joinWindow();
@@ -250,7 +280,7 @@ try {
   await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 }).then(() => check(true, 'the start page saves'),
     async () => bad(`the start page saves: ${await page.locator('.dc-save-warning').textContent()}`));
   await page.click('.dc-titlebar-menu');
-  await item('New').hover();
+  await item('Create').hover();
   await item('Data Source…').click();
   await openFile(customers, 2);
   await page.locator('.dc-tile-menu').nth(0).click();
@@ -294,6 +324,25 @@ try {
   const unmatchedRows = await shown('unmatched', 'Singapore');
   check(/Singapore/.test(unmatchedRows) && !/Germany|Japan|United States/.test(unmatchedRows),
     `the orders with no country: Singapore's alone (${unmatchedRows.slice(0, 120)})`);
+
+  // A QUICK JOIN THAT REPEATS NOTHING: Orders' country, a column Countries has once a row -- made at once, no window,
+  // what it did said on its grid; and Create ▸ on the same right-click (the user, 2026-10-23: Insert became Create)
+  await page.locator('.dc-sheet-tab[data-sheet="sheet-1"]').click();
+  await page.locator('[data-tile="orders"] .dc-row').first().waitFor({ timeout: 60_000 });
+  await rightClickIn(page.locator('[data-tile="orders"]'), 'country');
+  const create = await submenu('Create');
+  check(JSON.stringify(create) === JSON.stringify(['Data Source\u2026', 'Copy of This Grid', 'Visualization']),
+    `Create ▸ in place of Insert: ${create.join(' | ')}`);
+  const exampleJoins = await submenu('Join');
+  check(exampleJoins[0] === 'With Countries on country', `Join ▸ on the column clicked: ${exampleJoins.join(' | ')}`);
+  const before = await page.locator('.dc-tile-menu').count();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("With Countries on country")') }).first().click();
+  await page.locator('.dc-status-note-text').first().waitFor({ timeout: 120_000 }).then(async () => {
+    const note = await page.locator('.dc-status-note-text').first().textContent();
+    check(note === '5,840 rows of my 6,000 rows find a match, 160 rows do not.' && await page.locator('.dc-join').count() === 0
+      && await page.locator('.dc-tile-menu').count() === before + 1,
+    `a quick join made at once, what it did said on its grid: ${note}`);
+  }, () => bad(`the quick join made no grid with a note: ${alerts.splice(0).join('; ')}`));
 
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);

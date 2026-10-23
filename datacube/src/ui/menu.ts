@@ -130,6 +130,30 @@ export interface MenuContext {
   readonly fixedWidth?: boolean;
   /** The cube's controls are hidden (the grid alone): the last entry brings them back. */
   readonly controlsHidden?: boolean;
+  /**
+   * The host's Join ▸ on the column clicked (the user, 2026-10-23): a quick join to each grid sharing a column, the
+   * other ways, the window. Absent where the grid cannot be joined.
+   */
+  readonly join?: readonly MenuItem[];
+  /** The host's own Create ▸ entries (Class…, Association…, Data Space…), after the grid's. */
+  readonly create?: readonly MenuItem[];
+  /** Whether a data source can be opened beside the grid: Create ▸ Data Source…. */
+  readonly canOpenSource?: boolean;
+}
+
+/**
+ * CREATE ▸, the same in every menu -- the right-click, a grid's own menu, the title bar's (the user, 2026-10-23: "Insert"
+ * became "Create", one word for all three): a grid over another source, a copy of this one, a chart of it; then, a line
+ * above them, the host's (Class…, Association…, Data Space…).
+ */
+export function createItems(o: { readonly source: boolean; readonly host: readonly MenuItem[]; readonly disabled?: boolean }): MenuItem[] {
+  const off = o.disabled === true ? { disabled: true } : {};
+  return [
+    ...(o.source ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...off }] : []),
+    { id: 'grid.new', label: 'Copy of This Grid', ...off },
+    { id: 'chart.plot', label: 'Visualization', ...off },
+    ...o.host.map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
+  ];
 }
 
 /**
@@ -277,9 +301,10 @@ export interface MenuItem {
   readonly label: string;
   /**
    * A host's entry: where it goes -- the main menu's file group (the default), its View, its
-   * top-level data entries, or the status bar's planner readout (`plane`: where the planner runs).
+   * top-level data entries, its Create ▸ (Class…, Association…, Data Space…), or the status bar's planner readout
+   * (`plane`: where the planner runs).
    */
-  readonly section?: 'file' | 'view' | 'data' | 'plane';
+  readonly section?: 'file' | 'view' | 'data' | 'create' | 'plane';
   /** Column the action applies to, when it is column-specific. */
   readonly column?: string;
   readonly direction?: SortDirection;
@@ -535,6 +560,8 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       ],
     },
     { label: 'Filter', submenu: filterSubmenu(ctx) },
+    // JOIN, beside Filter (the user, 2026-10-23): the host's -- a quick join to each grid sharing a column, the window
+    ctx.join !== undefined && ctx.join.length > 0 ? { label: 'Join', submenu: ctx.join } : null,
     {
       label: 'Pivot',
       submenu: [
@@ -740,16 +767,10 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     },
   ]);
 
-  // INSERT sits beside Properties, as plot and treemap did: a chart or another grid is a view OF
-  // the cube rather than an operation ON a column. A treemap is one of the chart's types now
-  // (the user, 2026-09-30); the grid starts as this one is (page/cube-page.ts).
-  push('', [{
-    label: 'Insert',
-    submenu: [
-      { id: 'chart.plot', label: 'Visualization' },
-      { id: 'grid.new', label: 'Copy of Grid' },
-    ],
-  }]);
+  // CREATE sits beside Properties, as Insert did: a chart, another grid, a class is made OF the cube rather than an
+  // operation ON a column (createItems: the same in every menu). A treemap is one of the chart's types (the user,
+  // 2026-09-30); a copy starts as this grid is (page/cube-page.ts).
+  push('', [{ label: 'Create', submenu: createItems({ source: ctx.canOpenSource === true, host: ctx.create ?? [] }) }]);
 
   push('', [{
     id: 'view.properties',

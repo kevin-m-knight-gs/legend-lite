@@ -124,7 +124,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // none of them carries a column to act on
     assert.ok(bare.filter((i) => i.disabled).every((i) => i.column === undefined));
     for (const live of ['Auto-size All Columns', 'Minimize All Columns', 'Size Grid to Fit Screen', 'Remove All Pinnings',
-      'Filters...', 'Add New Column...', 'Visualization', 'Copy of Grid', 'Properties...']) {
+      'Filters...', 'Add New Column...', 'Visualization', 'Copy of This Grid', 'Properties...']) {
       assert.ok(labels(bare).includes(live), live);
     }
   });

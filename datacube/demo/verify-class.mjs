@@ -57,7 +57,8 @@ async function openFile(path, n) {
 /** The grid's own Create a Class…, its window's files listed. */
 async function createClassWindow(n) {
   await page.locator('.dc-tile-menu').nth(n - 1).click();
-  await item('Create a Class…').click();
+  await item('Create').hover();
+  await item('Class…').click();
   await page.waitForFunction(() => document.querySelectorAll('.dc-class-file').length > 0
     || document.querySelector('.dc-class .dc-picker-status.dc-failed'), undefined, { timeout: 60_000 });
 }
@@ -70,7 +71,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   // a blank page, then the first source
   await page.click('.dc-titlebar-menu');
-  await item('New').hover();
+  await item('Create').hover();
   await item('Blank Page').click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
@@ -108,7 +109,7 @@ try {
 
   // THE SECOND CLASS, from a second grid: the page's project, read back -- its store and model mapping CHANGED
   await page.click('.dc-titlebar-menu');
-  await item('New').hover();
+  await item('Create').hover();
   await item('Data Source…').click();
   await openFile(customers, 2);
   await createClassWindow(2);
@@ -131,10 +132,10 @@ try {
   await page.locator('.dc-class .dc-primary').click();
   await page.locator('.dc-class').waitFor({ state: 'detached', timeout: 10_000 });
 
-  // CREATE AN ASSOCIATION…, from the page's Model menu: the suggested pair, how many read from the tab's own rows
+  // CREATE AN ASSOCIATION…, from the page's Create ▸: the suggested pair, how many read from the tab's own rows
   await page.click('.dc-titlebar-menu');
-  await item('Model').hover();
-  await item('Create an Association\u2026').click();
+  await item('Create').hover();
+  await item('Association\u2026').click();
   await page.waitForFunction(() => document.querySelectorAll('.dc-association .dc-class-file').length > 0
     || document.querySelector('.dc-association .dc-picker-status.dc-failed'), undefined, { timeout: 60_000 });
   const many = await page.$$eval('.dc-association-many', (ms) => ms.map((m) => m.value));
@@ -153,8 +154,8 @@ try {
 
   // CREATE A DATA SPACE…: the page's two classes, already made; nothing more suggested
   await page.click('.dc-titlebar-menu');
-  await item('Model').hover();
-  await item('Create a Data Space\u2026').click();
+  await item('Create').hover();
+  await item('Data Space\u2026').click();
   await page.waitForFunction(() => document.querySelectorAll('.dc-data-space .dc-class-file').length > 0
     || document.querySelector('.dc-data-space .dc-picker-status.dc-failed'), undefined, { timeout: 60_000 });
   const spaced = await page.$$eval('.dc-data-space .dc-class-file-line', (ls) => ls.map((l) => l.textContent));
@@ -217,7 +218,8 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 2, undefined, { timeout: 60_000 });
   // the trades grid's class made again, as it was: nothing to write -- its store's table is the grid's own still
   await page.locator('.dc-tile-menu').nth(0).click();
-  await item('Create a Class…').click();
+  await item('Create').hover();
+  await item('Class…').click();
   await page.locator('.dc-class-table tbody tr').nth(3).waitFor({ timeout: 60_000 });
   const again = page.locator('.dc-class-table tbody tr');
   await again.nth(1).locator('select').selectOption('key');
@@ -305,13 +307,13 @@ try {
   await one.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await one.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await one.click('.dc-titlebar-menu');
-  await pick('New').hover();
+  await pick('Create').hover();
   await pick('Blank Page').click();
   await one.click('.dc-blank .dc-primary');
   for (const [i, f] of [trades, customers].entries()) {
     if (i > 0) {
       await one.click('.dc-titlebar-menu');
-      await pick('New').hover();
+      await pick('Create').hover();
       await pick('Data Source\u2026').click();
     }
     await one.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 10_000 });
@@ -320,8 +322,8 @@ try {
       { timeout: 120_000 });
   }
   await one.click('.dc-titlebar-menu');
-  await pick('Model').hover();
-  await pick('Create a Data Space\u2026').click();
+  await pick('Create').hover();
+  await pick('Data Space\u2026').click();
   await one.waitForFunction(() => document.querySelector('.dc-data-space .dc-association-sentence input[type=checkbox]')
     || document.querySelector('.dc-data-space .dc-picker-status.dc-failed'), undefined, { timeout: 60_000 });
   const toMake = await one.$$eval('.dc-data-space .dc-class-property', (is) => is.map((i) => i.value));
@@ -356,19 +358,20 @@ try {
     ?.querySelector('.dc-class-pure')?.textContent ?? '', path);
   const joinedClassWindow = async () => {
     await joinedTile().locator('.dc-tile-menu').click();
-    await jItem('Create a Class…').click();
+    await jItem('Create').hover();
+    await jItem('Class…').click();
     await j.locator('.dc-class-table tbody tr').first().waitFor({ timeout: 60_000 });
   };
   await j.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await j.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await j.click('.dc-titlebar-menu');
-  await jItem('New').hover();
+  await jItem('Create').hover();
   await jItem('Blank Page').click();
   await j.click('.dc-blank .dc-primary');
   for (const [i, f] of [trades, customers].entries()) {
     if (i > 0) {
       await j.click('.dc-titlebar-menu');
-      await jItem('New').hover();
+      await jItem('Create').hover();
       await jItem('Data Source…').click();
     }
     await j.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 10_000 });

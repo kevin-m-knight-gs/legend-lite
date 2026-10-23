@@ -149,3 +149,63 @@ export function readJoinHow(raw: unknown): JoinHow {
       throw new CubeRefusal(`a join's form is one of ${JOIN_FORMS.join(', ')}, not ${JSON.stringify(form)}`);
   }
 }
+
+/** An input as a key is suggested over it: what it is called and its columns -- no relation needed (a menu's). */
+export type JoinColumns = Pick<JoinSide, 'name' | 'columns'>;
+
+/**
+ * Keys to suggest, each with why: their name's `_id` among mine (`customers` → `customer_id`, `customers_id`) against
+ * their `id`, then a name both inputs have, of one type -- but `id`, each table's own key far more often than the
+ * other's. The row a new join starts with when exactly one is found.
+ */
+export function suggestedKeys(left: JoinColumns, right: JoinColumns): { readonly row: JoinRow; readonly why: string }[] {
+  const mine = new Map(left.columns.map((c) => [c.name.toLowerCase(), c]));
+  const out: { row: JoinRow; why: string }[] = [];
+  const base = right.name.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9_]/g, '_');
+  const singular = base.endsWith('s') ? base.slice(0, -1) : base;
+  const id = right.columns.find((c) => c.name.toLowerCase() === 'id');
+  if (id) {
+    for (const n of new Set([`${singular}_id`, `${base}_id`])) {
+      const m = mine.get(n);
+      if (m) out.push({ row: { left: m.name, op: '==', right: id.name }, why: `${right.name}'s id` });
+    }
+  }
+  for (const c of right.columns) {
+    const same = mine.get(c.name.toLowerCase());
+    if (same && same.type === c.type && c.name.toLowerCase() !== 'id') out.push({ row: { left: same.name, op: '==', right: c.name }, why: 'the same name' });
+  }
+  return out;
+}
+
+/** A join a grid's right-click offers at once: their grid, by its id and its name, and the key it suggests (and why). */
+export interface QuickJoin {
+  readonly their: string;
+  readonly name: string;
+  readonly row: JoinRow;
+  readonly why: string;
+}
+
+/**
+ * A GRID'S QUICK JOINS (its right-click's Join ▸; the user, 2026-10-23: "a fast option to join to another grid with the
+ * same column name and type"): one for each other grid with a key to suggest (suggestedKeys: their name's id, or a column
+ * both have of one type) -- on the column clicked when that grid has it, else its first suggestion -- those on the column
+ * clicked first, then in the page's order. One per grid: a grid made of this one shares every column of it, and a list
+ * of each would bury the one meant. A grid that joins as no fixed columns (a pivoted one) is its caller's to leave out.
+ */
+export function quickJoins(mine: JoinColumns, others: readonly (JoinColumns & { readonly id: string })[], clicked?: string): QuickJoin[] {
+  const all = others.flatMap((o) => {
+    const keys = suggestedKeys(mine, o);
+    const key = keys.find((k) => k.row.left === clicked) ?? keys[0];
+    return key ? [{ their: o.id, name: o.name, row: key.row, why: key.why }] : [];
+  });
+  return [...all.filter((q) => q.row.left === clicked), ...all.filter((q) => q.row.left !== clicked)];
+}
+
+/** The forms a quick join is made in: all of mine (a lookup), matching only, mine with a match, mine with none. */
+export type QuickForm = 'left' | 'inner' | 'semi' | 'anti';
+
+/** A quick join's `how`: on its one key, their columns brought whole (a name mine has prefixed, as the window's default). */
+export function quickHow(row: JoinRow, form: QuickForm): JoinHow {
+  const on = { rows: [row] };
+  return form === 'semi' || form === 'anti' ? { form, on } : { form: 'join', kind: form, on, prefix: DEFAULT_PREFIX, keep: null };
+}

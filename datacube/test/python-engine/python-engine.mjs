@@ -207,7 +207,7 @@ try {
   // grid's rows are Python's over the model that code wrote -- the SQL Python ran, in the Pure & SQL window, reads the
   // file's own table
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.setInputFiles('.dc-picker-file', {
@@ -226,7 +226,8 @@ try {
   // library, its project made in Python's model home (the same SDLC rules, a git repository in this test's own folder)
   const menuItem = (label) => cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(`:scope > .dc-menu-label:text-is(${JSON.stringify(label)})`) }).first();
   await cube.locator('.dc-tile-menu').last().click();
-  await menuItem('Create a Class…').click();
+  await menuItem('Create').hover();
+  await menuItem('Class…').click();
   const classShown = await cube.waitForFunction(() => document.querySelectorAll('.dc-class-file').length > 0
     || document.querySelector('.dc-class .dc-picker-status.dc-failed') !== null, undefined, { timeout: 60_000 }).then(() => true, () => false);
   if (classShown) {
@@ -319,7 +320,7 @@ try {
     // Python holds, its frames, until Python reads more (X1-X5)
     const tiles = 0;
     await dc.click('.dc-titlebar-menu');
-    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
     await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
     await dc.locator('.dc-blank .dc-primary').click();
     await dc.locator('.dc-picker').waitFor({ timeout: 5000 });
@@ -358,7 +359,7 @@ try {
   // AN EXAMPLE goes the same way: generated in the page, read into Python's DuckDB as a file is (and the file before it
   // let go of: its grid gone, its table dropped in Python -- forget.json, every answer here a success)
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="examples"]').click();
@@ -378,7 +379,7 @@ try {
   // NESTED VALUES (a Variant column) on Python's page: the orders example, its customers and items JSON -- planned and
   // run as the tab plans and runs them (PlanAndRun), where Python's legend-engine answer refused a Variant column
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="examples"]').click();
@@ -395,7 +396,7 @@ try {
   // A REMOTE FILE, read by Python's DuckDB through the httpfs extension the wheel carries: the app's own Remote section,
   // a Parquet file a server on this machine serves (nothing leaves the machine)
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="remote"]').click();
@@ -431,7 +432,7 @@ try {
   }
   // a blank page, then the saved one opened from Open…: its grid over its remote file again
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await cube.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await menuEntry('Open\u2026');
@@ -450,7 +451,7 @@ try {
   // AN ICEBERG TABLE (G5), read by Python's DuckDB through the iceberg extension the wheel carries, every file it names
   // served by the server on this machine: the app's own Remote section, as for a remote file
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="remote"]').click();
@@ -469,7 +470,7 @@ try {
   // Python signs in as rita, the table opens Live (its rows the warehouse's, its receipt saying so), the grid's plane
   // button snaps it into Python's DuckDB (the button and the receipt saying where the copy is), and goes live again
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="database"]').click();
@@ -774,7 +775,7 @@ try {
   const asking = asked > 0;
   tabbed.on('dialog', (d) => { void d.accept(); });
   await tabbed.click('.dc-page-bar .dc-titlebar-menu');
-  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await seen('Blank Page on the page Python serves: a page of the tab\'s own, said',
     () => document.querySelector('[data-tile="grid-1"]') === null && /a page of this tab's own/.test(document.body.innerText));

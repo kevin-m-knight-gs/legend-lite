@@ -72,6 +72,8 @@ export interface PageGrid extends SpawnedGrid {
   setChrome(patch: { readonly showTitleBar?: boolean }): void;
   /** Its status bar's readout from the host asked for again: the page's first grid changed. */
   refreshHostStatus(): void;
+  /** A note on its status bar until it is put away (what a quick join did); undefined: none. */
+  note(text: string | undefined): void;
   /** Where its rows come from, as it is saved: a class's grid is one the page's filters reach. */
   readonly cubeSource?: CubeSource | undefined;
   /** Every query it runs rewritten by the page (its filters on the grid's class), `said` in words; `run`: run again now. */
@@ -1250,22 +1252,26 @@ export class PageApp {
   }
 
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
-  #hostItems(section: 'file' | 'view' | 'data'): MenuItem[] {
+  #hostItems(section: 'file' | 'view' | 'data' | 'create'): MenuItem[] {
     return (this.#options.hostMenu?.() ?? []).filter((i) => (i.section ?? 'file') === section);
   }
 
   /**
-   * THE PAGE'S MENU: the page's things only -- New (a data source, a blank page), the host's data entries, the page's
-   * layout, the host's file entries (Save, Open, Share) and Export of the page, the host's View entries, Settings.
+   * THE PAGE'S MENU: the page's things only -- Create (a data source, a sheet, the host's model entries, a blank page),
+   * the host's data entries, the page's layout, the host's file entries (Save, Open, Share) and Export of the page, the
+   * host's View entries, Settings.
    */
   #menuGroups(): MenuGroup[] {
     const page = this.#page;
     const arranged = !this.empty && page.editing;
     const submenu = (label: string, items: MenuItem[]): MenuItem[] => (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
-      { label: '', items: submenu('New', [
+      // CREATE, the word of every menu (the user, 2026-10-23; menu.ts createItems): what the page makes beside what it
+      // has, the host's model entries a line apart, and a blank page, apart, which replaces everything
+      { label: '', items: submenu('Create', [
         ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…' }] : []),
         { id: 'sheet.new' as const, label: 'Sheet', ...(page.editing ? {} : { disabled: true }) },
+        ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
       { label: '', items: this.#hostItems('data') },

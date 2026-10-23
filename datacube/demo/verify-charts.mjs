@@ -66,13 +66,13 @@ try {
   await settle();
   const before = await rows();
 
-  /** Right-click > Insert > `what` (Visualization or Copy of Grid), on a cell of the grid in `scope`. */
+  /** Right-click > Create > `what` (Visualization or Copy of This Grid), on a cell of the grid in `scope`. */
   /** The page's first grid: every grid on a page is numbered alike, the first grid-1. */
   const FIRST = '[data-tile="grid-1"]';
   const insert = async (what, scope = `${FIRST}, .dc-app`) => {
     await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
     await settle();
   };
   const addChart = async () => {
@@ -196,9 +196,9 @@ try {
     return `following: ${next} of ${column}; frozen kept ${JSON.stringify(frozen.y)}, and through Show Grid`;
   });
 
-  await check('Insert > Grid adds a grid tile of its own; its Insert > Chart charts it; removing it detaches a frozen chart', async () => {
+  await check('Create > Copy of This Grid adds a grid tile of its own; its Create > Visualization charts it; removing it detaches a frozen chart', async () => {
     const tilesBefore = await page.locator('[data-tile^="chart-"]').count();
-    await insert('Copy of Grid', FIRST);
+    await insert('Copy of This Grid', FIRST);
     // the copy: a grid beside the first, every grid on the page alike
     const grid = page.locator('[data-tile^="grid-"]:not([data-tile="grid-1"])').first();
     await grid.locator('.dc-row').first().waitFor({ timeout: 20_000 });

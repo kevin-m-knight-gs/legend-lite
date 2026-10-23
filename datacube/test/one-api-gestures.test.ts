@@ -257,7 +257,7 @@ async function chartOf(gridTile: string): Promise<string> {
   const before = new Set(charts());
   contextMenu(tile(gridTile).querySelector('.dc-row .dc-cell') as HTMLElement);
   await settle();
-  nested('Insert', 'Visualization').click();
+  nested('Create', 'Visualization').click();
   await settle();
   const chart = charts().find((id) => !before.has(id));
   assert.ok(chart, 'a chart on the page');
@@ -508,7 +508,7 @@ const GESTURES: readonly Gesture[] = [
   { name: 'a chart removed', setUp: withChart, make: ({ chart }) => removeTile(chart!) },
   { name: 'a grid removed', setUp: twoGrids, make: ({ b }) => removeTile(b!) },
   { name: 'a grid moved to another sheet', setUp: withSheet, make: ({ b }) => gridMenuItem(b!, 'Sheet 2').click() },
-  { name: 'a grid copied', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Copy of Grid').click() },
+  { name: 'a grid copied', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Copy of This Grid').click() },
   {
     name: 'a sheet arranged',
     setUp: twoGrids,
@@ -895,7 +895,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     const was = onScreen();
     const original = was.cubes.find((c) => c.id === was.views.find((v) => v.id === a)?.cube)?.cube;
     assert.ok(original && original.tree.open.length > 0, 'the grid copied has a group open');
-    gridMenuItem(a, 'Copy of Grid').click();
+    gridMenuItem(a, 'Copy of This Grid').click();
     await drawn();
     await channel.idle();
     await drawn();
@@ -919,7 +919,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     const was = onScreen();
     const original = was.cubes.find((c) => c.id === was.views.find((v) => v.id === a)?.cube)?.cube;
     assert.ok(original);
-    gridMenuItem(a, 'Copy of Grid').click();
+    gridMenuItem(a, 'Copy of This Grid').click();
     await drawn();
     await channel.idle();
     await drawn();

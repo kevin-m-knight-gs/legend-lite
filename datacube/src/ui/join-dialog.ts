@@ -32,10 +32,15 @@ export interface JoinDialogOptions {
   summary(their: string, how: JoinHow): Promise<JoinSummaryCounts>;
   /** The join made a grid of the page. */
   apply(their: string, how: JoinHow): Promise<void>;
+  /**
+   * Where the window starts (a right-click's Join ▸: the column clicked, or a quick join that would repeat rows of mine):
+   * their grid, the key it starts on in place of a suggestion, and the form chosen.
+   */
+  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice };
 }
 
 /** What the window's form offers, each a form of join.ts's `how`. */
-type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append';
+export type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append';
 /**
  * Each form as its tile says it (the user, 2026-10-23: the window was messy beside Create a Class's): a short name, a
  * picture of what it keeps of the two (`picture`, below), and what it does, in a line.
@@ -144,6 +149,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     const theirSide = el(doc, 'label', 'dc-join-side', grids);
     el(doc, 'span', 'dc-picker-field-label', theirSide, 'Theirs');
     const their = select(doc, 'dc-join-their', theirSide, 'Their grid', o.others.map((c) => ({ value: c.id, label: c.name })));
+    if (o.start?.their !== undefined && o.others.some((c) => c.id === o.start!.their)) their.value = o.start.their;
     const theirCount = el(doc, 'div', 'dc-join-count', theirSide);
 
     // HOW THEY COMBINE: a tile a form, each a picture and a name, what the chosen one does said under them
@@ -343,8 +349,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         });
       }
       rowsBox.replaceChildren();
-      // one plain key: the condition it starts with; else a row to fill
-      rowLine(rowsBox, JOIN_OPS, keys.length === 1 ? keys[0]!.row : { op: '==' }, true);
+      // the key it was opened on, while their grid is the one it was opened at; else one plain key; else a row to fill
+      const given = o.start?.row !== undefined && their.value === o.start.their ? o.start.row : undefined;
+      rowLine(rowsBox, JOIN_OPS, given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' }), true);
       rowLine(matchLine, AS_OF_OPS, { op: '>=' }, false);
       columnList.replaceChildren();
       for (const c of inputs.right.columns) {
@@ -457,7 +464,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       }
     })());
 
-    choose('left');
+    choose(o.start?.form ?? 'left');
     void load();
   });
 }

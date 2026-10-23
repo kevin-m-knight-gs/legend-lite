@@ -125,7 +125,7 @@ function blankPage(): void {
     assert.ok(found, `no entry '${label}': ${items.map((i) => i.textContent).join(' | ')}`);
     return found;
   };
-  const opener = item('New');
+  const opener = item('Create');
   opener.dispatchEvent(new dom.window.MouseEvent('mouseenter', { bubbles: true }));
   opener.click();
   item('Blank Page').click();

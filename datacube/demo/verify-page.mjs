@@ -68,11 +68,11 @@ async function dragToRows(from, column, to) {
   await settle();
 }
 
-/** Right-click > Insert > `what`, on a cell of the grid in `scope`. */
+/** Right-click > Create > `what`, on a cell of the grid in `scope`. */
 async function insert(what, scope) {
   await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
   await settle();
 }
 
@@ -81,7 +81,7 @@ try {
   await page.waitForSelector('.dc-row', { timeout: 120_000 });
   await settle();
   // the second cube: a copy of the sample's grid, under it
-  await insert('Copy of Grid', tile(A));
+  await insert('Copy of This Grid', tile(A));
   await page.locator(`${tile(B)} .dc-row`).first().waitFor({ timeout: 20_000 });
   await settle();
 

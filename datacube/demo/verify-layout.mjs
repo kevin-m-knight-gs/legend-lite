@@ -111,11 +111,11 @@ async function titleMenu(label) {
   await page.locator(`.dc-menu [role^="menuitem"]:has(> .dc-menu-label:text-is("${label}"))`).first().click();
 }
 
-/** Right-click > Insert > `what`, on a cell of the grid in `scope`. */
+/** Right-click > Create > `what`, on a cell of the grid in `scope`. */
 async function insert(what, scope) {
   await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
   await settle();
 }
 
@@ -131,7 +131,7 @@ try {
     // the page's first grid is grid-1: every grid on a page is numbered alike
     await insert('Visualization', '.dc-app');
     await insert('Visualization', tile('grid-1'));
-    await insert('Copy of Grid', tile('grid-1'));
+    await insert('Copy of This Grid', tile('grid-1'));
     await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 20_000 });
     await settle();
     const all = await page.locator('.dc-band-tile').evaluateAll((els) => els.map((e) => e.dataset.tile));

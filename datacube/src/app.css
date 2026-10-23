@@ -846,6 +846,35 @@
   color: var(--tw-neutral-600);
 }
 
+/* a note beside the rows until put away (CubeApp.note: what a quick join did) -- cut short, its whole text on hover */
+.dc-status-note {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 0 0 var(--dc-pad-2);
+  color: var(--tw-sky-700);
+}
+
+.dc-status-note-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-status-note-close {
+  border: 0;
+  background: none;
+  padding: 0 4px;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
+}
+
+.dc-status-note-close:hover {
+  color: var(--tw-neutral-800);
+}
+
 /* -- the grid and its sidebar ---------------------------------------- */
 
 .dc-app-middle {

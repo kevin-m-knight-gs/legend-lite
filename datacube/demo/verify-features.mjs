@@ -606,7 +606,7 @@ async function openThroughPicker(file) {
   }
   // in place of the page: New ▸ Blank Page, then "Add a data source"
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
@@ -5142,7 +5142,7 @@ try {
   // LAST: it turns the page into a board, which every check above assumes it is not.
   await check('New > Source: an example opens as a grid of its own, at the row limit, said "the first 1,000 of N"', async () => {
     await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
     await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
     await page.locator('.dc-picker').waitFor({ timeout: 5000 });
     await page.locator('.dc-picker-tab[data-section="examples"]').click();
@@ -5168,7 +5168,7 @@ try {
   await check('New > Data Source > Saved queries: a data space query opens as a grid, its enumeration as names', async () => {
     const pick = async () => {
       await page.click('.dc-titlebar-menu');
-      await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+      await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
       await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
       await page.locator('.dc-picker').waitFor({ timeout: 5000 });
       await page.locator('.dc-picker-tab[data-section="saved"]').click();

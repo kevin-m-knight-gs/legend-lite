@@ -317,8 +317,8 @@ try {
   });
 
   let chart;
-  await step('Insert > Visualization: a chart that follows the grid', async () => {
-    await cellMenu(['Insert', 'Visualization']);
+  await step('Create > Visualization: a chart that follows the grid', async () => {
+    await cellMenu(['Create', 'Visualization']);
     await settle();
     await drawn();
     const list = await charts();

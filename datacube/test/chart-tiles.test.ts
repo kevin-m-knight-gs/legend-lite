@@ -72,7 +72,7 @@ const chartOf = async (gridTile: string): Promise<void> => {
   await settle();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
     .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Visualization'
-      && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Insert');
+      && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
   assert.ok(item, 'Insert > Chart');
   item.click();
   await settle();
@@ -275,7 +275,7 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     button.click();
     const labels = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu > [role^="menuitem"]')]
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent);
-    assert.deepEqual(labels, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis'], 'the grid\'s, not shut');
+    assert.deepEqual(labels, ['Create', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis'], 'the grid\'s, not shut');
     assert.equal(button.getAttribute('aria-expanded'), 'true');
     button.click();
     assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'its own button again shuts it');
@@ -316,7 +316,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     };
     const labels = (items: HTMLElement[]): string[] => items.map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
     const theirs = labels(gridMenu(id));
-    assert.deepEqual(theirs, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis', 'Remove from Page']);
+    assert.deepEqual(theirs, ['Create', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis', 'Remove from Page']);
     // the cube's own grid is its host's: the same menu, but it cannot be taken off the page
     assert.deepEqual(labels(gridMenu('grid')), theirs.filter((l) => l !== 'Remove from Page'), 'the cube\'s own grid has the same menu');
     // its Undo is its own: the added grid's change undone, the cube's grid untouched
@@ -377,8 +377,8 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     await settle();
     // Insert > Grid, by its own label (Insert's entry holds its submenu's words too)
     const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Copy of Grid'
-        && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Insert');
+      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Copy of This Grid'
+        && el.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
     assert.ok(item, 'the added grid\'s menu offers Insert > Grid');
     item.click();
     await settle();
@@ -462,7 +462,7 @@ describe('New > Source: a grid over another source, with its own planner and eng
     (first.querySelector('.dc-row .dc-cell') as HTMLElement)
       .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     await settle();
-    const item = entry('Copy of Grid', 'Insert');
+    const item = entry('Copy of This Grid', 'Create');
     assert.ok(item, 'the added grid offers Insert > Grid');
     item.click();
     await settle();
@@ -473,12 +473,12 @@ describe('New > Source: a grid over another source, with its own planner and eng
   it('the hamburger offers New > Source… only when the host can open one', async () => {
     (root.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
     await settle();
-    assert.ok(entry('Data Source\u2026', 'New'), 'New > Data Source…');
-    assert.ok(entry('Visualization', 'New') && entry('Copy of Grid', 'New'), 'New > Visualization and Copy of Grid');
+    assert.ok(entry('Data Source\u2026', 'Create'), 'Create > Data Source…');
+    assert.ok(entry('Visualization', 'Create') && entry('Copy of This Grid', 'Create'), 'Create > Visualization and Copy of This Grid');
     await remount({});
     (root.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
     await settle();
-    assert.equal(entry('Data Source\u2026', 'New'), undefined);
+    assert.equal(entry('Data Source\u2026', 'Create'), undefined);
   });
 });
 

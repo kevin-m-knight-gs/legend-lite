@@ -224,8 +224,46 @@ describe('the app', () => {
     // the menu's own entries, not a submenu's
     const labels = [...dom.window.document.querySelectorAll('.dc-menu > .dc-menu-item > .dc-menu-label, .dc-menu > * > .dc-menu-item > .dc-menu-label')]
       .map((l) => l.textContent);
-    assert.deepEqual(labels.slice(0, 3), ['New', 'Undo', 'Redo']);
+    assert.deepEqual(labels.slice(0, 3), ['Create', 'Undo', 'Redo']);
     assert.equal(labels[labels.length - 1], 'Settings...');
+  });
+
+  // the user, 2026-10-23: a Join ▸ on the right-click, beside Filter -- the host's entries, picked inside the submenu
+  it("the right-click's Join ▸ is the host's, beside Filter, and an entry picked inside it reaches the host", async () => {
+    const asked: (string | undefined)[] = [];
+    const picked: string[] = [];
+    const { app: cube } = app({
+      joinMenu: (column) => { asked.push(column); return [{ id: 'host.join.with.0', label: 'With customers on region' }]; },
+      onHostMenu: (item) => picked.push(item.id ?? ''),
+    });
+    await cube.open();
+    await flush();
+    const cell = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent?.trim() === 'EMEA');
+    assert.ok(cell, 'a cell of region');
+    cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    assert.deepEqual(asked, ['region'], 'asked for the column clicked');
+    const top = [...dom.window.document.querySelectorAll('.dc-menu > .dc-menu-item > .dc-menu-label, .dc-menu > * > .dc-menu-item > .dc-menu-label')]
+      .map((l) => l.textContent);
+    assert.equal(top.indexOf('Join'), top.indexOf('Filter') + 1, `Join beside Filter: ${top.join(', ')}`);
+    assert.ok(top.includes('Create') && !top.includes('Insert'), 'Create in place of Insert');
+    const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu-item')]
+      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'With customers on region');
+    click(entry);
+    assert.deepEqual(picked, ['host.join.with.0'], 'given back to the host, from a submenu of the right-click');
+  });
+
+  it('a note on its status bar stays beside its rows through a render, until put away', async () => {
+    const { app: cube } = app();
+    await cube.open();
+    await flush();
+    cube.note('5,840 rows of my 6,000 rows find a match, 160 rows do not.');
+    const said = (): string | null | undefined => root.querySelector('.dc-status-note-text')?.textContent;
+    assert.equal(said(), '5,840 rows of my 6,000 rows find a match, 160 rows do not.');
+    await cube.edit([{ kind: 'filter', filter: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } }], 'filter');
+    await flush();
+    assert.equal(said(), '5,840 rows of my 6,000 rows find a match, 160 rows do not.', 'kept as the view lands again');
+    click(root.querySelector('.dc-status-note-close'));
+    assert.equal(root.querySelector('.dc-status-note'), null, 'put away');
   });
 
   it('saved settings reach the host, which may keep them', async () => {

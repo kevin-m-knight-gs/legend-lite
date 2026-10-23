@@ -149,7 +149,7 @@ async function chartOf(gridTile: string): Promise<string> {
     .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   await settle();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((el) => label(el) === 'Visualization' && label(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Insert');
+    .find((el) => label(el) === 'Visualization' && label(el.parentElement!.closest('.dc-menu-item') as HTMLElement) === 'Create');
   assert.ok(item, 'Insert > Visualization');
   item.click();
   await settle();
@@ -325,7 +325,7 @@ describe('a page of its own', () => {
     await settle();
     (tile(a).querySelector('.dc-zone-rows .dc-chip[data-column="desk"] .dc-chip-remove') as HTMLElement).click();
     await settle();
-    gridMenuItem(a, 'Copy of Grid').click();
+    gridMenuItem(a, 'Copy of This Grid').click();
     await settle();
     assert.equal(page.grids.length, 2);
     const copy = page.grids.find((id) => id !== a)!;
@@ -867,7 +867,7 @@ describe('a page of its own', () => {
       download: (name, _mime, content) => files.push([name, content]),
     });
     const items = pageMenu();
-    const newItem = entry(items, 'New')!;
+    const newItem = entry(items, 'Create')!;
     (newItem.querySelector('[role^="menuitem"]') as HTMLElement).click();
     await settle();
     assert.equal(page.grids.length, 1);
