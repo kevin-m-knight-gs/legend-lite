@@ -31,7 +31,7 @@ import {
   type SortSpec,
   withoutConditions,
 } from './snapshot.ts';
-import { applyToSnapshot, type CubeConfiguration } from './config.ts';
+import { applyToSnapshot, withColumn, type CubeConfiguration } from './config.ts';
 import { readFilterNode } from './grid-commands.ts';
 import { defaultKind, familyOf, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
@@ -950,41 +950,80 @@ export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly 
 }
 
 /**
- * Why a chart has no grouping of its own to show in a grid (D7, Show Grid; Python's chart.grid()), in words -- or null:
- * it has one, its column across (and its split). A chart of rows (a scatter, a scatter matrix), of the grid as shown (a
- * treemap, a sunburst, a tree), of places (a map) or of one figure (a gauge) has none a grid's Rows would hold.
+ * WHAT SHOW GRID DOES with a chart (D7; Python's chart.grid()), `follows` saying whether its grid is on the page: the
+ * grid it reads shown (`reveal`) when that grid holds what the chart draws -- a chart following it; a treemap, a
+ * sunburst or a tree, which draws the grid as shown whatever its state; and a pinned chart that takes nothing of its
+ * grid's grouping, which pinning leaves reading just what it read (a scatter's rows, a map's places, a gauge's or a
+ * KPI's one figure). Else a grid of its own made (`own`, chartGrid): a chart keeping a grouping of its own or the filter
+ * it was frozen with, or whose grid was removed (the user, 2026-10-23: Show Grid on every chart).
  */
-export function ownGridRefusal(spec: ChartSpec): string | null {
-  if (plotsRows(spec) || GRID_MARKS.has(spec.mark) || MAP_MARKS.has(spec.mark) || spec.mark === 'gauge') {
-    return `a ${spec.mark} chart has no grouping of its own to show in a grid`;
-  }
-  return spec.x === undefined ? 'the chart has nothing across: no grouping of its own to show in a grid' : null;
+export function showGridWay(spec: ChartSpec, follows: boolean): 'reveal' | 'own' {
+  if (!follows) return 'own';
+  if (GRID_MARKS.has(spec.mark) || spec.frozen !== true) return 'reveal';
+  return spec.kept === undefined && !groupsLikeItsGrid(spec) ? 'reveal' : 'own';
+}
+
+/** Whether a chart draws groups of its grid's kind -- its column across, its split -- and so has a grouping its grid may
+ *  not: not a chart of rows, of places, or of one figure. */
+function groupsLikeItsGrid(spec: ChartSpec): boolean {
+  return !plotsRows(spec) && !MAP_MARKS.has(spec.mark) && !oneFigure(spec);
+}
+
+/** A chart of one figure: a gauge, a KPI, or a chart with nothing across. */
+function oneFigure(spec: ChartSpec): boolean {
+  return spec.mark === 'gauge' || spec.mark === 'kpi' || spec.x === undefined;
 }
 
 /**
- * A CHART'S OWN GRID (D7: Show Grid on a frozen or a detached chart; Python's chart.grid()): the grid of the chart's own
- * grouping and query -- its cube's query (`draft`: as its grid has it, or as the chart kept it, detached) with the chart's
- * selection off its filter, grouped by its column across and its split, pivoted by nothing, its values the grid's Column
- * Properties (chartValuesAsColumns, each value read back from the column that carries it) -- and the chart following
- * that grid: the same chart, frozen no more. Or why it has none (ownGridRefusal).
+ * A CHART'S OWN GRID (D7: Show Grid on a frozen or a detached chart; Python's chart.grid()): the chart's query as a grid
+ * -- its cube's query (`draft`: as its grid has it, or as the chart kept it, detached) with the chart's selection off its
+ * filter, or the filter it was frozen with -- grouped as the chart groups it: by its column across and its split; a
+ * scatter's rows as they are, its plotted columns shown and no other; a map by its places; a gauge's or a KPI's one
+ * figure the grid's total, grouped by nothing; a treemap, a sunburst or a tree the grid as it drew it. Its values the
+ * grid's Column Properties (chartValuesAsColumns, each value read back from the column that carries it), and the chart
+ * following that grid: the same chart, frozen no more.
  */
 export function chartGrid(draft: GridDraft, spec: ChartSpec, selection: readonly FilterNode[]): {
   readonly snapshot: CubeSnapshot;
   readonly configuration: CubeConfiguration;
   readonly spec: ChartSpec;
   readonly notes: readonly string[];
-} | string {
-  const refused = ownGridRefusal(spec);
-  if (refused !== null) return refused;
+} {
   const { filter: now, ...query } = draft.snapshot;
   // a frozen chart's grid: the filter it kept (its selection was put on its grid's filter since, never on that)
   const filter = spec.kept !== undefined ? spec.kept.filter : withoutConditions(now, selection) ?? undefined;
-  const rows = [spec.x!, ...(spec.split !== undefined ? [spec.split] : [])];
-  const made = chartValuesAsColumns({ ...draft, snapshot: { ...query, ...(filter ? { filter } : {}), rows, pivotOn: [] } }, spec.y);
+  const grouped = GRID_MARKS.has(spec.mark) ? { rows: query.rows, pivotOn: query.pivotOn }
+    : { rows: ownGridRows(spec), pivotOn: [] };
+  // a chart of rows plots each row's own values, and one drawing the grid as shown its grid's: no value its Aggregation
+  const values = plotsRows(spec) || GRID_MARKS.has(spec.mark) ? [] : spec.y;
+  const made = chartValuesAsColumns({ ...draft, snapshot: { ...query, ...(filter ? { filter } : {}), ...grouped } }, values);
+  const config = plotsRows(spec) ? onlyPlotted(made.draft, spec)
+    : oneFigure(spec) && !GRID_MARKS.has(spec.mark) ? { ...made.draft.config, showRootAggregation: true } : made.draft.config;
   // folded: the grid reads its query back over its configuration, whose Aggregations are the chart's values now
-  const snapshot = applyToSnapshot(made.draft.snapshot, made.draft.config);
+  const snapshot = applyToSnapshot(made.draft.snapshot, config);
   const { frozen: _frozen, kept: _kept, ...following } = spec;
-  return { snapshot, configuration: made.draft.config, spec: followCube(following, snapshot, made.carriedBy), notes: made.notes };
+  return { snapshot, configuration: config, spec: followCube(following, snapshot, made.carriedBy), notes: made.notes };
+}
+
+/** What a chart's own grid groups by (chartGrid): its column across and its split; a map's places; nothing for rows as
+ *  they are or one figure. */
+function ownGridRows(spec: ChartSpec): string[] {
+  if (plotsRows(spec) || oneFigure(spec)) return [];
+  if (MAP_MARKS.has(spec.mark)) {
+    // a bubble map's places, as its query groups by them (chartSnapshot)
+    const places = spec.mark === 'bubblemap' ? [spec.at?.lat, spec.at?.lon].filter((c): c is string => c !== undefined) : [];
+    return [spec.x!, ...places];
+  }
+  return [spec.x!, ...(spec.split !== undefined ? [spec.split] : [])];
+}
+
+/** A scatter's grid shows the columns it plots -- across, its values, its series, a mark's size, label and hover -- and
+ *  hides the rest. */
+function onlyPlotted(draft: GridDraft, spec: ChartSpec): CubeConfiguration {
+  const plotted = new Set([spec.x, spec.split, ...[...spec.y, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []),
+    ...(spec.label ? [spec.label] : [])].map((m) => m.column)].filter((c): c is string => c !== undefined));
+  return allColumns(draft).reduce((config, name) => (plotted.has(name) ? config : withColumn(config, name, { hidden: true })),
+    draft.config);
 }
 
 /** A name for a calculated column carrying `m` that the grid has not: the value's own (`max_notional`), else by its column. */

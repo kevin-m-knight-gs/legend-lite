@@ -161,6 +161,7 @@ describe('Show Grid: the grid a chart follows, or a grid of its own grouping, wh
     await ungroup(mainZone(), 'desk');
     assert.equal(chart(a).spec.split, 'desk', 'frozen: its own grouping');
     assert.equal(offersShowGrid(a), false);
+    assert.match(menuEntry(chartMenu(a), 'Show Grid')!.title, /needs a page/, 'its hover says why it is off');
     const before = JSON.stringify(app.pageViews());
     told.length = 0;
     menuEntry(chartMenu(a), 'Show Grid')!.click();

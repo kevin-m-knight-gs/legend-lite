@@ -339,6 +339,8 @@ export interface MenuItem {
   readonly showAs?: ShowAsKind;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
+  /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
+  readonly hint?: string;
 }
 
 export interface MenuGroup {
