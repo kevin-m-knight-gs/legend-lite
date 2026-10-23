@@ -424,20 +424,41 @@ export class ChartPanel {
       this.#trend?.dispose();
       this.#trend = null;
       const doc = this.#doc;
-      const box = doc.createElement('div');
-      box.className = 'dc-kpi';
-      const value = doc.createElement('div');
-      value.className = 'dc-kpi-value';
-      value.textContent = drawing.value;
+      const div = (className: string, text?: string): HTMLDivElement => {
+        const el = doc.createElement('div');
+        el.className = className;
+        if (text !== undefined) el.textContent = text;
+        return el;
+      };
+      // a stat tile: the headline (in full on a hover); against its target, said and metered; its latest period
+      // against the one before; its trend's line
+      const box = div('dc-kpi');
+      const value = div('dc-kpi-value', drawing.value);
+      if (drawing.exact !== drawing.value) value.title = drawing.exact;
       box.append(value);
+      /** A line of the tile: its difference, coloured by good or bad (and said by its arrow), then the rest in words. */
+      const said = (className: string, delta: string, words: string, good: boolean | null): HTMLDivElement => {
+        const line = div(className);
+        if (delta) line.append(div(`dc-kpi-delta${good === null ? '' : good ? ' dc-kpi-good' : ' dc-kpi-bad'}`, delta));
+        line.append(div('dc-kpi-words', words));
+        return line;
+      };
       if (drawing.target) {
-        const against = doc.createElement('div');
-        against.className = `dc-kpi-target ${drawing.target.good ? 'dc-kpi-good' : 'dc-kpi-bad'}`;
-        against.textContent = drawing.target.text;
-        box.append(against);
+        const { delta, words, goal, good, reached } = drawing.target;
+        box.append(said('dc-kpi-target', delta, words, good));
+        // how much of the target is reached, the target at the meter's end
+        const meter = div(`dc-kpi-meter ${good ? 'dc-kpi-good' : 'dc-kpi-bad'}`);
+        meter.setAttribute('role', 'img');
+        meter.setAttribute('aria-label', `${Math.round(reached * 100)}% of the target, ${goal}`);
+        const track = div('dc-kpi-meter-track');
+        const fill = div('dc-kpi-meter-fill');
+        fill.style.width = `${(reached * 100).toFixed(1)}%`;
+        track.append(fill);
+        meter.append(track, div('dc-kpi-goal', goal));
+        box.append(meter);
       }
-      const place = doc.createElement('div');
-      place.className = 'dc-kpi-trend';
+      if (drawing.change) box.append(said('dc-kpi-change', drawing.change.delta, drawing.change.words, drawing.change.good));
+      const place = div('dc-kpi-trend');
       if (drawing.trend) box.append(place);
       this.#canvas.replaceChildren(box);
       this.#canvas.setAttribute('aria-label', drawing.description);

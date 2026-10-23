@@ -96,10 +96,18 @@ export const REVENUE = { column: 'revenue', fn: 'sum' } as const;
 export const PROFIT = { column: 'profit', fn: 'sum' } as const;
 export const BY_TIME = { sort: { by: 'x', direction: 'asc' }, limit: 2000 } as const;
 
-/** Each sheet: its name, and its tiles two to a band, simplest first. */
+/** Each sheet: its name, and its tiles two to a band, simplest first -- or laid out in `bands` of its own. */
 export interface ExampleSheet {
   readonly name: string;
   readonly views: readonly PageView[];
+  /** Its own layout: each band's share of the height, and its tiles' shares of the width, left to right. */
+  readonly bands?: readonly ExampleBand[];
+}
+
+/** A band of a sheet laid out by hand: its share of the sheet's height, its tiles (by id) and each one's share of the width. */
+export interface ExampleBand {
+  readonly height: number;
+  readonly tiles: readonly (readonly [id: string, width: number])[];
 }
 
 const SHEETS: readonly ExampleSheet[] = [
@@ -232,6 +240,14 @@ function bandsOf(tiles: readonly string[], perRow = 2, fit = false): Band[] {
   return out;
 }
 
+/** A band laid out by hand (ExampleBand): its tiles side by side, each its share of the width. */
+function bandOf(band: ExampleBand): Band {
+  const [only] = band.tiles;
+  const node: Node = band.tiles.length === 1 && only ? { tile: only[0] }
+    : { split: 'row', parts: band.tiles.map(([tile, width]) => ({ node: { tile }, size: width })) };
+  return { height: band.height, node };
+}
+
 /** The page: its sheets of charts, and a last sheet of the grid they are views of. */
 export async function chartsDashboardPage(): Promise<PageDocument> {
   return salesPage('Chart examples', SHEETS);
@@ -261,7 +277,11 @@ export async function salesPage(name: string, sheets: readonly ExampleSheet[], e
   const placed: PageSheet[] = sheets.map((s, i) => ({
     id: `sheet-${i + 1}`,
     name: s.name,
-    layout: { kind: 'bands', fit: how.fit === true, bands: bandsOf(s.views.map((v) => v.id), how.perRow, how.fit === true) },
+    layout: {
+      kind: 'bands',
+      fit: how.fit === true,
+      bands: s.bands ? s.bands.map(bandOf) : bandsOf(s.views.map((v) => v.id), how.perRow, how.fit === true),
+    },
   }));
   placed.push({ id: `sheet-${sheets.length + 1}`, name: 'The data', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] } });
   return writePageOf({

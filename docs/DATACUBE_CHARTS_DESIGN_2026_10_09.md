@@ -66,6 +66,17 @@ with its step 3 (its §13: dashboards on classes).
    is a view of its grid's query as every chart is, so it has a chart's every way -- placed beside its grid, on any
    sheet, stacked, following the grid's measure or frozen, saved, and Python's `grid.chart('kpi', ...)` -- with none
    of it written twice; its options carry the target and which way is good.
+   **As built, 2026-10-23 (the user: "make them look nicer, more sleek"):** a stat tile. Its number is a headline,
+   the grid's own format scaled from 100,000 ("$35.7m"; format.ts `headlineFormat`, a percentage to one place), in
+   full on a hover. Under it: the difference from its target, coloured and arrowed, then in words; a meter of how much
+   of the target is reached, the target at its end; its latest period's change from the one before ("▲ 3.3% Dec vs
+   Nov 2025"), the database's -- the trend's query carries the measure shown as `percentChange`, the lag window below
+   (chart-spec.ts `kpiChange`); and the trend in the quiet hue, its latest point marked. Sized by its own tile (a CSS
+   container), it sheds its lesser lines when short. The gallery's last sheet, **KPI dashboard**, lays out a strip of
+   eight on top, then the trend against target, the channel mix and the target's ring, then the top products, the
+   regions by channel and the map. Found on the way: every chart's text named the font `inherit`, which a canvas
+   refuses -- drawing in whatever font it had last, its sizes lost (a gauge's 30px number at 10px); the theme now
+   carries the page's font by name (chart-option.ts `ChartTheme.font`).
 
 ### Batches 2-5: every chart we can realistically draw (revised with the user, 2026-10-14)
 
@@ -336,7 +347,8 @@ reaches `GridView` as a `Decimal`.
 per measure (a measure names one; `wavg`'s weight is the only second column a measure has), so the correlation
 heatmap, the trend line and the candlestick wait on a measure with two columns; the candlestick also on the `prices`
 sample. Percentile lines need a percentile window (a new `WindowFunction`, in the window form and Python's words); the
-ECDF a `cumeDist` show-as; the violin, error bars, hexbin and KPI change were not started.
+ECDF a `cumeDist` show-as; the violin, error bars and hexbin were not started (the KPI change was built 2026-10-23, the
+lag window below, §3 item 3).
 
 | Kind | What the query computes |
 |---|---|

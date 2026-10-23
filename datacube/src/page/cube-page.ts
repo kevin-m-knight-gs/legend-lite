@@ -77,8 +77,8 @@ export interface ChartSource {
   readonly configuration: CubeConfiguration;
   /** Run a query the grid did not plan, through the grid's own runner. */
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
-  /** A value as the grid writes it. */
-  format(value: Scalar, column: string, type: string | undefined): string;
+  /** A value as the grid writes it; `headline`: scaled, a KPI's number (format.ts `headlineFormat`). */
+  format(value: Scalar, column: string, type: string | undefined, headline?: boolean): string;
   /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
   unit?(column: string): string | undefined;
   /** A column as the grid names it. */
@@ -1181,7 +1181,7 @@ export class CubePage {
       ...(restore ? { initial: restore.spec } : {}),
       snapshot: () => source().snapshot,
       run: (query, snapshot, signal) => source().run(query, snapshot, signal),
-      label: (value, column, type) => source().format(value, column, type),
+      label: (value, column, type, headline) => source().format(value, column, type, headline),
       unit: (column) => source().unit?.(column),
       // the page's charts with the same column across share a crosshair
       crosshair: this.#crosshair,
@@ -1486,7 +1486,7 @@ export class CubePage {
       snapshot: detached.snapshot,
       get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
-      format: (value, column, type) => runs.format(value, column, type),
+      format: (value, column, type, headline) => runs.format(value, column, type, headline),
       unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
       // detached, a treemap keeps the rows it last drew

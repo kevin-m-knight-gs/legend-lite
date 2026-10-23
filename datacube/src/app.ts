@@ -76,7 +76,7 @@ import type { PageState } from './page-state.ts';
 import {
   PAGE_CUBE, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
 } from './page-document.ts';
-import { FormatterCache, type ColumnFormat } from './format.ts';
+import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
   TREE_COLUMN,
@@ -2690,7 +2690,8 @@ export class CubeApp {
       get configuration() { return app.#config; },
       run: async (query, snapshot, signal) =>
         (await this.#controller.runQuery(query, snapshot, undefined, signal)).rows,
-      format: (value, column, type) => this.#formatters.format(value, this.#formats[column], type),
+      format: (value, column, type, headline) =>
+        this.#formatters.format(value, headline ? headlineFormat(this.#formats[column], type, value) : this.#formats[column], type),
       unit: (column) => {
         const f = this.#formats[column];
         return f ? `${f.kind}|${f.currency ?? ''}|${f.unit ?? ''}` : undefined;
