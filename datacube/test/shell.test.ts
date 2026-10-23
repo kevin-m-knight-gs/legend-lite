@@ -252,6 +252,24 @@ describe('the app', () => {
     assert.deepEqual(picked, ['host.join.with.0'], 'given back to the host, from a submenu of the right-click');
   });
 
+  // the user, 2026-10-23: Create ▸ Data Source… on a grid's right-click, as in the page's menu -- a grid of a page whose
+  // host picks the source (DataCube's app) asks that host
+  it("a page grid's Create ▸ offers Data Source… first, and picking it asks its host", async () => {
+    let asked = 0;
+    const { app: cube } = app({ onOpenSource: () => { asked += 1; } });
+    await cube.open();
+    await flush();
+    const cell = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent?.trim() === 'EMEA');
+    cell!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    const create = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu-item')]
+      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
+    const entries = [...(create?.querySelectorAll(':scope > .dc-submenu > .dc-menu-item > .dc-menu-label') ?? [])].map((l) => l.textContent);
+    assert.deepEqual(entries, ['Data Source\u2026', 'Copy of This Grid', 'Visualization']);
+    click([...create!.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')][0]);
+    await flush();
+    assert.equal(asked, 1, 'its host asked to add a grid over a source picked now');
+  });
+
   it('a note on its status bar stays beside its rows through a render, until put away', async () => {
     const { app: cube } = app();
     await cube.open();

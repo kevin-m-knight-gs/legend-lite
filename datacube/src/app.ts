@@ -295,6 +295,12 @@ export interface CubeAppBaseOptions {
   readonly onBlankPage?: () => void;
   /** A grid on a page: its New ▸ Data Source… goes to the page, as `onNewGrid` does. */
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
+  /**
+   * A grid on a page whose host picks sources itself (DataCube's app: PageApp.addSource): its Create ▸ Data Source…
+   * asks the host, which adds the grid beside this one -- in place of `openSource`, which answers a source for the cube
+   * to place.
+   */
+  readonly onOpenSource?: () => void;
   /** A grid on a page of its own: its menu's Remove from Page, the page taking its tile off. */
   readonly onRemove?: () => void;
   /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
@@ -462,6 +468,11 @@ export class CubeApp {
   #lensSaid: string | undefined;
   /** What its status bar says beside its rows until it is put away (`note`): what a quick join did, say. */
   #note: string | undefined;
+  /** Whether its Create ▸ offers Data Source…: its host answers a source, or adds one beside it. */
+  get #canOpenSource(): boolean {
+    return this.#options.openSource !== undefined || this.#options.onOpenSource !== undefined;
+  }
+
   /** The host's entries of the last right-click (its Join ▸): given back through `onHostMenu` when picked. */
   #cellHost: readonly MenuItem[] = [];
   /** The grids it spawned (Copy of Grid, a chart's Show Grid on a cube alone's board): given its lens whenever it is given one. */
@@ -2048,7 +2059,7 @@ export class CubeApp {
         snapshot: this.#shown,
         ...(join.length > 0 && !this.#adhoc ? { join } : {}),
         create: this.#hostItems('create'),
-        canOpenSource: this.#options.openSource !== undefined,
+        canOpenSource: this.#canOpenSource,
         ...(propertiesColumn !== undefined ? { propertiesColumn } : {}),
         ...(column !== undefined ? { column } : {}),
         isRowDimension: column
@@ -2567,6 +2578,10 @@ export class CubeApp {
    * cube's board, or the page this grid is on.
    */
   async newSource(): Promise<void> {
+    if (this.#options.onOpenSource) {
+      this.#options.onOpenSource();
+      return;
+    }
     const source = await this.#options.openSource?.();
     if (source === undefined) return;
     const make = this.#gridOver(source);
@@ -4093,7 +4108,7 @@ export class CubeApp {
       // picker -- a copy of this grid or a chart of it, all beside what is there, and the host's (a class...); or a
       // blank page, apart, which replaces everything
       { label: '', items: submenu('Create', [
-        ...createItems({ source: this.#options.openSource !== undefined, host: this.#hostItems('create'), disabled: adhoc }),
+        ...createItems({ source: this.#canOpenSource, host: this.#hostItems('create'), disabled: adhoc }),
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
       // THE PAGE'S LAYOUT, while there is a page of tiles: its layouts, and locking it so nothing moves by accident
@@ -4120,7 +4135,7 @@ export class CubeApp {
   #gridMenu(): MenuGroup[] {
     return [
       { label: '', items: [{ label: 'Create', submenu: createItems({
-        source: this.#options.openSource !== undefined, host: this.#hostItems('create'), disabled: this.#adhoc !== null,
+        source: this.#canOpenSource, host: this.#hostItems('create'), disabled: this.#adhoc !== null,
       }) }] },
       // a host's entries on this grid's rows (Create a Class…): a group only when there are some -- each group is
       // drawn with its separator

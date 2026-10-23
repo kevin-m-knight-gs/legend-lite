@@ -252,6 +252,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             ...(joinGrid?.offered(place) ? [JOIN] : []),
           ];
         },
+        // its Create ▸ Data Source…: a grid over a source picked now, beside this one (the page's own Data Source…'s way)
+        ...(picks ? { onOpenSource: () => { if (spawned.id !== undefined) void page.addSource(spawned.id); } } : {}),
         // ITS RIGHT-CLICK JOIN ▸ (the user, 2026-10-23), built as it opens: what each entry asks kept until one is picked
         joinMenu: (column) => {
           const built = spawned.id !== undefined && joinMenuOf ? joinMenuOf(spawned.id, column) : undefined;

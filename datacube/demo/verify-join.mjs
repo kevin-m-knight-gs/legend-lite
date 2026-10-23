@@ -329,8 +329,9 @@ try {
   await page.locator('.dc-sheet-tab[data-sheet="sheet-1"]').click();
   await page.locator('[data-tile="orders"] .dc-row').first().waitFor({ timeout: 60_000 });
   await rightClickIn(page.locator('[data-tile="orders"]'), 'country');
+  // the grid's own three first -- a data source beside it among them -- then the model's, where the page has a model home
   const create = await submenu('Create');
-  check(JSON.stringify(create) === JSON.stringify(['Data Source\u2026', 'Copy of This Grid', 'Visualization']),
+  check(JSON.stringify(create.slice(0, 3)) === JSON.stringify(['Data Source\u2026', 'Copy of This Grid', 'Visualization']),
     `Create ▸ in place of Insert: ${create.join(' | ')}`);
   const exampleJoins = await submenu('Join');
   check(exampleJoins[0] === 'With Countries on country', `Join ▸ on the column clicked: ${exampleJoins.join(' | ')}`);
