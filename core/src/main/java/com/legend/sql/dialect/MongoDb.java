@@ -261,12 +261,16 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " shape yet");
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
+            case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
+                    + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
+                    + " of it is not lowered");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException("deferred relation-toString reached"
                     + " the renderer — the execution boundary must resolve the dynamic column list first"
                     + " (DeferredTdsString id " + d.id() + ")");
             case SqlExpr.WindowCall w -> windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
-            case SqlExpr.Cast c -> variantAwareCast(writer, c);
+            case SqlExpr.Cast c -> c.target() instanceof SqlType.Tagged
+                    ? writer.expr(c.value(), parentPrec) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);
             case SqlExpr.JsonObject j -> jsonObject(writer, j);
             case SqlExpr.JsonArray j -> jsonArray(writer, j);

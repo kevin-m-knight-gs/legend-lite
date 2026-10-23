@@ -518,6 +518,11 @@ public final class Executor {
                                com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
                                boolean variantRoot)
             throws SQLException {
+        if (sqlTypeOf(plan, 0) instanceof com.legend.sql.SqlType.Tagged tg) {
+            // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the tag, then its slot
+            Object v = readTagged(rs, 1, tg, dialect);
+            return new Cell(v, rs.getObject(1) != null);
+        }
         Object fetched = fetch(rs, 1, sqlTypeOf(plan, 0), dialect);
         // presence is the RAW wire fact — read before unwrap (a JSON
         // null node is a present cell; unwrap/decode may host-null it)
@@ -977,8 +982,16 @@ public final class Executor {
             List<Column> columns) throws SQLException {
         List<Object> cells = new ArrayList<>(n);
         boolean lateBound = schema.isLateBound();
+        java.util.Set<Integer> slotColumns = taggedSlotColumns(plan);
         for (int i = 1; i <= n; i++) {
+            if (slotColumns.contains(i - 1)) {
+                continue;   // a tagged column's slot, read through its tag below
+            }
             com.legend.sql.SqlType sqlType = sqlTypeOf(plan, i - 1, lateBound);
+            if (sqlType instanceof com.legend.sql.SqlType.Tagged tg) {
+                cells.add(readTagged(rs, i, tg, dialect));
+                continue;
+            }
             Object fetched = fetch(rs, i, sqlType, dialect);
             // a time of day in text carriage (lite's timeOfText, the Cypher island's nanosecond times, 2026-10-18):
             // the TEMPORAL_TEXT label read by the column's Pure type, as the label's contract says -- a StrictTime
@@ -1008,6 +1021,43 @@ public final class Executor {
 
     private static com.legend.sql.@com.legend.base.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {
         return sqlTypeOf(plan, index, false);
+    }
+
+    /** A tagged result column's cell (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): column {@code i} holds the tag,
+     *  the slot index; the winner stands in that slot's column, named by the tag column's label, read in the slot's
+     *  own type. Null where the tag is. */
+    private static @com.legend.base.Nullable Object readTagged(ResultSet rs, int i, com.legend.sql.SqlType.Tagged tg,
+            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+        Object tag = rs.getObject(i);
+        if (tag == null) {
+            return null;
+        }
+        int index = ((Number) tag).intValue();
+        if (index < 0 || index >= tg.slots().size()) {
+            throw new IllegalStateException("result column " + i + ": its tag " + index + " names no slot of " + tg);
+        }
+        com.legend.sql.SqlType slot = tg.slots().get(index).type();
+        int j = rs.findColumn(com.legend.sql.SqlType.Tagged.slotColumn(rs.getMetaData().getColumnLabel(i), index));
+        return unwrap(fetch(rs, j, slot, dialect), slot, dialect);
+    }
+
+    /** The positions (0-based) of the plan's outputs that are a tagged column's slots: read through their tag. */
+    private static java.util.Set<Integer> taggedSlotColumns(SqlQuery plan) {
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (OutputCol c : plan.outputs()) {
+            if (c.type() instanceof com.legend.sql.SqlType.Tagged tg) {
+                for (int k = 0; k < tg.slots().size(); k++) {
+                    names.add(com.legend.sql.SqlType.Tagged.slotColumn(c.name(), k));
+                }
+            }
+        }
+        java.util.Set<Integer> out = new java.util.HashSet<>();
+        for (int k = 0; k < plan.outputs().size(); k++) {
+            if (names.contains(plan.outputs().get(k).name())) {
+                out.add(k);
+            }
+        }
+        return out;
     }
 
     /** {@code lateBound} is threaded from the TYPED schema

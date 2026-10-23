@@ -57,7 +57,20 @@ final class JdbcDecode {
     static List<Object> row(ResultSet rs, List<ExecutionPlan.Column> columns, boolean javaTime) throws SQLException {
         List<Object> out = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
-            out.add(cell(rs, i + 1, columns.get(i), javaTime));
+            ExecutionPlan.Column c = columns.get(i);
+            if (RowDecode.slotWord(c.slot()).equals("TAGGED")) {
+                // a tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its cell is the tag, the slot
+                // index; the value stands in that slot's column beside it, read with the slot's own type
+                Object tag = rs.getObject(i + 1);
+                if (tag == null) {
+                    out.add(null);
+                    continue;
+                }
+                ExecutionPlan.Column slot = RowDecode.taggedSlot(c, ((Number) integral(tag, c)).intValue());
+                out.add(cell(rs, rs.findColumn(slot.name()), slot, javaTime));
+                continue;
+            }
+            out.add(cell(rs, i + 1, c, javaTime));
         }
         return out;
     }
@@ -112,6 +125,8 @@ final class JdbcDecode {
             case "LITERAL" -> {
                 return LiteralText.parse(text(v, c));
             }
+            case "TAGGED" -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
+                    + " its row (its slot columns stand beside it), never alone");
             case "DECIMAL_TEXT" -> {
                 return RowDecode.decimalText(text(v, c));
             }

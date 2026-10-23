@@ -138,7 +138,51 @@ To be completed in the first step, one row per kind, each with its round-trip te
 | year-only, year-month dates | text | text | the precision | carried as data today (kind B) |
 | Enumeration | VARCHAR | exact | the enum's path | none |
 | class instance, Pair, List, Map | JSON, ARRAY, STRUCT | per driver | the class layout | nested values per driver; layouts must travel in the plan |
-| `Any`, mixed lists | the identity channel | per driver | the tag | carried as data today (kind B) |
+| a mixed selection's winner (`max`, `min`, `greatest`, `least`, `mode` over mixed Number or Date) | a tag plus one typed slot per kind (§5a) | the tag, then the slot | the slots' kinds | none: every slot is its own type |
+| `Any`, mixed lists (`sort`, the Any-kind carrier) | the identity channel | per driver | the tag | carried as data today (kind B); step B of §5a |
+
+### 5a. A mixed selection: the kind as a tag, never a spelling (RATIFIED 2026-10-23)
+
+The user, 2026-10-23, on `[1, 2.5]->max()`: "is there really no way to do mixed lists without casting to string?"
+and "do the right design and fixes now towards the correct architecture". There is, and this is it.
+
+**The fact.** Every candidate's kind is static: in `[1, 2.5, 3.0D]` the first is an Integer, the second a Float, the
+third a Decimal, known at plan time. Only the choice is dynamic. So the database returns the *choice* -- a tag -- and
+each kind present has a slot of its own type; nothing is spelled unless a query asks for text.
+
+```sql
+-- |[1, 2.5, 3.0D]->max()
+SELECT CASE _t.__tag WHEN 1 THEN 0 WHEN 2 THEN 1 WHEN 3 THEN 2 END AS value,   -- the slot index
+       CASE _t.__tag WHEN 1 THEN _t.__c0 END AS value__0,                        -- BIGINT
+       CASE _t.__tag WHEN 2 THEN _t.__c1 END AS value__1,                        -- DOUBLE
+       CASE _t.__tag WHEN 3 THEN _t.__c2 END AS value__2                         -- DECIMAL(2,1)
+FROM (SELECT list_position(vals, list_max(vals)) AS __tag, 1 AS __c0, 2.5 AS __c1, 3.0 AS __c2) AS _t
+```
+
+- **MIR:** `SqlExpr.Tagged(tag, comparable, candidates)`, each candidate its Pure kind, its slot type and its value;
+  its type is `SqlType.Tagged(slots)`, the distinct (kind, SQL type) pairs. No dialect renders it: a query's root
+  projects it (above), and a consuming rule reads the channel it needs.
+- **Consumers:** returned as a result, the tag and the slots; a comparison, an equality or a sort key reads the
+  comparable; `toString`, `format`, the TDS text and the JSON wires spell `CASE tag WHEN k THEN text(candidate k)`,
+  each arm its own static kind, so a Float literal's text is the database's own plain text and only a computed Float
+  pays the exact-digits form, once; any other consumer refuses by name until it is designed (arithmetic over a tagged
+  value is one: Pure's kind of `[1, 2.5]->max() + 1` is dynamic too, and the spelling carrier read it through an
+  implicit text cast).
+- **Plan:** the column's slot is `TAGGED<Integer BIGINT, Float DOUBLE, Decimal DECIMAL(2,1)>`; the physical columns
+  are `<name>__<i>` (`SqlType.Tagged.slotColumn`, the one owner of the name). The decoders read the tag, then that
+  slot's column with its own type: `3.0D` stays a Decimal at scale 1, `3` an Integer. The judges' canon is the same
+  CASE over the tag.
+- **The tenet:** the unroll compares positions and rearranges shapes (C6.2); the database picks the winner and holds
+  it in its own type; the host reads by the plan's facts. Nothing is folded in Java (Clause 4) and no text is
+  manufactured to carry a kind.
+- **What it replaces:** the F10 spelling carrier for selections -- `ids[list_position(vals, winner)]` over Pure
+  literal spellings labelled `LITERAL`, whose Float spelling was ~4 KB on DuckDB and ~5 KB written four times on
+  Snowflake (`[1, 2.5]->max()` 4,184 and 20,385 characters; `mode` over two Float literals 8,380 and 53,427). Step A
+  (this landing) takes the five selection rules. Step B takes the lists -- mixed `sort`, the Any-kind carrier, a
+  mixed collection at a root -- onto parallel typed arrays and retires the LITERAL slot, `LiteralText.parse` and the
+  dialects' physical types for it.
+- **Not a mode.** Both doors (§1) get the same SQL: the kind survives as a type in the product too (the user,
+  2026-10-23: "worth keeping this for mixed lists in the real product/platform").
 
 ## 6. Gates
 

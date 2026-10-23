@@ -129,14 +129,14 @@ class PlanJsonTest {
                 new Sql("select 1", List.of(), t, null))));
         // 8 since 2026-10-20: the keyed result, per-key regions, a key's cell (the dynamic pivot's probe plan); 9 the
         // same day: the keyed result's cells named as its statements write them (keyFields, an output's field)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":9,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":10,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v9 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v10 plan"), refused.getMessage());
     }
 
     @Test

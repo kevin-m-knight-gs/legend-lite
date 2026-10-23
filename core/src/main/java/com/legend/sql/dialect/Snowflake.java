@@ -1792,6 +1792,8 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SqlType.Array arr -> w -> w.append("TO_ARRAY(").piece(number).append(")");
             case SqlType.Map m -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
             case SqlType.Struct st -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
+            case SqlType.Tagged tg -> throw new IllegalStateException("a tagged value is never raised as: its tag"
+                    + " and slots are its query's columns");
         };
     }
 

@@ -530,6 +530,15 @@ public final class Lowerer {
         if (mixedLits != null) {
             e = mixedLits;
         }
+        // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23): the root projects
+        // its tag and one column per slot; a collection of them is step B's
+        if (e instanceof SqlExpr.Tagged tg) {
+            if (Stamps.isMany(spec)) {
+                throw new com.legend.error.NotImplementedException("a collection of values whose kind the database"
+                        + " decides (a mixed max, min, greatest, least or mode, many-valued): not lowered");
+            }
+            return taggedRoot(tg, spec);
+        }
         // THE ONE LITERAL-LABEL ARM (§4.3, redundant half deleted
         // 2026-08-24): the TREE says whether the finished root carries
         // spellings — every producer marks at construction (the sort
@@ -583,6 +592,60 @@ public final class Lowerer {
                 false, new SqlSource.Dual(),
                 null, List.of(), null, null, List.of(), null, null,
                 List.of());
+    }
+
+    /**
+     * A tagged value's egress (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the tag and each candidate computed
+     * once in an inner select; the root projects {@code value}, the winner's SLOT INDEX (the tag column, typed
+     * {@link SqlType.Tagged}), and one column per slot ({@link SqlType.Tagged#slotColumn}) holding the winner in
+     * that slot's own type where the tag names it and NULL elsewhere, a candidate cast to the slot where its own
+     * type differs (an Integer literal to BIGINT, a Float literal written as a decimal to DOUBLE). The reader takes
+     * the tag, then that slot's column with its own type.
+     */
+    private SqlSelect taggedRoot(SqlExpr.Tagged tg, TypedSpec spec) {
+        String inner = nextAlias();
+        List<SqlSelect.Projection> computed = new ArrayList<>();
+        computed.add(new SqlSelect.Projection(tg.tag(), "__tag",
+                new OutputCol("__tag", SqlType.Scalar.INTEGER, true)));
+        List<SqlType> owns = new ArrayList<>();
+        for (int k = 0; k < tg.candidates().size(); k++) {
+            SqlExpr.Tagged.Candidate c = tg.candidates().get(k);
+            SqlType own = c.value().type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : c.slot();
+            owns.add(own);
+            computed.add(new SqlSelect.Projection(c.value(), "__c" + k, new OutputCol("__c" + k, own, true)));
+        }
+        SqlSelect once = new SqlSelect(computed, false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        SqlExpr tag = SqlExpr.Column.of(inner, "__tag", SqlType.Scalar.INTEGER, true, OutputCol.Origin.DERIVED);
+        List<SqlType.Tagged.Slot> slots = tg.slots();
+        List<SqlSelect.Projection> out = new ArrayList<>();
+        List<SqlExpr.Case.When> index = new ArrayList<>();
+        for (int k = 0; k < tg.candidates().size(); k++) {
+            index.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
+                    new SqlExpr.IntLit(tg.slotOf(k))));
+        }
+        // the tag column is TYPED as the tagged carrier by a cast every dialect writes as the identity (the slot is
+        // the wire, SqlTyping.reconcileSlot: a label rides on the expression's own type, as LITERAL's does)
+        SqlType.Tagged carrier = new SqlType.Tagged(slots);
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+                new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
+        for (int i = 0; i < slots.size(); i++) {
+            List<SqlExpr.Case.When> whens = new ArrayList<>();
+            for (int k = 0; k < tg.candidates().size(); k++) {
+                if (tg.slotOf(k) != i) {
+                    continue;
+                }
+                SqlType own = owns.get(k);
+                SqlExpr read = SqlExpr.Column.of(inner, "__c" + k, own, true, OutputCol.Origin.DERIVED);
+                whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
+                        own.equals(slots.get(i).type()) ? read : new SqlExpr.Cast(read, slots.get(i).type())));
+            }
+            String name = SqlType.Tagged.slotColumn("value", i);
+            out.add(new SqlSelect.Projection(new SqlExpr.Case(whens, null), name,
+                    new OutputCol(name, slots.get(i).type(), true)));
+        }
+        return new SqlSelect(out, false, new SqlSource.Subselect(once, inner, null), null, List.of(), null, null,
+                List.of(), null, null, List.of());
     }
 
     /**

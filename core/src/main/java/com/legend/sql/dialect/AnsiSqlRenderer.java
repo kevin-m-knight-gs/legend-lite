@@ -732,13 +732,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // value (processNoOp view).
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
+            // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
+            // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
+            case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
+                    + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
+                    + " of it is not lowered (" + t.candidates().size() + " candidates of kinds "
+                    + t.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"
                     + " list first (DeferredTdsString id " + d.id() + ")");
             case SqlExpr.WindowCall w -> windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
-            case SqlExpr.Cast c -> variantAwareCast(writer, c);
+            // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
+            // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
+            case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Tagged
+                    ? writer.expr(c.value(), parentPrec) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);
             case SqlExpr.JsonObject j -> jsonObject(writer, j);
             case SqlExpr.JsonArray j -> jsonArray(writer, j);
@@ -1377,6 +1386,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlType.Array a -> arrayTypeName(castTypeName(a.element()));
             case com.legend.sql.SqlType.Map m -> mapTypeName(castTypeName(m.key()), castTypeName(m.value()));
             case com.legend.sql.SqlType.Struct st -> structTypeName(st);
+            case com.legend.sql.SqlType.Tagged tg -> throw new IllegalStateException("a tagged value is never cast"
+                    + " or stored: its tag and slots are its query's columns"
+                    + " (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a)");
         };
     }
 
@@ -1538,6 +1550,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + "' is a map, which no parameter is bound as");
             case com.legend.sql.SqlType.Struct st -> throw new DialectCapability("plan parameter '" + parameter
                     + "' is a struct, which no parameter is bound as");
+            case com.legend.sql.SqlType.Tagged tg -> throw new DialectCapability("plan parameter '" + parameter
+                    + "' is a tagged value, which no parameter is bound as");
         };
     }
 

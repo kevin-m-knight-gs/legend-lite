@@ -330,6 +330,15 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-23, announced: a mixed selection's winner as a tag plus typed slots** (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`
+  §5a, ratified by the user that day: "is there really no way to do mixed lists without casting to string?", then "do
+  the right design and fixes now towards the correct architecture"): `SqlExpr.Tagged` and `SqlType.Tagged`; the five
+  selection rules (`max`, `min`, `greatest`, `least`, `mode` over mixed Number or Date) return the winner as a tag and
+  one typed slot per kind, never as a spelling; the root projects them, the plan's column is `TAGGED<kind slot, ...>`
+  (format 10), the decoders read the tag then the slot, the text wires and the judges' canon spell the slot the tag
+  names. Step B, after it: the lists (mixed `sort`, the Any-kind carrier, a mixed collection at a root) onto parallel
+  typed arrays, retiring the `LITERAL` slot. Judged by `TaggedSelectionTest`, the core lanes, the platform's PCT
+  suites, then every lane's channels A and B against the merged head.
 - **2026-10-20, the parity phase, second batch: twenty-five more lane pins removed** (GATES "the parity phase, second
   batch"): Jaro-Winkler on MySQL, MariaDB and SQLite; MongoDB's dynamic pivot through the probe plan (its markers bound
   by place, the keyed plan's cells named in the plan, JSON v9) and its divide as doubles; the metamodel's tables inline
