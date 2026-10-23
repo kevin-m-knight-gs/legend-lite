@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
-import { accessor, eq, from, lit, property, toJson, variable } from '../../pure-protocol/src/index.ts';
+import { accessor, eq, from, lambda, lit, property, toJson, variable } from '../../pure-protocol/src/index.ts';
 import { projectText } from '../../model-changes/src/project.ts';
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { classGiven, classLambda, classProperties, classRelation, type ClassElement } from '../src/class-source.ts';
+import { classGiven, classLambda, classOpened, classProperties, classRelation, type ClassElement } from '../src/class-source.ts';
 import { CubeController } from '../src/cube.ts';
 import { rawRows, type ClassSource } from '../src/cube-document.ts';
 import { gridLens } from '../src/page-filters.ts';
@@ -136,6 +136,23 @@ describe('a class made by the writer, read back by its class source', () => {
       const rows = await engine.run(plan.sql, 0);
       const ids = rows.columns[0]!.values.map(Number).sort();
       assert.deepEqual(ids, [1, 3], 'the EMEA trades, the filter on the class');
+    } finally {
+      planner.dispose();
+    }
+  });
+
+  it("opened by classOpened -- the one reading the tab's own class grid (sources.ts openedClass) and the host's (host-tables.ts) take -- its columns the class's properties, its rows the table's (L12: class)", async () => {
+    const made = await writer.createClass('', 'trades', TRADE);
+    const cls = made.classes[0]!;
+    const files = made.changes.map((c) => ({ pureCode: c.pureCode ?? '' }));
+    const planner = plannerFor(projectText(files), cls.runtime, { mapping: cls.mapping });
+    try {
+      const at = { class: cls.class, project: 'p:q', workspace: 'datacube', revision: '1', mapping: cls.mapping, runtime: cls.runtime };
+      const opened = await classOpened(at, files, async (text) => await planner.modelElements(text) as ClassElement[]);
+      assert.deepEqual([opened.shown, opened.left], [['tradeId', 'region', 'notional'], []]);
+      assert.equal(toJson(opened.source), toJson(classRelation(cls.class, ['tradeId', 'region', 'notional'])));
+      const rows = await engine.run((await planner.plan(lambda([], opened.source))).sql, 0);
+      assert.deepEqual(rows.columns[0]!.values.map(Number).sort(), [1, 2, 3, 4], 'every trade, read through its mapping');
     } finally {
       planner.dispose();
     }

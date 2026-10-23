@@ -10,6 +10,7 @@ import datetime
 import gc
 import json
 import os
+import sys
 import tempfile
 import threading
 import unittest
@@ -1657,6 +1658,43 @@ class Abilities(Paged):
         self.assertEqual(stored(first)['name'], 'Saved as', 'another saved page, left as it was')
         with self.assertRaisesRegex(ValueError, "no saved page 'nope' in this user's saved pages"):
             ll.Page.delete('nope')
+
+    def test_a_deleted_saved_page_is_told_to_every_page_saved_as_it_whatever_one_of_them_says(self):
+        # (R7) the record is gone from the store already: a page that fails to hear it stops no other page hearing it,
+        # its failure raised after every page was told
+        page = ll.Page('Told')
+        page.grid(trades(), name='told_trades', rows=['region'], measures={'notional': 'sum'})
+        id = page.save()
+        other = ll.Page.open(id, frames={'told_trades': trades()})
+        with mock.patch.object(datacube._current(), 'page_objects', return_value=[page, other]), \
+                mock.patch.object(page, '_record_gone', side_effect=RuntimeError('the page could not hear it')):
+            with self.assertRaisesRegex(RuntimeError, 'the page could not hear it'):
+                ll.Page.delete(id)
+        self.assertNotIn('record', other.to_dict(), 'told, after the page before it failed')
+
+    def test_the_sessions_pages_are_kept_and_read_whole_while_pages_are_made_on_another_thread(self):
+        # (R7) Page.delete reads the session's pages while another thread may be making one: each read a whole set,
+        # never a set changing size under it
+        class Made:
+            pass
+        session = datacube._current()
+        made: list[Made] = []
+        def making() -> None:
+            for _ in range(50_000):
+                one = Made()
+                made.append(one)
+                session.page_made(one)
+        interval = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        try:
+            maker = threading.Thread(target=making)
+            maker.start()
+            while maker.is_alive():
+                session.page_objects()
+            maker.join()
+        finally:
+            sys.setswitchinterval(interval)
+        self.assertLessEqual(set(map(id, made)), set(map(id, session.page_objects())))
 
     def test_a_saved_page_is_opened_by_its_id_as_datacubes_open_opens_it(self):
         # (K12) ll.Page.open: the record from this user's saved pages, opened as Open… opens it (headless pageOfRecord)

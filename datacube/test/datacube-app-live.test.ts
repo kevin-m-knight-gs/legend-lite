@@ -214,6 +214,41 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.equal(doc.querySelector('.dc-picker-status')?.textContent, 'the host read no rows', 'its refusal said in the window');
   });
 
+  it("a grid made a class on Python's page adds a grid over its class from its menu, made by the host and opened there (K16)", async () => {
+    const editor = new Editor();
+    const trades = (await corpus())['trades.page.json']!;
+    const grid = trades.views.find((v) => v.kind === 'grid')!;
+    const model = { project: 'p:q', workspace: 'datacube', package: 'p', tables: {}, revision: 'r1', classes: { [grid.cube]: 'p::domain::Trade' } };
+    const page: PageDocument = { ...trades, model };
+    editor.read = async () => {
+      editor.reads += 1;
+      return { version: 1, page, held: idsOf(page) };
+    };
+    const asked: unknown[][] = [];
+    const alerts: string[] = [];
+    dom.window.alert = (m?: unknown) => { alerts.push(String(m)); };
+    await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }), {
+      made: async (...args: unknown[]) => { asked.push(['made', ...args]); return 'not read: the host is asked to open it next'; },
+      opened: async (...args: unknown[]) => { asked.push(['opened', ...args]); throw new Error('the host read no rows'); },
+    });
+    for (let i = 0; i < 5; i += 1) await settle();
+    const doc = dom.window.document;
+    // the grid's own menu: its tile's, or the bar's while it is alone on its sheet
+    const burger = doc.querySelector<HTMLElement>('.dc-tile-menu');
+    assert.ok(burger, "the grid's own menu");
+    burger.click();
+    const item = [...doc.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+      .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Add a Grid over Trade');
+    assert.ok(item, `offered on Python's page: ${[...doc.querySelectorAll('.dc-menu [role="menuitem"]')].map((i) => i.textContent).join(' | ')}`);
+    item.click();
+    for (let i = 0; i < 5; i += 1) await settle();
+    // made by the host -- the page's model, the class as class-source.ts classGiven takes it, beside the grid's one other
+    assert.deepEqual(asked[0]?.slice(0, 1), ['made']);
+    assert.deepEqual(JSON.parse(asked[0]![1] as string).classes, model.classes);
+    assert.equal(asked[0]![2], '{"class":"p::domain::Trade"}');
+    assert.equal(asked[0]![4], 2, 'a grid beside another: capped');
+  });
+
   it('the editor is told, as it is asked, the version on screen: the copies it reads stay until it moves past them (Z17)', async () => {
     const editor = new Editor();
     const app = await opened(editor);

@@ -34,6 +34,7 @@ import tempfile
 import io
 import json
 import os
+import re
 import sys
 import threading
 from decimal import Decimal
@@ -145,8 +146,44 @@ def main() -> None:
     pq.write_table(pa.table({'book': ['Dune', 'Emma', 'Ulysses'], 'pages': [412, 474, 730]}), f'{remote.name}/books.parquet')
 
     class Quiet(http.server.SimpleHTTPRequestHandler):
+        # read by Python's DuckDB and by the tab's DuckDB-WASM (L12's remote-file proof, page.ts): a page at the engine's
+        # origin asks across origins, and DuckDB reads a Parquet file by ranges of it
         def log_message(self, *_):
             pass
+
+        def end_headers(self):
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Headers', 'Range')
+            self.send_header('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges')
+            self.send_header('Accept-Ranges', 'bytes')
+            super().end_headers()
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self.end_headers()
+
+        def do_GET(self):
+            asked = re.fullmatch(r'bytes=(\d+)-(\d*)', self.headers.get('Range') or '')
+            path = self.translate_path(self.path)
+            if asked is None or not os.path.isfile(path):
+                return super().do_GET()
+            with open(path, 'rb') as f:
+                body = f.read()
+            start = int(asked[1])
+            end = min(int(asked[2]) if asked[2] else len(body) - 1, len(body) - 1)
+            if start >= len(body) or end < start:
+                # a range the file has no byte of
+                self.send_response(416)
+                self.send_header('Content-Range', f'bytes */{len(body)}')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            self.send_response(206)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Range', f'bytes {start}-{end}/{len(body)}')
+            self.send_header('Content-Length', str(end - start + 1))
+            self.end_headers()
+            self.wfile.write(body[start:end + 1])
     files = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=remote.name))
     threading.Thread(target=files.serve_forever, daemon=True).start()
     # and an Iceberg table the same server serves (G5), read through the iceberg extension the wheel carries

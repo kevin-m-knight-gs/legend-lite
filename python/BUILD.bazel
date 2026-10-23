@@ -711,8 +711,9 @@ build_test(
 guards_package()
 
 # THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): //datacube:one_api_ledger_test reads Python's
-# sources (which command kinds Python makes) and this package's ledger file (the register is held to every ledger),
-# each copied to the output tree, where a JavaScript test reads its data (rules_js)
+# sources (which command kinds Python makes), this package's ledger file (the register is held to every ledger) and
+# its tests (L12: the tests each ability on the Python host is proved by), each copied to the output tree, where a
+# JavaScript test reads its data (rules_js)
 copy_to_bin(
     name = "legend_lite_sources",
     srcs = glob(["legend_lite/*.py"]),
@@ -721,6 +722,6 @@ copy_to_bin(
 
 copy_to_bin(
     name = "one_api_ledger",
-    srcs = ["tests/test_one_api.py"],
+    srcs = glob(["tests/test_*.py"]),
     visibility = ["//datacube:__pkg__"],
 )

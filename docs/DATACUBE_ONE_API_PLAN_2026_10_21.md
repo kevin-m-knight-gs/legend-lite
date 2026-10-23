@@ -170,7 +170,7 @@ no longer exists (so the list can only shrink, and stays true).
 | **L9** host writes | what the keeper takes whole, through the engine's own write (H1-H3); who writes the keeper at all (page.py, engine.py, datacube.py) | behavioural, and static by Python's parser |
 | **L10** same rule | one parity test per behaviour difference (audit §6); ledger = rows still differing | behavioural |
 | **L11** screen builds no command (S8) | no command written out in a screen file; `pageCommand` only for the person's input; every function that makes commands the screen calls asked by headless too, or the screen's own, said why | static, by the command types' kinds, closed at 0 |
-| **L12** branches on the host (D23) | every place screen code branches on its host -- the page's own engine, a database ability, a service, an address, a grid's runner, or a name holding one -- by function and capability, each with what the other host does there (`both:` its own path, or `by nature:` why none) | static, by enclosing function; a new branch fails until it is listed and said |
+| **L12** branches on the host (D23) | every place screen code branches on its host -- the page's own engine, a database ability, a service, an address, a grid's runner, or a name holding one -- by function and capability, each with what the other host does there (`both:` its own path, or `by nature:` why none); each `both:` an ability, proved on each host by named tests, and -- done by an implementation each (`two`) -- held to one result by a parity test | static, by enclosing function; a new branch fails until it is listed and said; a proof whose test is gone fails |
 
 Every ledger's size is pinned (`CEILINGS`): a fix lowers it; it grows only with a dated note. The register is pinned too:
 every item it has held is in it, open or closed.
@@ -574,6 +574,31 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   cube-page-shell.test.ts, verify-charts.mjs, tour.mjs)
 - [x] **K12** open a saved page by id — closed S6: `ll.Page.open(id)`, the record read as the tab's Open… reads it
   (page-document.ts `savedPage`, moved out of the app: D6; headless `pageOfRecord`) (test_page.py `Abilities`)
+- [x] **R1** L12's scan missed branches on the host (D23's independent review): a runner read off a source's rows or a
+  grid's place, abilities destructured off the database, the database's `place` and `forgetFile`, a call made only where
+  an ability is (`?.(`), a capability in a template's `${...}`, a name holding the database -- and it took only a line's
+  first read, so K16's host half on the tab's line was unseen -- fixed: every read on a line, each form; 30 more places
+  listed and said; self-tests for each form and for K16's half taken off (one-api-ledger.test.ts)
+- [x] **R2** K16 had no test on the tab's side (the review) -- fixed: datacube-app-live.test.ts adds a grid over a class
+  from a grid's own menu on Python's page, the host asked to make it and to open it; it fails with the old guard
+- [x] **R3** model actions, a class and a saved query were `shared`, though they read and write through a model home or
+  a query store that is legend-lite's in two builds (the review) -- fixed: `two`, held to one result by the SDLC's and
+  the query store's conformance run against each build
+- [x] **R4** proofs cited for what they did not run (the review: model, remote, reopen, class) -- fixed: a test of
+  `classOpened` itself (class-source.test.ts), Create a Class's writing for model, the remote parity check for the tab's
+  remote, the tab's own reopen (cube-page-shell, the saved-page corpus) for reopen
+- [x] **R5** the remote parity check left the tab's view mounted (the review) -- fixed: dropped; Python keeps a remote
+  view by its URL, as for its pages, and offers a page no way to drop one (said in the check)
+- [x] **R6** the fixture's file server answered a range past the file's end with a malformed 206 (the review) -- fixed:
+  416, as HTTP says (python-engine/page.ts's remote check asks a range past the end: a 206 fails it)
+- [x] **R7** `Page.delete` stopped telling the session's pages at the first that failed, and read them without a lock
+  (the review) -- fixed: each told, the first failure raised after; the set added to and read under its own lock (D15:
+  never held across a call into DataCube) (test_page.py: a page that fails to hear it, the page after it told; the set
+  read while another thread adds to it -- each fails without its half: the second with "Set changed size during
+  iteration")
+- [x] **R8** declared by the review: `Page.delete` tells this session's pages only -- another session's page (another
+  marimo viewer's) keeps its record, its next save refused as the tab's is (Y-8): safe; a class grid made by the host
+  carries no "not shown" note of the properties it leaves out, as Python's `page.grid(cls=...)` carries none
 - [x] **K13** Save As (the S7 audits' Y-6, H-9; D23) — closed: `page.save_as(name)`, the record by the Save window's one
   rule, page-document.ts `pageSaving` (Save, or Save As: the record the page was saved as left alone), which the tab's
   Save As now asks too in place of the screen's own (headless `pageRecord` takes `asNew`) (page-document.test.ts,
@@ -1798,13 +1823,38 @@ refusals).
 **Ledgers.** No ceiling moved; K13-K17 added to the register and closed (one-api-ledger.test.ts `ALL`). And a new one,
 **L12** (the user: "Why do we keep finding more places where ... the two hosts diverge?", then "Check host branch now"):
 K16 was a branch on the host -- `if (services.engine.local)` -- that no ledger saw, since every earlier one asks about
-commands, and an ability gated to one host is none. L12 lists every place screen code branches on its host (47 sites, by
-function and capability: the page's own engine, an ability of its database, a service, its address, a grid's runner, or
-a name holding one) with what the other host does there: `both:` its own path to the same thing (38), or `by nature:`
-why it has none (9: a dataframe lives in Python; a Share link needs an address others can open; a page another editor
+commands, and an ability gated to one host is none. L12 lists every place screen code branches on its host (94 reads at 77 places once the
+review's widened scan ran -- R1 below --, by function and capability: the page's own engine, an ability of its database,
+a service, its address, a grid's runner, or a name holding one) with what the other host does there: `both:` its own
+path to the same thing (67 places), or `by nature:` why it has none (10: a dataframe lives in Python; a Share link needs an address others can open; a page another editor
 serves is followed). A new branch fails the build until it is listed and said, so whether the other host needs it is
 decided as it is written. Its self-test scans an added branch, by the capability and by a name holding one, and a plain
 use that is no branch; adding `if (services.engine.local)` to sources.ts fails it, as it should.
+
+**L12, strict (the user: "Do the strict and missing tests").** L12 proved each branch on the host was decided, not that
+the two hosts do the same thing. Now each `both:` entry names the ability it is a way to (11: rows, saved pages, model
+actions, class, join, warehouse, remote file, file, Snap, saved query, reopening a grid), and each ability names the
+tests that run it on the tab and on the Python host (Python's own tests, at least one) -- checked to exist, by file and
+test name. An ability the two hosts do by one implementation, DataCube's own run headless on the host (`shared`: model
+join and reopening -- the host joins by join-open.ts `openJoin` and opens a saved grid by cube-document.ts `rebuilt`,
+as the tab does), needs no more. One each host does by an implementation of its own (`two`: rows -- one compiler in two
+builds over two DuckDBs --, saved pages -- the store's Java in two builds --, model actions, a class and a saved query
+-- DataCube's own reading, `classOpened` and `savedQueryOpened`, over a model home or a query store that is
+legend-lite's in two builds, R3 --, the warehouse's driver, a remote file, a file, Snap) names the test that runs the
+same input both ways and holds the two to one result. Most had one: the cube corpus through PlanAndRun on Python and in
+the tab, every reader file on both, the conformance suite of the saved pages, the SDLC and the query store run against
+each build, and both warehouse drivers held to one recorded corpus. Two had none, and have now, in the browser harness (`//datacube:python_engine_test`, a real tab beside a real Python engine):
+
+- *a remote file reads the same on Python's page and in the tab*: one Parquet file, served by a server on this machine,
+  mounted by the one implementation (upload.ts `mountRemoteView`) in the tab's DuckDB-WASM and in Python's DuckDB, every
+  row planned and run on each -- the same columns, types and values (the fixture's server now answers ranges and across
+  origins, as DuckDB-WASM asks);
+- *a grid snaps the same copy on Python and in the tab*: the frame's every column copied by the tab's SnapManager into
+  its DuckDB and by Python's snap.json into its own, each copy modelled by the one writer (upload.ts `modelLanded`) and
+  read through that model -- the same columns, types and rows, every row of the frame.
+
+A `both:` naming no ability, an ability no branch is a way to, one proved on one host only, a `two` with no parity
+test, or a proof whose test is gone: each fails the build.
 
 **Gates.** The full local set, 205 of 205.
 

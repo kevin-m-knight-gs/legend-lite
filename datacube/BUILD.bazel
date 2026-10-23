@@ -137,14 +137,17 @@ _SCANNED = {
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],
     # THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): the grid's, the page's and the host's sources,
-    # Python's (a command each kind is made by), the plan's register, and the ledger files it is held to
+    # Python's (a command each kind is made by), the plan's register, and the ledger files it is held to -- and every
+    # test file, DataCube's and Python's, where L12 finds the tests each ability on both hosts is proved by
     "one-api-ledger": [
         ":src",
-        "test/one-api-gestures.test.ts",
-        "test/one-api-ledger.test.ts",
+        ":scanned_test_code",
         "//docs:one_api_plan",
         "//python:legend_lite_sources",
         "//python:one_api_ledger",
+        "//engine-client:warehouse_corpus_test_source",
+        "//query-store:wasm_test_source",
+        "//sdlc-client:wasm_test_source",
     ],
     # the WASM list against the files that load the planner (A28)
     "wasm-flag": ["BUILD.bazel", ":scanned_tests"],

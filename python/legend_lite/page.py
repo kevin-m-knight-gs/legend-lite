@@ -1227,7 +1227,7 @@ class Page:
         self._depth = 0
         # collected, forgotten by the keeper at the session's next safe moment (never in the collector), its copies with it
         weakref.finalize(self, self._session.gone.append, self._key_name)
-        self._session.page_objects.add(self)
+        self._session.page_made(self)
         # every grid command DataCube applied for this page's grids, in order, as the screen would have built them
         self._commands: list[dict[str, Any]] = []
         # every page command DataCube applied to this page, in order, as applied (page-commands.ts)
@@ -1783,8 +1783,15 @@ class Page:
             raise ValueError(f'no saved page {id!r} in this user\'s saved pages')
         if status not in (200, 204):
             raise ValueError(f'the saved page {id!r} was not deleted: {_store_said(said)}')
-        for page in list(_current().page_objects):
-            page._record_gone(id)
+        # each told, whatever another says: the record is gone from the store already
+        failed: list[BaseException] = []
+        for page in _current().page_objects():
+            try:
+                page._record_gone(id)
+            except Exception as failure:
+                failed.append(failure)
+        if failed:
+            raise failed[0]
 
     @_operation
     def _record_gone(self, id: str) -> None:

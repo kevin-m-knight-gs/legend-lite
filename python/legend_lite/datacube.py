@@ -170,8 +170,20 @@ class _Session:
         # the keys of pages collected, forgotten by the keeper at the next safe moment (sweep): never in the collector
         self.gone: list[str] = []
         # every Python page of this session not yet collected: a saved page deleted is no saved page any more for each
-        # saved as it (Page.delete, as the tab's Open… tells its page: K14)
-        self.page_objects: weakref.WeakSet[Any] = weakref.WeakSet()
+        # saved as it (Page.delete, as the tab's Open… tells its page: K14) -- added to and read under its own lock (a
+        # page made on another thread meanwhile), never held across a call into DataCube (D15)
+        self._page_objects: weakref.WeakSet[Any] = weakref.WeakSet()
+        self._page_objects_lock = threading.Lock()
+
+    def page_made(self, page: Any) -> None:
+        """A Python page of this session, kept (weakly) among its pages."""
+        with self._page_objects_lock:
+            self._page_objects.add(page)
+
+    def page_objects(self) -> list[Any]:
+        """This session's Python pages not yet collected, as they are now."""
+        with self._page_objects_lock:
+            return list(self._page_objects)
 
     def engine(self) -> Engine:
         """This session's engine: its rows' plan-and-run (every grid's, D16), and what a tab or a notebook's widget is

@@ -129,8 +129,9 @@ try {
     console.log(`FAIL the setup: ${verdict.setupError}`);
     failed = true;
   }
-  if (verdict.outcomes.length !== 9) {
-    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 9`);
+  // 2026-10-23 (D23, L12's proof): 9 -> 11, a remote file read and a Snap copied the same on Python and in the tab
+  if (verdict.outcomes.length !== 11) {
+    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 11`);
     failed = true;
   }
 

@@ -590,17 +590,32 @@ describe('L11: screen code builds no command', () => {
 
 // -- L12: every branch on the host, with what the other host does there ---------------------------------------------
 
-/** What only some hosts give: the page's own engine (the tab's planner and database), its model writer, each ability of
- *  its database a host may not have, its services, its address, a grid's rows run by the host (its runner). */
-const HOST_CAPABILITIES = String.raw`engine\.local\b|engine\.modelWriting\b|`
-  + String.raw`database\.(?:ingestFile|mountRemote|frame|opened|made|join|snap|release|held)\b|`
-  + String.raw`services\.(?:pages|warehouse|modelHome|queries|live)\b|browser\.address\b|options\.runner\b`;
+/** What a host's database may or may not do (app/services.ts DatabaseService's optional members), and the services a
+ *  host may or may not give. */
+const DATABASE_ABILITIES = 'ingestFile|forgetFile|mountRemote|frame|snap|release|held|place|opened|made|join';
+const HOST_SERVICES = 'pages|warehouse|modelHome|queries|live';
+
+/** What only some hosts give, as screen code reads it off what gives it: the page's own engine (the tab's planner and
+ *  database), its model writer, each ability of its database a host may not have, its services, its address, a grid's
+ *  rows run by the host (its runner, wherever it is read: the grid's options, a source's rows, a grid's place). */
+const HOST_CAPABILITIES = String.raw`engine\.local\b|engine\.modelWriting\b|database\.(?:${DATABASE_ABILITIES})\b|`
+  + String.raw`services\.(?:${HOST_SERVICES})\b|browser\.address\b|(?:options|rows|place|o)\.runner\b`;
+
+/** Code as a scan reads it: each quoted string blanked, a template's text blanked and its `${...}`s kept. */
+function scannedCode(line: string): string {
+  return line
+    .replace(/`(?:[^`\\]|\\.)*`/g, (t) => ` ${[...t.matchAll(/\$\{([^}]*)\}/g)].map((m) => m[1]).join(' ; ')} `)
+    .replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, "''")
+    .replace(/\s\/\/\s.*$/, '');
+}
 
 /**
- * Every place screen code branches on its host, as `file:function:capability` counted: a line that tests a capability
- * (HOST_CAPABILITIES), or a name a file holds one in (`const local = services.engine.local`), in a condition -- `if (`,
- * `!`, `? :`, `&&`, `||`, a spread `...(` -- its first such read naming it. The hosts' own files (src/services) give the
- * capabilities and headless has one host, so neither is screen code.
+ * Every place screen code branches on its host, as `file:function:capability` counted: each read of a capability
+ * (HOST_CAPABILITIES) -- or of a name a file holds one in (`const local = services.engine.local`, `const { ingestFile }
+ * = database`, `this.#runner = options.runner`), or of an ability through a name holding the database -- in a condition:
+ * after `if (`, `!`, `?`, `&&`, `||` or a spread `...(`, or before `?`, `&&`, `||`, `===`, `!==` or a call made only where
+ * it is there (`?.(`). Every such read on a line, each its own. The hosts' own files (src/services) give the capabilities
+ * and headless has one host, so neither is screen code.
  */
 function hostBranches(): Map<string, number> {
   return hostBranchesOf(SOURCES.under('src', '.ts')
@@ -611,22 +626,49 @@ function hostBranches(): Map<string, number> {
 /** hostBranches over `files` (each its name and its text). */
 function hostBranchesOf(files: readonly (readonly [string, string])[]): Map<string, number> {
   const found = new Map<string, number>();
+  const capabilityNames: Readonly<Record<string, string>> = {
+    'services.engine.database': DATABASE_ABILITIES, database: DATABASE_ABILITIES, 'services.engine': 'local|modelWriting',
+    services: HOST_SERVICES, options: 'runner', rows: 'runner', place: 'runner', o: 'runner',
+  };
   for (const [f, text] of files) {
-    const lines = codeLines(text)
-      .map((l) => l.replace(/'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"/g, "''").replace(/\s\/\/\s.*$/, ''));
+    const lines = codeLines(text).map(scannedCode);
     const held = new Set<string>();
-    for (const l of lines) {
-      const m = new RegExp(String.raw`(?:const|let) (\w+)(?:\s*:[^=]+)?\s*=\s*(?:services\.)?(?:engine\.)?(?:${HOST_CAPABILITIES})`).exec(l);
+    const databases = new Set<string>();
+    for (const [at, l] of lines.entries()) {
+      // a name holding a capability itself, or whether it is there -- never a value made from one (`o.runner ? a : b`),
+      // its expression going on on the next line among them
+      if (/^\s*(?:\?|:|&&|\|\||\.)/.test(lines[at + 1] ?? '')) continue;
+      const cap = String.raw`(?:services\.)?(?:engine\.)?(?:${HOST_CAPABILITIES})`;
+      const exactly = String.raw`(?:${cap}(?:\s*[!=]==\s*undefined)?|${cap}\s*\?[^:]+:\s*undefined)\s*;?\s*$`;
+      const m = new RegExp(String.raw`(?:const|let) (\w+)(?:\s*:[^=]+)?\s*=\s*${exactly}`).exec(l);
       if (m) held.add(m[1]!);
+      const field = new RegExp(String.raw`this\.(#\w+)\s*=\s*${exactly}`).exec(l);
+      if (field) held.add(field[1]!);
+      const db = /(?:const|let) (\w+)(?:\s*:[^=]+)?\s*=\s*services\.engine\.database\b/.exec(l);
+      if (db) databases.add(db[1]!);
+      const parts = /(?:const|let) \{([^}]+)\}\s*=\s*(services\.engine\.database|services\.engine|services|database|options|rows|place|o)\b/.exec(l);
+      if (parts) {
+        for (const part of parts[1]!.split(',')) {
+          const [from, to] = part.split(':').map((x) => x.trim()) as [string, string | undefined];
+          if (parts[2] === 'services.engine' && from === 'database') databases.add(to ?? from);
+          else if (new RegExp(`^(?:${capabilityNames[parts[2]!]})$`).test(from)) held.add(to ?? from);
+        }
+      }
     }
-    const capability = `(${HOST_CAPABILITIES}${[...held].map((h) => String.raw`|(?<![.\w#])${h}\b`).join('')})`;
-    const tested = new RegExp(String.raw`(?:\bif \(!?|[!?]\s*|&&\s*|\|\|\s*|\.\.\.\(\s*)(?:services\.(?:engine\.)?|this\.#|o\.)?${capability}`);
-    const testing = new RegExp(String.raw`${capability}(?:\?\.[\w.]+)?\s*(?:\?(?!\.)|&&|\|\||!==|===)`);
+    const names = [...held].map((h) => (h.startsWith('#') ? String.raw`(?<=this\.)${h}\b` : String.raw`(?<![.\w#])${h}\b`));
+    const through = [...databases].filter((d) => d !== 'database')
+      .map((d) => String.raw`(?<![.\w#])${d}\.(?:${DATABASE_ABILITIES})\b`);
+    const capability = new RegExp([HOST_CAPABILITIES, ...names, ...through].join('|'), 'g');
     lines.forEach((line, i) => {
-      const m = tested.exec(line) ?? testing.exec(line);
-      if (!m) return;
-      const key = `${f}:${enclosingAt(lines, i).name}:${m[1]!.replace(/\\b/g, '')}`;
-      found.set(key, (found.get(key) ?? 0) + 1);
+      for (const m of line.matchAll(capability)) {
+        const before = line.slice(0, m.index).replace(/(?:[\w#$]+\??\.)+$/, '');
+        const after = line.slice(m.index + m[0].length);
+        const tested = /(?:\bif \(!?|[!?]\s*|&&\s*|\|\|\s*|\.\.\.\(\s*)$/.test(before);
+        const testing = /^(?:\?\.[\w.]+)?\s*(?:\?(?!\.)|&&|\|\||!==|===)|^\?\.\(/.test(after);
+        if (!tested && !testing) continue;
+        const key = `${f}:${enclosingAt(lines, i).name}:${m[0]}`;
+        found.set(key, (found.get(key) ?? 0) + 1);
+      }
     });
   }
   return found;
@@ -641,58 +683,221 @@ const NATURE = 'by nature:';
  * other host does there -- `both:` its own path to the same thing, or `by nature:` why it has none. A new branch fails
  * until it is listed here, so whether the other host needs it is decided as it is written (K16 was one never asked).
  */
-const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly other: string }>> = {
+const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly other: string; readonly ability?: HostAbility }>> = {
   // -- the app shell (datacube-app.ts) --
-  'src/app/datacube-app.ts:rowsOf:local': { count: 2, other: `${BOTH} a grid's rows run by the host's runner (Python's), or the tab's planner and database` },
-  'src/app/datacube-app.ts:hostMenu:services.pages': { other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)` },
+  'src/app/datacube-app.ts:rowsOf:local': { count: 2, other: `${BOTH} a grid's rows run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
+  'src/app/datacube-app.ts:hostMenu:services.pages': { other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)`, ability: 'pages' },
   'src/app/datacube-app.ts:hostMenu:browser.address': { other: `${NATURE} Share… needs an address others can open; Python's is this machine's loopback` },
   'src/app/datacube-app.ts:empty:services.live': { other: `${NATURE} the empty page's words: a page Python serves is filled from Python` },
-  'src/app/datacube-app.ts:empty:services.pages': { other: `${BOTH} the empty page offers a saved page where the host keeps pages` },
-  'src/app/datacube-app.ts:openDataCube:services.pages': { count: 3, other: `${BOTH} Open…, a blank page and "unsaved changes" where the host keeps pages` },
+  'src/app/datacube-app.ts:empty:services.pages': { other: `${BOTH} the empty page offers a saved page where the host keeps pages`, ability: 'pages' },
+  'src/app/datacube-app.ts:openDataCube:services.pages': { count: 3, other: `${BOTH} Open…, a blank page and "unsaved changes" where the host keeps pages`, ability: 'pages' },
   'src/app/datacube-app.ts:openDataCube:live': { count: 2, other: `${NATURE} a page another editor serves is followed; the tab's own page has no other editor` },
   'src/app/datacube-app.ts:leaveServed:live': { other: `${NATURE} leaving a page another editor serves` },
-  'src/app/datacube-app.ts:saveTo:pages': { other: `${BOTH} saved where the host keeps pages; Python's page.save() by the same rule (pageSaving)` },
-  'src/app/datacube-app.ts:openDataCube:pages': { count: 3, other: `${BOTH} the saved pages' window, Open… and Save where the host keeps pages` },
+  'src/app/datacube-app.ts:saveTo:pages': { other: `${BOTH} saved where the host keeps pages; Python's page.save() by the same rule (pageSaving)`, ability: 'pages' },
+  'src/app/datacube-app.ts:openDataCube:pages': { count: 3, other: `${BOTH} the saved pages' window, Open… and Save where the host keeps pages`, ability: 'pages' },
   'src/app/datacube-app.ts:copyShareLink:address': { other: `${NATURE} a link needs an address others can open` },
-  'src/app/datacube-app.ts:makeClass:modelHome': { count: 2, other: `${BOTH} Create a Class… where the host has a model home and a writer (the tab's, Python's)` },
-  'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer` },
-  'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)` },
-  'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)` },
-  'src/app/datacube-app.ts:offered:localEngine': { other: `${BOTH} Join… offered on a grid of the tab's tables, or one the host opened` },
+  'src/app/datacube-app.ts:makeClass:modelHome': { count: 2, other: `${BOTH} Create a Class… where the host has a model home and a writer (the tab's, Python's)`, ability: 'model' },
+  'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer`, ability: 'model' },
+  'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)`, ability: 'class' },
+  'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)`, ability: 'join' },
+  'src/app/datacube-app.ts:offered:localEngine': { other: `${BOTH} Join… offered on a grid of the tab's tables, or one the host opened`, ability: 'join' },
   // -- the sources (sources.ts) --
-  'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source` },
-  'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source` },
-  'src/app/sources.ts:pageSources:services.warehouse': { other: `${BOTH} a warehouse read through the tab's own pair, or by a host that reads its tables (C3)` },
-  'src/app/sources.ts:pageSources:local': { other: `${BOTH} a remote file read by the page's database or the host's` },
-  'src/app/sources.ts:openedTable:local': { other: `${BOTH} the tab's warehouse table; the host's is openedHostTable` },
-  'src/app/sources.ts:openedRemote:database.mountRemote': { other: `${BOTH} mounted by whichever database reads it` },
-  'src/app/sources.ts:openedRemote:local': { other: `${BOTH} snapped into the tab's copy, or the host's` },
-  'src/app/sources.ts:openedJoin:local': { other: `${BOTH} a saved join opened in the tab; on a host's page, by the host (reopened)` },
+  'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'remote' },
+  'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'warehouse' },
+  'src/app/sources.ts:pageSources:services.warehouse': { count: 2, other: `${BOTH} a warehouse read through the tab's own pair, or by a host that reads its tables (C3)`, ability: 'warehouse' },
+  'src/app/sources.ts:pageSources:local': { count: 2, other: `${BOTH} a remote file read by the page's database or the host's`, ability: 'remote' },
+  'src/app/sources.ts:openedTable:local': { other: `${BOTH} the tab's warehouse table; the host's is openedHostTable`, ability: 'warehouse' },
+  'src/app/sources.ts:openedRemote:database.mountRemote': { other: `${BOTH} mounted by whichever database reads it`, ability: 'remote' },
+  'src/app/sources.ts:openedRemote:local': { other: `${BOTH} snapped into the tab's copy, or the host's`, ability: 'snap' },
+  'src/app/sources.ts:openedJoin:local': { other: `${BOTH} a saved join opened in the tab; on a host's page, by the host (reopened)`, ability: 'join' },
   'src/app/sources.ts:openedFrame:database.frame': { other: `${NATURE} a dataframe lives in Python` },
-  'src/app/sources.ts:openedRecord:queries': { other: `${BOTH} a saved query read from the host's query store` },
-  'src/app/sources.ts:openedRecord:modelHome': { other: `${BOTH} a query of an unconfigured project read through the host's model home` },
-  'src/app/sources.ts:openedClass:modelHome': { other: `${BOTH} a class read through the tab's model home; on a host's page, made by the host (K16)` },
-  'src/app/sources.ts:openedGivenClass:local': { other: `${BOTH} a named class opened here, or made by the host (K16, K17)` },
-  'src/app/sources.ts:openedGivenClass:writing': { other: `${BOTH} the tab reads a class through its place's runtime; the host through its own` },
-  'src/app/sources.ts:openedGivenClass:database.made': { other: `${BOTH} the host's half of a named class (K16)` },
-  'src/app/sources.ts:reopened:database.opened': { other: `${BOTH} a grid of the host's page opened by the host (H-2, H-3)` },
-  'src/app/sources.ts:reopened:local': { other: `${BOTH} a saved join opened by the tab, or the host` },
-  'src/app/sources.ts:pick:database.ingestFile': { other: `${BOTH} Files and Examples where a database takes a file (the tab's, Python's)` },
-  'src/app/sources.ts:pick:files': { count: 2, other: `${BOTH} Files and Examples where a database takes a file` },
-  'src/app/sources.ts:pick:queries': { other: `${BOTH} Saved queries where the host has a query store` },
-  'src/app/sources.ts:pick:database.mountRemote': { other: `${BOTH} Remote files where a database reads them` },
-  'src/app/sources.ts:pick:modelHome': { other: `${BOTH} Classes where the tab reads classes or the host makes them (K17)` },
+  'src/app/sources.ts:openedRecord:queries': { other: `${BOTH} a saved query read from the host's query store`, ability: 'queries' },
+  'src/app/sources.ts:openedRecord:modelHome': { other: `${BOTH} a query of an unconfigured project read through the host's model home`, ability: 'queries' },
+  'src/app/sources.ts:openedClass:modelHome': { other: `${BOTH} a class read through the tab's model home; on a host's page, made by the host (K16)`, ability: 'class' },
+  'src/app/sources.ts:openedGivenClass:local': { other: `${BOTH} a named class opened here, or made by the host (K16, K17)`, ability: 'class' },
+  'src/app/sources.ts:openedGivenClass:writing': { other: `${BOTH} the tab reads a class through its place's runtime; the host through its own`, ability: 'class' },
+  'src/app/sources.ts:openedGivenClass:database.made': { other: `${BOTH} the host's half of a named class (K16)`, ability: 'class' },
+  'src/app/sources.ts:reopened:database.opened': { count: 2, other: `${BOTH} a grid of the host's page opened by the host (H-2, H-3)`, ability: 'reopen' },
+  'src/app/sources.ts:reopened:local': { other: `${BOTH} a saved join opened by the tab, or the host`, ability: 'join' },
+  'src/app/sources.ts:pick:database.ingestFile': { other: `${BOTH} Files and Examples where a database takes a file (the tab's, Python's)`, ability: 'files' },
+  'src/app/sources.ts:pick:files': { count: 2, other: `${BOTH} Files and Examples where a database takes a file`, ability: 'files' },
+  'src/app/sources.ts:pick:queries': { other: `${BOTH} Saved queries where the host has a query store`, ability: 'queries' },
+  'src/app/sources.ts:pick:database.mountRemote': { other: `${BOTH} Remote files where a database reads them`, ability: 'remote' },
+  'src/app/sources.ts:pick:modelHome': { other: `${BOTH} Classes where the tab reads classes or the host makes them (K17)`, ability: 'class' },
   'src/app/sources.ts:savedSection:queries': { other: `${NATURE} a store watched for another tab's save: the browser's own store` },
-  'src/app/sources.ts:savedSection:modelHome': { other: `${BOTH} a query's unconfigured project read through the host's model home` },
+  'src/app/sources.ts:savedSection:modelHome': { other: `${BOTH} a query's unconfigured project read through the host's model home`, ability: 'queries' },
   'src/app/sources.ts:savedSection:address': { other: `${NATURE} a query's link needs an address others can open` },
-  'src/app/sources.ts:snapTarget:local': { other: `${BOTH} a grid snaps into the tab's copy, or the host's` },
+  'src/app/sources.ts:snapTarget:local': { other: `${BOTH} a grid snaps into the tab's copy, or the host's`, ability: 'snap' },
   'src/app/sources.ts:frameAgain:database.frame': { other: `${NATURE} a dataframe lives in Python` },
+  // -- found by the review's widened scan (D23): runners read off a source's rows or a grid's place, destructured
+  // abilities, a database's place, every read on a line --
+  'src/app.ts:#sourceName:o.runner': { other: `${BOTH} where the rows are, said: run by the host's engine, or the tab's`, ability: 'rows' },
+  'src/app/datacube-app.ts:makeClass:writing': { other: `${BOTH} Create a Class… where the host writes models (the tab's writer, Python's)`, ability: 'model' },
+  'src/app/datacube-app.ts:modelActions:writing': { other: `${BOTH} the model actions where the host writes models`, ability: 'model' },
+  'src/app/datacube-app.ts:openDataCube:database.made': { other: `${BOTH} Add a Grid over a class: the host's half (K16)`, ability: 'class' },
+  'src/app/datacube-app.ts:openDataCube:hostJoin': { other: `${BOTH} Join…: the host's join (B11)`, ability: 'join' },
+  'src/app/datacube-app.ts:rowsOf:place.runner': { other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner and database`, ability: 'rows' },
+  'src/app/join-sources.ts:forget:database.forgetFile': { other: `${BOTH} a joined file's table let go by the database that took it`, ability: 'files' },
+  'src/app/join-sources.ts:leafTable:database.ingestFile': { other: `${BOTH} a join's file read by the database that takes files`, ability: 'files' },
+  'src/app/join-sources.ts:leafTable:database.mountRemote': { other: `${BOTH} a join's remote file mounted by the database that reads them`, ability: 'remote' },
+  'src/app/sources.ts:databaseSection:database.place': { other: `${BOTH} where a warehouse table's Snap lands, said: the tab, or the host`, ability: 'warehouse' },
+  'src/app/sources.ts:dropUnread:database.forgetFile': { other: `${BOTH} a file no grid reads let go by the database that took it`, ability: 'files' },
+  'src/app/sources.ts:hostSnapOf:database.place': { other: `${BOTH} a grid snaps into the host's copy where it gives one, else the tab's`, ability: 'snap' },
+  'src/app/sources.ts:hostSnapOf:held': { other: `${BOTH} a copy the host holds followed, where it gives one`, ability: 'snap' },
+  'src/app/sources.ts:hostSnapOf:release': { other: `${BOTH} a copy the host holds let go, where it gives one`, ability: 'snap' },
+  'src/app/sources.ts:hostSnapOf:snap': { other: `${BOTH} a grid snaps into the host's copy where it gives one, else the tab's`, ability: 'snap' },
+  'src/app/sources.ts:openedClass:rows.runner': { other: `${BOTH} a class's first row read by the host's runner, or the tab's engine`, ability: 'class' },
+  'src/app/sources.ts:openedFile:database.forgetFile': { other: `${BOTH} a file read in, let go by the database that took it`, ability: 'files' },
+  'src/app/sources.ts:openedFile:forgetFile': { other: `${BOTH} a file read in, let go by the database that took it`, ability: 'files' },
+  'src/app/sources.ts:openedFile:ingestFile': { other: `${BOTH} a file read into the database that takes files (the tab's, Python's)`, ability: 'files' },
+  'src/app/sources.ts:openedOnHost:rows.runner': { other: `${BOTH} a grid the host opened, snapped where the host copies it`, ability: 'reopen' },
+  'src/app/sources.ts:openedRemote:rows.runner': { other: `${BOTH} a remote file's grid snapped into the tab's copy, or the host's`, ability: 'remote' },
+  'src/app/sources.ts:pick:database.made': { other: `${BOTH} Classes where the host makes a class's grid (K17)`, ability: 'class' },
+  'src/app/sources.ts:pick:engine.modelWriting': { other: `${BOTH} Classes where the tab reads classes through its place's runtime (K17)`, ability: 'class' },
+  'src/app/sources.ts:pick:local': { other: `${BOTH} Classes where the tab reads classes itself, or the host makes them (K17)`, ability: 'class' },
+  'src/app/sources.ts:picksSources:database.ingestFile': { other: `${BOTH} the picker offered where a database takes files`, ability: 'files' },
+  'src/app/sources.ts:picksSources:local': { other: `${BOTH} the picker offered where the tab reads saved queries itself, or the host does`, ability: 'queries' },
+  'src/app/sources.ts:picksSources:services.queries': { other: `${BOTH} the picker offered where the host has a query store`, ability: 'queries' },
+  'src/app/sources.ts:rowsPlace:rows.runner': { other: `${BOTH} a grid's place: the host's runner, or the tab's planner and engine`, ability: 'rows' },
+  'src/app/sources.ts:typer:rows.runner': { other: `${BOTH} a source's columns typed by the host's runner, or the tab's planner`, ability: 'rows' },
+  'src/app/sources.ts:openedFrame:rows.runner': { other: `${NATURE} a dataframe lives in Python: a frame's grid is read by its runner` },
   // -- a grid (app.ts) --
-  'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner` },
-  'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in` },
-  'src/app.ts:#snapPill:options.runner': { count: 2, other: `${BOTH} Snap into the tab's copy, or the host's` },
-  'src/app.ts:paint:options.runner': { count: 2, other: `${BOTH} where the rows are, said for the tab's or the host's` },
+  'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner`, ability: 'rows' },
+  'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in`, ability: 'warehouse' },
+  'src/app.ts:#snapPill:options.runner': { count: 2, other: `${BOTH} Snap into the tab's copy, or the host's`, ability: 'snap' },
+  'src/app.ts:paint:options.runner': { count: 2, other: `${BOTH} where the rows are, said for the tab's or the host's`, ability: 'rows' },
 };
+
+/** What a `both:` branch is a way to on each host: an ability, proved on each (HOST_ABILITIES). */
+type HostAbility = 'rows' | 'pages' | 'model' | 'class' | 'join' | 'warehouse' | 'remote' | 'files' | 'snap' | 'queries'
+  | 'reopen';
+
+/** A test, `file::name`: a test file of DataCube's (under test/) or the tab's libraries' and the title of one of its
+ *  `it`s, `describe`s, browser `check`s or conformance runs, or a Python test file (under ../python/tests/) and one of
+ *  its test methods. */
+type Proof = string;
+
+/**
+ * L12's proof (the user, 2026-10-23: "Do the strict and missing tests"): each ability a `both:` branch is a way to, and
+ * the tests that run it on each host -- the tab's own path (`tab`), the Python host's (`python`: Python itself, at
+ * least one) -- and, where the two hosts do it by an implementation each (`two`: the tab's engine and Python's, two
+ * builds of the compiler over two DuckDBs, two copies of a Snap), the test that runs the same input both ways and
+ * holds them to one result (`parity`). `shared`: one implementation, DataCube's own, run on both (the host runs it
+ * headless), so no two can drift; its tests on each host are proof it runs there.
+ */
+const HOST_ABILITIES: Readonly<Record<HostAbility, {
+  readonly kind: 'shared' | 'two';
+  readonly tab: readonly Proof[];
+  readonly python: readonly Proof[];
+  readonly parity?: readonly Proof[];
+}>> = {
+  // one compiler in two builds (WebAssembly in the tab, native in Python), over two DuckDBs
+  rows: {
+    kind: 'two',
+    tab: ['test/runner.test.ts::plans then executes locally, and says which'],
+    python: ['../python/tests/test_engine.py::test_a_grid_is_planned_over_the_model_held_run_here_and_typed_by_its_plan',
+      '../python/tests/test_headless.py::test_a_frames_grid_is_read_by_the_engines_plan_and_run_for_its_view_rows_and_export'],
+    parity: ['test/python-engine/page.ts::every cube case answers the same through PlanAndRun on Python and in the tab'],
+  },
+  // the store's rules, legend-lite's Java, in two builds (the page's WebAssembly, Python's native library): one
+  // conformance suite run against each
+  pages: {
+    kind: 'two',
+    tab: ["test/saved-pages/page.test.ts::the page's own saved pages: what a server here cannot be asked"],
+    python: ['../python/tests/test_page.py::test_saved_pages_are_saved_as_new_listed_and_deleted_as_datacubes_save_as_and_open_do',
+      '../python/tests/test_page.py::test_a_saved_page_is_opened_by_its_id_as_datacubes_open_opens_it'],
+    parity: ["test/saved-pages/page.test.ts::the page's own store, legend-lite's rules in WebAssembly",
+      "test/python-engine/saved-pages.test.ts::Python's saved pages, the native library's"],
+  },
+  // DataCube's model actions (model-plans.ts, model-writer.ts) on both, written into a model home that is legend-lite's
+  // SDLC in two builds (the page's WebAssembly, Python's native library): one conformance suite run against each
+  model: {
+    kind: 'two',
+    tab: ['test/create-class.test.ts::Create a Class… writes its sample by the one writer'],
+    python: ['../python/tests/test_model.py::test_a_grid_made_a_class_then_an_association_and_a_data_space'],
+    parity: ["../sdlc-client/test/wasm.test.ts::the page's SDLC, compiled from Java",
+      "test/python-engine/model-home.test.ts::Python's model home, the native library's"],
+  },
+  // class-source.ts classOpened and cube-document.ts rebuilt on both (host-tables.ts reads the class by them), over a
+  // project read from the model home's SDLC in two builds (its conformance run against each); the compiler and DuckDB
+  // under them are `rows`'
+  class: {
+    kind: 'two',
+    tab: ['test/class-source.test.ts::opened by classOpened'],
+    python: ['../python/tests/test_page.py::test_a_grid_is_added_over_a_class_as_the_tabs_add_a_grid_adds_one',
+      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_for_a_grid_over_a_class_as_page_grid_makes_one'],
+    parity: ["../sdlc-client/test/wasm.test.ts::the page's SDLC, compiled from Java",
+      "test/python-engine/model-home.test.ts::Python's model home, the native library's",
+      'test/python-engine/page.ts::every cube case answers the same through PlanAndRun on Python and in the tab'],
+  },
+  // join-open.ts openJoin on both (the host's join.ts answers by it)
+  join: {
+    kind: 'shared',
+    tab: ['test/join-open.test.ts::a join opened over one model, its rows from DuckDB',
+      "test/host-join-flow.test.ts::Join… on a host's page: each of the window's answers the host's (B11)"],
+    python: ['../python/tests/test_headless.py::test_two_frames_joined_as_the_tabs_join_joins_them',
+      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers'],
+  },
+  // a driver each (the tab's, Python's), held to one recorded corpus of the warehouse's calls
+  warehouse: {
+    kind: 'two',
+    tab: ['test/warehouse-session-http.test.ts::signing in is one step with its table list'],
+    python: ['../python/tests/test_warehouse.py::test_every_scenario'],
+    parity: ["../engine-client/test/warehouse-corpus.test.ts::the tab's warehouse driver makes the corpus's calls",
+      '../python/tests/test_warehouse.py::test_every_scenario'],
+  },
+  // the one mount (upload.ts mountRemoteView) over two DuckDBs, each its own httpfs
+  remote: {
+    kind: 'two',
+    tab: ['test/remote.test.ts::choosing a format', "test/python-engine/page.ts::a remote file reads the same on Python's page and in the tab"],
+    python: ['../python/tests/test_headless.py::test_a_remote_parquet_and_csv_are_read_through_views_their_models_served'],
+    parity: ["test/python-engine/page.ts::a remote file reads the same on Python's page and in the tab"],
+  },
+  // the one reader (upload.ts ingestFile) over two DuckDBs
+  files: {
+    kind: 'two',
+    tab: ['test/upload.test.ts::ingestFile with JSON'],
+    python: ['../python/tests/test_headless.py::test_a_csv_is_read_into_its_table_its_model_served_then_let_go_of'],
+    parity: ["test/python-engine/page.ts::every reader file reads the same on Python's page and in the tab"],
+  },
+  // a copy each (the tab's SnapManager, Python's snap.json), modelled by the one writer (upload.ts modelLanded)
+  snap: {
+    kind: 'two',
+    tab: ['test/plane.test.ts::snapping goes through the planner'],
+    python: ['../python/tests/test_engine.py::test_a_frames_grid_snaps_too_a_copy_of_its_base_as_the_frame_was',
+      '../python/tests/test_page.py::test_a_snapped_grid_reads_its_copy_whatever_its_frame_does_and_live_again_reads_the_frame'],
+    parity: ['test/python-engine/page.ts::a grid snaps the same copy on Python and in the tab'],
+  },
+  // saved-queries.ts savedQueryOpened on both (host-tables.ts reads a query by it), from a query store that is
+  // legend-lite's in two builds (its conformance run against each); its rows are `rows`'
+  queries: {
+    kind: 'two',
+    tab: ['test/saved-queries.test.ts::a saved query as a source: each fixture, as the README says it runs'],
+    python: ['../python/tests/test_page.py::test_a_grid_is_added_over_a_saved_query_by_its_id'],
+    parity: ["../query-store/test/wasm.test.ts::the page's own store, legend-lite's rules in WebAssembly",
+      "test/python-engine/saved-queries.test.ts::Python's saved queries, the native library's"],
+  },
+  // cube-document.ts rebuilt and cubeOpenedAgain on both (the host's gridOpened opens by them)
+  reopen: {
+    kind: 'shared',
+    tab: ["test/cube-page-shell.test.ts::a page of the tab's own on a host opens a file grid the tab's way",
+      'test/page-corpus.test.ts::the saved-page corpus (test/fixtures/pages)',
+      "test/cube-page-shell.test.ts::on a host's page, a saved grid over a file is opened by the host over the table it holds"],
+    python: ['../python/tests/test_page.py::test_saved_and_loaded_over_its_frames_and_reopened_when_one_is_served_again'],
+  },
+};
+
+/** Whether `proof` names a test that is there: its file among the sources, the name a test of it. */
+function proved(proof: Proof): string | undefined {
+  const [file, name] = proof.split('::') as [string, string | undefined];
+  if (name === undefined || name === '') return `${proof}: a proof is file::name`;
+  if (!SOURCES.has(file)) return `${proof}: no such test file`;
+  const lines = SOURCES.read(file).split('\n');
+  const found = file.endsWith('.py')
+    ? lines.some((l) => l.trimStart().startsWith(`def ${name}(`))
+    : lines.some((l) => /\b(?:it|describe|check|conformance)\(/.test(l) && l.replace(/\\'/g, "'").includes(name));
+  return found ? undefined : `${proof}: no test of that name in it`;
+}
 
 /** L12 held to what is found, in its own words. */
 const hostHeld = (found: ReadonlyMap<string, number>): string[] => heldTo(found, HOST_BRANCHES, 'L12').map((p) => p
@@ -707,19 +912,61 @@ describe("L12: every branch on the host, with what the other host does there", (
     assert.deepEqual(unsaid.map(([k]) => k), [], "each says `both:` (the other host's path) or `by nature:` (why none)");
   });
 
-  it('sees a branch it was not told of -- by the capability, or a name holding it -- and no plain use of one', () => {
+  it('each `both:` a way to an ability proved on each host -- two implementations held to one result -- by tests that are there', () => {
+    const problems: string[] = [];
+    for (const [key, e] of Object.entries(HOST_BRANCHES)) {
+      if (e.other.startsWith(BOTH) && e.ability === undefined) problems.push(`${key}: a \`both:\` names the ability it is a way to`);
+      if (e.other.startsWith(NATURE) && e.ability !== undefined) problems.push(`${key}: a \`by nature:\` is a way to nothing the other host has`);
+    }
+    const used = new Set(Object.values(HOST_BRANCHES).flatMap((e) => (e.ability ? [e.ability] : [])));
+    for (const [ability, a] of Object.entries(HOST_ABILITIES)) {
+      if (!used.has(ability as HostAbility)) problems.push(`${ability}: an ability no branch is a way to`);
+      if (a.tab.length === 0 || a.tab.some((p) => !p.startsWith('test/'))) problems.push(`${ability}: proved on the tab by DataCube's tests`);
+      if (!a.python.some((p) => p.startsWith('../python/tests/'))) problems.push(`${ability}: proved on the Python host by Python's own tests`);
+      if (a.kind === 'two' && (a.parity ?? []).length === 0) problems.push(`${ability}: two implementations, and no test holds them to one result`);
+      for (const p of [...a.tab, ...a.python, ...(a.parity ?? [])]) {
+        const why = proved(p);
+        if (why !== undefined) problems.push(`${ability}: ${why}`);
+      }
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  it('sees a branch it was not told of -- by the capability, a name holding it, a destructured one, a runner read off its rows, every one on a line -- and no plain use of one', () => {
     const added = [
-      'export function offer(services: Services): void {',
+      'export function offer(services: Services, rows: GridRows): void {',
       '  if (services.engine.local) open();',
       '  const made = services.engine.database.made;',
       "  const label = made ? 'Python' : 'here';",
-      '  void services.engine.database.frame?.(\'f\');',
+      "  void services.engine.database.frame?.('f');",
+      '  const { ingestFile } = services.engine.database;',
+      "  if (!ingestFile) throw new Error('no file here');",
+      '  const db = services.engine.database;',
+      '  if (db.held) follow();',
+      '  const run = rows.runner ? 1 : 2;',
+      '  if (services.engine.local || services.engine.database.opened) twice();',
+      '  const where = services.engine.database.place;',
+      "  const text = 'services.engine.local ? not code' + `${services.engine.database.snap ? 'a' : 'b'}`;",
+      '  plain(services.engine.local, run, where, text);',
       '}',
     ].join('\n');
     const found = hostBranchesOf([['src/x.ts', added]]);
-    assert.deepEqual([...found.keys()].sort(), ['src/x.ts:offer:engine.local', 'src/x.ts:offer:made']);
+    assert.deepEqual(Object.fromEntries([...found].sort()), {
+      'src/x.ts:offer:database.frame': 1, 'src/x.ts:offer:database.opened': 1, 'src/x.ts:offer:database.snap': 1,
+      'src/x.ts:offer:db.held': 1, 'src/x.ts:offer:engine.local': 2, 'src/x.ts:offer:ingestFile': 1, 'src/x.ts:offer:made': 1,
+      'src/x.ts:offer:rows.runner': 1,
+    }, 'a held place read plainly, a capability passed along, text in a string: no branch');
     assert.match(hostHeld(new Map([...hostBranches(), ...found])).join('\n'),
-      /src\/x\.ts:offer:engine\.local \(1\) is a branch on the host no one decided -- list it with what the other host does/);
+      /src\/x\.ts:offer:engine\.local \(2\) is a branch on the host no one decided -- list it with what the other host does/);
+  });
+
+  it("takes a second capability off a line it lists: K16's host half gone, the ledger fails", () => {
+    const now = hostBranches();
+    const k16 = 'src/app/datacube-app.ts:openDataCube:database.made';
+    assert.equal(now.get(k16), 1, 'the class grid on a Python host, read on the line beside the tab\'s own engine');
+    const reverted = new Map(now);
+    reverted.delete(k16);
+    assert.match(hostHeld(reverted).join('\n'), /openDataCube:database\.made is listed but gone/);
   });
 });
 
@@ -822,7 +1069,9 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-23, S8's review and its independent audit, added by rule 9 and closed (fixed, or declared) with each fix
   + 'A50 A51 A52 A53 A54 A55 A56 A57 A58 A59 A60 A61 A62 '
   // 2026-10-23, D23: the S7 audits' four asked items (Y-6, H-9, Y-7, H-8), built and closed with each
-  + 'K13 K14 K15 K16 K17 ').split(' ').filter((item) => item !== '');
+  + 'K13 K14 K15 K16 K17 '
+  // 2026-10-23, D23's independent review, added by rule 9 and closed (fixed, or declared) with each fix
+  + 'R1 R2 R3 R4 R5 R6 R7 R8 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {
