@@ -280,9 +280,6 @@ async function run(): Promise<void> {
     equal(shape(tabRows.rows, false), shape(pythonRows.rows, false), 'the tab and Python read the remote file differently:');
     // and right, not only alike
     equal(shape(tabRows.rows, false), 'book:String,pages:Integer\n["Dune",412]\n["Emma",474]\n["Ulysses",730]', 'its rows:');
-    // the server answers a range the file has no byte of as HTTP says, never with a malformed part (R6)
-    const past = await fetch(served.remote, { headers: { Range: 'bytes=99999999-' } });
-    equal(past.status, 416, 'a range past the file\'s end:');
     // the tab's view dropped; Python keeps a remote file's view by its URL, as for its pages (a later mount of the same
     // URL takes its place), and offers a page no way to drop one
     await dropFileTable(local, planner, 'remote_books', true);

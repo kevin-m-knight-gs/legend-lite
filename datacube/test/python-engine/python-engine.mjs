@@ -134,6 +134,12 @@ try {
     console.log(`FAIL ${verdict.outcomes.length} checks ran, not 11`);
     failed = true;
   }
+  // THE FIXTURE'S FILE SERVER (R6), asked from here: a page's own fetch of another loopback port is refused by the
+  // browser's local-network rule, though DuckDB-WASM's reads above were not -- a range the file has no byte of answered
+  // as HTTP says, never with a malformed part
+  const past = await fetch(served.remote, { headers: { Range: 'bytes=99999999-' } });
+  console.log(`${past.status === 416 ? 'ok  ' : 'FAIL'} the file server answers a range past the file's end with 416 (it answered ${past.status})`);
+  if (past.status !== 416) failed = true;
 
   // THE PAGE A PERSON OPENS (demo/engine.html, from the engine's site): the link names the frame and carries the
   // token in its fragment; the cube opens over the engine and shows the frame's rows, with nothing run in the tab

@@ -590,7 +590,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **R5** the remote parity check left the tab's view mounted (the review) -- fixed: dropped; Python keeps a remote
   view by its URL, as for its pages, and offers a page no way to drop one (said in the check)
 - [x] **R6** the fixture's file server answered a range past the file's end with a malformed 206 (the review) -- fixed:
-  416, as HTTP says (python-engine/page.ts's remote check asks a range past the end: a 206 fails it)
+  416, as HTTP says (python-engine.mjs asks a range past the end, from Node -- a page's own fetch of another loopback port is refused by
+  the browser's local-network rule: a 206 fails it)
 - [x] **R7** `Page.delete` stopped telling the session's pages at the first that failed, and read them without a lock
   (the review) -- fixed: each told, the first failure raised after; the set added to and read under its own lock (D15:
   never held across a call into DataCube) (test_page.py: a page that fails to hear it, the page after it told; the set
