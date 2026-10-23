@@ -24,7 +24,7 @@ import { PAGE_CUBE, pageToJson, readPage, startingViews, writePageOf, type Chart
 import { pageSources } from '../src/app/sources.ts';
 import { TreeState } from '../src/tree.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
-import type { ChartMeasure } from '../src/chart-spec.ts';
+import type { ChartMeasure, ChartSpec } from '../src/chart-spec.ts';
 import type { FilterNode } from '../src/snapshot.ts';
 import { getInstanceByDom } from 'echarts/core';
 
@@ -500,72 +500,64 @@ describe('a chart\'s right-click menu: Options..., and Show Grid offered only wh
     assert.equal(form().hidden, true);
   });
 
-  it('a frozen KPI with no column across: Show Grid is not offered when it would show nothing', async () => {
-    // A KPI may have no column across (its trend: chart-spec.ts chartProblems). Show Grid groups a frozen chart's own
-    // grid by its column across (chart-spec.ts chartGrid, ownGridRefusal: none without one), so the menu should not
-    // offer it -- as it does not for a gauge, which never has one.
-    newPage();
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
-    const chart = await chartOf(a);
-    await togglePill(chart);
+  // the user, 2026-10-23: Show Grid on every chart. A chart of rows, of places or of one figure takes nothing of its
+  // grid's grouping, so pinned it reads just what it read: its grid shown. Frozen -- the filter it keeps its own -- a
+  // grid of its own query is made: a scatter's rows, a map's places, a KPI's one figure (chart-spec.ts showGridWay,
+  // chartGrid).
+  /** The page reopened with chart `chart` made over: its spec as `make` gives it from the one it has. */
+  const remade = async (chart: string, make: (spec: ChartSpec) => ChartSpec): Promise<void> => {
     const doc = pg().document('Q3')!;
-    reopen({ ...doc, views: doc.views.map((v) => {
-      if (v.kind !== 'chart') return v;
-      const { x: _x, split: _split, ...kpi } = v.spec;
-      return { ...v, spec: { ...kpi, mark: 'kpi' as const } };
-    }) });
+    reopen({ ...doc, views: doc.views.map((v) => (v.kind === 'chart' && v.id === chart ? { ...v, spec: make(v.spec) } : v)) });
     await settle();
-    assert.equal(chartView(chart)!.spec.mark, 'kpi');
-    assert.equal(chartView(chart)!.spec.x, undefined);
-    assert.equal(pill(chart), 'Pinned');
-    const item = chartMenu(chart).find((i) => label(i) === 'Show Grid');
-    assert.ok(item, 'the entry is in the menu');
-    const offered = item.getAttribute('aria-disabled') !== 'true';
-    const grids = pg().grids.length;
-    item.click();
-    await settle();
-    const opened = pg().grids.length > grids;
-    // offered exactly when it makes one (either way out of the mismatch: the entry disabled, or a grid of its own)
-    assert.equal(offered, opened, `offered: ${String(offered)}, but clicked it made ${opened ? 'a' : 'no'} grid`);
-    assert.equal(offered, false);
+  };
+  const kinds: readonly [string, (spec: ChartSpec) => ChartSpec][] = [
+    ['scatter', ({ split: _s, ...rest }) => ({ ...rest, mark: 'scatter', x: 'notional' })],
+    ['map', (spec) => ({ ...spec, mark: 'map' })],
+    ['kpi', ({ x: _x, split: _s, ...rest }) => ({ ...rest, mark: 'kpi' })],
+    ['gauge', (spec) => ({ ...spec, mark: 'gauge' })],
+  ];
+
+  it('pinned, a scatter, a map, a KPI or a gauge reads just what it read: Show Grid shows its grid, nothing made', async () => {
+    for (const [kind, make] of kinds) {
+      newPage();
+      const a = pg().addGrid(over('trades.csv'));
+      await settle();
+      const chart = await chartOf(a);
+      await remade(chart, (spec) => ({ ...make(spec), frozen: true }));
+      assert.equal(pill(chart), 'Pinned', kind);
+      assert.equal(offersShowGrid(chart), true, `${kind}: offered`);
+      await showGrid(chart);
+      assert.deepEqual(pg().grids, [a], `${kind}: its grid shown, none made`);
+      assert.equal(chartView(chart)!.spec.frozen, true, `${kind}: as it was`);
+    }
   });
 
-  it('a map: frozen, Show Grid is not offered (its places are its own columns, no grouping a grid holds); following, it shows its grid; its pill says so', async () => {
+  it("frozen, Show Grid makes its own: a scatter's rows, a map's places, a KPI's one figure as the total; the chart follows it", async () => {
+    const want: Record<string, readonly string[]> = { scatter: [], map: ['region'], kpi: [] };
+    for (const [kind, make] of kinds.filter(([k]) => k in want)) {
+      newPage();
+      const a = pg().addGrid(over('trades.csv'));
+      await settle();
+      const chart = await chartOf(a);
+      await remade(chart, (spec) => ({ ...make(spec), frozen: true, kept: {} }));
+      assert.equal(pill(chart), 'Frozen', kind);
+      await showGrid(chart);
+      const own = chartView(chart)!.cube;
+      assert.notEqual(own, a, `${kind}: a grid of its own`);
+      assert.deepEqual(pg().grid(own)!.snapshot.rows, want[kind], `${kind}: grouped as the chart groups its query`);
+      assert.equal(pill(chart), 'Dynamic', `${kind}: following it`);
+      if (kind === 'kpi') assert.equal(pg().grid(own)!.configuration.showRootAggregation, true, 'its figure, the total row');
+    }
+  });
+
+  it("a map's pill says why it does not regroup with its grid", async () => {
     newPage();
     const a = pg().addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    const doc = pg().document('Q3')!;
-    reopen({ ...doc, views: doc.views.map((v) => (v.kind !== 'chart' ? v : { ...v, spec: { ...v.spec, mark: 'map' as const, frozen: true } })) });
-    await settle();
-    assert.equal(chartView(chart)!.spec.mark, 'map');
-    assert.equal(offersShowGrid(chart), false);
-    await togglePill(chart);
-    assert.equal(offersShowGrid(chart), true, 'following its grid: that grid shown');
+    await remade(chart, (spec) => ({ ...spec, mark: 'map' }));
     const title = tile(chart).querySelector<HTMLElement>('.dc-tile-actions .dc-titlebar-toggle')!.title;
     assert.match(title, /a map is placed by its own columns, not the grid's grouping/);
-  });
-
-  it('a frozen scatter: Show Grid is not offered (its marks are rows, no grouping of its own); clicked anyway, nothing is made', async () => {
-    newPage();
-    const a = pg().addGrid(over('trades.csv'));
-    await settle();
-    const chart = await chartOf(a);
-    const doc = pg().document('Q3')!;
-    reopen({ ...doc, views: doc.views.map((v) => {
-      if (v.kind !== 'chart') return v;
-      const { split: _split, ...rest } = v.spec;
-      return { ...v, spec: { ...rest, mark: 'scatter' as const, x: 'notional', frozen: true } };
-    }) });
-    await settle();
-    assert.equal(chartView(chart)!.spec.mark, 'scatter');
-    assert.equal(pill(chart), 'Pinned');
-    assert.equal(offersShowGrid(chart), false);
-    chartMenu(chart).find((i) => label(i) === 'Show Grid')!.click();
-    await settle();
-    assert.deepEqual(pg().grids, [a], 'no grid made');
-    assert.equal(chartView(chart)!.spec.frozen, true, 'the chart as it was');
   });
 });
 
