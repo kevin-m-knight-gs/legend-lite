@@ -11,6 +11,8 @@
 // only, so the suite keeps watching them without the page offering
 // something that half-works.
 
+import { DESK_TRADES, sampleTradesCsv } from './sample-trades.ts';
+
 /** Deterministic, so the same choice gives the same file. */
 function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -258,6 +260,15 @@ export const SAMPLES: readonly Sample[] = [
     defaultRows: 5000,
     build: (rows, seed) =>
       sampleCsv(seed === undefined ? { rows } : { rows, seed }),
+  },
+  {
+    // the rows the demo starts on (sample-trades.ts), as a file: what a page saved over its start's grid rebuilds
+    id: DESK_TRADES,
+    label: 'Desk trades -- the rows DataCube starts on',
+    about: 'Regions, desks, books, years and quarters, with a notional, a P&L and a quantity: '
+      + 'the trades the start page groups and pivots, as a file.',
+    defaultRows: 5000,
+    build: (rows) => sampleTradesCsv(rows),
   },
   {
     id: 'sales',

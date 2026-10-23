@@ -7,7 +7,8 @@ import { describe, it } from 'node:test';
 
 import { EXAMPLE_PAGES } from '../src/examples/catalog.ts';
 import { EXAMPLE_CUBE, SALES_SPECS } from '../src/examples/charts-dashboard.ts';
-import { chartProblems } from '../src/chart-spec.ts';
+import { CHART_MARKS, chartProblems } from '../src/chart-spec.ts';
+import { chartsGalleryPage } from '../src/examples/charts-gallery.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles } from '../src/layout/bands.ts';
 import { SALES_COLUMNS } from '../src/samples.ts';
@@ -30,6 +31,21 @@ describe('the example pages', () => {
       assert.ok(source._type === 'file' && source.sample?.id === 'sales');
     });
   }
+
+  // the user, 2026-10-23: one gallery of every chart kind, listed first, each sheet fitting the screen
+  it('the gallery: every kind DataCube draws once, titled by its kind, first in the Open window, each sheet fitting its window', async () => {
+    const page = await chartsGalleryPage();
+    const charts = page.views.filter((v) => v.kind === 'chart');
+    assert.deepEqual(charts.map((v) => (v.kind === 'chart' ? v.spec.mark : '')).sort(), CHART_MARKS.map((m) => m.value).sort(),
+      'each kind once');
+    for (const v of charts) {
+      if (v.kind !== 'chart') continue;
+      const label = CHART_MARKS.find((m) => m.value === v.spec.mark)!.label;
+      assert.ok(v.title.startsWith(`${label}: `), `${v.title}: titled by its kind`);
+    }
+    assert.equal(EXAMPLE_PAGES[0]!.id, 'charts-gallery');
+    assert.deepEqual(page.sheets.map((s) => s.layout.kind === 'bands' && s.layout.fit), page.sheets.map(() => true), 'every sheet fits its window');
+  });
 
   it('the sample\'s columns are the page\'s, in order', () => {
     assert.deepEqual(SALES_SPECS.map((c) => c.name), [...SALES_COLUMNS]);

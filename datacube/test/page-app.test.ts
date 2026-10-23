@@ -105,6 +105,15 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
 }
 
 const tile = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
+/** A chart pinned by its pill (its grouping its own): the pill opened, Pinned picked from its menu. */
+async function pin(chart: string): Promise<void> {
+  (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+    .find((e) => e.textContent?.startsWith('Pinned \u2014 '));
+  if (!item) throw new Error('the pill offers no Pinned');
+  item.click();
+  await settle();
+}
 /** The sheets' tabs, as they read. */
 const tabs = (): string[] => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].map((t) => t.querySelector('.dc-sheet-label')?.textContent ?? '');
 const tabOf = (label: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')]
@@ -256,8 +265,7 @@ describe('a page of its own', () => {
     const b = page.addGrid(over('orders.csv'), { near: a });
     await settle();
     const chart = await chartOf(b);
-    (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
-    await settle();
+    await pin(chart);
     tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     assert.equal(tile(chart).querySelector('.dc-titlebar-toggle')!.textContent, 'Detached');
@@ -337,8 +345,7 @@ describe('a page of its own', () => {
     const b = page.addGrid(over('orders.csv'), { near: a });
     await settle();
     const chart = await chartOf(b);
-    (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
-    await settle();
+    await pin(chart);
     tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
@@ -593,6 +600,18 @@ describe('a page of its own', () => {
     tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!;
     assert.equal(last.getAttribute('aria-disabled'), 'true', 'the last sheet stays');
+  });
+
+  it('started with a grid its host made (the app\'s start\'s sample), it has no step to undo; an edit after is one', async () => {
+    newPage({ confirm: () => true });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    assert.equal(page.undoLabel, 'Add Grid', 'a grid a person adds: a step');
+    page.started();
+    assert.equal(page.undoLabel, undefined, 'a fresh page offered "Undo Add Grid", which left it blank (2026-10-23)');
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(page.undoLabel, 'Add Sheet');
   });
 
   it("renamed by its editor, it tells renamePage -- no step of its history; a name it has tells nothing (P1, P2)", async () => {

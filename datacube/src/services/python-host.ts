@@ -62,6 +62,7 @@ import type {
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
 import { SessionExpired } from '../../../engine-client/src/warehouse-session.ts';
+import { lazily } from '../lazily.ts';
 
 /** How the page reaches Python's engine. */
 export interface PythonLink {
@@ -458,7 +459,7 @@ function pythonModelHome(link: PythonLink, where: string, apps: readonly string[
     // the clients fetched the first time a model action asks, as the tab's model home's are: the page's startup carries
     // neither
     connect: () => (home ??= Promise.all([
-      import('../../../sdlc-client/src/client.ts'), import('../../../depot-client/src/client.ts'),
+      lazily(() => import('../../../sdlc-client/src/client.ts')), lazily(() => import('../../../depot-client/src/client.ts')),
     ]).then(([{ SdlcClient }, { DepotClient }]) => ({
       client: new SdlcClient(`${link.baseUrl}/sdlc/api`, withToken),
       depot: new DepotClient(`${link.baseUrl}/depot/api`, withToken),
@@ -636,7 +637,7 @@ function pythonPages(link: PythonLink, offers: PythonOffers): PageService {
 function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
   let store: Promise<QueryReader> | undefined;
   return {
-    store: () => (store ??= import('../../../query-store/src/index.ts')
+    store: () => (store ??= lazily(() => import('../../../query-store/src/index.ts'))
       .then((m) => new m.QueryStoreClient(`${link.baseUrl}/api`, tokened(link)))),
     where: `in ${offers.pages.where}`,
     projects: [],
@@ -671,7 +672,7 @@ export function livePage(link: PythonLink, key: string, follower?: string): Live
       const plain = JSON.parse(text) as { version: number; commands?: unknown[] };
       if (plain.commands === undefined) return read(text);
       const exact = (fromJson(text) as { commands: Record<string, Record<string, unknown>>[] }).commands;
-      const { EXACT_FIELD, readPageCommand } = await import('../page-commands.ts');
+      const { EXACT_FIELD, readPageCommand } = await lazily(() => import('../page-commands.ts'));
       const commands = plain.commands.map((c, i): LiveCommand => {
         const o = c as { page?: Record<string, unknown>; grid?: unknown; command?: unknown };
         if (o.page !== undefined) {

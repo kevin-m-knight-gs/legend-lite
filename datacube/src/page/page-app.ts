@@ -54,6 +54,7 @@ import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
 import type { TreeState } from '../tree.ts';
 import type { GridCommand } from '../grid-commands.ts';
+import { lazily } from '../lazily.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -666,6 +667,16 @@ export class PageApp {
     this.#options.onChange?.();
   }
 
+  /**
+   * The page as it is now, the start of its history, as a page opened has none (`restore`): the grids its host made it
+   * with -- the app's start's sample -- are no step a person undoes (a fresh page offered "Undo Add Grid", which left it
+   * blank: 2026-10-23).
+   */
+  started(): void {
+    this.#state = new PageState(this.#state.draft);
+    this.#options.onChange?.();
+  }
+
   /** The page's layout editable (tiles move, dividers drag) or locked (view mode); a shared page opens locked. */
   setLayoutEditing(editing: boolean): void {
     this.#page.setEditing(editing);
@@ -1206,7 +1217,7 @@ export class PageApp {
     if (shown.length === 0 && classes.size === 0) return;
     if (this.#filterBarLoading) return;
     this.#filterBarLoading = true;
-    void import('../ui/page-filter-bar.ts').then(({ PageFilterBar: Bar }) => {
+    void lazily(() => import('../ui/page-filter-bar.ts')).then(({ PageFilterBar: Bar }) => {
       if (this.#disposed) return;
       const made = new Bar(this.#doc, {
         // its x clicked twice before it was painted again: the second finds nothing to take off

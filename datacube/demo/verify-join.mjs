@@ -38,9 +38,12 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const errors = [];
 const alerts = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+/** The next "unsaved changes: open anyway?" answered yes (the start page, below), every other one no. */
+let openAnyway = false;
 page.on('dialog', async (d) => {
   // a page about to be left asks first (beforeunload) while it holds work -- the files picked in this tab, here: left
   if (d.type() === 'beforeunload') { await d.accept(); return; }
+  if (d.type() === 'confirm' && openAnyway) { openAnyway = false; await d.accept(); return; }
   alerts.push(d.message());
   await d.dismiss();
 });
@@ -118,6 +121,8 @@ try {
 
   // THE JOIN: the key suggested and taken, what it will do said before it is applied
   await joinWindow();
+  // the nearest row's columns asked of as of alone: never shown under another form (they were, 2026-10-23)
+  check(!(await page.locator('.dc-join-match-block').isVisible()), 'no "nearest by" row under All of mine');
   const row = await page.$$eval('.dc-join-rows .dc-join-row select', (ss) => ss.map((s) => s.value));
   check(JSON.stringify(row) === JSON.stringify(['customer_id', '==', 'customer_id']), `the key suggested, taken: ${row}`);
   const said = await will();
@@ -145,7 +150,7 @@ try {
 
   // THE TRADES WITH NO CUSTOMER: keep my rows that have none, their columns not brought
   await joinWindow();
-  await page.locator('.dc-join-form').selectOption('anti');
+  await page.locator('.dc-join-kind[data-kind="anti"]').click();
   await page.waitForFunction(() => /each once/.test(document.querySelector('.dc-join-will-list')?.textContent ?? ''), undefined, { timeout: 30_000 });
   check(JSON.stringify(await will()) === JSON.stringify(['34 rows of my 40 rows have a match, 6 rows none.', 'It keeps 6 rows, each once.']),
     `what keeping my rows with no match will do: ${await will()}`);
@@ -225,6 +230,43 @@ try {
     return leave.defaultPrevented;
   });
   check(asks, 'joins alone: leaving asks first -- the files the joins read are held in this tab');
+
+  // THE START PAGE (the user, 2026-10-23): its grid is written down as the sample file of its rows (src/sample-trades.ts),
+  // so the page it starts saves and reopens, and a file beside it joins -- it said "a grid on it does not know its
+  // source", and Join… "this grid reads no table of this tab's database"
+  await page.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
+  await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
+  // the page the app starts with: no step to undo (it offered "Undo Add Grid", which left the page blank)
+  await page.click('.dc-titlebar-menu');
+  const undo = page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Undo/ }) }).first();
+  check(await undo.locator(':scope > .dc-menu-label').textContent() === 'Undo' && await undo.getAttribute('aria-disabled') === 'true',
+    `a fresh page has nothing to undo: ${await undo.locator(':scope > .dc-menu-label').textContent()}`);
+  await page.keyboard.press('Escape');
+  await page.click('.dc-titlebar-menu');
+  await item('Save').click();
+  await page.locator('.dc-save').waitFor({ timeout: 10_000 });
+  await page.fill('.dc-save-input', 'Start');
+  await page.locator('.dc-save-foot .dc-primary').click();
+  await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 }).then(() => check(true, 'the start page saves'),
+    async () => bad(`the start page saves: ${await page.locator('.dc-save-warning').textContent()}`));
+  await page.click('.dc-titlebar-menu');
+  await item('New').hover();
+  await item('Data Source…').click();
+  await openFile(customers, 2);
+  await page.locator('.dc-tile-menu').nth(0).click();
+  await item('Join…').click();
+  await page.locator('.dc-join').waitFor({ timeout: 10_000 }).then(async () => {
+    const offered = await page.$$eval('.dc-join-their option', (os) => os.map((o) => o.textContent));
+    check(offered.includes('customers.csv'), `the start's grid joins the file beside it: ${offered}`);
+    await page.locator('.dc-join .dc-picker-close').click();
+  }, () => bad(`the start's grid's Join…: ${alerts.splice(0).join('; ') || 'no window'}`));
+  // reopened (the file added since left: "open anyway?" answered yes), its sample rebuilt, nothing asked for
+  openAnyway = true;
+  const start = await openSaved('Start');
+  check(start.asked.length === 0 && /opened/.test(start.said ?? '') && !/not opened/.test(start.said ?? ''),
+    `the saved start page reopens, its sample rebuilt, nothing asked: ${start.said} ${start.asked}`);
+  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length === 1, undefined, { timeout: 60_000 })
+    .then(() => check(true, 'the start page reopened: its one grid'), async () => bad(`grids open: ${await page.locator('.dc-tile-menu').count()}`));
   check(errors.length === 0 && alerts.length === 0,
     `no page errors or alerts${errors.length + alerts.length ? `: ${[...errors, ...alerts].join('; ')}` : ''}`);
 } catch (e) {

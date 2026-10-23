@@ -139,6 +139,7 @@ import {
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
 import { isVariant } from '../../engine-client/src/types.ts';
+import { lazily } from './lazily.ts';
 
 
 /** Rows sampled to infer what a JSON column holds. */
@@ -441,7 +442,7 @@ function refusal(out: Outcome): string | null {
  */
 let pageModule: Promise<typeof import('./page/cube-page.ts')> | undefined;
 function loadPage(): Promise<typeof import('./page/cube-page.ts')> {
-  pageModule ??= import('./page/cube-page.ts');
+  pageModule ??= lazily(() => import('./page/cube-page.ts'));
   return pageModule;
 }
 

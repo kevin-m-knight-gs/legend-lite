@@ -264,8 +264,15 @@ async function chartOf(gridTile: string): Promise<string> {
   return chart;
 }
 
+/** A chart's pill used as a hand does: Dynamic to Pinned (its grouping its own), or back -- picked from the menu it opens. */
 async function togglePill(chart: string): Promise<void> {
-  (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  const pill = tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement;
+  const to = pill.textContent === 'Dynamic' ? 'Pinned' : 'Dynamic';
+  pill.click();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+    .find((e) => e.textContent?.startsWith(`${to} \u2014 `));
+  if (!item) throw new Error(`the pill offers no ${to}`);
+  item.click();
   await settle();
 }
 

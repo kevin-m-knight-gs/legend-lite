@@ -213,6 +213,7 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
   it('the sample reads as the page declares it, and every chart\'s query plans and answers', async () => {
     const { chartsDashboardPage, EXAMPLE_CUBE, EXAMPLE_ROWS, SALES_SPECS } = await import('../src/examples/charts-dashboard.ts');
     const { chartsKindsPage } = await import('../src/examples/charts-kinds.ts');
+    const { chartsGalleryPage } = await import('../src/examples/charts-gallery.ts');
     const { salesCsv } = await import('../src/samples.ts');
     const db = await openDatabase();
     const local = new DuckDbEngine(db.connection);
@@ -223,8 +224,8 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
       const all = await local.execute(await sales.plan(from(r.source).limit(1).lambda()), 0);
       assert.deepEqual(all.columns.map((c) => `${c.name}:${c.type}`), SALES_SPECS.map((c) => `${c.name}:${c.type}`));
       const cube: CubeSnapshot = { ...EXAMPLE_CUBE, source: { query: r.source } };
-      // batch 2's page and batch 3's; a chart of the grid as shown (a sunburst, a tree) has no query of its own
-      const views = [...(await chartsDashboardPage()).views, ...(await chartsKindsPage()).views];
+      // batch 2's page, batch 3's and the gallery; a chart of the grid as shown (a sunburst, a tree) has no query of its own
+      const views = [...(await chartsDashboardPage()).views, ...(await chartsKindsPage()).views, ...(await chartsGalleryPage()).views];
       for (const v of views) {
         if (v.kind !== 'chart' || GRID_MARKS.has(v.spec.mark)) continue;
         const { query } = chartQuery(cube, v.spec);

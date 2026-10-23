@@ -31,11 +31,15 @@ afterEach(tearDown);
 const charts = (): ChartView[] => app.pageViews().views.filter((v): v is ChartView => v.kind === 'chart');
 const chart = (id: string): ChartView => charts().find((c) => c.id === id)!;
 const tile = (id: string): HTMLElement => root.querySelector(`[data-tile="${id}"]`) as HTMLElement;
-/** A chart's Dynamic / Frozen / Detached pill: what it says. */
+/** A chart's Dynamic / Pinned / Frozen / Detached pill: what it says. */
 const pill = (id: string): string => tile(id).querySelector('.dc-tile-actions .dc-titlebar-toggle')?.textContent ?? '';
-/** Toggle a chart between Dynamic and Frozen, by its pill. */
-const togglePill = async (id: string): Promise<void> => {
+/** A chart put in a state by its pill: the pill opened, the state's entry picked (each says what it does). */
+const choose = async (id: string, state: 'Dynamic' | 'Pinned' | 'Frozen'): Promise<void> => {
   (tile(id).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+    .find((e) => e.textContent?.startsWith(`${state} \u2014 `));
+  assert.ok(item, `the pill offers ${state}`);
+  item.click();
   await settle();
 };
 /** The entries of a tile's right-click menu, opened on its body. */
@@ -103,17 +107,39 @@ describe('charts follow the grid until frozen', () => {
     assert.deepEqual([chart(a).spec.split, chart(b).spec.split], [undefined, undefined]);
   });
 
-  it('a frozen chart keeps its grouping; Follow the grid takes the grid\'s again', async () => {
+  it('a pinned chart keeps its grouping; Dynamic takes the grid\'s again', async () => {
     const [a, b] = await twoCharts();
-    await togglePill(a);
-    assert.equal(pill(a), 'Frozen');
+    await choose(a, 'Pinned');
+    assert.equal(pill(a), 'Pinned');
     assert.equal(offersShowGrid(a), false, 'a cube alone saves its own grid alone: no grid of its own for a frozen chart');
     await ungroup(mainZone(), 'desk');
     assert.equal(chart(a).spec.split, 'desk', 'frozen: the pivot did not change it');
     assert.equal(chart(b).spec.split, undefined, 'the other still follows');
-    await togglePill(a);
+    await choose(a, 'Dynamic');
     assert.equal(chart(a).spec.split, undefined, 'following again, it took the grid\'s grouping');
     assert.equal(pill(a), 'Dynamic');
+  });
+
+  // the user, 2026-10-23: "frozen charts don't freeze filters -- seems to only freeze pivots"
+  it('a frozen chart keeps the grid\'s filter as it was too; a pinned one follows the filter; each says which', async () => {
+    const [a, b] = await twoCharts();
+    const emea = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    await app.edit([{ kind: 'filter', filter: emea }], 'filter');
+    await settle();
+    await choose(a, 'Frozen');
+    await choose(b, 'Pinned');
+    assert.deepEqual([pill(a), pill(b)], ['Frozen', 'Pinned']);
+    assert.deepEqual(chart(a).spec.kept, { filter: emea }, 'the grid\'s filter as it was, kept with the chart');
+    assert.equal(chart(b).spec.kept, undefined);
+    assert.match(tile(a).querySelector<HTMLElement>('.dc-titlebar-toggle')!.title, /keeps its grouping and the grid's filter/);
+    // the grid's filter taken off: the frozen chart's query still reads EMEA alone, the pinned one's every region
+    await app.edit([{ kind: 'filter', filter: null }], 'filter');
+    await settle();
+    assert.deepEqual(chart(a).spec.kept, { filter: emea }, 'still kept');
+    // put back to dynamic: it follows the grid's filter (none) and grouping again, keeping nothing
+    await choose(a, 'Dynamic');
+    assert.equal(chart(a).spec.kept, undefined);
+    assert.equal(chart(a).spec.frozen, undefined);
   });
 });
 
@@ -131,7 +157,7 @@ describe('Show Grid: the grid a chart follows, or a grid of its own grouping, wh
     const told: PageCommand[] = [];
     await remount({ onPageCommand: (c) => told.push(c) });
     const [a] = await twoCharts();
-    await togglePill(a);
+    await choose(a, 'Pinned');
     await ungroup(mainZone(), 'desk');
     assert.equal(chart(a).spec.split, 'desk', 'frozen: its own grouping');
     assert.equal(offersShowGrid(a), false);
@@ -142,8 +168,8 @@ describe('Show Grid: the grid a chart follows, or a grid of its own grouping, wh
     assert.deepEqual(addedGrids(), [], 'no grid made');
     assert.deepEqual(told, [], 'nothing told');
     assert.equal(JSON.stringify(app.pageViews()), before, 'the page as it was');
-    assert.equal(chart(a).spec.frozen, true, 'still frozen, and saved with the cube');
-    assert.equal(pill(a), 'Frozen');
+    assert.equal(chart(a).spec.frozen, true, 'still pinned, and saved with the cube');
+    assert.equal(pill(a), 'Pinned');
     assert.deepEqual(app.snapshot.rows, ['region'], 'the cube\'s grid never moved');
   });
 });
@@ -325,7 +351,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     await chartOf(id);
     const ofGrid = [...root.querySelectorAll<HTMLElement>('[data-tile^="chart-"]')].map((t) => t.dataset['tile']!);
     assert.equal(ofGrid.length, 2);
-    await togglePill(ofGrid[0]!);
+    await choose(ofGrid[0]!, 'Pinned');
     (tile(id).querySelector('.dc-tile-remove') as HTMLElement).click();
     await settle();
     assert.equal(tile(id), null, 'the grid is gone');

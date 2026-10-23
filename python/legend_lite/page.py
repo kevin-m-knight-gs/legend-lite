@@ -701,8 +701,9 @@ class Grid(Tile):
         """A chart of this grid, beside it: ``mark`` (a mark DataCube draws), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the measure DataCube's own new chart would plot unless given -- and a ``split``
         (one series per value), each DataCube's own new chart's unless given (None: none); ``frozen`` keeps its own
-        grouping rather than following the grid's (and stays when the grid is removed, as in DataCube) -- unless told, a
-        chart told its ``x``, ``y`` or ``split`` keeps them, as a hand on them in DataCube's options freezes the chart,
+        grouping rather than following the grid's -- its state 'pinned' (``Chart.state``; 'frozen' keeps the grid's
+        filter too) -- and stays when the grid is removed, as in DataCube; unless told, a
+        chart told its ``x``, ``y`` or ``split`` keeps them, as a hand on them in DataCube's options pins the chart,
         and one told none of them follows the grid (told them and ``frozen=False``, one the grid would replace is
         refused); ``options``: the chart's Options, in its spec's own keys (one left out is its default).
 
@@ -956,9 +957,26 @@ class GridView:
 
 @_operations
 class Chart(Tile):
-    """A chart of a grid: its mark, what it plots, its options; following its grid unless frozen."""
+    """A chart of a grid: its mark, what it plots, its options; following its grid unless pinned or frozen (``state``)."""
 
     _kind = 'chart'
+
+    @property
+    def state(self) -> str:
+        """Its state, as its pill says it: ``'dynamic'`` (it follows its grid: its grouping, its filter, the page's
+        clicks), ``'pinned'`` (its grouping its own; the grid's filter followed) or ``'frozen'`` (its grouping and the
+        grid's filter as they were when it was frozen, kept with it) -- read off the chart as DataCube writes it."""
+        spec = self._view['spec']
+        return 'frozen' if 'kept' in spec else 'pinned' if spec.get('frozen') else 'dynamic'
+
+    @state.setter
+    def state(self, state: str) -> None:
+        """The chart put in a state as its pill puts it (chart-spec.ts chartState, through editChart): dynamic, regrouped
+        the way its grid is now; pinned, its grouping kept; frozen, the grid's filter as it is now kept too. Refused in
+        DataCube's words: a state that is none, or a detached chart (its grid removed) told to follow."""
+        view = self._view
+        self._page._apply_page([_commands.page_set_chart(chart=self._id,
+                                                         spec=_made(self._page, view['cube'], {'state': state}, view['spec']))])
 
     def grid(self) -> Grid:
         """Its grid, as DataCube's Show Grid shows it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D7; DataCube's code,

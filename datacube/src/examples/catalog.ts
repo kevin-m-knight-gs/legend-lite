@@ -3,6 +3,7 @@
 // loads with the Open window; each page is built by a module of its own, fetched when it is opened.
 
 import type { PageDocument } from '../page-document.ts';
+import { lazily } from '../lazily.ts';
 
 export interface ExamplePage {
   readonly id: string;
@@ -16,11 +17,19 @@ export interface ExamplePage {
 
 export const EXAMPLE_PAGES: readonly ExamplePage[] = [
   {
+    id: 'charts-gallery',
+    label: 'Chart gallery: every kind',
+    about: 'One chart of each of the 32 kinds DataCube draws -- bars, lines and areas, Paretos and waterfalls, pies, '
+      + 'treemaps and sunbursts, Sankeys and chords, calendars and box plots, maps and gauges -- a sheet per family, each '
+      + 'fitting the screen, over the sales sample.',
+    build: async () => (await lazily(() => import('./charts-gallery.ts'))).chartsGalleryPage(),
+  },
+  {
     id: 'charts-dashboard',
     label: 'Charts: dashboard-grade',
     about: 'Bar and line together, reference lines and colour by value, time and zoom, drill-down and brushing, '
       + 'formats and labels, bins and periods -- over the sales sample.',
-    build: async () => (await import('./charts-dashboard.ts')).chartsDashboardPage(),
+    build: async () => (await lazily(() => import('./charts-dashboard.ts'))).chartsDashboardPage(),
   },
   {
     id: 'charts-kinds',
@@ -31,6 +40,6 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
       + 'radars, parallel coordinates and a scatter matrix; box plots and a histogram; maps of countries and of '
       + 'cities; small multiples and bubbles; gauges and KPIs -- over '
       + 'the sales sample.',
-    build: async () => (await import('./charts-kinds.ts')).chartsKindsPage(),
+    build: async () => (await lazily(() => import('./charts-kinds.ts'))).chartsKindsPage(),
   },
 ];

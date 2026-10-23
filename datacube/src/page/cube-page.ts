@@ -35,7 +35,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { chartGrid, MAP_MARKS, ownGridRefusal, type ChartSpec } from '../chart-spec.ts';
+import { CHART_STATES, chartGrid, MAP_MARKS, ownGridRefusal, type ChartSpec, type ChartState } from '../chart-spec.ts';
 import { chartPicked, type PageFilter } from '../page-filters.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
@@ -54,12 +54,20 @@ import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapsh
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { lazily } from '../lazily.ts';
 
 /** How many arrangements Undo Layout goes back through. */
 const LAYOUT_STEPS = 50;
 /** The grid's tile, until renamed: the cube's name is already above the board. */
 export const GRID_TILE_TITLE = 'Grid';
 const GRID = 'grid';
+
+/** A chart's states as its pill says them: its word, and what it does, in a line (chart-spec.ts chartState). */
+const STATE_WORDS: Readonly<Record<ChartState, { readonly label: string; readonly says: string }>> = {
+  dynamic: { label: 'Dynamic', says: 'it follows the grid: its grouping, its filters and the page\'s clicks' },
+  pinned: { label: 'Pinned', says: 'it keeps its own grouping, and follows the grid\'s filters and the page\'s clicks' },
+  frozen: { label: 'Frozen', says: 'it keeps its grouping and the grid\'s filter as they are now' },
+};
 
 /** What a chart needs from the grid it is made from (a CubeApp). */
 export interface ChartSource {
@@ -473,8 +481,11 @@ export class CubePage {
     const by = near !== undefined ? this.#sheetOf(near) : undefined;
     const sheet = this.#planned.get(spec.id) ?? by ?? this.#shown;
     this.#specs.set(spec.id, spec);
-    sheet.board.add(spec, by === sheet ? near : undefined);
+    sheet.board.add(spec, by === sheet ? near : undefined, this.#charts.has(spec.id) ? this.#chartsOnly : undefined);
   }
+
+  /** Whether these tiles are all charts: a band a new chart joins (bands.ts add), beside its grid's other charts. */
+  readonly #chartsOnly = (ids: readonly string[]): boolean => ids.every((t) => this.#charts.has(t));
 
   /** A saved view this page cannot open, kept in its place as its page saved it: a tile that says `why`. */
   placeUnavailable(view: PageView, why: string): void {
@@ -895,7 +906,7 @@ export class CubePage {
       this.#showPicker(this.#picker, anchor, first);
       return;
     }
-    void import('../ui/layout-picker.ts').then(({ LayoutPicker }) => {
+    void lazily(() => import('../ui/layout-picker.ts')).then(({ LayoutPicker }) => {
       if (this.#disposed) return;
       this.#picker ??= new LayoutPicker(this.#options.host);
       this.#showPicker(this.#picker, anchor, first);
@@ -1141,31 +1152,31 @@ export class CubePage {
     chip.className = 'dc-tile-chip';
     chip.hidden = true;
     chip.addEventListener('click', () => this.#select(id, null));
-    // THE CHART'S HEADER, simple (the user, 2026-09-30): its title, a Dynamic / Frozen pill -- as
-    // a grid's Live / Snapped -- that says which and toggles it, the filter chip while a click is
-    // filtering its grid, and its x. Everything else is a right-click away.
+    // THE CHART'S HEADER, simple (the user, 2026-09-30): its title, a pill -- as a grid's Live / Snapped -- that says
+    // its state and changes it, the filter chip while a click is filtering its grid, and its x. Everything else is a
+    // right-click away. Its states, one word each (the user, 2026-10-23: frozen charts kept their grouping but not
+    // their filter): DYNAMIC follows the grid; PINNED keeps its own grouping (a hand on its axes pins it) and follows
+    // the grid's filters and the page's clicks; FROZEN keeps its grouping and the grid's filter as they were.
     const pill = doc.createElement('button');
     pill.type = 'button';
     pill.className = 'dc-titlebar-toggle';
+    pill.setAttribute('aria-haspopup', 'menu');
     const paint = (): void => {
-      const frozen = panel.frozen;
+      const state = panel.state;
       const detached = link.grid === null;
-      pill.textContent = detached ? 'Detached' : frozen ? 'Frozen' : 'Dynamic';
-      pill.classList.toggle('dc-on', !frozen && !detached);
+      pill.textContent = detached ? 'Detached' : STATE_WORDS[state].label;
+      pill.classList.toggle('dc-on', state === 'dynamic' && !detached);
       pill.classList.toggle('dc-fixed', detached);
       pill.disabled = detached;
+      // a map is placed by its own columns (chart-spec.ts live): the grid's grouping leaves it as it is
+      const map = panel.spec !== null && MAP_MARKS.has(panel.spec.mark) && state === 'dynamic';
       pill.title = detached
         ? 'Its grid was removed: this chart keeps its own copy of that grid\'s query. Right-click > Show Grid to show it in a grid of its own.'
-        : frozen
-          ? 'Frozen: it keeps its grouping as the grid is pivoted. Click to follow the grid again.'
-          // a map is placed by its own columns (chart-spec.ts live): the grid's grouping leaves it as it is
-          : panel.spec !== null && MAP_MARKS.has(panel.spec.mark)
-            ? 'Dynamic: it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping. Click to freeze it as it is.'
-            : 'Dynamic: it re-draws as the grid is pivoted, grouped and filtered. Click to freeze it as it is.';
+        : `${STATE_WORDS[state].label}: ${map ? 'it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping' : STATE_WORDS[state].says}. Click to change.`;
     };
     const panel = new ChartPanel(body, {
-      // its spec changed by hand -- its options, a drill, frozen or following again -- is a step of the page's
-      onFrozen: () => this.#chartChanged(id, 'Chart Change'),
+      // its spec changed by hand -- its options, a drill, its state -- is a step of the page's
+      onState: () => this.#chartChanged(id, 'Chart Change'),
       onSpec: () => this.#chartChanged(id, 'Chart Change'),
       ...(restore ? { initial: restore.spec } : {}),
       snapshot: () => source().snapshot,
@@ -1179,9 +1190,17 @@ export class CubePage {
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
       formOpen: false,
     });
+    // its states offered, the one it is in checked, each said in a line
     pill.addEventListener('click', () => {
       if (link.grid === null) return;
-      panel.setFrozen(!panel.frozen);
+      this.#menuFor = (item) => {
+        const state = CHART_STATES.find((s) => item.id === `tile.state.${s}`);
+        if (state !== undefined) panel.setState(state);
+      };
+      const at = pill.getBoundingClientRect();
+      this.#menu.show([{ label: '', items: CHART_STATES.map((s) => ({
+        id: `tile.state.${s}` as const, label: `${STATE_WORDS[s].label} \u2014 ${STATE_WORDS[s].says}`, checked: panel.state === s,
+      })) }], at.left, at.bottom);
     });
     // RIGHT-CLICK: the chart's own entries
     body.addEventListener('contextmenu', (event) => {
@@ -1642,7 +1661,7 @@ export class CubePage {
     const on = new Set(tiles(sheet.board.layout));
     for (const [id, chart] of this.#charts) {
       if (!tiles(drawn).includes(id) && on.has(id) && !chart.added) {
-        drawn = addTile(drawn, id, chart.link.grid ?? undefined, sheet.board.columns, (ids) => ids.every((t) => this.#charts.has(t)));
+        drawn = addTile(drawn, id, chart.link.grid ?? undefined, sheet.board.columns, this.#chartsOnly);
       }
     }
     return fronted(drawn, sheet.board.layout);

@@ -52,10 +52,11 @@ import type { Sample, Services, Versions } from './services.ts';
 import { applyLive, followBy } from './live-follow.ts';
 import { LiveChannel } from './live-channel.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
+import { lazily } from '../lazily.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
 // downloads it (test/bundle-budget.test.ts)
-const queryStores = () => import('../../../query-store/src/index.ts');
+const queryStores = () => lazily(() => import('../../../query-store/src/index.ts'));
 
 /** CREATE A CLASS… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.1): a grid's own entry, in its menu's data group. */
 const CREATE_CLASS = { id: 'host.createClass', label: 'Create a Class\u2026', section: 'data' } as const;
@@ -526,15 +527,24 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+    // each grid's place told to the sources as it is made -- the start's grid, below, included: its tables are then
+    // what a join of it reads
+    madeGrid = (id, place) => sources.madeGrid(id, place);
+    dropUnread = () => sources.dropUnread();
 
     if (start.kind === 'sample') {
       const { sample } = start;
       // generated rows are a copy in the tab from the start; a remote file read through the sample's model is live, and
       // snaps into a copy of its own, as any grid's rows not in the tab do (§18.3)
       const snapTarget = sources.snapTarget();
-      page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions,
-        sample.heldCopy ? { heldCopy: sample.heldCopy } : snapTarget ? { snapTarget } : {}));
+      page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions, {
+        ...(sample.heldCopy ? { heldCopy: sample.heldCopy } : snapTarget ? { snapTarget } : {}),
+        // what its rows are, written down: a page it starts is saved, shared and joined as any file's is
+        ...(sample.source ? { cubeSource: sample.source.cube, tables: sample.source.tables } : {}),
+      }));
       await page.ready();
+      // the page the app starts with: no step of a person's to undo
+      page.started();
     }
     // WHAT LEAVING WOULD LOSE, asked in this order: the warehouse's session, unsaved changes, the files opened
     work.add(() => sources.sessionHeld());
@@ -561,8 +571,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       page.rename(name);
       onCubeView?.();
     };
-    madeGrid = (id, place) => sources.madeGrid(id, place);
-    dropUnread = () => sources.dropUnread();
 
     /**
      * What saving now would write -- always ONE kind of thing, the page (page-document.ts): one cube per grid, its
@@ -1141,7 +1149,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         window.alert(`Cannot create a class of this grid: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
-      const [{ createClassOf }, home] = await Promise.all([import('../create-class.ts'), modelHome.connect()]);
+      const [{ createClassOf }, home] = await Promise.all([lazily(() => import('../create-class.ts')), modelHome.connect()]);
       const commands = await createClassOf({
         basis,
         // the names its leaves' tables have in this tab, one per leaf (a file's, a join's each), which reopening reads
@@ -1172,7 +1180,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const modelActions = async (): Promise<{ actions: typeof import('../model-actions.ts'); of: import('../model-actions.ts').ModelActionsOf } | undefined> => {
       const writing = services.engine.modelWriting;
       if (!modelHome || !writing) return undefined;
-      const [actions, home] = await Promise.all([import('../model-actions.ts'), modelHome.connect()]);
+      const [actions, home] = await Promise.all([lazily(() => import('../model-actions.ts')), modelHome.connect()]);
       const grids = actions.pageGrids(page.grids, (id) => {
         const place = sources.place(id);
         const grid = page.grid(id);
@@ -1247,7 +1255,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         const shown = placed;
         const stillShown = () => placed === shown;
         const say = (text: string) => library?.say(text, 'warn');
-        void import('./join-app.ts').then(({ joinFlow, hostJoinFlow }) => (localEngine
+        void lazily(() => import('./join-app.ts')).then(({ joinFlow, hostJoinFlow }) => (localEngine
           ? joinFlow({ cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } }, stillShown, say })
           : hostJoinFlow({ cube, page, sources, join: hostJoin!, parse: (text) => services.engine.reading.parse(text), stillShown, say })))
           .catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
@@ -1374,7 +1382,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
       // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
       const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
-      const [{ applyPageCommands, rebuiltCommands }, { pageCommand }] = await Promise.all([import('../page-commands.ts'), import('../page-gestures.ts')]);
+      const [{ applyPageCommands, rebuiltCommands }, { pageCommand }] = await Promise.all([lazily(() => import('../page-commands.ts')), lazily(() => import('../page-gestures.ts'))]);
       // a snapped grid whose copy was not read here reads its rows live: told so (the S7 audit's G-3) -- first, so a
       // grid it leaves over frames that changed meanwhile is told rebuilt too, as Python's Grid.live tells both (the S7
       // confirmation audit's H2-4: judged against the copy, it never was)

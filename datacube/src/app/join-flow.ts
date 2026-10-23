@@ -49,10 +49,12 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
   const now = page.document(page.title);
   const mine = now && inputOf(o, now, o.cube);
   if (!now || !mine) throw new Error('this grid reads no table of this tab\'s database');
+  // a pivoted grid joins as no fixed columns (refused, in words, when chosen): offered after the others, so the window
+  // opens on one that joins (the start's grid is pivoted: the first offered, it opened on a refusal, 2026-10-23)
   const others = new Map(page.grids.filter((id) => id !== o.cube).flatMap((id) => {
     const i = inputOf(o, now, id);
     return i ? [[id, i] as const] : [];
-  }));
+  }).sort(([, a], [, b]) => Number(a.input.query.pivotOn.length > 0) - Number(b.input.query.pivotOn.length > 0)));
   if (others.size === 0) {
     throw new Error('a join needs another grid on the page over a file or a remote file: add one first (New ▸ Data Source…)');
   }
