@@ -133,11 +133,11 @@ function pageMenu(): HTMLElement[] {
 }
 const label = (item: HTMLElement): string => item.querySelector(':scope > .dc-menu-label')?.textContent ?? '';
 const entry = (items: HTMLElement[], text: string): HTMLElement | undefined => items.find((i) => label(i) === text);
-/** An entry of a grid's own menu (its tile's, or the bar's while it is alone), by what it says. */
+/** An entry of a grid's right-click (a submenu's too: Create ▸, Tile ▸ Move to Sheet ▸), by what it says. */
 function gridMenuItem(gridTile: string, text: string): HTMLElement {
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
-  const button = (tile(gridTile).querySelector('.dc-tile-menu') ?? bar().querySelector('.dc-page-alone .dc-tile-menu')) as HTMLElement;
-  button.click();
+  (tile(gridTile).querySelector('.dc-row .dc-cell') as HTMLElement)
+    .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === text);
   assert.ok(item, `${gridTile}'s menu has ${text}`);
   return item;
@@ -194,8 +194,7 @@ describe('a page of its own', () => {
     const strip = bar().querySelector('.dc-page-alone')!;
     assert.match(strip.textContent ?? '', /trades\.csv/);
     assert.ok(strip.querySelector('.dc-titlebar-toggle'), 'its Live/Snapped pill');
-    assert.ok(strip.querySelector('.dc-tile-menu'), 'its own menu');
-    assert.equal(tile(id).querySelector('.dc-tile-menu'), null, 'not in the tile as well');
+    assert.equal(host.querySelector('.dc-tile-menu'), null, 'no menu button: its right-click is its menu (the user, 2026-10-23)');
   });
 
   it('a second tile moves the lone grid\'s header back into its tile; every grid alike, the first one removable', async () => {
@@ -206,7 +205,6 @@ describe('a page of its own', () => {
     assert.equal(host.querySelector('.dc-bands')!.classList.contains('dc-bands-alone'), false);
     assert.equal(bar().querySelector('.dc-page-alone')!.children.length, 0);
     for (const id of [a, b]) {
-      assert.ok(tile(id).querySelector('.dc-tile-menu'), `${id} has its own menu`);
       assert.equal(tile(id).querySelector<HTMLButtonElement>('.dc-tile-remove')!.hidden, false, `${id} can be removed`);
     }
     // the first one removed: the other alone in the bar
@@ -214,11 +212,8 @@ describe('a page of its own', () => {
     await settle();
     assert.deepEqual(page.grids, [b]);
     assert.match(bar().querySelector('.dc-page-alone')!.textContent ?? '', /orders\.csv/);
-    // and the last, from its own menu (its tile has no remove button while alone): the empty page
-    (bar().querySelector('.dc-tile-menu') as HTMLElement).click();
-    const remove = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove from Page');
-    assert.ok(remove, 'Remove from Page, in the grid\'s own menu');
-    remove.click();
+    // and the last, from its right-click's Tile ▸ (its tile has no remove button while alone): the empty page
+    gridMenuItem(b, 'Remove from Page').click();
     await settle();
     assert.deepEqual(page.grids, []);
     assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, false);

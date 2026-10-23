@@ -268,18 +268,15 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     assert.deepEqual(bands(), arranged);
   });
 
-  it('a grid\'s menu button opens its menu even while the title bar\'s is open, and says when it is open', async () => {
+  it('a grid\'s tile has no menu button (the user, 2026-10-23): its right-click opens even while the title bar\'s is open', async () => {
     await twoCharts();
+    assert.equal(root.querySelector('.dc-tile-menu'), null, 'no grid menu button on the board');
     titleMenu();
-    const button = [...tile('grid').querySelectorAll<HTMLElement>('.dc-tile-menu')][0]!;
-    button.click();
+    (tile('grid').querySelector('.dc-row .dc-cell') as HTMLElement)
+      .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const labels = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu > [role^="menuitem"]')]
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent);
-    assert.deepEqual(labels, ['Create', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis'], 'the grid\'s, not shut');
-    assert.equal(button.getAttribute('aria-expanded'), 'true');
-    button.click();
-    assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'its own button again shuts it');
-    assert.equal(button.getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(labels.slice(0, 3), ['Export', 'Email', 'Edit'], 'the grid\'s right-click, the title bar\'s shut');
   });
 });
 
@@ -301,27 +298,31 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
   });
 
-  it('every grid has its own menu in its tile\'s header, the same for the cube\'s grid and an added one', async () => {
+  it('every grid\'s right-click is its own menu: Edit ▸ its own Undo, Tile ▸ Remove from Page for an added one', async () => {
     await app.newGrid();
     await settle();
     const id = added()[0]!.dataset['tile']!;
-    /** A grid's own menu, opened from its tile: its entries at the top level, by what a person reads. */
-    const gridMenu = (tileId: string): HTMLElement[] => {
+    /** A grid's right-click, opened on its first cell: every entry, a submenu's too. */
+    const rightClick = (tileId: string): HTMLElement[] => {
       dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
-      const buttons = [...tile(tileId).querySelectorAll<HTMLElement>('.dc-tile-menu')]
-        .filter((b) => b.closest('[data-tile]') === tile(tileId));
-      assert.equal(buttons.length, 1, `${tileId} has one menu button of its own`);
-      buttons[0]!.click();
-      return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu > [role^="menuitem"]')];
+      (tile(tileId).querySelector('.dc-row .dc-cell') as HTMLElement)
+        .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')];
     };
-    const labels = (items: HTMLElement[]): string[] => items.map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
-    const theirs = labels(gridMenu(id));
-    assert.deepEqual(theirs, ['Create', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis', 'Remove from Page']);
-    // the cube's own grid is its host's: the same menu, but it cannot be taken off the page
-    assert.deepEqual(labels(gridMenu('grid')), theirs.filter((l) => l !== 'Remove from Page'), 'the cube\'s own grid has the same menu');
+    const under = (items: HTMLElement[], parent: string): string[] => items
+      .filter((i) => i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === parent)
+      .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
+    const top = (items: HTMLElement[]): string[] => items.filter((i) => i.parentElement?.closest('.dc-menu-item') === null)
+      .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
+    assert.deepEqual(under(rightClick(id), 'Tile'), ['Hide Controls', 'Remove from Page']);
+    // the cube's own grid is its host's: it cannot be taken off the page, so its switch stands alone
+    assert.equal(top(rightClick('grid')).at(-1), 'Hide Controls', 'the cube\'s own grid: no Tile ▸');
     // its Undo is its own: the added grid's change undone, the cube's grid untouched
     await ungroup(zoneOf(id), 'desk');
-    menuEntry(gridMenu(id), 'Undo')!.click();
+    const undo = rightClick(id).find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'Undo'
+      && i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Edit');
+    assert.ok(undo && undo.getAttribute('aria-disabled') !== 'true', 'Edit ▸ Undo, live after a change');
+    undo.click();
     await settle();
     assert.deepEqual(chips(zoneOf(id)), ['region', 'desk']);
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);

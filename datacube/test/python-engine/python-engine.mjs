@@ -225,7 +225,9 @@ try {
   // services -- the class's sample read where the grid's rows are (PlanAndRun on Python), written by Python's native
   // library, its project made in Python's model home (the same SDLC rules, a git repository in this test's own folder)
   const menuItem = (label) => cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(`:scope > .dc-menu-label:text-is(${JSON.stringify(label)})`) }).first();
-  await cube.locator('.dc-tile-menu').last().click();
+  // from the last grid's right-click (its menu button went, 2026-10-23): Create ▸ Class…
+  await cube.locator('[data-tile]').filter({ has: cube.locator('.dc-app-grid') }).last().locator('.dc-row .dc-cell').first()
+    .click({ button: 'right' });
   await menuItem('Create').hover();
   await menuItem('Class…').click();
   const classShown = await cube.waitForFunction(() => document.querySelectorAll('.dc-class-file').length > 0

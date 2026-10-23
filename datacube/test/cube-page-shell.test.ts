@@ -151,10 +151,11 @@ function pageMenu(): HTMLElement[] {
   (host.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
   return menuItems();
 }
-/** An entry of a grid's own menu (its tile's header), by what it says. */
+/** An entry of a grid's right-click (a submenu's too: Create ▸, Tile ▸ Move to Sheet ▸), by what it says. */
 function gridMenuItem(gridTile: string, text: string): HTMLElement {
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
-  (tile(gridTile).querySelector('.dc-tile-menu') as HTMLElement).click();
+  (tile(gridTile).querySelector('.dc-row .dc-cell') as HTMLElement)
+    .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   const item = menuItems().find((i) => label(i) === text);
   assert.ok(item, `${gridTile}'s menu has ${text}`);
   return item;

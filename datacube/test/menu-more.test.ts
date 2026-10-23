@@ -114,7 +114,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     const bare = items({ snapshot: CUBE });
     const off = labels(bare).filter((l) => l.endsWith(' [off]'));
     for (const want of [
-      'Selected Column as Plain Text', 'Ascending', 'Descending', 'Add Ascending', 'Add Descending',
+      'Copy Column', 'Ascending', 'Descending', 'Add Ascending', 'Add Descending',
       'Vertical Pivot', 'Add Vertical Pivot', 'Remove Vertical Pivot', 'Horizontal Pivot', 'Add Horizontal Pivot',
       'Remove Horizontal Pivot', 'Auto-size to Fit Content', 'Minimize Column', 'Pin Left', 'Pin Right', 'Unpin', 'Hide',
       'Add Heatmap', 'Remove Heatmap',
@@ -168,7 +168,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     const total = pivotTotalColumn('notional');
     const ctx: MenuContext = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' } }, column: total, pivotBase: 'notional',
       canGroup: false, isMeasure: true };
-    for (const label of ['Hide Total / notional', 'Column Total / notional as Plain Text', 'Add Heatmap to Total / notional',
+    for (const label of ['Hide Total / notional', 'Copy Column Total / notional', 'Add Heatmap to Total / notional',
       'Minimize Column', 'Auto-size to Fit Content']) {
       assert.equal(find(ctx, label)?.disabled, false, label);
       assert.equal(find(ctx, label)?.column, total, label);

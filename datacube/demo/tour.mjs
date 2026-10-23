@@ -147,10 +147,9 @@ async function burger(label) {
   }
   await item.click();
 }
-/** The first grid's own menu (Undo, Redo, Export, Properties): in its tile's header beside other tiles. */
+/** The first grid's Edit ▸ entry (Undo, Redo), from its right-click: its menu button went (the user, 2026-10-23). */
 async function gridMenu(label) {
-  await page.locator(`${FIRST} .dc-tile-menu, .dc-tile-menu`).first().click();
-  await entry(label).click();
+  await cellMenu(['Edit', label]);
   await settle();
 }
 /** A row group (`zone` rows) or pivot (columns) of the first grid taken off by its chip's ×, never an editing grid's. */

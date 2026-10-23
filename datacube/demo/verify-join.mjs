@@ -49,13 +49,22 @@ page.on('dialog', async (d) => {
 });
 
 const item = (label) => page.locator('.dc-menu .dc-menu-item', { has: page.locator(`:scope > .dc-menu-label:text-is(${JSON.stringify(label)})`) }).first();
+/** The grids on the page: each tile's grid (their menu buttons, which these counted, went 2026-10-23). */
+const GRIDS = '[data-tile] .dc-app-grid';
+/** `tile`'s right-click on its first cell (or one of `column`), then `parent` ▸ `label`: Join ▸ Join…, Tile ▸ Remove from Page. */
+async function gridEntry(tile, parent, label, column) {
+  await tile.locator(column ? `.dc-row .dc-cell[data-column="${column}"]` : '.dc-row .dc-cell').first().click({ button: 'right' });
+  await item(parent).hover();
+  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(parent)})) `
+    + `.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(label)}))`).first().click();
+}
 /** A file opened through the source picker, as a person does: its grid's tile is the `n`th. */
 async function openFile(path, n) {
   await page.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 10_000 });
   await page.setInputFiles('.dc-picker-file', path);
   await page.waitForFunction(() => !document.querySelector('.dc-picker') || document.querySelector('.dc-picker-status.dc-failed'),
     undefined, { timeout: 120_000 });
-  await page.waitForFunction((k) => document.querySelectorAll('.dc-tile-menu').length >= k, n, { timeout: 60_000 });
+  await page.waitForFunction((k) => document.querySelectorAll('[data-tile] .dc-app-grid').length >= k, n, { timeout: 60_000 });
 }
 const rowsOf = async (tile) => Number((/^([\d,]+) rows/.exec((await tile.locator('.dc-status-rows').first().textContent()) ?? '')?.[1]
   ?? 'NaN').replace(/,/g, ''));
@@ -63,13 +72,14 @@ const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText:
   .waitFor({ timeout: 60_000 }).catch(() => undefined);
 const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) });
 const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.getAttribute('data-column')));
+/** The trades' own grid: its 40 rows (a join of it has its columns too). */
+const tradesTile = () => tileWith('trade_id').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first();
 /**
- * The first grid's Join… with the customers' grid (by its name: a join of it, beside it, may be the first offered), the
- * window's answer to what it will do waited for.
+ * The trades grid's Join ▸ Join… from a customer_id cell, with the customers' grid (by its name: a join of it, beside it,
+ * has the column too), the window's answer to what it will do waited for.
  */
 async function joinWindow() {
-  await page.locator('.dc-tile-menu').nth(0).click();
-  await item('Join…').click();
+  await gridEntry(tradesTile(), 'Join', 'Join…', 'customer_id');
   await page.locator('.dc-join').waitFor({ timeout: 10_000 });
   const theirs = await page.$$eval('.dc-join-their option', (os) => os.map((o) => ({ value: o.value, label: o.textContent })));
   const customersGrid = theirs.find((o) => o.label === 'customers.csv');
@@ -142,7 +152,7 @@ try {
     const key = await page.$$eval('.dc-join-rows .dc-join-row select', (ss) => ss.map((x) => x.value));
     const form = await page.locator('.dc-join-kind[aria-checked="true"]').getAttribute('data-kind');
     check(JSON.stringify(key) === JSON.stringify(['customer_id', '==', 'customer_id']) && form === 'left'
-      && /appears more than once/.test((await will()).join(' ')) && await page.locator('.dc-tile-menu').count() === 2,
+      && /appears more than once/.test((await will()).join(' ')) && await page.locator(GRIDS).count() === 2,
     `a quick join that would repeat rows of mine: the window on it, its key and form, its warning, nothing made (${key}, ${form})`);
     await page.locator('.dc-join .dc-picker-close').click();
     await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 10_000 });
@@ -164,7 +174,7 @@ try {
     'their customer_id, a name mine has, said as it comes out');
   await page.locator('.dc-join .dc-primary').click();
   await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 60_000 });
-  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 3, undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 3, undefined, { timeout: 60_000 });
   const joined = tileWith('their_customer_id').first();
   await untilRows(joined, 47);
   check(await rowsOf(joined) === 47, `the joined grid: every trade, customer 5's twice (${await rowsOf(joined)} rows)`);
@@ -185,7 +195,7 @@ try {
     `what keeping my rows with no match will do: ${await will()}`);
   await page.locator('.dc-join .dc-primary').click();
   await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 60_000 });
-  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 4, undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
   // its tile wherever the page placed it: the one grid of trades' columns and six rows (the customers' grid has six too)
   const six = () => tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^6 rows/ }) });
   await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
@@ -212,7 +222,7 @@ try {
   const { asked, said: opened } = await openSaved('Joins');
   check(JSON.stringify([...asked].sort()) === JSON.stringify(['customers.csv', 'trades.csv']), `each file asked for once: ${asked}`);
   check(/opened/.test(opened ?? '') && !/not opened/.test(opened ?? ''), `opened: ${opened}`);
-  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 4, undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
   const again = tileWith('their_customer_id').first();
   await untilRows(again, 47);
   check(await rowsOf(again) === 47, `reopened: the joined grid's rows (${await rowsOf(again)})`);
@@ -225,20 +235,17 @@ try {
   check(/opened/.test(drifted.said ?? '') && !/not opened/.test(drifted.said ?? ''), `the page opened over a changed file: ${drifted.said}`);
   check((drifted.said?.match(/left out: trades\.csv/g) ?? []).length === 2, `each join left out, said: ${drifted.said}`);
   check(/is not the file/.test(drifted.said ?? ''), `the file given said not to be the one saved over: ${drifted.said}`);
-  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length === 2, undefined, { timeout: 60_000 })
-    .then(() => check(true, 'its two plain grids open, its joins not'), async () => bad(`grids open: ${await page.locator('.dc-tile-menu').count()}`));
+  await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 2, undefined, { timeout: 60_000 })
+    .then(() => check(true, 'its two plain grids open, its joins not'), async () => bad(`grids open: ${await page.locator(GRIDS).count()}`));
 
   // JOINS ALONE READING THE FILES (the audit's 5): the plain grids taken off, saved, opened again -- each file asked for
   // once, both joins reading the one table each file is read into
   await openSaved('Joins');
-  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length >= 4, undefined, { timeout: 60_000 });
-  const removeGrid = async (tile) => {
-    await tile.locator('.dc-tile-menu').click();
-    await item('Remove from Page').click();
-  };
+  await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
+  const removeGrid = (tile) => gridEntry(tile, 'Tile', 'Remove from Page');
   await removeGrid(tileWith('name').filter({ hasNot: page.locator('.dc-th[data-column="trade_id"]') }).first());
   await removeGrid(tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first());
-  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length === 2, undefined, { timeout: 30_000 });
+  await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 2, undefined, { timeout: 30_000 });
   await page.click('.dc-titlebar-menu');
   await item('Save As\u2026').click();
   await page.locator('.dc-save').waitFor({ timeout: 10_000 });
@@ -282,8 +289,8 @@ try {
   await item('Create').hover();
   await item('Data Source…').click();
   await openFile(customers, 2);
-  await page.locator('.dc-tile-menu').nth(0).click();
-  await item('Join…').click();
+  // the start's grid is pivoted: its Join ▸ is the window alone
+  await gridEntry(page.locator('[data-tile="grid-1"]'), 'Join', 'Join…');
   await page.locator('.dc-join').waitFor({ timeout: 10_000 }).then(async () => {
     const offered = await page.$$eval('.dc-join-their option', (os) => os.map((o) => o.textContent));
     check(offered.includes('customers.csv'), `the start's grid joins the file beside it: ${offered}`);
@@ -294,8 +301,8 @@ try {
   const start = await openSaved('Start');
   check(start.asked.length === 0 && /opened/.test(start.said ?? '') && !/not opened/.test(start.said ?? ''),
     `the saved start page reopens, its sample rebuilt, nothing asked: ${start.said} ${start.asked}`);
-  await page.waitForFunction(() => document.querySelectorAll('.dc-tile-menu').length === 1, undefined, { timeout: 60_000 })
-    .then(() => check(true, 'the start page reopened: its one grid'), async () => bad(`grids open: ${await page.locator('.dc-tile-menu').count()}`));
+  await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 1, undefined, { timeout: 60_000 })
+    .then(() => check(true, 'the start page reopened: its one grid'), async () => bad(`grids open: ${await page.locator(GRIDS).count()}`));
 
   // THE JOIN EXAMPLE (the user, 2026-10-23: join prep was on the site, but nothing showed it): opened from Open…'s
   // examples, its two samples made in this tab and its two joins made again -- every order beside its country, by
@@ -335,12 +342,12 @@ try {
     `Create ▸ in place of Insert: ${create.join(' | ')}`);
   const exampleJoins = await submenu('Join');
   check(exampleJoins[0] === 'With Countries on country', `Join ▸ on the column clicked: ${exampleJoins.join(' | ')}`);
-  const before = await page.locator('.dc-tile-menu').count();
+  const before = await page.locator(GRIDS).count();
   await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("With Countries on country")') }).first().click();
   await page.locator('.dc-status-note-text').first().waitFor({ timeout: 120_000 }).then(async () => {
     const note = await page.locator('.dc-status-note-text').first().textContent();
     check(note === '5,840 rows of my 6,000 rows find a match, 160 rows do not.' && await page.locator('.dc-join').count() === 0
-      && await page.locator('.dc-tile-menu').count() === before + 1,
+      && await page.locator(GRIDS).count() === before + 1,
     `a quick join made at once, what it did said on its grid: ${note}`);
   }, () => bad(`the quick join made no grid with a note: ${alerts.splice(0).join('; ')}`));
 

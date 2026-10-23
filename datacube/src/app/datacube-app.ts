@@ -67,10 +67,9 @@ const CREATE_CLASS = { id: 'host.createClass', label: 'Class\u2026', section: 'c
  *  first. */
 const CREATE_ASSOCIATION = { id: 'host.createAssociation', label: 'Association\u2026', section: 'create' } as const;
 const CREATE_DATA_SPACE = { id: 'host.createDataSpace', label: 'Data Space\u2026', section: 'create' } as const;
-/** ADD A GRID OVER <CLASS> (§16.1): a grid made a class, its class read beside it -- a dashboard's tile. */
+/** CREATE ▸ GRID OVER <CLASS> (§16.1): a grid made a class, its class read beside it -- a dashboard's tile; first of the
+ *  model's entries under Create ▸ (the user, 2026-10-23: "Add Grid over Class is great under Create"). */
 const CLASS_GRID_ID = 'host.classGrid' as const;
-/** JOIN… (§17.5): a grid joined to another of the page, the rows they make together a grid beside them. */
-const JOIN = { id: 'host.join', label: 'Join\u2026', section: 'data' } as const;
 
 /** What the app opens first. */
 export type AppStart =
@@ -242,14 +241,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           const cls = spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id];
           return [
             ...planeMenu(),
+            ...(cls !== undefined && classGrid
+              ? [{ id: CLASS_GRID_ID, label: `Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'create' as const }] : []),
             // of any grid: a class is made over every table its rows read, a join's each (§18.3); refused in words when
             // it cannot be one
             ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
             ...(createDataSpace ? [CREATE_DATA_SPACE] : []),
-            ...(cls !== undefined && classGrid
-              ? [{ id: CLASS_GRID_ID, label: `Add a Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'data' as const }] : []),
-            // a grid that reads tables of the tab's database: a join of it reads them in one place (§17.3)
-            ...(joinGrid?.offered(place) ? [JOIN] : []),
           ];
         },
         // its Create ▸ Data Source…: a grid over a source picked now, beside this one (the page's own Data Source…'s way)
@@ -265,7 +262,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           if (ask !== undefined) joinGrid?.open(spawned.id, ask);
           else if (item.id === JOIN_SOURCE) joinSource?.(spawned.id);
           else if (item.id === CLASS_GRID_ID) classGrid?.(spawned.id);
-          else if (item.id === JOIN.id) joinGrid?.open(spawned.id);
           else if (item.id === CREATE_CLASS.id) createClass?.(created, place, spawned.id);
           else if (item.id === CREATE_ASSOCIATION.id) createAssociation?.(spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id]);
           else onHostItem(item);
@@ -1260,7 +1256,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           return;
         }
         page.addGrid(opened.make, { near: cube });
-      })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
+      })().catch((e: unknown) => window.alert(`Create ▸ Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
     // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
     // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).
@@ -1283,7 +1279,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       },
     };
     // A GRID'S RIGHT-CLICK JOIN ▸, as its Filter ▸ (join-menu.ts): the page's grids it can join gathered here, as it
-    // opens -- the grid's own and every other's columns, a pivoted one (no fixed columns) left out
+    // opens -- the grid's own and every other's columns, a pivoted one (no fixed columns) left out. A pivoted grid's own
+    // Join ▸ is the window alone, as on no column: no quick join of columns it does not have fixed, but Join… still
+    // there (the start's grid is pivoted; its menu button, which offered it, went 2026-10-23)
     if (joinGrid) {
       const joins = joinGrid;
       const joinable = (id: string): boolean => { const p = sources.place(id); return p !== undefined && joins.offered(p); };
@@ -1295,9 +1293,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           return { id, name: i.name, columns: i.query.columns, pivoted: i.query.pivotOn.length > 0 };
         };
         const mine = input(cube);
-        if (mine.pivoted) return { items: [], asks: new Map() };
         const others = page.grids.filter((id) => id !== cube && joinable(id)).map(input).filter((o) => !o.pivoted);
-        return joinMenu({ column, mine, others, source: picker !== undefined });
+        return joinMenu({ column: mine.pivoted ? undefined : column, mine, others, source: picker !== undefined });
       };
       joinSource = (cube) => {
         if (cube === undefined) return;

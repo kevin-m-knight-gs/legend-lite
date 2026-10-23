@@ -633,8 +633,8 @@ class Grid(Tile):
 
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
-        columns, coarsest first), as the menu's View > Dimensions uses one (the gesture ``view.dimension``:
-        dimensions.ts useDimension)."""
+        columns, coarsest first), as Properties' Dimensions tab's Group Rows by uses one (the gesture
+        ``view.dimension``: dimensions.ts useDimension)."""
         return self._gesture('view.dimension', {'name': name, 'move': 'use'})
 
     def drill(self, name: str) -> Grid:

@@ -231,9 +231,10 @@ function nested(parent: string, text?: string): HTMLElement {
   return item;
 }
 
+/** An entry of a grid's right-click (a submenu's too: Create ▸, Tile ▸ Move to Sheet ▸), by what it says. */
 function gridMenuItem(gridTile: string, text: string): HTMLElement {
   escape();
-  (tile(gridTile).querySelector('.dc-tile-menu') as HTMLElement).click();
+  contextMenu(tile(gridTile).querySelector('.dc-row .dc-cell') as HTMLElement);
   return entry(text);
 }
 

@@ -214,7 +214,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.equal(doc.querySelector('.dc-picker-status')?.textContent, 'the host read no rows', 'its refusal said in the window');
   });
 
-  it("a grid made a class on Python's page adds a grid over its class from its menu, made by the host and opened there (K16)", async () => {
+  it("a grid made a class on Python's page adds a grid over its class from its right-click's Create ▸, made by the host and opened there (K16)", async () => {
     const editor = new Editor();
     const trades = (await corpus())['trades.page.json']!;
     const grid = trades.views.find((v) => v.kind === 'grid')!;
@@ -233,12 +233,13 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     });
     for (let i = 0; i < 5; i += 1) await settle();
     const doc = dom.window.document;
-    // the grid's own menu: its tile's, or the bar's while it is alone on its sheet
-    const burger = doc.querySelector<HTMLElement>('.dc-tile-menu');
-    assert.ok(burger, "the grid's own menu");
-    burger.click();
+    // the grid's right-click: Create ▸ Grid over Trade, first of the model's entries (the user, 2026-10-23)
+    const cell = doc.querySelector<HTMLElement>('[data-tile] .dc-row .dc-cell');
+    assert.ok(cell, "the grid's rows");
+    cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const item = [...doc.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
-      .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Add a Grid over Trade');
+      .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Grid over Trade'
+        && i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
     assert.ok(item, `offered on Python's page: ${[...doc.querySelectorAll('.dc-menu [role="menuitem"]')].map((i) => i.textContent).join(' | ')}`);
     item.click();
     for (let i = 0; i < 5; i += 1) await settle();
