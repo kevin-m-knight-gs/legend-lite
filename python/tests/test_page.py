@@ -2795,7 +2795,7 @@ class OverClasses(Paged):
         self.addCleanup(patched.stop)
 
     def classed(self):
-        """A page whose grid is over the class its frame's grid made, as the tab's Add a Grid over a class writes it."""
+        """A page whose grid is over the class its frame's grid made, as the tab's Create ▸ Grid over a class writes it."""
         page = ll.Page('Classes')
         path = page.grid(trades(), name='trades').create_class('Trade')
         model = page.model
@@ -2838,7 +2838,7 @@ class OverClasses(Paged):
             ll.Page('Bare').grid(cls='Trade')
 
     def test_a_tab_on_the_page_asks_python_for_a_grid_over_a_class_as_page_grid_makes_one(self):
-        # (K16, K17) the tab's Add a Grid over a class and its Classes, on a page Python serves, which has no compiler or
+        # (K16, K17) the tab's Create ▸ Grid over a class and its Classes, on a page Python serves, which has no compiler or
         # model home of its own here: the class's cube made by DataCube's own code where Python reads it (source.json:
         # headless sourceCube, page.grid's own), then opened as every grid of the page is (opened.json)
         page = ll.Page('Classes')

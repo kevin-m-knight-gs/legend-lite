@@ -264,8 +264,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  321,000 -> 322,500 (2026-10-23, the user's right-click Join ▸ and one Create ▸ in every menu: the quick joins built as
  *  the menu opens -- each grid's keys suggested (join-how.ts suggestedKeys and quickJoins, moved from the join's own
  *  chunk), the menu's entries (app/join-menu.ts) -- Create ▸'s one list (menu.ts createItems), a grid's status-bar note
- *  (app.ts note); the join itself, its window and its flow still fetched with the first join). Measured 321,971. */
-const BUDGET = 322_500;
+ *  (app.ts note); the join itself, its window and its flow still fetched with the first join). Measured 321,971.
+ *  322,500 -> 323,500 (2026-10-23, the grid's menu button gone, its right-click its menu -- Edit ▸, Tile ▸, Properties'
+ *  Dimensions tab's Group Rows by and Start Ad Hoc Analysis -- and a long press as the right-click on a touch screen,
+ *  an iPad's Safari firing none (ui/long-press.ts), installed with every grid and page). Measured 322,712. */
+const BUDGET = 323_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -348,8 +351,10 @@ const BUDGET = 322_500;
  *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694.
  *  310,000 -> 311,000 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 310,535.
  *  311,000 -> 312,500 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
- *  312,050. */
-const ENGINE_BUDGET = 312_500;
+ *  312,050.
+ *  312,500 -> 313,500 (2026-10-23, the grid's menu button gone and a long press as the right-click -- the grid's note of
+ *  the same date). Measured 312,770. */
+const ENGINE_BUDGET = 313_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -483,8 +488,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  324,500 -> 328,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 327,491.
  *  328,000 -> 329,500 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 328,843.
  *  329,500 -> 331,000 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
- *  330,421. */
-const WIDGET_BUDGET = 331_000;
+ *  330,421.
+ *  331,000 -> 332,000 (2026-10-23, the grid's menu button gone and a long press as the right-click -- the grid's note of
+ *  the same date). Measured 331,244. */
+const WIDGET_BUDGET = 332_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
