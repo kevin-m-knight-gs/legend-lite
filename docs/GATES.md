@@ -11600,7 +11600,12 @@ back from its TIMESTAMP slot at nine digits where the literal was written to the
 precision is part of the value and no TIMESTAMP keeps it, so the slot's kind carries it as a fact ({@code DateTime},
 or {@code DateTime(n)} for a subsecond literal's n digits) and the reader presents the instant at it
 (`PureDateLiteral.presentedAt`, `RowDecode.presented`; the follow-up commit). A list of one date kind is not tagged
-and reads as before.
+and reads as before. At 31b55fa3 the Snowflake lane's channel B standard and essential are back at 205 and 335, zero
+verdict or message changes against 1f7cd064 over 550 outcomes. The BigQuery lane at 1963bfbc: channel A exact on
+BigQuery and Databricks, slightly faster than 1f7cd064 (974 s and 1,596 s against 1,053 and 1,669); channel B lost
+the same five date winners on both, and BigQuery GAINED its Decimal pair (`testLeast_Number`, `testMin_NumbersArray`:
+the Decimal travels in a DECIMAL(p,s) slot, which its BIGNUMERIC cannot shorten), so against the merge-base BigQuery
+now loses `testFilterInstance` alone, which main loses too.
 
 Not in this landing (step B): the mixed `sort`, the Any-kind list carrier and a mixed collection at a root keep the
 spellings; the `LITERAL` slot, `LiteralText.parse` and the dialects' physical types for it go with them.
