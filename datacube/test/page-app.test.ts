@@ -535,7 +535,8 @@ describe('a page of its own', () => {
     [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'New Sheet')?.click();
     await settle();
     assert.equal(page.sheets.length, 2);
-    assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [1, 0]);
+    // the grid and its chart under it (two bands since 2026-10-23: a chart goes under its grid) stay where they were
+    assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [2, 0]);
   });
 
   it('a grid behind a chart in a stack still exports its table, beside the charts of its sheet', async () => {

@@ -76,7 +76,8 @@ export type PageCommand =
   | { readonly kind: 'removeSheet'; readonly sheet: string }
   | { readonly kind: 'renameTile'; readonly tile: string; readonly title: string | null }
   /**
-   * A grid of a cube of its own (its document made first), on `sheet` -- beside `near` while that band has room. Its
+   * A grid of a cube of its own (its document made first), on `sheet` -- a band of its own at the sheet's bottom (since
+   * 2026-10-23 `near`, the tile it came from, no longer places it: kept on the wire, which every editor writes). Its
    * document null: a grid whose source the page cannot write down (the screen's, over rows it cannot name), its view
    * held with no cube -- a page that cannot be saved, as the screen's Save says.
    */
@@ -84,7 +85,8 @@ export type PageCommand =
     readonly kind: 'addGrid'; readonly id?: string; readonly document: CubeDocument | null; readonly sheet: string;
     readonly near: string | null; readonly title: string | null; readonly columns: number | null;
   }
-  /** A chart of grid `near`'s cube (its spec made first, chart-spec.ts chartFrom), beside that grid. */
+  /** A chart of grid `near`'s cube (its spec made first, chart-spec.ts chartFrom), under that grid, beside the charts
+   *  already there while that row has room. */
   | {
     readonly kind: 'addChart'; readonly id?: string; readonly near: string; readonly spec: ChartSpec;
     readonly title: string | null; readonly columns: number | null;
@@ -415,9 +417,10 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const id = freshId(draft, command.id, 'grid');
       const sheet = sheetNamed(page, command.sheet);
       const title = command.title === null ? undefined : named('tile', command.title);
-      const near = command.near !== null && tiles(sheet.layout).includes(command.near) ? command.near : undefined;
       const view: PageView = { id, kind: 'grid', cube: id, ...(title !== undefined ? { title } : {}) };
-      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, near, command.columns ?? MAX_COLUMNS)) }));
+      // a grid is a table, which wants the page's width: a band of its own at the bottom of its sheet, never beside the
+      // tile it came from, nor between that tile and its charts (the user, 2026-10-23: bands.ts add)
+      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, undefined, command.columns ?? MAX_COLUMNS)) }));
       const cubes = command.document === null ? page.cubes : [...page.cubes, { id, cube: command.document }];
       return done(rewritten(placed, { cubes, views: [...page.views, view] }),
         [...draft.held, id], { ...command, id });
@@ -432,7 +435,9 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const view: ChartView = { id, kind: 'chart', cube: grid.cube, title, spec };
       const sheet = sheetOf(page, grid.id);
       if (!sheet) throw new CubeRefusal(`'${grid.id}' is on no sheet`);
-      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, grid.id, command.columns ?? MAX_COLUMNS)) }));
+      // under its grid, beside the charts already there while that row has room (bands.ts add)
+      const charts = (ids: readonly string[]): boolean => ids.every((t) => page.views.find((v) => v.id === t)?.kind === 'chart');
+      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, grid.id, command.columns ?? MAX_COLUMNS, charts)) }));
       return done({ ...placed, views: [...page.views, view] }, [...draft.held, id], { ...command, id });
     }
     case 'setChart': {

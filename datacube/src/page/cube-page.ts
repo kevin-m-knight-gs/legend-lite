@@ -466,8 +466,8 @@ export class CubePage {
   }
 
   /**
-   * A tile on its sheet: the one a saved page put it on (`setSheets`), else the sheet of `near` -- beside it while its
-   * band has room -- else the sheet shown.
+   * A tile on its sheet: the one a saved page put it on (`setSheets`), else the sheet of `near` -- under it (bands.ts
+   * add) -- else the sheet shown.
    */
   #place(spec: BandTile, near?: string): void {
     const by = near !== undefined ? this.#sheetOf(near) : undefined;
@@ -1633,15 +1633,17 @@ export class CubePage {
   }
 
   /**
-   * A sheet's layout of the page's as its board draws it (P7): each chart with no spec yet (no page's tile) beside its
-   * grid, as it was first placed, and the tile each stack shows in front as the board shows it (what is looked at, never
+   * A sheet's layout of the page's as its board draws it (P7): each chart with no spec yet (no page's tile) under its
+   * grid, as a new chart is placed (bands.ts add), and the tile each stack shows in front as the board shows it (what is looked at, never
    * saved: the design's §5, 7) -- every tile kept as it is on the board, none made again.
    */
   #drawn(sheet: Sheet, layout: Bands): Bands {
     let drawn = layout;
     const on = new Set(tiles(sheet.board.layout));
     for (const [id, chart] of this.#charts) {
-      if (!tiles(drawn).includes(id) && on.has(id) && !chart.added) drawn = addTile(drawn, id, chart.link.grid ?? undefined, sheet.board.columns);
+      if (!tiles(drawn).includes(id) && on.has(id) && !chart.added) {
+        drawn = addTile(drawn, id, chart.link.grid ?? undefined, sheet.board.columns, (ids) => ids.every((t) => this.#charts.has(t)));
+      }
     }
     return fronted(drawn, sheet.board.layout);
   }

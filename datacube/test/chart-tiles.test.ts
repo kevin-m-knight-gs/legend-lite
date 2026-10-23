@@ -148,7 +148,7 @@ describe('Show Grid: the grid a chart follows, or a grid of its own grouping, wh
   });
 });
 
-describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
+describe('the page\'s layout: placed under, arranged, undone, locked', () => {
   /** The title bar's menu, opened: its entries by what a person reads. */
   const titleMenu = (): HTMLElement[] => {
     // a menu left open is shut first: the button toggles it
@@ -173,9 +173,10 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
       .map(([, ids]) => ids.sort((x, y) => parseFloat(tile(x).style.left) - parseFloat(tile(y).style.left)));
   };
 
-  it('a new chart goes beside its grid; Arrange lays the page out; Undo Layout and Redo Layout step through it', async () => {
+  it('a new chart goes under its grid, beside its other charts; Arrange lays the page out; Undo Layout and Redo Layout step through it', async () => {
     const [a, b] = await twoCharts();
-    assert.deepEqual(bands(), [['grid', a, b]], 'beside the grid, in its band');
+    // the user, 2026-10-23: under the grid, which keeps the page's width -- never beside it, halving it
+    assert.deepEqual(bands(), [['grid'], [a, b]], 'under the grid, the charts in one band');
     assert.equal(pick('Undo Layout').getAttribute('aria-disabled'), 'true', 'nothing arranged yet');
     pick('Arrange\u2026').click();
     await settle();
@@ -186,7 +187,7 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.deepEqual(bands(), [['grid'], [a], [b]]);
     pick('Undo Layout').click();
     await settle();
-    assert.deepEqual(bands(), [['grid', a, b]], 'back as it was');
+    assert.deepEqual(bands(), [['grid'], [a, b]], 'back as it was');
     pick('Redo Layout').click();
     await settle();
     assert.deepEqual(bands(), [['grid'], [a], [b]]);
@@ -196,7 +197,7 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.deepEqual(rows, ['region'], 'the cube changed after the arrangement');
     tile(a).dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
     await settle();
-    assert.deepEqual(bands(), [['grid', a, b]]);
+    assert.deepEqual(bands(), [['grid'], [a, b]]);
     assert.equal(app.snapshot.rows, rows, 'the cube\'s own undo was not taken');
   });
 
