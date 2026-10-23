@@ -64,6 +64,9 @@ final class MixedEncoding {
     /** The Pure kind a tagged slot names ({@link SqlType.Tagged.Slot#kind}), as a type: the one map (the encoder
      *  above names each candidate's kind as it builds it). */
     static Type kindType(String kind) {
+        if (kind.startsWith("DateTime(")) {
+            return Type.Primitive.DATE_TIME;   // a DateTime at a written subsecond precision (PureDateLiteral.presentedAt)
+        }
         return switch (kind) {
             case "Integer" -> Type.Primitive.INTEGER;
             case "Float" -> Type.Primitive.FLOAT;
@@ -207,7 +210,13 @@ final class MixedEncoding {
                     : LiteralSpelling.dateTimeLiteral(x,
                             new SqlExpr.FormatLit(dateTimeFormatOf(e))));
             vals.add(x);
-            candidates.add(new SqlExpr.Tagged.Candidate("DateTime", SqlType.Scalar.TIMESTAMP, x));
+            // the written precision is part of a DateTime value and no TIMESTAMP keeps it: the slot's kind carries
+            // it as a fact the reader presents the instant at -- a subsecond literal's digit count, else the
+            // second (as the spelling carrier spelled a computed or whole-second DateTime at ISO_LOCAL; the
+            // Snowflake lane's five date winners read back at nine digits, 2026-10-23)
+            String kind = e instanceof TypedCDate cd && cd.value() instanceof PureDateLiteral.DateWithSubsecond d
+                    ? "DateTime(" + d.subsecond().length() + ")" : "DateTime";
+            candidates.add(new SqlExpr.Tagged.Candidate(kind, SqlType.Scalar.TIMESTAMP, x));
             return true;
         }
         if (t == Type.Primitive.DATE) {

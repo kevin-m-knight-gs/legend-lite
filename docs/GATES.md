@@ -11593,6 +11593,15 @@ as a Decimal at scale 1, 2.5 as a Float, 3 as an Integer (`TaggedSelectionTest`)
 `3`. A dialect with no list encoding (H2) refuses the tag's `LIST_POSITION` by name, as it refused the spelling
 carrier's `LIST_GET` with a computed index; its PCT lane runs the relation suite alone.
 
+The Snowflake lane at 1963bfbc: channel A 5 of 5 exact, standard 325 s against a same-hour BASE 269 s (the
+statements over 20K characters gone: none in the window, the largest 14,554), the five suites 1,237 s against BASE's
+1,236; channel B lost five date winners, every one a StrictDate beside a DateTime: the host judge read the DateTime
+back from its TIMESTAMP slot at nine digits where the literal was written to the second. A DateTime's written
+precision is part of the value and no TIMESTAMP keeps it, so the slot's kind carries it as a fact ({@code DateTime},
+or {@code DateTime(n)} for a subsecond literal's n digits) and the reader presents the instant at it
+(`PureDateLiteral.presentedAt`, `RowDecode.presented`; the follow-up commit). A list of one date kind is not tagged
+and reads as before.
+
 Not in this landing (step B): the mixed `sort`, the Any-kind list carrier and a mixed collection at a root keep the
 spellings; the `LITERAL` slot, `LiteralText.parse` and the dialects' physical types for it go with them.
 

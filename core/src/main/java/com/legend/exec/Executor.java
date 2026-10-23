@@ -1039,7 +1039,11 @@ public final class Executor {
         }
         com.legend.sql.SqlType slot = tg.slots().get(index).type();
         int j = rs.findColumn(com.legend.sql.SqlType.Tagged.slotColumn(rs.getMetaData().getColumnLabel(i), index));
-        return unwrap(fetch(rs, j, slot, dialect), slot, dialect);
+        Object v = unwrap(fetch(rs, j, slot, dialect), slot, dialect);
+        // a DateTime presented at the written precision its kind carries (RowDecode.presented, the plan route's)
+        return RowDecode.presented(v, new com.legend.executionplan.ExecutionPlan.Column("slot",
+                tg.slots().get(index).kind(), new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1),
+                null, null));
     }
 
     /** The positions (0-based) of the plan's outputs that are a tagged column's slots: read through their tag. */

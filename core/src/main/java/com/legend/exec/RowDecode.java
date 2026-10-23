@@ -70,7 +70,7 @@ public final class RowDecode {
                     throw new IllegalStateException("the row's object has no field for the tagged column '"
                             + c.name() + "'s slot " + slot.name() + " (it has " + row.fields().keySet() + ")");
                 }
-                out.add(cell(held, slot));
+                out.add(presented(cell(held, slot), slot));
                 continue;
             }
             out.add(cell(node, c));
@@ -343,6 +343,19 @@ public final class RowDecode {
             throw new IllegalStateException("column '" + c.name() + "': its slot " + c.slot() + " is no MAP<key,value>");
         }
         return new ExecutionPlan.Column[] {any("key", parts.get(0).trim()), any("value", parts.get(1).trim())};
+    }
+
+    /** A tagged slot's value as its kind presents it: a DateTime at the written precision the kind carries
+     *  ({@code DateTime} the second, {@code DateTime(n)} n subsecond digits: {@link PureDateLiteral#presentedAt}),
+     *  every other kind as read. */
+    static @com.legend.base.Nullable Object presented(@com.legend.base.Nullable Object v, ExecutionPlan.Column slot) {
+        String kind = slot.type();
+        if (!(v instanceof PureDateLiteral d) || !kind.startsWith("DateTime")) {
+            return v;
+        }
+        int digits = kind.startsWith("DateTime(") ? Integer.parseInt(kind.substring("DateTime(".length(),
+                kind.length() - 1)) : 0;
+        return d.presentedAt(digits);
     }
 
     /** A tagged column's own cell, the tag: an integer, the slot index. */

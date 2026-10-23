@@ -11,6 +11,7 @@ import com.legend.plan.QueryPlan;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.PlanCases;
 import com.legend.testcases.PlanRoundTrip;
+import com.legend.values.PureDateLiteral;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -89,6 +90,30 @@ class TaggedSelectionTest {
             assertEquals(2.5d, value(c, "|[1, 2, 2.5, 2.5]->mode()"));
             // ties keep the first element: Pure's max of [3.0, 3] is the Float
             assertEquals(3.0d, value(c, "|[3.0, 3]->max()"));
+        }
+    }
+
+    /** A date winner among mixed date kinds (a StrictDate beside a DateTime: the Date LUB, tagged) keeps the
+     *  precision it was written with: a TIMESTAMP slot answers nine digits, and the slot's kind carries the written
+     *  precision the reader presents it at -- the second, or a subsecond literal's digits (the Snowflake lane's five
+     *  date winners read back at nine digits, 2026-10-23). A StrictDate winner is a day. A list of one date kind is
+     *  not tagged: its native carrier answers. */
+    @Test
+    void aDateWinnerKeepsItsWrittenPrecision() throws Exception {
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals("TAGGED<StrictDate DATE, DateTime TIMESTAMP>",
+                    query("|[%2025-01-10, %2025-02-10T20:10:20]->max()").plan("s::RT").columns().get(0).slot());
+            assertEquals(PureDateLiteral.parse("2025-02-10T20:10:20"),
+                    value(c, "|[%2025-01-10, %2025-02-10T20:10:20]->max()"));
+            assertEquals(PureDateLiteral.parse("2025-01-10"), value(c, "|[%2025-01-10, %2025-02-10T20:10:20]->min()"));
+            assertEquals("TAGGED<StrictDate DATE, DateTime(2) TIMESTAMP>",
+                    query("|[%2025-01-10, %2025-02-10T20:10:20.50]->max()").plan("s::RT").columns().get(0).slot());
+            assertEquals(PureDateLiteral.parse("2025-02-10T20:10:20.50"),
+                    value(c, "|[%2025-01-10, %2025-02-10T20:10:20.50]->max()"));
+            assertEquals(PureDateLiteral.parse("2025-02-10T20:10:20.123"),
+                    value(c, "|[%2025-03-10, %2025-02-10T20:10:20.123]->min()"));
+            assertEquals("TIMESTAMP",
+                    query("|[%2025-01-10T15:25:30, %2025-02-10T20:10:20]->max()").plan("s::RT").columns().get(0).slot());
         }
     }
 

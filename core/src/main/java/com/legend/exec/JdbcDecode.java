@@ -68,7 +68,7 @@ final class JdbcDecode {
                     continue;
                 }
                 ExecutionPlan.Column slot = RowDecode.taggedSlot(c, ((Number) tag).intValue());
-                out.add(cell(rs, rs.findColumn(slot.name()), slot, javaTime));
+                out.add(RowDecode.presented(cell(rs, rs.findColumn(slot.name()), slot, javaTime), slot));
                 continue;
             }
             out.add(cell(rs, i + 1, c, javaTime));
