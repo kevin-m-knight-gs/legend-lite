@@ -11605,7 +11605,9 @@ verdict or message changes against 1f7cd064 over 550 outcomes. The BigQuery lane
 BigQuery and Databricks, slightly faster than 1f7cd064 (974 s and 1,596 s against 1,053 and 1,669); channel B lost
 the same five date winners on both, and BigQuery GAINED its Decimal pair (`testLeast_Number`, `testMin_NumbersArray`:
 the Decimal travels in a DECIMAL(p,s) slot, which its BIGNUMERIC cannot shorten), so against the merge-base BigQuery
-now loses `testFilterInstance` alone, which main loses too.
+now loses `testFilterInstance` alone, which main loses too. At 31b55fa3 both clouds' channel B standard and essential
+are green (BigQuery 205 and 330, Databricks 205 and 334: the five date winners back, nothing lost), the BigQuery
+standard ratchet clean for the first time on this branch. Step A stands on every measured lane.
 
 Not in this landing (step B): the mixed `sort`, the Any-kind list carrier and a mixed collection at a root keep the
 spellings; the `LITERAL` slot, `LiteralText.parse` and the dialects' physical types for it go with them.

@@ -2733,7 +2733,8 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
   line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
   by `Scalars`' cell reader would still be written as Pure spells it.
-- **Announced 2026-10-23: the mixed selection as a tag plus typed slots** (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`
+- **Announced 2026-10-23, landed the same day (8159fbec to 31b55fa3, GATES "a mixed selection's winner as a tag plus
+  typed slots"): the mixed selection as a tag plus typed slots** (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`
   §5a, ratified by the user that day: "do the right design and fixes now"): `sql/SqlExpr.java` and `SqlType.java`
   (`Tagged`), `lowering/MixedEncoding.java` and `Scalars.java` (the five selection rules, the print arm, the
   comparisons), `lowering/Lowerer.java` (the root's egress), `lowering/Render.java` (the text wraps over a tagged

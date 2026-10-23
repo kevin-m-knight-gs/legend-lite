@@ -330,7 +330,12 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
-- **2026-10-23, announced: a mixed selection's winner as a tag plus typed slots** (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`
+- **2026-10-23, landed: a mixed selection's winner as a tag plus typed slots** (GATES "a mixed selection's winner as a
+  tag plus typed slots"; 8159fbec to 31b55fa3): the platform's and MongoDB's PCT suites exact; Snowflake, BigQuery and
+  Databricks channel A exact with Snowflake's standard suite at 325 s against a same-hour merge-base 269 s (the
+  statements over 20K characters gone) and the five suites at the merge-base's total; channel B unchanged on every
+  lane once a tagged DateTime's written precision rode in its slot's kind, and BigQuery's Decimal pair gained. Announced
+  the same day (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`
   §5a, ratified by the user that day: "is there really no way to do mixed lists without casting to string?", then "do
   the right design and fixes now towards the correct architecture"): `SqlExpr.Tagged` and `SqlType.Tagged`; the five
   selection rules (`max`, `min`, `greatest`, `least`, `mode` over mixed Number or Date) return the winner as a tag and
