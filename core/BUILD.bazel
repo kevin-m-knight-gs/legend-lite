@@ -95,8 +95,12 @@ legend_java_library(
     name = "parser",
     srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
+    deps = ["//base", ":error", ":lexer", ":protocol", ":spi", ":values"],
 )
+
+# THE TEXT'S DOOR (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8's last step): a text's records (the parser's) made the
+# compiler's model (ModelFromProtocol) -- the one place the two meet, so the parser depends on no model
+legend_java_library(name = "door", srcs = glob(["src/main/java/com/legend/door/*.java"]), deps = ["//base", ":model", ":parser", ":protocol"])
 
 # the platform's declarations, generated from the pinned upstream; the four
 # resources (prelude, handler surface, imports, membership) ride here because
@@ -110,7 +114,7 @@ legend_java_library(
         ["src/main/resources/**"],
         exclude = ["src/main/resources/com/legend/builtin/native-claims.tsv"],
     ),
-    deps = ["//base", ":error", ":model", ":parser", ":protocol"],
+    deps = ["//base", ":door", ":error", ":model", ":parser", ":protocol"],
 )
 # :error since 2026-10-09 (build rebuild Phase 3b, item 1b): PlatformPure.adopt refuses a declaration whose parameter
 # names differ from the platform's own version with a ModelException, the model error it is
@@ -220,7 +224,7 @@ legend_java_library(
     visibility = ["//datacube:__pkg__"],
     srcs = _PLANNER_SRCS,
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
         ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":validation", ":values",
     ],
@@ -236,7 +240,7 @@ legend_java_library(
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
-legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":lexer", ":model", ":parser"])
+legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
@@ -252,6 +256,7 @@ legend_java_library(
         "src/main/java/com/legend/server/CreateClass.java",
         "src/main/java/com/legend/server/CreateDataSpace.java",
         "src/main/java/com/legend/server/ModelChanges.java",
+        "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
     ],
     deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
@@ -265,6 +270,7 @@ legend_java_library(
             "src/main/java/com/legend/server/CreateClass.java",
             "src/main/java/com/legend/server/CreateDataSpace.java",
             "src/main/java/com/legend/server/ModelChanges.java",
+            "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
         ],
     ),
@@ -272,7 +278,7 @@ legend_java_library(
 )
 
 _CORE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":probe", ":testdatagen",
     ":execution_plan", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
@@ -282,7 +288,7 @@ _CORE_TARGETS = [
 # stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
 # depends on this, so the build proves it carries no database and no driver.
 _PLAN_SIDE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":planner", ":pure_v1",
 ]
@@ -1290,9 +1296,9 @@ filegroup(
     visibility = ["//spec:__pkg__"],
 )
 
-# THE STRESS CORPUS'S GENERATED FILES (Bazel workplan P2-01, from spike S5): ten files in the stress directory
+# THE STRESS CORPUS'S GENERATED FILES (Bazel workplan P2-01, from spike S5): eleven files in the stress directory
 # are outputs of //scripts/corpus's Bazel actions, diff-tested in //:generated. They are never generator INPUTS: the generators read
-# :stress_sources, which leaves all ten out.
+# :stress_sources, which leaves all eleven out.
 stress_layout(
     name = "stress_layout",
     visibility = ["//scripts/corpus:__pkg__"],
@@ -1319,7 +1325,7 @@ stress_index(
     out = "src/test/resources/com/legend/integration/stress-index.txt",
 )
 
-# every stress file, the generated ten included: what the corpus ratchets measure (//scripts/corpus, P2-04)
+# every stress file, the generated eleven included: what the corpus ratchets measure (//scripts/corpus, P2-04)
 filegroup(
     name = "stress_files",
     srcs = glob(["src/test/resources/stress/*.pure"]),

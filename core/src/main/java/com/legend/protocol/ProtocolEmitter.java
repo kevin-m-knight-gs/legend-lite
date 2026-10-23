@@ -1365,7 +1365,15 @@ public final class ProtocolEmitter {
             srcInfo(b, p.pos());
             b.append('}');
         }
-        b.append("],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":");
+        // a function's constraints: the engine's grammar reads the block and its walker drops it, so the engine's JSON
+        // from its text lists none; its compiler reads pre- and postConstraints (HelperModelBuilder.processConstraints),
+        // which lite's dialect writes as legend-pure splits them (a constraint reading $return is a post-condition),
+        // each a lambda over the function's own parameters (a post-condition's over `return` too)
+        b.append("],\"postConstraints\":[");
+        functionConstraints(b, f, true, f.postConstraints());
+        b.append("],\"preConstraints\":[");
+        functionConstraints(b, f, false, f.preConstraints());
+        b.append("],\"returnGenericType\":");
         genericType(b, f.returnType());
         b.append(",\"returnMultiplicity\":");
         multiplicity(b, f.returnMultiplicity());
@@ -1716,7 +1724,8 @@ public final class ProtocolEmitter {
 
     private static void pclass(StringBuilder b, PClass c) {
         // Not yet emitted. Loud rather than silently dropped — AGENTS.md invariant 4.
-        require(c.typeParams().isEmpty(), "class type parameters", c.qualifiedName());
+        require(c.typeParams().isEmpty() && c.multiplicityParams().isEmpty(), "class type parameters",
+                c.qualifiedName());
         b.append("{\"_type\":\"class\",\"constraints\":[");
         for (int i = 0; i < c.constraints().size(); i++) {
             if (i > 0) {
@@ -1773,12 +1782,19 @@ public final class ProtocolEmitter {
      * <p>Verified via {@code ProbeWireShapes}: for a GENERIC supertype
      * ({@code extends c::D<String>}) the engine emits only the base path — the type
      * arguments are dropped from the wire — while the span still covers the whole
-     * expression. Deliberate parity, not a shortcut.
+     * expression. At the engine's dialect the parser keeps the base alone; lite's keeps the arguments, refused here
+     * by name (S89).
      */
     private static void superType(StringBuilder b, Protocol.PSuperType st) {
         String path = switch (st.type()) {
             case com.legend.protocol.TypeExpression.NameRef n -> n.name();
-            case com.legend.protocol.TypeExpression.Generic g -> g.name();
+            case com.legend.protocol.TypeExpression.Generic g -> {
+                // at the engine's dialect the parser keeps the base path alone (S89, rule A); lite's dialect keeps
+                // the arguments, which a supertype's pointer has no field for
+                placeless(g.arguments().isEmpty() && g.multiplicityArguments().isEmpty()
+                        && g.typeVariableValues().isEmpty(), "a supertype's type arguments", g.name());
+                yield g.name();
+            }
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for a supertype of shape "
                             + st.type().getClass().getSimpleName() + " — add the emit rule.");
@@ -1913,14 +1929,10 @@ public final class ProtocolEmitter {
                     com.legend.protocol.TypeExpression.Column col = rt.columns().get(i);
                     b.append("{\"genericType\":");
                     genericType(b, col.type());
+                    // undeclared is [0..1] on the record as on the wire; a declared one's span
+                    // extends through the ']' (probe "declared col mult and relation shape")
                     b.append(",\"multiplicity\":");
-                    if (col.multiplicityDeclared()) {
-                        // declared -> emitted as declared, column span extends through
-                        // the ']' (probe "declared col mult and relation shape")
-                        multiplicity(b, col.multiplicity());
-                    } else {
-                        b.append("{\"lowerBound\":0,\"upperBound\":1}");
-                    }
+                    multiplicity(b, col.multiplicity());
                     b.append(",\"name\":");
                     str(b, col.name());
                     b.append(",\"sourceInformation\":");
@@ -1996,6 +2008,56 @@ public final class ProtocolEmitter {
      * span covers the whole entry ({@code name: expr} or {@code name ( … )}).
      */
     private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c) {
+        constraint(b, c, true);
+    }
+
+    /** A function's constraints, comma-separated: each a constraint whose lambda declares no {@code $this}. */
+    /** A function's conditions: each predicate a lambda over the function's parameters, and a post-condition's over
+     *  {@code return} too, typed as the function's result -- legend-pure's own lambda
+     *  (AntlrContextToM3CoreInstance.constraint), which the engine's transfer writes and its compiler declares
+     *  (buildLambdaWithContext; 2026-10-21, the independent audit: written over none, a post-condition's $return was
+     *  undeclared in the engine). A message's lambda has no parameter (the transfer's removeParameters). */
+    private static void functionConstraints(StringBuilder b, Protocol.PFunction f, boolean post,
+            List<com.legend.protocol.ConstraintDefinition> cs) {
+        StringBuilder params = new StringBuilder();
+        for (com.legend.protocol.ParameterDefinition p : f.parameters()) {
+            conditionParameter(params, p.name(), p.type(), p.multiplicity());
+        }
+        if (post) {
+            conditionParameter(params, com.legend.protocol.ConstraintDefinition.RETURN, f.returnType(),
+                    f.returnMultiplicity());
+        }
+        for (int i = 0; i < cs.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            constraint(b, cs.get(i), params.toString());
+        }
+    }
+
+    private static void conditionParameter(StringBuilder b, String name, com.legend.protocol.TypeExpression type,
+            com.legend.protocol.Multiplicity m) {
+        if (!b.isEmpty()) {
+            b.append(',');
+        }
+        b.append("{\"_type\":\"var\",\"genericType\":");
+        genericType(b, type);
+        b.append(",\"multiplicity\":");
+        multiplicity(b, m);
+        b.append(",\"name\":");
+        str(b, name);
+        b.append('}');
+    }
+
+    private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c, boolean onThis) {
+        constraint(b, c, onThis ? null : "");
+    }
+
+    /** {@code conditionParameters} {@code null}: a class's constraint, its lambdas over {@code $this}; else a
+     *  function's, its predicate over those parameters (JSON) and its message over none. */
+    private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c,
+            @com.legend.base.Nullable String conditionParameters) {
+        boolean onThis = conditionParameters == null;
         List<com.legend.protocol.spec.ValueSpecification> cbody = realizationBody(
                 c.realization(), "constraint " + c.name());
         b.append('{');
@@ -2011,10 +2073,10 @@ public final class ProtocolEmitter {
             b.append(',');
         }
         b.append("\"functionDefinition\":");
-        thisLambda(b, cbody);
+        constraintLambda(b, cbody, onThis ? null : conditionParameters);
         if (c.message() != null) {
             b.append(",\"messageFunction\":");
-            thisLambda(b, List.of(c.message()));
+            constraintLambda(b, List.of(c.message()), onThis ? null : "");
         }
         b.append(",\"name\":");
         str(b, c.name());
@@ -2087,6 +2149,24 @@ public final class ProtocolEmitter {
     /** The engine's constraint lambda: body statements plus the synthesised {@code $this}
      *  parameter — multiplicity {@code [1..1]}, no span. The lambda node itself carries no
      *  span either. */
+    /** A constraint's lambda: over {@code $this} for a class's ({@code parameters} {@code null}), else over the
+     *  {@code parameters} written (JSON, possibly none). */
+    private static void constraintLambda(StringBuilder b, List<com.legend.protocol.spec.ValueSpecification> body,
+            @com.legend.base.Nullable String parameters) {
+        if (parameters == null) {
+            thisLambda(b, body);
+            return;
+        }
+        b.append("{\"_type\":\"lambda\",\"body\":[");
+        for (int i = 0; i < body.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, body.get(i));
+        }
+        b.append("],\"parameters\":[").append(parameters).append("]}");
+    }
+
     private static void thisLambda(StringBuilder b,
                                    List<com.legend.protocol.spec.ValueSpecification> body) {
         b.append("{\"_type\":\"lambda\",\"body\":[");
@@ -2289,12 +2369,8 @@ public final class ProtocolEmitter {
                     }
                     b.append("{\"genericType\":");
                     genericType(b, nt.type());
-                    b.append(",\"multiplicity\":");
-                    if (col.multiplicity() != null) {
-                        multiplicity(b, col.multiplicity());
-                    } else {
-                        b.append("{\"lowerBound\":0,\"upperBound\":1}");
-                    }
+                    b.append(",\"multiplicity\":");   // [0..1] when unwritten, on the record as on the wire
+                    multiplicity(b, col.multiplicity());
                     b.append(",\"name\":");
                     str(b, col.name());
                     b.append(",\"sourceInformation\":");
@@ -2434,8 +2510,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CDecimal c ->
                     // same let-span override as the other literals (probed:
                     // `let x = 1.5d;` spans let..literal-end on the wire)
-                    valueSpec(b, new com.legend.protocol.spec.CDecimal(
-                            c.value(), c.written(), span));
+                    valueSpec(b, new com.legend.protocol.spec.CDecimal(c.value(), span));
             case com.legend.protocol.spec.CDate c ->
                     valueSpec(b, new com.legend.protocol.spec.CDate(c.value(), c.written(), span));
             case com.legend.protocol.spec.Variable var ->
@@ -2527,21 +2602,17 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
-    /** A realization's WIRE body: inline statements, or the kept reference NODE for the
-     *  bare-name form ({@code Ref.source}); a Ref without a node cannot emit. */
+    /** A realization's WIRE body ({@link com.legend.protocol.Realization#writtenBody}): inline
+     *  statements, or the kept reference NODE for the bare-name form; a Ref without a node cannot emit. */
     private static List<com.legend.protocol.spec.ValueSpecification> realizationBody(
             com.legend.protocol.Realization r, String what) {
-        return switch (r) {
-            case com.legend.protocol.Realization.Inline inl -> inl.body();
-            case com.legend.protocol.Realization.Ref ref -> {
-                if (ref.source() == null) {
-                    throw new UnsupportedOperationException(
-                            "ProtocolEmitter needs the parsed reference node for " + what
-                                    + " and the parser did not keep one — fix the parse site.");
-                }
-                yield List.of(ref.source());
-            }
-        };
+        List<com.legend.protocol.spec.ValueSpecification> body = r.writtenBody();
+        if (body == null) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter needs the parsed reference node for " + what
+                            + " and the parser did not keep one — fix the parse site.");
+        }
+        return body;
     }
 
     private static void appliedFunction(StringBuilder b,
@@ -2773,44 +2844,19 @@ public final class ProtocolEmitter {
                 b.append("}}");
                 continue;
             }
-            // add is ALWAYS false on the engine wire: DomainParseTreeWalker
-            // never sets KeyExpression.add, even for `+=` (the lite AST keeps
-            // isAdd semantically; the wire conforms by emission).
+            // the binding as the dialect read it (docs/SEMANTICS_REGISTER.md S89, the user's rule A, 2026-10-21): at
+            // the engine's dialect the parser read it as the engine's walker does -- the FIRST expression of an
+            // unparenthesised chain (ProbeWireShapes "burn zoo 2" keyChain: s='a'+'b'+$v binds 'a'), the first key,
+            // `add` never set -- so this is the engine's JSON byte for byte; at lite's dialect it is what was written,
+            // and a whole chain and `+=` have their place in the engine's JSON (KeyExpression's expression and add,
+            // both compiled by the engine). A dotted key has none: the engine keys addr.city = .. as addr.
+            placeless(kb.key().indexOf('.') < 0 || kb.key().startsWith("'"),
+                    "a dotted key (the engine keys addr.city = .. by addr)", kb.key());
             b.append("{\"_type\":\"keyExpression\",\"add\":")
-                    .append(false).append(",\"expression\":");
-            // ENGINE DATA-LOSS BUG, reproduced for byte parity (ProbeWireShapes "burn
-            // zoo 2" keyChain; harness DIFF on ruleBasedTransformation for the boolean
-            // flavor): a key expression keeps only the FIRST ATOM of an unparenthesised
-            // infix chain — s='a'+'b'+$v emits just 'a', h=$a||$b emits just $a.
-            com.legend.protocol.spec.ValueSpecification kv = kb.expression().value();
-            // Two spellings of an infix chain: pairwise params (divide, comparisons,
-            // equal/and/or) strip to the first parameter; the n-ary collection carrier
-            // (plus/minus/times — parser-shaped like the engine) strips to the first
-            // collection element.
-            // OPERATOR-SPELLED chains only (the parser's infix marker): a
-            // prefix call that merely NAMES an operator — plus(1,2),
-            // (1)->plus(2) — keeps its full wire (deep-audit 1a: the old
-            // name-set test truncated those too, deleting the call).
-            while (kv instanceof com.legend.protocol.spec.AppliedFunction chain
-                    && chain.infix()
-                    && !chain.grouped()) {
-                if (chain.parameters().size() == 2) {
-                    kv = chain.parameters().get(0);
-                } else if (chain.parameters().size() == 1
-                        && chain.parameters().get(0)
-                                instanceof com.legend.protocol.spec.PureCollection run
-                        && run.values().size() >= 2) {
-                    kv = run.values().get(0);
-                } else {
-                    break;
-                }
-            }
-            valueSpec(b, kv);
+                    .append(kb.expression().isAdd()).append(",\"expression\":");
+            valueSpec(b, kb.expression().value());
             b.append(",\"key\":{\"_type\":\"string\",\"value\":");
-            // the KEY keeps only its first atom too — propToA.prop = ... emits "propToA"
-            // (same engine truncation family; inline-snippet corpus TestNewInstance)
-            int dot = kb.key().indexOf('.');
-            str(b, dot < 0 ? kb.key() : kb.key().substring(0, dot));
+            str(b, kb.key());
             b.append("}}");
         }
         b.append("]}]");
@@ -3312,7 +3358,8 @@ public final class ProtocolEmitter {
                             .PackageableElementPtr ptr ->
                     enumValueNode(b, ptr.fullPath(), p.property(),
                             joinSpans(ptr.pos(), p.pos()));
-            default -> valueSpec(b, foldNegation(v));
+            // a model store's -1 is one literal already: the parser reads it as the engine's data walker does
+            default -> valueSpec(b, v);
         }
     }
 
@@ -3335,44 +3382,6 @@ public final class ProtocolEmitter {
         b.append(",\"value\":");
         str(b, value);
         b.append('}');
-    }
-
-    /** {@code -1} inside instance data. The ###Pure walker keeps unary minus
-     *  as a one-parameter {@code minus} call; the DATA walker FOLDS it into a
-     *  negative literal whose span covers the operator AND the digits (probe
-     *  neg-literals). Anything else passes through untouched. */
-    private static com.legend.protocol.spec.ValueSpecification foldNegation(
-            com.legend.protocol.spec.ValueSpecification v) {
-        if (!(v instanceof com.legend.protocol.spec.AppliedFunction f)
-                || !"minus".equals(f.function()) || f.parameters().size() != 1
-                || f.pos() == null) {
-            return v;
-        }
-        com.legend.protocol.spec.ValueSpecification operand = f.parameters().get(0);
-        SourceInfo end = switch (operand) {
-            case com.legend.protocol.spec.CInteger c -> c.pos();
-            case com.legend.protocol.spec.CFloat c -> c.pos();
-            case com.legend.protocol.spec.CDecimal c -> c.pos();
-            default -> null;
-        };
-        if (end == null) {
-            return v;
-        }
-        SourceInfo span = new SourceInfo(end.sourceId(), f.pos().startLine(),
-                f.pos().startColumn(), end.endLine(), end.endColumn());
-        return switch (operand) {
-            case com.legend.protocol.spec.CInteger c ->
-                    new com.legend.protocol.spec.CInteger(
-                            -c.value().longValue(), span);
-            case com.legend.protocol.spec.CFloat c ->
-                    new com.legend.protocol.spec.CFloat(-c.value(), span);
-            // a decimal goes on the wire in its VERBATIM source digits, so the
-            // sign has to move into the spelling too, not just the value
-            case com.legend.protocol.spec.CDecimal c ->
-                    new com.legend.protocol.spec.CDecimal(c.value().negate(),
-                            c.written() == null ? null : "-" + c.written(), span);
-            default -> v;
-        };
     }
 
     /** One instance inside ModelStore data. The engine's DATA walker builds
@@ -3410,6 +3419,8 @@ public final class ProtocolEmitter {
             }
             first = false;
             require(!kb.expression().isLocal(), "local key expression", kb.key());
+            // the data JSON keeps no add (its reader reads none): a '+=' is refused, never written as '='
+            require(!kb.expression().isAdd(), "'+=' in model store data", kb.key());
             b.append("{\"_type\":\"keyExpression\",\"add\":")
                     .append(false).append(",\"expression\":");
             com.legend.protocol.spec.ValueSpecification kv = kb.expression().value();
@@ -3554,6 +3565,18 @@ public final class ProtocolEmitter {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for " + what + " (at " + where
                             + "). Add the emit rule — do not drop it.");
+        }
+    }
+
+    /**
+     * Text lite's dialect keeps that legend-engine's parser drops and its JSON cannot carry as written
+     * (docs/SEMANTICS_REGISTER.md S89, the user's rule A, 2026-10-21): at the engine's dialect the records never hold
+     * it, so the JSON is the engine's; written from lite's dialect it is refused by name, never dropped.
+     */
+    static void placeless(boolean absent, String what, String where) {
+        if (!absent) {
+            throw new UnsupportedOperationException(what + " is not written as legend-engine's JSON (at " + where
+                    + "): its parser drops it, and lite's dialect keeps it rather than drop it here");
         }
     }
 

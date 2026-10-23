@@ -23,12 +23,12 @@ public final class SetId {
     /** The effective id: {@code declared}, else the default derived from
      * {@code fqn}. */
     public static String of(@com.legend.base.Nullable String declared, String fqn) {
-        return declared != null && !declared.isEmpty() ? declared : defaultFor(fqn);
+        return com.legend.protocol.SetIds.of(declared, fqn);
     }
 
     /** The engine's default id for {@code fqn}: {@code ::} spelled {@code _}. */
     public static String defaultFor(String fqn) {
-        return fqn.replace("::", "_");
+        return com.legend.protocol.SetIds.defaultFor(fqn);
     }
 
     /** Whether {@code id} is exactly the default id of {@code fqn} (an

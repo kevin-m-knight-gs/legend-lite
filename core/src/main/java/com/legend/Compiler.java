@@ -9,7 +9,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.normalizer.ModelNormalizer;
 import com.legend.model.NormalizedModel;
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import com.legend.model.ParsedModel;
 
 import java.util.List;
@@ -32,7 +32,7 @@ public final class Compiler {
      *  parser package directly. The Compiler is the product's provenance
      *  router: which level users get is decided HERE. */
     public static ParsedModel parseModel(String source) {
-        return com.legend.parser.ElementParser.parse(source,
+        return ModelFromText.parse(source,
                 com.legend.parser.Dialect.LEGEND_LITE);
     }
 
@@ -50,7 +50,7 @@ public final class Compiler {
      * <p>Drives steps 1&ndash;6 (the steps implemented in {@code core/} today;
      * the query/spec and backend steps land later):
      * <ol>
-     *   <li><b>parse</b> &mdash; {@link ElementParser#parse} (lex + parse-element).</li>
+     *   <li><b>parse</b> &mdash; {@link com.legend.door.ModelFromText#parse} (the one parser's records, through the compiler's door).</li>
      *   <li><b>resolve-names</b> &mdash; {@link NameResolver#resolve(ParsedModel)}
      *       rewrites simple names to FQNs against the user imports + platform
      *       prelude (the prelude is owned by the resolver, not this driver).</li>
@@ -71,7 +71,7 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        return buildPositioned(ElementParser.parse(model,
+        return buildPositioned(ModelFromText.parse(model,
                 com.legend.parser.Dialect.LEGEND_LITE));
     }
 
@@ -87,8 +87,12 @@ public final class Compiler {
         try {
             parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
         } catch (com.legend.model.ModelFromProtocol.Unrepresentable u) {
-            // a shape the compiler's model cannot represent: a construct legend-lite does not compile (from text, the
-            // parser refuses the same shape at its position)
+            // a shape the compiler's model cannot represent: a construct legend-lite does not compile. With its
+            // record's position it is the text door's error, word for word and at the same place (2026-10-21, the
+            // independent audit: the position was dropped and the kind changed); without one, refused unplaced
+            if (u.at() != null) {
+                throw new com.legend.parser.ParseException(u.reason(), u.at().line(), u.at().column());
+            }
             throw new com.legend.error.NotImplementedException(String.valueOf(u.getMessage()));
         }
         return buildPositioned(parsed);
@@ -178,7 +182,7 @@ public final class Compiler {
             sourceTexts.put(src.name(), src.text());
             ParsedModel unit;
             try {
-                unit = ElementParser.parse(src.text(), dialect);
+                unit = ModelFromText.parse(src.text(), dialect);
             } catch (com.legend.error.LegendCompileException e) {
                 if (parseWallSink == null) {
                     throw e;
@@ -405,6 +409,10 @@ public final class Compiler {
                     && com.legend.builtin.Prelude.classFqns().contains(el.qualifiedName()))
                     || (el instanceof com.legend.model.EnumDefinition
                     && com.legend.builtin.Prelude.enumFqns().contains(el.qualifiedName()))
+                    // the platform's PROFILES too (2026-10-21: the prelude declares them, so a graph
+                    // copy -- the platform tree's doc, PCT, ... -- yields to the prelude's, as a class does)
+                    || (el instanceof com.legend.model.ProfileDefinition
+                    && com.legend.builtin.Prelude.profileFqns().contains(el.qualifiedName()))
                     // the platform library's FUNCTIONS too (batch 169): a graph copy
                     // of a legend-pure function (the census's sources, a corpus
                     // tree's twin) yields to the module's — by function id (build
@@ -875,9 +883,20 @@ public final class Compiler {
      * listed as one of its errors.
      */
     public static java.util.List<String> compileErrors(String model) {
+        return compileErrorsOf(() -> compileModel(model));
+    }
+
+    /** {@link #compileErrors(String)} for a model given as protocol records ({@link
+     *  #compileModel(com.legend.protocol.Protocol.PureModelContextData)}, leg 8 step 3: a client's
+     *  {@code PureModelContextData}). */
+    public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model) {
+        return compileErrorsOf(() -> compileModel(model));
+    }
+
+    private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model) {
         ModelContext ctx;
         try {
-            ctx = compileModel(model);
+            ctx = model.get();
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
             return java.util.List.of(String.valueOf(e.getMessage()));
         }

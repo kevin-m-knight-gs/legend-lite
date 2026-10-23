@@ -19,7 +19,7 @@
 // re-run tests (the golden catalog file shows the diff).
 package com.legend.builtin;
 
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import com.legend.model.ClassDefinition;
 import com.legend.model.EnumDefinition;
 import com.legend.model.NativeFunctionDefinition;
@@ -35,7 +35,7 @@ import java.util.List;
  * constants, not by string lookups.
  *
  * <p>Each constant is a {@link NativeFunctionDefinition} produced by routing
- * the signature through {@link ElementParser} at class-load time. Class init
+ * the signature through {@link ModelFromText} at class-load time. Class init
  * fails loudly if any signature stops parsing &mdash; that is the
  * parse-coverage guarantee.
  *
@@ -132,7 +132,7 @@ public final class Pure {
 
     /**
      * Parse one {@code native Class ...} declaration through
-     * {@link ElementParser} and stash the resulting record.
+     * {@link ModelFromText} and stash the resulting record.
      *
      * <p>Call sites contain real Pure source verbatim &mdash; the same
      * text that would appear in an engine {@code .pure} file. This keeps
@@ -145,7 +145,7 @@ public final class Pure {
      */
     static ClassDefinition nativeClass(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
-        var parsed = ElementParser.parse(pureSource,
+        var parsed = ModelFromText.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
@@ -292,7 +292,7 @@ public final class Pure {
     // Engine declares several stdlib types as {@code Enum} rather than
     // {@code Class} (e.g. {@link #DURATION_UNIT}, {@link #JOIN_KIND}).
     // Modelled as parsed {@link EnumDefinition} records so they round-trip
-    // through {@link ElementParser} the same way native classes do.
+    // through {@link ModelFromText} the same way native classes do.
     //
     // Same naming convention as the class catalog: the constant is the
     // record itself (e.g. {@link #JOIN_KIND} is an {@link EnumDefinition}).
@@ -307,7 +307,7 @@ public final class Pure {
     }
 
     /**
-     * Parse one {@code Enum ...} declaration through {@link ElementParser}
+     * Parse one {@code Enum ...} declaration through {@link ModelFromText}
      * and stash the resulting record.
      *
      * <p>Like {@link #nativeClass(String)}, call sites contain real Pure
@@ -315,7 +315,7 @@ public final class Pure {
      */
     static EnumDefinition nativeEnum(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
-        var parsed = ElementParser.parse(pureSource,
+        var parsed = ModelFromText.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
@@ -794,13 +794,13 @@ public final class Pure {
     }
 
     /**
-     * Parse a Pure native signature through {@link ElementParser} and stash
+     * Parse a Pure native signature through {@link ModelFromText} and stash
      * the resulting record. Class-load fails if the signature is malformed
      * or if {@code ElementParser} refuses any grammar form &mdash; that is
      * the comprehensive parse-coverage guarantee.
      */
     private static NativeFunctionDefinition signature(String pureSignature) {
-        var parsed = ElementParser.parse(pureSignature,
+        var parsed = ModelFromText.parse(pureSignature,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(

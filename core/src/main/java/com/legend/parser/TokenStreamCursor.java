@@ -1335,6 +1335,16 @@ public interface TokenStreamCursor {
             return lower;
         }
         if (isIdentifierToken(t)) {
+            if (dialect().refusesLiteExtensions()) {
+                // DECLARED extension LITE-DESIGN-function-types-generics
+                // (OWN_CORPUS_DECISIONS §11): the engine's walker reads
+                // every multiplicity argument as a number (buildMultiplicity:
+                // a name fails there), and its protocol's multiplicity has
+                // bounds only, so no JSON carries one (leg 8 step 2)
+                throw error("The multiplicity parameter '" + text()
+                        + "' as a type argument is not supported in Legend"
+                        + " Engine");
+            }
             String name = text();
             advance();
             return name;
@@ -1410,8 +1420,9 @@ public interface TokenStreamCursor {
                 new TypeExpression.TypedParameter(resultType, resultMult));
     }
 
-    /** {@code (col:Type[mult], ...)}. Column multiplicity defaults to
-     *  {@code [1]} when not declared (engine parity). */
+    /** {@code (col:Type[mult], ...)}. Column multiplicity is
+     *  {@code [0..1]} when not declared, as the engine and legend-pure
+     *  read it (leg 8 step 2). */
     private TypeExpression parseRelationType() {
         expect(TokenType.PAREN_OPEN);
         List<TypeExpression.Column> columns = new ArrayList<>();
@@ -1441,11 +1452,13 @@ public interface TokenStreamCursor {
                 : parseType();
         // wire span = name token (quotes included) .. TYPE end, extended through a
         // DECLARED multiplicity (ProbeWireShapes "relation type sigs", "declared col
-        // mult and relation shape")
-        boolean declared = peek() == TokenType.BRACKET_OPEN;
-        Multiplicity mult = declared ? parseMultiplicity() : Multiplicity.exactly(1);
+        // mult and relation shape"). An undeclared multiplicity is [0..1], as the
+        // engine's walker (DomainParseTreeWalker.relationType, ZERO_ONE) and legend-pure
+        // (AntlrContextToM3CoreInstance's column type) read it -- lite read [1] (leg 8
+        // step 2): the JSON cannot tell it from a written [0..1]
+        Multiplicity mult = peek() == TokenType.BRACKET_OPEN ? parseMultiplicity() : Multiplicity.range(0, 1);
         com.legend.protocol.SourceInfo span = spanOf(nameTok, pos() - 1);
-        return new TypeExpression.Column(colName, colType, mult, declared, span);
+        return new TypeExpression.Column(colName, colType, mult, span);
     }
 
     /** {@code Type[mult]} &mdash; a typed parameter in a function-type

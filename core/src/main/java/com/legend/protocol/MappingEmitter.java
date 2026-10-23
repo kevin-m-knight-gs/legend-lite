@@ -169,7 +169,10 @@ final class MappingEmitter {
                     b.append(",\"classSourceInformation\":");
                     srcInfo(b, om.classSourceInformation());
                     // the grammar's extends is the text's alone: the engine's wire carries none
-                    extendsId(b, om.extendsOnWire() ? om.extendsClassMappingId() : null);
+                    // the engine's walker drops an operation's extends, so at its dialect the record has none; lite's
+                    // dialect keeps it, and the engine's JSON carries it (older JSON writes extendsClassMappingId on
+                    // an operation, which the engine reads and writes back) -- S89, rule A
+                    extendsId(b, om.extendsClassMappingId());
                     if (om.id() != null) {
                         b.append(",\"id\":");
                         str(b, om.id());
@@ -619,9 +622,14 @@ final class MappingEmitter {
                 b.append('}');
                 return;
             }
+            // an include's store substitutions: the engine's JSON carries one pair (sourceDatabasePath,
+            // targetDatabasePath) and its parser keeps neither of several; lite's dialect keeps them all (S89)
+            String included = java.util.Objects.requireNonNull(inc.includedMapping());
+            ProtocolEmitter.placeless(inc.substitutions().size() <= 1,
+                    "an include's several store substitutions", included);
             b.append("{\"_type\":\"mappingIncludeMapping\","
                     + "\"includedMapping\":");
-            str(b, java.util.Objects.requireNonNull(inc.includedMapping()));
+            str(b, included);
             if (inc.sourceDatabasePath() != null) {
                 b.append(",\"sourceDatabasePath\":");
                 str(b, inc.sourceDatabasePath());

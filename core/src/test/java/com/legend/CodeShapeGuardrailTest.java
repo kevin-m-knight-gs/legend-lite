@@ -326,12 +326,14 @@ class CodeShapeGuardrailTest {
     private static final int CLASS_NAME_LOGIC_SITES = 0;
 
     /** The set-id default spelling ({@code ::} as {@code _}) has ONE owner,
-     * {@code model/SetId.java} (audit 2026-09-15 P2-1: sixteen sites spelled
-     * it, one spelled a different rule). The two files listed spell the
-     * same substitution for OTHER names (a plan's enum-map label, an
-     * expression alias) and are not set ids. */
+     * {@code protocol/SetIds.java} (audit 2026-09-15 P2-1: sixteen sites spelled
+     * it, one spelled a different rule; it moved from {@code model/SetId.java},
+     * which delegates to it, 2026-10-21 with the protocol program's leg 8 last
+     * step: the parser, which builds records only, needs the rule too). The two
+     * other files listed spell the same substitution for OTHER names (a plan's
+     * enum-map label, an expression alias) and are not set ids. */
     private static final Set<String> SET_ID_SPELLING_OWNERS = Set.of(
-            "SetId.java", "PlanText.java", "CallShapes.java");
+            "SetIds.java", "PlanText.java", "CallShapes.java");
 
     @Test
     void setIdSpellingHasOneOwner() throws IOException {
@@ -344,8 +346,8 @@ class CodeShapeGuardrailTest {
                 strays.add(p.getFileName().toString());
             }
         }
-        assertTrue(strays.isEmpty(), () -> "the set-id default spelling is SetId.of /"
-                + " SetId.defaultFor — never spelled in place; strays: " + strays);
+        assertTrue(strays.isEmpty(), () -> "the set-id default spelling is SetIds.of /"
+                + " SetIds.defaultFor — never spelled in place; strays: " + strays);
     }
 
     @Test

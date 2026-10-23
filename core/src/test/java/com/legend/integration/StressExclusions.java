@@ -30,5 +30,13 @@ final class StressExclusions {
                     + "is refused by the mapping normalizer.",
             "75-surface-gaps.pure",
             "M2M local mapping property '+localTag' colliding with a declared property "
-                    + "of the target class is refused by the mapping normalizer.");
+                    + "of the target class is refused by the mapping normalizer.",
+            // 2026-10-21: the battery's services over 55's mappings and runtimes, generated apart so they leave with
+            // it -- the model would otherwise name a mapping and a runtime it has not, which the compiler now refuses
+            "94-canonical-services.pure",
+            "the services over 55-canonical-store.pure's M2M mappings and runtimes, so they fall with it.",
+            // 2026-10-21: legend-pure's Path type, which lite does not declare (SEMANTICS_REGISTER S92)
+            "74-path-surface.pure",
+            "a function returning a navigation path's type, meta::pure::metamodel::path::Path<U,V|m>: "
+                    + "'Unknown type' -- the prelude does not generate the path classes (a kernel gap).");
 }

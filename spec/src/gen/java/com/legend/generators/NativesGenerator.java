@@ -10,7 +10,7 @@ import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
 import com.legend.parser.Dialect;
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import com.legend.protocol.Multiplicity;
 import com.legend.protocol.TypeExpression;
 import java.io.IOException;
@@ -415,7 +415,7 @@ public final class NativesGenerator {
     }
 
     static NativeFunctionDefinition parseSignature(String text) {
-        ParsedModel one = ElementParser.parse(text, Dialect.LEGEND_PLATFORM);
+        ParsedModel one = ModelFromText.parse(text, Dialect.LEGEND_PLATFORM);
         if (one.elements().size() != 1
                 || !(one.elements().get(0) instanceof NativeFunctionDefinition nfd)) {
             throw new IllegalStateException("rendered signature does not parse to one native: " + text);
@@ -493,7 +493,8 @@ public final class NativesGenerator {
                     }
                     var c = r.columns().get(i);
                     sb.append(c.name()).append(':').append(type(c.type(), typeParams));
-                    if (c.multiplicityDeclared()) {
+                    // [0..1], written or not, is a column's default (leg 8 step 2): printed only otherwise
+                    if (!c.multiplicity().equals(com.legend.protocol.Multiplicity.range(0, 1))) {
                         sb.append(c.multiplicity());
                     }
                 }

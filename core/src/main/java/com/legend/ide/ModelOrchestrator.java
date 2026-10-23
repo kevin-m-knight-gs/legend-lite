@@ -101,17 +101,18 @@ public final class ModelOrchestrator {
             throw new UnknownFqnException(fqn);
         }
         TokenStream slice = tokens.slice(entry.startTokenInclusive(), entry.endTokenExclusive());
-        PackageableElement parsed = ElementParser.parseSingle(slice,
+        // the element's record, made the compiler's model by the text's door
+        PackageableElement parsed = com.legend.door.ModelFromText.element(ElementParser.parseSingle(slice,
                 // the IDE is a product surface (see Compiler.parseModel);
                 // it parses token SLICES, so it names the level itself
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.Dialect.LEGEND_LITE));
         cache.put(fqn, parsed);
         return parsed;
     }
 
     /**
      * Force-parse every declared element and return a {@link ParsedModel}
-     * equivalent to what {@link ElementParser#parseLegendLite(String)} would
+     * equivalent to what {@link com.legend.door.ModelFromText#parse} would
      * produce. Element order matches source order.
      *
      * <p>Use this for batch validation, CI checks, or tests that want

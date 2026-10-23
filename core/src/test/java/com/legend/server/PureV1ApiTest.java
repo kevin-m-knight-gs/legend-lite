@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -175,6 +176,48 @@ class PureV1ApiTest {
         assertEquals(rows(setup, activitySql(engine)), rows(setup, activitySql(lite)));
     }
 
+    /**
+     * Leg 8 step 3: a model given as a {@code PureModelContextData} -- the JSON upstream Studio, an SDLC or Depot sends
+     * -- is answered as its text is, on every route that takes a model: read into the records and compiled from them,
+     * never printed and parsed again.
+     */
+    @Test
+    void aModelGivenAsJson_isAnsweredAsItsTextIs_onEveryRoute() {
+        PureV1Api.Answer json = PureV1Api.grammarToJsonModel(model, false);
+        assertEquals(200, json.status(), json.json());
+        String data = json.json();
+        assertTrue(data.startsWith("{\"_type\":\"data\""), data.substring(0, Math.min(80, data.length())));
+        for (String context : List.of(textModel(), data)) {
+            assertEquals("{\"message\":\"OK\",\"defects\":[]}", PureV1Api.compile(context).json());
+            assertEquals("{\"errors\":[]}", PureV1Api.compileEveryError(context).json());
+        }
+        String execute = "{\"clientVersion\":\"vX_X_X\",\"function\":%s,\"model\":%s,"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        String typeOf = "{\"model\":%s,\"lambda\":%s}";
+        java.util.function.Function<String, List<String>> answers = context -> List.of(
+                PureV1Api.lambdaRelationType(typeOf.formatted(context, lambda)).json(),
+                PureV1Api.lambdaReturnType(typeOf.formatted(context, lambda)).json(),
+                PureV1Api.generatePlan(execute.formatted(lambda, context)).json(),
+                // an execution's trace id is its own (a random UUID each run)
+                execute(execute.formatted(lambda, context)).json()
+                        .replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]+", "executionTraceID"));
+        List<String> fromText = answers.apply(textModel());
+        assertEquals(fromText, answers.apply(data));
+        // and a model that does not compile is refused alike, its message the same
+        String broken = model + "\n###Pure\nClass trades::h2::Desk\n{\n  name: Strin[1];\n}\n";
+        PureV1Api.Answer brokenText = PureV1Api.compile(Json.toCompact(Map.of("_type", "text", "code", broken)));
+        assertEquals(400, brokenText.status(), brokenText.json());
+        // its JSON with source information, as the text's error says where the element starts
+        assertEquals(brokenText.json(), PureV1Api.compile(PureV1Api.grammarToJsonModel(broken, true).json()).json());
+    }
+
+    @Test
+    void aModelContextOfAnotherKind_isRefusedByName() {
+        PureV1Api.Answer a = PureV1Api.compile("{\"_type\":\"pointer\",\"sdlcInfo\":{}}");
+        assertNotEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains("PureModelContextData"), a.json());
+    }
+
     /** {@code parameterValues}: a lambda's parameters bound to the request's values (Query app G1). */
     @Test
     void e8_execute_bindsParameterValues_scalarAndList() {
@@ -197,6 +240,31 @@ class PureV1ApiTest {
             assertEquals("Alpha", ((Json.Str) v.get(1)).value());
             assertTrue(((Json.Num) v.get(2)).longValue() > 5, a.json());
         }
+    }
+
+    /**
+     * A braced #TDS literal -- legend-engine's own form -- through grammarToJson and execute: the JSON's tdsString is
+     * the text inside the braces, and execute reads that table, never a brace as a row (the Python / DataCube line's
+     * report, 2026-10-13: a column "{" with rows id, 1, 2, "}"; with two columns, an IndexOutOfBoundsException).
+     */
+    @Test
+    void e8_execute_aBracedTdsLiteral_readsTheTableInsideItsBraces() {
+        String one = PureV1Api.grammarToJsonLambda(
+                "|#TDS{\nid\n1\n2\n}#->extend(~[h: x|1])->from(trades::h2::RT)", false).json();
+        assertTrue(one.contains("\"tdsString\":\"\\nid\\n1\\n2\\n\""), one);
+        assertEquals("{\"columns\":[\"id\",\"h\"],\"rows\":[{\"values\":[1,1]},{\"values\":[2,1]}]}",
+                resultOf(execute("{\"function\":" + one + ",\"model\":" + textModel() + "}")));
+
+        String two = PureV1Api.grammarToJsonLambda(
+                "|#TDS{\nid, name\n1, a\n}#->extend(~[h: x|1])->from(trades::h2::RT)", false).json();
+        assertEquals("{\"columns\":[\"id\",\"name\",\"h\"],\"rows\":[{\"values\":[1,\"a\",1]}]}",
+                resultOf(execute("{\"function\":" + two + ",\"model\":" + textModel() + "}")));
+    }
+
+    /** An execute's {@code result}, compact; its answer must be a 200. */
+    private static String resultOf(PureV1Api.Answer a) {
+        assertEquals(200, a.status(), a.json());
+        return Json.toCompact(Json.parseObject(a.json()).getObj("result"));
     }
 
     @Test
@@ -452,8 +520,11 @@ class PureV1ApiTest {
         assertEquals(Json.parseObject(PureV1Api.compile(element).json()).getString("message"),
                 ((Json.Obj) errors.get(0)).getString("message"));
 
-        PureV1Api.Answer unread = PureV1Api.route(lite, null, "{\"_type\":\"data\",\"elements\":[]}", NO_RUN);
-        assertEquals(PureV1Api.compile("{\"_type\":\"data\",\"elements\":[]}"), unread);
+        // a model context of another kind (a pointer the engine loads from an SDLC); a PureModelContextData is read
+        // (leg 8 step 3)
+        String pointer = "{\"_type\":\"pointer\",\"sdlcInfo\":{}}";
+        PureV1Api.Answer unread = PureV1Api.route(lite, null, pointer, NO_RUN);
+        assertEquals(PureV1Api.compile(pointer), unread);
         assertEquals(500, unread.status(), unread.json());
     }
 

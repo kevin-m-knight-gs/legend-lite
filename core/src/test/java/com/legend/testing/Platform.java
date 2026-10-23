@@ -5,7 +5,7 @@ package com.legend.testing;
 
 import com.legend.model.ParsedModel;
 import com.legend.parser.Dialect;
-import com.legend.parser.ElementParser;
+import com.legend.door.ModelFromText;
 import com.legend.parser.SpecParser;
 import com.legend.protocol.spec.ValueSpecification;
 
@@ -28,11 +28,11 @@ public final class Platform {
     }
 
     public static ParsedModel model(String source) {
-        return ElementParser.parse(source, SUITE);
+        return ModelFromText.parse(source, SUITE);
     }
 
     public static ParsedModel model(com.legend.lexer.TokenStream tokens) {
-        return ElementParser.parse(tokens, SUITE);
+        return ModelFromText.parse(tokens.source(), SUITE);
     }
 
     public static ValueSpecification spec(String source) {

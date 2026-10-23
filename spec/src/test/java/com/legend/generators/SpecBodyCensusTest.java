@@ -109,7 +109,7 @@ public class SpecBodyCensusTest {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted(java.util.Comparator.comparing(SpecBodyCensusTest::slash)).toList()) {
                     String text = Files.readString(f, StandardCharsets.UTF_8);
                     sources.add(new Compiler.ModelSource(repo + ":" + slash(root.relativize(f)), text));
-                    for (PackageableElement el : com.legend.parser.ElementParser.parse(text,
+                    for (PackageableElement el : com.legend.door.ModelFromText.parse(text,
                             com.legend.parser.Dialect.LEGEND_PLATFORM).elements()) {
                         if (el instanceof com.legend.model.Function fn) {
                             engineHalfIds.add(com.legend.model.SignatureMangle.mangle(fn));

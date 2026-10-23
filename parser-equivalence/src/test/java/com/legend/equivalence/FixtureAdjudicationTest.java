@@ -166,7 +166,12 @@ class FixtureAdjudicationTest {
                                 // INTERNAL error (IllegalStateException),
                                 // not a parse error — printed above as
                                 // [lite-internal]; a real defect to fix
-                    "ElementParserTest.java", 4);
+                    "ElementParserTest.java", 4,
+                    // 2026-10-21 (REVIEWED, the reference checks): the text door's test of a record the model cannot
+                    // represent -- an Operation union naming no member set, which the engine's parser reads and its
+                    // compiler makes an empty union of (ClassMappingSecondPassBuilder.java:89-100); lite's door
+                    // refuses it (SEMANTICS_REGISTER S93), by purpose here
+                    "ModelFromTextTest.java", 1);
 
     /** A leniency KIND: the reference's message with literals stripped, so
      *  ten fixtures of one construct count once. */
@@ -243,7 +248,7 @@ class FixtureAdjudicationTest {
             // parsers refuse and never asked legend-lite at all.
             boolean liteAccepts;
             try {
-                com.legend.parser.ElementParser.parse(f.source(),
+                com.legend.door.ModelFromText.parse(f.source(),
                         com.legend.parser.Dialect.LEGEND_LITE);
                 liteAccepts = true;
             } catch (com.legend.parser.ParseException e) {

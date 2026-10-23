@@ -56,11 +56,6 @@ public final class ServiceSectionGrammar
         return parseElement(c);
     }
 
-    @Override
-    public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.ModelFromProtocol.element(element);
-    }
-
     /** One element at the cursor: {@code Service} or
      *  {@code ExecutionEnvironment}. */
     public static Protocol.Element parseElement(TokenStreamCursor c) {
