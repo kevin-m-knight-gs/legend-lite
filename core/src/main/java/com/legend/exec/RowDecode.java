@@ -59,11 +59,12 @@ public final class RowDecode {
             if (slotWord(c.slot()).equals("TAGGED")) {
                 // a tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its cell is the tag, the slot
                 // index; the value stands in that slot's column beside it, read with the slot's own type
-                if (node instanceof Json.Null) {
+                Object tag = cell(node, tagOf(c));
+                if (tag == null) {
                     out.add(null);
                     continue;
                 }
-                ExecutionPlan.Column slot = taggedSlot(c, ((Number) cell(node, tagOf(c))).intValue());
+                ExecutionPlan.Column slot = taggedSlot(c, ((Number) tag).intValue());
                 Json.Node held = row.fields().get(slot.name());
                 if (held == null) {
                     throw new IllegalStateException("the row's object has no field for the tagged column '"

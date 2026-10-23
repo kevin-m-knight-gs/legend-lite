@@ -11559,6 +11559,52 @@ Branch `claude/gracious-edison-jcsvzm`, from main 4fb892f (#45). The record:
     test ever ran it on Postgres, and the grids are the corpus's (H2, DuckDB); spelling Postgres's grid waits for a
     measurement against its driver's `DatabaseMetaData`, as DuckDB's and H2's were.
 
+## 2026-10-23 — a mixed selection's winner as a tag plus typed slots: the spelling carrier leaves max, min, greatest, least and mode
+
+The user, on `[1, 2.5]->max()`: "is there really no way to do mixed lists without casting to string?", then "do the
+right design and fixes now towards the correct architecture". The design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md`
+§5a (ratified that day). Every candidate's kind is static; only the choice is dynamic. So the database returns the
+choice -- a tag -- and each kind present has a slot of its own type. Nothing is spelled unless a query asks for text.
+
+- **MIR.** `SqlExpr.Tagged(tag, comparable, candidates)` and `SqlType.Tagged(slots)`, the distinct (kind, SQL type)
+  pairs. No dialect renders the value: `AnsiSqlRenderer` and `MongoDb` refuse it by name; a cast to the tagged type
+  is the identity (the column holds the tag; the label says what it indexes, as a LITERAL label rides on text).
+- **Lowering.** `MixedEncoding.MixedElems` carries a third channel, the candidates, beside the spellings (the lists'
+  still: the mixed `sort` rides them, step B) and the comparables. The five selection rules return `tagged(winner)`;
+  `mode` its last position. A comparison, an equality or `compare` over a tagged value reads its comparable
+  (`Scalars.COMPARISONS`); `toString` prints each candidate by its own static kind (a Decimal with its D, as the
+  spelling carrier's print form kept it); any other consumer meets the renderer's refusal.
+- **Egress.** `Lowerer.taggedRoot`: the tag and each candidate computed once in an inner select; the root projects
+  `value`, the slot index, typed as the carrier, and `value__i` per slot, the candidate cast to the slot where its own
+  type differs (`SqlType.Tagged.slotColumn`, the one owner of the name). A many-valued tagged root is refused by name
+  (step B). `Fold.conformValueEgress` leaves the tag and its slots as built.
+- **Plan.** The column's slot is `TAGGED<Integer BIGINT, Float DOUBLE, Decimal DECIMAL(2,1)>` (`ColumnFacts`);
+  `MirJson` writes and reads the type; plan JSON format 10.
+- **Decode.** `JdbcDecode.row` and `RowDecode.cells` read the tag, then that slot's column with its own type
+  (`RowDecode.taggedSlot`); `JdbcStatements` counts the slots among the answered columns; the legacy `Executor` reads
+  the same way until step 11 deletes it.
+- **Text.** `Render.tdsTextCell`, `jsonCell` and the CSV `cell` spell `CASE tag WHEN i THEN <slot i as its kind>`
+  (`Render.perSlot`); the wires present the logical columns alone (`Render.presented`: `TdsTextWrap`, `WireRender`).
+  The judges' canon is the same CASE over the tag (`CanonicalRenderSql.taggedCanon`).
+
+Measured, the plain statement: `[1, 2.5, 3.0D]->max()` on the platform's engine 462 characters (4,290 before), on
+Snowflake 674 (21,257); `mode` over `[1, 2, 2.5, 2.5]` 617 and 3,232 (8,380 and 53,427). The typed seam reads 3.0D
+as a Decimal at scale 1, 2.5 as a Float, 3 as an Integer (`TaggedSelectionTest`); the TDS text prints `3.0D`, `2.5`,
+`3`. A dialect with no list encoding (H2) refuses the tag's `LIST_POSITION` by name, as it refused the spelling
+carrier's `LIST_GET` with a computed index; its PCT lane runs the relation suite alone.
+
+Not in this landing (step B): the mixed `sort`, the Any-kind list carrier and a mixed collection at a root keep the
+spellings; the `LITERAL` slot, `LiteralText.parse` and the dialects' physical types for it go with them.
+
+Local, at 8159fbec and 860c41d2: the core suite's 26 packages green (`PlanJsonTest`'s format pin moved to 10); the
+platform's five PCT suites exact (`//pct:pct_duckdb`, no item removed, replaced or added), MongoDB's five exact
+(`//pct:pct_mongodb`) with `//core:mongodb_plan_test`; channel B on SQLite (standard, essential) and H2 (relation)
+unchanged; `//gates:local` green but the known root-container `initdb` refusals (the Postgres targets, datacube's
+`verify_app`), after four guard findings fixed where the guards point (860c41d2: the runner names a slot column
+through `ExecutionPlan.Column.taggedSlotColumn`, the tag read through existing JDBC accessor sites so the ratchet
+stays at 21, the comparison set in declaration order, the dead `kindName` deleted); the guardrails rerun green once the JSON-row path guarded a null tag as the JDBC path does (this commit). The lanes re-measure
+channels A and B against the merged head next, Snowflake's standard suite timing first.
+
 ## 2026-10-22 — PCT on the clouds: channel A's plans run on the suite's held session, not a session-mode system one
 
 The BigQuery lane measured channel A at 78bd5da3 against the merge-base: essential 615 s against 256 s, standard 567 s
