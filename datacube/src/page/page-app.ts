@@ -55,6 +55,7 @@ import type { SettingValues } from '../settings.ts';
 import type { TreeState } from '../tree.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import { lazily } from '../lazily.ts';
+import { longPressMenus } from '../ui/long-press.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -288,6 +289,8 @@ export class PageApp {
     root.append(bar, this.#filterSlot, this.#boardHost, this.#emptySheet, this.#empty);
     options.host.replaceChildren(root);
     this.#root = root;
+    // a sheet tab's and a chart's right-click menus, on a touch screen: a long press (an empty page has no grid to do it)
+    longPressMenus(doc);
     this.#menu = new MenuView(doc, {
       onSelect: (item) => this.#onMenu(item),
       onClose: () => this.#burger.setAttribute('aria-expanded', 'false'),

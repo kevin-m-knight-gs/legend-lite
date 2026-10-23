@@ -129,6 +129,7 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
+import { longPressMenus } from './ui/long-press.ts';
 import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
   PivotPanel,
@@ -824,6 +825,8 @@ export class CubeApp {
     this.#listenForKeys();
 
     this.#wireContextMenu();
+    // on a touch screen a long press is the right-click (an iPad fires none of its own): once for the document
+    longPressMenus(this.#doc);
     this.#buildToolbar();
     this.#applyChrome();
     // A DRAG BRINGS THE ZONES BACK. Both listeners are on the app's

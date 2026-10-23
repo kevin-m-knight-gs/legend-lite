@@ -16,6 +16,7 @@ import { configurationOf, treeOf, type CubeDocument, type FileSource } from '../
 import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
 import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
+import { HOLD_MS } from '../src/ui/long-press.ts';
 import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, type PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
@@ -446,6 +447,25 @@ describe('a page of its own', () => {
     page.setChanged(true);
     assert.ok(box.classList.contains('dc-page-name-changed'), 'the dot, once changed since saved');
     assert.ok(page.grid(a));
+  });
+
+  // the user, 2026-10-23: the grid's menu button gone, its right-click is its menu -- and an iPad fires no right-click
+  it('a long press on a touch screen opens the right-click menu: a grid cell\'s, a sheet tab\'s (ui/long-press.ts)', async () => {
+    newPage();
+    const id = page.addGrid(over('trades.csv'));
+    await settle();
+    const hold = async (el: Element): Promise<HTMLElement[]> => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      el.dispatchEvent(new dom.window.PointerEvent('pointerdown', {
+        bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: 40, clientY: 60,
+      }));
+      await new Promise((r) => setTimeout(r, HOLD_MS + 50));
+      return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+    };
+    const onCell = await hold(tile(id).querySelector('.dc-row .dc-cell') as HTMLElement);
+    assert.ok(['Edit', 'Create', 'Tile'].every((l) => onCell.some((i) => label(i) === l)), onCell.map(label).join(' | '));
+    const onTab = await hold(bar().querySelector('.dc-sheet-tab') as HTMLElement);
+    assert.ok(onTab.some((i) => /^Rename/.test(label(i))), `the tab's own menu: ${onTab.map(label).join(' | ')}`);
   });
 
   it('a second sheet: +, shown and empty; a grid moved onto it from its menu; its chart, on the first, follows it', async () => {

@@ -1761,6 +1761,20 @@
   flex: none;
 }
 
+/* A long press is the right-click on a touch screen (ui/long-press.ts): where a right-click menu opens, the browser's own
+   text selection and callout stay out of it. A fine pointer (a mouse) keeps what it had. */
+@media (pointer: coarse) {
+  .dc-app-grid,
+  .dc-adhoc-grid,
+  .dc-adhoc-pov-chip,
+  .dc-chart-tile,
+  .dc-sheet-tab {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
 /* -- the columns tool panel ------------------------------------------------------- */
 
 .dc-tool-panel {
