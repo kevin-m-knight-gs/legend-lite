@@ -15,6 +15,8 @@
 //       code that is the gap (a marker), so fixing it fails here until its item is closed
 //   L11 screen code builds no command (S8): none written out in a screen file; pageCommand only for the person's input;
 //       every function that makes commands the screen calls asked by headless too, or the screen's own, said why
+//   L12 every place screen code branches on its host (D23): listed with what the other host does there -- its own path
+//       to the same thing, or why it has none -- so a thing that works on one host only is decided, never missed
 //
 // The behavioural half is one-api-gestures.test.ts (L2, L3); Python's is python/tests/test_one_api.py (L4-L7, L9, L10).
 
@@ -27,7 +29,7 @@ import { configurationOf, cubeToJson, readCube, treeOf, writeCube } from '../src
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import {
-  codeLines, exportedFunctions, functionBody, heldTo, listed, pythonCode, sites, unionKinds, unionTypes,
+  codeLines, enclosingAt, exportedFunctions, functionBody, heldTo, listed, pythonCode, sites, unionKinds, unionTypes,
 } from './one-api/scan.ts';
 
 const SOURCES = new Sources('SOURCES', 'datacube');
@@ -583,6 +585,141 @@ describe('L11: screen code builds no command', () => {
       "listed as the screen's own, and the screen calls it no more, or Python asks it now: take it off");
     // the gestures the screen's controls make, every one Python can ask by name
     assert.ok(called.has('gridGestureGiven') && makers.has('gridGesture'), 'grid-gestures.ts, which headless gridGesture asks');
+  });
+});
+
+// -- L12: every branch on the host, with what the other host does there ---------------------------------------------
+
+/** What only some hosts give: the page's own engine (the tab's planner and database), its model writer, each ability of
+ *  its database a host may not have, its services, its address, a grid's rows run by the host (its runner). */
+const HOST_CAPABILITIES = String.raw`engine\.local\b|engine\.modelWriting\b|`
+  + String.raw`database\.(?:ingestFile|mountRemote|frame|opened|made|join|snap|release|held)\b|`
+  + String.raw`services\.(?:pages|warehouse|modelHome|queries|live)\b|browser\.address\b|options\.runner\b`;
+
+/**
+ * Every place screen code branches on its host, as `file:function:capability` counted: a line that tests a capability
+ * (HOST_CAPABILITIES), or a name a file holds one in (`const local = services.engine.local`), in a condition -- `if (`,
+ * `!`, `? :`, `&&`, `||`, a spread `...(` -- its first such read naming it. The hosts' own files (src/services) give the
+ * capabilities and headless has one host, so neither is screen code.
+ */
+function hostBranches(): Map<string, number> {
+  return hostBranchesOf(SOURCES.under('src', '.ts')
+    .filter((f) => !f.startsWith('src/headless/') && !f.startsWith('src/generated/') && !f.startsWith('src/services/'))
+    .map((f) => [f, SOURCES.read(f)] as const));
+}
+
+/** hostBranches over `files` (each its name and its text). */
+function hostBranchesOf(files: readonly (readonly [string, string])[]): Map<string, number> {
+  const found = new Map<string, number>();
+  for (const [f, text] of files) {
+    const lines = codeLines(text)
+      .map((l) => l.replace(/'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"/g, "''").replace(/\s\/\/\s.*$/, ''));
+    const held = new Set<string>();
+    for (const l of lines) {
+      const m = new RegExp(String.raw`(?:const|let) (\w+)(?:\s*:[^=]+)?\s*=\s*(?:services\.)?(?:engine\.)?(?:${HOST_CAPABILITIES})`).exec(l);
+      if (m) held.add(m[1]!);
+    }
+    const capability = `(${HOST_CAPABILITIES}${[...held].map((h) => String.raw`|(?<![.\w#])${h}\b`).join('')})`;
+    const tested = new RegExp(String.raw`(?:\bif \(!?|[!?]\s*|&&\s*|\|\|\s*|\.\.\.\(\s*)(?:services\.(?:engine\.)?|this\.#|o\.)?${capability}`);
+    const testing = new RegExp(String.raw`${capability}(?:\?\.[\w.]+)?\s*(?:\?(?!\.)|&&|\|\||!==|===)`);
+    lines.forEach((line, i) => {
+      const m = tested.exec(line) ?? testing.exec(line);
+      if (!m) return;
+      const key = `${f}:${enclosingAt(lines, i).name}:${m[1]!.replace(/\\b/g, '')}`;
+      found.set(key, (found.get(key) ?? 0) + 1);
+    });
+  }
+  return found;
+}
+
+const BOTH = 'both:';
+const NATURE = 'by nature:';
+
+/**
+ * L12 (the user, 2026-10-23, after the class grid on a Python host was found missing: "Why do we keep finding more
+ * places where ... the two hosts diverge?", then "Check host branch now"; D23): each branch on the host, with what the
+ * other host does there -- `both:` its own path to the same thing, or `by nature:` why it has none. A new branch fails
+ * until it is listed here, so whether the other host needs it is decided as it is written (K16 was one never asked).
+ */
+const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly other: string }>> = {
+  // -- the app shell (datacube-app.ts) --
+  'src/app/datacube-app.ts:rowsOf:local': { count: 2, other: `${BOTH} a grid's rows run by the host's runner (Python's), or the tab's planner and database` },
+  'src/app/datacube-app.ts:hostMenu:services.pages': { other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)` },
+  'src/app/datacube-app.ts:hostMenu:browser.address': { other: `${NATURE} Share… needs an address others can open; Python's is this machine's loopback` },
+  'src/app/datacube-app.ts:empty:services.live': { other: `${NATURE} the empty page's words: a page Python serves is filled from Python` },
+  'src/app/datacube-app.ts:empty:services.pages': { other: `${BOTH} the empty page offers a saved page where the host keeps pages` },
+  'src/app/datacube-app.ts:openDataCube:services.pages': { count: 3, other: `${BOTH} Open…, a blank page and "unsaved changes" where the host keeps pages` },
+  'src/app/datacube-app.ts:openDataCube:live': { count: 2, other: `${NATURE} a page another editor serves is followed; the tab's own page has no other editor` },
+  'src/app/datacube-app.ts:leaveServed:live': { other: `${NATURE} leaving a page another editor serves` },
+  'src/app/datacube-app.ts:saveTo:pages': { other: `${BOTH} saved where the host keeps pages; Python's page.save() by the same rule (pageSaving)` },
+  'src/app/datacube-app.ts:openDataCube:pages': { count: 3, other: `${BOTH} the saved pages' window, Open… and Save where the host keeps pages` },
+  'src/app/datacube-app.ts:copyShareLink:address': { other: `${NATURE} a link needs an address others can open` },
+  'src/app/datacube-app.ts:makeClass:modelHome': { count: 2, other: `${BOTH} Create a Class… where the host has a model home and a writer (the tab's, Python's)` },
+  'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer` },
+  'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)` },
+  'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)` },
+  'src/app/datacube-app.ts:offered:localEngine': { other: `${BOTH} Join… offered on a grid of the tab's tables, or one the host opened` },
+  // -- the sources (sources.ts) --
+  'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source` },
+  'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source` },
+  'src/app/sources.ts:pageSources:services.warehouse': { other: `${BOTH} a warehouse read through the tab's own pair, or by a host that reads its tables (C3)` },
+  'src/app/sources.ts:pageSources:local': { other: `${BOTH} a remote file read by the page's database or the host's` },
+  'src/app/sources.ts:openedTable:local': { other: `${BOTH} the tab's warehouse table; the host's is openedHostTable` },
+  'src/app/sources.ts:openedRemote:database.mountRemote': { other: `${BOTH} mounted by whichever database reads it` },
+  'src/app/sources.ts:openedRemote:local': { other: `${BOTH} snapped into the tab's copy, or the host's` },
+  'src/app/sources.ts:openedJoin:local': { other: `${BOTH} a saved join opened in the tab; on a host's page, by the host (reopened)` },
+  'src/app/sources.ts:openedFrame:database.frame': { other: `${NATURE} a dataframe lives in Python` },
+  'src/app/sources.ts:openedRecord:queries': { other: `${BOTH} a saved query read from the host's query store` },
+  'src/app/sources.ts:openedRecord:modelHome': { other: `${BOTH} a query of an unconfigured project read through the host's model home` },
+  'src/app/sources.ts:openedClass:modelHome': { other: `${BOTH} a class read through the tab's model home; on a host's page, made by the host (K16)` },
+  'src/app/sources.ts:openedGivenClass:local': { other: `${BOTH} a named class opened here, or made by the host (K16, K17)` },
+  'src/app/sources.ts:openedGivenClass:writing': { other: `${BOTH} the tab reads a class through its place's runtime; the host through its own` },
+  'src/app/sources.ts:openedGivenClass:database.made': { other: `${BOTH} the host's half of a named class (K16)` },
+  'src/app/sources.ts:reopened:database.opened': { other: `${BOTH} a grid of the host's page opened by the host (H-2, H-3)` },
+  'src/app/sources.ts:reopened:local': { other: `${BOTH} a saved join opened by the tab, or the host` },
+  'src/app/sources.ts:pick:database.ingestFile': { other: `${BOTH} Files and Examples where a database takes a file (the tab's, Python's)` },
+  'src/app/sources.ts:pick:files': { count: 2, other: `${BOTH} Files and Examples where a database takes a file` },
+  'src/app/sources.ts:pick:queries': { other: `${BOTH} Saved queries where the host has a query store` },
+  'src/app/sources.ts:pick:database.mountRemote': { other: `${BOTH} Remote files where a database reads them` },
+  'src/app/sources.ts:pick:modelHome': { other: `${BOTH} Classes where the tab reads classes or the host makes them (K17)` },
+  'src/app/sources.ts:savedSection:queries': { other: `${NATURE} a store watched for another tab's save: the browser's own store` },
+  'src/app/sources.ts:savedSection:modelHome': { other: `${BOTH} a query's unconfigured project read through the host's model home` },
+  'src/app/sources.ts:savedSection:address': { other: `${NATURE} a query's link needs an address others can open` },
+  'src/app/sources.ts:snapTarget:local': { other: `${BOTH} a grid snaps into the tab's copy, or the host's` },
+  'src/app/sources.ts:frameAgain:database.frame': { other: `${NATURE} a dataframe lives in Python` },
+  // -- a grid (app.ts) --
+  'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner` },
+  'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in` },
+  'src/app.ts:#snapPill:options.runner': { count: 2, other: `${BOTH} Snap into the tab's copy, or the host's` },
+  'src/app.ts:paint:options.runner': { count: 2, other: `${BOTH} where the rows are, said for the tab's or the host's` },
+};
+
+/** L12 held to what is found, in its own words. */
+const hostHeld = (found: ReadonlyMap<string, number>): string[] => heldTo(found, HOST_BRANCHES, 'L12').map((p) => p
+  .replace('is a new gap -- make it a command, or list it with its item',
+    "is a branch on the host no one decided -- list it with what the other host does there (both:, or by nature:)")
+  .replace('is listed but gone -- close its item and take it off the ledger', 'is listed but gone -- take it off'));
+
+describe("L12: every branch on the host, with what the other host does there", () => {
+  it('each listed -- the other host\'s own path, or why it has none -- and none listed that is gone', () => {
+    assert.deepEqual(hostHeld(hostBranches()), []);
+    const unsaid = Object.entries(HOST_BRANCHES).filter(([, e]) => !e.other.startsWith(BOTH) && !e.other.startsWith(NATURE));
+    assert.deepEqual(unsaid.map(([k]) => k), [], "each says `both:` (the other host's path) or `by nature:` (why none)");
+  });
+
+  it('sees a branch it was not told of -- by the capability, or a name holding it -- and no plain use of one', () => {
+    const added = [
+      'export function offer(services: Services): void {',
+      '  if (services.engine.local) open();',
+      '  const made = services.engine.database.made;',
+      "  const label = made ? 'Python' : 'here';",
+      '  void services.engine.database.frame?.(\'f\');',
+      '}',
+    ].join('\n');
+    const found = hostBranchesOf([['src/x.ts', added]]);
+    assert.deepEqual([...found.keys()].sort(), ['src/x.ts:offer:engine.local', 'src/x.ts:offer:made']);
+    assert.match(hostHeld(new Map([...hostBranches(), ...found])).join('\n'),
+      /src\/x\.ts:offer:engine\.local \(1\) is a branch on the host no one decided -- list it with what the other host does/);
   });
 });
 

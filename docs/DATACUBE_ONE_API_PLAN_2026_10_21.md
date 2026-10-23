@@ -169,6 +169,8 @@ no longer exists (so the list can only shrink, and stays true).
 | **L8** capability matrix | every command kind x {its kind list, both readers, the rebase's renaming, a screen producer, a Python builder}; every source kind x {Python reads it, Python adds it}; headless exports Python never asks; the capabilities with no kind of their own (K1, K3-K6, K9-K12) listed as unchecked until S6 agrees their names | static over the kinds' union types (a per-kind parity row is not detectable: the parity tests are by action) |
 | **L9** host writes | what the keeper takes whole, through the engine's own write (H1-H3); who writes the keeper at all (page.py, engine.py, datacube.py) | behavioural, and static by Python's parser |
 | **L10** same rule | one parity test per behaviour difference (audit §6); ledger = rows still differing | behavioural |
+| **L11** screen builds no command (S8) | no command written out in a screen file; `pageCommand` only for the person's input; every function that makes commands the screen calls asked by headless too, or the screen's own, said why | static, by the command types' kinds, closed at 0 |
+| **L12** branches on the host (D23) | every place screen code branches on its host -- the page's own engine, a database ability, a service, an address, a grid's runner, or a name holding one -- by function and capability, each with what the other host does there (`both:` its own path, or `by nature:` why none) | static, by enclosing function; a new branch fails until it is listed and said |
 
 Every ledger's size is pinned (`CEILINGS`): a fix lowers it; it grows only with a dated note. The register is pinned too:
 every item it has held is in it, open or closed.
@@ -1793,7 +1795,16 @@ datacube-app-live.test.ts (on Python's page, Classes asks the host to make the c
 (Save As, list, delete and the pages saved as it; `source.json` makes page.grid's cube, opened by `opened.json`, its
 refusals).
 
-**Ledgers.** No ceiling moved; K13-K17 added to the register and closed (one-api-ledger.test.ts `ALL`).
+**Ledgers.** No ceiling moved; K13-K17 added to the register and closed (one-api-ledger.test.ts `ALL`). And a new one,
+**L12** (the user: "Why do we keep finding more places where ... the two hosts diverge?", then "Check host branch now"):
+K16 was a branch on the host -- `if (services.engine.local)` -- that no ledger saw, since every earlier one asks about
+commands, and an ability gated to one host is none. L12 lists every place screen code branches on its host (47 sites, by
+function and capability: the page's own engine, an ability of its database, a service, its address, a grid's runner, or
+a name holding one) with what the other host does there: `both:` its own path to the same thing (38), or `by nature:`
+why it has none (9: a dataframe lives in Python; a Share link needs an address others can open; a page another editor
+serves is followed). A new branch fails the build until it is listed and said, so whether the other host needs it is
+decided as it is written. Its self-test scans an added branch, by the capability and by a name holding one, and a plain
+use that is no branch; adding `if (services.engine.local)` to sources.ts fails it, as it should.
 
 **Gates.** The full local set, 205 of 205.
 
