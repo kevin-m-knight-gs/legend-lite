@@ -115,6 +115,24 @@ async function invariants(sample, where) {
 
 const summary = [];
 try {
+  // A START THAT DID NOT DOWNLOAD (seen on the published site, 2026-10-23): a part of the bundle not found -- a deploy
+  // landing while the page loads, a browser's cached bundle naming parts the deploy replaced -- said on the page, where a
+  // person sees it, never a blank page whose "loading..." is offstage (demo/index.html #startfailed). Once, on the first
+  // shard.
+  if (SHARD === 0) {
+    const broken = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    try {
+      await broken.route(/\/chunks-bundle\/chunk-[^/]+\.js$/, (route) => route.fulfill({ status: 404, body: 'not found' }));
+      const start = await broken.newPage();
+      await start.goto(`http://127.0.0.1:${port}/demo/index.html`);
+      const said = await start.locator('#startfailed', { hasText: 'DataCube did not finish downloading' })
+        .waitFor({ state: 'visible', timeout: 30_000 }).then(() => true, () => false);
+      if (said) console.log('a start whose bundle did not finish downloading: said on the page');
+      else fail('the start', 'a part of the bundle not found', 'the page said nothing a person can see');
+    } finally {
+      await broken.close();
+    }
+  }
   for (const sample of wanted) {
     // under its OWN format: a JSONL sample written as .csv was sniffed as CSV, so the shape
     // under test was not the one the picker offers
