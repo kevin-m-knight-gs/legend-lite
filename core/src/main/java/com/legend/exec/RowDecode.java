@@ -63,7 +63,7 @@ public final class RowDecode {
                     out.add(null);
                     continue;
                 }
-                ExecutionPlan.Column slot = taggedSlot(c, ((Number) integer(node, c)).intValue());
+                ExecutionPlan.Column slot = taggedSlot(c, ((Number) cell(node, tagOf(c))).intValue());
                 Json.Node held = row.fields().get(slot.name());
                 if (held == null) {
                     throw new IllegalStateException("the row's object has no field for the tagged column '"
@@ -344,6 +344,11 @@ public final class RowDecode {
         return new ExecutionPlan.Column[] {any("key", parts.get(0).trim()), any("value", parts.get(1).trim())};
     }
 
+    /** A tagged column's own cell, the tag: an integer, the slot index. */
+    static ExecutionPlan.Column tagOf(ExecutionPlan.Column c) {
+        return new ExecutionPlan.Column(c.name(), "Integer", c.multiplicity(), "INTEGER", null);
+    }
+
     /** The result columns a statement answers for the plan's {@code columns}: each its own, plus a tagged column's
      *  slot columns beside it (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a). */
     static int physicalColumns(List<ExecutionPlan.Column> columns) {
@@ -355,7 +360,7 @@ public final class RowDecode {
     }
 
     /** Slot {@code index} of a tagged column ({@code TAGGED<kind slot, ...>}, docs/RESULTS_AND_RENDERERS_2026_10_22.md
-     *  §5a) as a column: the physical column {@link com.legend.sql.SqlType.Tagged#slotColumn} names, typed as the
+     *  §5a) as a column: the physical column {@link ExecutionPlan.Column#taggedSlotColumn} names, typed as the
      *  slot's kind, in the slot's SQL type. */
     static ExecutionPlan.Column taggedSlot(ExecutionPlan.Column c, int index) {
         List<String> parts = topLevel(inside(c, "TAGGED"));
@@ -369,7 +374,7 @@ public final class RowDecode {
             throw new IllegalStateException("column '" + c.name() + "': its slot " + c.slot()
                     + " has an entry with no type: '" + f + "'");
         }
-        return new ExecutionPlan.Column(com.legend.sql.SqlType.Tagged.slotColumn(c.name(), index),
+        return new ExecutionPlan.Column(ExecutionPlan.Column.taggedSlotColumn(c.name(), index),
                 f.substring(0, space), c.multiplicity(), f.substring(space + 1).trim(), null);
     }
 

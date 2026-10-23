@@ -224,6 +224,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(multiplicity, "multiplicity");
         }
+
+        /** The physical column holding slot {@code i} of a tagged column ({@code TAGGED<kind slot, ...>},
+         *  docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the SQL tree's one owner of the name
+         *  ({@link com.legend.sql.SqlType.Tagged#slotColumn}), reached from here by the runner, which reads no SQL
+         *  tree itself. */
+        public static String taggedSlotColumn(String column, int i) {
+            return com.legend.sql.SqlType.Tagged.slotColumn(column, i);
+        }
     }
 
     /** Values of a class — its instances, a graph fetch's objects — of {@code type} at {@code multiplicity}. */

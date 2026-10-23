@@ -61,8 +61,8 @@ final class MixedEncoding {
         }
     }
 
-    /** The Pure kind a tagged slot names ({@link SqlType.Tagged.Slot#kind}), as a type; the one map, its inverse
-     *  {@link #kindName}. */
+    /** The Pure kind a tagged slot names ({@link SqlType.Tagged.Slot#kind}), as a type: the one map (the encoder
+     *  above names each candidate's kind as it builds it). */
     static Type kindType(String kind) {
         return switch (kind) {
             case "Integer" -> Type.Primitive.INTEGER;
@@ -74,18 +74,6 @@ final class MixedEncoding {
             default -> throw new IllegalStateException("a tagged slot of kind '" + kind + "': not one a mixed"
                     + " selection carries (Integer, Float, Decimal, StrictDate, DateTime, Date)");
         };
-    }
-
-    private static String kindName(Type t) {
-        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-            return "Decimal";
-        }
-        for (String k : List.of("Integer", "Float", "StrictDate", "DateTime", "Date")) {
-            if (kindType(k) == t) {
-                return k;
-            }
-        }
-        throw new IllegalStateException("no tagged kind for " + t);
     }
 
     /** One expression per candidate of {@code t}, chosen by its tag: {@code CASE WHEN tag = k THEN arm(kind k,

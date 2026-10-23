@@ -60,13 +60,14 @@ final class JdbcDecode {
             ExecutionPlan.Column c = columns.get(i);
             if (RowDecode.slotWord(c.slot()).equals("TAGGED")) {
                 // a tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its cell is the tag, the slot
-                // index; the value stands in that slot's column beside it, read with the slot's own type
-                Object tag = rs.getObject(i + 1);
+                // index, read as the integer it is; the value stands in that slot's column beside it, read with
+                // the slot's own type
+                Object tag = cell(rs, i + 1, RowDecode.tagOf(c), javaTime);
                 if (tag == null) {
                     out.add(null);
                     continue;
                 }
-                ExecutionPlan.Column slot = RowDecode.taggedSlot(c, ((Number) integral(tag, c)).intValue());
+                ExecutionPlan.Column slot = RowDecode.taggedSlot(c, ((Number) tag).intValue());
                 out.add(cell(rs, rs.findColumn(slot.name()), slot, javaTime));
                 continue;
             }

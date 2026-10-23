@@ -519,9 +519,10 @@ public final class Executor {
                                boolean variantRoot)
             throws SQLException {
         if (sqlTypeOf(plan, 0) instanceof com.legend.sql.SqlType.Tagged tg) {
-            // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the tag, then its slot
+            // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the tag, then its slot;
+            // present where the tag is (a winner's slot holds it)
             Object v = readTagged(rs, 1, tg, dialect);
-            return new Cell(v, rs.getObject(1) != null);
+            return new Cell(v, v != null);
         }
         Object fetched = fetch(rs, 1, sqlTypeOf(plan, 0), dialect);
         // presence is the RAW wire fact — read before unwrap (a JSON
@@ -1028,7 +1029,7 @@ public final class Executor {
      *  own type. Null where the tag is. */
     private static @com.legend.base.Nullable Object readTagged(ResultSet rs, int i, com.legend.sql.SqlType.Tagged tg,
             com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
-        Object tag = rs.getObject(i);
+        Object tag = fetch(rs, i, com.legend.sql.SqlType.Scalar.INTEGER, dialect);
         if (tag == null) {
             return null;
         }

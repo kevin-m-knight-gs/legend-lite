@@ -2674,11 +2674,13 @@ final class Scalars {
     }
 
     /** The natives that compare, order or equate their arguments: over a tagged value they read its comparable. */
-    private static final Set<com.legend.model.FunctionId> COMPARISONS = Set.copyOf(com.legend.model.FunctionId.all(
-            Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
-            Pure.AT_BOOLEAN_GREATER_THAN_EQUAL, Pure.AT_LEGEND_LITE_LESS_THAN, Pure.AT_LEGEND_LITE_LESS_THAN_EQUAL,
-            Pure.AT_LEGEND_LITE_GREATER_THAN, Pure.AT_LEGEND_LITE_GREATER_THAN_EQUAL, Pure.AT_BOOLEAN_EQ,
-            Pure.AT_BOOLEAN_EQUAL, Pure.AT_LANG_COMPARE));
+    private static final Set<com.legend.model.FunctionId> COMPARISONS = java.util.Collections.unmodifiableSet(
+            new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(
+                    Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
+                    Pure.AT_BOOLEAN_GREATER_THAN_EQUAL, Pure.AT_LEGEND_LITE_LESS_THAN,
+                    Pure.AT_LEGEND_LITE_LESS_THAN_EQUAL, Pure.AT_LEGEND_LITE_GREATER_THAN,
+                    Pure.AT_LEGEND_LITE_GREATER_THAN_EQUAL, Pure.AT_BOOLEAN_EQ, Pure.AT_BOOLEAN_EQUAL,
+                    Pure.AT_LANG_COMPARE)));
 
 
     /**
