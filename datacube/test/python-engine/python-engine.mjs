@@ -832,22 +832,37 @@ try {
   const sortedRegrouped = gridsNow.every((g) => g.rows.join() === 'region' && g.sorts.join() === 'desk');
   console.log(`${sortedRegrouped ? 'ok  ' : 'FAIL'} the grid in both tabs: Python's grouping (region) and the second tab's sort (desk) ${JSON.stringify(gridsNow)}`);
   if (!sortedRegrouped) failed = true;
-  // A WRITE REFUSED IN A BROWSER (W8): both tabs take the chart off at once (its title bar's Remove); the keeper keeps
-  // the first removal and refuses the second, whose tile is gone, and that tab converges on what moved the page since,
-  // the refusal said -- no reopen, the chart gone in all three, and no tab left saying it is catching up
+  // A WRITE REFUSED IN A BROWSER (W8), made deterministic (2026-10-24: two clicks "at once" did not race on Windows'
+  // runner, and no write was refused): the second tab is kept from learning of moves (its version asks held), the first
+  // takes the chart off and its write lands, then the second -- still showing the chart -- takes it off too. Its write,
+  // at the version before, is refused (the tile is gone), and it converges on what moved the page since, the refusal
+  // said: no reopen, the chart gone in all three, and no tab left saying it is catching up
   let refusals = 0;
-  for (const t of bothTabs) t.on('response', (r) => { if (r.status() === 409 && r.request().method() === 'POST' && new URL(r.url()).pathname === '/page.json') refusals += 1; });
-  // (the chart is on the first sheet, which each tab shows first; the tile's Remove is quiet until the tile is pointed
-  // at -- app.css .dc-tile:hover -- so each tab points first)
-  await Promise.all(bothTabs.map(async (t) => {
+  secondTab.on('response', (r) => { if (r.status() === 409 && r.request().method() === 'POST' && new URL(r.url()).pathname === '/page.json') refusals += 1; });
+  let letAsk;
+  const askHeld = new Promise((go) => { letAsk = go; });
+  // (a held ask let go as the route is taken off may be handled already: either way it goes on)
+  await secondTab.route('**/version.json*', async (route) => { await askHeld; await route.continue().catch(() => {}); });
+  // (the chart is on the first sheet; its Remove clicked as its handler is, whatever covers it: a tile's buttons are
+  // quiet until pointed at, app.css .dc-tile:hover)
+  const removeChart = async (t) => {
     await t.locator('.dc-sheet-tab', { hasText: firstSheet }).click();
-    await t.locator('[data-tile="chart-1"]').hover();
-    await t.locator('[data-tile="chart-1"] .dc-tile-remove').click({ force: true });
-  }));
-  await oneHeld('both tabs take the chart off at once: one write refused, both tabs at Python\'s page, the chart gone', () => true);
+    await t.locator('[data-tile="chart-1"] .dc-tile-remove').dispatchEvent('click');
+  };
+  const before = await pythonHash();
+  await removeChart(tabbed);
+  for (let n = 0; n < 40 && (await pythonHash()) === before; n += 1) await new Promise((done) => { setTimeout(done, 250); });
+  const stillShown = await secondTab.evaluate(() => document.querySelector('[data-tile="chart-1"]') !== null);
+  await removeChart(secondTab);
+  for (let n = 0; n < 40 && refusals === 0; n += 1) await new Promise((done) => { setTimeout(done, 250); });
+  letAsk();
+  await new Promise((done) => { setTimeout(done, 100); });
+  await secondTab.unroute('**/version.json*');
+  await oneHeld("the chart taken off in one tab, then in the other, which had not followed: its write refused, both at Python's page", () => true);
   const chartGone = (await tabsShow(() => document.querySelector('[data-tile="chart-1"]') === null)).every(Boolean);
-  console.log(`${refusals >= 1 && chartGone ? 'ok  ' : 'FAIL'} one of the two removals refused (${refusals} refused), the chart gone in both tabs`);
-  if (!(refusals >= 1 && chartGone)) failed = true;
+  const refusedOk = stillShown && refusals >= 1 && chartGone;
+  console.log(`${refusedOk ? 'ok  ' : 'FAIL'} the second tab's removal refused (${refusals} refused; the chart still shown there when clicked: ${stillShown}), the chart gone in both tabs`);
+  if (!refusedOk) failed = true;
   const catchingUp = (await tabsShow(() => /catching up with its keeper/.test(document.body.innerText))).some(Boolean);
   console.log(`${catchingUp ? 'FAIL' : 'ok  '} neither tab is left saying it is catching up with its keeper`);
   if (catchingUp) failed = true;

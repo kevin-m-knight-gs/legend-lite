@@ -26,7 +26,7 @@ import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import { pageToJson, type PageDocument } from '../src/page-document.ts';
 import { canonicalJson, pageHash } from '../src/page-hash.ts';
 import { rebaseEdits } from '../src/page-rebase.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
 import { openCube, type CubeDocument } from '../src/cube-document.ts';
 import { applyGridToCube, FakeKeeper } from './fake-keeper.ts';
 import { corpus } from './fixtures/pages/make.ts';
@@ -548,6 +548,12 @@ function realPage(hooks: { readonly grid?: (id: string) => void } = {}): { cubes
 }
 
 const tileEl = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
+/** A mark of `chart` clicked: its condition on the chart's selection and on its grid's filter -- once the chart has
+ *  drawn (its drawing is fetched when first wanted, and that outlasted settle() on macOS' CI, 2026-10-24). */
+async function markOf(chart: string): Promise<void> {
+  const el = await shown<HTMLElement>(tileEl(chart), '[_echarts_instance_]');
+  echarts.getInstanceByDom(el)!.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+}
 const labelOf = (el: HTMLElement | null): string => el?.querySelector('.dc-menu-label')?.textContent ?? el?.textContent ?? '';
 /** A chart made over a grid's tile, as a person makes one: a cell's menu, Create > Visualization. */
 async function chartOver(gridTile: string): Promise<string> {
@@ -573,7 +579,7 @@ describe("a real page and its keeper: the D19 audit's second round", () => {
     const chart = await chartOver(a);
     await settle();
     // a mark clicked: its condition on the chart's selection, and on a's filter
-    echarts.getInstanceByDom(tileEl(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await markOf(chart);
     await settle();
     const before = page!.document('Q3', undefined, true)!;
     const sel = before.cubes.find((c) => c.id === a)!.cube.query.filter as FilterNode | undefined;
@@ -714,7 +720,7 @@ describe("a real page and its keeper: the D19 audit's second round", () => {
     const run = channel.enqueue(async () => { await gate; followed = await channel.follow(moved); });
     const chart = await chartOver(a);
     await settle();
-    echarts.getInstanceByDom(tileEl(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await markOf(chart);
     await settle();
     assert.ok(channel.pending.some((e) => 'grid' in e && e.command.kind === 'refilter'), "the mark on the grid's filter, pending");
     assert.equal(g.canUndo, true, 'the refilter a step of the grid');
@@ -767,7 +773,7 @@ describe('a real page and its keeper', () => {
     const chart = await chartOver(a);
     await settle();
     // a mark clicked: its condition on the chart's selection, and on a's filter
-    echarts.getInstanceByDom(tileEl(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await markOf(chart);
     await settle();
     const before = page!.document('Q3', undefined, true)!;
     const sel = before.cubes.find((c) => c.id === a)!.cube.query.filter as FilterNode | undefined;
@@ -797,7 +803,7 @@ describe('a real page and its keeper', () => {
     const chart = await chartOver(a);
     await settle();
     // a mark clicked: the chart selected, its condition on a's filter
-    echarts.getInstanceByDom(tileEl(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
+    await markOf(chart);
     await settle();
     const before = page!.document('Q3', undefined, true)!;
     assert.ok(before.views.some((v) => v.kind === 'chart' && v.id === chart && (v.selection ?? []).length > 0), 'the chart is selected');
@@ -1067,9 +1073,7 @@ describe('a real page and its keeper', () => {
 
 describe("a real page and its keeper: the D19 audit's fourth round", () => {
   /** A mark of `chart` clicked: its condition on the chart's selection and on its grid's filter. */
-  const clickMark = (chart: string): void => {
-    echarts.getInstanceByDom(tileEl(chart).querySelector<HTMLElement>('[_echarts_instance_]')!)!.trigger('click', { seriesIndex: 0, dataIndex: 0 } as never);
-  };
+  const clickMark = (chart: string): Promise<void> => markOf(chart);
   const chartsOf = (p: PageDocument): string[] => p.views.filter((v) => v.kind === 'chart').map((v) => v.id);
   const gridsOf = (p: PageDocument): string[] => p.views.filter((v) => v.kind === 'grid').map((v) => v.id);
 
@@ -1080,7 +1084,7 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
     await settle();
     const chart = await chartOver(a);
     await settle();
-    clickMark(chart);
+    await clickMark(chart);
     await settle();
     const before = page!.document('Q3', undefined, true)!;
     assert.ok(before.cubes.find((c) => c.id === a)!.cube.query.filter !== undefined, "the mark is on a's filter");
@@ -1259,7 +1263,7 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
     await settle();
     const chart = await chartOver(a);
     await settle();
-    clickMark(chart);
+    await clickMark(chart);
     await settle();
     const keeper = new FakeKeeper(page!.document('Q3', undefined, true)!);
     const { channel, reopened } = channelOf(keeper);
@@ -1362,7 +1366,7 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
     // refilter -- the keeper judges the chart's selection where the filter moves, and takes it off at the undo
     const chart = await chartOver(a);
     await settle();
-    clickMark(chart);
+    await clickMark(chart);
     await settle();
     await written(channel);
     await cubes.get(a)!.undo();
