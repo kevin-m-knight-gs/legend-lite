@@ -431,8 +431,9 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
     // conditional formats (conditional.ts): each as its reader takes it, or refused in its words
     const { heatmap, dataBar, iconSet, rules, format } = presentation as Record<string, unknown>;
     try {
+      // as the saved cube's reader takes one (cube-document.ts): null is no code, refused -- a format without one has none
       const code = isObject(format) ? format['code'] : undefined;
-      if (code !== undefined && code !== null) {
+      if (code !== undefined) {
         if (typeof code !== 'string') throw new CubeRefusal(`a format code is text, not ${JSON.stringify(code)}`);
         readFormatCode(code);
       }

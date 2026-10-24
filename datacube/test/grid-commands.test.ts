@@ -233,6 +233,16 @@ describe('each command gives what the screen\'s own edit gives', () => {
     assert.deepEqual(applyGridCommand(top, { kind: 'pivot', columns: [] }).snapshot.pivotOn, [], 'no pivot is no pivot');
   });
 
+  // 2026-10-24, found by the round-trip tests once the random walks set format codes: a null code was taken, and the
+  // saved cube's reader refused the grid written with it
+  it('a format code is text: null is refused, as the saved cube\'s reader refuses it; a format without one has none', () => {
+    refused(() => applyGridCommand(d, { kind: 'configure', patch: { columns: { notional: { format: { kind: 'auto', code: null } } } } } as never),
+      /a format code is text, not null/);
+    const coded = applyGridCommand(d, { kind: 'configure', patch: { columns: { notional: { format: { kind: 'auto', code: '#,##0' } } } } });
+    assert.equal(coded.config.columns['notional']?.format?.code, '#,##0');
+    assert.equal(applyGridCommand(coded, { kind: 'configure', patch: { columns: { notional: { format: null } } } }).config.columns['notional']?.format, undefined);
+  });
+
   it('a group opened and closed is the tree the chevron leaves; Collapse All the menu\'s (G1, G2)', () => {
     const shown = { ...draft({ rows: ['region', 'desk'] }), tree: TreeState.empty().withExpandTo(1) };
     const opened = applyGridCommand(shown, { kind: 'open', path: ['EMEA', 'FX'], open: true });

@@ -9,9 +9,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { tiles } from '../src/layout/bands.ts';
-import { applyPlanned, pageBetween } from '../src/page-between.ts';
+import { applyPlanned, namedUnder, pageBetween } from '../src/page-between.ts';
 import { applyPageCommands, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from '../src/page-commands.ts';
-import { gridCopyOf, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { textTitle } from '../src/page-ids.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { canonical, differing, renamedPage } from './page-same.ts';
@@ -189,6 +190,22 @@ describe('the commands between two pages take one to the other', () => {
       assert.ok(refusals < pairs / 10, `${refusals} refusals over ${pairs} pairs`);
     });
   }
+
+  // the D19 session's check (2026-10-24, the middle version: every id a tab makes is under its tag, none renamed)
+  it("a tab's text tile is made under its tag, read back as written, its words and title set by that id", () => {
+    const d = draft(trades);
+    const named = namedUnder(d, [{ kind: 'addText', sheet: trades.sheets[0]!.id, text: 'Hello', title: null, columns: null }], 'tabcde');
+    assert.equal((named[0] as { id?: string }).id, 'text-tabcde-1');
+    const made = applyPageCommands(d, named).draft;
+    const text = (p: PageDocument) => p.views.find((v) => v.id === 'text-tabcde-1');
+    assert.deepEqual(text(made.page), { id: 'text-tabcde-1', kind: 'text', text: 'Hello' });
+    assert.equal(textTitle('text-tabcde-1'), 'Text 1');
+    assert.deepEqual(text(readPage(JSON.parse(pageToJson(made.page)))), text(made.page));
+    const set = applyPageCommands(made, [{ kind: 'setText', tile: 'text-tabcde-1', text: 'Bye' }, { kind: 'renameTile', tile: 'text-tabcde-1', title: 'Text 1' }]).draft;
+    assert.deepEqual(text(set.page), { id: 'text-tabcde-1', kind: 'text', text: 'Bye' });
+    assert.throws(() => applyPageCommands(d, [{ kind: 'addText', id: 'text-TAB-1', sheet: trades.sheets[0]!.id, text: 'x', title: null, columns: null }]),
+      (e: unknown) => e instanceof CubeRefusal && /text-N or text-<tag>-N/.test(e.message));
+  });
 
   it('an undo of a grid removal: the grid back as a new tile, its charts made of it or pointed at it, its selection back', () => {
     // the frame page: grid, grid-2, chart (live, of grid), chart-2 (frozen, of grid-2)

@@ -203,7 +203,8 @@ export function randomEdit(rand: () => number, d: Walked): [string, GridCommand]
         ['data bar', { columns: { [column]: { dataBar: rand() < 0.7 ? { color: '#5b9bd5' } : null } } }],
         ['icon set', { columns: { [column]: { iconSet: rand() < 0.7 ? { set: 'arrows' } : null } } }],
         ['rules', { columns: { [column]: { rules: rand() < 0.7 ? [{ when: { op: 'greaterThan', value: 1 }, style: { foreground: '#c00000' } }] : null } } }],
-        ['format code', { columns: { [column]: { format: { code: rand() < 0.7 ? '#,##0.00' : null } } } }],
+        // set, or the format taken off whole (a format with no code has none: configure refuses a null code)
+        ['format code', { columns: { [column]: { format: rand() < 0.7 ? { kind: 'auto', code: '#,##0.00' } : null } } }],
       ];
       const [name, patch] = pick(patches);
       return [`setting ${name}`, { kind: 'configure', patch }];
