@@ -277,6 +277,26 @@ describe('the app', () => {
     own.dispose();
   });
 
+  it("conditional formats: a data bar behind each figure, an icon by its third of the range, a rule's colours where it holds", async () => {
+    await app.applyGridCommands([{ kind: 'configure', patch: { columns: { notional: {
+      dataBar: { color: '#9fc3ea' }, iconSet: { set: 'arrows' },
+      rules: [{ when: { op: 'top', count: 1 }, style: { background: '#ffc7ce', bold: true } }],
+    } } } }], 'formats');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    const cells = [...root.querySelectorAll('.dc-cell[data-column="notional"]')] as HTMLElement[];
+    const drawn = cells.map((c) => ({
+      icon: c.querySelector('.dc-cond-icon')?.getAttribute('aria-label') ?? null,
+      bar: c.style.backgroundImage, ruled: c.style.backgroundColor === 'rgb(255, 199, 206)' && c.style.fontWeight === '700',
+    }));
+    // EMEA's 600 the region's largest: the high arrow, the whole bar, the top rule's colours; AMER's 400 the low arrow, two thirds
+    const high = drawn.find((d) => d.icon === 'high' && d.ruled);
+    const low = drawn.find((d) => d.icon === 'low' && !d.ruled);
+    assert.ok(high && low, JSON.stringify(drawn));
+    // the bar's colour as the DOM spells it back
+    assert.match(high.bar, /linear-gradient\(90deg, transparent 0%, rgb\(159, 195, 234\) 0%, rgb\(159, 195, 234\) 100%, transparent 100%\)/);
+    assert.match(low.bar, /rgb\(159, 195, 234\) 66\.7%/);
+  });
+
   describe('value filters on a group row', () => {
     /**
      * A measure shown under its OWN column's name -- how every uploaded
@@ -1158,6 +1178,38 @@ describe('the app', () => {
     assert.equal(active?.textContent, 'Column Properties');
     // the column shown: the one marked in Column Properties' list
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
+  });
+
+  it("Column Properties' Colors: data bars, an icon set, a rule of a value of one's own, applied as the grid's configure", async () => {
+    rightClick('.dc-th[data-column="notional"]');
+    pick('Properties...');
+    const win = (): HTMLElement => root.querySelector('[data-window="Properties"]') as HTMLElement;
+    // the panel is redrawn after each change: each control found anew
+    const field = (label: string): HTMLElement => [...win().querySelectorAll('.dc-field')]
+      .find((f) => f.querySelector('.dc-field-label')?.textContent === label) as HTMLElement;
+    const change = (el: HTMLInputElement | HTMLSelectElement, value: string): void => {
+      el.value = value;
+      el.dispatchEvent(new dom.window.Event('change'));
+    };
+    (field('Data bars:').querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    change(field('Icons:').querySelector('select') as HTMLSelectElement, 'trafficLights');
+    const [op, style] = [...field('Rules:').querySelectorAll('select')] as HTMLSelectElement[];
+    change(op!, 'atLeast');
+    change(field('Rules:').querySelector('input[placeholder="value"]') as HTMLInputElement, '500');
+    change(style!, 'green');
+    ([...field('Rules:').querySelectorAll('button')].find((b) => b.textContent === 'Add Rule') as HTMLButtonElement).click();
+    // listed in words, a Remove beside it; a rule that is no rule said, not added
+    assert.deepEqual([...field('Rules:').querySelectorAll('.dc-rule-words')].map((w) => w.textContent), ['At least 500']);
+    change(field('Rules:').querySelectorAll('select')[0] as HTMLSelectElement, 'top');
+    ([...field('Rules:').querySelectorAll('button')].find((b) => b.textContent === 'Add Rule') as HTMLButtonElement).click();
+    assert.match(field('Rules:').querySelector('.dc-rule-problem')?.textContent ?? '', /count is missing/);
+    ([...win().querySelectorAll('.dc-editor-footer button')].find((b) => b.textContent === 'Apply') as HTMLButtonElement).click();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    const told = commands.filter((c) => c.kind === 'configure').at(-1) as unknown as { patch: { columns: Record<string, Record<string, unknown>> } };
+    assert.deepEqual(told.patch.columns['notional'], {
+      dataBar: { color: '#9fc3ea' }, iconSet: { set: 'trafficLights' },
+      rules: [{ when: { op: 'atLeast', value: 500 }, style: { foreground: '#006100', background: '#c6efce' } }],
+    });
   });
 
   it('keeps several windows open at once, as upstream\'s layout', () => {

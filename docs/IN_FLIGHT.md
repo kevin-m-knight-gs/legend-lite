@@ -144,7 +144,8 @@ with the compiler's plan/execution split**, in this order:
    grain (`DerivedColumn.grain`, the database's: a join in the level's query); P5's class tree, step 1 -- a class's grid
    reads its related classes (`DerivedColumn.related`: a to-one hop's value, a to-many end aggregated per instance) --
    and step 2, measures declared in the model (`datacube/src/model-measures.ts`: Add Model Measure, Python's
-   `grid.model_measure`) -- the doc's §4 rows say which.
+   `grid.model_measure`); P3's conditional formats (`datacube/src/conditional.ts`: data bars, a three-colour scale,
+   icon sets, rules) -- the doc's §4 rows say which.
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,

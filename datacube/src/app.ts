@@ -69,7 +69,8 @@ import {
 import { pivotLabel, type PivotColumn } from './query.ts';
 import type { ExportPage } from './export-model.ts';
 import {
-  columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportedFile, type ExportKind, type Heatmap,
+  cellDecoration, columnFormats, conditionalSetting, heatmapColour, heatmapSetting, measureConditionals, measureHeatmaps, renderExport,
+  type Conditional, type ExportedFile, type ExportKind, type Heatmap,
 } from './export-render.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
 import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
@@ -134,6 +135,7 @@ import {
   columnLabel,
   emailItems,
   exportItems,
+  type ConditionalFacts,
   type MenuGroup,
   type MenuItem,
 } from './ui/menu.ts';
@@ -513,6 +515,8 @@ export class CubeApp {
     number,
     Heatmap
   >();
+  /** Conditional formats (conditional.ts) and their columns' figures, by leaf index; measured with the heatmaps. */
+  readonly #conditionals = new Map<number, Conditional>();
   readonly #columnsPanel: ColumnsToolPanel;
   readonly #els: {
     toolbar: HTMLElement;
@@ -794,6 +798,7 @@ export class CubeApp {
         void this.#gesture('columns.reorder', { order, ...(added !== undefined ? { added } : {}) }, 'reorder columns');
       },
       cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(this.#conditionals, this.#treeRows, leaf, row, value),
       rowMeta: (abs) => this.#rowMeta(abs),
       // SET, never toggled: the grid says which way the person asked, and
       // asking for what already is changes nothing (P2-127).
@@ -1924,6 +1929,10 @@ export class CubeApp {
     for (const [leaf, heat] of measureHeatmaps(view, this.#treeRows, (name) => this.#heatmapFor(name))) {
       this.#heatmaps.set(leaf, heat);
     }
+    this.#conditionals.clear();
+    for (const [leaf, c] of measureConditionals(view, this.#treeRows, (name) => conditionalSetting(this.#config, view, name))) {
+      this.#conditionals.set(leaf, c);
+    }
   }
 
   /**
@@ -1937,6 +1946,15 @@ export class CubeApp {
    */
   #heatmapFor(leafName: string): HeatmapSpec | undefined {
     return heatmapSetting(this.#config, this.#view ?? undefined, leafName);
+  }
+
+  /** What the menu's Conditional Formatting ▸ says of a leaf: its data bars, its icons, how many rules. */
+  #conditionalFacts(leafName: string): ConditionalFacts {
+    const c = conditionalSetting(this.#config, this.#view ?? undefined, leafName);
+    return {
+      dataBar: c?.dataBar !== undefined, rules: c?.rules?.length ?? 0, scale: this.#heatmapFor(leafName) !== undefined,
+      ...(c?.iconSet ? { iconSet: c.iconSet.set } : {}),
+    };
   }
 
   /**
@@ -2091,6 +2109,7 @@ export class CubeApp {
         hasExpanded: this.#owner.current.tree.opensAny(this.#shown.rows.length),
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
+        ...(column !== undefined ? { conditional: this.#conditionalFacts(column) } : {}),
         ...(this.#config.pivotStatisticColumnName !== undefined
           ? { totalLabel: this.#config.pivotStatisticColumnName }
           : {}),
@@ -3071,7 +3090,9 @@ export class CubeApp {
     const page = this.#exportPage();
     return renderExport(kind, {
       view, model, config: this.#config, formats: this.#formats, formatters: this.#formatters,
-      cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value), ...(page ? { page } : {}), at: new Date(),
+      cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(this.#conditionals, this.#treeRows, leaf, row, value),
+      ...(page ? { page } : {}), at: new Date(),
     });
   }
 

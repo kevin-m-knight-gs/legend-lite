@@ -4,6 +4,7 @@
 // given what it does not take.
 
 import assert from 'node:assert/strict';
+import { DATA_BAR, RULE_STYLES } from '../src/conditional.ts';
 import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
@@ -224,7 +225,8 @@ describe('what a gesture is given', () => {
   it('a gesture that reads the view is said to -- the heatmap only where a pivoted leaf can be named; one given no view refuses to guess', () => {
     const pivoted: CubeSnapshot = { ...CUBE, pivotOn: ['year'] };
     assert.deepEqual(GRID_GESTURES.filter((n) => gestureReadsView(n, pivoted, { column: '2021__|__notional' })),
-      ['header.sort', 'column.minimizeAll', 'heatmap.add', 'heatmap.remove']);
+      ['header.sort', 'column.minimizeAll', 'heatmap.add', 'heatmap.remove', 'format.dataBar', 'format.colorScale', 'format.iconSet',
+        'format.addRule', 'format.clear']);
     // a grid not pivoted, a column of the grid's own, a pivot's total: no view to read, the grid not run for it
     assert.equal(gestureReadsView('heatmap.add', CUBE, { column: 'notional' }), false);
     assert.equal(gestureReadsView('heatmap.add', pivoted, { column: 'notional' }), false);
@@ -238,5 +240,34 @@ describe('what a gesture is given', () => {
   it("a gesture's commands apply: what it makes, the grid takes", () => {
     const d = { snapshot: CUBE, config: DEFAULT_CONFIGURATION };
     assert.deepEqual(applyGridCommands(d, gridGesture('pivot.addVertical', grid(), { column: 'desk' })).snapshot.rows, ['region', 'desk']);
+  });
+});
+
+describe("conditional formats (conditional.ts): on what a heatmap is on", () => {
+  it('data bars on and off, a colour scale, icons, a rule added once, all cleared', () => {
+    const patch = (columns: unknown): unknown[] => [{ kind: 'configure', patch: { columns } }];
+    assert.deepEqual(gridGesture('format.dataBar', grid(), { column: 'notional', on: true }), patch({ notional: { dataBar: DATA_BAR } }));
+    assert.deepEqual(gridGesture('format.dataBar', grid(), { column: 'notional', on: false }), [], 'no bars to take off');
+    assert.deepEqual(gridGesture('format.colorScale', grid(), { column: 'notional', scale: { from: '#f8696b', mid: '#ffeb84', to: '#63be7b' } }),
+      patch({ notional: { heatmap: { from: '#f8696b', mid: '#ffeb84', to: '#63be7b' } } }));
+    assert.deepEqual(gridGesture('format.iconSet', grid(), { column: 'notional', set: 'flags', reverse: true }),
+      patch({ notional: { iconSet: { set: 'flags', reverse: true } } }));
+    const rule = { when: { op: 'greaterThan', value: 100 }, style: 'yellow' } as const;
+    const kept = { when: { op: 'greaterThan', value: 100 }, style: RULE_STYLES.yellow };
+    assert.deepEqual(gridGesture('format.addRule', grid(), { column: 'notional', rule }), patch({ notional: { rules: [kept] } }));
+    const ruled = withColumns({ notional: { rules: [kept as never] } });
+    assert.deepEqual(gridGesture('format.addRule', grid({}, ruled), { column: 'notional', rule }), [], 'the rule it has');
+    assert.deepEqual(gridGesture('format.addRule', grid({}, ruled), { column: 'notional', rule: { when: { op: 'blank' }, style: 'bold' } as const }),
+      patch({ notional: { rules: [kept, { when: { op: 'blank' }, style: RULE_STYLES.bold }] } }), 'after those it has');
+    assert.deepEqual(gridGesture('format.clear', grid({}, ruled), { column: 'notional' }),
+      patch({ notional: { heatmap: null, dataBar: null, iconSet: null, rules: null } }));
+    refused(() => gridGesture('format.iconSet', grid(), { column: 'notional', set: 'stars' as never }), /one of arrows, trafficLights, symbols, flags/);
+    refused(() => gridGesture('format.addRule', grid(), { column: 'notional', rule: { when: { op: 'top' }, style: 'yellow' } as never }), /count is missing/);
+    refused(() => gridGesture('format.colorScale', grid(), { column: 'notional', scale: { from: 'red', to: '#fff' } as never }), /#rrggbb, not "red"/);
+  });
+
+  it("on a pivoted column's measure, so every value's column has it", () => {
+    assert.deepEqual(gridGesture('format.iconSet', grid({ pivotOn: ['year'] }), { column: '2021__|__notional', set: 'arrows' }),
+      [{ kind: 'configure', patch: { columns: { notional: { iconSet: { set: 'arrows' } } } } }]);
   });
 });

@@ -102,6 +102,30 @@ class Grids(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "is not a column of the grid"):
             grid.configure({'columns': {'__pivot_total____|__nope': {'hidden': True}}})
 
+    def test_conditional_formats_are_set_by_name_and_drawn_in_the_export(self):
+        # Excel's conditional formats (DataCube's conditional.ts, through the gestures the screen's Conditional
+        # Formatting menu sends): data bars, an icon set, a rule, a three-colour scale -- kept in the grid's
+        # configuration, drawn in its HTML export as on screen, cleared at once, refused in DataCube's words
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['A', 'B', 'C'], 'qty': [10, -5, 40]})
+        grid = self.page.grid(frame, name='trades_formats')
+        grid.data_bars('qty').icon_set('qty', 'trafficLights').highlight('qty', {'op': 'lessThan', 'value': 0}, 'redText')
+        kept = grid._cube['configuration']['columns']['qty']
+        self.assertEqual(kept['iconSet'], {'set': 'trafficLights'})
+        self.assertEqual(kept['rules'], [{'when': {'op': 'lessThan', 'value': 0}, 'style': {'foreground': '#c62828'}}])
+        html = grid.export('html')
+        self.assertIn('linear-gradient', html)
+        self.assertIn('title="high">●<', html)
+        grid.color_scale('qty', '#f8696b', '#63be7b', mid='#ffeb84')
+        self.assertEqual(grid._cube['configuration']['columns']['qty']['heatmap'], {'from': '#f8696b', 'to': '#63be7b', 'mid': '#ffeb84'})
+        grid.clear_formats('qty')
+        self.assertNotIn('qty', grid._cube['configuration'].get('columns', {}))
+        self.assertNotIn('linear-gradient', grid.export('html'))
+        with self.assertRaisesRegex(ValueError, 'one of arrows, trafficLights, symbols, flags, not "stars"'):
+            grid.icon_set('qty', 'stars')
+        with self.assertRaisesRegex(ValueError, 'count is a whole number from 1, not 0'):
+            grid.highlight('qty', {'op': 'top', 'count': 0})
+
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap

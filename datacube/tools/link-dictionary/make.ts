@@ -37,6 +37,7 @@ const COLUMN: Required<ColumnConfiguration> = {
   format: FORMAT,
   appearance: DEFAULT_CONFIGURATION.appearance,
   heatmap: { from: '#ffffff', to: '#ff8a65' },
+  dataBar: { color: '#9fc3ea' }, iconSet: { set: 'arrows' }, rules: [{ when: { op: 'greaterThan', value: 0 }, style: { bold: true } }],
   excludedFromPivot: true, pivotSortDirection: 'desc', pivotStatisticColumnFunction: 'sum',
   displayAsLink: true, linkLabelParameter: '',
 };

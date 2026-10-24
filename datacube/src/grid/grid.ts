@@ -58,6 +58,7 @@ import {
   type CellAppearance,
   type GridAppearance,
 } from '../style.ts';
+import type { CellDecoration } from '../conditional.ts';
 
 export interface GridRowMeta {
   /** Depth in the row-group tree; 1 for a top-level row. */
@@ -133,6 +134,12 @@ export interface GridOptions {
     order: readonly string[],
     added?: string,
   ) => void;
+  /**
+   * A cell's conditional formats (conditional.ts): a bar behind its value, an icon before it, a rule's colours --
+   * drawn after the heatmap, so a rule's background is over its colour. A hook as cellBackground is, the grid being
+   * virtualised.
+   */
+  readonly cellDecoration?: (leaf: LeafColumn, row: number, value: Scalar) => CellDecoration | null;
   /**
    * A per-cell background, for a heatmap.
    *
@@ -1329,6 +1336,19 @@ export class DataGrid {
           // normal/negative background it would otherwise fight.
           const heat = this.#options.cellBackground?.(leaf, abs, value);
           if (heat) cell.style.backgroundColor = heat;
+          const deco = leaf.name === TREE_COLUMN ? null : this.#options.cellDecoration?.(leaf, abs, value) ?? null;
+          if (deco?.rule) {
+            if (deco.rule.background) cell.style.backgroundColor = deco.rule.background;
+            if (deco.rule.foreground) cell.style.color = deco.rule.foreground;
+            if (deco.rule.bold) cell.style.fontWeight = '700';
+          }
+          if (deco?.bar) {
+            // a bar from the zero line to the value, behind the text: a gradient of hard stops, its height the cell's middle
+            const at = (f: number): string => `${Math.round(f * 1000) / 10}%`;
+            cell.style.backgroundImage = `linear-gradient(90deg, transparent ${at(deco.bar.start)}, ${deco.bar.color} `
+              + `${at(deco.bar.start)}, ${deco.bar.color} ${at(deco.bar.end)}, transparent ${at(deco.bar.end)})`;
+            cell.classList.add('dc-bar');
+          }
 
           cell.title = leaf.name === TREE_COLUMN
             ? (this.#options.treeTitle?.(abs, text) ?? '')
@@ -1377,6 +1397,16 @@ export class DataGrid {
               cell.appendChild(a);
             } else {
               cell.textContent = text;
+            }
+            if (deco?.icon) {
+              const icon = doc.createElement('span');
+              icon.className = 'dc-cond-icon';
+              icon.style.color = deco.icon.color;
+              icon.textContent = deco.icon.glyph;
+              // what the icon says, for a reader that does not see its colour
+              icon.setAttribute('aria-label', deco.icon.label);
+              icon.title = deco.icon.label;
+              cell.prepend(icon);
             }
           }
         } else {

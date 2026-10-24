@@ -111,7 +111,7 @@ describe('buildMenu', () => {
     assert.deepEqual(
       withSub.map((i) => i.label),
       ['Export', 'Email', 'Edit', 'Sort', 'Filter', 'Pivot',
-        'Extended Columns', 'Resize', 'Pin', 'Heatmap', 'Create'],
+        'Extended Columns', 'Resize', 'Pin', 'Heatmap', 'Conditional Formatting', 'Create'],
     );
     // A submenu parent does nothing itself.
     assert.ok(withSub.every((i) => i.id === undefined));
@@ -748,5 +748,29 @@ describe("Add Model Measure ▸: the measures the grid's class's model declares 
     ]);
     assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional' })).some((i) => i.id === 'calc.modelMeasure'));
     assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional', modelMeasures: [] })).some((i) => i.id === 'calc.modelMeasure'));
+  });
+});
+
+describe('Conditional Formatting ▸: data bars, colour scales, icon sets, one-click rules, cleared (conditional.ts)', () => {
+  const sub = (ctx: Parameters<typeof buildMenu>[0], label: string): readonly MenuItem[] =>
+    menuItems(buildMenu(ctx)).find((i) => i.label === 'Conditional Formatting')?.submenu?.find((i) => i.label === label)?.submenu ?? [];
+  const top = (ctx: Parameters<typeof buildMenu>[0]): readonly MenuItem[] => menuItems(buildMenu(ctx)).find((i) => i.label === 'Conditional Formatting')?.submenu ?? [];
+
+  it("each a gesture carrying its choice; Data Bars a toggle; the column's icon set checked", () => {
+    const none = { dataBar: false, scale: false, rules: 0 };
+    assert.deepEqual(top({ snapshot: CUBE, column: 'notional', conditional: none }).map((i) => i.label),
+      ['Data Bars', 'Color Scales', 'Icon Sets', 'Highlight Rules', 'Clear Formatting from Column']);
+    assert.deepEqual(menuGesture(top({ snapshot: CUBE, column: 'notional', conditional: none })[0]!), { name: 'format.dataBar', args: { column: 'notional', on: true } });
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, dataBar: true } })[0]!.label, 'Remove Data Bars');
+    const icons = sub({ snapshot: CUBE, column: 'notional', conditional: { ...none, iconSet: 'flags' } }, 'Icon Sets');
+    assert.deepEqual(icons.map((i) => [i.label, Boolean(i.checked)]),
+      [['Arrows', false], ['Traffic Lights', false], ['Symbols', false], ['Flags', true], ['No Icons', false]]);
+    assert.deepEqual(menuGesture(icons.at(-1)!), { name: 'format.iconSet', args: { column: 'notional', set: null } });
+    const rules = sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Highlight Rules');
+    assert.deepEqual(menuGesture(rules[0]!)?.args, { column: 'notional', rule: { when: { op: 'top', count: 10 }, style: { foreground: '#006100', background: '#c6efce' } } });
+    assert.equal(sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Color Scales')[0]?.label, 'Green - Yellow - Red');
+    // nothing to clear, nothing offered to clear; something, offered
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: none }).at(-1)?.disabled, true);
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, rules: 1 } }).at(-1)?.disabled, false);
   });
 });

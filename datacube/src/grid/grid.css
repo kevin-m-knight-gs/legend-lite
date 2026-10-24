@@ -898,3 +898,16 @@
   font-weight: 500;
   pointer-events: none;
 }
+
+/* Conditional formats (conditional.ts): a data bar's band, the cell's middle; an icon before the value. */
+.dc-cell.dc-bar {
+  background-size: 100% 64%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.dc-cell .dc-cond-icon {
+  margin-right: 4px;
+  font-size: 0.9em;
+  flex: none;
+}

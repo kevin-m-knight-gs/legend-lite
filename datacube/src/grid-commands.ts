@@ -5,6 +5,7 @@
 // No DOM, no planner: what needs the compiler (a calculated column's parse) is done before the command is built.
 
 import { nameProblem } from './calc.ts';
+import { readColorScale, readDataBar, readIconSet, readRule } from './conditional.ts';
 import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import {
   APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, renameColumnConfig, withConfiguration,
@@ -347,6 +348,20 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
     }
     if (excludedFromPivot !== undefined && typeof excludedFromPivot !== 'boolean') {
       throw new CubeRefusal(`${name}'s excludedFromPivot is true or false, not ${JSON.stringify(excludedFromPivot)}`);
+    }
+    // conditional formats (conditional.ts): each as its reader takes it, or refused in its words
+    const { heatmap, dataBar, iconSet, rules } = presentation as Record<string, unknown>;
+    try {
+      if (heatmap !== undefined && heatmap !== null) readColorScale(heatmap);
+      if (dataBar !== undefined && dataBar !== null) readDataBar(dataBar);
+      if (iconSet !== undefined && iconSet !== null) readIconSet(iconSet);
+      if (rules !== undefined && rules !== null) {
+        if (!Array.isArray(rules)) throw new CubeRefusal(`rules are a list, each {when, style}, not ${JSON.stringify(rules)}`);
+        rules.forEach(readRule);
+      }
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      throw new CubeRefusal(`${name}: ${e.message}`);
     }
     if (kind !== undefined || aggregateFn !== undefined || aggregationParameters !== undefined) {
       d = setColumn(d, name, {

@@ -20,6 +20,8 @@ import {
   CubeRefusal, isPivotTotalColumn, readTopN, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
+import { DATA_BAR, readColorScale, readIconSet, readRule, type FormatRuleGiven, type IconSetName } from './conditional.ts';
+import type { HeatmapSpec } from './style.ts';
 import { dateRangeConditions, type DateRange } from './date-ranges.ts';
 import { keptCondition, ownConditions } from './value-filter.ts';
 import { TREE_COLUMN } from './treeview.ts';
@@ -77,6 +79,11 @@ export type GridGestureArgs = {
   readonly 'column.minimize': Column; readonly 'column.minimizeAll': Nothing;
   readonly 'columns.sizeToFit': { readonly widths: Widths; readonly viewport: number };
   readonly 'heatmap.add': Column; readonly 'heatmap.remove': Column;
+  readonly 'format.dataBar': Column & { readonly on: boolean };
+  readonly 'format.colorScale': Column & { readonly scale: HeatmapSpec };
+  readonly 'format.iconSet': Column & { readonly set: IconSetName | null; readonly reverse?: boolean };
+  readonly 'format.addRule': Column & { readonly rule: FormatRuleGiven };
+  readonly 'format.clear': Column;
   readonly 'view.chrome': { readonly showDragZones?: boolean; readonly showTitleBar?: boolean };
   readonly 'tree.open': { readonly path: RowPath; readonly open: boolean };
   readonly 'tree.collapseAll': Nothing;
@@ -194,10 +201,20 @@ function pivotedLeaf(s: CubeSnapshot, a: GestureArgs): boolean {
 /** A heatmap on or off for the column a leaf is of: a pivoted leaf's measure, so every value's leaf has it (a heatmap
  *  on one pivoted leaf and not its siblings is worse than none); a pivot total is a column of its own (the user,
  *  2026-10-18), its measure's leaves left alone (export-render.ts heatmapSetting). */
-const heatmap = (g: GestureGrid, leaf: string, on: boolean): GridCommand[] => {
-  const measure = pivotedLeaf(g.snapshot, { column: leaf }) ? viewOf(g).pivot.find((c) => c.name === leaf)?.measure.name ?? leaf : leaf;
+const heatmap = (g: GestureGrid, leaf: string, on: boolean): GridCommand[] =>
   // null takes it off, as JSON cannot write undefined
-  return patched(g, measure, { heatmap: on ? HEATMAP : null });
+  patched(g, presentedOn(g, leaf), { heatmap: on ? HEATMAP : null });
+
+/** The column a leaf's colouring is set on: a pivoted leaf's measure (heatmap's rule), else the leaf. */
+const presentedOn = (g: GestureGrid, leaf: string): string =>
+  (pivotedLeaf(g.snapshot, { column: leaf }) ? viewOf(g).pivot.find((c) => c.name === leaf)?.measure.name ?? leaf : leaf);
+
+/** A rule added to a column's (conditional.ts), after those it has; one it has already, nothing. */
+const addRule = (g: GestureGrid, leaf: string, given: unknown): GridCommand[] => {
+  const name = presentedOn(g, leaf);
+  const rule = readRule(given);
+  const has = columnConfig(g.config, name).rules ?? [];
+  return has.some((r) => JSON.stringify(r) === JSON.stringify(rule)) ? [] : [column(name, { rules: [...has, rule] })];
 };
 
 const GESTURES = {
@@ -355,6 +372,26 @@ const GESTURES = {
   },
   'heatmap.add': { args: ['column'], view: pivotedLeaf, make: (g, a) => heatmap(g, columnOf(a), true) },
   'heatmap.remove': { args: ['column'], view: pivotedLeaf, make: (g, a) => heatmap(g, columnOf(a), false) },
+  // conditional formats (conditional.ts), each on what a heatmap is on: data bars, a colour scale, icons, a rule, none
+  'format.dataBar': {
+    args: ['column', 'on'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), { dataBar: flag(a, 'on', 'the data bars shown') ? DATA_BAR : null }),
+  },
+  'format.colorScale': {
+    args: ['column', 'scale'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), { heatmap: readColorScale(a['scale']) }),
+  },
+  'format.iconSet': {
+    args: ['column', 'set', 'reverse?'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), {
+      iconSet: a['set'] === null ? null : readIconSet({ set: a['set'], ...(a['reverse'] !== undefined ? { reverse: a['reverse'] } : {}) }),
+    }),
+  },
+  'format.addRule': { args: ['column', 'rule'], view: pivotedLeaf, make: (g, a) => addRule(g, columnOf(a), a['rule']) },
+  'format.clear': {
+    args: ['column'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), { heatmap: null, dataBar: null, iconSet: null, rules: null }),
+  },
   // the zones or the title bar folded away or brought back (a page's bar says so too)
   'view.chrome': {
     args: ['showDragZones?', 'showTitleBar?'],

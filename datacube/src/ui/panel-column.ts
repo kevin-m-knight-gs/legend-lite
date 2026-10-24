@@ -31,6 +31,7 @@ import {
 import { numberDefaults, withColumn } from '../config.ts';
 import {
   AGGREGATE_FNS,
+  CubeRefusal,
   rowColumns,
   type AggregateFn,
   type ColumnKind,
@@ -38,6 +39,9 @@ import {
 import { allColumns, columnKind, offeredAggregates, setColumn } from '../grid-edits.ts';
 import { defaultKind } from '../../../engine-client/src/types.ts';
 import type { CellAppearance, ColourSet } from '../style.ts';
+import {
+  DATA_BAR, ICON_SET_LABELS, ICON_SET_NAMES, RULE_STYLES, readRule, ruleLabel, type FormatRule, type IconSetName, type RuleOp,
+} from '../conditional.ts';
 import type { PinPlacement } from '../grid/columns.ts';
 import {
   badge,
@@ -550,11 +554,21 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
             fieldColour(doc, 'to', heat.to, (to) =>
               patch({ heatmap: { ...heat, to: to ?? '#ff8a65' } }),
             ),
+            // Excel's three-colour scale: a colour at the middle of the range
+            checkbox(doc, 'Midpoint', heat.mid !== undefined, (on) => {
+              const { mid: _mid, ...two } = heat;
+              patch({ heatmap: on ? { ...two, mid: '#ffeb84' } : two });
+              ctx.refresh();
+            }),
+            ...(heat.mid !== undefined
+              ? [fieldColour(doc, 'mid', heat.mid, (mid) => patch({ heatmap: { ...heat, mid: mid ?? '#ffeb84' } }))]
+              : []),
           ]
         : []),
     ),
+    ...conditionalFields(doc, c, patch, () => ctx.refresh()),
     button(doc, 'Use Default Styling', () => {
-      patch({ appearance: undefined, heatmap: undefined });
+      patch({ appearance: undefined, heatmap: undefined, dataBar: undefined, iconSet: undefined, rules: undefined });
       ctx.refresh();
     }),
   );
@@ -577,7 +591,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
   foldable(doc, uiState, numbers, changed([], ['decimals', 'displayCommas', 'negativeParens', 'numberScale', 'unit']));
   foldable(doc, uiState, display, changed(['blurred', 'hidden', 'pinned', 'widthMode', 'width', 'minWidth', 'maxWidth']));
   foldable(doc, uiState, links, changed(['displayAsLink', 'linkLabelParameter']));
-  foldable(doc, uiState, colouring, changed(['heatmap', 'appearance']));
+  foldable(doc, uiState, colouring, changed(['heatmap', 'dataBar', 'iconSet', 'rules', 'appearance']));
 
   const form = doc.createElement('div');
   form.className = 'dc-pe-form';
@@ -701,6 +715,89 @@ function withCurrent(
   if (current === undefined || choices.some((c) => c.value === current)) return choices;
   const known = AGGREGATES.find((a) => a.value === current);
   return [...choices, { value: current, label: known?.label ?? current }];
+}
+
+/** What a rule's operator asks for beside it: a number, two, some text, a count, or nothing. */
+const RULE_OPS: readonly { readonly op: RuleOp; readonly label: string; readonly takes: 'number' | 'two' | 'text' | 'value' | 'count' | 'none' }[] = [
+  { op: 'greaterThan', label: 'Greater than', takes: 'number' }, { op: 'lessThan', label: 'Less than', takes: 'number' },
+  { op: 'atLeast', label: 'At least', takes: 'number' }, { op: 'atMost', label: 'At most', takes: 'number' },
+  { op: 'between', label: 'Between', takes: 'two' }, { op: 'equal', label: 'Equal to', takes: 'value' },
+  { op: 'notEqual', label: 'Not equal to', takes: 'value' }, { op: 'contains', label: 'Text contains', takes: 'text' },
+  { op: 'startsWith', label: 'Text starts with', takes: 'text' }, { op: 'top', label: 'Top N', takes: 'count' },
+  { op: 'bottom', label: 'Bottom N', takes: 'count' }, { op: 'aboveAverage', label: 'Above average', takes: 'none' },
+  { op: 'belowAverage', label: 'Below average', takes: 'none' }, { op: 'blank', label: 'Blank', takes: 'none' },
+  { op: 'notBlank', label: 'Not blank', takes: 'none' },
+];
+const STYLE_LABELS: Readonly<Record<keyof typeof RULE_STYLES, string>> = {
+  lightRed: 'Light red fill', yellow: 'Yellow fill', green: 'Green fill', redText: 'Red text', bold: 'Bold',
+};
+
+/**
+ * THE COLUMN'S CONDITIONAL FORMATS (conditional.ts), beside its heatmap: data bars and their colour, an icon set and
+ * whether reversed, and its rules -- each listed in words with a Remove, and one more added from an operator, its
+ * value(s) and one of Excel's styles, judged by the rule's reader (a refusal said beside it).
+ */
+function conditionalFields(doc: Document, c: ColumnConfiguration, patch: (change: ColumnPatch) => void, refresh: () => void): HTMLElement[] {
+  const bar = c.dataBar;
+  const icons = c.iconSet;
+  const rules = c.rules ?? [];
+  const setRules = (next: readonly FormatRule[]): void => {
+    patch({ rules: next.length > 0 ? next : undefined });
+    refresh();
+  };
+  const listed = rules.map((r, i) => {
+    const row = doc.createElement('div');
+    row.className = 'dc-rule';
+    const words = doc.createElement('span');
+    words.className = 'dc-rule-words';
+    words.textContent = ruleLabel(r.when);
+    if (r.style.foreground) words.style.color = r.style.foreground;
+    if (r.style.background) words.style.backgroundColor = r.style.background;
+    if (r.style.bold) words.style.fontWeight = '700';
+    row.append(words, button(doc, 'Remove', () => setRules(rules.filter((_, j) => j !== i)), { title: `Remove the rule ${ruleLabel(r.when)}` }));
+    return row;
+  });
+  // the rule being written: its operator, its value(s), its style
+  let op: RuleOp = 'greaterThan';
+  let first: string | undefined;
+  let second: string | undefined;
+  let style: keyof typeof RULE_STYLES = 'lightRed';
+  const said = doc.createElement('span');
+  said.className = 'dc-rule-problem';
+  const add = (): void => {
+    const takes = RULE_OPS.find((o) => o.op === op)!.takes;
+    const num = (s: string | undefined): unknown => (s !== undefined && s.trim() !== '' && Number.isFinite(Number(s)) ? Number(s) : s);
+    const when = takes === 'number' ? { op, value: num(first) } : takes === 'two' ? { op, from: num(first), to: num(second) }
+      : takes === 'text' ? { op, text: first ?? '' } : takes === 'count' ? { op, count: num(first) }
+        : takes === 'value' ? { op, value: num(first) } : { op };
+    try {
+      setRules([...rules, readRule({ when, style })]);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      said.textContent = e.message;
+    }
+  };
+  return [
+    // its own words: the heatmap's checkbox is 'On'
+    field(doc, 'Data bars:', checkbox(doc, 'Show bars', bar !== undefined, (on) => {
+      patch({ dataBar: on ? DATA_BAR : undefined });
+      refresh();
+    }), ...(bar ? [fieldColour(doc, 'color', bar.color, (color) => patch({ dataBar: { ...bar, color: color ?? DATA_BAR.color } }))] : [])),
+    field(doc, 'Icons:', dropdown<IconSetName>(doc, icons?.set, ICON_SET_NAMES.map((v) => ({ value: v, label: ICON_SET_LABELS[v] })), (set) => {
+      patch({ iconSet: set ? { set, ...(icons?.reverse ? { reverse: true } : {}) } : undefined });
+      refresh();
+    }, { allowNone: true }), ...(icons ? [checkbox(doc, 'Reverse', icons.reverse, (reverse) => {
+      patch({ iconSet: { set: icons.set, ...(reverse ? { reverse: true } : {}) } });
+      refresh();
+    })] : [])),
+    field(doc, 'Rules:', ...listed,
+      dropdown<RuleOp>(doc, op, RULE_OPS.map((o) => ({ value: o.op, label: o.label })), (v) => { op = v ?? 'greaterThan'; }),
+      textInput(doc, undefined, (v) => { first = v; }, { placeholder: 'value', width: 80 }),
+      textInput(doc, undefined, (v) => { second = v; }, { placeholder: 'and', width: 60 }),
+      dropdown<keyof typeof RULE_STYLES>(doc, style, (Object.keys(STYLE_LABELS) as (keyof typeof RULE_STYLES)[]).map((k) => ({ value: k, label: STYLE_LABELS[k] })),
+        (v) => { style = v ?? 'lightRed'; }),
+      button(doc, 'Add Rule', add), said),
+  ];
 }
 
 function fieldColour(

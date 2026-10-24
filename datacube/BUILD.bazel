@@ -445,6 +445,7 @@ _HEADLESS_TESTS = [
     "class-tree",
     "column-kind",
     "columns-selector",
+    "conditional",
     "config",
     "config-fold",
     "create-class",

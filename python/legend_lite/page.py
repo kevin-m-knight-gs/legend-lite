@@ -424,6 +424,38 @@ class Grid(Tile):
         it off (the gesture ``pivot.removeHorizontal``); not pivoted on, nothing changes."""
         return self._gesture('pivot.removeHorizontal', {'column': column})
 
+    def data_bars(self, column: str, on: bool = True) -> Grid:
+        """Data bars in ``column``'s cells -- or, ``on=False``, none -- each from the zero line to its value against the
+        column's range at its depth, as the header menu's Conditional Formatting ▸ Data Bars draws them (the gesture
+        ``format.dataBar``; DataCube's conditional.ts). On a pivoted column's measure, as a heatmap is."""
+        return self._gesture('format.dataBar', {'column': column, 'on': on})
+
+    def color_scale(self, column: str, low: str, high: str, mid: str | None = None) -> Grid:
+        """A colour scale on ``column``: ``low`` at its smallest value, ``high`` at its largest, ``mid`` (``'#rrggbb'``)
+        halfway -- Excel's three-colour scale -- as Conditional Formatting ▸ Color Scales sets one (``format.colorScale``;
+        the heatmap's colours)."""
+        scale = {'from': low, 'to': high, **({'mid': mid} if mid is not None else {})}
+        return self._gesture('format.colorScale', {'column': column, 'scale': scale})
+
+    def icon_set(self, column: str, set: str | None = 'arrows', reverse: bool = False) -> Grid:
+        """An icon before each of ``column``'s values by the third of its range it falls in -- ``set``: ``'arrows'``,
+        ``'trafficLights'``, ``'symbols'`` or ``'flags'``; ``None`` takes them off; ``reverse`` the high icon for the low
+        values (a cost's) -- as Conditional Formatting ▸ Icon Sets (``format.iconSet``)."""
+        return self._gesture('format.iconSet', {'column': column, 'set': set, **({'reverse': True} if reverse else {})})
+
+    def highlight(self, column: str, when: dict, style: str | dict = 'lightRed') -> Grid:
+        """A rule on ``column``: its cells drawn in ``style`` where ``when`` holds -- ``{'op': 'greaterThan', 'value':
+        100}``, ``{'op': 'between', 'from': 1, 'to': 9}``, ``{'op': 'contains', 'text': 'EM'}``, ``{'op': 'top', 'count':
+        10}``, ``{'op': 'aboveAverage'}``, ``{'op': 'blank'}`` ... -- the first rule that holds drawing; ``style`` one of
+        Excel's (``'lightRed'``, ``'yellow'``, ``'green'``, ``'redText'``, ``'bold'``) or ``{'foreground', 'background',
+        'bold'}`` (``format.addRule``; DataCube's conditional.ts judges it, in its words)."""
+        return self._gesture('format.addRule', {'column': column, 'rule': {'when': when, 'style': style}})
+
+    def clear_formats(self, column: str) -> Grid:
+        """``column``'s conditional formats taken off -- its colour scale, data bars, icons and rules -- as Conditional
+        Formatting ▸ Clear Formatting from Column (``format.clear``)."""
+        return self._gesture('format.clear', {'column': column})
+
     def heatmap(self, column: str, on: bool = True) -> Grid:
         """A heatmap on ``column`` -- or, ``on=False``, off -- as the header menu's Add Heatmap and Remove Heatmap paint
         it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted column's measure, so every value's column

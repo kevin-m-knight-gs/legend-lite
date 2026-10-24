@@ -12,6 +12,7 @@
 // become REDACTED before any format sees a value, so no renderer can forget it.
 
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
+import type { CellDecoration } from './conditional.ts';
 import type { ColumnModel, HeaderCell, LeafColumn } from './grid/columns.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import {
@@ -59,6 +60,9 @@ export interface ExportStyle {
   readonly strike?: boolean;
   readonly align: TextAlign;
   readonly fontCase?: FontCase;
+  /** A conditional format's data bar and icon (conditional.ts), drawn where a file can (HTML). */
+  readonly bar?: { readonly start: number; readonly end: number; readonly color: string };
+  readonly icon?: { readonly glyph: string; readonly color: string; readonly label: string };
 }
 
 /** The grid-wide look: its font, its lines, its header (plain gray, whatever the grid's is). */
@@ -126,6 +130,8 @@ export interface ExportSource {
   readonly columnAppearance?: Readonly<Record<string, CellAppearance>>;
   /** A cell's heatmap colour, as the grid asks for it: (leaf, row, value). */
   readonly cellBackground?: (leaf: LeafColumn, row: number, value: Scalar) => string | null;
+  /** A cell's conditional formats, as the grid asks for them (conditional.ts). */
+  readonly cellDecoration?: (leaf: LeafColumn, row: number, value: Scalar) => CellDecoration | null;
 }
 
 /** The label the grid shows over one leaf, per header level (from the header cells that cover it). */
@@ -189,10 +195,16 @@ export function exportTable(source: ExportSource): ExportTable {
       const { foreground, background } = c.redacted ? {} : coloursFor(a, valueState(v, c.type));
       // the grid's order: the band, the total's shading over it, the value's colour, a heatmap last
       const heat = c.redacted || !source.cellBackground ? null : source.cellBackground(leaf, r, v);
-      const bg = heat ?? background ?? (kind === 'total' ? GRID_LOOK.totalBackground : banded);
+      // and a conditional format's over it, as the grid draws them: a rule's colours, a bar, an icon
+      const deco = c.redacted || c.tree || !source.cellDecoration ? null : source.cellDecoration(leaf, r, v);
+      const bg = deco?.rule?.background ?? heat ?? background ?? (kind === 'total' ? GRID_LOOK.totalBackground : banded);
+      const fg = deco?.rule?.foreground ?? foreground;
       return {
-        ...(c.redacted ? { color: '#a3a3a3', italic: true } : foreground ? { color: foreground } : {}),
+        ...(c.redacted ? { color: '#a3a3a3', italic: true } : fg ? { color: fg } : {}),
         ...(bg ? { background: bg } : {}),
+        ...(deco?.rule?.bold ? { bold: true } : {}),
+        ...(deco?.bar ? { bar: deco.bar } : {}),
+        ...(deco?.icon ? { icon: deco.icon } : {}),
         ...(a.fontFamily ? { fontFamily: a.fontFamily } : {}),
         ...(a.fontSize !== undefined ? { fontSize: a.fontSize } : {}),
         ...(a.bold || kind === 'total' ? { bold: true } : {}),

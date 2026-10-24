@@ -49,6 +49,8 @@ import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, relativeDateWords, rowCol
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
 import { gestureTakes, isGridGesture, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
+import { COLOR_SCALES, ICON_SET_LABELS, ICON_SET_NAMES, RULE_PRESETS, type FormatRule, type IconSetName } from '../conditional.ts';
+import type { HeatmapSpec } from '../style.ts';
 
 /**
  * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
@@ -76,6 +78,8 @@ export interface MenuContext {
   readonly hasExpanded?: boolean;
   /** Whether the column under the pointer already has a heatmap. */
   readonly hasHeatmap?: boolean;
+  /** The column under the pointer's conditional formats (Conditional Formatting ▸). */
+  readonly conditional?: ConditionalFacts;
   /** What a pivot total's header is named (Properties' Pivot Statistic Column Name), when it is renamed. */
   readonly totalLabel?: string;
   /**
@@ -250,6 +254,11 @@ export type MenuActionId =
   | 'email.pdf'
   | 'heatmap.add'
   | 'heatmap.remove'
+  | 'format.dataBar'
+  | 'format.colorScale'
+  | 'format.iconSet'
+  | 'format.addRule'
+  | 'format.clear'
   | 'chart.plot'
   | 'grid.new'
   | 'source.new'
@@ -363,10 +372,23 @@ export interface MenuItem {
   /** A top N's N, and whether it is the bottom's (Filter ▸ Top 10). */
   readonly n?: number;
   readonly bottom?: boolean;
+  /** Conditional Formatting ▸'s choices: data bars on or off, a colour scale, an icon set (null: none), a rule. */
+  readonly on?: boolean;
+  readonly scale?: HeatmapSpec;
+  readonly set?: IconSetName | null;
+  readonly rule?: FormatRule;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
   /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
   readonly hint?: string;
+}
+
+/** What Conditional Formatting ▸ says of a column: its data bars, its colour scale, its icons, how many rules. */
+export interface ConditionalFacts {
+  readonly dataBar: boolean;
+  readonly scale: boolean;
+  readonly iconSet?: IconSetName;
+  readonly rules: number;
 }
 
 export interface MenuGroup {
@@ -524,6 +546,42 @@ function modelMeasureItems(ctx: MenuContext): MenuItem[] {
   return [{
     label: 'Add Model Measure',
     submenu: ctx.modelMeasures.map((m) => ({ id: 'calc.modelMeasure' as const, label: m.name, measure: m.path, ...(m.doc !== undefined ? { hint: m.doc } : {}) })),
+  }];
+}
+
+/**
+ * Conditional Formatting ▸ (Excel's; conditional.ts): Data Bars on or off, a colour scale, an icon set, the one-click
+ * rules -- a rule of a value of one's own is the column's Properties' -- and the column's formats cleared. Each on what
+ * a heatmap is on (a pivoted column's measure).
+ */
+function conditionalItems(ctx: MenuContext, column: string | undefined): MenuItem[] {
+  const c = ctx.conditional;
+  const on: Pick<MenuItem, 'column'> = column !== undefined ? { column } : {};
+  return [{
+    label: 'Conditional Formatting',
+    submenu: [
+      { id: 'format.dataBar', label: c?.dataBar ? 'Remove Data Bars' : 'Data Bars', disabled: !column, on: !c?.dataBar, ...on },
+      {
+        label: 'Color Scales',
+        submenu: COLOR_SCALES.map((s) => ({ id: 'format.colorScale' as const, label: s.label, disabled: !column, scale: s.scale, ...on })),
+      },
+      {
+        label: 'Icon Sets',
+        submenu: [
+          ...ICON_SET_NAMES.map((set) => ({ id: 'format.iconSet' as const, label: ICON_SET_LABELS[set], disabled: !column,
+            checked: c?.iconSet === set, set, ...on })),
+          { id: 'format.iconSet' as const, label: 'No Icons', disabled: !column || c?.iconSet === undefined, set: null, separated: true, ...on },
+        ],
+      },
+      {
+        label: 'Highlight Rules',
+        submenu: RULE_PRESETS.map((r) => ({ id: 'format.addRule' as const, label: r.label, disabled: !column, rule: r.rule, ...on })),
+      },
+      {
+        id: 'format.clear', label: 'Clear Formatting from Column', separated: true,
+        disabled: !column || !(c && (c.dataBar || c.scale || c.iconSet !== undefined || c.rules > 0)), ...on,
+      },
+    ],
   }];
 }
 
@@ -840,6 +898,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         },
       ],
     },
+    ...conditionalItems(ctx, column),
   ]);
 
   // CREATE sits beside Properties, as Insert did: a chart, another grid, a class is made OF the cube rather than an
@@ -963,6 +1022,7 @@ export function menuGesture(item: MenuItem): { readonly name: GridGestureName; r
   if (!isGridGesture(item.id)) return null;
   const carried: Record<string, unknown> = {
     column: item.column, operator: item.operator, value: item.value, range: item.range, n: item.n, bottom: item.bottom,
+    on: item.on, scale: item.scale, set: item.set, rule: item.rule,
   };
   return {
     name: item.id,

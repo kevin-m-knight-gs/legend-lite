@@ -32,7 +32,8 @@ import {
 } from '../filter-operators.ts';
 import { STALE } from '../epoch.ts';
 import {
-  EXPORT_KINDS, columnFormats, heatmapColour, heatmapSetting, isExportKind, measureHeatmaps, renderExport,
+  EXPORT_KINDS, cellDecoration, columnFormats, conditionalSetting, heatmapColour, heatmapSetting, isExportKind, measureConditionals,
+  measureHeatmaps, renderExport,
 } from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
@@ -1190,10 +1191,12 @@ export async function gridExport(spec: GridSpec, kind: string): Promise<string> 
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     const config = state.configuration;
     const heatmaps = measureHeatmaps(view, view.treeRows, (name) => heatmapSetting(config, view, name));
+    const conditionals = measureConditionals(view, view.treeRows, (name) => conditionalSetting(config, view, name));
     const file = renderExport(kind, {
       view, model: shownColumns(view, config), config,
       formats: columnFormats(config, state.snapshot, state.snapshot, view), formatters: new FormatterCache(),
-      cellBackground: (leaf, row, value) => heatmapColour(heatmaps, view.treeRows, leaf, row, value), at: new Date(),
+      cellBackground: (leaf, row, value) => heatmapColour(heatmaps, view.treeRows, leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(conditionals, view.treeRows, leaf, row, value), at: new Date(),
     });
     const { content } = file;
     return JSON.stringify({ name: file.name, mime: file.mime, text: typeof content === 'string',

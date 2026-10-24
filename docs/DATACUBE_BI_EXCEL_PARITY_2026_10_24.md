@@ -346,10 +346,10 @@ Status: **Have**, **Partial**, **Missing**. Where: **DC** (DataCube alone, `data
 
 | Feature | Reference | Status | Where | Size | Phase |
 |---|---|---|---|---|---|
-| Data bars | Excel, Power BI | Missing | DC (a bar drawn in the cell from the column's range, the range a query) | M | P3 |
-| Three-colour scale with a midpoint | Excel | Partial: two colours | DC | S | P3 |
-| Icon sets (arrows, flags, traffic lights) by thresholds | Excel, Power BI | Missing | DC | M | P3 |
-| Rule-based formatting (value > 100: red; text contains; top 10%) | Excel | Missing (a fixed sign rule only) | DC | M | P3 |
+| Data bars | Excel, Power BI | **Built 2026-10-24** (`datacube/src/conditional.ts`): from the zero line to the value, a negative bar leftward in red, against the column's range at the cell's depth -- measured over the whole column as the heatmap is, never the window on screen; Conditional Formatting ▸ Data Bars, the column's Properties, Python's `grid.data_bars`; drawn in the HTML export | DC | M | P3 |
+| Three-colour scale with a midpoint | Excel | **Built 2026-10-24**: the heatmap's `mid` colour; Color Scales ▸ offers Excel's (green-yellow-red, red-yellow-green, blue-white-red) and the two-colour one; Python's `grid.color_scale` | DC | S | P3 |
+| Icon sets (arrows, flags, traffic lights) by thresholds | Excel, Power BI | **Built 2026-10-24**: arrows, traffic lights, symbols, flags, by the third of the range (Excel's 33%/67%), reversed for a cost; each icon labelled for a reader that does not see colour. Thresholds of one's own: later | DC | M | P3 |
+| Rule-based formatting (value > 100: red; text contains; top 10%) | Excel | **Built 2026-10-24**: greater/less than, at least/most, between, equal, contains, starts with, top/bottom N (ties in), above/below average, blank -- the first rule that holds drawing one of Excel's styles or one's own colours; the menu's one-click rules, the Properties' rule of a value of one's own, Python's `grid.highlight`; a rule's colours in every export. Top N% later | DC | M | P3 |
 | Custom number format codes (`#,##0.0,,"M"`, `0.0%`, `[Red]`) | Excel, Power BI | Missing (codes only written for xlsx) | DC | M | P3 |
 | Date formats (`yyyy-mm-dd`, `dd MMM yyyy`, ...) | Excel | Partial: one style | DC | S | P3 |
 | Sparklines in cells (line, column, win/loss) | Excel, Power BI | Missing | DC (a group-level series query) | M | P3 |
