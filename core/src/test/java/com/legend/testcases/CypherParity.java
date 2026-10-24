@@ -706,13 +706,20 @@ public final class CypherParity {
 
     /** The outcome of a run that threw: refused by name (REFUSED, whatever Neo4j does), lite's compile error or
      *  another error, each BOTH_ERROR where Neo4j errs too. */
+    /** Whether {@code t} is the island's refusal the database raised as the statement ran, where only the rows tell
+     *  ({@link com.legend.protocol.cypher.CypherToPure#REFUSED_AS_IT_RUNS}: PR #67's second review, 2026-10-24). */
+    private static boolean refusedAsItRan(Throwable t) {
+        return t instanceof com.legend.error.DataError && String.valueOf(t.getMessage()).contains(
+                com.legend.protocol.cypher.CypherToPure.REFUSED_AS_IT_RUNS);
+    }
+
     private static SqlParity.Outcome failed(Throwable e, CypherAnswers.Answer a) {
         // a dialect's refusal by name (DialectCapability, at render: a microsecond engine asked for nanoseconds)
         // is a refusal, wherever it sits in the cause chain; a refusal is REFUSED where Neo4j raises too, as the
         // TCK's lane judges it: lite does not read the statement, so it does not catch Neo4j's error (PR #67's
         // review, 2026-10-22: eight cases had passed for BOTH_ERROR on a refusal)
         for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof com.legend.sql.dialect.DialectCapability) {
+            if (t instanceof com.legend.sql.dialect.DialectCapability || refusedAsItRan(t)) {
                 return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
             }
         }

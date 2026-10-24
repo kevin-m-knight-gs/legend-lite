@@ -1815,7 +1815,7 @@ lite/dml/update_returning	PASS	PASS
 lite/dml/delete_with_not_exists	PASS	PASS
 lite/dml/delete_using	PASS	PASS
 lite/dml/with_an_insert	REFUSED	REFUSED
-lite/dml/insert_returning_every_column	PASS	PASS
+lite/dml/insert_returning_every_column	REFUSED	REFUSED
 lite/dml/insert_returning_an_expression	PASS	PASS
 lite/dml/insert_select_returning	PASS	PASS
 lite/dml/update_returning_a_null	PASS	PASS

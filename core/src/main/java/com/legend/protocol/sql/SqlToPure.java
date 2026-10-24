@@ -467,6 +467,8 @@ public final class SqlToPure {
                 staged.add(new OutCol(c.name(), c.kind(), true, c.detail()));
             }
         }
+        returnsOnlyWritten(ins, t, unwritten.stream().map(ColSpec::name)
+                .collect(java.util.stream.Collectors.toSet()));
         String stage = SYNTHETIC + "written";
         ValueSpecification rowsWritten = unwritten.isEmpty() ? values : call("extend", values,
                 new ColSpecArray(unwritten));
@@ -474,6 +476,36 @@ public final class SqlToPure {
         return List.of(call("letFunction", new CString(stage), call(STAGE, rowsWritten)),
                 call("write", call("select", new Variable(stage), new ColSpecArray(writtenNames)), t.table()),
                 returned(stage, staged, t, ins.returning(), ins.pos()));
+    }
+
+    /** An INSERT's RETURNING reading a column the INSERT does not write is refused by name (PR #67's second review,
+     *  2026-10-24): RETURNING reads the rows staged before the write, and such a column's value is the database's (a
+     *  default, a sequence, a trigger), which no model declares, so {@code INSERT INTO t (name) VALUES ('x') RETURNING
+     *  id} over a serial id read NULL where Postgres returns the id it gave. */
+    private void returnsOnlyWritten(SqlAst.Insert ins, Target t, Set<String> unwritten) {
+        if (unwritten.isEmpty()) {
+            return;
+        }
+        for (SqlAst.SelectItem item : ins.returning()) {
+            List<SqlAst.ColumnRef> refs = new ArrayList<>();
+            if (item instanceof SqlAst.SelectExpr se) {
+                columnRefs(se.expr(), refs);
+            }
+            for (SqlAst.ColumnRef ref : refs) {
+                OutCol c = column(t, ref.parts().get(ref.parts().size() - 1));
+                if (c != null && unwritten.contains(c.name())) {
+                    throw SqlTranslationException.unsupported("RETURNING a column the INSERT does not write ("
+                            + c.name() + ") is not supported: its value is the database's (a default, a sequence, a"
+                            + " trigger), which the model does not declare", ref.pos());
+                }
+            }
+            if (item instanceof SqlAst.AllColumns) {
+                throw SqlTranslationException.unsupported("RETURNING * of an INSERT that does not write every column"
+                        + " (" + String.join(", ", new java.util.TreeSet<>(unwritten)) + ") is not supported: their"
+                        + " values are the database's (a default, a sequence, a trigger), which the model does not"
+                        + " declare", item.pos());
+            }
+        }
     }
 
     /** The keys an ON CONFLICT reads: the table's primary key, as the store declares it, which Postgres's unique index

@@ -135,6 +135,13 @@ public final class CypherToPure {
         default @com.legend.base.Nullable String nativeStore() {
             return null;
         }
+
+        /** The primary key's columns of the table {@code table} of the database {@code database}, as the model
+         *  declares them; null for a table the model does not declare. The base: a model declaring no database (a
+         *  graph of a domain model alone, whose writes mint no store id). */
+        default @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+            return null;
+        }
     }
 
     /** Where the model reports a procedure: its function's path, then each input and each output (a name and a
@@ -605,6 +612,11 @@ public final class CypherToPure {
 
     /** The prefix of the names the translator makes up for columns the query does not name. */
     private static final String SYNTHETIC = "_cypher_";
+
+    /** The start of a refusal the database raises as a statement runs, where only the rows tell that the statement
+     *  is one the island does not read (two classes' instances sharing an id, several rows writing what another
+     *  reads): a refusal by name, as one the translator raises is, but the database's. */
+    public static final String REFUSED_AS_IT_RUNS = "Not supported: ";
 
     private static final Set<String> AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "collect",
             "stdev", "stdevp", "percentilecont", "percentiledisc");
@@ -18728,6 +18740,9 @@ public final class CypherToPure {
                 idsUnique();
             }
             if (clauses.stream().anyMatch(c -> c instanceof CypherAst.Create || c instanceof CypherAst.Merge)) {
+                if (!domain) {
+                    keyedById(java.util.Objects.requireNonNull(store));
+                }
                 highWater = highWater();
             }
             State state = null;
@@ -19532,14 +19547,16 @@ public final class CypherToPure {
 
         /** Whether a clause of the statement names an element of a domain model by its id alone, as the native
          *  store's graph does (a node's {@code nodes.id}), which a domain model's mappings need not keep unique across
-         *  its classes: a MERGE (its match), a DELETE, a REMOVE, and a SET whose elements a later clause reads again.
+         *  its classes: a MERGE (its match), a DELETE, a REMOVE, and a SET whose elements a later clause, or a later
+         *  group of its items ({@link #setGroups}), reads again.
          *  A CREATE names each element it makes by an id above every class's, and a SET each element by its class
          *  and its id. */
         private boolean namesByIdAcrossClasses() {
             for (int i = 0; i < clauses.size(); i++) {
                 Clause c = clauses.get(i);
                 if (c instanceof CypherAst.Merge || c instanceof CypherAst.Remove || c instanceof CypherAst.Delete
-                        || c instanceof CypherAst.SetClause && !usedAfter(i).isEmpty()) {
+                        || c instanceof CypherAst.SetClause st && (!usedAfter(i).isEmpty()
+                        || setGroups(st.items(), null).size() > 1)) {
                     return true;
                 }
             }
@@ -19556,10 +19573,24 @@ public final class CypherToPure {
                         null, null))), new ColSpecArray(List.of(new ColSpec("n", lambda("x", new CInteger(1L)),
                         lambda("y", call("count", new Variable("y"))), null))));
                 statements.add(call("project", ids, new ColSpecArray(List.of(new ColSpec(SYNTHETIC + "shared",
-                        lambda("r", raisingWhere(call("greaterThan", read("n"), new CInteger(1L)), "A write to a graph"
-                        + " of a domain model whose " + ("nodes".equals(t) ? "node" : "edge") + " classes' instances"
-                        + " share an id is not supported: the writer names an element by its id",
+                        lambda("r", raisingWhere(call("greaterThan", read("n"), new CInteger(1L)), REFUSED_AS_IT_RUNS
+                        + "a write to a graph of a domain model whose " + ("nodes".equals(t) ? "node" : "edge")
+                        + " classes' instances share an id (the writer names an element by its id)",
                         new CInteger(1L))), null, null)))));
+            }
+        }
+
+        /** A statement that creates over the native store {@code store} refuses, by name, a store whose {@code nodes}
+         *  or {@code rels} does not declare its {@code id} the primary key (PR #67's second review, 2026-10-24): an
+         *  id is minted as the greatest the statement read plus the row's number ({@link #minted}), so two writers at
+         *  once may mint one id, which only the key turns into the database's error. */
+        private void keyedById(String store) {
+            for (String t : List.of("nodes", "rels")) {
+                if (!List.of("id").equals(model.primaryKey(store, t))) {
+                    throw CypherErrors.unsupported("a CREATE or MERGE over the native graph store " + store + ", whose"
+                            + " table " + t + " does not declare id its primary key, is not supported (two writers"
+                            + " at once could mint one id)", clauses.get(0).pos());
+                }
             }
         }
 
@@ -20047,10 +20078,138 @@ public final class CypherToPure {
          *  written ({@code =} deleting the others first), labels added to the node's label set; the elements it
          *  touched read again after. */
         private State set(CypherAst.SetClause st, @com.legend.base.Nullable State state, Set<String> scope) {
-            Rows staged = stage(carried(state, scope, st.pos()));
-            Map<String, Map<String, Kind>> written = new LinkedHashMap<>();
-            setItems(staged, st.items(), written);
-            return refreshed(staged, rereads(staged, written), st.pos());
+            @com.legend.base.Nullable State rows = state;
+            boolean first = true;
+            for (List<CypherAst.SetItem> group : setGroups(st.items(), graphVariables(state))) {
+                Rows staged = stage(carried(rows, scope, st.pos()));
+                if (first) {
+                    // (over the rows as the clause found them: a row's items, every group's, against another row's)
+                    noRowReadsWhatAnotherWrites(staged, st.items());
+                    first = false;
+                }
+                Map<String, Map<String, Kind>> written = new LinkedHashMap<>();
+                setItems(staged, group, written);
+                rows = refreshed(staged, rereads(staged, withAliases(staged, written, st.pos())), st.pos());
+            }
+            return java.util.Objects.requireNonNull(rows);
+        }
+
+        /**
+         * A SET's items in the groups each written at once over the graph the group before left (PR #67's second
+         * review, 2026-10-24, measured on Neo4j 2026.09.0, Cypher 5 and 25 alike): Neo4j writes a run of consecutive
+         * {@code v.key = value} items on one variable at once, every value read before the run ({@code SET n.a = 1,
+         * n.b = n.a + 1} gives b 1, {@code SET n.a = 7, n.b = m.a} over one node b its old a), and each other item --
+         * a property of another variable, a map, a label -- after the items before it ({@code SET n.a = 5, m.b = m.a}
+         * over one node gives b 5; {@code SET n.a = 1, n:L, n.b = n.a + 1} b 2). A group ends before an item outside
+         * the run whose value reads a variable that may hold a node or relationship ({@code graph}; null, any); an
+         * item whose value reads none is the same write either way.
+         */
+        private static List<List<CypherAst.SetItem>> setGroups(List<CypherAst.SetItem> items,
+                @com.legend.base.Nullable Set<String> graph) {
+            List<List<CypherAst.SetItem>> out = new ArrayList<>();
+            List<CypherAst.SetItem> group = new ArrayList<>();
+            @com.legend.base.Nullable String run = null;
+            for (CypherAst.SetItem item : items) {
+                String of = item instanceof CypherAst.SetProperty sp ? targetOf(sp.target()) : null;
+                if (!group.isEmpty() && (of == null || !of.equals(run))) {
+                    Set<String> read = variablesOfValue(item);
+                    if (graph != null) {
+                        read.retainAll(graph);
+                    }
+                    if (!read.isEmpty()) {
+                        out.add(group);
+                        group = new ArrayList<>();
+                    }
+                }
+                group.add(item);
+                run = of;
+            }
+            out.add(group);
+            return out;
+        }
+
+        /** The variables of the rows {@code state} that may hold a node or relationship: a node's or relationship's,
+         *  a value the database holds as JSON (a node's value, a path, a list of them). Null where the state is a
+         *  graph's, whose every variable is its pattern's. */
+        private static @com.legend.base.Nullable Set<String> graphVariables(@com.legend.base.Nullable State state) {
+            if (state == null) {
+                return Set.of();
+            }
+            if (!(state instanceof Rows rows)) {
+                return null;
+            }
+            Set<String> out = new HashSet<>();
+            for (Col c : rows.columns()) {
+                if (c.detail() instanceof NodeShape || c.detail() instanceof RelShape || c.kind() == Kind.JSON) {
+                    out.add(c.name());
+                }
+            }
+            return out;
+        }
+
+        /** The variable a SET item writes. */
+        private static String targetVariable(CypherAst.SetItem item) {
+            return switch (item) {
+                case CypherAst.SetProperty sp -> targetOf(sp.target());
+                case CypherAst.SetProperties sp -> sp.variable();
+                case CypherAst.SetLabels sl -> sl.variable();
+            };
+        }
+
+        /** The variables a SET item's value reads (a label's item, none). */
+        private static Set<String> variablesOfValue(CypherAst.SetItem item) {
+            Set<String> out = new HashSet<>();
+            switch (item) {
+                case CypherAst.SetProperty sp -> variablesIn(sp.value(), out);
+                case CypherAst.SetProperties sp -> variablesIn(sp.value(), out);
+                case CypherAst.SetLabels sl -> { }
+            }
+            return out;
+        }
+
+        /** Where the items {@code group} write over the staged rows read a node or relationship they write, the
+         *  database's refusal, by name, of rows in which one row writes an element another row reads (PR #67's
+         *  second review, 2026-10-24: {@code UNWIND [1, 2, 3] AS i MATCH (n {name: 'a'}) SET n.c = n.c + 1} left 1
+         *  where Neo4j, writing row after row, leaves 3). One write per element, or values that read no element,
+         *  write as Neo4j's rows do. */
+        private void noRowReadsWhatAnotherWrites(Rows staged, List<CypherAst.SetItem> group) {
+            Set<String> read = new java.util.LinkedHashSet<>();
+            Set<String> writes = new java.util.LinkedHashSet<>();
+            for (CypherAst.SetItem item : group) {
+                read.addAll(variablesOfValue(item));
+                writes.add(targetVariable(item));
+            }
+            read.retainAll(keys.keySet());
+            writes.retainAll(keys.keySet());
+            String number = java.util.Objects.requireNonNull(ordinal);
+            for (String w : writes) {
+                for (String r : read) {
+                    ValueSpecification writer = call("project", staged.vs(), new ColSpecArray(List.of(
+                            new ColSpec(SYNTHETIC + "written", lambda("x", new AppliedProperty(new Variable("x"),
+                                    java.util.Objects.requireNonNull(keys.get(w)))), null, null),
+                            new ColSpec(SYNTHETIC + "writer", lambda("x", new AppliedProperty(new Variable("x"),
+                                    number)), null, null))));
+                    ValueSpecification reader = call("project", staged.vs(), new ColSpecArray(List.of(
+                            new ColSpec(SYNTHETIC + "read", lambda("x", new AppliedProperty(new Variable("x"),
+                                    java.util.Objects.requireNonNull(keys.get(r)))), null, null),
+                            new ColSpec(SYNTHETIC + "reader", lambda("x", new AppliedProperty(new Variable("x"),
+                                    number)), null, null))));
+                    ValueSpecification other = call("not", call("equal", new AppliedProperty(new Variable("l"),
+                            SYNTHETIC + "writer"), new AppliedProperty(new Variable("r"), SYNTHETIC + "reader")));
+                    ValueSpecification pairs = call("join", writer, reader, new EnumValue(JOIN_KIND, "INNER"),
+                            new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(call("and",
+                                    call("equal", new AppliedProperty(new Variable("l"), SYNTHETIC + "written"),
+                                            new AppliedProperty(new Variable("r"), SYNTHETIC + "read")), other))));
+                    // (the condition the row's, not a constant: a database may fold a constant raise away from the
+                    // rows, or raise it over none)
+                    statements.add(call("project", pairs, new ColSpecArray(List.of(new ColSpec(SYNTHETIC
+                            + "overlapping", lambda("p", raisingWhere(call("not", call("equal", new AppliedProperty(
+                            new Variable("p"), SYNTHETIC + "writer"), new AppliedProperty(new Variable("p"), SYNTHETIC
+                            + "reader"))), REFUSED_AS_IT_RUNS + "a SET whose rows write a node or relationship ("
+                            + w + ") that another of its rows reads (" + r + "): legend-lite writes the rows at once,"
+                            + " where Neo4j writes them one after another", new CInteger(1L))), null, null)))));
+                }
+            }
         }
 
         /** A SET's items over the staged rows {@code staged} (or some of them), the properties each element's items
@@ -20131,7 +20290,7 @@ public final class CypherToPure {
                     }
                 }
             }
-            return refreshed(staged, rereads(staged, written), rm.pos());
+            return refreshed(staged, rereads(staged, withAliases(staged, written, rm.pos())), rm.pos());
         }
 
         /** The node's label set with {@code labels} added (or taken away), for each node of the staged rows: the
@@ -20158,7 +20317,7 @@ public final class CypherToPure {
         }
 
         /** The variable a property's write targets: {@code n.key}, {@code (n).key}. */
-        private String targetOf(Expr target) {
+        private static String targetOf(Expr target) {
             Expr t = target;
             while (t instanceof CypherAst.Paren p) {
                 t = p.inner();
@@ -20236,6 +20395,32 @@ public final class CypherToPure {
 
         /** The elements a clause wrote, read again: each with its properties before and the ones written (a key
          *  written two ways a Variant; a key only ever removed dropped where nothing held it). */
+        /** {@code written} with each other node or relationship the staged rows carry beside a written one of its
+         *  kind (over a domain model, of its class): two of a row's variables may name one element, so each is read
+         *  again after the write, with the keys written (PR #67's second review, 2026-10-24: {@code MATCH (n:P),
+         *  (m:P) SET n.a = 5, m.b = m.a} over one node read m's old a). */
+        private Map<String, Map<String, Kind>> withAliases(Rows staged, Map<String, Map<String, Kind>> written,
+                Pos at) {
+            Map<String, Map<String, Kind>> out = new LinkedHashMap<>(written);
+            for (Map.Entry<String, Map<String, Kind>> w : written.entrySet()) {
+                Element el = element(staged, w.getKey(), at);
+                if (el == null) {
+                    continue;
+                }
+                for (String v : keys.keySet()) {
+                    Element other = v.equals(w.getKey()) ? null : element(staged, v, at);
+                    if (other == null || other.node() != el.node() || domain && (el.classPath() == null
+                            || !el.classPath().equals(other.classPath()))) {
+                        continue;
+                    }
+                    Map<String, Kind> kinds = out.computeIfAbsent(v, x -> new LinkedHashMap<>());
+                    w.getValue().forEach((k, kind) -> kinds.merge(k, kind, (a, b) -> a == b ? a
+                            : a == Kind.NULL ? b : b == Kind.NULL ? a : Kind.JSON));
+                }
+            }
+            return out;
+        }
+
         private List<Reread> rereads(Rows staged, Map<String, Map<String, Kind>> written) {
             List<Reread> out = new ArrayList<>();
             for (Map.Entry<String, Map<String, Kind>> w : written.entrySet()) {
@@ -20435,14 +20620,26 @@ public final class CypherToPure {
                 Rows out = refreshed(merged, rereads, mg.pos(), path);
                 return path ? withPath(out, p, pathNames) : out;
             }
+            for (List<CypherAst.SetItem> items : List.of(mg.onCreate(), mg.onMatch())) {
+                if (setGroups(items, null).size() > 1) {
+                    // (written at once over the rows: an item Neo4j writes after the ones before it, and which reads
+                    // the graph, would read it as it was; PR #67's second review, 2026-10-24)
+                    throw CypherErrors.unsupported("an ON CREATE or ON MATCH SET whose item reads the graph after"
+                            + " another variable's, a map's or a label's item is not supported yet", mg.pos());
+                }
+            }
             Rows read = refreshed(merged, rereads, mg.pos(), true);
             Rows again = stage(path ? withPath(read, p, pathNames) : read);
+            List<CypherAst.SetItem> onEither = new ArrayList<>(mg.onCreate());
+            onEither.addAll(mg.onMatch());
+            // (a row's ON MATCH reading what another row's ON CREATE or ON MATCH wrote: the rows at once, refused)
+            noRowReadsWhatAnotherWrites(again, onEither);
             Map<String, Map<String, Kind>> written = new LinkedHashMap<>();
             setItems(new Rows(call("filter", again.vs(), lambda("r", read(flag))), again.columns()), mg.onCreate(),
                     written);
             setItems(new Rows(call("filter", again.vs(), lambda("r", call("not", read(flag)))), again.columns()),
                     mg.onMatch(), written);
-            return refreshed(again, rereads(again, written), mg.pos());
+            return refreshed(again, rereads(again, withAliases(again, written, mg.pos())), mg.pos());
         }
 
         /** The rows with the named path {@code p} a column: its JSON (§12.27's shape) built by the database from its

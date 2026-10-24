@@ -244,6 +244,11 @@ public final class CypherIslands {
         }
 
         @Override
+        public @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+            return SqlIslands.primaryKey(model, database, table);
+        }
+
+        @Override
         public List<String> classesOf(String label) {
             // the label as a class's full path first (a backticked `demo::Person`), else as a simple name
             if (model.findClass(label).isPresent()) {
