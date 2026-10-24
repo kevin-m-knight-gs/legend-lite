@@ -847,6 +847,57 @@ describe('the app', () => {
     assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
   });
 
+  it('a double-click on a value shows the rows behind it, in a grid, with what they are', async () => {
+    // each click finds the cell afresh: the first one's selection re-renders the rows, as a browser's second click lands
+    // on the cell drawn there now
+    const value = (): HTMLElement => [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '600.00') as HTMLElement;
+    value().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 1 }));
+    value().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
+    for (let i = 0; i < 50 && !root.querySelector('[data-window="Drill-through"]'); i++) await new Promise((r) => setTimeout(r, 0));
+    const win = root.querySelector('[data-window="Drill-through"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    assert.equal(win.querySelector('.dc-drill-caption')?.textContent, '2 rows where region = EMEA');
+    // a grid, headed by the columns and its rows formatted as the cube formats them -- not CSV text
+    const grid = win.querySelector('.dc-drill.dc-grid') as HTMLElement;
+    assert.ok(grid, 'a grid of the rows');
+    assert.deepEqual([...grid.querySelectorAll('.dc-th[data-column]')].map((h) => h.textContent), ['region', 'notional']);
+    assert.deepEqual([...grid.querySelectorAll('.dc-row')].map((r) => [...r.querySelectorAll('.dc-cell')].map((c) => c.textContent)),
+      [['EMEA', '600.00'], ['AMER', '400.00']]);
+    // Copy: the rows as the clipboard's text, every row
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'Copy') as HTMLButtonElement).click();
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+  });
+
+  it('a double-click on a group\'s label opens it, and again closes it, as a pivot\'s row label does', async () => {
+    const label = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    label.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
+    for (let i = 0; i < 50 && commands.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(root.querySelector('[data-window="Drill-through"]'), null, 'no drill from a label');
+    assert.deepEqual(commands, [{ kind: 'open', path: ['EMEA'], open: true }]);
+  });
+
+  it('? shows the keyboard shortcuts, as Edit ▸ Keyboard Shortcuts... does; not while typing', () => {
+    const grid = root.querySelector('.dc-grid') as HTMLElement;
+    grid.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    const win = root.querySelector('[data-window="Keyboard Shortcuts"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    const rows = [...win.querySelectorAll('tr')].map((r) => [...r.querySelectorAll('td, th')].map((c) => c.textContent));
+    assert.ok(rows.some(([keys, what]) => keys === 'Ctrl+A' && /every cell/.test(what ?? '')), JSON.stringify(rows));
+    assert.ok(rows.some(([keys]) => keys === 'Ctrl+Arrow'));
+    win.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const shown = (): boolean => root.querySelector('[data-window="Keyboard Shortcuts"]:not([hidden])') !== null;
+    assert.equal(shown(), false, 'Escape closed it');
+    // typing a ? into a field types it
+    const input = dom.window.document.createElement('input');
+    root.append(input);
+    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    assert.equal(shown(), false);
+    // and from the menu
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Keyboard Shortcuts...');
+    assert.equal(shown(), true);
+  });
+
   it('a right-click on a TREE cell resolves the dimension at that level', () => {
     // Their menu does the same, from the node's level: right-click
     // EMEA under region and the filter entries are about region.

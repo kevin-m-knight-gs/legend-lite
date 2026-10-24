@@ -240,6 +240,10 @@ export class DataGrid {
   #rendered: RowWindow | null = null;
   #focus: Focus = { row: 0, col: 0 };
   #selection: CellRange | null = null;
+  /** Where a mouse drag across the cells started, while the button is down; the click ending a drag that moved keeps
+   *  the rectangle it made (#dragged). */
+  #dragFrom: Focus | null = null;
+  #dragged = false;
   #frame = 0;
   /** The sorts the header marks. */
   #sorts: readonly HeaderSort[] = [];
@@ -359,6 +363,9 @@ export class DataGrid {
     }
     this.#root.addEventListener('keydown', this.#onKeyDown);
     this.#body.addEventListener('click', this.#onClick);
+    this.#body.addEventListener('pointerdown', this.#onPointerDown);
+    this.#body.addEventListener('pointermove', this.#onPointerMove);
+    this.#root.ownerDocument.addEventListener('pointerup', this.#onPointerUp);
   }
 
   /** Replace the column model. Resets the header. */
@@ -559,6 +566,9 @@ export class DataGrid {
     this.#scroller.removeEventListener('scroll', this.#onScroll);
     this.#root.removeEventListener('keydown', this.#onKeyDown);
     this.#body.removeEventListener('click', this.#onClick);
+    this.#body.removeEventListener('pointerdown', this.#onPointerDown);
+    this.#body.removeEventListener('pointermove', this.#onPointerMove);
+    this.#root.ownerDocument.removeEventListener('pointerup', this.#onPointerUp);
     if (this.#frame) cancelAnimationFrame(this.#frame);
     this.#root.replaceChildren();
   }
@@ -1064,6 +1074,49 @@ export class DataGrid {
    * rebuilt on every render, and per-cell listeners would have to be
    * torn down with it.
    */
+  /** The body cell a pointer event is over, as its absolute row and its column; null off the cells. */
+  #cellAt(event: Event): Focus | null {
+    const target = event.target as { closest?: unknown } | null;
+    if (!target || typeof target.closest !== 'function') return null;
+    const cell = (target as unknown as Element).closest<HTMLElement>('.dc-cell');
+    const row = cell?.closest<HTMLElement>('.dc-row');
+    if (!cell || !row || !this.#body.contains(cell)) return null;
+    const col = Number(cell.getAttribute('aria-colindex') ?? '0') - 1;
+    const abs = Number(row.getAttribute('aria-rowindex') ?? '0') - this.#headerLevels() - 1;
+    return col >= 0 && abs >= 0 ? { row: abs, col } : null;
+  }
+
+  // A MOUSE DRAG ACROSS THE CELLS selects the rectangle it covers, as a spreadsheet's does. The mouse only: a finger's
+  // drag scrolls the grid, and its long press is the right-click (grid-gestures). Shift is the click's (extend from the
+  // anchor); a press on a chevron opens its group.
+  #onPointerDown = (event: PointerEvent): void => {
+    this.#dragged = false;
+    this.#dragFrom = null;
+    if (event.pointerType !== 'mouse' || event.button !== 0 || event.shiftKey) return;
+    const target = event.target as { closest?: unknown } | null;
+    if (target && typeof target.closest === 'function' && (target as unknown as Element).closest('.dc-chevron')) return;
+    this.#dragFrom = this.#cellAt(event);
+  };
+
+  #onPointerMove = (event: PointerEvent): void => {
+    const from = this.#dragFrom;
+    if (!from || event.pointerType !== 'mouse' || (event.buttons & 1) === 0) return;
+    const at = this.#cellAt(event);
+    if (!at || (at.row === this.#focus.row && at.col === this.#focus.col && this.#dragged)) return;
+    if (!this.#dragged && at.row === from.row && at.col === from.col) return;
+    this.#dragged = true;
+    this.#selection = { anchor: from, focus: at };
+    this.#focus = at;
+    this.#options.onSelectionChange?.(this.#selection);
+    this.#paintHeaderSelection();
+    this.#rendered = null;
+    this.#render();
+  };
+
+  #onPointerUp = (): void => {
+    this.#dragFrom = null;
+  };
+
   #onClick = (event: MouseEvent): void => {
     // Duck-typed rather than `instanceof Element`: the constructor
     // belongs to the document's realm, so an iframe -- or a test DOM
@@ -1073,6 +1126,11 @@ export class DataGrid {
     const el = target as unknown as Element;
     // The second click of a double-click: see #onDoubleClick.
     if (event.detail === 2) this.#onDoubleClick(event);
+    // the click that ends a drag keeps the rectangle the drag made
+    if (this.#dragged) {
+      this.#dragged = false;
+      return;
+    }
 
     const cell = el.closest<HTMLElement>('.dc-cell');
     const chevron = el.closest('.dc-chevron');
@@ -1366,24 +1424,41 @@ export class DataGrid {
     let handled = true;
 
     // Copy before the movement switch, so it does not also move.
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+    const command = event.ctrlKey || event.metaKey;
+    if (command && event.key.toLowerCase() === 'c') {
       event.preventDefault();
       this.copySelection();
       return;
     }
+    // Every cell, as a spreadsheet's Ctrl+A: the focus stays where it is.
+    if (command && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      if (this.#totalRows === 0 || lastCol < 0) return;
+      this.#selection = { anchor: { row: 0, col: 0 }, focus: { row: lastRow, col: lastCol } };
+      this.#options.onSelectionChange?.(this.#selection);
+      this.#paintHeaderSelection();
+      this.#rendered = null;
+      this.#render();
+      this.#focusCell();
+      return;
+    }
 
+    // Ctrl+Arrow (Cmd on a Mac) goes to the edge: the first or last row or column, as ag-grid -- upstream's grid --
+    // does; with Shift it selects to there.
     switch (event.key) {
       case 'ArrowDown':
-        row = Math.min(lastRow, row + 1);
+        row = command ? lastRow : Math.min(lastRow, row + 1);
         break;
       case 'ArrowUp':
-        row = Math.max(0, row - 1);
+        row = command ? 0 : Math.max(0, row - 1);
         break;
       case 'ArrowRight': {
         // APG treegrid: on a collapsed group row, Right expands rather
         // than moving. Only then does it move to the next column.
         const meta = this.#options.rowMeta?.(row);
-        if (meta?.expanded === false) {
+        if (command) {
+          col = lastCol;
+        } else if (meta?.expanded === false) {
           this.#options.onToggleExpand?.(meta.key, true);
         } else {
           col = Math.min(lastCol, col + 1);
@@ -1392,7 +1467,9 @@ export class DataGrid {
       }
       case 'ArrowLeft': {
         const meta = this.#options.rowMeta?.(row);
-        if (meta?.expanded === true && col === 0) {
+        if (command) {
+          col = 0;
+        } else if (meta?.expanded === true && col === 0) {
           this.#options.onToggleExpand?.(meta.key, false);
         } else {
           col = Math.max(0, col - 1);

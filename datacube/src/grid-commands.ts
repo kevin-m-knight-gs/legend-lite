@@ -72,11 +72,13 @@ export type GridCommand =
    *  reopened shows the groups its maker had open. */
   | { readonly kind: 'open'; readonly path: RowPath; readonly open: boolean }
   /** Every group closed, the expand level's too (the menu's Collapse All). */
-  | { readonly kind: 'collapseAll' };
+  | { readonly kind: 'collapseAll' }
+  /** Every group above the detail rows open, as an Excel pivot's Expand Entire Field (the menu's Expand All). */
+  | { readonly kind: 'expandAll' };
 
 export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
-  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
+  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'expandAll',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
@@ -85,7 +87,7 @@ export const GRID_COMMAND_FIELDS = {
   clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
   filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column'],
   editCalculated: ['name', 'level', 'column'], removeCalculated: ['name'], open: ['path', 'open'],
-  collapseAll: [],
+  collapseAll: [], expandAll: [],
 } as const satisfies CommandFields<GridCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
 const gridFieldsWhole: [MissingFields<GridCommand, typeof GRID_COMMAND_FIELDS>] extends [never] ? true
@@ -168,6 +170,8 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     }
     case 'collapseAll':
       return { ...draft, tree: shownTree(draft).collapseAll() };
+    case 'expandAll':
+      return { ...draft, tree: shownTree(draft).expandAll(draft.snapshot.rows.length) };
   }
 }
 
@@ -661,6 +665,7 @@ export function readGridCommand(given: unknown): GridCommand {
       return { kind, path: path as RowPath, open: o['open'] };
     }
     case 'collapseAll':
+    case 'expandAll':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind };
     default:

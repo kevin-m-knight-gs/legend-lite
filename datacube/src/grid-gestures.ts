@@ -74,6 +74,7 @@ export type GridGestureArgs = {
   readonly 'view.chrome': { readonly showDragZones?: boolean; readonly showTitleBar?: boolean };
   readonly 'tree.open': { readonly path: RowPath; readonly open: boolean };
   readonly 'tree.collapseAll': Nothing;
+  readonly 'tree.expandAll': Nothing;
   readonly 'view.dimension': { readonly name: string; readonly move: 'use' | 'down' | 'up' };
   readonly 'column.calculate': { readonly level: Level; readonly column: DerivedColumn };
   readonly 'column.editCalculated': { readonly name: string; readonly level: Level; readonly column: DerivedColumn };
@@ -327,6 +328,7 @@ const GESTURES = {
   // (P2-127)
   'tree.open': { args: ['path', 'open'], make: (_g, a) => [{ kind: 'open', path: a['path'] as RowPath, open: flag(a, 'open', 'opened') }] },
   'tree.collapseAll': { args: [], make: () => [{ kind: 'collapseAll' }] },
+  'tree.expandAll': { args: [], make: () => [{ kind: 'expandAll' }] },
   // a named dimension (dimensions.ts) used -- the grid grouped by its first level -- or drilled a level down or up, by
   // the group the Rows zone builds
   'view.dimension': {

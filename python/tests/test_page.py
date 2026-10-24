@@ -983,6 +983,11 @@ class Document(Paged):
         grid.expand('AMER').expand('EMEA').collapse_all()
         self.assertEqual(open_paths(), [])
         self.assertEqual(page._commands[-1], {'kind': 'collapseAll'})
+        # Expand All: every group above the detail rows, saved as the level the groups open to
+        grid.expand_all()
+        self.assertEqual(page._commands[-1], {'kind': 'expandAll'})
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'].get('expandTo'), 2)
+        grid.collapse_all()
         grid.expand('EMEA', 'FX', 'deeper')
         self.assertEqual(open_paths(), [], 'a path deeper than the groups opens nothing')
         with self.assertRaisesRegex(ValueError, 'each text or null'):

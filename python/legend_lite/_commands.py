@@ -13,7 +13,7 @@ _ABSENT: Any = object()
 
 GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
                                'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
-                               'removeCalculated', 'open', 'collapseAll',)
+                               'removeCalculated', 'open', 'collapseAll', 'expandAll',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
                                'renameTile', 'addGrid', 'addChart', 'setChart', 'followGrid', 'select', 'moveTile',
                                'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap',
@@ -86,6 +86,10 @@ def grid_open(*, path: Any, open: Any) -> dict[str, Any]:
 
 def grid_collapse_all() -> dict[str, Any]:
     return {'kind': 'collapseAll'}
+
+
+def grid_expand_all() -> dict[str, Any]:
+    return {'kind': 'expandAll'}
 
 
 def page_rename_page(*, name: Any) -> dict[str, Any]:

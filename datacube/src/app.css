@@ -1194,11 +1194,47 @@
   margin: 0 16px 16px;
 }
 
-.dc-drill {
-  max-height: 320px;
-  overflow: auto;
-  font-family: var(--dc-font-mono);
+/* The rows behind a cell: what they are and a Copy above, then a grid of them. The grid needs a height of its own to
+   scroll in (a virtual grid draws the rows its scroller shows). */
+.dc-drill-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
   font-size: var(--dc-text-base-size);
+}
+
+.dc-drill-caption {
+  flex: 1;
+  color: var(--dc-muted);
+}
+
+/* The keyboard shortcuts: a heading per group, the keys in a column of their own. */
+.dc-shortcuts {
+  border-collapse: collapse;
+  font-size: var(--dc-text-base-size);
+  margin: 4px 8px 8px;
+}
+
+.dc-shortcuts th {
+  text-align: left;
+  font-weight: 600;
+  padding: 10px 0 4px;
+}
+
+.dc-shortcuts td {
+  padding: 2px 16px 2px 0;
+  vertical-align: top;
+}
+
+.dc-shortcut-keys {
+  font-family: var(--dc-font-mono);
+  white-space: nowrap;
+}
+
+.dc-drill {
+  height: min(60vh, 420px);
+  min-width: min(80vw, 640px);
   margin: 0;
 }
 

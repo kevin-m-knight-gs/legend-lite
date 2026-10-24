@@ -225,6 +225,7 @@ export type MenuActionId =
   | 'column.unpin'
   | 'column.unpinAll'
   | 'tree.collapseAll'
+  | 'tree.expandAll'
   | 'copy.selection'
   | 'copy.column'
   | 'export.csv'
@@ -256,6 +257,7 @@ export type MenuActionId =
   | 'page.redo'
   | 'page.editLayout'
   | 'view.properties'
+  | 'view.shortcuts'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)
   | 'view.controls'
   // Upstream's Copy > Selected Rows, Resize > Minimize and Size to Fit,
@@ -526,6 +528,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           disabled: !column,
           ...(column ? { column } : {}),
         },
+        { id: 'view.shortcuts', label: 'Keyboard Shortcuts...', separated: true },
       ],
     },
   ]);
@@ -754,6 +757,12 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       label: column ? `Hide ${columnLabel(column, ctx.totalLabel)}` : 'Hide',
       disabled: !column,
       ...(column ? { column } : {}),
+    },
+    {
+      id: 'tree.expandAll',
+      label: 'Expand All',
+      // groups under groups to open: one level of groups has only its rows under it
+      disabled: s.rows.length < 2,
     },
     {
       id: 'tree.collapseAll',

@@ -574,6 +574,10 @@ class Grid(Tile):
         """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
         return self._apply([_commands.grid_collapse_all()])
 
+    def expand_all(self) -> Grid:
+        """Every group above the detail rows open, as the menu's Expand All opens them (an ``expandAll`` command)."""
+        return self._apply([_commands.grid_expand_all()])
+
     def calculate(self, name: str, expression: str, *, kind: str | None = None, level: str = 'row') -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
         empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one

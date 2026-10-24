@@ -783,6 +783,23 @@ const GESTURES: readonly Gesture[] = [
     },
   },
   {
+    // Expand All: every group above the detail rows open, as Python's expand_all() opens them
+    name: 'every group expanded',
+    setUp: async () => {
+      const g = await twoGrids();
+      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'group', rows: ['region', 'desk'] }], 'Two levels'), null);
+      await settle();
+      return g;
+    },
+    make: ({ a }) => {
+      escape();
+      contextMenu(tile(a!).querySelector('.dc-row .dc-cell') as HTMLElement);
+      const item = entry('Expand All');
+      assert.ok(item, 'Expand All offered');
+      item.click();
+    },
+  },
+  {
     name: 'a grid added while the page bar is folded',
     setUp: async () => { const g = await twoGrids(); pg().setBarFolded(true); await settle(); return g; },
     make: ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); },

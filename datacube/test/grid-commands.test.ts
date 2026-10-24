@@ -230,6 +230,10 @@ describe('each command gives what the screen\'s own edit gives', () => {
     assert.equal(closed.tree.isOpen(['APAC']), true, 'the expand level opens the others');
     const all = applyGridCommand(closed, { kind: 'collapseAll' });
     assert.equal(all.tree.isOpen(['APAC']), false, "Collapse All closes the expand level's groups too");
+    // Expand All: every group above the detail rows
+    const every = applyGridCommand(all, { kind: 'expandAll' });
+    assert.equal(every.tree.isOpen(['APAC'], 2), true);
+    assert.equal(every.tree.isOpen(['APAC', 'FX'], 2), false, 'the deepest groups open onto detail rows: not asked');
     // a path deeper than the groups (another editor regrouped since the click) opens nothing, and is no refusal
     assert.equal(applyGridCommand(shown, { kind: 'open', path: ['EMEA', 'FX', 'x'], open: true }), shown);
     refused(() => applyGridCommand(shown, { kind: 'open', path: [], open: true }), /the grand total is no group/);
@@ -382,6 +386,7 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'removeCalculated', name: 'double' },
     { kind: 'open', path: ['EMEA', null], open: true },
     { kind: 'collapseAll' },
+    { kind: 'expandAll' },
   ];
 
   it('every kind, through JSON and back', () => {
@@ -395,6 +400,7 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand({ kind: 'open', path: 'EMEA', open: true }), /a group's path is its keys/);
     refused(() => readGridCommand({ kind: 'open', path: ['EMEA'] }), /open is true or false/);
     refused(() => readGridCommand({ kind: 'collapseAll', path: [] }), /a 'collapseAll' command takes nothing more, not path/);
+    refused(() => readGridCommand({ kind: 'expandAll', level: 2 }), /'expandAll' command takes nothing more, not level/);
     refused(() => readGridCommand({ kind: 'editCalculated', name: 'double', level: 'cell', column: double }), /'row' or 'group'/);
     refused(() => readGridCommand({ kind: 'removeCalculated', name: 7 }), /the calculated column's name is text/);
     refused(() => readGridCommand({ kind: 'group', row: ['region'] }), /a 'group' command takes rows, not row/);

@@ -180,6 +180,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* a mouse drag across the cells selects cells (grid.ts #onPointerMove), not the page's text; Ctrl+C copies them */
+  user-select: none;
 }
 
 /* The tree column: one column for the whole hierarchy, with depth

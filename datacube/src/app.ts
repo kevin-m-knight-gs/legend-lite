@@ -41,7 +41,7 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { drillLambda, levelLambda } from './query.ts';
+import { DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
@@ -53,7 +53,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
-import { exportFileName, toClipboard, toCsv, toEml } from './export.ts';
+import { exportFileName, toClipboard, toEml } from './export.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -80,8 +80,11 @@ import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
   TREE_COLUMN,
+  buildColumnModel,
   type LeafColumn,
 } from './grid/columns.ts';
+import { conditionWords } from './page-filters.ts';
+import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
 import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
@@ -596,6 +599,8 @@ export class CubeApp {
   #filters: FilterEditor | null = null;
   /** Drill-throughs, latest wins: an earlier one answering late is dropped (P2-131). */
   #drills = 0;
+  /** The grid of the rows behind a cell (the drill-through window's), let go when the window shows another. */
+  #drillGrid: DataGrid | null = null;
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
@@ -791,6 +796,7 @@ export class CubeApp {
       onActivateCell: (row, column) => {
         void this.#drillThrough(row, column);
       },
+      onDoubleClickCell: (row, column) => this.#onDoubleClickCell(row, column),
       onHeaderSort: (column, chained) => this.#sortByHeader(column, chained),
       // A dragged edge is a width like Auto-size's -- resizable again,
       // unlike an explicit Fixed one.
@@ -2143,6 +2149,9 @@ export class CubeApp {
       case 'view.properties':
         this.openEditor(item.column);
         return;
+      case 'view.shortcuts':
+        this.showShortcuts();
+        return;
       case 'view.controls':
         this.setControlsHidden(!this.#controlsHidden);
         return;
@@ -2503,7 +2512,30 @@ export class CubeApp {
     this.#status('copied', 'ok');
   }
 
+  /** The keyboard shortcuts, in a window of their own (Edit ▸ Keyboard Shortcuts..., the ? key). */
+  showShortcuts(): void {
+    this.#showOverlay('Keyboard Shortcuts', (host) => {
+      host.replaceChildren(shortcutsTable(this.#doc));
+    }, { replace: true });
+  }
+
   // -- drill-through ----------------------------------------------------
+
+  /**
+   * A double-click, as an Excel pivot takes one: on a group's label it opens or closes the group; on a value it shows
+   * the rows behind it (the drill-through Enter gives).
+   */
+  #onDoubleClickCell(row: number, column: number): void {
+    const leaf = this.#view?.columns.leaves[column];
+    if (leaf?.name === TREE_COLUMN) {
+      const meta = this.#treeRows[row];
+      if (meta?.isGroup) {
+        void this.#gesture('tree.open', { path: meta.path, open: !meta.expanded }, meta.expanded ? 'collapse' : 'expand');
+      }
+      return;
+    }
+    void this.#drillThrough(row, column);
+  }
 
   /**
    * The rows behind one aggregate.
@@ -2544,11 +2576,39 @@ export class CubeApp {
     // LATEST WINS: two drills in quick succession answered in either
     // order, and whichever answered last took the window (P2-131).
     if (drill !== this.#drills || this.#disposed) return;
+    const limit = DEFAULT_DRILL_LIMIT;
+    const where = drillConditions(view.snapshot, { path: meta.path, ...(pivotPath ? { pivotPath } : {}) })
+      .map((c) => conditionWords(c)).join(' and ');
+    const count = table.rowCount >= limit ? `The first ${limit.toLocaleString(UI_LOCALE)} rows`
+      : `${table.rowCount.toLocaleString(UI_LOCALE)} ${table.rowCount === 1 ? 'row' : 'rows'}`;
+    const label = (name: string): string => labelFor(this.#config, name);
     this.#showOverlay('Drill-through', (host) => {
-      const pre = this.#doc.createElement('pre');
-      pre.className = 'dc-drill';
-      pre.textContent = toCsv(table);
-      host.append(pre);
+      this.#drillGrid?.destroy();
+      const bar = this.#doc.createElement('div');
+      bar.className = 'dc-drill-bar';
+      const caption = this.#doc.createElement('span');
+      caption.className = 'dc-drill-caption';
+      caption.textContent = where === '' ? count : `${count} where ${where}`;
+      const copy = this.#doc.createElement('button');
+      copy.type = 'button';
+      copy.className = 'dc-button';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', () =>
+        this.#copy(toClipboard({ ...table, columns: table.columns.map((c) => ({ ...c, name: label(c.name) })) })));
+      bar.append(caption, copy);
+      // The rows in a grid of their own, formatted as this cube formats its columns and headed by their labels.
+      const rows = this.#doc.createElement('div');
+      rows.className = 'dc-drill';
+      host.replaceChildren(bar, rows);
+      const grid = new DataGrid(rows, this.#formatters, {
+        formats: this.#formats,
+        ...(this.#options.writeClipboard ? { writeClipboard: this.#options.writeClipboard } : {}),
+      });
+      grid.setColumns(buildColumnModel(table, [], [], {
+        displayNames: Object.fromEntries(table.columns.map((c) => [c.name, label(c.name)])),
+      }));
+      grid.setRows(table, 0, table.rowCount);
+      this.#drillGrid = grid;
     }, { replace: true });
   }
 
@@ -4174,6 +4234,13 @@ export class CubeApp {
     this.#els.root.addEventListener('pointerdown', this.#onTouch, true);
     this.#els.root.addEventListener('focusin', this.#onTouch, true);
     this.#onDocKey = (event: KeyboardEvent): void => {
+      // ? shows the keyboard shortcuts, as a spreadsheet's and a web app's does -- never while typing one
+      if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey
+        && this.#ownsKey(event.target) && !isTextEntry(event.target)) {
+        event.preventDefault();
+        this.showShortcuts();
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       if (!this.#ownsKey(event.target)) return;
       const key = event.key.toLowerCase();

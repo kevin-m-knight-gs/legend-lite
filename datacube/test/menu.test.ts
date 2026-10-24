@@ -387,6 +387,11 @@ describe('buildMenu', () => {
     );
   });
 
+  it('offers Expand All when there are groups under groups to open', () => {
+    assert.equal(enabled({ snapshot: CUBE }).includes('tree.expandAll'), false, 'one level of groups: nothing under them but rows');
+    assert.equal(enabled({ snapshot: { ...CUBE, rows: ['region', 'desk'] } }).includes('tree.expandAll'), true);
+  });
+
   it('gates copy on a selection and collapse on an open group', () => {
     const bare = enabled({ snapshot: CUBE });
     assert.equal(bare.includes('copy.selection'), false);
@@ -536,7 +541,7 @@ describe("upstream's remaining entries", () => {
       .map((i) => `${i.separated ? '| ' : ''}${i.id}:${i.label}${i.disabled ? ' [off]' : ''}`);
     assert.deepEqual(edit({ hasSelection: true }), [
       'view.undo:Undo [off]', 'view.redo:Redo [off]', '| copy.selection:Copy Selected Cells', 'copy.rows:Copy Selected Rows',
-      'copy.column:Copy Column desk',
+      'copy.column:Copy Column desk', '| view.shortcuts:Keyboard Shortcuts...',
     ]);
     assert.deepEqual(edit({ canUndo: true, canRedo: true }).slice(0, 2), ['view.undo:Undo', 'view.redo:Redo']);
   });
