@@ -267,8 +267,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  (app.ts note); the join itself, its window and its flow still fetched with the first join). Measured 321,971.
  *  322,500 -> 323,500 (2026-10-23, the grid's menu button gone, its right-click its menu -- Edit ▸, Tile ▸, Properties'
  *  Dimensions tab's Group Rows by and Start Ad Hoc Analysis -- and a long press as the right-click on a touch screen,
- *  an iPad's Safari firing none (ui/long-press.ts), installed with every grid and page). Measured 322,712. */
-const BUDGET = 323_500;
+ *  an iPad's Safari firing none (ui/long-press.ts), installed with every grid and page). Measured 322,712.
+ *  323,500 -> 332,000 (2026-10-24, D19 in its full form, docs/DATACUBE_LIVE_EDITING_2026_10_24.md: the grid's and the
+ *  page's total diffs (grid-between.ts, page-between.ts: undo and redo as the commands between), the converge on the
+ *  keeper's page (live-converge.ts, the rebase's rearranging and renaming it shares), and the page hash checked at every
+ *  write (page-hash.ts: a synchronous SHA-256 over the canonical JSON). The note said this budget would move if the
+ *  diffs pushed it over, with the number, for the user's sign-off (D9). Measured 331,197. */
+const BUDGET = 332_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -356,8 +361,10 @@ const BUDGET = 323_500;
  *  the same date). Measured 312,770.
  *  313,500 -> 314,000 (2026-10-23, KPIs as stat tiles, with Show Grid on every chart kind (PR #69) merged beside them:
  *  the tile's lines and the headline format the grid's formatter writes -- the notebook widget's note of the same
- *  date). Measured 313,533. */
-const ENGINE_BUDGET = 314_000;
+ *  date). Measured 313,533.
+ *  314,000 -> 322,500 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
+ *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 321,768. */
+const ENGINE_BUDGET = 322_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -496,8 +503,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  the same date). Measured 331,244.
  *  332,000 -> 332,500 (2026-10-23, KPIs as stat tiles: the tile's headline, meter and change lines in the chart panel,
  *  their styles, and the headline format the grid's formatter writes -- the drawing itself is the chart chunk's).
- *  Measured 332,006. */
-const WIDGET_BUDGET = 332_500;
+ *  Measured 332,006.
+ *  332,500 -> 341,000 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
+ *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 340,482. */
+const WIDGET_BUDGET = 341_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

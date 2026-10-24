@@ -37,7 +37,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
-import { idsOf, joinInputOf, type PageCommand } from '../page-commands.ts';
+import { joinInputOf, type PageCommand } from '../page-commands.ts';
 import type { JoinAsk } from './join-flow.ts';
 import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
@@ -51,8 +51,8 @@ import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
 import type { Sample, Services, Versions } from './services.ts';
-import { applyLive, followBy } from './live-follow.ts';
-import { HASH_MISMATCH, LiveChannel, type Converge, type Converged } from './live-channel.ts';
+import { followBy } from './live-follow.ts';
+import { LiveChannel, type Converge, type Converged } from './live-channel.ts';
 import { convergeOn } from './live-converge.ts';
 import { pageHash } from '../page-hash.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
@@ -1504,45 +1504,22 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // left while it was asked (New ▸ Blank Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
       if (left) return undefined;
       if (!('commands' in moved)) return openLive();
-      // nothing written while they apply: what the page says is of the version they move it to
-      through.shown = undefined;
       const wasChanged = dirty();
-      // the other editor's commands: nothing the screen does meanwhile is an edit of its own
-      const applied = await through.following(async () => {
-        try {
-          await applyLive(moved.commands, {
-            grids: () => page.grids,
-            cubes: () => page.cubes.length,
-            follow: (commands, makers) => page.follow(commands, makers),
-            applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
-            open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid], true),
-            frameVersion: (frame) => sources.frameVersion(frame),
-          });
-          await page.ready();
-        } catch {
-          return false;
-        }
-        // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless
-        // the person had changed it here -- "changed since saved" from here
-        const name = page.title;
-        if (!wasChanged) {
-          const landed = savedForm(page.suggestedName);
-          current = { ...current, savedName: name, ...(landed ? { baseline: landed.definition } : {}) };
-        }
-        onCubeView?.();
-        return true;
-      });
-      if (!applied) return openLive();
-      through.shown = moved.version;
-      // the page as the keeper has it now (what the commands made here), and its hash checked (W17): the two editors
-      // never hold two pages
-      through.opened(moved.version, pageNow(page.title, true), [...new Set([...(through.confirmed ? idsOf(through.confirmed) : []), ...idsOf(pageNow(page.title, true)!)])]);
-      const mine = pageHash(pageNow(page.title, true)!);
-      if (mine !== moved.hash) {
-        const failed = await openLive();
-        sayResting({ text: failed !== undefined ? `not following the page: ${failed}` : `opened again as its keeper has it: ${HASH_MISMATCH}`, warn: true });
-        return undefined;
+      // the other editor's commands applied as a converge with no edits of the screen's own (live-channel.ts follow,
+      // live-converge.ts: the board put back at the keeper's page at the version shown, an edit made here while the
+      // keeper was asked taken off and made again after, the steps applied as the other editor's, the hash checked --
+      // W17, said once -- the pending edits made again); not followed: the page was opened again, said (the channel's
+      // reopen is openLive)
+      const followed = await through.follow(moved);
+      if (left || disposed || !followed) return undefined;
+      // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless
+      // the person had changed it here -- "changed since saved" from here
+      const name = page.title;
+      if (!wasChanged) {
+        const landed = savedForm(page.suggestedName);
+        current = { ...current, savedName: name, ...(landed ? { baseline: landed.definition } : {}) };
       }
+      onCubeView?.();
       // the page as it is now, written once it settles: Python's page is what is on screen
       liveChanged();
       return undefined;

@@ -16,7 +16,7 @@
 import type { PageDocument } from '../page-document.ts';
 import { pageHash } from '../page-hash.ts';
 import { renamedCommand } from '../page-rebase.ts';
-import type { LiveCommand, LivePage, LiveWrite } from './services.ts';
+import type { LiveCommand, LiveMoved, LivePage, LiveWrite } from './services.ts';
 
 /** How long a change waits to settle before it is written (a drag, a typed name: one write, ms). */
 export const WRITE_AFTER = 500;
@@ -30,9 +30,11 @@ const QUIET_AT_MOST = 10_000;
 export const HASH_MISMATCH = 'the page here differed from its keeper\'s: opened again as its keeper has it';
 
 /** What the screen converges on (§2): the page as the keeper had it at the version shown, with the ids it held; the
- *  other editors' steps since; the screen's own sent edits as the keeper applied them; each id given out afresh; and
- *  the edits made here meanwhile, not yet written (pending): the grids they changed are put back too, so the page on
- *  screen is the keeper's, to the hash, before they are made again (the soak's second catch, live-soak.test.ts). */
+ *  other editors' steps since; the screen's own sent edits as the keeper applied them; each id given out afresh; the
+ *  edits made here meanwhile, not yet written (pending): the grids they changed are put back too, so the page on
+ *  screen is the keeper's, to the hash, before they are made again (the soak's second catch, live-soak.test.ts); the
+ *  batch the keeper refused, if any (its grids put back too, nothing of it made again: the audit's 1); and the page as
+ *  it was sent (a grid no other editor touched is put back at its sent cube, its history kept: the audit's 4). */
 export interface Converge {
   readonly confirmed: PageDocument;
   readonly held: readonly string[];
@@ -40,6 +42,8 @@ export interface Converge {
   readonly edits: readonly LiveCommand[];
   readonly renamed: Readonly<Record<string, string>>;
   readonly pending: readonly LiveCommand[];
+  readonly refused: readonly LiveCommand[];
+  readonly sent?: PageDocument;
 }
 
 /** The page converged: the page on screen then, before any pending edit is made again -- the keeper's page. */
@@ -196,7 +200,7 @@ export class LiveChannel {
       // further back than the keeper keeps -- or the editor gone: the sent batch is not the page's, said, and the screen
       // converges on the keeper's page by what moved it since (W8)
       if (this.#stopped || this.shown !== at) return;
-      await this.#refused(at, e instanceof Error ? e.message : String(e));
+      await this.#refused(at, e instanceof Error ? e.message : String(e), write.edits, sentPage);
       return;
     }
     if (this.shown !== at || this.#stopped) return;
@@ -213,12 +217,26 @@ export class LiveChannel {
       await this.#reopen('the page moved further than its keeper keeps the steps of');
       return;
     }
-    await this.#converge(said.version, said.hash, { since: said.since, edits: said.edits, renamed: said.renamed });
+    await this.#converge(said.version, said.hash, { since: said.since, edits: said.edits, renamed: said.renamed, refused: [] }, sentPage);
+  }
+
+  /**
+   * THE KEEPER'S STEPS SINCE THE VERSION SHOWN FOLLOWED (datacube-app.ts followLive, after its flush): a converge with no
+   * edits of the screen's own -- the board put back at the confirmed page, an edit made here since the flush (while the
+   * keeper was asked) taken off and made again after, the steps applied as the other editors', the hash checked (W17,
+   * a mismatch said once), the pending edits made again -- so a follow never drops an edit unsaid (the audit's 2) and
+   * never reopens on a mismatch twice over. True when the screen holds the keeper's page; false when it was opened
+   * again, said.
+   */
+  follow(moved: LiveMoved): Promise<boolean> {
+    if (this.#stopped) return Promise.resolve(false);
+    return this.#converge(moved.version, moved.hash, { since: moved.commands, edits: [], renamed: {}, refused: [] });
   }
 
   /** A write refused: the screen converges on the keeper's page by what moved it since the version shown (W8), the
-   *  refusal said; the page whole (past what the keeper keeps) opens it again. */
-  async #refused(at: number, why: string): Promise<void> {
+   *  refusal said; the refused batch's grids are put back too (nothing of it is made again); the page whole (past what
+   *  the keeper keeps) opens it again. */
+  async #refused(at: number, why: string, refused: readonly LiveCommand[], sent: PageDocument | undefined): Promise<void> {
     this.#screen.say(`not kept: ${why} -- the page is as its keeper has it`);
     let moved: Awaited<ReturnType<LivePage['changes']>>;
     try {
@@ -232,40 +250,45 @@ export class LiveChannel {
       await this.#reopen('the page moved further than its keeper keeps the steps of');
       return;
     }
-    await this.#converge(moved.version, moved.hash, { since: moved.commands, edits: [], renamed: {} });
+    await this.#converge(moved.version, moved.hash, { since: moved.commands, edits: [], renamed: {}, refused }, sent);
   }
 
   /** The screen converged on the keeper's page at `version` (§2): steps 1-4 by the screen, inside following; then its
-   *  hash checked against the keeper's (W17); then the pending edits made again, renamed (step 5). */
-  async #converge(version: number, hash: string, on: Omit<Converge, 'confirmed' | 'held' | 'pending'>): Promise<void> {
+   *  hash checked against the keeper's (W17); then the pending edits made again, renamed (step 5). True when the screen
+   *  holds the keeper's page; false when it was opened again instead, said. */
+  async #converge(version: number, hash: string, on: Omit<Converge, 'confirmed' | 'held' | 'pending' | 'sent'>,
+    sent?: PageDocument): Promise<boolean> {
     const confirmed = this.#confirmed;
     if (confirmed === undefined) {
       await this.#reopen('the page it converges from is not known here');
-      return;
+      return false;
     }
     const pending = this.#edits;
     this.#edits = [];
     this.shown = undefined;
     let converged: Converged;
     try {
-      converged = await this.following(() => this.#screen.converge({ confirmed: confirmed.page, held: confirmed.held, pending, ...on }));
+      converged = await this.following(() => this.#screen.converge({
+        confirmed: confirmed.page, held: confirmed.held, pending, ...(sent === undefined ? {} : { sent }), ...on,
+      }));
     } catch (e) {
       await this.#reopen(`${e instanceof Error ? e.message : String(e)}${dropped(pending)}`);
-      return;
+      return false;
     }
-    if (this.#stopped) return;
+    if (this.#stopped) return false;
     this.#confirmed = {
       page: converged.page,
       held: grown(confirmed.held, [...makerIds(on.since), ...makerIds(on.edits), ...Object.values(on.renamed)]),
     };
     this.shown = version;
-    if (!(await this.#checked(converged.page, hash, pending))) return;
+    if (!(await this.#checked(converged.page, hash, pending))) return false;
     // its pending edits made again on the page as the keeper has it, each renamed as the keeper renamed the ids its
     // sent edits gave out (the screen's: told again, so they are written next)
     const map = new Map(Object.entries(on.renamed));
     const again = pending.map((p): LiveCommand => ('page' in p ? { page: renamedCommand(p.page, map) } : { grid: map.get(p.grid) ?? p.grid, command: p.command }));
     if (again.length > 0) await this.#screen.reapply(again);
     if (this.#edits.length > 0) this.changed();
+    return true;
   }
 
   /** The page on screen hashes to the keeper's (W17): true; else the one message that must never show, and the page

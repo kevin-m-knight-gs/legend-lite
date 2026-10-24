@@ -17,7 +17,6 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { HASH_MISMATCH, LiveChannel } from '../src/app/live-channel.ts';
 import { convergeOn } from '../src/app/live-converge.ts';
-import { applyLive } from '../src/app/live-follow.ts';
 import type { PageCommand } from '../src/page-commands.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import type { PageDocument } from '../src/page-document.ts';
@@ -167,32 +166,9 @@ class Tab {
       if (at === undefined || at === this.keeper.version) return;
       const moved = await this.keeper.changes(at);
       if (!('commands' in moved)) throw new Error(`${this.name}: the keeper said the page whole: nothing to follow by`);
-      this.channel.shown = undefined;
-      // a command that does not apply here: the app opens the page again (datacube-app.ts followLive) -- a reopen, counted
-      const applied = await this.channel.following(async () => {
-        try {
-          await applyLive(moved.commands, {
-            grids: () => this.page.grids,
-            cubes: () => this.page.cubes.length,
-            follow: (commands, makers) => this.page.follow(commands, makers),
-            applyGrid: async (grid, commands) => this.cubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
-            open: async (document) => ({ make: this.over(document.source.name) }),
-            frameVersion: () => undefined,
-          });
-          await this.page.ready();
-          return true;
-        } catch (e) {
-          this.reopened.push(`follow refused: ${e instanceof Error ? e.message : String(e)}\n  ${unlike(this.shown(), this.keeper.page)}`);
-          return false;
-        }
-      });
-      if (!applied) return this.restore();
-      const now = this.shown();
-      this.channel.opened(moved.version, now, this.keeper.held);
-      if (pageHash(now) !== moved.hash) {
-        this.said.push(HASH_MISMATCH);
-        this.reopened.push(`follow: ${HASH_MISMATCH}\n  ${unlike(now, this.keeper.page)}`);
-      }
+      // the keeper's steps as a converge with no edits of this tab's own (live-channel.ts follow): a command that does
+      // not apply here, or a hash that differs, opens the page again -- a reopen, counted
+      await this.channel.follow(moved);
     });
   }
 
@@ -383,7 +359,7 @@ describe('two tabs and Python on one page, interleaved at random, hold one page 
             assert.deepEqual(t.said.filter((s) => s === HASH_MISMATCH), [], `${where}: ${t.name} said the message that must never show`);
             assert.deepEqual(t.reopened, [], `${where}: ${t.name} opened the page again`);
             assert.equal(pageHash(t.shown()), pageHash(keeper.page), `${where}: ${t.name} holds another page than the keeper (${t.said.join('; ')})\n  ${unlike(t.shown(), keeper.page)}`);
-            assert.deepEqual(t.page.state.page, t.shown(), `${where}: ${t.name}'s state is the page on screen`);
+            assert.deepEqual(t.page.state.page, t.shown(), `${where}: ${t.name}'s state is the page on screen\n  ${unlike(t.page.state.page, t.shown())}`);
           }
         }
       }

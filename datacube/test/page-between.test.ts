@@ -14,14 +14,15 @@ import { applyPageCommands, idsOf, nextPageId, takenIds, type PageCommand, type 
 import { gridCopyOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
-import { canonical, renamedPage } from './page-same.ts';
+import { canonical, differing, renamedPage } from './page-same.ts';
 
 const pages = await corpus();
 const trades = pages['trades.page.json']!;
 const joins = pages['prep-joins.page.json']!;
 const dashboard = pages['charts-dashboard.page.json']!;
 
-const SEEDS = 120;
+// 60 seeds (2026-10-24: 120 took two minutes, every pair of a walk's states both ways; LEGEND_LITE_BETWEEN_SEEDS for more)
+const SEEDS = Number(process.env['LEGEND_LITE_BETWEEN_SEEDS'] ?? '60');
 const STEPS = 8;
 const EMEA: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' };
 const SNAP = gridCopyOf({ table: 'snap_1', rowCount: 3, takenAt: new Date('2026-10-24T09:00:00Z'), label: 'Snap 09:00' });
@@ -242,5 +243,21 @@ describe('the commands between two pages take one to the other', () => {
     const rebuilt = { ...trades, cubes: trades.cubes.map((c) => (c.id === 'grid' ? { id: c.id, cube: { ...c.cube, source: { ...c.cube.source, name: 'trades_v2' } } } : c)) };
     assert.throws(() => pageBetween(trades, rebuilt, 'whole'), (e: unknown) => e instanceof CubeRefusal && /opened again over its source/.test(e.message));
     assert.deepEqual(pageBetween(trades, rebuilt, 'history'), [], "the cubes' contents are the grids' own");
+  });
+});
+
+describe('known limit (W2, the D19 audit): a detached chart over a snapped kept cube', () => {
+  it('removed and brought back, comes back over the cube live: no command sets a copy on a cube no grid shows', () => {
+    const snapped = applyPageCommands(draft(trades), [{ kind: 'snap', grid: 'grid-2', copy: SNAP }]).draft.page;
+    const detached = applyPageCommands(draft(snapped), [{ kind: 'removeTile', tile: 'grid-2' }]).draft.page;
+    const chart = detached.views.find((v) => v.kind === 'chart' && v.cube === 'grid-2');
+    assert.ok(chart, 'a frozen chart over grid-2 stays, detached, over the kept cube');
+    assert.ok(detached.copies?.['grid-2'], 'the kept cube keeps its copy');
+    const gone = applyPageCommands(draft(detached), [{ kind: 'removeTile', tile: chart.id }]).draft.page;
+    const made = applyPlanned(draft(gone), pageBetween(gone, detached, 'history'), true);
+    const diffs = differing(canonical(made.draft.page, 'history'), canonical(renamedPage(detached, made.renamed), 'history'));
+    // the one difference the diff cannot take back: the copy (`snap` is a grid's command, and no grid shows the cube)
+    assert.ok(diffs.length > 0 && diffs.every((d) => d.startsWith('copies')), `only the copy differs: ${diffs.join('; ')}`);
+    assert.deepEqual(made.draft.page.copies ?? {}, {}, 'the chart brought back reads its cube live');
   });
 });

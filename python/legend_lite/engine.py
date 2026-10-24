@@ -1646,18 +1646,21 @@ class Engine:
         refused = self._followed(name, asked, since)
         if refused is not None:
             return refused
+        # each answer read under one lock of the keeper's (moved, snapshot): its hash is the page's at the version it
+        # names, never a later one's (the D19 audit's 3)
         if since:
-            version, commands = self.keeper.changes(name, int(since))
+            version, commands, page_hash_now = self.keeper.moved(name, int(since))
             if commands is not None:
                 return Answer(200, 'application/json',
-                              _json.dumps({'version': version, 'commands': commands,
-                                           'hash': self.keeper.hash_of(name)}).encode('utf-8'))
-            kept = self.keeper.current(name) or kept
+                              _json.dumps({'version': version, 'commands': commands, 'hash': page_hash_now}).encode('utf-8'))
+        whole = self.keeper.snapshot(name)
+        if whole is None:
+            return _said(404, f'this engine serves no page named {name!r}')
+        version, doc, held, page_hash_now = whole
         # every id it has held with it: an open page gives none of them out again (B12); its hash, which the page open on
         # it checks its own by (W17)
-        return Answer(200, 'application/json', _json.dumps({'version': kept[0], 'page': kept[1],
-                                                            'held': self.keeper.held(name),
-                                                            'hash': self.keeper.hash_of(name)}).encode('utf-8'))
+        return Answer(200, 'application/json', _json.dumps({'version': version, 'page': doc, 'held': held,
+                                                            'hash': page_hash_now}).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
         """AN OPEN PAGE'S WRITE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4: the host applies the commands): ``{"edits"}``,

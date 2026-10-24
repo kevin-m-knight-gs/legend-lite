@@ -1015,15 +1015,17 @@ export class CubeApp {
    * ANOTHER EDITOR'S GRID COMMANDS (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), applied
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
-  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false): Promise<string | null> {
+  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false, keepHistory = false): Promise<string | null> {
     const { refused, outcome } = await this.#applyCommands(commands, label, own ? 'said' : 'theirs');
     const why = refused ?? refusal(outcome);
     // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
     // take it back unseen); `own`: what a page step of the person's own said already (removeTile's rule taking a
     // chart's selection off) -- told nothing, a step of the grid's history all the same, recorded, so an undo past it
     // lands where it was (the S7 confirmation audit's G2-2; its third round's 1: unrecorded, an undo put the selection
-    // back and took the edit before it away)
-    if (why === null && !own) this.#owner.clearHistory();
+    // back and took the edit before it away); `keepHistory`: its keeper's put-back of this grid for a converge's hash
+    // check (live-converge.ts), no other editor having touched it, its pending edits made again after -- no step, and
+    // the history stays (W13: it starts again only when another editor edits this grid)
+    if (why === null && !own && !keepHistory) this.#owner.clearHistory();
     return why;
   }
 

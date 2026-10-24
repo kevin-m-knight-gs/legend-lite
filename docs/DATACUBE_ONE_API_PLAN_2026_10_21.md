@@ -1083,7 +1083,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   honoured ids (src/page-between.ts); a live chart follows its grid from the start (`addChart`, as every later change
   follows it) -- closed D19 slice 1: page-between.test.ts (three corpus pages, 120 walks each of every page command kind,
   every pair of states both ways, both scopes; an undo of a grid removal; what no command makes refused in words),
-  page-commands.test.ts
+  page-commands.test.ts. Known limit (the D19 audit, 2026-10-24): a detached chart over a snapped kept cube, removed and
+  brought back, comes back over the cube live -- no command sets a copy on a cube no grid shows; pinned in
+  page-between.test.ts
 - [x] **W3** the grid's undo produced by commands (state-owner.ts `toward`: the history's states are what this kind's own
   commands make), told as the commands between the state before and the one landed (`StateRules.between`:
   `gridBetween`), by `onCommand` as a change is; T3 ends (a change landing with an undo is told with it) -- closed D19
@@ -1107,7 +1109,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   `restores` gestures are told gestures)
 - [x] **W13** the page's history survives another editor's change (page-app.ts `follow` keeps the state: `keep`, no new
   `PageState`); the grid's starts again when another editor edits that grid (declared, app.ts) -- closed D19 slice 2:
-  page-app.test.ts (follows another editor's page commands, its history kept), page-state.test.ts
+  page-app.test.ts (follows another editor's page commands, its history kept), page-state.test.ts. The D19 audit's 4
+  (2026-10-24): a converge put every touched grid back at the confirmed cube as another editor's change, so the tab's
+  own combined write restarted its grid's history; now a grid only this screen's edits changed is put back at its sent
+  cube with its history kept (`keepHistory`), and only a grid the keeper's steps, the refused batch or a rename touch
+  starts again -- live-channel.test.ts (the follow's grid keeps its undo)
 - [x] **W18** H-13 closed by W5: an undo is judged by every rule a write is (its commands applied by `rebaseEdits`, its
   ids held) -- closed D19 slice 2 with W5
 - [x] **W19** `detach {chart, cube, document}`, the page command that makes a detached chart reachable (a chart over a
@@ -1139,7 +1145,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   pending edit made again; a real page: converging on top of the other editor's write, on an id given out afresh, its
   history following), datacube-app-live.test.ts
 - [x] **W8** a refused write converges the same way, over what moved the page since (`changes(shown)`), the refusal said;
-  the page whole (past what the keeper keeps) opens it again, said -- closed D19 slice 3: live-channel.test.ts
+  the page whole (past what the keeper keeps) opens it again, said -- closed D19 slice 3: live-channel.test.ts. The D19
+  audit's 1 (2026-10-24, fixed with its test there): the refused batch's grids are put back too (`Converge.refused`),
+  nothing of the batch made again -- before, a refused grid edit stayed on screen and the hash check reopened the page
 - [x] **W9** one write per gesture: the channel writes only once the screen is quiet (no grid's change in flight:
   `LiveScreen.busy`), so a gesture's page commands and its grid's are written together once they have all landed, and the
   keeper never holds a selected chart whose grid's filter lacks the selection (F97) -- closed D19 slice 3 in this form
@@ -1147,14 +1155,18 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   be quiet before a write)
 - [x] **W10** a follow writes what is pending first and waits for the screen to be quiet (`LiveChannel.flush(true)`, in
   the channel's own queue: datacube-app.ts followLive; F90) -- closed D19 slice 3: live-channel.test.ts (a flush writes
-  once quiet), datacube-app-live.test.ts (a follow after the flush)
+  once quiet), datacube-app-live.test.ts (a follow after the flush). The D19 audit's 2 (2026-10-24, fixed with its test in
+  live-channel.test.ts): a follow is a converge with no edits of the screen's own (`LiveChannel.follow`): an edit made
+  while the keeper was asked is taken off for the hash check, kept pending and made again -- before, `opened` dropped
+  it and the hash check reopened the page, the edit unsaid
 - [x] **W11** Save on a served page writes first (datacube-app.ts saveTo: `channel.flush()`), then saves the page on
   screen, which is the keeper's (H-5) -- closed D19 slice 3: the one call, held by the channel's flush test
   (live-channel.test.ts); no app-level Save test on a served page (the harness drives none)
 - [x] **W12** no edit dropped unsaid before any reopen (H-11): a reopen says how many changes made meanwhile were not kept;
   the two reopen causes that remain (a `rebuilt`, a write from further back than the keeper keeps), a converge that could
   not be made, and the hash mismatch are each said -- closed D19 slice 3: live-channel.test.ts (says what it drops; the
-  page opened again when the keeper no longer keeps the steps), datacube-app.ts `reopen`
+  page opened again when the keeper no longer keeps the steps), datacube-app.ts `reopen`; a follow drops nothing since
+  the D19 audit's 2 (W10)
 - [x] **W14** `rebaseEdits` applies a grid's run of consecutive commands in one `applyGrid` call (one open, one compile
   per run), the same reduce, refused whole, each edit listed as applied -- closed D19 slice 3: page-rebase.test.ts
 - [x] **W16** a frame moved with the page is followed by its commands, then every grid over the frame refreshed, as a
@@ -1165,7 +1177,11 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   mismatch is the one message that must never show (live-channel.ts `HASH_MISMATCH`): the page is opened again as the
   keeper has it and the status line says so, once -- a second mismatch before a write hashes alike is said and opens
   nothing (no reopen loop) -- closed D19 slice 3: page-hash.test.ts, live-channel.test.ts (the channel; a real page's
-  converge hashing to the keeper's), datacube-app-live.test.ts (a follow's hash)
+  converge hashing to the keeper's), datacube-app-live.test.ts (a follow's hash). The D19 audit (2026-10-24): the follow's
+  mismatch is said once too, now that a follow is the channel's converge (W10); and the keeper's hash is the page's at
+  the version it answers for, read with the write under its lock (keeper.py `_write`; `moved`, `snapshot` for the
+  engine's answers) -- before, another writer's write between the write and the hash's read made a false mismatch and
+  a reopen (the audit's 3; test_keeper.py)
 - [x] **W15** the two-editor soak as a gate, three times over. TypeScript: live-soak.test.ts -- two real `PageApp`s
   (jsdom, real `CubeApp`s over the fixture engine) on one keeper as Python's (test/fake-keeper.ts: every write applied
   by `rebaseEdits`, the steps kept, `since` / `edits` / `renamed` / `hash` answered, a write that lands on a moved page
@@ -2031,7 +2047,7 @@ above say what each item is and which tests hold it; this is the whole.
 
 **Ledgers, before and after.** `L9_KEEPER` 6 -> 5 (shrink: the restore write). `L1_ROUTES` 5 -> 7 (two live-converge
 entries, dated: the converge's own path puts the board and the grids back, told nothing -- the keeper's page is what
-it makes). `L8_KINDS` 0 -> 1 (`detach`: Python makes none; no gesture but an undo tells it). `L1_GRID`'s `#undo` /
+it makes), then 7 -> 6 (the audit's 2: the app's own follow route is gone, a follow being the channel's converge). `L8_KINDS` 0 -> 1 (`detach`: Python makes none; no gesture but an undo tells it). `L1_GRID`'s `#undo` /
 `#redo` reasons rewritten (the owner's moves are told). `SCREEN_OWN_MAKERS` gains `gridBetween`. `ITEM` gains `W`;
 `ALL` gains W1-W19, every one closed. `L8_UNASKED` stays empty: the three tab functions the Python soak undoes by are
 bundled for that test alone (`//datacube:headless_tab_bundle`), not exported by the product's headless. The gestures
@@ -2042,5 +2058,25 @@ ledger's `restores` arm is gone (the five restore gestures are told gestures). `
 history; its undo would be `pageBetween` over two documents it holds, a program's to write), the mutation harness as a
 gate, the two-thread test with two open pages.
 
-**Next.** The PR; its independent audit's findings (below, when it has run); the GATES entry at landing.
+**The independent audit (2026-10-24, after slice 4; an agent that wrote none of it, against the note's §7 and the
+rows above).** Thirteen items built as claimed, six with a difference, none not found. Its findings, each fixed the same
+day with a test that fails without the fix, are on the rows (W2, W8, W10, W12, W13, W17): a refused batch's grid edits
+left on screen, so the hash check reopened the page (1, HIGH); an edit made during a follow dropped unsaid, the same
+way (2, HIGH) -- a follow is now the channel's converge; the keeper's hash read after another writer's write, a false
+mismatch (3, MEDIUM-HIGH); a converge restarting a grid's history the other editor never touched (4, MEDIUM); the
+confirmed ids shrinking across a follow (6, LOW; gone with 2). Declared, not built: a gesture during an async converge
+is dropped by `edit()` as the other editor's (5, LOW; pre-existing, now visible as the never-show message), and W2's
+known limit. The audit also found no deadlock in the channel's queue, every ledger move dated and justified, and two
+doc nits (fixed: the note's `SCREEN_OWN_MAKERS` line, the guardrail's N2 wording).
+
+**The full local gate (`//gates:local`, 2026-10-24, in the cloud session after `tools/cloud-distdir.sh`).** 405 passed,
+11 failed: eight `initdb refuses root` (the seven core Postgres tests and `verify_app_test`: the container runs as root,
+docs/CLOUD_SESSIONS.md; CI runs as a user) and `browser_guard_test` (the proxy's certificate on extensions.duckdb.org:
+the session's, not the code's) are the environment's; two were this program's and are fixed: `headless_roster_test`
+(grid-between.test.ts joins `_HEADLESS_TESTS`) and `bundle_budget_test`, the budgets raised with dated notes for the
+user's sign-off (D9): the grid-only page 323,500 -> 332,000 (measured 331,197), the engine page 314,000 -> 322,500
+(measured 321,768), the notebook module 332,500 -> 341,000 (measured 340,482) -- the two total diffs, the converge and
+the synchronous SHA-256, about 8 KB gzipped each.
+
+**Next.** The PR; the GATES entry at landing.
 

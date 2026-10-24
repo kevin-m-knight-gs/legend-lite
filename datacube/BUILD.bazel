@@ -373,6 +373,12 @@ _SLOW_DOM_TESTS = [
     "cube-page-shell",
 ]
 
+# the page's total diff over the saved-page corpus (D19 W2, 2026-10-24): 60 seeds of 8 steps on three pages, every pair
+# of states both ways -- about a minute on a desk, past `small`'s 60 s under CI's load
+_SLOW_WALK_TESTS = [
+    "page-between",
+]
+
 # node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
 # pinned locale and clock). Each finds its inputs through //tools/js:runfiles.
 [node_test(
@@ -380,7 +386,7 @@ _SLOW_DOM_TESTS = [
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
-    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS + _SLOW_DOM_TESTS else "small",
+    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS + _SLOW_DOM_TESTS + _SLOW_WALK_TESTS else "small",
     # a scanner reads every source; any other test, the files its imports reach (a test not yet in the generated
     # list takes them all until //datacube:update_generated adds it)
     data = [
@@ -456,6 +462,8 @@ esbuild_bundle(
 # by test/headless/ (held to Node's own by headless_test_runner_test and headless_assert_test), and jsdom, which
 # a few import for tests not run here, a stub that refuses its use. A new non-screen test file joins this list.
 _HEADLESS_TESTS = [
+    # the grid's total diff (D19 W1, 2026-10-24): pure, over the saved form
+    "grid-between",
     "adhoc-query",
     "adhoc-session",
     "adhoc-state",

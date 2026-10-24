@@ -187,6 +187,12 @@ class PageKeeper:
         its new version -- or, the page no longer at ``base``, ``Stale``. A document the page has already is no new
         version. A page not kept is a ``KeyError``. What the keeper takes from its editors is ``settle``'s and
         ``restore``'s; this is theirs."""
+        return self._write(key, base, doc, reads, edits, held)[0]
+
+    def _write(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], edits: list[Any] | None,
+               held: list[str]) -> tuple[int, str]:
+        """``write``, and the hash of the page at the version it answers -- read with it, under the lock: another writer
+        may move the page before the caller reads anything else (the D19 audit's 3)."""
         kept_doc = copy.deepcopy(doc)
         kept_edits = None if edits is None else copy.deepcopy(edits)
         kept_reads = _reads(reads)
@@ -196,7 +202,7 @@ class PageKeeper:
                 raise Stale(kept.version)
             kept.held = sorted(set(kept.held) | set(held) | set(kept_reads['ids']))
             if kept_doc == kept.doc and kept_reads == kept.reads:
-                return kept.version
+                return kept.version, kept.hash
             kept.version += 1
             kept.doc = kept_doc
             kept.hash = page_hash(kept_doc)
@@ -209,10 +215,10 @@ class PageKeeper:
                 del kept.steps[old]
                 kept.helds.pop(old, None)
                 kept.holds.pop(old, None)
-            version = kept.version
+            version, written_hash = kept.version, kept.hash
         if self.on_write is not None:
             self.on_write(key, version)
-        return version
+        return version, written_hash
 
     def settle(self, key: str, base: int, edits: list[Any], admit: Admit | None = None) -> Settled:
         """A WRITE, SETTLED (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4, H1): ``edits``, made by a writer at version
@@ -239,17 +245,19 @@ class PageKeeper:
                 if refused is not None:
                     raise Refused(refused)
             try:
-                version = self.write(key, at, said['page'], said['reads'], said['edits'], said['held'])
+                version, written_hash = self._write(key, at, said['page'], said['reads'], said['edits'], said['held'])
             except Stale:
                 continue
             renamed = dict(said['renamed'])
             with self._lock:
                 kept = self._pages[key]
                 # the other editors' steps the writer has not seen: from the version it wrote at to the one before its own
+                # (a version's steps never change once written; pruned, they are None: the writer opens the page again)
                 moved = [kept.steps.get(v) for v in range(base + 1, at + 1)]
                 since = None if any(m is None for m in moved) else [c for m in moved for c in m or []]
-                page_hash_now = kept.hash
-            return Settled(version, at != base or bool(renamed), renamed, since, list(said['edits']), page_hash_now)
+            # the hash of the page the writer's own version has -- never of a later one another wrote meanwhile (the
+            # D19 audit's 3: the page open on it checks its own against it)
+            return Settled(version, at != base or bool(renamed), renamed, since, list(said['edits']), written_hash)
         raise Refused('the page kept changing where it is open while this change was made: make it again')
 
     def restore(self, key: str, base: int, doc: dict[str, Any], reads: Mapping[str, list[str]], held: list[str]) -> int:
@@ -264,14 +272,27 @@ class PageKeeper:
     def changes(self, key: str, since: int) -> tuple[int, list[Any] | None]:
         """What moved the page since version ``since``: its version now, and the edits since, in order -- or None, when
         a version since was moved by no command or is no longer kept (the page is then opened again)."""
+        version, commands, _hash = self.moved(key, since)
+        return version, commands
+
+    def moved(self, key: str, since: int) -> tuple[int, list[Any] | None, str]:
+        """``changes``, with the hash of the page at the version answered -- the three read under one lock, so the hash is
+        never of a later version another writer made meanwhile (the D19 audit's 3)."""
         with self._lock:
             kept = self._pages[key]
             if since > kept.version:
-                return kept.version, None
+                return kept.version, None, kept.hash
             moved = [kept.steps.get(v) for v in range(since + 1, kept.version + 1)]
             if any(m is None for m in moved):
-                return kept.version, None
-            return kept.version, [c for m in moved for c in m or []]
+                return kept.version, None, kept.hash
+            return kept.version, [c for m in moved for c in m or []], kept.hash
+
+    def snapshot(self, key: str) -> tuple[int, dict[str, Any], list[str], str] | None:
+        """The page whole, as a page opening on it is answered: its version, its document (the keeper's own: read it, never
+        change it), every id it has held, and its hash -- the four under one lock -- or None."""
+        with self._lock:
+            kept = self._pages.get(key)
+            return None if kept is None else (kept.version, kept.doc, list(kept.held), kept.hash)
 
     def serve(self, key: str, served: bool) -> None:
         """The page shown somewhere, or shown nowhere any more (no page is open on it then)."""

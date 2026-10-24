@@ -205,6 +205,25 @@ class Settle(unittest.TestCase):
         self.assertEqual(keeper.held('p'), ['sheet-1', 'sheet-9'], 'every id they gave out, held (H3)')
         self.assertEqual(keeper.changes('p', 1), (2, [{'page': 'x, as applied'}]), 'the edits as applied')
 
+    def test_its_hash_is_of_the_version_its_own_write_made_though_another_wrote_meanwhile(self):
+        # (the D19 audit's 3) told of the write (on_write, outside the lock), another writer moves the page before the
+        # settled answer is made up: the hash answered is the page's at the writer's own version, never the later one --
+        # the page open on it would otherwise differ from "its keeper's" and open again for nothing
+        made = {'page': {'n': 1}, 'held': [], 'edits': [{'page': 'x'}], 'renamed': {}, 'reads': NOTHING}
+        keeper = PageKeeper(combine=self.combining([made])[0])
+
+        def another(key, version):
+            if version == 2:
+                keeper.write(key, 2, {'n': 2}, NOTHING, [{'page': 'y'}], [])
+        keeper.on_write = another
+        keeper.keep('p', {'n': 0}, NOTHING, [])
+        settled = keeper.settle('p', 1, [{'page': 'x'}])
+        self.assertEqual((settled.version, settled.hash), (2, page_hash({'n': 1})))
+        self.assertEqual(keeper.current('p'), (3, {'n': 2}))
+        # what a page open on it is answered, read under one lock: the version, its steps and the hash of that version
+        self.assertEqual(keeper.moved('p', 1), (3, [{'page': 'x'}, {'page': 'y'}], page_hash({'n': 2})))
+        self.assertEqual(keeper.snapshot('p'), (3, {'n': 2}, [], page_hash({'n': 2})))
+
     def test_an_id_given_out_afresh_at_its_version_has_the_writer_take_the_keepers_page(self):
         made = {'page': {'n': 1}, 'held': ['sheet-3'], 'edits': [], 'renamed': {'sheet-2': 'sheet-3'}, 'reads': NOTHING}
         keeper = PageKeeper(combine=self.combining([made])[0])

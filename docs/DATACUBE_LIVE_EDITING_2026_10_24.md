@@ -346,6 +346,20 @@ bundles them for itself (`datacube/test/headless-tab.ts`, `//datacube:headless_t
 a harness-only hook beside `__dataPage`. Not built: the mutation harness (scratch; no gate), and the two-thread test
 still runs one open page.
 
+**The audit's findings (2026-10-24, after slice 4).** An independent reader of the branch against §7 found three
+defects in the convergence path and three lesser ones (the plan's As built, D19). What changed: (1) `Converge` carries
+the refused batch (`refused`): its grids are put back too and nothing of it is made again -- a refused grid edit no
+longer stays on screen to fail the hash check; (2) a follow IS a converge with no edits of the screen's own
+(`LiveChannel.follow`, which the app's `followLive` calls after its flush): an edit made while the keeper was asked is
+taken off for the hash check, kept pending and made again, the mismatch said once -- the app's own `applyLive` and
+`opened` path is gone, with the ids it forgot (the audit's 6); (3) the keeper's hash is read with the write under its
+lock (`_write`), and the engine's answers read version, steps and hash under one lock (`moved`, `snapshot`); (4) a grid
+only this screen's edits changed is put back at its SENT cube with its history kept (`Converge.sent`, `keepHistory`),
+so W13 holds as written: a grid's history starts again only when another editor edits that grid. §2's "a follow never
+meets an un-rebased edit on screen" is true by construction now: the edit is on screen, and the follow puts the board
+back before it checks. Declared: a gesture during the converge itself is still the other editor's to `edit()`
+(the audit's 5, pre-existing); W2's known limit (a detached chart over a snapped kept cube comes back live).
+
 ## 7. Items (the register's W)
 
 - **W1** `gridBetween` total over the saved form; `tree`; `before` on `calculate` / `editCalculated`.
@@ -374,8 +388,8 @@ still runs one open page.
 
 Ledgers that move, each with a dated note: `L9_KEEPER` 6 -> 5 (shrink); `L1_GRID`'s `#undo` / `#redo` entries'
 reasons (the owner's moves are told); `BOARD_SITES` / `STATE_SITES` as the sites change; `ITEM` gains `W`; `ALL`
-gains W1-W19 as each closes; `SCREEN_OWN_MAKERS` gains `pageBetween` (an undo's inverse is the screen's own: Python
-has no history); the gestures ledger's `restores` goes; the screen bundle's budget if the diffs push it over (said
+gains W1-W19 as each closes; `SCREEN_OWN_MAKERS` gains `gridBetween` (the screen's own: its grid's undo and its
+converge; `pageBetween` is called from the page's state, which the ledger's scan does not count as screen code); the gestures ledger's `restores` goes; the screen bundle's budget if the diffs push it over (said
 in As built with the number, for the user's sign-off, D9).
 
 ## 8. Order

@@ -106,8 +106,11 @@ interface Entry {
 // chart's removal: page-between.ts). Python has no history of its own, so nothing of Python's makes one; its generated
 // builder page_detach stands, and the keeper applies one a tab writes. The one entry says so; it leaves when Python
 // gains a history, never otherwise.
+// 2026-10-24 (D19, the independent audit's 2): L1_ROUTES 7 -> 6 -- the app's own follow route is gone: a follow is the
+// channel's converge (live-channel.ts follow; live-converge.ts applies the other editor's steps), so an edit made while
+// the keeper was asked is kept and made again, never dropped.
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 7, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
@@ -162,9 +165,9 @@ const L1_ROUTES: Record<string, Entry> = {
   'src/page/page-app.ts:follow:followSnap': { items: [], why: "following another editor's snap" },
   'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
-  'src/app/datacube-app.ts:applyGrid:applyGridCommands': { items: [], why: "another editor's commands, applied" },
-  // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page
-  'src/app/live-converge.ts:convergeOn:applyGridCommands': { items: [], why: "a converge: a grid the keeper's steps touched put back at the keeper's cube at the version shown, by its own commands (gridBetween), as another editor's" },
+  // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page -- and,
+  // since the audit's 2, following it: a follow is a converge with no edits of its own (live-channel.ts follow)
+  'src/app/live-converge.ts:convergeOn:applyGridCommands': { items: [], why: "a converge: a grid the keeper's steps touched, the refused batch named or a rename touched put back at the keeper's cube at the version shown, by its own commands (gridBetween), as another editor's; a grid only this screen's edits changed put back at its sent cube, its history kept (keepHistory)" },
   'src/app/live-converge.ts:applyGrid:applyGridCommands': { items: [], why: "a converge: the other editor's grid commands applied as theirs, the screen's own sent ones as said (told already)" },
 };
 

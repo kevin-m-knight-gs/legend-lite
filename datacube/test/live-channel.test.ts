@@ -474,6 +474,66 @@ function realPage(): { cubes: Map<string, CubeApp>; over: (name: string) => Grid
 }
 
 describe('a real page and its keeper', () => {
+  it("a refused write's grid edits are put back too: the grid at the keeper's cube, one page to the hash, no reopen (the D19 audit's 1)", async () => {
+    const { cubes, over, channelOf } = realPage();
+    const a = page!.addGrid(over('trades.csv'));
+    const b = page!.addGrid(over('desks.csv'));
+    await settle();
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said } = channelOf(keeper);
+    const rowsBefore = page!.document('Q3', undefined, true)!.cubes.find((c) => c.id === a)!.cube.query.rows;
+    // the other editor takes grid b off; here, still at the version before, a is grouped and b taken off too, in one
+    // write (the tile's Remove told before the write's timer fires)
+    keeper.pythonWrites([{ kind: 'removeTile', tile: b }]);
+    assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+    (host.querySelector(`[data-tile="${b}"] .dc-tile-remove`) as HTMLElement).click();
+    await written(channel);
+    await settle();
+    // refused whole (b is no longer on the page), said; the screen converged on the keeper's page: a's group -- refused
+    // with the batch -- put back, b gone, nothing of the batch made again
+    assert.deepEqual(keeper.written.map((w) => kinds(w.edits)), [[`${a}:group`, 'removeTile']], 'one write, both edits');
+    assert.equal(keeper.refusedCount, 1);
+    assert.ok(said.some((s) => s.startsWith('not kept:')), `the refusal said: ${said.join('; ')}`);
+    assert.deepEqual(reopened, [], 'no reopen: the refused grid edit is put back, not left on screen to differ');
+    const now = page!.document('Q3', undefined, true)!;
+    assert.equal(pageHash(now), pageHash(keeper.page), 'one page (W17)');
+    assert.deepEqual(now.cubes.find((c) => c.id === a)!.cube.query.rows, rowsBefore, "a's group is off the screen");
+    assert.deepEqual([...page!.grids], [a], 'b is gone, as the other editor took it off');
+    assert.equal(channel.shown, keeper.version);
+    assert.deepEqual(channel.pending, [], 'nothing of the refused batch pending');
+  });
+
+  it("a follow is a converge: an edit made while the keeper was asked is kept, made again after the steps and written next (the D19 audit's 2)", async () => {
+    const { cubes, over, channelOf } = realPage();
+    const a = page!.addGrid(over('trades.csv'));
+    await settle();
+    const keeper = new FakeKeeper(page!.document('Q3')!);
+    const { channel, reopened, said } = channelOf(keeper);
+    keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
+    // the keeper asked what moved the page (datacube-app.ts followLive, after its flush); before its answer is applied,
+    // a grid is grouped here -- pending, its write not yet made
+    const moved = await keeper.changes(channel.shown!);
+    assert.ok('commands' in moved);
+    assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+    assert.equal(channel.pending.length, 1, 'the group pending, told');
+    assert.equal(keeper.written.length, 0, 'not written yet');
+    let followed = false;
+    await channel.enqueue(async () => { followed = await channel.follow(moved); });
+    assert.equal(followed, true, "followed: the screen holds the keeper's page");
+    assert.deepEqual([reopened, said], [[], []], 'no reopen, nothing said: the edit meanwhile is no mismatch');
+    // the edit made meanwhile was taken off for the hash check and made again: pending still, and written next, on top
+    // of the other editor's sheet
+    await written(channel);
+    await settle();
+    assert.equal(keeper.version, 3);
+    assert.deepEqual(kinds(keeper.written.at(-1)!.edits), [`${a}:group`]);
+    assert.deepEqual(keeper.page.cubes.find((c) => c.id === a)!.cube.query.rows, ['desk']);
+    assert.ok(keeper.page.sheets.some((s) => s.name === 'From Python'));
+    assert.equal(pageHash(page!.document('Q3', undefined, true)!), pageHash(keeper.page), 'one page (W17)');
+    assert.equal(channel.shown, 3);
+    assert.equal(cubes.get(a)!.canUndo, true, "the grid's own history kept: no other editor touched it (W13, the audit's 4)");
+  });
+
   it('writes its grids\' and its own edits as commands, which the keeper makes again on top of the other editor\'s, and converges: no reopen', async () => {
     const { cubes, over, channelOf } = realPage();
     const a = page!.addGrid(over('trades.csv'));

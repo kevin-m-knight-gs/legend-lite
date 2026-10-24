@@ -155,8 +155,8 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     'renamedBy:this.#state.rename(': "the ids the keeper gave out afresh, followed by every step of the history",
     'setTitle:this.#state.keep(': "the page's name, its host's (no step): N1, a page opened named",
     'onChange:this.#state.keep(': "what its owners change (a grid's own edits), no step",
-    '#move:this.#state.undo(': 'Undo (N2, S4)',
-    '#move:this.#state.redo(': 'Redo (N2, S4)',
+    '#move:this.#state.undo(': 'Undo (S4; D19 W4: the step\'s inverse commands, told)',
+    '#move:this.#state.redo(': 'Redo (S4; D19 W4: the step\'s commands again, told)',
     '#move:this.#state.keep(': 'the screen put at a step: its grids made again write their own cubes',
     '#applyFilterCommand:this.#state.keep(': 'the page as its owners have it, before the filter command is applied',
     // 2026-10-22 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P15): a model action's record applied by the commands' one
