@@ -11966,6 +11966,16 @@ Branch `claude/keen-noether-v5mis0`, `main` merged in (the DataCube PRs #64, #68
   `insert_returning_every_column` (PASS to REFUSED: a column the INSERT does not write).
 - **The write stack** on DuckDB, H2 and Postgres 16: `SqlWrites*` (ON CONFLICT's new checks), `StoreWrites*`,
   `WritePlans*`, `ClassWritesExecutionTest`, `CypherWritePlansTest`, `CypherDomainWrites*`; the translator's 608 tests.
+- **Local gate** on `a8382b0b5`: `//gates:local` under `tools/postgres/as_unprivileged.sh`, 417 of 420 passed, one
+  skipped; `//datacube:upload_test` and `//engine-client:model_data_test` fail only under the wrapper (EACCES writing
+  their runfiles) and pass without it.
+- **A second round** of `#SQL` probes (45 `dml.yaml` cases snapped from Postgres 16: SET of a row or DEFAULT, a write
+  under WITH, quoted and upper-case names, booleans and dates from text, values past their types, NaN, JSON, a SET
+  computed only for the rows its WHERE keeps, self-reading subqueries, NULL in IN lists, windows and groups into a
+  table): no FAIL or BUG; four ERROR, three fixed -- a date or date-time the database computes (`d + 1`, `ts::date`,
+  `ts + interval`) is Pure's Date, now cast to its column's StrictDate or DateTime at the write -- and the fourth the
+  probe's own check (a `json::text` read, refused by name; the check reads `->>`). `#SQL` write cases (132) on both
+  lanes: PASS 87, BOTH_ERROR 28, REFUSED 17; no FAIL, BUG or ERROR; no earlier case moved.
 
 ## 2026-10-22 — writes: PR #67's review, fourteen findings fixed before its first CI run
 

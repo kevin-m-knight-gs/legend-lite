@@ -431,8 +431,9 @@ public final class SqlToPure {
         for (int i = 0; i < rows.columns().size(); i++) {
             OutCol from = rows.columns().get(i);
             OutCol to = into.get(i);
-            Tx value = heldTo(assigned(columnValue(row, Col.of(from.name(), from.kind(), from.nullable(),
-                    from.detail())), to, ins.pos()), storeType(t, to));
+            Tx value = asColumnType(heldTo(assigned(columnValue(row, Col.of(from.name(), from.kind(),
+                    from.nullable(), from.detail())), to, ins.pos()), storeType(t, to)),
+                    t.pureTypes().get(t.columns().indexOf(to)));
             written.add(new ColSpec(to.name(), lambda(row, held(value)), null, null));
             staged.add(new OutCol(to.name(), value.kind(), value.nullable(), value.detail()));
         }
@@ -858,8 +859,8 @@ public final class SqlToPure {
             if (!upd.from().isEmpty()) {
                 e = new SqlAst.ScalarSubquery(valueOver(e, upd.from(), upd.where(), e.pos()), e.pos());
             }
-            Tx value = heldTo(assigned(storedValue(e, input.in("UPDATE"), t, to, a.pos()), to, a.pos()),
-                    storeType(t, to));
+            Tx value = asColumnType(heldTo(assigned(storedValue(e, input.in("UPDATE"), t, to, a.pos()), to,
+                    a.pos()), storeType(t, to)), t.pureTypes().get(t.columns().indexOf(to)));
             values.put(to.name(), value);
             sets.add(new ColSpec(to.name(), lambda(row, valueOf(value)), null, null));
         }
@@ -969,6 +970,20 @@ public final class SqlToPure {
             case BOOLEAN, TIME, ZONED, ZONED_TIME, DURATION, JSON, OTHER -> null;
         };
         return zero == null ? valueOf(value) : call("if", new CBoolean(false), thunk(zero), thunk(valueOf(value)));
+    }
+
+    /** A date or a date-time written into its column as the column's own Pure type ({@code pureType}): one the
+     *  database computes ({@code d + 1}, {@code ts::date}, {@code ts + interval '1 day'}) is Pure's Date, which the
+     *  write's type check takes for no StrictDate or DateTime column (PR #67's second review, its second round,
+     *  2026-10-24), so it is cast to the column's type -- a type assertion where it is one already, the database's
+     *  cast where it is a date-time. */
+    private static Tx asColumnType(Tx value, String pureType) {
+        if (isNullConstant(value) || !(value.kind() == Kind.DATE && "StrictDate".equals(pureType)
+                || value.kind() == Kind.DATETIME && "DateTime".equals(pureType))) {
+            return value;
+        }
+        return Tx.value(call("cast", valueOf(value), typeArg(pureType)), value.kind(), value.nullable(),
+                value.detail());
     }
 
     /** {@code EXISTS (SELECT 1 FROM items [WHERE condition])}: a row of the items meets the condition. */
