@@ -73,6 +73,20 @@ Pure query ──▶ PLAN ── the base query + column facts (one per query; n
 This is P1's move, already ratified for plans (legend-engine's plan format is a rendering of the lite plan, not a
 second planner), made for results.
 
+**The ruling (the user, 2026-10-24): two renderers, first class, over the one plan.**
+
+| | LEAN (lite-native) | LEGACY (legend-engine compatible) |
+|---|---|---|
+| For | lite's own clients: Python, the tab, DataCube's lite route, services written against lite | Studio, Query, DataCube's engine route, services, and the PCT and corpus harnesses |
+| SQL | the leanest and fastest possible: the base typed query, nothing in it for output (the 44 characters of §0.1, not the 6 MB) | the same statement: execution is never forked |
+| Result | typed rows, faithful to Pure's types by the plan's facts (the kind, the Decimal's scale, the DateTime's precision, the tagged winner's slot), the values as the database holds them | the same typed rows |
+| Text | the renderer's lossless writer (Arrow, JSON, CSV): no Pure spelling rule is applied on the host, and none is asked of the database | legend-engine's bytes: `Double.toString`, the nine-digit `+0000` DateTime, the Decimal at its scale; PCT through `ValueBridge`, no text at all |
+| Judge | the round-trip gate (§6.1): the value survives | `OutputMatrixTest` byte for byte; PCT and the corpus test by test |
+
+"Faithful to Pure's types" is the plan's facts carried to the reader, never a spelling: a `3` stays an Integer and a
+`3.0D` a Decimal at scale 1 because the slot says so, not because a text said so. Where the two renderers differ is the
+writer alone; what they read is one result from one statement.
+
 ## 2. Decisions to ratify
 
 - **D1. One plan per query.** The plan is the base query and its column facts. The output format is never chosen
@@ -86,6 +100,10 @@ second planner), made for results.
   `SEMANTICS_REGISTER.md`, as S97 is today. PCT and the corpus go through `ValueBridge`. Execution is never forked.
 - **D5. The database keeps all meaning:** kinds A, B and C of §0.2. The SQL that exists only to write output text is
   retired (§7).
+- **D6. Two renderers, named** (the user, 2026-10-24; the table in §1): LEAN and LEGACY, both over the one plan and
+  the one typed result. LEAN's SQL is the base typed query and its text is a lossless writer's; LEGACY's text is
+  legend-engine's bytes. A third output format is one of the two, or a new renderer under the same rule; never a
+  change to the statement.
 
 ## 3. The carriage rule (D3)
 
@@ -233,3 +251,8 @@ exact-digits code stays: in-query `toString` (kind A) and the judges (kind C) st
    legend-engine's conventions?
 3. **Arrow in memory, or only on the wire?** The 2026-10-18 rule stands: built only on a measured gap.
 4. **A database-text cross-check during migration:** keep it on the local lanes until step 5, or not at all?
+5. **Kind A on a database whose own text is lossy** (the one place the LEAN renderer's SQL could still differ from
+   LEGACY's): an in-query `toString` of a Float on Snowflake, BigQuery, MySQL or MariaDB pays the exact-digits
+   expression (about 5 KB) for Pure's text. LEAN could instead take the database's own text there, as a register row
+   per database -- a query's answer would then differ by database, which LEGACY never allows. Not decided; built
+   only on a measured product cost (2026-10-23's view: rare in product queries, and no fact in the plan for it yet).
