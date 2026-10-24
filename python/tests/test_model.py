@@ -305,6 +305,40 @@ class OnThePage(unittest.TestCase):
     def setUp(self):
         _own_home(self)
 
+    def test_a_class_grid_reads_its_related_classes_through_an_association(self):
+        # the class tree (DataCube's class-tree.ts, headless gridRelated): each trade's desk's head beside it, through the
+        # association's to-one end; each desk's trades counted and their quantities summed through its to-many end --
+        # never a row per trade, so a total over the desks is exact
+        page = _page(self)
+        trades, desks = page.grids
+        trade = trades.create_class('Trade')
+        desk = desks.create_class('Desk', columns={'desk': 'key'})
+        page.create_association({'class': trade, 'on': 'desk', 'name': 'trades', 'unique': False},
+                                {'class': desk, 'on': 'desk', 'name': 'theDesk', 'unique': True}, name='TradeDesk')
+        def rows(grid, *names):
+            view = grid.view()
+            shown = [c['name'] for c in view.columns]
+            self.assertTrue(set(names) <= set(shown), shown)
+            at = [shown.index(n) for n in names]
+            return sorted(tuple(r[i] for i in at) for r in view.rows)
+
+        by_trade = page.grid(cls=trade)
+        by_trade.related('theDesk.head')
+        self.assertEqual(rows(by_trade, 'desk', 'theDesk_head'), [('EQ', 'Ben'), ('FX', 'Ana'), ('FX', 'Ana')])
+        by_desk = page.grid(cls=desk)
+        by_desk.related('trades', 'count').related('trades.qty', 'sum')
+        # FX (Ana's) has trades of 1 and 4; EQ (Ben's), one of 2
+        self.assertEqual(rows(by_desk, 'head', 'trades_count', 'trades_qty_sum'), [('Ana', 2, 5), ('Ben', 1, 2)])
+        # refused in DataCube's words, the grid as it was
+        with self.assertRaisesRegex(ValueError, 'trades.qty holds many for each Desk: aggregate them'):
+            by_desk.related('trades.qty')
+        with self.assertRaisesRegex(ValueError, 'Desk has no property client'):
+            by_desk.related('client.name')
+        with self.assertRaisesRegex(ValueError, 'this grid is over model_trades, no class'):
+            trades.related('theDesk.head')
+        with self.assertRaisesRegex(ValueError, "'trades_count' is a related column"):
+            by_desk.edit_calculated('trades_count', '1')
+
     def test_a_grid_made_a_class_then_an_association_and_a_data_space(self):
         page = _page(self)
         trades, desks = page.grids

@@ -708,3 +708,30 @@ describe('Create ▸ and Join ▸', () => {
     assert.ok(!top({ snapshot: CUBE, column: 'desk', join: [] }).includes('Join'));
   });
 });
+
+describe("Add Related Column ▸: a grid over a class's related columns one hop away (class-tree.ts relatedOffers)", () => {
+  const offers = [
+    { property: 'customer', target: 'm::Customer', many: false, columns: [{ path: ['customer', 'region'] }] },
+    { property: 'trades', target: 'm::Trade', many: true,
+      columns: [{ path: ['trades'], aggregate: 'count' as const }, { path: ['trades', 'notional'], aggregate: 'sum' as const }] },
+  ];
+
+  it('each class one hop away, its columns in words a person reads; none on a grid over no class', () => {
+    const extended = buildMenu({ snapshot: CUBE, column: 'notional', related: offers }).flatMap((g) => g.items)
+      .find((i) => i.label === 'Extended Columns');
+    const add = extended?.submenu?.find((i) => i.label === 'Add Related Column');
+    assert.deepEqual(add?.submenu?.map((i) => i.label), ['customer (Customer)', 'trades (each Trade)']);
+    assert.deepEqual(add?.submenu?.[1]?.submenu?.map((i) => [i.id, i.label, i.related]), [
+      ['calc.related', 'Count', { path: ['trades'], aggregate: 'count' }],
+      ['calc.related', 'Sum of notional', { path: ['trades', 'notional'], aggregate: 'sum' }],
+    ]);
+    assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional' })).some((i) => i.id === 'calc.related'));
+  });
+
+  it('a related column under the pointer is deleted, never edited as a formula', () => {
+    const got = ids({ snapshot: CUBE, column: 'notional', calcStage: 'row', relatedColumn: true });
+    assert.ok(got.includes('calc.delete'));
+    assert.ok(!got.includes('calc.edit'));
+    assert.ok(ids({ snapshot: CUBE, column: 'notional', calcStage: 'row' }).includes('calc.edit'));
+  });
+});

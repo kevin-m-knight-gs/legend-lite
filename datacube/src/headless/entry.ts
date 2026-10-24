@@ -9,7 +9,8 @@ import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/le
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
-  gridFilter, gridGesture, gridMeasure, gridOpened, gridPreset, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused, sourceCube,
+  gridFilter, gridGesture, gridMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
+  sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
@@ -41,9 +42,9 @@ export {
 export { gridAddFilter, gridCopied };
 
 /** Any column the column editor makes -- a window, a child aggregate, an explode, at either level (gridColumn: Python's
- *  grid.calculate, window, child_aggregate, explode) -- and a preset as the header menu adds one (gridPreset: grid.grain,
- *  show_as, bins). */
-export { gridColumn, gridPreset };
+ *  grid.calculate, window, child_aggregate, explode) -- a preset as the header menu adds one (gridPreset: grid.grain,
+ *  show_as, bins), and a related class's property as its Add Related Column adds one (gridRelated: grid.related). */
+export { gridColumn, gridPreset, gridRelated };
 /** Any gesture a person makes on a grid, by the one function the screen's control calls (gridGesture: Python's
  *  grid.gesture, and toggle_sort, toggle_group_sort, dimension, drill, drill_up, add_group ...: docs/
  *  DATACUBE_ONE_API_PLAN_2026_10_21.md S8), and measures made by a person's own steps (gridMeasure: grid.measure). */

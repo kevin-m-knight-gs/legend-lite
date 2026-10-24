@@ -10,7 +10,7 @@
 // meaning, made and proven there.
 
 import {
-  agg, and, asc, collection, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, property, variable,
+  agg, and, asc, collection, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, projectObjects, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import {
@@ -36,6 +36,7 @@ import {
   type GrainAt,
   type Measure,
   type QuerySnapshot,
+  type RelatedPath,
   type RelativeDate,
   type RelativeStart,
   type SortSpec,
@@ -230,6 +231,7 @@ interface LevelWindow {
 
 /** A calculated column appended to `rel`: an expression over the row, or a window. */
 function extendDerived(rel: Relation, d: DerivedColumn, level?: LevelWindow): Relation {
+  if (d.related) throw new Error(`'${d.name}' is projected with the class's own properties (relatedSource), never extended`);
   if (d.grain) {
     throw new CubeRefusal(`'${d.name}' is a measure at its parent's or the grand total's grain: a group-level column, after the grouping`);
   }
@@ -337,11 +339,39 @@ export function extendWindow(rel: Relation, name: string, w: WindowSpec): Relati
 
 // ---- the cube's queries ----
 
-/** The source with the cube's row-stage calculated columns: what step 0 types. */
+/** The source with the cube's row-stage calculated columns: what step 0 types, and every query of the cube starts from. */
 export function sourceWithDerived(s: QuerySnapshot): Relation {
-  let rel = from(s.source.query);
-  for (const d of s.derived) rel = extendDerived(rel, d);
+  let rel = from(relatedSource(s));
+  for (const d of s.derived) if (!d.related) rel = extendDerived(rel, d);
   return rel;
+}
+
+/**
+ * THE SOURCE WITH THE GRID'S RELATED COLUMNS (snapshot.ts RelatedPath) projected beside the class's own properties:
+ * `<cls>.all()->project(~[..., customer_region: x|$x.customer.region, trades_notional_sum: x|$x.trades.notional->sum()])`
+ * -- the class's relation rearranged, never computed; the joins and the per-instance aggregates the database's. A
+ * related column on rows that are no class's projection (a file's, a snapped grid's copy) is refused in words.
+ */
+export function relatedSource(s: QuerySnapshot): ValueSpecification {
+  const related = s.derived.filter((d) => d.related !== undefined);
+  if (related.length === 0) return s.source.query;
+  const q = s.source.query;
+  const specs = q._type === 'func' && q.function === 'project' && q.parameters.length === 2 ? q.parameters[1] : undefined;
+  const value = (specs as { readonly type?: unknown; readonly value?: { readonly colSpecs?: unknown } } | undefined);
+  if (value?.type !== 'colSpecArray' || !Array.isArray(value.value?.colSpecs)) {
+    throw new CubeRefusal(`'${related[0]!.name}' reads a class's relationships, and this grid's rows are no class's projection `
+      + '(a snapped grid reads a copy of its rows, which has none)');
+  }
+  return projectObjects((q as AppliedFunction).parameters[0]!, [
+    ...(value.value.colSpecs as ColSpec[]), ...related.map((d) => derive(d.name, lambda(['x'], relatedValue(d.related!)))),
+  ]).node;
+}
+
+/** A related column's value over the class's instance `$x`: its path, its to-many end's values aggregated. */
+export function relatedValue(r: RelatedPath): ValueSpecification {
+  let at: ValueSpecification = variable('x');
+  for (const p of r.path) at = property(at, p);
+  return r.aggregate === undefined ? at : fn(r.aggregate, at);
 }
 
 /** The column `countLambda` answers in. */
@@ -450,9 +480,15 @@ export function sampleLambda(source: ValueSpecification, n: number = SAMPLE_ROWS
 /**
  * WHAT A SNAP COPIES (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3, §18.8): the grid's base query, its EVERY column --
  * not the ones its view shows, so a column shown after it is snapped answers from the copy too, and a fresh grid,
- * which shows none, is no `select(~[])` the planner refuses. The screen's Snap and Python's ask it alike.
+ * which shows none, is no `select(~[])` the planner refuses. The screen's Snap and Python's ask it alike. A grid with a
+ * related column is refused: a copy of the class's rows has none of its relationships to read it through.
  */
-export function snapPull(snapshot: Pick<CubeSnapshot, 'source' | 'columns'>): Lambda {
+export function snapPull(snapshot: Pick<CubeSnapshot, 'source' | 'columns' | 'derived'>): Lambda {
+  const related = snapshot.derived.find((d) => d.related !== undefined);
+  if (related !== undefined) {
+    throw new CubeRefusal(`'${related.name}' reads the class's relationships, which a copy of its rows has not: take the `
+      + 'related columns off to snap it');
+  }
   return from(snapshot.source.query).select(snapshot.columns.map((c) => c.name)).lambda();
 }
 
@@ -545,11 +581,9 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
     const problem = measureNameProblem(snapshot, at);
     if (problem !== null) throw new CubeRefusal(problem);
   }
-  let rel = from(snapshot.source.query);
+  let rel = sourceWithDerived(snapshot);
   const groupCols = scope ? snapshot.rows.slice(0, Math.max(0, scope.level)) : snapshot.rows;
   const grandTotal = scope !== undefined && scope.level === 0 && snapshot.rows.length > 0;
-
-  for (const d of snapshot.derived) rel = extendDerived(rel, d);
 
   const conditions: FilterNode[] = [];
   if (snapshot.filter) conditions.push(snapshot.filter);
@@ -706,8 +740,7 @@ function joinedGrain(rel: Relation, snapshot: QuerySnapshot, wanted: readonly De
     }
     return aggregateSpec({ ...m, name: d.name });
   });
-  let whole = from(snapshot.source.query);
-  for (const d of snapshot.derived) whole = extendDerived(whole, d);
+  let whole = sourceWithDerived(snapshot);
   const own = at === 'all' && scope?.grandFilter !== undefined ? scope.grandFilter ?? undefined : snapshot.filter;
   const conditions: FilterNode[] = [
     ...(own ? [own] : []),

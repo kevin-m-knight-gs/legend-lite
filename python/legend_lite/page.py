@@ -638,6 +638,25 @@ class Grid(Tile):
         ``'max'``, ``'average'``...) -- the column editor's Children (DataCube's code, headless: gridColumn)."""
         return self._column({'name': name, 'mode': 'children', 'level': 'group', 'child': {'fn': fn, 'of': of}})
 
+    def related(self, path: str, aggregate: str | None = None, *, name: str | None = None) -> Grid:
+        """A related class's property as a column of a grid over a class (DataCube's class tree: class-tree.ts, headless
+        gridRelated) -- ``path`` from the class, dotted (``'customer.region'``), each hop a class-typed property or an
+        association's end -- as the header menu's Add Related Column adds it: through a to-many end its values aggregated
+        per instance (``aggregate``: ``'count'``, ``'sum'``, ``'average'``, ``'min'`` or ``'max'``; a class at the end
+        counted), so a total over the grid counts each instance once. Named after its path (``customer_region``,
+        ``trades_notional_sum``) unless ``name`` says; a measure when it aggregates, else a dimension. The database's join,
+        planned through the class's mapping. Refused in DataCube's words: a path the model has not, a to-many end not
+        aggregated, a grid over no class."""
+        given = {'path': path.split('.'), **({'aggregate': aggregate} if aggregate is not None else {}),
+                 **({'name': name} if name is not None else {})}
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridRelated', self._spec(engine, frames), _json.dumps(given)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
+
     def measure_at(self, name: str, of: str, at: str = 'parent') -> Grid:
         """A group-level column: the measure ``of`` as each group's parent has it (``at='parent'``; a top group's parent
         is the grand total) or as the grand total has it (``at='all'``) -- the same aggregate over the coarser group's

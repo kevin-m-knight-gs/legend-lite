@@ -7,6 +7,8 @@ import { before, beforeEach, describe, it } from 'node:test';
 
 import { JSDOM } from 'jsdom';
 import { CubeApp } from '../src/app.ts';
+import { classRelation } from '../src/class-source.ts';
+import { classTree } from '../src/class-tree.ts';
 import type { Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
@@ -223,6 +225,32 @@ describe('the app', () => {
     }
     item.click();
   };
+
+  it("a grid over a class offers its related classes' columns, and one chosen is added as the column editor adds one", async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const classes: CubeSnapshot = { ...SNAPSHOT, source: { query: classRelation('m::Trade', ['region', 'desk', 'notional']) } };
+    const tree = classTree([
+      { _type: 'class', package: 'm', name: 'Trade', properties: [] },
+      { _type: 'class', package: 'm', name: 'Customer', properties: [{ name: 'name', genericType: { rawType: { _type: 'packageableType', fullPath: 'String' } }, multiplicity: { lowerBound: 1, upperBound: 1 } }] },
+      { _type: 'association', package: 'm', name: 'TradeCustomer', properties: [
+        { name: 'customer', genericType: { rawType: { _type: 'packageableType', fullPath: 'm::Customer' } }, multiplicity: { lowerBound: 0, upperBound: 1 } },
+        { name: 'trades', genericType: { rawType: { _type: 'packageableType', fullPath: 'm::Trade' } }, multiplicity: { lowerBound: 0 } },
+      ] },
+    ]);
+    const sent: GridCommand[] = [];
+    const own = new CubeApp(host, classes, { engine, planner, classTree: { class: 'm::Trade', tree }, onCommand: (c) => sent.push(c) });
+    await own.open();
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('name');
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(sent.filter((c) => c.kind === 'calculate'), [{ kind: 'calculate', level: 'row',
+      column: { name: 'customer_name', related: { path: ['customer', 'name'] }, kind: 'dimension' } }]);
+    // chosen once, offered no more
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    assert.ok(!menuItems().some((i) => i.textContent === 'Add Related Column'));
+    own.dispose();
+  });
 
   describe('value filters on a group row', () => {
     /**

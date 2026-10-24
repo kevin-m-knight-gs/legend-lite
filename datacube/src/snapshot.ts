@@ -343,6 +343,29 @@ export interface ChildAggregate {
   readonly of: string;
 }
 
+/**
+ * How a TO-MANY END's values are aggregated for each instance of the class (RelatedPath): what the compiler takes over a
+ * to-many navigation in a projection -- a join to the related rows grouped by their key, never a row per related
+ * instance. A distinct count over a to-many end is the compiler's to add (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md §5).
+ */
+export const PATH_AGGREGATES = ['count', 'sum', 'average', 'min', 'max'] as const;
+export type PathAggregate = (typeof PATH_AGGREGATES)[number];
+
+/**
+ * A RELATED COLUMN of a grid over a class (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md §3.3, the class tree): a path of
+ * properties from the class -- each hop a class-typed property or an association's end -- to a related class's
+ * property, `customer.region`, `$x.customer.region` beside the class's own; through a to-many end its values
+ * aggregated per instance, `trades.notional` summed, `$x.trades.notional->sum()`, or the end itself counted -- so a
+ * total over the grid counts each instance once, by construction. Projected with the class's own properties
+ * (query.ts relatedSource): the database's join, typed by the compiler as every column is.
+ */
+export interface RelatedPath {
+  /** The properties from the class, in order: `['customer', 'region']`. */
+  readonly path: readonly string[];
+  /** Through a to-many end, how its values are aggregated (a class at the end: counted); a to-one path has none. */
+  readonly aggregate?: PathAggregate;
+}
+
 /** Where a figure at a grain is taken (Grain): its parent group's level, or the grand total's. */
 export type GrainAt = 'parent' | 'all';
 
@@ -366,7 +389,7 @@ export interface DerivedColumn {
   /**
    * The column as a function of the row, `x|$x.a * 2`, as protocol: the
    * compiler's parse of what the person typed (upstream's `mapFn`). Absent
-   * for a window, child-aggregate or grain column.
+   * for a window, child-aggregate, grain or related column.
    */
   readonly lambda?: Lambda;
   /** A window column instead of an expression: see `WindowSpec`. */
@@ -375,6 +398,8 @@ export interface DerivedColumn {
   readonly childAggregate?: ChildAggregate;
   /** A measure at its parent's or the grand total's grain instead: see `Grain`. */
   readonly grain?: Grain;
+  /** A related class's property instead, projected with the class's own (row stage only): see `RelatedPath`. */
+  readonly related?: RelatedPath;
   /**
    * EXPLODE: `lambda` yields a collection, and each row is repeated once per element, the
    * element being this column (`lateral(x|<collection>->flatten(~name))`, upstream Pure's

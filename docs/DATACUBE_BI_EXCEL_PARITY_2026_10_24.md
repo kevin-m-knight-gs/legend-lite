@@ -371,8 +371,8 @@ Status: **Have**, **Partial**, **Missing**. Where: **DC** (DataCube alone, `data
 
 | Feature | Status | Where | Size | Phase |
 |---|---|---|---|---|
-| The class tree: to-one hops as columns, through class-typed properties and associations | Missing | DC (core supports the queries) | M | P5 |
-| A to-many end offered as aggregates (count, sum, ...) per instance | Missing | DC (correlated aggregate, supported) | M | P5 |
+| The class tree: to-one hops as columns, through class-typed properties and associations | **Built 2026-10-24**: a related column (`DerivedColumn.related`) projected with the class's own (query.ts relatedSource); the header menu's Add Related Column offers one hop, Python's `grid.related('a.b')` any depth, each path judged against the model's class tree (class-tree.ts) | DC (core supports the queries) | M | P5 |
+| A to-many end offered as aggregates (count, sum, ...) per instance | **Built 2026-10-24**: count, sum, average, min, max -- a LEFT JOIN to the related rows grouped by their key, so a region's total of customers' trade sums is exact; never a row per instance. Distinct count waits for core (C9) | DC (correlated aggregate, supported) | M | P5 |
 | Derived properties offered; qualified properties with arguments | Missing | DC | M | P5 |
 | Labels, formats, descriptions read from tagged values | Missing | DC (model JSON) | M | P5 |
 | Measures declared in the model, offered by name (§3.4) | Missing | DC first, core form after | L | P5 |
@@ -404,6 +404,8 @@ language over the governed model, summaries, "explain this change". Not this pro
 | C5 | **Constraints evaluated in projections** (a defects column) | Data quality on a page (§3.11) | Compiler line |
 | C6 | `orElse`; optional enum parameters; `lastDayOfMonth` | Small gaps a semantic layer meets at once | Compiler line |
 | C7 | A **data space as a query entry** | A perspective a client names rather than unpacks | Compiler line |
+| C8 | **Unused projected columns pruned**: a `select` or `groupBy` after a `project` keeps the LEFT JOINs (and per-instance aggregate subqueries) of columns it never reads (probed 2026-10-24) | A class's grid could then project its whole class tree and pay only for what each query reads | Compiler line |
+| C9 | **`distinct()->count()` over a to-many navigation** in a projection (refused today: "aggregate count over an expression containing a to-many navigation is not supported yet") | A related column's distinct count | Compiler line |
 
 This line does not message other sessions: these are recorded here and in the line's IN_FLIGHT entry for the compiler
 line to read.

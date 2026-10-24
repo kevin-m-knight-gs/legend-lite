@@ -52,14 +52,16 @@ import { formatOf } from '../upload.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
-  type AggregateFn, type ChildAggregate, type Grain, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterNode, type FilterValue,
+  type AggregateFn, type ChildAggregate, type Grain, type ColumnKind, type ColumnSpec, type CubeSnapshot, type DerivedColumn, type FilterNode,
+  type FilterValue,
   type SortDirection, type WindowSpec,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
-import { classGiven, className } from '../class-source.ts';
+import { classGiven, className, type ClassElement } from '../class-source.ts';
+import { classTree, relatedName, relatedProblem } from '../class-tree.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { sharedPart, type SharedQuery } from '../../../query-store/src/share.ts';
 import { joinOpenedOn } from './join.ts';
@@ -515,6 +517,10 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   return using(spec, async (o) => {
     const { planner, state } = o;
     // an edit starts from the column as it is (Edit Column opens on it: its level, its explode), as told otherwise
+    // a related column is the class tree's (gridRelated), never a formula to edit
+    if (replacing !== null && state.snapshot.derived.some((d) => d.name === replacing && d.related !== undefined)) {
+      return JSON.stringify({ problems: [`'${replacing}' is a related column: remove it and add another (grid.related)`] });
+    }
     const was = replacing === null ? undefined : existingDraft(state.snapshot, replacing)?.draft;
     if (replacing !== null && was === undefined) {
       return JSON.stringify({ problems: [`'${replacing}' is not a calculated column of the grid`] });
@@ -551,6 +557,46 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
 }
 
 const isDraftMode = (m: unknown): m is ColumnDraft['mode'] => m === 'expression' || m === 'window' || m === 'children' || m === 'grain';
+
+/**
+ * A RELATED COLUMN ADDED AS THE HEADER MENU'S ADD RELATED COLUMN ADDS ONE (snapshot.ts RelatedPath; Python's grid.related):
+ * `given` `{path, aggregate?, name?}` -- read as a calculate command's related column is, its path judged against the
+ * class tree of the grid's model (class-tree.ts relatedProblem: a property the class reaches, a to-many end aggregated)
+ * -- added by the column editor's command, named after its path unless named, a measure when it aggregates. JSON: as
+ * gridApply's, or `{problems}`, in DataCube's words.
+ */
+export async function gridRelated(spec: GridSpec, given: string): Promise<string> {
+  const asked = JSON.parse(given) as { path?: unknown; aggregate?: unknown; name?: unknown };
+  const source = readCube(fromJson(spec.cube)).source;
+  if (source._type !== 'class') {
+    return JSON.stringify({ problems: [`a related column reads a class's relationships, and this grid is over ${source.name}, no class`] });
+  }
+  if (asked.name !== undefined && typeof asked.name !== 'string') {
+    return JSON.stringify({ problems: [`a related column's name is text, not ${JSON.stringify(asked.name)}`] });
+  }
+  let column: DerivedColumn;
+  try {
+    const read = readGridCommand({ kind: 'calculate', level: 'row', column: { name: asked.name ?? 'related', related: { path: asked.path,
+      ...(asked.aggregate !== undefined ? { aggregate: asked.aggregate } : {}) } } });
+    column = (read as { readonly column: DerivedColumn }).column;
+  } catch (e) {
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+  const related = column.related!;
+  return using(spec, async (o) => {
+    const problem = relatedProblem(classTree(await o.planner.modelElements(spec.model) as ClassElement[]), source.class, related);
+    if (problem !== null) return JSON.stringify({ problems: [problem] });
+    const base = relatedName(related);
+    let name = asked.name as string | undefined;
+    if (name === undefined) {
+      name = base;
+      for (let i = 2; nameProblem(o.state.snapshot, 'row', name) !== null; i += 1) name = `${base}_${i}`;
+    }
+    return applied(spec, o, [{ kind: 'calculate', level: 'row',
+      column: { name, related, kind: related.aggregate !== undefined ? 'measure' : 'dimension' } }]);
+  });
+}
 
 /**
  * A PRESET ADDED AS THE HEADER MENU ADDS ONE (grid-presets.ts presetCommands: a date to its period, a measure shown as,

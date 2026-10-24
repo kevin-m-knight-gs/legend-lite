@@ -442,6 +442,7 @@ _HEADLESS_TESTS = [
     "chart-rules-more",
     "child-groups",
     "class-source",
+    "class-tree",
     "column-kind",
     "columns-selector",
     "config",

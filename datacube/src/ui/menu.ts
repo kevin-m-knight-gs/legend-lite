@@ -36,8 +36,10 @@ import type {
   CubeSnapshot,
   FilterOperator,
   FilterValue,
+  RelatedPath,
   SortDirection,
 } from '../snapshot.ts';
+import { className, relatedLabel, type RelatedOffer } from '../class-tree.ts';
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, GRID_SHOW_AS_KINDS, GRID_SHOW_AS_LABELS, type GridShowAsKind } from '../calc-presets.ts';
 import { TIME_GRAINS, type TimeGrain } from '../chart-spec.ts';
@@ -97,6 +99,10 @@ export interface MenuContext {
   readonly canEmail?: boolean;
   /** Whether the host knows where the cube's rows come from, so the cube can be written down. */
   readonly canSaveCube?: boolean;
+  /** A grid over a class: the related columns one hop away it has not yet (class-tree.ts relatedOffers). */
+  readonly related?: readonly RelatedOffer[];
+  /** The column under the pointer is a related column: the class tree's, never a formula to edit. */
+  readonly relatedColumn?: boolean;
   /** From a header: Properties... opens Column Properties on this. */
   readonly propertiesColumn?: string;
   /** The column pivot's headers are measure-first (a checked entry). */
@@ -281,6 +287,7 @@ export type MenuActionId =
   | 'calc.grain'
   | 'calc.bins'
   | 'calc.showAs'
+  | 'calc.related'
   | 'calc.edit'
   | 'calc.delete'
   // The chrome, toggled from the title bar's menu. Not a snapshot
@@ -344,6 +351,8 @@ export interface MenuItem {
   readonly grain?: TimeGrain;
   /** A preset's choice: what a measure is shown as (`calc.showAs`). */
   readonly showAs?: GridShowAsKind;
+  /** A related class's property to add (`calc.related`: class-tree.ts relatedOffers). */
+  readonly related?: RelatedPath;
   /** A date range relative to today (Filter ▸ Date Range ▸, date-ranges.ts). */
   readonly range?: DateRange;
   /** A top N's N, and whether it is the bottom's (Filter ▸ Top 10). */
@@ -488,6 +497,19 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
     })) });
   }
   return out;
+}
+
+/** Extended Columns ▸ Add Related Column ▸ (a grid over a class): each class one hop away, and its columns -- a to-one
+ *  end's values, a to-many end's count and aggregates (class-tree.ts relatedOffers). */
+function relatedItems(ctx: MenuContext): MenuItem[] {
+  if (!ctx.related || ctx.related.length === 0) return [];
+  return [{
+    label: 'Add Related Column',
+    submenu: ctx.related.map((o) => ({
+      label: `${o.property} (${o.many ? `each ${className(o.target)}` : className(o.target)})`,
+      submenu: o.columns.map((related) => ({ id: 'calc.related' as const, label: relatedLabel(related), related })),
+    })),
+  }];
 }
 
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
@@ -700,10 +722,11 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
             column }]
           : []),
         ...presetItems(ctx, column, named),
+        ...relatedItems(ctx),
         ...(column !== undefined && ctx.calcStage !== undefined
           ? [
-            { id: 'calc.edit' as const, label: `Edit Column ${named}...`,
-              column },
+            // a related column is the class tree's (Add Related Column), never a formula to edit
+            ...(ctx.relatedColumn ? [] : [{ id: 'calc.edit' as const, label: `Edit Column ${named}...`, column }]),
             { id: 'calc.delete' as const, label: `Delete Column ${named}`,
               column },
           ]

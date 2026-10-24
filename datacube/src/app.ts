@@ -100,8 +100,10 @@ import {
   type DerivedColumn,
   type FilterNode,
   type FilterValue,
+  type RelatedPath,
 } from './snapshot.ts';
 import type { HeatmapSpec } from './style.ts';
+import { relatedName, relatedOffers, type ClassOf, type RelatedOffer } from './class-tree.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
 
@@ -119,7 +121,7 @@ import { SETTINGS_WINDOW, buildSettingsPanel } from './ui/settings-panel.ts';
 import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
 import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
 import { presetCommands, type GridPreset } from './grid-presets.ts';
-import { columnRef } from './calc.ts';
+import { columnRef, nameProblem } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
@@ -274,6 +276,9 @@ export interface CubeAppBaseOptions {
    * cannot -- a cube over a model waits for the model home.
    */
   readonly cubeSource?: CubeSource;
+  /** A grid over a class: its class and the model's class tree -- the header menu's Add Related Column offers one hop of
+   *  it (class-tree.ts relatedOffers). */
+  readonly classTree?: ClassOf;
   /**
    * Where the cube's windows (dialogs) float, and what they are kept inside: a page of several
    * cubes gives its whole area, so a dialog opened from a small tile is not squeezed into the
@@ -2062,6 +2067,7 @@ export class CubeApp {
       // the host's Join ▸ on the column clicked, and its Create ▸ entries: theirs to answer (#onHostAction)
       const join = this.#options.joinMenu?.(column !== TREE_COLUMN ? column : undefined) ?? [];
       this.#cellHost = join;
+      const related = this.#relatedOffers();
       const groups = buildMenu({
         snapshot: this.#shown,
         ...(join.length > 0 && !this.#adhoc ? { join } : {}),
@@ -2100,6 +2106,8 @@ export class CubeApp {
           ? { extendable: true }
           : {}),
         ...(column !== undefined ? calcStageOf(this.#shown, column) : {}),
+        ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.related !== undefined) ? { relatedColumn: true } : {}),
+        ...(related.length > 0 ? { related } : {}),
         ...facts,
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
@@ -2110,6 +2118,30 @@ export class CubeApp {
         ? { top: scroller.scrollTop, left: scroller.scrollLeft }
         : null;
     });
+  }
+
+  /** The related columns one hop from the grid's class it has not yet (class-tree.ts relatedOffers): the header menu's
+   *  Add Related Column ▸. None on a grid over anything but a class whose tree its opener read. */
+  #relatedOffers(): RelatedOffer[] {
+    const of = this.#options.classTree;
+    if (of === undefined) return [];
+    const has = new Set(this.#shown.derived.flatMap((d) => (d.related ? [relatedName(d.related)] : [])));
+    return relatedOffers(of.tree, of.class)
+      .map((o) => ({ ...o, columns: o.columns.filter((c) => !has.has(relatedName(c))) }))
+      .filter((o) => o.columns.length > 0);
+  }
+
+  /**
+   * A RELATED COLUMN ADDED (Add Related Column ▸; snapshot.ts RelatedPath), as the column editor's Add adds a column (the
+   * `column.calculate` gesture): named after its path (`customer_region`), else that with `_2`, `_3`… where the grid has
+   * a column of it; a measure when it aggregates, else a dimension -- a related class's value is what a grid groups by.
+   */
+  async #addRelated(related: RelatedPath): Promise<void> {
+    const base = relatedName(related);
+    let name = base;
+    for (let i = 2; nameProblem(this.#snapshot, 'row', name) !== null; i += 1) name = `${base}_${i}`;
+    await this.#gesture('column.calculate',
+      { level: 'row', column: { name, related, kind: related.aggregate !== undefined ? 'measure' : 'dimension' } }, `related column ${name}`);
   }
 
   #onMenuAction(item: MenuItem): void {
@@ -2191,6 +2223,9 @@ export class CubeApp {
             );
           }
         }
+        return;
+      case 'calc.related':
+        if (item.related) void this.#addRelated(item.related);
         return;
       case 'calc.showAs':
         if (column && item.showAs) {
@@ -3403,6 +3438,11 @@ export class CubeApp {
   openColumnEditor(start: ColumnEditorStart): void {
     if (this.#cubeOnly()) return;
     const editing = 'edit' in start ? start.edit : undefined;
+    // a related column is the class tree's (Add Related Column), never a formula: its editor would open on none
+    if (editing !== undefined && this.#snapshot.derived.some((d) => d.name === editing && d.related !== undefined)) {
+      this.#status(`${editing} is a related column: delete it and add another from Add Related Column`, 'warn');
+      return;
+    }
     const key = editing !== undefined
       ? `column:${editing}`
       : `column:new:${(this.#newColumns += 1)}`;

@@ -17,9 +17,10 @@ import {
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { operandKind } from './filter-operators.ts';
 import {
-  AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, GRAIN_ATS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
+  AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, GRAIN_ATS, PATH_AGGREGATES, SORT_DIRECTIONS,
+  WINDOW_FUNCTIONS, isJsonValue,
   isPivotTotalColumn, isRelativeDate, pivotTotalColumn, readTopN, withCalculated, withoutConditions,
-  type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type Grain, type FilterNode, type FilterOperator,
+  type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type Grain, type RelatedPath, type FilterNode, type FilterOperator,
   type FilterValue, type Measure, type SortDirection, type SortSpec, type TopN, type WindowFrame, type WindowFunction,
   type WindowSpec,
 } from './snapshot.ts';
@@ -143,6 +144,9 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     case 'calculate': {
       const problem = nameProblem(draft.snapshot, command.level, command.column.name);
       if (problem !== null) throw new CubeRefusal(problem);
+      if (command.column.related !== undefined && command.level !== 'row') {
+        throw new CubeRefusal(`'${command.column.name}' is a related class's property: a row-level column, projected with the class's own`);
+      }
       return { ...draft, snapshot: withCalculated(draft.snapshot, undefined, command.level, command.column) };
     }
     case 'editCalculated': {
@@ -548,21 +552,36 @@ function grainFrom(v: unknown): Grain {
   return { of: textFrom(v['of'], "a grain's measure"), at: at as Grain['at'] };
 }
 
+/** A related class's property -- its path from the class, a to-many end's aggregate -- or why not. What the path names
+ *  (a property the class has, to one or to many) is the model's to judge: class-source.ts relatedProblem. */
+function relatedFrom(v: unknown): RelatedPath {
+  if (!isObject(v)) throw new CubeRefusal(`a related column is {path[, aggregate]}, not ${JSON.stringify(v)}`);
+  fields(v, 'related', ['path', 'aggregate'], 'a related column');
+  const path = namesFrom(v['path'], "a related column's path");
+  if (path.length === 0) throw new CubeRefusal("a related column's path is the properties from the class, at least one");
+  const aggregate = v['aggregate'];
+  if (aggregate !== undefined && (typeof aggregate !== 'string' || !(PATH_AGGREGATES as readonly string[]).includes(aggregate))) {
+    throw new CubeRefusal(`a related column's values are aggregated by ${PATH_AGGREGATES.join(', ')}, not ${JSON.stringify(aggregate)}`);
+  }
+  return { path, ...(aggregate !== undefined ? { aggregate: aggregate as RelatedPath['aggregate'] & string } : {}) };
+}
+
 /**
  * A calculated column read from JSON, as the screen's column editor and its presets make one: a formula (its lambda the
  * protocol's, its body the planner's to judge; exploded, each row repeated per element), a window column (Show As: a
- * running total, a rank), an aggregate of the child groups or a measure at its parent's or the grand total's grain --
- * exactly one of them -- with its name (trimmed, as the editor takes one), its kind and its type; or why not.
+ * running total, a rank), an aggregate of the child groups, a measure at its parent's or the grand total's grain or a
+ * related class's property -- exactly one of them -- with its name (trimmed, as the editor takes one), its kind and its
+ * type; or why not.
  */
 function calculatedFrom(v: unknown): DerivedColumn {
-  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate | grain, ...}, not ${JSON.stringify(v)}`);
-  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'grain', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
-  const shapes = (['lambda', 'window', 'childAggregate', 'grain'] as const).filter((k) => v[k] !== undefined);
+  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate | grain | related, ...}, not ${JSON.stringify(v)}`);
+  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'grain', 'related', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
+  const shapes = (['lambda', 'window', 'childAggregate', 'grain', 'related'] as const).filter((k) => v[k] !== undefined);
   if (shapes.length !== 1) {
-    throw new CubeRefusal(`a calculated column is one of a lambda, a window, a child aggregate or a grain, not ${shapes.join(' and ') || 'none'}`);
+    throw new CubeRefusal(`a calculated column is one of a lambda, a window, a child aggregate, a grain or a related property, not ${shapes.join(' and ') || 'none'}`);
   }
   if (v['unnest'] !== undefined && typeof v['unnest'] !== 'boolean') throw new CubeRefusal(`unnest is true or false, not ${JSON.stringify(v['unnest'])}`);
-  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window, a child aggregate or a grain is not exploded");
+  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window, a child aggregate, a grain or a related property is not exploded");
   const lambda = v['lambda'];
   if (lambda !== undefined && (!isObject(lambda) || lambda['_type'] !== 'lambda' || !Array.isArray(lambda['body']))) {
     throw new CubeRefusal(`a calculated column's lambda is the protocol's {_type: 'lambda', body, parameters}, not ${JSON.stringify(lambda)}`);
@@ -573,6 +592,7 @@ function calculatedFrom(v: unknown): DerivedColumn {
     ...(v['window'] !== undefined ? { window: windowFrom(v['window']) } : {}),
     ...(v['childAggregate'] !== undefined ? { childAggregate: childAggregateFrom(v['childAggregate']) } : {}),
     ...(v['grain'] !== undefined ? { grain: grainFrom(v['grain']) } : {}),
+    ...(v['related'] !== undefined ? { related: relatedFrom(v['related']) } : {}),
     ...(v['unnest'] !== undefined ? { unnest: v['unnest'] as boolean } : {}),
     ...(v['kind'] !== undefined ? { kind: kindFrom(v['kind']) } : {}),
     ...(v['type'] !== undefined ? { type: textFrom(v['type'], "a calculated column's type") } : {}),

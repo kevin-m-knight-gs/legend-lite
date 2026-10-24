@@ -221,6 +221,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(place.hostSnap ? { hostSnap: place.hostSnap } : {}),
         ...(place.signInAgain ? { signInAgain: place.signInAgain } : {}),
         ...(place.cubeSource ? { cubeSource: place.cubeSource } : {}),
+        ...(place.classTree ? { classTree: place.classTree } : {}),
         // the groups a saved cube had open: its own grid's, not a copy's (a copy starts collapsed, as a new grid) -- or, the
         // same grid made again by an undo, its own as they were
         ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
