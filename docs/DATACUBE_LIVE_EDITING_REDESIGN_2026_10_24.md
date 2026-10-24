@@ -6,6 +6,27 @@
 **The decision asked:** replace D19's converge with the architecture below (§3), in the phases of §6, or keep
 patching the current one. The recommendation is to replace it. §7 lists the product decisions that come with it.
 
+**Corrections from an independent review (2026-10-24), which supersede the sections they name.** The review
+confirmed the direction: the keeper as authority, state sent as patches, mutation ids, client-made ids, and a
+client store that replays its pending mutations. It found four mechanisms wrong as written:
+
+- **§3.8 is wrong.** Python cannot write under the keeper's lock: the lock is not reentrant and every Python call
+  reads the keeper again (`keeper.py:128`, `page.py:1307`, `page.py:1336`). Python stays an ordinary client that
+  pushes mutations, without its rename path.
+- **§3.6's undo moves to the keeper.** A comparison made at press time on the client races with other writes and
+  compares against a prediction. Undo is a guarded `undo {of: mutation}` evaluated by the keeper against its own
+  record of what that mutation changed.
+- **§3.2 needs a resurrection rule.** An undo brings a removed tile back under a fresh id today (B12), so renames
+  survive unique ids. A tile brought back by an undo should keep its id; tags already prevent an id going to a
+  different object.
+- **§6's phase A must be additive.** The new routes sit beside the old ones until phase B removes the old client.
+  The duplicated side effects (R3) are switched off in phase B, not D.
+
+It also recommended: grid edits keep CubeApp's existing pending pipeline and join the store's view when the keeper
+confirms them, which keeps today's transaction and removes the "checked before dispatch" contradiction of §3.5;
+and phase E is dropped, since absolute-only ops lose concurrent intent. The full review is not in the repository;
+its findings are these.
+
 ---
 
 ## 1. Verdict on the current implementation
