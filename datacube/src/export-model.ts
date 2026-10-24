@@ -20,7 +20,7 @@ import {
 } from './style.ts';
 import type { FontCase } from './format.ts';
 import type { TreeRow } from './tree.ts';
-import { TREE_COLUMN } from './treeview.ts';
+import { TREE_COLUMN, treeHeaderText } from './treeview.ts';
 
 /** What a blurred cell becomes in every export: plainly not data, and the same everywhere. */
 export const REDACTED = '[REDACTED]';
@@ -143,7 +143,7 @@ export function exportTable(source: ExportSource): ExportTable {
   const { rows, model, treeRows } = source;
   const index = new Map(rows.columns.map((c, i) => [c.name, i]));
   const grouped = model.leaves.some((l) => l.name === TREE_COLUMN);
-  const treeHeader = source.groupLabels.join(' / ') || 'Group';
+  const treeHeader = treeHeaderText(source.groupLabels);
 
   const columns: ExportColumn[] = model.leaves.map((leaf, i) => {
     const tree = leaf.name === TREE_COLUMN;

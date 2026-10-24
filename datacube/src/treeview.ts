@@ -316,6 +316,11 @@ export type TreeColumnMode = 'single' | 'perDimension';
 /** Name of the synthetic tree column. Its header renders empty. */
 export const TREE_COLUMN = '__tree';
 
+/** The tree column's heading in an export or a copy, where the screen leaves it blank: what it groups by. */
+export function treeHeaderText(groupLabels: readonly string[]): string {
+  return groupLabels.join(' / ') || 'Group';
+}
+
 export interface AssembleOptions {
   readonly treeColumn?: TreeColumnMode;
   readonly totalsLabel?: string;

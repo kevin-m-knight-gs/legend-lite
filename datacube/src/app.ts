@@ -53,7 +53,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
-import { exportFileName, toCsv, toEml } from './export.ts';
+import { exportFileName, toClipboard, toCsv, toEml } from './export.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -85,6 +85,7 @@ import {
 import { shownColumns } from './shown-columns.ts';
 import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
+import { treeHeaderText } from './treeview.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
 import {
@@ -796,6 +797,7 @@ export class CubeApp {
       onResizeColumn: (column, width) => void this.#gesture('column.resize', { column, width }, `column ${column}`),
       headerTitle: (path, leaf) => this.#headerTitle(path, leaf),
       treeTitle: (_row, label) => (label === '' ? '' : `Group Value = ${label}`),
+      treeHeader: () => this.#treeHeader(),
       ...(options.writeClipboard
         ? { writeClipboard: options.writeClipboard }
         : {}),
@@ -2133,10 +2135,10 @@ export class CubeApp {
         this.#autoSize(null);
         return;
       case 'copy.selection':
-        this.#copy(this.#selectionCsv());
+        this.#copy(this.#selectionText());
         return;
       case 'copy.column':
-        if (column) this.#copy(this.#columnCsv(column));
+        if (column) this.#copy(this.#columnText(column));
         return;
       case 'view.properties':
         this.openEditor(item.column);
@@ -2145,7 +2147,7 @@ export class CubeApp {
         this.setControlsHidden(!this.#controlsHidden);
         return;
       case 'copy.rows':
-        this.#copy(this.#rowsCsv());
+        this.#copy(this.#rowsText());
         return;
       case 'grid.sizeToFit':
         this.#sizeToFit();
@@ -2418,25 +2420,27 @@ export class CubeApp {
           (s.blank > 0 ? ` · ${s.blank} blank` : '');
   }
 
-  #selectionCsv(): string {
+  // The menu's copies are the clipboard's text, as Ctrl+C's are (the grid's copySelection): tab-separated with no
+  // byte-order mark, so a paste fills a spreadsheet's columns -- not a CSV file's text, which lands in one column.
+  #selectionText(): string {
     const table = this.#view?.rows;
     if (!table || !this.#selection) return '';
-    return toCsv(selectionTable(table, this.#grid.columns?.leaves ?? [], this.#selection));
+    return toClipboard(selectionTable(table, this.#grid.columns?.leaves ?? [], this.#selection, this.#treeHeader()));
   }
 
-  #columnCsv(column: string): string {
+  /** The tree column's heading in a copy, as an export heads it: the shown grid's groups, by their labels. */
+  #treeHeader(): string {
+    return treeHeaderText((this.#view?.snapshot.rows ?? []).map((name) => labelFor(this.#config, name)));
+  }
+
+  /** One column, every row, headed as a selection's copy is (its label; the tree, what it groups by). */
+  #columnText(column: string): string {
     const view = this.#view;
-    if (!view) return '';
-    const leaf = view.columns.leaves.find((l) => l.name === column);
-    if (!leaf) return '';
-    const src = view.rows.columns[leaf.index];
-    if (!src) return '';
-    return toCsv({
-      columns: [src],
-      rowCount: view.rows.rowCount,
-      epoch: view.rows.epoch,
-      elapsedMs: 0,
-    });
+    if (!view || view.rows.rowCount === 0) return '';
+    const col = view.columns.leaves.findIndex((l) => l.name === column);
+    if (col < 0) return '';
+    return toClipboard(selectionTable(view.rows, view.columns.leaves,
+      { anchor: { row: 0, col }, focus: { row: view.rows.rowCount - 1, col } }, this.#treeHeader()));
   }
 
   /**
@@ -2444,22 +2448,14 @@ export class CubeApp {
    * Rows as Plain Text". Through the column model, so hidden columns
    * and the tree's machinery stay out.
    */
-  #rowsCsv(): string {
+  #rowsText(): string {
     const view = this.#view;
     const sel = this.#selection;
     if (!view || !sel) return '';
-    const top = Math.min(sel.anchor.row, sel.focus.row);
-    const bottom = Math.max(sel.anchor.row, sel.focus.row);
-    const columns = view.columns.leaves.flatMap((l) => {
-      const c = view.rows.columns[l.index];
-      return c ? [{ ...c, values: c.values.slice(top, bottom + 1) }] : [];
-    });
-    return toCsv({
-      columns,
-      rowCount: bottom - top + 1,
-      epoch: view.rows.epoch,
-      elapsedMs: 0,
-    });
+    const last = view.columns.leaves.length - 1;
+    if (last < 0) return '';
+    return toClipboard(selectionTable(view.rows, view.columns.leaves,
+      { anchor: { row: sel.anchor.row, col: 0 }, focus: { row: sel.focus.row, col: last } }, this.#treeHeader()));
   }
 
   /**

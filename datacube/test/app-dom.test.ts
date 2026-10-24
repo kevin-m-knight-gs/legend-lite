@@ -823,6 +823,30 @@ describe('the app', () => {
     ]);
   });
 
+  it("the menu's copies are what Ctrl+C copies: tab-separated, no byte-order mark, so a paste fills Excel's columns", () => {
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Column notional');
+    assert.deepEqual(clipboard, ['notional\n600\n400\n']);
+    // the selected cells: clicked, then Shift+clicked across to the measure -- the grid's own Ctrl+C text
+    const cell = (text: string): HTMLElement =>
+      [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === text) as HTMLElement;
+    cell('▸EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    cell('400.00').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, shiftKey: true }));
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Selected Cells');
+    // the tree column heads its copy with what it groups by, as an export does, never its machinery name
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Selected Rows');
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+    // and Ctrl+C, the grid's own copy, writes the same text
+    const copies = clipboard.length;
+    (root.querySelector('.dc-grid') as HTMLElement).dispatchEvent(
+      new dom.window.KeyboardEvent('keydown', { key: 'c', ctrlKey: true, bubbles: true }));
+    assert.equal(clipboard.length, copies + 1, 'Ctrl+C copied');
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+  });
+
   it('a right-click on a TREE cell resolves the dimension at that level', () => {
     // Their menu does the same, from the node's level: right-click
     // EMEA under region and the filter entries are about region.

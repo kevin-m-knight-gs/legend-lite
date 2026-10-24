@@ -182,6 +182,32 @@ describe('DataGrid DOM', () => {
   });
 });
 
+describe('stacked sticky columns', () => {
+  it('each sits after the sticky ones before it, as frozen panes do -- never all at the edge, on top of each other', () => {
+    const table: ResultTable = {
+      columns: ['region', 'a', 'b', 'c', 'd'].map((name) => ({ name, type: name === 'region' ? 'String' : 'Float', values: [name === 'region' ? 'EMEA' : 1] })),
+      rowCount: 1, epoch: 1, elapsedMs: 0,
+    };
+    grid = new DataGrid(container, new FormatterCache(), { rowHeight: ROW_HEIGHT, overscan: 2 });
+    stubLayout(container.querySelector('.dc-scroller')!, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, ['region'], [], {
+      pinned: { b: 'left', c: 'left', a: 'right', d: 'right' }, widths: { b: 90, d: 70 },
+    }));
+    grid.setRows(table, 0, 1);
+    const offsets = (selector: string): Record<string, [string, string]> => Object.fromEntries(
+      [...container.querySelectorAll<HTMLElement>(selector)].map((el) => [el.dataset['column'], [el.style.left, el.style.right]]));
+    const cells = offsets('.dc-row .dc-cell');
+    assert.deepEqual(cells, {
+      region: ['', ''],
+      b: ['var(--dc-dim-width)', ''],
+      c: ['calc(var(--dc-dim-width) + 90px)', ''],
+      a: ['', '70px'],
+      d: ['', ''],
+    });
+    assert.deepEqual(offsets('.dc-th[data-column]'), cells, 'each header over its column');
+  });
+});
+
 describe('DataGrid selection', () => {
   function press(key: string, init: KeyboardEventInit = {}) {
     container.dispatchEvent(

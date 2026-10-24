@@ -28,6 +28,7 @@ import {
   type ColumnModel,
   type LeafColumn,
 } from './columns.ts';
+import { treeHeaderText } from '../treeview.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
 import {
   currentHeaderDrag,
@@ -101,6 +102,8 @@ export interface GridOptions {
    * and a test must not depend on a browser granting it.
    */
   readonly writeClipboard?: (text: string) => void | Promise<void>;
+  /** The tree column's heading in a copy (the screen leaves it blank): what it groups by. */
+  readonly treeHeader?: () => string;
   /**
    * Whether a column header may be dragged into the pivot zones.
    *
@@ -567,6 +570,7 @@ export class DataGrid {
     if (!model) return;
     const doc = this.#root.ownerDocument;
     this.#headGrid.replaceChildren();
+    const sticky = this.#stickyOffsets(model);
 
     // One CSS grid for the whole header, with every cell placed
     // explicitly. Flexbox cannot express a cell spanning two rows, so
@@ -650,6 +654,8 @@ export class DataGrid {
           // invariant now covers them.
           if (leaf.isDimension) el.classList.add('dc-dim');
           if (leaf.pinned) el.classList.add(`dc-pin-${leaf.pinned}`);
+          el.style.left = sticky.left[cell.leafIndex as number] ?? '';
+          el.style.right = sticky.right[cell.leafIndex as number] ?? '';
           makeHeaderDraggable(
             el,
             leaf.name,
@@ -929,6 +935,7 @@ export class DataGrid {
     for (const row of this.#body.querySelectorAll<HTMLElement>('.dc-row')) {
       row.style.gridTemplateColumns = template;
     }
+    this.#applyStickyOffsets();
   }
 
   #clearDropMarks(): void {
@@ -991,19 +998,63 @@ export class DataGrid {
    * dimension cell in the body took it.
    */
   #templateColumns(model: ColumnModel): string {
-    return model.leaves
-      .map((l) =>
-        this.#dragWidths.has(l.name)
-          ? `${this.#dragWidths.get(l.name)}px`
-          : l.width !== undefined
-          ? `${l.width}px`
-          : this.#fitWidths.has(l.name)
-          ? `${this.#fitWidths.get(l.name)}px`
-          : l.isDimension
-            ? 'var(--dc-dim-width)'
-            : 'var(--dc-col-width)',
-      )
-      .join(' ');
+    return model.leaves.map((l) => this.#widthOf(l)).join(' ');
+  }
+
+  /** A column's width as the template writes it: dragged, set, fitted, else its kind's default. */
+  #widthOf(l: LeafColumn): string {
+    return this.#dragWidths.has(l.name)
+      ? `${this.#dragWidths.get(l.name)}px`
+      : l.width !== undefined
+      ? `${l.width}px`
+      : this.#fitWidths.has(l.name)
+      ? `${this.#fitWidths.get(l.name)}px`
+      : l.isDimension
+        ? 'var(--dc-dim-width)'
+        : 'var(--dc-col-width)';
+  }
+
+  /**
+   * Where each sticky column sticks: after the sticky columns before it (the row dimensions and those pinned left),
+   * or before those after it (pinned right) -- frozen panes, each beside the last. At the edge, all of them sat on top
+   * of each other once scrolled. Empty for a column that does not stick, or sticks at the edge itself.
+   */
+  #stickyOffsets(model: ColumnModel): { left: string[]; right: string[] } {
+    const sum = (widths: readonly string[]): string =>
+      widths.length === 0 ? '' : widths.length === 1 ? widths[0]! : `calc(${widths.join(' + ')})`;
+    const left: string[] = [];
+    const right: string[] = [];
+    const before: string[] = [];
+    model.leaves.forEach((l, i) => {
+      const sticks = l.isDimension || l.pinned === 'left';
+      left[i] = sticks ? sum(before) : '';
+      if (sticks) before.push(this.#widthOf(l));
+    });
+    const after: string[] = [];
+    for (let i = model.leaves.length - 1; i >= 0; i--) {
+      const l = model.leaves[i]!;
+      const sticks = l.pinned === 'right' && !l.isDimension;
+      right[i] = sticks ? sum(after) : '';
+      if (sticks) after.unshift(this.#widthOf(l));
+    }
+    return { left, right };
+  }
+
+  /** Lay each rendered sticky cell, header and body, at its offset (#stickyOffsets). */
+  #applyStickyOffsets(): void {
+    const model = this.#model;
+    if (!model) return;
+    const { left, right } = this.#stickyOffsets(model);
+    const place = (el: HTMLElement, i: number): void => {
+      el.style.left = left[i] ?? '';
+      el.style.right = right[i] ?? '';
+    };
+    for (const el of this.#headGrid.querySelectorAll<HTMLElement>('.dc-th[data-col]')) {
+      place(el, Number(el.dataset['col']));
+    }
+    for (const el of this.#body.querySelectorAll<HTMLElement>('.dc-row > .dc-cell')) {
+      place(el, Number(el.getAttribute('aria-colindex')) - 1);
+    }
   }
 
   /**
@@ -1144,6 +1195,7 @@ export class DataGrid {
     const frag = doc.createDocumentFragment();
     const headerLevels = this.#headerLevels();
     const template = this.#templateColumns(model);
+    const sticky = this.#stickyOffsets(model);
 
     for (let abs = wanted.start; abs < wanted.end; abs++) {
       const local = abs - this.#blockOffset;
@@ -1186,6 +1238,8 @@ export class DataGrid {
         // readable over a shoulder or in a screen share.
         if (leaf.blurred) classes.push('dc-blur');
         cell.className = classes.join(' ');
+        if (sticky.left[c]) cell.style.left = sticky.left[c]!;
+        if (sticky.right[c]) cell.style.right = sticky.right[c]!;
         cell.setAttribute('aria-colindex', String(c + 1));
         // The context menu reads this. Without it a right-click on a
         // CELL produced a menu with every column-specific entry
@@ -1437,7 +1491,7 @@ export class DataGrid {
     const range = this.#selection;
     const model = this.#model;
     if (!table || !range || !model) return null;
-    const text = toClipboard(selectionTable(table, model.leaves, range));
+    const text = toClipboard(selectionTable(table, model.leaves, range, this.#options.treeHeader?.() ?? treeHeaderText([])));
     void this.#options.writeClipboard?.(text);
     return text;
   }
