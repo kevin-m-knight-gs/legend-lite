@@ -561,7 +561,9 @@ function modelMeasureItems(ctx: MenuContext): MenuItem[] {
 /**
  * Conditional Formatting ▸ (Excel's; conditional.ts): Data Bars on or off, a colour scale, an icon set, the one-click
  * rules -- a rule of a value of one's own is the column's Properties' -- and the column's formats cleared. Each on what
- * a heatmap is on (a pivoted column's measure).
+ * a heatmap is on (a pivoted column's measure). The heatmap is a colour scale -- the grid's own, one setting with the
+ * presets -- so it leads Color Scales ▸, and No Color Scale takes either off (the user, 2026-10-24: one place, the menu
+ * shorter).
  */
 function conditionalItems(ctx: MenuContext, column: string | undefined): MenuItem[] {
   const c = ctx.conditional;
@@ -572,7 +574,11 @@ function conditionalItems(ctx: MenuContext, column: string | undefined): MenuIte
       { id: 'format.dataBar', label: c?.dataBar ? 'Remove Data Bars' : 'Data Bars', disabled: !column, on: !c?.dataBar, ...on },
       {
         label: 'Color Scales',
-        submenu: COLOR_SCALES.map((s) => ({ id: 'format.colorScale' as const, label: s.label, disabled: !column, scale: s.scale, ...on })),
+        submenu: [
+          { id: 'heatmap.add' as const, label: 'Heatmap', disabled: !column || Boolean(ctx.hasHeatmap), ...on },
+          ...COLOR_SCALES.map((s) => ({ id: 'format.colorScale' as const, label: s.label, disabled: !column, scale: s.scale, ...on })),
+          { id: 'heatmap.remove' as const, label: 'No Color Scale', disabled: !column || !ctx.hasHeatmap, separated: true, ...on },
+        ],
       },
       {
         label: 'Icon Sets',
@@ -645,7 +651,6 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           disabled: !column,
           ...(column ? { column } : {}),
         },
-        { id: 'view.shortcuts', label: 'Keyboard Shortcuts...', separated: true },
       ],
     },
   ]);
@@ -881,36 +886,6 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       disabled: !column,
       ...(column ? { column } : {}),
     },
-    {
-      id: 'tree.expandAll',
-      label: 'Expand All',
-      // groups under groups to open: one level of groups has only its rows under it
-      disabled: s.rows.length < 2,
-    },
-    {
-      id: 'tree.collapseAll',
-      label: 'Collapse All',
-      disabled: !ctx.hasExpanded,
-    },
-    {
-      label: 'Heatmap',
-      submenu: [
-        {
-          id: 'heatmap.add',
-          label: column
-            ? `Add Heatmap to ${columnLabel(column, ctx.totalLabel)}`
-            : 'Add Heatmap',
-          disabled: !column || Boolean(ctx.hasHeatmap),
-          ...(column ? { column } : {}),
-        },
-        {
-          id: 'heatmap.remove',
-          label: 'Remove Heatmap',
-          disabled: !column || !ctx.hasHeatmap,
-          ...(column ? { column } : {}),
-        },
-      ],
-    },
     ...conditionalItems(ctx, column),
   ]);
 
@@ -925,20 +900,29 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     ...(ctx.propertiesColumn !== undefined ? { column: ctx.propertiesColumn } : {}),
   }]);
 
-  // LAST, after every entry people know by its place (the user: the right-click order stays as it
-  // is): the one switch for the cube's controls -- title bar, drag zones, columns panel, status
-  // bar -- hidden together for the grid alone, and the way back. The right-click menu is the only
-  // way back (the user, 2026-10-01: "right click only"). On a page, TILE ▸ holds it with what is
-  // done to the grid's tile -- onto another sheet, off the page (the user, 2026-10-23: the grid's
-  // menu button gone, "nested with Hide Controls and Move to Sheet").
-  const controls: MenuItem = { id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls' };
+  // LAST, after every entry people know by its place (the user: the right-click order stays as it is): VIEW ▸, how the
+  // grid is shown rather than what it holds (the user, 2026-10-24: one bucket, the menu shorter) -- its groups all open
+  // or all closed; the one switch for the cube's controls (title bar, drag zones, columns panel, status bar), hidden
+  // together for the grid alone, and the way back: the right-click menu is the only way back (the user, 2026-10-01:
+  // "right click only"); the keyboard's shortcuts. On a page, TILE ▸ after it holds what is done to the grid's tile --
+  // onto another sheet, off the page (the user, 2026-10-23: the grid's menu button gone).
+  push('', [{
+    label: 'View',
+    submenu: [
+      // groups under groups to open: one level of groups has only its rows under it
+      { id: 'tree.expandAll', label: 'Expand All', disabled: s.rows.length < 2 },
+      { id: 'tree.collapseAll', label: 'Collapse All', disabled: !ctx.hasExpanded },
+      { id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls', separated: true },
+      { id: 'view.shortcuts', label: 'Keyboard Shortcuts...' },
+    ],
+  }]);
   const tile: MenuItem[] = [
-    controls,
     ...(ctx.sheets === undefined ? []
       : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true } : { submenu: ctx.sheets }) }]),
-    ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page', separated: true }] : []),
+    ...(ctx.canRemove === true
+      ? [{ id: 'grid.remove' as const, label: 'Remove from Page', ...(ctx.sheets !== undefined ? { separated: true } : {}) }] : []),
   ];
-  push('', [tile.length > 1 ? { label: 'Tile', submenu: tile } : controls]);
+  if (tile.length > 0) push('', [{ label: 'Tile', submenu: tile }]);
 
   return groups;
 }

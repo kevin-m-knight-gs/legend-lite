@@ -111,41 +111,49 @@ describe('buildMenu', () => {
     assert.deepEqual(
       withSub.map((i) => i.label),
       ['Export', 'Email', 'Edit', 'Sort', 'Filter', 'Pivot',
-        'Extended Columns', 'Resize', 'Pin', 'Heatmap', 'Conditional Formatting', 'Create'],
+        'Extended Columns', 'Resize', 'Pin', 'Conditional Formatting', 'Create', 'View'],
     );
     // A submenu parent does nothing itself.
     assert.ok(withSub.every((i) => i.id === undefined));
   });
 
-  it('ends with the switch for the controls, the order before it untouched', () => {
-    // The right-click order stays as people know it (the user); the one switch for the controls
-    // -- hidden for the grid alone, and the only way back (the user, 2026-10-01: "right click
-    // only") -- comes after everything, Properties... included.
-    const top = (hidden: boolean): (string | undefined)[] =>
-      buildMenu({ snapshot: CUBE, column: 'desk', ...(hidden ? { controlsHidden: true } : {}) })
-        .flatMap((g) => g.items).map((i) => i.label);
-    const shown = top(false);
-    assert.deepEqual(shown.slice(-2), ['Properties...', 'Hide Controls']);
-    assert.deepEqual(top(true).slice(-2), ['Properties...', 'Show Controls']);
+  // the user, 2026-10-24: one bucket for how the grid is shown -- its groups opened or closed, the controls' switch, the
+  // shortcuts -- the menu shorter
+  it('ends with View ▸ -- groups all opened or closed, the controls switch, the shortcuts -- the order before it untouched', () => {
+    // The right-click order stays as people know it (the user); the one switch for the controls -- hidden for the grid
+    // alone, and the only way back (the user, 2026-10-01: "right click only") -- in View ▸, after everything, Properties...
+    // included.
+    const top = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => buildMenu({ snapshot: CUBE, column: 'desk', ...ctx }).flatMap((g) => g.items);
+    const shown = (items: readonly MenuItem[] | undefined) =>
+      (items ?? []).map((i) => `${i.separated ? '| ' : ''}${i.id}:${i.label}${i.disabled ? ' [off]' : ''}`);
+    assert.deepEqual(top({}).slice(-2).map((i) => i.label), ['Properties...', 'View']);
+    assert.deepEqual(shown(top({}).at(-1)?.submenu), [
+      'tree.expandAll:Expand All [off]', 'tree.collapseAll:Collapse All [off]', '| view.controls:Hide Controls',
+      'view.shortcuts:Keyboard Shortcuts...',
+    ], 'one level of groups: nothing beneath it to open; none opened: nothing to close');
+    assert.deepEqual(shown(top({ snapshot: { ...CUBE, rows: ['region', 'desk'] }, hasExpanded: true, controlsHidden: true }).at(-1)?.submenu), [
+      'tree.expandAll:Expand All', 'tree.collapseAll:Collapse All', '| view.controls:Show Controls', 'view.shortcuts:Keyboard Shortcuts...',
+    ]);
   });
 
-  // the user, 2026-10-23: the grid's menu button gone, its Move to Sheet and Remove from Page "nested with Hide Controls"
-  it('on a page, ends with Tile ▸: the controls, Move to Sheet, Remove from Page', () => {
-    const tile = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => {
+  // the user, 2026-10-23: the grid's menu button gone, its Move to Sheet and Remove from Page under Tile ▸; 2026-10-24:
+  // the controls' switch moved to View ▸
+  it('on a page, ends with Tile ▸ after View ▸: Move to Sheet, Remove from Page', () => {
+    const last = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => {
       const items = buildMenu({ snapshot: CUBE, column: 'desk', ...ctx }).flatMap((g) => g.items);
       return items[items.length - 1]!;
     };
     const sheets: MenuItem[] = [{ id: 'sheet.to.s2', label: 'Sheet 2' }, { id: 'sheet.toNew', label: 'New Sheet', separated: true }];
-    const both = tile({ sheets, canRemove: true });
+    const both = last({ sheets, canRemove: true });
     assert.equal(both.label, 'Tile');
     assert.deepEqual(both.submenu?.map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Hide Controls', 'Move to Sheet', '| Remove from Page']);
-    assert.equal(both.submenu?.[1]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
-    assert.equal(both.submenu?.[2]?.id, 'grid.remove');
-    assert.deepEqual(tile({ sheets: 'locked', controlsHidden: true }).submenu?.map((i) => `${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Show Controls', 'Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
-    assert.deepEqual(tile({ canRemove: true }).submenu?.map((i) => i.label), ['Hide Controls', 'Remove from Page']);
-    assert.equal(tile({}).id, 'view.controls', 'off a page: the switch alone, no Tile ▸ of one entry');
+      ['Move to Sheet', '| Remove from Page']);
+    assert.equal(both.submenu?.[0]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
+    assert.equal(both.submenu?.[1]?.id, 'grid.remove');
+    assert.deepEqual(last({ sheets: 'locked' }).submenu?.map((i) => `${i.label}${i.disabled ? ' [off]' : ''}`),
+      ['Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
+    assert.deepEqual(last({ canRemove: true }).submenu?.map((i) => `${i.separated ? '| ' : ''}${i.label}`), ['Remove from Page']);
+    assert.equal(last({}).label, 'View', 'off a page: no Tile ▸');
   });
 
   it('disables Email when the host cannot send it', () => {
@@ -541,7 +549,7 @@ describe("upstream's remaining entries", () => {
       .map((i) => `${i.separated ? '| ' : ''}${i.id}:${i.label}${i.disabled ? ' [off]' : ''}`);
     assert.deepEqual(edit({ hasSelection: true }), [
       'view.undo:Undo [off]', 'view.redo:Redo [off]', '| copy.selection:Copy Selected Cells', 'copy.rows:Copy Selected Rows',
-      'copy.column:Copy Column desk', '| view.shortcuts:Keyboard Shortcuts...',
+      'copy.column:Copy Column desk',
     ]);
     assert.deepEqual(edit({ canUndo: true, canRedo: true }).slice(0, 2), ['view.undo:Undo', 'view.redo:Redo']);
   });
@@ -768,7 +776,14 @@ describe('Conditional Formatting ▸: data bars, colour scales, icon sets, one-c
     assert.deepEqual(menuGesture(icons.at(-1)!), { name: 'format.iconSet', args: { column: 'notional', set: null } });
     const rules = sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Highlight Rules');
     assert.deepEqual(menuGesture(rules[0]!)?.args, { column: 'notional', rule: { when: { op: 'top', count: 10 }, style: { foreground: '#006100', background: '#c6efce' } } });
-    assert.equal(sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Color Scales')[0]?.label, 'Green - Yellow - Red');
+    // the heatmap is a colour scale, the grid's own: it leads Color Scales ▸, and No Color Scale takes either off (the user,
+    // 2026-10-24: one place)
+    const scales = (hasHeatmap: boolean) => sub({ snapshot: CUBE, column: 'notional', conditional: none, hasHeatmap }, 'Color Scales');
+    assert.deepEqual(scales(false).map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
+      ['Heatmap', 'Green - Yellow - Red', 'Red - Yellow - Green', 'Blue - White - Red', 'White - Orange', '| No Color Scale [off]']);
+    assert.deepEqual(menuGesture(scales(false)[0]!), { name: 'heatmap.add', args: { column: 'notional' } });
+    assert.deepEqual([scales(true)[0]!.disabled, scales(true).at(-1)!.disabled], [true, false]);
+    assert.deepEqual(menuGesture(scales(true).at(-1)!), { name: 'heatmap.remove', args: { column: 'notional' } });
     // nothing to clear, nothing offered to clear; something, offered
     assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: none }).at(-1)?.disabled, true);
     assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, rules: 1 } }).at(-1)?.disabled, false);
@@ -786,7 +801,7 @@ describe('Group Values: a column of its values gathered by hand into groups (sna
     assert.ok(!groups.some((i) => i.id === 'calc.groupValues' || i.id === 'calc.edit'));
   });
 
-  it("Count is Column Properties', not the menu's (the user, 2026-10-24: the menu was too long)", () => {
+  it("no Count entry: a count is a calculated column and its Aggregation (the user, 2026-10-24: the menu was too long)", () => {
     const all = (items: readonly MenuItem[]): MenuItem[] => items.flatMap((i) => [i, ...all(i.submenu ?? [])]);
     const items = all(menuItems(buildMenu({ snapshot: CUBE, column: 'desk', groupable: true, calcStage: 'row' })));
     assert.ok(items.length > 0);

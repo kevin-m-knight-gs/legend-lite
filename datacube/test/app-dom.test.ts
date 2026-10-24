@@ -875,15 +875,15 @@ describe('the app', () => {
     ]);
   });
 
-  it('adds and removes a heatmap from the menu', async () => {
+  it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Color Scales ▸)', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Add Heatmap to notional');
+    pick('Heatmap');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
     assert.notEqual(column, undefined);
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Remove Heatmap');
+    pick('No Color Scale');
     assert.equal(
       Object.values(app.configuration.columns).some((c) => c.heatmap),
       false,
@@ -996,7 +996,7 @@ describe('the app', () => {
     assert.deepEqual(own.snapshot.filter, { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] });
   });
 
-  it('? shows the keyboard shortcuts, as Edit ▸ Keyboard Shortcuts... does; not while typing', () => {
+  it('? shows the keyboard shortcuts, as View ▸ Keyboard Shortcuts... does; not while typing', () => {
     const grid = root.querySelector('.dc-grid') as HTMLElement;
     grid.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
     const win = root.querySelector('[data-window="Keyboard Shortcuts"]') as HTMLElement;
@@ -1405,12 +1405,12 @@ describe('the app', () => {
     };
     assert.ok(cells(total).length > 0, 'the total is on screen');
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
-    await pickOnTotal('Add Heatmap to Total / notional');
+    await pickOnTotal('Heatmap');
     assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
     assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
     assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
     assert.ok(cells('A__|__notional').every((c) => c.style.backgroundColor === ''), 'the cells are not');
-    await pickOnTotal('Remove Heatmap');
+    await pickOnTotal('No Color Scale');
     assert.equal(app.configuration.columns[total]?.heatmap, undefined);
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'taken off');
     app.dispose();

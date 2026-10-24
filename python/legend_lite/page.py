@@ -464,9 +464,9 @@ class Grid(Tile):
         return self._gesture('format.clear', {'column': column})
 
     def heatmap(self, column: str, on: bool = True) -> Grid:
-        """A heatmap on ``column`` -- or, ``on=False``, off -- as the header menu's Add Heatmap and Remove Heatmap paint
-        it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted column's measure, so every value's column
-        under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
+        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Color Scales >
+        Heatmap and No Color Scale paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
+        column's measure, so every value's column under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
         return self._gesture('heatmap.add' if on else 'heatmap.remove', {'column': column})
 
     def gesture(self, name: str, /, **args: Any) -> Grid:
@@ -635,11 +635,11 @@ class Grid(Tile):
         return self._apply([_commands.grid_open(path=list(path), open=False)])
 
     def collapse_all(self) -> Grid:
-        """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
+        """Every group closed, the expand level's too, as the menu's View > Collapse All closes them."""
         return self._apply([_commands.grid_collapse_all()])
 
     def expand_all(self) -> Grid:
-        """Every group above the detail rows open, as the menu's Expand All opens them (an ``expandAll`` command)."""
+        """Every group above the detail rows open, as the menu's View > Expand All opens them (an ``expandAll`` command)."""
         return self._apply([_commands.grid_expand_all()])
 
     def calculate(self, name: str, expression: str, *, kind: str | None = None, level: str = 'row') -> Grid:

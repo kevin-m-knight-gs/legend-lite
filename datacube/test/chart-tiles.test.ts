@@ -315,9 +315,10 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
     const top = (items: HTMLElement[]): string[] => items.filter((i) => i.parentElement?.closest('.dc-menu-item') === null)
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
-    assert.deepEqual(under(rightClick(id), 'Tile'), ['Hide Controls', 'Remove from Page']);
-    // the cube's own grid is its host's: it cannot be taken off the page, so its switch stands alone
-    assert.equal(top(rightClick('grid')).at(-1), 'Hide Controls', 'the cube\'s own grid: no Tile ▸');
+    assert.deepEqual(under(rightClick(id), 'Tile'), ['Remove from Page']);
+    assert.ok(under(rightClick(id), 'View').includes('Hide Controls'), 'the controls\' switch: View ▸ (2026-10-24)');
+    // the cube's own grid is its host's: it cannot be taken off the page, so no Tile ▸
+    assert.equal(top(rightClick('grid')).at(-1), 'View', 'the cube\'s own grid: no Tile ▸');
     // its Undo is its own: the added grid's change undone, the cube's grid untouched
     await ungroup(zoneOf(id), 'desk');
     const undo = rightClick(id).find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'Undo'
