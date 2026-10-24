@@ -267,8 +267,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  (app.ts note); the join itself, its window and its flow still fetched with the first join). Measured 321,971.
  *  322,500 -> 323,500 (2026-10-23, the grid's menu button gone, its right-click its menu -- Edit ▸, Tile ▸, Properties'
  *  Dimensions tab's Group Rows by and Start Ad Hoc Analysis -- and a long press as the right-click on a touch screen,
- *  an iPad's Safari firing none (ui/long-press.ts), installed with every grid and page). Measured 322,712. */
-const BUDGET = 323_500;
+ *  an iPad's Safari firing none (ui/long-press.ts), installed with every grid and page). Measured 322,712.
+ *  323,500 -> 325,500 (2026-10-24, the BI and Excel parity program's P1, docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md:
+ *  the grid's Ctrl+Arrow, Ctrl+A and mouse drag selection, the rows behind a cell as a grid of their own with their
+ *  caption, Expand All, the keyboard shortcuts' list and window, pinned columns' offsets, copies headed as exports
+ *  are). Measured 325,228. */
+const BUDGET = 325_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -356,8 +360,10 @@ const BUDGET = 323_500;
  *  the same date). Measured 312,770.
  *  313,500 -> 314,000 (2026-10-23, KPIs as stat tiles, with Show Grid on every chart kind (PR #69) merged beside them:
  *  the tile's lines and the headline format the grid's formatter writes -- the notebook widget's note of the same
- *  date). Measured 313,533. */
-const ENGINE_BUDGET = 314_000;
+ *  date). Measured 313,533.
+ *  314,000 -> 315,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
+ *  315,361. */
+const ENGINE_BUDGET = 315_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -496,8 +502,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  the same date). Measured 331,244.
  *  332,000 -> 332,500 (2026-10-23, KPIs as stat tiles: the tile's headline, meter and change lines in the chart panel,
  *  their styles, and the headline format the grid's formatter writes -- the drawing itself is the chart chunk's).
- *  Measured 332,006. */
-const WIDGET_BUDGET = 332_500;
+ *  Measured 332,006.
+ *  332,500 -> 334,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
+ *  334,149. */
+const WIDGET_BUDGET = 334_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
