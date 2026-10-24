@@ -574,7 +574,20 @@ class Grid(Tile):
         """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
         return self._apply([_commands.grid_collapse_all()])
 
-    def calculate(self, name: str, expression: str, *, kind: str | None = None, level: str = 'row') -> Grid:
+    def tree(self, *open: Sequence[str | None], totals: bool = False, expand_to: int | None = None,
+             closed: Sequence[Sequence[str | None]] = ()) -> Grid:
+        """The open groups set whole, in the saved tree's own shape (a ``tree`` command; docs/DATACUBE_LIVE_EDITING_2026_10_24.md
+        W1): each path in ``open`` a group open (its keys from the top group down, as ``expand`` takes them), ``totals``
+        whether the grand total shows, ``expand_to`` the level the groups open to (0 or none: by hand only), ``closed`` the
+        groups closed under that level. What puts a collapsed tree back -- an undo of Collapse All on the screen -- which
+        ``expand`` and ``collapse`` cannot: Collapse All forgets the level and the closes."""
+        return self._apply([_commands.grid_tree(
+            open=[list(p) for p in open], show_totals=totals,
+            **({} if expand_to is None else {'expand_to': expand_to}),
+            **({} if len(closed) == 0 else {'closed': [list(p) for p in closed]}))])
+
+    def calculate(self, name: str, expression: str, *, kind: str | None = None, level: str = 'row',
+                  before: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
         empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one
         (DataCube's code, headless: gridColumn): its name as DataCube takes one, ``kind`` ``'measure'`` or
@@ -582,9 +595,11 @@ class Grid(Tile):
         is a number, its unique value if not), and the grid with it compiled as DataCube would run it -- reading any of
         the grid's columns before it, a window column's too. ``level='group'``: computed after the grouping instead, over
         each group's row (the editor's Group level: no kind), reading the grid's measures as each level aggregates them.
-        A mistake fails at this line, in DataCube's and the compiler's words."""
+        A mistake fails at this line, in DataCube's and the compiler's words. ``before``: the calculated column of
+        its level the new one goes before (left out: last of its level, as the editor adds one)."""
         _expression(expression)
-        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'level': level})
+        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'level': level,
+                             **({} if before is None else {'before': before})})
 
     def explode(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column whose expression gives a list, each row repeated once per element of it, the column that
@@ -645,21 +660,25 @@ class Grid(Tile):
         """One level back out of the named dimension ``name`` (dimensions.ts drillUp); out of its first, not grouped."""
         return self._gesture('view.dimension', {'name': name, 'move': 'up'})
 
-    def edit_calculated(self, name: str, expression: str, *, rename: str | None = None, kind: str | None = None) -> Grid:
+    def edit_calculated(self, name: str, expression: str, *, rename: str | None = None, kind: str | None = None,
+                        before: str | None = None) -> Grid:
         """The calculated column ``name`` computed per row by ``expression`` instead, as its Edit Column window's OK
         changes it (an ``editCalculated`` command, built headless as the editor builds it: gridColumn): ``rename`` its
         new name -- what read it (the groups, the pivot, the sorts, the filter, the columns computed from it, its
-        settings) reads it by that -- and ``kind`` as for ``calculate``. In its place among the grid's columns."""
-        return self._calculated(name if rename is None else rename, expression, kind, name)
+        settings) reads it by that -- and ``kind`` as for ``calculate``. In its place among the grid's columns, or
+        ``before`` the calculated column named."""
+        return self._calculated(name if rename is None else rename, expression, kind, name, before)
 
     def remove_calculated(self, name: str) -> Grid:
         """The calculated column ``name`` taken out, as Edit Column's Delete takes it (a ``removeCalculated`` command):
         refused, in the compiler's words, while another column reads it."""
         return self._apply([_commands.grid_remove_calculated(name=name)])
 
-    def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None) -> Grid:
+    def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None,
+                    before: str | None = None) -> Grid:
         _expression(expression)
-        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'replacing': replacing})
+        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'replacing': replacing,
+                             **({} if before is None else {'before': before})})
 
     def _column(self, given: Mapping[str, Any]) -> Grid:
         """A column made as the column editor makes one (headless gridColumn: ``given`` its form), the cube with it kept

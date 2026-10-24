@@ -46,7 +46,7 @@ import type { PlannerWorker, Request, RequestKind, Response } from '../../../eng
 import { ExactNumber, fromJson, readValueSpecification, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
-import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
+import { readPage, type PageDocument } from '../page-document.ts';
 import { readCube } from '../cube-document.ts';
 import type { JoinHow, JoinSide } from '../join-how.ts';
 import type { JoinSummaryCounts } from '../join.ts';
@@ -695,9 +695,8 @@ export function livePage(link: PythonLink, key: string, follower?: string): Live
       const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}${as}`, {
         method: 'POST',
         headers: { ...headers(link), 'Content-Type': 'application/json' },
-        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), or the page whole
-        body: 'restore' in write ? `{"restore":${pageToJson(write.restore)}}`
-          : `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}]}`,
+        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact)
+        body: `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}]}`,
       });
       if (!answer.ok) throw new Error(`the engine refused the page: ${answer.status} ${await answer.text()}`);
       const said = JSON.parse(await answer.text()) as { version?: unknown; combined?: unknown };

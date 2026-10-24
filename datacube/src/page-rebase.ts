@@ -58,10 +58,13 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
   switch (command.kind) {
     case 'renamePage':
     case 'savedAs':
-    case 'addSheet':
     case 'modelInto':
     case 'modelPin':
       return command;
+    // a maker's planned id follows too (page-state.ts rename: a tile brought back under a new id is that tile in every
+    // later step; the keeper gives a taken one out afresh either way)
+    case 'addSheet':
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}) };
     case 'modelKeep':
     case 'rebuilt':
       return { ...command, cube: n(command.cube) };
@@ -73,14 +76,16 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'removeTile':
       return { ...command, tile: n(command.tile) };
     case 'addGrid':
-      return { ...command, sheet: n(command.sheet), near: command.near === null ? null : n(command.near) };
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet), near: command.near === null ? null : n(command.near) };
     case 'addChart':
-      return { ...command, near: n(command.near) };
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), near: n(command.near) };
     case 'setChart':
     case 'select':
       return { ...command, chart: n(command.chart) };
     case 'followGrid':
       return { ...command, chart: n(command.chart), grid: n(command.grid) };
+    case 'detach':
+      return { ...command, chart: n(command.chart), cube: n(command.cube) };
     case 'moveTile':
       return { ...command, tile: n(command.tile), sheet: n(command.sheet) };
     case 'stack':

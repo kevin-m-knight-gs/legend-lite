@@ -62,7 +62,7 @@ from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, Reading, UntypedColumn, typed_by_plan
-from .keeper import PageKeeper, Refused, Settled
+from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
@@ -1658,14 +1658,13 @@ class Engine:
 
     def _page_said(self, query: str, body: str) -> Answer:
         """AN OPEN PAGE'S WRITE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4: the host applies the commands): ``{"edits"}``,
-        the edits it made at the version it is at, which the page's keeper has DataCube apply to the page as it is now
-        and keeps what they make (keeper.py ``settle``) -- or ``{"restore"}``, the page whole (an undo, a redo: the plan's
-        N2), read by DataCube's own reader (headless pageWritten: a page of no grid too) and kept only at the version it
-        was made at (``restore``). Every frame the page then reads is one this engine serves. ``{"version", "combined",
-        "renamed"}``: the page's version now, whether the keeper made another page than the writer's (its edits made again
-        on top, or an id given out afresh: the page then opens what the keeper made), each id given out afresh. Refused
-        -- an edit that does not apply there, a restore made against a version moved on from, a frame not served -- 409,
-        and the page opens what the keeper has. Copies no page reads any more are let go."""
+        the edits it made at the version it is at -- an undo or a redo among them, as the commands between
+        (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole) -- which the page's keeper has DataCube
+        apply to the page as it is now and keeps what they make (keeper.py ``settle``). Every frame the page then reads
+        is one this engine serves. ``{"version", "combined", "renamed"}``: the page's version now, whether the keeper
+        made another page than the writer's (its edits made again on top, or an id given out afresh: the page then
+        opens what the keeper made), each id given out afresh. Refused -- an edit that does not apply there, a frame not
+        served -- 409, and the page opens what the keeper has. Copies no page reads any more are let go."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         version = asked.get('version', [''])[0]
@@ -1682,26 +1681,13 @@ class Engine:
         try:
             written = _json.loads(body)
         except ValueError:
-            return _said(400, 'a page\'s write is JSON: {"edits"} or {"restore"}')
-        if not isinstance(written, dict) or sorted(written) not in (['edits'], ['restore']) \
-                or ('edits' in written and not isinstance(written['edits'], list)):
-            return _said(400, 'a page\'s write is {"edits": [<its edits>]} -- or, an undo or a redo, {"restore": <the page>}')
+            return _said(400, 'a page\'s write is JSON: {"edits": [<its edits>]}')
+        if not isinstance(written, dict) or sorted(written) != ['edits'] or not isinstance(written['edits'], list):
+            return _said(400, 'a page\'s write is {"edits": [<its edits>]}: an undo or a redo is its commands too, never '
+                              'the page whole')
 
         try:
-            if 'restore' in written:
-                # asked for holding nothing (the session's lock first, then the frames')
-                said = _json.loads(self._headless().call('pageWritten', _json.dumps(written['restore'])))
-                if 'problems' in said:
-                    return _said(422, '; '.join(said['problems']))
-                reads = said['reads']
-                # the keeper's admission of a page by what it reads: the one rule Python's own writes are admitted by too
-                refused = self.frames.unadmitted(reads)
-                if refused is not None:
-                    return _said(422, refused)
-                settled = Settled(self.keeper.restore(name, int(version), _json.loads(said['page']), reads, reads['ids']),
-                                  False, {})
-            else:
-                settled = self.keeper.settle(name, int(version), written['edits'], self.frames.unadmitted)
+            settled = self.keeper.settle(name, int(version), written['edits'], self.frames.unadmitted)
         except Refused as refused:
             return _said(409, str(refused))
         except Exception as failure:

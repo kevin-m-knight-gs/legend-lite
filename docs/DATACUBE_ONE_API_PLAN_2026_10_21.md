@@ -156,8 +156,11 @@ gaps the audit found, for the same six reasons:
 
 **Named exceptions** (allowed at the end; the user confirms them with this plan):
 - **N1** A page is *born* whole: `Page()`, `Page.load`, opening a saved page.
-- **N2** Undo and redo (grid and page) write the page whole as a *restore*, taken only at the current version. They
-  become commands only if the proper live-editing model (out of scope, §8) is built.
+- **N2** ~~Undo and redo (grid and page) write the page whole as a *restore*, taken only at the current version. They
+  become commands only if the proper live-editing model (out of scope, §8) is built.~~ **Retired 2026-10-24 (D19 W3-W5,
+  docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3):** an undo or a redo is the commands between the step and the page as
+  it is now (`gridBetween`, `pageBetween`), told and applied as any edit; the restore write is gone from the tab, the
+  headless engine and `Engine._page_said`, which refuses a page written whole in words.
 - **N3** The snap row limit stays a value per host (the user and the DataCube + Python line, 2026-10-15); its refusal
   sentence comes from one TypeScript function.
 
@@ -233,7 +236,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **G12** grid undo / redo → N2 restore write — closed S4: an undo or a redo that lands (the owner's `moved`) is told
   as `onRestore`, and the page's channel writes the page whole, a restore its keeper takes only at the version it was
   made at (live-channel.test.ts, a real page: a grid's undo written whole, a stale one refused; test_one_api.py, a
-  restore behind the page refused); its L1 entries are item-less N2 entries
+  restore behind the page refused); its L1 entries are item-less N2 entries. **2026-10-24 (D19 W3, W5):** superseded --
+  a grid's undo is told as the commands between (`gridBetween`), the restore write deleted
 - [x] **G13** an edit retried after signing in again → its commands kept and told — closed S1: a refused change's
   commands are kept (app.ts `#refusedCommands`) and told when it is run again and lands (cube-transactions.test.ts)
 - [x] **G14** a grid made while the page bar is folded → `showTitleBar` in the `addGrid` document — closed S0: not a gap (the
@@ -268,7 +272,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   applied by `page-model.ts`'s functions — closed S1: `modelMade`, `modelPinned`, `modelKept` are the rules, in page-commands.ts
   beside the commands they apply (PageModel uses them; kept there, a lazy chunk, so the page loads none of them at start); the tab tells `modelCommands(before, after)` after each model action (page-commands.test.ts)
 - [x] **P5** page undo / redo → N2 restore write — closed S4 as G12: PageApp's `#move` tells `onRestore` (the gesture
-  ledger's undo and redo gestures write a restore and nothing else)
+  ledger's undo and redo gestures write a restore and nothing else). **2026-10-24 (D19 W4, W5):** superseded -- a page's
+  undo is its step's inverse commands (page-state.ts), told as any edit; the undo and redo gestures are told gestures
 - [x] **P6** chart options told before the chart re-follows → falls out of S2 — closed S2: `setChart`'s rule keeps a live
   chart followed (followedPage), so the spec told before the panel follows replays to the one it keeps
   (page-commands.test.ts)
@@ -1066,6 +1071,52 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   a gesture that changes nothing, a disabled entry's refusal said (its 7: As built's behaviour changes); Chart.grid()'s
   one more call for Show Grid's two steps, a moment's (its 8); the races, the ordering and Python's locking clean
 - [x] **A62** the columns panel's pick had no test through the app (S8's review) -- fixed: app-dom.test.ts
+
+### D19, the single writer's client side (D24; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7)
+- [x] **W1** `gridBetween`, total over a grid's saved form (src/grid-between.ts): the commands that take one state of a
+  grid to another, an undo's among them; the `tree` command (the open groups set whole, what puts a collapsed tree back);
+  `before` on `calculate` and `editCalculated` (a column back in its place); a kind and a pivot exclusion cleared by
+  `configure`; a removed calculated column's settings gone with it; a grouped calculated column keeps its kind and level
+  -- closed D19 slice 1: grid-between.test.ts (300 walks of every command kind, every pair of states both ways),
+  grid-commands.test.ts; Python's `grid.tree`, `calculate(before=)`, `edit_calculated(before=)` (test_page.py)
+- [x] **W2** `pageBetween`, total over a page in its `history` and `whole` scopes, and `applyPlanned` with fresh or
+  honoured ids (src/page-between.ts); a live chart follows its grid from the start (`addChart`, as every later change
+  follows it) -- closed D19 slice 1: page-between.test.ts (three corpus pages, 120 walks each of every page command kind,
+  every pair of states both ways, both scopes; an undo of a grid removal; what no command makes refused in words),
+  page-commands.test.ts
+- [x] **W3** the grid's undo produced by commands (state-owner.ts `toward`: the history's states are what this kind's own
+  commands make), told as the commands between the state before and the one landed (`StateRules.between`:
+  `gridBetween`), by `onCommand` as a change is; T3 ends (a change landing with an undo is told with it) -- closed D19
+  slice 2: cube-transactions.test.ts (T3, G2-1: the commands told replay to the grid on screen), one-api-gestures.test.ts
+  (a grid's undo, Collapse All undone -- `tree` told -- a presentation edit undone and redone: told, read by the host,
+  replaying), live-channel.test.ts (a grid's undo made again on top of the other editor's write), one-api-ledger.test.ts
+  (`L1_GRID`'s `#undo` / `#redo` reasons)
+- [x] **W4** the page's history is commands (page-state.ts): a step `{label, forward, inverse}`, its inverse
+  `pageBetween(after, before, 'history')` made with the step; an undo applies the inverse to the page as it is now, a redo
+  the forward commands, each told as any edit (page-app.ts `#move`); a step whose target is gone is dead, dropped and
+  said; a tile brought back is a new tile (B12), its maker and kept document re-keyed to the id it was given, every
+  step's commands renamed to follow (`renamedCommand`, a maker's planned id too) -- closed D19 slice 2:
+  page-state.test.ts (set semantics past another editor's change, a dead step, a tile brought back, the keeper's
+  rename), cube-page-shell.test.ts (every structural edit undone and redone, the handles following the new ids),
+  page-app.test.ts, one-api-gestures.test.ts (a page edit undone, undone and redone)
+- [x] **W5** the restore write deleted end to end: `pageWritten` and `LiveWrite.restore` gone, `onRestore` gone,
+  `LiveChannel.restored` gone, `Engine._page_said` refuses `{restore}` in words (400: "never the page whole"); N2
+  retired; `L9_KEEPER` 6 -> 5 (keeper.py `restore` stays for N1, a page loaded) -- closed D19 slice 2: test_one_api.py
+  (H2/W5: a page written whole is no write), test_page.py (the Live tests write edits: an undo is its commands, a tile
+  brought back a new tile, a stale write made again on top), live-channel.test.ts, one-api-gestures.test.ts (the
+  `restores` gestures are told gestures)
+- [x] **W13** the page's history survives another editor's change (page-app.ts `follow` keeps the state: `keep`, no new
+  `PageState`); the grid's starts again when another editor edits that grid (declared, app.ts) -- closed D19 slice 2:
+  page-app.test.ts (follows another editor's page commands, its history kept), page-state.test.ts
+- [x] **W18** H-13 closed by W5: an undo is judged by every rule a write is (its commands applied by `rebaseEdits`, its
+  ids held) -- closed D19 slice 2 with W5
+- [x] **W19** `detach {chart, cube, document}`, the page command that makes a detached chart reachable (a chart over a
+  cube no grid shows, the id it had): the inverse of Show Grid on a detached chart (`detach`, then the grid's
+  `removeTile`: the chart keeps its id) and of a detached chart's removal (`addChart` of a grid here, or of one made for
+  it and taken off, then `detach`); `pageBetween` total over detached charts; Python's `page_detach` generated; no
+  gesture but an undo tells it -- closed D19 slice 2: page-between.test.ts (the three cases, and every walk), page-commands.test.ts,
+  one-api-gestures.test.ts (a detached chart shown in a grid of its own, undone), cube-page-shell.test.ts (D7's Show Grid
+  steps, F11), one-api-ledger.test.ts (`L8_KINDS`: Python makes none)
 
 ## 5. The steps
 

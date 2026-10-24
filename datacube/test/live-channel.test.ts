@@ -1,27 +1,29 @@
 // THE TAB'S SIDE OF THE PAGE KEEPER (src/app/live-channel.ts; docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the edits
-// made on screen written as commands, as applied there, never the page (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4);
-// an undo or a redo written whole, a restore (N2), and nothing else; what the screen does while following the other
-// editor never taken for its own; writes and follows one at a time, in order -- a follow told while a write is on its
-// way waits for it, and sees the version it made; a write the keeper made another page of opening the page as the
-// keeper made it; a refused one opening it too, its words said. And a real page (PageApp, its grids CubeApps over a
-// gated engine) writing to a keeper that applies its edits by DataCube's one rule (page-rebase.ts), on top of the other
-// editor's: both editors' changes on the page it ends with; its undo, a restore, kept only at the version it was made
-// at.
+// made on screen written as commands, as applied there, never the page (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) --
+// an undo or a redo the commands between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3, W4), and nothing else; what the
+// screen does while following the other editor never taken for its own; writes and follows one at a time, in order -- a
+// follow told while a write is on its way waits for it, and sees the version it made; a write the keeper made another
+// page of opening the page as the keeper made it; a refused one opening it too, its words said. And a real page
+// (PageApp, its grids CubeApps over a gated engine) writing to a keeper that applies its edits by DataCube's one rule
+// (page-rebase.ts), on top of the other editor's: both editors' changes on the page it ends with; its undo made again
+// on top of the other editor's write as any edit is.
 
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
-import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import type { CubeDocument, FileSource } from '../src/cube-document.ts';
+import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { configurationOf, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
+import { fold } from '../src/cube-state.ts';
+import { applyGridCommands } from '../src/grid-commands.ts';
 import { LiveChannel, type LiveScreen } from '../src/app/live-channel.ts';
 import type { LiveCommand, LivePage, LiveWrite } from '../src/app/services.ts';
 import { applyPageCommands, idsOf, type PageCommand } from '../src/page-commands.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import type { PageDocument } from '../src/page-document.ts';
 import { rebaseEdits, type GridApplier } from '../src/page-rebase.ts';
-import { CubeRefusal } from '../src/snapshot.ts';
+import type { CubeSnapshot } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
@@ -40,7 +42,7 @@ type Answer = { readonly version: number; readonly combined: boolean };
 
 /** An editor (the keeper's host) that records each write and answers it as the test says. */
 class Editor implements LivePage {
-  readonly writes: { at: number; edits?: readonly LiveCommand[]; restore?: PageDocument }[] = [];
+  readonly writes: { at: number; edits: readonly LiveCommand[] }[] = [];
   answers: (() => Promise<Answer>)[] = [];
   read(): never { throw new Error('not read here'); }
   changes(): never { throw new Error('not followed here'); }
@@ -91,33 +93,30 @@ describe('the channel', () => {
     assert.deepEqual(editor.writes[1]!.edits, [{ grid: 'grid', command: { kind: 'group', rows: ['desk'] } }], 'only the new edit');
   });
 
-  it('writes an undo or a redo whole, a restore (N2) -- the edits before it in it -- and a change no command made, never', async () => {
+  it('writes an undo or a redo as the commands between, an edit like any (D19 W3, W4), and a change no command made, never', async () => {
     const editor = new Editor();
     const s = screen(trades);
     const channel = new LiveChannel(editor, s, 0);
     channel.opened(1);
-    // a change no edit was told for: nothing written (the page is never sent but by an undo or a redo)
+    // a change no edit was told for: nothing written (the page is never sent)
     s.now = renamed(trades, 'No command');
     channel.changed();
     await written(channel);
     assert.equal(editor.writes.length, 0, 'no page written whole for a change no command made');
-    channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
-    channel.restored();
-    s.now = renamed(trades, 'Undone');
+    channel.edit({ page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Here' } });
+    s.now = { ...trades, sheets: trades.sheets.map((x) => (x.id === 'sheet-1' ? { ...x, name: 'Here' } : x)) };
     channel.changed();
     await written(channel);
-    assert.deepEqual(editor.writes, [{ at: 1, restore: renamed(trades, 'Undone') }], 'the page whole, its edits in it');
-    // and the next edit is an edit again
-    channel.edit({ page: { kind: 'renamePage', name: 'After' } });
-    s.now = renamed(trades, 'After');
+    // undone: the page tells the commands that take the step back (page-state.ts), which are its edit as any other
+    const before = trades.sheets.find((x) => x.id === 'sheet-1')!.name ?? null;
+    channel.edit({ page: { kind: 'renameSheet', sheet: 'sheet-1', name: before } });
+    s.now = trades;
     channel.changed();
     await written(channel);
-    assert.deepEqual(editor.writes[1], { at: 2, edits: [{ page: { kind: 'renamePage', name: 'After' } }] });
-    // an undo while following the other editor is that editor's: no restore of the screen's
-    await channel.following(async () => { channel.restored(); });
-    channel.changed();
-    await written(channel);
-    assert.equal(editor.writes.length, 2);
+    assert.deepEqual(editor.writes, [
+      { at: 1, edits: [{ page: { kind: 'renameSheet', sheet: 'sheet-1', name: 'Here' } }] },
+      { at: 2, edits: [{ page: { kind: 'renameSheet', sheet: 'sheet-1', name: before } }] },
+    ], 'the undo written as its commands, never the page whole');
   });
 
   it('takes nothing the screen does while following the other editor for its own', async () => {
@@ -171,7 +170,7 @@ describe('the channel', () => {
     const s = screen(trades);
     const channel = new LiveChannel(editor, s, 0);
     channel.opened(1);
-    // the page as it opened, changed again by nothing (a view landing, a restore settling)
+    // the page as it opened, changed again by nothing (a view landing, a saved page put back settling)
     channel.changed();
     channel.changed();
     await written(channel);
@@ -300,20 +299,21 @@ const file = (name: string): FileSource => ({
   columns: SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type })),
 });
 
-/** A grid's command as the keeper's host applies one -- here a group, setting its rows (the host's grid base is no
- *  part of what this test holds to). */
+/** A grid's commands applied to its saved cube as headless gridApply applies them (headless/grid.ts applied: the
+ *  commands, the settings laid on the query, folded as the state lands, written as the screen writes it) -- no planner:
+ *  what a run alone adds (column types) is no command's. */
 const applyGrid: GridApplier = async (_page, cube, _id, commands) => {
-  let next: CubeDocument = cube;
-  for (const c of commands) {
-    if (c.kind !== 'group') throw new CubeRefusal(`this keeper makes groups only again, not ${c.kind}`);
-    next = { ...next, query: { ...next.query, rows: [...c.rows] } };
-  }
-  return next;
+  const snapshot = { ...cube.query, source: SNAPSHOT.source, epoch: 0 } as CubeSnapshot;
+  const d = applyGridCommands({ snapshot, config: configurationOf(cube), tree: treeOf(cube) }, commands);
+  const landed = fold({ snapshot: applyToSnapshot(d.snapshot, d.config), configuration: d.config, tree: d.tree });
+  return writeCube({
+    name: cube.name, source: cube.source, snapshot: landed.snapshot, configuration: landed.configuration, tree: landed.tree,
+    ...(cube.unknown ? { unknown: cube.unknown } : {}),
+  });
 };
 
-/** A keeper as Python's is (keeper.py settle, restore): a write's edits applied by DataCube's rule to the page as it
- *  is -- made again on top when it moved on since -- and what they make kept; a restore kept whole only at the version
- *  it was made at. */
+/** A keeper as Python's is (keeper.py settle): a write's edits applied by DataCube's rule to the page as it is -- made
+ *  again on top when it moved on since -- and what they make kept. */
 class Keeper implements LivePage {
   version = 1;
   held: string[];
@@ -335,13 +335,6 @@ class Keeper implements LivePage {
   }
   async report(at: number, write: LiveWrite): Promise<Answer> {
     this.written.push(write);
-    if ('restore' in write) {
-      if (at !== this.version) throw new Error('409: the page moved on: an undo is taken only at the version it was made at');
-      this.page = write.restore;
-      this.held = [...new Set([...this.held, ...idsOf(write.restore)])];
-      this.version += 1;
-      return { version: this.version, combined: false };
-    }
     const done = await rebaseEdits({ page: this.page, held: this.held }, write.edits, applyGrid);
     const combined = at !== this.version || Object.keys(done.renamed).length > 0;
     this.page = done.page;
@@ -419,7 +412,7 @@ describe('a real page and its keeper', () => {
     assert.ok(now.views.some((v) => v.id === added), 'the grid added here, under its id');
   });
 
-  it('writes its undo whole, a restore the keeper keeps at its version -- behind another editor\'s write, refused', async () => {
+  it('writes its undo as the commands between, which the keeper makes again on top of another editor\'s write (D19 W3, W4)', async () => {
     const cubes = new Map<string, CubeApp>();
     let channel: LiveChannel | undefined;
     const over = (name: string): GridMaker => (gridHost, spawned, start) => {
@@ -428,7 +421,6 @@ describe('a real page and its keeper', () => {
         configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
         ...spawned,
         onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
-        onRestore: () => channel?.restored(),
       });
       if (spawned.id !== undefined) cubes.set(spawned.id, made);
       return made;
@@ -437,7 +429,6 @@ describe('a real page and its keeper', () => {
       host, title: 'Q3', empty: (slot) => { slot.textContent = 'empty'; },
       onChange: () => channel?.changed(),
       onPageCommand: (command) => channel?.edit({ page: command }),
-      onRestore: () => channel?.restored(),
     });
     const a = page.addGrid(over('trades.csv'));
     await settle();
@@ -457,8 +448,9 @@ describe('a real page and its keeper', () => {
     }, 0);
     channel.opened(keeper.version);
     const sheets = (): number => page!.document('Q3', undefined, true)!.sheets.length;
+    const kinds = (w: LiveWrite): string[] => w.edits.map((e) => ('grid' in e ? `${e.grid}:${e.command.kind}` : e.page.kind));
 
-    // a sheet added, written as its command; undone, written whole and kept at the version it was made at
+    // a sheet added, written as its command; undone, written as the command that takes the sheet off, and kept
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
     await written(channel);
@@ -466,9 +458,9 @@ describe('a real page and its keeper', () => {
     page.undo();
     await settle();
     await written(channel);
-    assert.deepEqual(keeper.written.map((w) => ('restore' in w ? 'restore' : 'edits')), ['edits', 'restore']);
+    assert.deepEqual(keeper.written.map(kinds), [['addSheet'], ['removeSheet']], 'the undo is its commands, never the page whole');
     assert.equal(keeper.page.sheets.length, 1, 'the keeper keeps the page as the undo left it');
-    // a grid's undo too (G12): its group undone, written whole
+    // a grid's undo too (G12): its group undone, told as the grouping before it (grid-between.ts)
     const rows = (): readonly string[] => keeper.page.cubes.find((c) => c.id === a)!.cube.query.rows;
     const grouped = rows();
     assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
@@ -477,22 +469,23 @@ describe('a real page and its keeper', () => {
     await cubes.get(a)!.undo();
     await settle();
     await written(channel);
-    assert.deepEqual(keeper.written.slice(2).map((w) => ('restore' in w ? 'restore' : 'edits')), ['edits', 'restore']);
+    assert.deepEqual(keeper.written.slice(2).map((w) => kinds(w)[0]), [`${a}:group`, `${a}:group`]);
     assert.deepEqual(rows(), grouped, 'the group undone on the page');
 
-    // the other editor writes; the undo here, made behind it, is refused: the page opened as the keeper has it, said
+    // the other editor writes; the undo here, made behind it, is made again on top as any edit is: both stand
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
     await written(channel);
+    assert.equal(keeper.page.sheets.length, 2);
     keeper.pythonWrites([{ kind: 'renamePage', name: 'From Python' }]);
     page.undo();
     await settle();
     await written(channel);
     await settle();
-    assert.equal(refused.length, 1, 'the stale restore refused');
-    assert.match(refused[0]!, /an undo is taken only at the version it was made at/);
+    assert.deepEqual(refused, [], 'nothing refused: an undo behind another editor\'s write is an edit behind it');
+    assert.deepEqual(kinds(keeper.written.at(-1)!), ['removeSheet']);
     assert.equal(keeper.page.name, 'From Python', "the other editor's write stands");
-    assert.equal(keeper.page.sheets.length, 2, 'nothing of the refused undo kept');
-    assert.equal(sheets(), 2, 'the screen is the keeper\'s page again');
+    assert.equal(keeper.page.sheets.length, 1, 'and the undo, made again on top of it');
+    assert.equal(sheets(), 1, 'the screen is the keeper\'s page');
   });
 });

@@ -221,12 +221,6 @@ export interface CubeAppBaseOptions {
    */
   readonly onCommand?: (command: GridCommand) => void;
   /**
-   * The cube put back by an undo or a redo (one landed with its change: OwnerEvent `moved`), which no command says: its
-   * page is written whole, a restore its keeper takes only at the version it was made at
-   * (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N2, G12).
-   */
-  readonly onRestore?: () => void;
-  /**
    * Each edit of the board around the cube -- its charts, their layout -- as the page commands it is
    * (page-commands.ts), applied to the board's state before it is drawn (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P13):
    * the same state and commands as a page of its own's.
@@ -1082,10 +1076,11 @@ export class CubeApp {
    * change in flight (pending) or are kept at once (a presentation change laid over the committed state; a deferred
    * one, committed with what was in flight). A presentation change laid over a change in flight too is told again after
    * that change's commands when it commits -- the committed state then takes them in that order -- and one the
-   * committed state could not take is told only then. A change in flight's commands are told when it commits, but for
-   * a transition an undo or a redo is part of (a change made on top of one), which no command says: none is told, and
-   * its page is written whole, a restore (onRestore, N2). Refused, they are kept for the change run again (signed in
-   * again); cancelled, dropped.
+   * committed state could not take is told only then. A change in flight's commands are told when it commits; a
+   * transition an undo or a redo is part of (a change made on top of one too) is told as the commands between the
+   * committed state before and the one landed (the owner's `edits`: grid-between.ts, through the cube's rules), which
+   * say the move and the change on top alike (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3). Refused, they are kept for
+   * the change run again (signed in again); cancelled, dropped.
    */
   #followCommands(event: OwnerEvent): void {
     const applying = this.#applying;
@@ -1096,13 +1091,12 @@ export class CubeApp {
         if (applying) this.#untold.push(...applying.commands);
         return;
       case 'presentation':
-        // an undo or a redo of a presentation change (a width, a format): no command says it, so the page is written
-        // whole, a restore (N2), as a move that queries is when it commits (the S7 audit's G-1)
+        // an undo or a redo of a presentation change (a width, a format): told as the commands between, as a move that
+        // queries is when it commits (W3); what was kept to tell again after a change it laid over is in them, or undone
+        // with it (the S7 confirmation audit's G2-1)
         if (event.moved) {
-          // what was kept to tell again after a change it laid over is in the page written whole, or undone with it
-          // (the S7 confirmation audit's G2-1)
           this.#untold = [];
-          this.#options.onRestore?.();
+          this.#tell(event.edits ?? []);
           return;
         }
         if (!applying) return;
@@ -1114,8 +1108,9 @@ export class CubeApp {
         this.#untold = [];
         return;
       case 'committed':
-        if (event.moved) this.#options.onRestore?.();
-        else this.#tell(this.#untold);
+        // a move's transition: the commands between say it whole, a change made on top of it too (its own were put in
+        // #untold at pending, and are in the landed state the commands reach)
+        this.#tell(event.moved ? event.edits ?? [] : this.#untold);
         this.#untold = [];
         return;
       case 'refused':

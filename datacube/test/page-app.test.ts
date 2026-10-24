@@ -716,7 +716,7 @@ describe('a page of its own', () => {
     assert.deepEqual(replayed.cubes.map((c) => c.id), page.cubes, 'the grid that went took its cube');
   });
 
-  it('follows another editor\'s page commands: applied to the page as it is, a grid added by its maker and none made again, its history started again; refused, nothing changed', async () => {
+  it('follows another editor\'s page commands: applied to the page as it is, a grid added by its maker and none made again, its history kept (W13); refused, nothing changed', async () => {
     // (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) Python's change, as the commands it was
     newPage({ confirm: () => true });
     const a = page.addGrid(over('trades.csv'));
@@ -739,7 +739,8 @@ describe('a page of its own', () => {
     assert.deepEqual(page.views(), { views: expected.views, sheets: expected.sheets });
     assert.deepEqual(made.slice(madeBefore), [['grid-7', false]], 'one grid made, the one added: none made again');
     assert.equal(tile('grid-7').querySelector('.dc-tile-title')?.textContent, 'Orders');
-    assert.equal(page.undoLabel, undefined, "its history starts again from the other editor's change");
+    // 2026-10-24 (D19 W13): a step is commands applied to the page as it is now (page-state.ts), so the history survives
+    assert.equal(page.undoLabel, 'Add Sheet', "its history survives the other editor's change");
     assert.equal(page.title, 'Q4', 'renamed as Python renamed it');
     assert.deepEqual(page.state.page, page.document('Q4'), 'the state is the page on screen');
     // a command naming a tile closed here: refused in its words, nothing changed
@@ -1231,7 +1232,8 @@ describe('a dashboard\'s page filters (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md 
     assert.ok(a.plans.length > 0 && !filtered(a.plans), 'undone: it ran again, unfiltered');
     page.redo();
     await settle();
-    assert.deepEqual(page.filters.map((f) => f.id), ['filter-1']);
+    // the filter back is a new one (B12: an id the page has held is never given out again, a page filter's too)
+    assert.deepEqual(page.filters.map((f) => f.id), ['filter-2']);
   });
 
   it('refused in words, nothing changed: a property the class has not', async () => {

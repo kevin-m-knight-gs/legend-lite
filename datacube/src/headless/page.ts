@@ -472,23 +472,6 @@ export function pageReads(page: string): string {
 }
 
 /**
- * A PAGE WRITTEN WHOLE -- an open page's undo or redo (a restore, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N2, which its
- * keeper takes only at the version it was made at), the one write that is no commands -- read as DataCube reads a page
- * (readPage): a page of no grid too, as a page written live may be (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit
- * 5). JSON: `{page, reads}` -- the page as DataCube writes it (its numbers exact), what it reads (pageReads) -- or
- * `{problems}`, why DataCube does not read it, in its words.
- */
-export function pageWritten(text: string): string {
-  try {
-    const page = readPage(text, { empty: true });
-    return `{"page":${JSON.stringify(pageToJson(page))},"reads":${readsJson(page)}}`;
-  } catch (e) {
-    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
-    return JSON.stringify({ problems: [e.message] });
-  }
-}
-
-/**
  * A WRITER'S EDITS APPLIED TO THE PAGE AS IT IS NOW (page-rebase.ts rebaseEdits), for the page's keeper, which keeps what
  * a write's commands make (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4, H1) -- at the version they were made at there is
  * nothing to combine; at one the page has moved on from, they are made again on top: `page` and `held` as the keeper has

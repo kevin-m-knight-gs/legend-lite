@@ -98,9 +98,14 @@ interface Entry {
 // the "nature" entries were wrong. F71. And L8_KINDS 1 -> 0: Python's measure is made by the steps a person makes it by
 // (grid-measures.ts measureCommands: `column`, or `calculate` and `column`), the `measures` kind deleted -- a page open
 // on it is told what a person's steps tell. F72
+// 2026-10-24 (D19 W19, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): L8_KINDS 0 -> 1 -- `detach`, the page command an
+// undo tells to put a chart back on the cube it read (the inverse of Show Grid on a detached chart, and of a detached
+// chart's removal: page-between.ts). Python has no history of its own, so nothing of Python's makes one; its generated
+// builder page_detach stands, and the keeper applies one a tab writes. The one entry says so; it leaves when Python
+// gains a history, never otherwise.
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 0, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
+  L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
 function pinned(name: string, size: number): void {
@@ -120,11 +125,13 @@ const OWNER_ALIAS = /(?<!#)\bowner\.(?:change|undo|redo|retryRefused)\(/;
 const L1_GRID: Record<string, Entry> = {
   '#change:#owner.change': { items: [], why: PLUMBING },
   '#applyCommands:#change': { items: [], why: 'the command path: applyGridCommands, told by onCommand' },
-  '#undo:#owner.undo': { items: [], why: 'N2: an undo is told as a restore (onRestore), the page written whole at its version' },
-  '#redo:#owner.redo': { items: [], why: 'N2: as an undo' },
+  // 2026-10-24 (D19 W3): a move of the history lands as the commands between the state before and the one landed
+  // (state-owner.ts StateRules.between: grid-between.ts gridBetween), told by onCommand as a change's are
+  '#undo:#owner.undo': { items: [], why: 'W3: an undo is told as the commands between (the owner\'s between: gridBetween), as a change is' },
+  '#redo:#owner.redo': { items: [], why: 'W3: as an undo' },
   // a retry stays a retry: the refused change run again, its commands kept and told when it lands
   // (cube-transactions.test.ts G13)
-  'submit:#owner.retryRefused': { items: [], why: 'the refused change run again (signed in again): the commands it was told as they land, or, an undo or a redo among it, a restore (N2)' },
+  'submit:#owner.retryRefused': { items: [], why: 'the refused change run again (signed in again): the commands it was told as they land, or, an undo or a redo among it, the commands between (W3)' },
 };
 
 /** Every call of the command path, by where it is made: the ones with a change of their own beside the commands. */
@@ -271,6 +278,10 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
 type Cell = 'screen' | 'python';
 /** The missing cells of each kind, by item; `nature` where the kind is one side's by its nature (reviewed at S7). */
 const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
+  // 2026-10-24 (D19 W19): a detached chart made reachable by command -- the inverse of Show Grid on a detached chart and
+  // of a detached chart's removal (page-between.ts), which an undo tells; Python has no history, so nothing of its own
+  // makes one (its builder, page_detach, is generated; the keeper applies one a tab writes)
+  detach: { python: { items: [], why: "an undo's inverse (page-between.ts pageBetween): Python has no history of its own" } },
 };
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */
@@ -1036,7 +1047,8 @@ describe('a grid saved and opened again opens its rows as it was told to', () =>
 /** The files that hold the ledgers, each naming items as string literals (a letter and a number, quoted). */
 const LEDGERS = ['test/one-api-ledger.test.ts', 'test/one-api-gestures.test.ts', '../python/tests/test_one_api.py'];
 // 2026-10-22 (S8): A, the step's items (one per place screen code built a command)
-const ITEM = /'([GTCPYVHZBXKA]\d{1,2})'/g;
+// 2026-10-24 (D19): W, the single writer's client side (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7)
+const ITEM = /'([GTCPYVHZBXKAW]\d{1,2})'/g;
 /** Every item the register has ever held: none leaves it but closed. */
 const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P12 '
   + 'P13 P14 Y1 Y2 Y3 Y6 V1 V2 V4 V5 H1 H2 H3 Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8 Z9 Z10 Z11 Z12 Z13 Z14 Z15 Z16 Z17 Z18 Z19 B1 B2 '
@@ -1071,7 +1083,10 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-23, D23: the S7 audits' four asked items (Y-6, H-9, Y-7, H-8), built and closed with each
   + 'K13 K14 K15 K16 K17 '
   // 2026-10-23, D23's independent review, added by rule 9 and closed (fixed, or declared) with each fix
-  + 'R1 R2 R3 R4 R5 R6 R7 R8 ').split(' ').filter((item) => item !== '');
+  + 'R1 R2 R3 R4 R5 R6 R7 R8 '
+  // 2026-10-24, D19 (D24): the single writer's client side, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7, each closed by
+  // the slice that builds it
+  + 'W1 W2 W3 W4 W5 W13 W18 W19 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

@@ -3,8 +3,8 @@
 // with the edits it made there, each a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4) -- the host applies them
 // by DataCube's one rule to the page as it has it and keeps what they make (made again on top of what moved the page
 // meanwhile: the screen then opens the page as the host made it) -- and follows the other editor's moves. An undo or a
-// redo is the one write of the page whole: a restore, kept only at the version it was made at (N2). Writes and follows
-// run one at a time, in order: a move told while a write is on its way is followed once the write has said its
+// redo is commands like any edit (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5): no page is written whole. Writes and
+// follows run one at a time, in order: a move told while a write is on its way is followed once the write has said its
 // version, never taken for the other editor's.
 
 import type { PageDocument } from '../page-document.ts';
@@ -27,8 +27,6 @@ export class LiveChannel {
   shown: number | undefined;
   /** The edits made on screen since it was last written, as applied there. */
   #edits: LiveCommand[] = [];
-  /** The page on screen put back whole since (an undo, a redo): written whole, as a restore (N2). */
-  #restore = false;
   /** How deep in following the other editor: what the screen does meanwhile is that editor's, not its own. */
   #following = 0;
   #queue: Promise<void> = Promise.resolve();
@@ -52,12 +50,6 @@ export class LiveChannel {
     this.#edits.push(command);
   }
 
-  /** The page on screen put back whole by an undo or a redo (the page's, a grid's): the next write is the page whole,
-   *  a restore (N2) -- the edits made before it are in it. Not while following the other editor. */
-  restored(): void {
-    if (this.#following === 0) this.#restore = true;
-  }
-
   /** The screen changed: written once it settles. */
   changed(): void {
     if (this.shown === undefined || this.#stopped) return;
@@ -79,7 +71,6 @@ export class LiveChannel {
   opened(version: number): void {
     this.shown = version;
     this.#edits = [];
-    this.#restore = false;
   }
 
   /** Work in the channel's one queue, after every write and follow before it; its failure is its caller's. */
@@ -104,23 +95,15 @@ export class LiveChannel {
     const at = this.shown;
     if (at === undefined || this.#stopped) return;
     // nothing made on screen since it was last written or opened: nothing to write
-    if (!this.#restore && this.#edits.length === 0) return;
-    let write: LiveWrite;
-    if (this.#restore) {
-      const page = this.#screen.page();
-      if (page === undefined) return;
-      write = { restore: page };
-    } else {
-      write = { edits: this.#edits };
-    }
+    if (this.#edits.length === 0) return;
+    const write: LiveWrite = { edits: this.#edits };
     this.#edits = [];
-    this.#restore = false;
     let said: { readonly version: number; readonly combined: boolean };
     try {
       said = await this.#editor.report(at, write);
     } catch (e) {
-      // refused -- an edit that does not apply where the page now is, a restore made against a version it moved on from
-      // -- or the editor gone: what was made here is not the page; the page is opened as its keeper has it, said
+      // refused -- an edit that does not apply where the page now is -- or the editor gone: what was made here is not
+      // the page; the page is opened as its keeper has it, said
       if (this.#stopped || this.shown !== at) return;
       this.shown = undefined;
       await this.#screen.reopen(e instanceof Error ? e.message : String(e));
@@ -131,7 +114,7 @@ export class LiveChannel {
       // the keeper made another page than the screen's (made again on top of what moved it meanwhile, an id given out
       // afresh): the page as the keeper made it -- what was made here while the write was on its way, made on the
       // screen's page and not the keeper's, is not kept, and is said (the S4 audit's 7)
-      const dropped = this.#edits.length > 0 || this.#restore;
+      const dropped = this.#edits.length > 0;
       this.shown = undefined;
       await this.#screen.reopen(dropped ? 'a change made while the page was written was made on a page its keeper no longer has' : undefined);
       return;

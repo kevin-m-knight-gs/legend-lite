@@ -136,7 +136,7 @@ const BOARD_SITES: Record<string, string | readonly [string, number]> = {
 };
 
 /** Every place a page's state changes, by its owner: the commands' step is page-commands.ts's (applyToState). */
-const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|undo|redo)\(| = )|\bstate\.(?:keep|begin)\()/g;
+const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|step|undo|redo)\(| = )|\bstate\.(?:keep|begin|step)\()/g;
 const STATE_SITES: Record<string, Record<string, string>> = {
   'src/page/page-app.ts': {
     'constructor:this.#state = ': 'a page made',
@@ -145,7 +145,9 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     // as it starts, its first grid made, with no history behind it
     'started:this.#state = ': 'a page as it starts: its first grid made, no step to undo',
     'restore:this.#state = ': 'a saved page put back',
-    'follow:this.#state = ': "another editor's commands, applied by the rules: the page they made, whole",
+    // 2026-10-24 (D19 W13): the page they made kept, the history kept with it -- a step is commands, applied to the page
+    // as it is now (page-state.ts), so another editor's change is no reason to let the history go
+    'follow:this.#state.keep(': "another editor's commands, applied by the rules: the page they made, kept (no step: theirs)",
     'setTitle:this.#state.keep(': "the page's name, its host's (no step): N1, a page opened named",
     'onChange:this.#state.keep(': "what its owners change (a grid's own edits), no step",
     '#move:this.#state.undo(': 'Undo (N2, S4)',

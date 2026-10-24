@@ -54,6 +54,16 @@ def numbers(tree):
     return [tree] if isinstance(tree, Decimal) else []
 
 
+def page_edit(**command):
+    """An open page's edit of the page: a page command, as it writes one."""
+    return {'page': command}
+
+
+def grid_edit(grid, **command):
+    """An open page's edit of one of its grids: the grid's id and the grid command, as it writes one."""
+    return {'grid': grid.id, 'command': command}
+
+
 class Paged(unittest.TestCase):
     """Pages on a session of their own, with a site of its own and no browser."""
 
@@ -812,13 +822,15 @@ class Document(Paged):
         # a measure of a dimension is its Aggregation, which Column Properties refuses a dimension
         with self.assertRaisesRegex(ValueError, "'desk' is a dimension, and only a measure takes an Aggregation"):
             grid.measure('desk', 'unique')
-        # configure goes by the same rules for a column's kind and Aggregation: a kind is set, never cleared
+        # configure goes by the same rules for a column's kind and Aggregation; a kind cleared is the type's own again
+        # (D19: the command total, so an undo can clear what a command set), unless the column is grouped or pivoted on
         with self.assertRaisesRegex(ValueError, "'count' is not offered on desk"):
             grid.configure({'columns': {'desk': {'kind': 'measure', 'aggregateFn': 'count'}}})
-        with self.assertRaisesRegex(ValueError, "desk's kind is set, never cleared"):
-            grid.configure({'columns': {'desk': {'kind': None}}})
+        with self.assertRaisesRegex(ValueError, "'region' is grouped or pivoted on: its kind cannot change"):
+            grid.configure({'columns': {'region': {'kind': None}}})
+        grid.configure({'columns': {'desk': {'kind': None, 'excludedFromPivot': None}}})
         with self.assertRaisesRegex(ValueError, "desk's excludedFromPivot is true or false"):
-            grid.configure({'columns': {'desk': {'excludedFromPivot': None}}})
+            grid.configure({'columns': {'desk': {'excludedFromPivot': 'yes'}}})
         # the settings that decide the tree move it, by configure's own rule, as Properties does on the screen (the
         # grand total shown, the groups opened to the level; saved and read back with the cube)
         grid.configure({'showRootAggregation': True, 'initialExpandToLevel': 1})
@@ -989,6 +1001,41 @@ class Document(Paged):
             grid.expand('EMEA', 2021)
         with self.assertRaisesRegex(ValueError, 'the grand total is no group'):
             grid.expand()
+
+    def test_the_open_groups_are_set_whole_as_an_undo_puts_a_collapsed_tree_back(self):
+        # a tree command (grid-commands.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md W1): the saved tree's own shape, set
+        # whole -- what an undo of Collapse All tells on the screen, which expand and collapse cannot put back
+        page = ll.Page('Tree')
+        grid = page.grid(trades(), name='tree_trades', rows=['region', 'desk'])
+
+        def tree():
+            return page.to_dict()['cubes'][0]['cube']['tree']
+
+        grid.tree(['EMEA'], ['EMEA', 'FX'], totals=True, expand_to=1, closed=[['AMER']])
+        self.assertEqual(tree(), {'open': [['EMEA'], ['EMEA', 'FX']], 'showTotals': True, 'expandTo': 1, 'closed': [['AMER']]})
+        self.assertEqual(page._commands[-1]['kind'], 'tree')
+        grid.collapse_all()
+        self.assertEqual(tree(), {'open': [], 'showTotals': True}, 'Collapse All forgets the level and the closes')
+        grid.tree(['AMER'], totals=False)
+        self.assertEqual(tree(), {'open': [['AMER']], 'showTotals': False})
+        with self.assertRaisesRegex(ValueError, 'the grand total is no group'):
+            grid.tree([])
+        with self.assertRaisesRegex(ValueError, 'a whole number, 0 or more'):
+            grid.tree(['EMEA'], expand_to=-1)
+
+    def test_a_calculated_column_goes_before_the_one_named(self):
+        # before= on calculate and edit_calculated (grid-commands.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md W1): a
+        # column in its place, as an undo puts one back
+        page = ll.Page('Before')
+        grid = page.grid(trades(), name='before_trades', rows=['region'])
+        grid.calculate('a', '$x.notional->toOne() * 2').calculate('c', '$x.notional->toOne() * 3')
+        grid.calculate('b', '$x.notional->toOne() * 4', before='c')
+        self.assertEqual([c['name'] for c in grid._query['derived']], ['a', 'b', 'c'])
+        self.assertEqual(page._commands[-1]['before'], 'c')
+        grid.edit_calculated('c', '$x.notional->toOne() * 5', before='a')
+        self.assertEqual([c['name'] for c in grid._query['derived']], ['c', 'a', 'b'])
+        with self.assertRaisesRegex(ValueError, "'zzz' is not a calculated column at the row level"):
+            grid.calculate('d', '$x.notional->toOne()', before='zzz')
 
     def test_names_and_values_outside_datacubes_words_are_refused_where_they_are_written(self):
         page, grid, _ = self.built()
@@ -1768,17 +1815,23 @@ class Live(Paged):
         except urllib.error.HTTPError as e:
             return e.code, e.read().decode('utf-8')
 
-    def said(self, page, document, version=None):
-        """The open page writing what it is now whole, as DataCube's app writes an undo or a redo (a restore: the plan's
-        N2): against the version it is at (the page's now, unless given), its document. Its answer's status."""
-        return self.wrote(page, document, version)[0]
+    def said(self, page, edits, version=None):
+        """The open page writing the edits it made -- an undo or a redo among them, as the commands between
+        (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole) -- against the version it is at (the
+        page's now, unless given). Its answer's status."""
+        return self.wrote(page, edits, version)[0]
 
-    def wrote(self, page, document, version=None):
+    def wrote(self, page, edits, version=None):
         """As ``said``: the answer's status, and the version it made (None when refused)."""
+        status, settled = self.settled(page, edits, version)
+        return status, (settled['version'] if status == 200 else None)
+
+    def settled(self, page, edits, version=None):
+        """As ``said``: the answer's status, and the answer whole (``{version, combined, renamed}``; refused, its words)."""
         version = datacube._session.engine().page_versions(page._key)['version'] if version is None else version
         answer = datacube._session.engine().answer('POST', '/page.json', f'page={page._key}&version={version}',
-                                                   _json.dumps({'restore': document}))
-        return answer.status, (json.loads(answer.body)['version'] if answer.status == 200 else None)
+                                                   _json.dumps({'edits': edits}))
+        return answer.status, (json.loads(answer.body) if answer.status == 200 else answer.body.decode('utf-8'))
 
     def version(self, page):
         return self.get(f'/version.json?page={page._key}')[1]['version']
@@ -1842,10 +1895,11 @@ class Live(Paged):
         self.assertNotIn('pnl', [c['name'] for c in moved[0]['page']['source']['columns']])
         tab.close()
 
-    def test_what_is_written_whole_rather_than_as_commands(self):
-        # (the phase 3 audit's 5, 8 and test gaps) a refused grid writes nothing, and none of it later; the open page's
-        # own write is no command (it is opened again by another view), and Python's next change, on top of it, is its
-        # commands; a grid's edit over a Live frame that changed in place, its cube opened again first (rebuilt: P11)
+    def test_what_is_written_is_commands_the_open_pages_too(self):
+        # (the phase 3 audit's 5, 8 and test gaps; D19 W5) a refused grid writes nothing, and none of it later; the open
+        # page's own write is its commands, served to another view as Python's are, and Python's next change, on top of
+        # it, is its commands; a grid's edit over a Live frame that changed in place, its cube opened again first
+        # (rebuilt: P11)
         page, grid, _ = self.built()
         tab = ll.show(page, browser=False)
         since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
@@ -1855,11 +1909,10 @@ class Live(Paged):
         self.assertEqual(since(at), {'version': at, 'commands': []}, 'the refused grid wrote nothing')
         page.sheet('Next')
         self.assertEqual([c['page']['kind'] for c in since(at)['commands']], ['addSheet'], 'and none of it later')
-        doc = page.to_dict()
-        doc['sheets'][0]['name'] = 'Renamed in a view'
         before = self.version(page)
-        self.assertEqual(self.wrote(page, doc), (200, before + 1))
-        self.assertIn('page', since(before), "the open page's write is the page whole")
+        renamed = page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Renamed in a view')
+        self.assertEqual(self.wrote(page, [renamed]), (200, before + 1))
+        self.assertEqual(since(before), {'version': before + 1, 'commands': [renamed]}, "the open page's write is its commands")
         page.sheet('After the write')
         self.assertEqual([c['page']['kind'] for c in since(before + 1)['commands']], ['addSheet'],
                          "Python's change on top of it, its commands")
@@ -1898,12 +1951,8 @@ class Live(Paged):
         # once -- no read, its handles still good
         page, grid, chart = self.built()
         ll.show(page, browser=False)
-        open_now = page.to_dict()
-        open_now['sheets'][0]['name'] = 'Renamed in DataCube'
-        open_now['cubes'][0]['cube']['query']['rows'] = ['desk']
-        open_now['views'] = [v for v in open_now['views'] if v['id'] != chart.id]
-        open_now['sheets'][0]['layout']['bands'] = [
-            b for b in open_now['sheets'][0]['layout']['bands'] if b['node'] != {'tile': chart.id}]
+        open_now = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Renamed in DataCube'),
+                    grid_edit(grid, kind='group', rows=['desk']), page_edit(kind='removeTile', tile=chart.id)]
         at = self.version(page)
         self.assertEqual(self.wrote(page, open_now), (200, at + 1))
         self.assertEqual(page.sheets[0].name, 'Renamed in DataCube')
@@ -1920,34 +1969,32 @@ class Live(Paged):
         self.assertEqual(served['page']['cubes'][0]['cube']['query']['rows'], ['desk'])
         moved = self.get(f'/page.json?page={page._key}&since={at + 1}')[1]
         self.assertEqual([c['grid'] for c in moved['commands']], [grid.id])
-        # what it writes again, unchanged, is no new version
-        self.assertEqual(self.wrote(page, page.to_dict()), (200, at + 2))
+        # a write that changes nothing (an undo and its redo: the commands between, both ways) is no new version
+        self.assertEqual(self.wrote(page, [grid_edit(grid, kind='group', rows=['region']), grid_edit(grid, kind='group', rows=['desk'])]),
+                         (200, at + 2))
 
-    def test_a_tile_closed_in_datacube_and_its_id_given_again_there_is_not_its_old_handles(self):
+    def test_a_tile_closed_in_datacube_and_brought_back_there_is_a_new_tile_never_its_old_handles(self):
         page, grid, chart = self.built()
         ll.show(page, browser=False)
-        # DataCube closed the chart, and later made another under the same id (a page opened afresh counts from the
-        # ids it has)
-        open_now = page.to_dict()
-        open_now['views'] = [v for v in open_now['views'] if v['id'] != chart.id]
-        open_now['sheets'][0]['layout']['bands'] = [
-            b for b in open_now['sheets'][0]['layout']['bands'] if b['node'] != {'tile': chart.id}]
-        self.assertEqual(self.said(page, open_now), 200)
+        # DataCube closed the chart, and later undid that: its undo adds a chart again, planned under the id the chart
+        # had -- which the page has held, so it is given out afresh (B12), the undo told the rename
+        self.assertEqual(self.said(page, [page_edit(kind='removeTile', tile=chart.id)]), 200)
         self.assertEqual(page.charts, [])
-        again = copy.deepcopy(open_now)
-        again['views'].append({**page.to_dict()['views'][0], 'id': chart.id, 'kind': 'chart', 'title': 'new there',
-                               'spec': {'version': 2, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}}})
-        again['sheets'][0]['layout']['bands'].append({'height': 0.5, 'node': {'tile': chart.id}})
-        self.assertEqual(self.said(page, again), 200)
+        status, settled = self.settled(page, [page_edit(
+            kind='addChart', id=chart.id, near=grid.id, title='new there', columns=None,
+            spec={'version': 2, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}})])
+        self.assertEqual(status, 200, settled)
+        self.assertEqual((settled['combined'], list(settled['renamed'])), (True, [chart.id]))
+        fresh = settled['renamed'][chart.id]
+        self.assertNotEqual(fresh, chart.id)
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             chart.title = 'the old chart'
-        self.assertEqual(page.charts[0].title, 'new there')
+        self.assertEqual((page.charts[0].id, page.charts[0].title), (fresh, 'new there'))
 
     def test_a_page_opening_on_it_opens_it_as_it_is_now(self):
         page, _, _ = self.built()
         ll.show(page, browser=False)
-        open_now = page.to_dict()
-        open_now['sheets'][0]['name'] = 'Renamed in DataCube'
+        open_now = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Renamed in DataCube')]
         self.assertEqual(self.said(page, open_now), 200)
         # another tab, or the first reloaded: the page as the open one wrote it, which is Python's too
         self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['sheets'][0]['name'], 'Renamed in DataCube')
@@ -1962,17 +2009,17 @@ class Live(Paged):
         # shown again in another tab: the page as it is, its version the same
         ll.show(page, browser=False)
         self.assertEqual(self.version(page), at)
-        # closed everywhere and shown again: the keeper kept it as it was -- a tab still at its version writes it, one
-        # behind is refused
+        # closed everywhere and shown again: the keeper kept it as it was, its steps too -- a tab still at its version
+        # writes it, one behind has its edits made again on top (combined), one further back than it keeps is refused
         for view in list(datacube._session.pages):
             view.close()
         del first
         ll.show(page, browser=False)
         self.assertEqual(self.version(page), at)
-        doc = page.to_dict()
-        doc['name'] = 'Renamed there'
-        self.assertEqual(self.said(page, doc, version=at - 1), 409)
-        self.assertEqual(self.said(page, doc, version=at), 200)
+        renamed = [page_edit(kind='renamePage', name='Renamed there')]
+        self.assertEqual(self.said(page, renamed, version=0), 409)
+        self.assertEqual(self.settled(page, renamed, version=at - 1), (200, {'version': at + 1, 'combined': True, 'renamed': {}}))
+        self.assertEqual(self.settled(page, renamed, version=at + 1), (200, {'version': at + 1, 'combined': False, 'renamed': {}}))
         self.assertEqual(page.name, 'Renamed there')
 
     def test_a_frozen_chart_left_without_its_grid_follows_its_frame(self):
@@ -1985,36 +2032,51 @@ class Live(Paged):
         datacube._session.register(trades().iloc[:1], 'trades')
         self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['frames']['trades'], before + 1)
 
-    def test_a_write_against_a_version_the_page_moved_on_from_is_refused(self):
-        page, _, _ = self.built()
+    def test_a_write_against_a_version_the_page_moved_on_from_is_made_again_on_top_or_refused(self):
+        # (S4, H1) a write made at a version the page has moved on from is its edits made again on the page as it is
+        # now; one that no longer applies there -- its grid taken off meanwhile -- is refused whole, in DataCube's words
+        page, grid, _ = self.built()
         ll.show(page, browser=False)
         at = self.version(page)
-        stale = page.to_dict()
-        stale['sheets'][0]['name'] = 'Of the page before'
+        stale = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Of the page before')]
         page.sheet('More')
-        self.assertEqual(self.said(page, stale, version=at), 409)
-        self.assertEqual([s.name for s in page.sheets], [None, 'More'])
+        self.assertEqual(self.settled(page, stale, version=at), (200, {'version': at + 2, 'combined': True, 'renamed': {}}))
+        self.assertEqual([s.name for s in page.sheets], ['Of the page before', 'More'])
+        at = self.version(page)
+        page.remove(grid)
+        status, why = self.settled(page, [grid_edit(grid, kind='group', rows=['desk']), page_edit(kind='renamePage', name='Both or neither')],
+                                   version=at)
+        self.assertEqual(status, 409)
+        self.assertRegex(why, f'the page changed where it is open while this change was made: {grid.id} is no longer on the page')
+        self.assertEqual(page.name, 'Q3 review')
 
     def test_a_write_is_a_page_datacube_reads_over_frames_this_session_serves(self):
         page, _, _ = self.built()
         ll.show(page, browser=False)
         engine = datacube._session.engine()
-        refused = engine.answer('POST', '/page.json', f'page={page._key}&version={self.version(page)}',
-                                json.dumps({'restore': {'kind': 'datacube.page', 'version': 6, 'name': 'Q3'}}))
+        sheet = page.sheets[0].id
+        added = lambda cube: [page_edit(kind='addGrid', document=cube, sheet=sheet, near=None, title=None, columns=None)]
+        status, why = self.settled(page, added({'kind': 'datacube.cube', 'version': 6, 'name': 'Q3'}))
         # refused by DataCube's reader, in its words -- never by a failure of the engine's own
-        self.assertEqual(refused.status, 422)
-        self.assertNotRegex(refused.body.decode('utf-8'), r'^[A-Za-z]+(Error|Exception):')
-        doc = page.to_dict()
-        doc['cubes'][0]['cube']['source']['name'] = 'nope'
-        self.assertEqual(self.said(page, doc), 422)
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', page.to_json()).status, 404)
-        self.assertEqual(engine.answer('POST', '/page.json', f'page={page._key}', page.to_json()).status, 400)
-        # its numbers exact both ways: a calculated column's 12.30 written by the open page is 12.30 in Python
+        self.assertEqual(status, 409)
+        self.assertNotRegex(why, r'^[A-Za-z]+(Error|Exception):')
+        over_nope = copy.deepcopy(page.to_dict()['cubes'][0]['cube'])
+        over_nope['source']['name'] = 'nope'
+        status, why = self.settled(page, added(over_nope))
+        self.assertEqual(status, 409)
+        self.assertIn('nope', why)
+        # the page whole is no write (D19 W5: an undo is its commands); a page not served, a version not said
+        whole = engine.answer('POST', '/page.json', f'page={page._key}&version={self.version(page)}',
+                              json.dumps({'restore': page.to_dict()}))
+        self.assertEqual(whole.status, 400)
+        self.assertIn('never the page whole', whole.body.decode('utf-8'))
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', '{"edits": []}').status, 404)
+        self.assertEqual(engine.answer('POST', '/page.json', f'page={page._key}', '{"edits": []}').status, 400)
+        # its numbers exact both ways: a calculated column's 12.30 is 12.30 in Python after the open page's write, which
+        # DataCube applied to the page holding it
         page.grids[0].calculate('scaled', '$x.notional->toOne() * 12.30D')
-        written = _json.loads(page.to_json())
-        written['name'] = 'Written there'
-        self.assertIn('12.30', _json.dumps(written))
-        self.assertEqual(self.said(page, written), 200)
+        self.assertIn(Decimal('12.30'), numbers(page.to_dict()))
+        self.assertEqual(self.said(page, [page_edit(kind='renamePage', name='Written there')]), 200)
         self.assertEqual(page.name, 'Written there')
         self.assertIn(Decimal('12.30'), numbers(page.to_dict()))
 
@@ -2025,8 +2087,7 @@ class Live(Paged):
         other = page.grid(desks(), name='desks')
         ll.show(page, browser=False)
         since = lambda v: self.get(f'/page.json?page={page._key}&since={v}')[1]
-        theirs = page.to_dict()
-        theirs['sheets'][0]['name'] = 'Renamed in DataCube'
+        theirs = [page_edit(kind='renameSheet', sheet=page.sheets[0].id, name='Renamed in DataCube')]
         page._enter()
         try:
             # the call began at this version; DataCube wrote the page meanwhile
@@ -2040,13 +2101,7 @@ class Live(Paged):
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['rows'], ['desk'])
         self.assertEqual([('page' if 'page' in c else 'grid') for c in since(at)['commands']], ['page', 'grid'])
         # one that no longer applies there -- the grid closed in DataCube meanwhile -- is refused, the page DataCube's
-        gone = page.to_dict()
-        cube = grid._view['cube']
-        closed = {v['id'] for v in gone['views'] if v['cube'] == cube}
-        gone['views'] = [v for v in gone['views'] if v['cube'] != cube]
-        gone['cubes'] = [c for c in gone['cubes'] if c['id'] != cube]
-        for sheet in gone['sheets']:
-            sheet['layout']['bands'] = [b for b in sheet['layout']['bands'] if not any(f'"{t}"' in json.dumps(b) for t in closed)]
+        gone = [page_edit(kind='removeTile', tile=grid.id)]
         page._enter()
         try:
             self.assertEqual(self.said(page, gone), 200)
@@ -2096,12 +2151,8 @@ class Live(Paged):
         # open page's write as any command is -- the page as the open page wrote it, the cube as it opens now
         page, grid, _ = self.built()
         ll.show(page, browser=False)
-        theirs = page.to_dict()
-        theirs['name'] = 'Renamed in DataCube'
         # the open page regrouped the grid too: the cube opened again over the frame is that cube, its grouping kept
-        held = next(c['cube'] for c in theirs['cubes'] if c['id'] == grid._view['cube'])
-        held['query']['rows'] = ['desk']
-        held['tree']['open'] = []
+        theirs = [page_edit(kind='renamePage', name='Renamed in DataCube'), grid_edit(grid, kind='group', rows=['desk'])]
         page._enter()
         try:
             self.assertEqual(self.said(page, theirs), 200)
@@ -2127,11 +2178,9 @@ class Live(Paged):
     def test_a_page_shown_nowhere_takes_no_write(self):
         page, _, _ = self.built()
         tab = ll.show(page, browser=False)
-        doc = page.to_dict()
-        doc['name'] = 'Written after it closed'
         at = self.version(page)
         tab.close()
-        self.assertEqual(self.said(page, doc, version=at), 404)
+        self.assertEqual(self.said(page, [page_edit(kind='renamePage', name='Written after it closed')], version=at), 404)
         self.assertEqual(page.name, 'Q3 review')
 
     def test_a_frame_a_grid_the_open_page_added_reads_is_followed_at_a_cells_end(self):
@@ -2141,13 +2190,9 @@ class Live(Paged):
         ll.show(page, browser=False)
         other = ll.Page('Other')
         other.grid(lambda: desks(), name='livedesks')
-        doc = page.to_dict()
-        engine_h = datacube._session.headless()
-        held = sorted({v['id'] for v in doc['views']} | {s['id'] for s in doc['sheets']} | {c['id'] for c in doc['cubes']})
-        added = json.loads(engine_h.call('pageApply', _json.dumps(doc), json.dumps(held), _json.dumps([{
-            'kind': 'addGrid', 'document': other.to_dict()['cubes'][0]['cube'], 'sheet': doc['sheets'][0]['id'],
-            'near': None, 'title': None, 'columns': None}])))
-        self.assertEqual(self.said(page, _json.loads(added['page'])), 200)
+        added = page_edit(kind='addGrid', document=other.to_dict()['cubes'][0]['cube'], sheet=page.sheets[0].id,
+                          near=None, title=None, columns=None)
+        self.assertEqual(self.said(page, [added]), 200)
         engine = datacube._session.engine()
         before = engine.version('livedesks')
         datacube._session.after_cell()
@@ -2221,6 +2266,7 @@ class Joined(Paged):
     get = Live.get
     said = Live.said
     wrote = Live.wrote
+    settled = Live.settled
 
     def joined(self):
         page = ll.Page('Joins')
@@ -2350,8 +2396,9 @@ class Joined(Paged):
         try:
             status, versions = self.get(f'/version.json?page={page._key}')
             self.assertEqual((status, sorted(versions['frames'])), (200, ['desks', 'trades']))
-            # the page in DataCube's hands, written back: a join of frames is a page Python holds
-            self.assertEqual(self.said(page, page.to_dict()), 200)
+            # the page in DataCube's hands, edited there: a join of frames is a page Python holds
+            self.assertEqual(self.said(page, [page_edit(kind='renamePage', name='Joined, renamed there')]), 200)
+            self.assertEqual(page.name, 'Joined, renamed there')
         finally:
             tab.close()
 
@@ -2365,6 +2412,7 @@ class Snapped(Paged):
     get = Live.get
     said = Live.said
     wrote = Live.wrote
+    settled = Live.settled
 
     def moving(self):
         """A live frame whose rows are moved between queries: a function, read at each query."""
@@ -2573,10 +2621,9 @@ class Snapped(Paged):
                 pull = engine_h.call('gridSnapPull', spec)
             made = json.loads(engine.answer('POST', '/snap.json', '', json.dumps(
                 {'op': 'snap', 'model': spec['model'], 'runtime': spec['runtime'], 'pull': pull})).body)
-            doc = page.to_dict()
-            doc['copies'] = {grid._view['cube']: {'table': made['table'], 'label': 'Snap 14:02',
-                                                  'takenAt': '2026-10-20T14:02:00.000Z', 'rowCount': made['rowCount']}}
-            self.assertEqual(self.said(page, doc), 200)
+            snapped = page_edit(kind='snap', grid=grid.id, copy={'table': made['table'], 'label': 'Snap 14:02',
+                                                                   'takenAt': '2026-10-20T14:02:00.000Z', 'rowCount': made['rowCount']})
+            self.assertEqual(self.said(page, [snapped]), 200)
             self.assertEqual(grid.snapped['table'], made['table'])
             self.assertEqual(len(grid.to_pandas()), 3, 'its copy, read in Python')
             # the page's now: the tab's release keeps it; going live lets it go

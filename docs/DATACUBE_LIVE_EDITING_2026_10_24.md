@@ -200,23 +200,38 @@ from one to another, in an order every arm accepts: sheets added; charts removed
 (their cube document; a frozen chart left detached relinked by `followGrid`); charts added, re-pointed
 (`followGrid`), their spec (`setChart`) and selection (`select`) and title (`renameTile`); tiles moved
 (`moveTile`); page filters removed and set; each sheet's `layout` whole (after the tile sets agree, so the arm's
-check passes); sheets removed, renamed, reordered; copies (`live`, `snap`). A tile the diff adds carries no id --
-`freshId` refuses a held one -- and `stands` says which tile of `to` each added one stands for. `scope`: `history`
+check passes); sheets removed, renamed, reordered; copies (`live`, `snap`). A tile the diff adds is planned under
+`to`'s id; applied (`applyPlanned`), the id is honoured where free (a page converging on its keeper's) or given out
+afresh where held (an undo: B12), and `renamed` says planned -> given. `scope`: `history`
 (the page's structure: not the name, the saved record or the model, kept across an undo as today, F52, F74, D5;
 not the cubes' contents, which are the grids' own steps) or `whole` (everything but a model gone or a source
 changed, which it refuses: §2's reopen). Property: `apply(from, pageBetween(from, to))` equals `to` up to the fresh
 ids, over the saved-page corpus and seeded edits (page-rebase.test.ts's generator widened to every kind).
 
-**The page's history is commands** (`page-state.ts`): a step is `{label, forward, inverse, brings}` -- the commands
-as applied, their inverse by `pageBetween(after, before, 'history')` computed when the step is made, and for each
-`addGrid` of the inverse the old tile it brings back (`stands`). `undo` applies the inverse to the page as it is NOW
-and returns the commands applied (fresh ids given); `redo` the forward ones; both move the stacks only when the
-commands applied (one refused -- its tile taken off by another editor since -- is a dead step: dropped, said, the
-stacks moved past it). `PageApp.#move` applies, tells (W9's schedule), syncs: the same `#edit`. A tile brought back
-is a new tile under a fresh id (B12: ids never reused), made from its old maker and start: `brings` pairs the fresh
-id with the old one for `#remake`; `reachable` is every `brings` across the history. The keeper's `renamed` renames
-every step's commands (`renamedCommand`, page-rebase.ts 55-102), so a redo after a renamed undo names the tile the
-keeper knows. `onRestore` goes.
+**The page's history is commands** (`page-state.ts`): a step is `{label, forward, inverse}` -- the commands as
+applied, and their inverse by `pageBetween(after, before, 'history')` computed when the step is made. `undo`
+applies the inverse to the page as it is NOW (`applyPlanned`, fresh ids) and returns the commands applied and the
+ids given out afresh (`PageMoved`); `redo` the forward ones; both move the stacks only when the commands applied
+(one refused -- its tile taken off by another editor since -- is a dead step: dropped, said, the stacks moved past
+it: `PageDead`). `PageApp.#move` applies, tells, syncs: the same path as `#edit`. A tile brought back is a new tile
+under a fresh id (B12: ids never reused), made from its old maker and start: the move's `renamed` re-keys the
+maker (`#gone`, or a grid still kept off the board for a detached chart) and a kept-as-saved tile's document
+(`#unopened`) to the new id before the sync; `reachable` is every `addGrid` id and every `detach` cube across the
+history. Every step's commands follow a rename -- the move's own, or the keeper's `renamed` -- by
+`renamedCommand` (page-rebase.ts), which renames a maker's planned id too, so a redo after a renamed undo names the
+tile as it is now. `onRestore` goes.
+
+**A detached chart is reachable by command (W19: `detach {chart, cube, document}`, 2026-10-24).** The one page a
+command could not make was a chart over a cube no grid shows -- a frozen chart whose grid went -- so Show Grid on a
+detached chart had no inverse (the chart's old cube is gone from the page; `followGrid` needs a grid) and a
+detached chart taken off could not come back. `detach` points a chart at a cube of its own: `cube` the kept cube's
+id -- one no grid shows: made, or replaced with `document`, which its other charts then read too -- the id it had,
+so the chart comes back on the very cube it read and the board finds that cube's maker under the id it has kept;
+its selection and page filter come off as `followGrid` takes them, and it is frozen, as a detached chart is. Show
+Grid on a detached chart undone is `detach` then the grid's `removeTile` (the chart keeps its id); a detached chart
+removed and undone is `addChart` of any grid here (one made for it, then taken off, when the page has none) then
+`detach`. Python's generated builder is `page_detach`; no gesture but an undo tells it (the gestures ledger drives
+that undo).
 
 **The grid's undo is produced by commands too** (`state-owner.ts`): `StateRules` gains `toward(from, to): S`, the
 state reached from `from` by this kind's own edits toward `to` -- the cube's: `apply(from, gridBetween(from, to))`
@@ -312,10 +327,12 @@ property set back). A step whose target is gone is dead, never guessed at.
 - **W16** a frame moved with the page: followed by commands, then refreshed; `followBy`'s `open` goes.
 - **W17** the hash check at every write; the message that must never show.
 - **W18** H-13 closed by W5 (an undo judged by every rule a write is, its ids held).
+- **W19** `detach`, the page command that makes a detached chart reachable (§3): Show Grid on a detached chart and a
+  detached chart's removal both undoable as commands; `pageBetween` total over detached charts.
 
 Ledgers that move, each with a dated note: `L9_KEEPER` 6 -> 5 (shrink); `L1_GRID`'s `#undo` / `#redo` entries'
 reasons (the owner's moves are told); `BOARD_SITES` / `STATE_SITES` as the sites change; `ITEM` gains `W`; `ALL`
-gains W1-W18 as each closes; `SCREEN_OWN_MAKERS` gains `pageBetween` (an undo's inverse is the screen's own: Python
+gains W1-W19 as each closes; `SCREEN_OWN_MAKERS` gains `pageBetween` (an undo's inverse is the screen's own: Python
 has no history); the gestures ledger's `restores` goes; the screen bundle's budget if the diffs push it over (said
 in As built with the number, for the user's sign-off, D9).
 

@@ -234,7 +234,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         onCommand: (command) => {
           if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command });
         },
-        onRestore: () => channel?.restored(),
         // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes; and, where the
         // page has a model home and the host writes models, Create a Class… of the grid's rows
         hostMenu: () => {
@@ -457,7 +456,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // each edit of the page's structure, written to its keeper, on a page another editor serves; an undo or a redo, the
     // page whole (a restore, N2)
     onPageCommand: (command) => channel?.edit({ page: command }),
-    onRestore: () => channel?.restored(),
     // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {

@@ -286,12 +286,12 @@ export type LiveCommand =
 
 /**
  * What a page open on screen writes to the page's keeper (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): the edits made
- * on screen at the version it is at, each a command, which the keeper applies -- or, an undo or a redo (N2), the page
- * whole, a restore the keeper takes only at that version.
+ * on screen at the version it is at, each a command, which the keeper applies -- an undo or a redo among them, as the
+ * commands between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole).
  */
-export type LiveWrite =
-  | { readonly edits: readonly LiveCommand[] }
-  | { readonly restore: PageDocument };
+export interface LiveWrite {
+  readonly edits: readonly LiveCommand[];
+}
 
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {

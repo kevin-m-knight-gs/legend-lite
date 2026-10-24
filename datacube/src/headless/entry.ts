@@ -16,7 +16,7 @@ import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
   chartDrill, chartPick, cubeOpensAgain, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
-  pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube, pageWritten,
+  pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides } from './join.ts';
 
@@ -97,11 +97,10 @@ export { pageGesture };
 export { chartOwnGrid };
 /** A grid's edit on a page: the page with its cube as the edit left it, its charts following it (V1, V2). */
 export { pageWithCube };
-/** The page's keeper (Python's: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) asks DataCube what it never reads itself: a
- *  page written whole -- a restore, an undo's or a redo's, or a page loaded -- read as DataCube reads a page
- *  (pageWritten), what a page reads (pageReads), and a writer's edits applied to the page as it is now (pageRebase:
- *  page-rebase.ts, the one rule for it; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4). */
-export { pageReads, pageRebase, pageWritten };
+/** The page's keeper (Python's: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) asks DataCube what it never reads itself: what
+ *  a page reads (pageReads), and a writer's edits applied to the page as it is now (pageRebase: page-rebase.ts, the one
+ *  rule for it; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4). An undo or a redo is edits like any (D19, W5). */
+export { pageReads, pageRebase };
 
 /** A page filter on a class's property, made as the screen's Add a Filter makes one (a setPageFilter command, for
  *  pageApply): what Python's page.filter asks. */

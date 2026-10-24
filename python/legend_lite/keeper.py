@@ -1,6 +1,6 @@
 """ONE KEEPER PER PAGE (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the one copy of each page a session's Python pages
 hold, shown or not, and its version -- the host's storage, which never reads a page: what a page reads (its frames, its
-copies, its ids) comes with each write from DataCube's own code (headless pageReads, pageWritten, pageRebase), and so
+copies, its ids) comes with each write from DataCube's own code (headless pageReads, pageRebase), and so
 does every rule of how two editors' edits combine (page-rebase.ts).
 
 THE HOST APPLIES THE COMMANDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): either editor -- Python's page, a tab or a
