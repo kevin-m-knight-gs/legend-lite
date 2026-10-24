@@ -80,6 +80,10 @@ export { layoutBands, layoutTiles };
  *  DataCube starts one: what Python's ll.Page() asks. And a
  *  page edited by commands (page-commands.ts): what Python's page edits send. */
 export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
+
+/** The commands between two pages, and between two states of a grid (page-between.ts, grid-between.ts;
+ *  docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): what a page open on Python's undoes by -- the tab's history's own
+ *  functions, so both sides' undos are the same commands (test_keeper.py OpenPage). */
 /** A page saved in the page store as it opens (pageOfRecord: the tab's Open…, Python's Page.open); the saved pages
  *  searched as Open… searches them (pageSearch: Python's Page.saved). */
 export { pageOfRecord, pageSearch };

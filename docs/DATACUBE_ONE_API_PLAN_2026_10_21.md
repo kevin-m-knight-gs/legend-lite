@@ -1166,6 +1166,28 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   keeper has it and the status line says so, once -- a second mismatch before a write hashes alike is said and opens
   nothing (no reopen loop) -- closed D19 slice 3: page-hash.test.ts, live-channel.test.ts (the channel; a real page's
   converge hashing to the keeper's), datacube-app-live.test.ts (a follow's hash)
+- [x] **W15** the two-editor soak as a gate, three times over. TypeScript: live-soak.test.ts -- two real `PageApp`s
+  (jsdom, real `CubeApp`s over the fixture engine) on one keeper as Python's (test/fake-keeper.ts: every write applied
+  by `rebaseEdits`, the steps kept, `since` / `edits` / `renamed` / `hash` answered, a write that lands on a moved page
+  made again as keeper.py `settle` retries on `Stale`), Python's stand-in writing between them, grid edits, sheets and
+  grids added, tiles taken off, sheet renames, undo and redo on each tab, each tab's writes held at random so writes
+  combine and are refused; after every quiet point (every write landed, every tab followed to the keeper's version with
+  nothing pending) the three hold one page to the hash, no tab opened the page again, none said the message that must
+  never show; 6 seeds of 14 steps in the build (`LEGEND_LITE_SOAK_SEEDS` for more, `LEGEND_LITE_SOAK_SEED` for one
+  alone, its writes logged), 60 run green. Python: test_keeper.py `Converges` -- the `OpenPage` keeps a history as the
+  tab does (each step's inverse planned by `pageBetween` / `gridBetween` when it is made, Undo and Redo through
+  `pagePlanned`: fresh ids, B12 -- the tab's own functions, bundled for the test alone as `legendLiteHeadlessTab`,
+  datacube/test/headless-tab.ts and `//datacube:headless_tab_bundle`, loaded into the headless engine the test has;
+  Python's product asks none of them, so the product's bundle exports none and `L8_UNASKED` stays empty), a second
+  `OpenPage` joins Python and the first (edits alone, both at once, undo then redo), every open page followed after
+  every step, the `Intent` model grown by `removeSheet`, `addGrid`, `addChart` facts. The browser: python-engine.mjs -- two tabs on one `ll.Page`, a sheet renamed in one and added in the
+  other at once with Python's grouping between, then Undo through the first tab's menu; both tabs hold Python's page to
+  its keeper's hash (`window.__dataPageHash`, the harness's hook) and neither says the message that must never show.
+  The soak's catches, each fixed with its unit test: `LiveTarget.grids` and `cubes` read the board as each run of
+  commands is applied, so a grid a step added is on it when its own commands come (live-follow.test.ts), and the
+  converge puts every grid a pending edit changed back at the keeper's cube too, so the page on screen is the keeper's
+  to the hash before the pending edits are made again (`Converge.pending`; `reapply(pending)` makes every pending edit
+  again, the `touched` split gone) -- closed D19 slice 4
 
 ## 5. The steps
 

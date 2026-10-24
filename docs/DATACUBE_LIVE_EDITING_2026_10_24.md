@@ -321,6 +321,31 @@ property set back). A step whose target is gone is dead, never guessed at.
 - **Mutation.** The scratch mutation harness over the two diffs, the channel's converge and the owner's `toward`, as
   in the keeper's step 1b; a surviving mutant is a missing test.
 
+**As built (slice 4, 2026-10-24).** The TypeScript soak is its own file, `live-soak.test.ts`, over a keeper of the
+tests' own, `test/fake-keeper.ts` (as Python's: every write applied by `rebaseEdits`, each version's steps kept, the
+answer carrying `since`, `edits`, `renamed` and `hash`; two writes let go together are applied one after the other, a
+write that lands on a page another moved made again, as keeper.py `settle` retries on `Stale`), with the page the
+tabs show compared to the keeper's by hash rather than by an `Intent` model (the Python soak keeps that model: the two
+proofs differ on purpose). Its quiet point is a fixpoint -- every write landed, every tab followed to the keeper's
+version with nothing pending -- because a write that lands late moves the keeper past the other tab's follow. It
+caught two things in the first sixty seeds, each now a unit test: (1) `LiveTarget.grids` was a list taken when the
+target was built, so a move that added a grid and then edited it (one `since`) failed "closed on this page" and the
+app opened the page again -- `grids()` and `cubes()` are read as each run of commands is applied; (2) the converge
+checked the hash of a screen that still carried the pending edits on grids the keeper's steps had not touched, so a
+person editing during a combined write could never hash alike -- `Converge` carries `pending`, every grid a pending
+edit changed is put back at the keeper's cube too, the hash is checked on the keeper's page, and `reapply(pending)`
+then makes every pending edit again through the ordinary path (the `touched` split in `LiveScreen.reapply` is gone,
+with the "told again only" case). The Python `OpenPage` keeps its history as the tab does (each step's inverse planned
+when the step is made, by `gridBetween` for a grid's step, `pageBetween` in the history's scope for a page's, both for
+a click; Undo and Redo through `pagePlanned`, fresh ids), and does not rename its steps' ids as the keeper renames
+them (a step naming one is dead, or names what the id is now; either way what it says is on the page, which is what
+the `Intent` checks). Those three are the tab's own functions, which Python's product never asks: the product's
+headless bundle does not export them (the one API ledger's `L8_UNASKED` would have to grow, and did not); the test
+bundles them for itself (`datacube/test/headless-tab.ts`, `//datacube:headless_tab_bundle`, the global
+`legendLiteHeadlessTab`) and loads the script into the headless engine it already has (`Headless.execute`). The browser harness compares both tabs' hashes with Python's through `window.__dataPageHash`,
+a harness-only hook beside `__dataPage`. Not built: the mutation harness (scratch; no gate), and the two-thread test
+still runs one open page.
+
 ## 7. Items (the register's W)
 
 - **W1** `gridBetween` total over the saved form; `tree`; `before` on `calculate` / `editCalculated`.

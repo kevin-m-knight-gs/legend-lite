@@ -3,13 +3,14 @@
 // made the keeper's page without a read and without a reopen. Inside the channel's `following` (live-channel.ts):
 //   1. the keeper's renames followed (the grids' makers, the page's history); the board put back at the page as the
 //      keeper had it at the version shown, the ids given out here since given back (PageApp.putBack); each grid the
-//      keeper's steps touch put back at its cube then, by its own commands (grid-between.ts: another editor edited this
-//      grid, and its history starts again, W13);
+//      keeper's steps touch, and each a pending edit changed, put back at its cube then, by its own commands
+//      (grid-between.ts: another editor edited this grid, and its history starts again, W13);
 //   2. the other editors' steps since, applied as theirs (live-follow.ts applyLive);
 //   3. this screen's sent edits as the keeper applied them (made again on top, renamed), as its own: a grid's recorded as
 //      steps said, told nothing (they were told); a grid added here made again by its own maker under the id the keeper
 //      gave it;
-//   4. the page on screen, which the channel checks against the keeper's hash (W17).
+//   4. the page on screen -- the keeper's, with nothing pending on it -- which the channel checks against the keeper's
+//      hash (W17), before the pending edits are made again.
 // Throws when a command does not apply here: the page is then opened again, said. No DOM of its own: the app hands it
 // the page and its grids, so the rule is tested with real pages alone (test/live-channel.test.ts).
 
@@ -45,8 +46,9 @@ export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Conv
   const { page } = deps;
   page.renamedBy(on.renamed);
   const touched = new Set<string>();
-  for (const e of [...on.since, ...on.edits]) if ('grid' in e) touched.add(e.grid);
-  // 1. the board back at the keeper's page at the version shown; each grid the steps touch back at its cube then
+  for (const e of [...on.since, ...on.edits, ...on.pending]) if ('grid' in e) touched.add(e.grid);
+  // 1. the board back at the keeper's page at the version shown; each grid the steps touch, or a pending edit changed,
+  //    back at its cube then
   page.putBack(on.confirmed, on.held);
   for (const id of touched) {
     const grid = deps.grid(id);
@@ -59,8 +61,8 @@ export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Conv
     if (refused !== null) throw new Error(`${id} could not be put back at its keeper's: ${refused}`);
   }
   const target = (own: boolean): LiveTarget => ({
-    grids: page.grids,
-    cubes: page.cubes.length,
+    grids: () => page.grids,
+    cubes: () => page.cubes.length,
     follow: (commands, makers: ReadonlyMap<string, GridMaker>) => page.follow(commands, makers),
     applyGrid: async (grid, commands) => deps.grid(grid)?.applyGridCommands(commands, own ? 'made again' : 'Python', own) ?? `no grid ${grid} here`,
     // a grid added here, made again under the id the keeper gave it, is made by its own maker (PageApp.knows), never
@@ -77,7 +79,7 @@ export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Conv
   // 4. the page on screen now
   const now = deps.pageNow();
   if (now === undefined) throw new Error('the page cannot say what it is');
-  return { page: now, touched };
+  return { page: now };
 }
 
 /** A cube document as a grid's draft, over the grid's source (what a run alone adds, the column types, is no part). */

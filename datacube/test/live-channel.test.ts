@@ -65,7 +65,7 @@ function screen(start: PageDocument): Screen {
       s.converged.push(on);
       const made = await rebaseEdits({ page: on.confirmed, held: on.held }, [...on.since, ...on.edits], applyGridToCube);
       s.now = made.page;
-      return { page: made.page, touched: new Set([...on.since, ...on.edits].flatMap((e) => ('grid' in e ? [e.grid] : []))) };
+      return { page: made.page };
     },
     // the pending edits made again: on this screen each is applied to its page (a grid the steps left alone shows it
     // still: here, the page is the keeper's, so it is applied too) and told again
@@ -445,10 +445,9 @@ function realPage(): { cubes: Map<string, CubeApp>; over: (name: string) => Grid
         open: async (document) => ({ make: over(document.source.name) }),
         frameVersion: () => undefined,
       }),
-      reapply: async (pending, touched) => {
+      reapply: async (pending) => {
         for (const edit of pending) {
           if ('page' in edit) app.reapply([edit.page], 'made again');
-          else if (!touched.has(edit.grid)) channel!.edit(edit);
           else await cubes.get(edit.grid)?.edit([edit.command], 'made again');
         }
       },

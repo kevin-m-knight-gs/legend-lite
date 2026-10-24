@@ -751,6 +751,77 @@ try {
   await python('py-page-live');
   await seen('and gone live in Python after: the open page live again', `(${String(pill)})() === 'Live'`);
 
+  // TWO TABS ON ONE PAGE (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W15: the two-editor soak, live-soak.test.ts, run in
+  // browsers once): a second tab opens Python's page; its first sheet renamed in the first tab and a sheet added in the
+  // second at once, Python grouping its grid again between them; then Undo in the first tab, through the page's menu.
+  // Each tab writes its edits as commands, converges where its write met another's, and follows the rest: both hold
+  // Python's page -- the same sheets, the hash its keeper has (page-hash.ts) -- and neither says the message that must
+  // never show (live-channel.ts HASH_MISMATCH) or opened the page again.
+  const pythonHash = async () => {
+    engine.stdin.write('py-page-hash\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-hash ')) throw new Error(`the engine did not say the hash: ${line}`);
+    return JSON.parse(line.slice('done py-page-hash '.length));
+  };
+  const pythonSheets = async () => {
+    engine.stdin.write('py-page-read\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-read ')) throw new Error(`the engine did not read the page: ${line}`);
+    return JSON.parse(line.slice('done py-page-read '.length));
+  };
+  const secondTab = await browser.newPage();
+  secondTab.on('pageerror', (e) => { console.log(`second tab error: ${e.message}`); failed = true; });
+  secondTab.on('console', (m) => { if (m.type() === 'error') console.log(`second tab console: ${m.text()}`); });
+  secondTab.on('response', (r) => {
+    if (r.status() === 409 && r.request().method() === 'POST' && new URL(r.url()).pathname === '/page.json') return;
+    if (r.status() >= 400) { console.log(`FAIL second tab answer ${r.status()}: ${r.url()}`); failed = true; }
+  });
+  const bothTabs = [tabbed, secondTab];
+  // the first sheet as its tab labels it (unnamed in Python: the tab shows its grid's frame)
+  const firstSheet = await tabbed.evaluate(() => document.querySelector('.dc-sheet-tab .dc-sheet-label')?.textContent);
+  await secondTab.goto(tabbed.url());
+  const tabsShow = (fn) => Promise.all(bothTabs.map((t) => t.evaluate(fn)));
+  const sheetsOf = () => tabsShow(`(${String(sheetNames)})()`);
+  const hashesOf = () => tabsShow(() => window.__dataPageHash);
+  const neverShown = () => tabsShow(() => /differed from its keeper|opened again as its keeper has it/.test(document.body.innerText));
+  /** Both tabs and Python at one page: asked until they are, or `tries` half-seconds; what each held last. */
+  const oneHeld = async (name, also = () => true, tries = 40) => {
+    let last = {};
+    for (let n = 0; n < tries; n += 1) {
+      const [sheets, hashes, shown, hash] = await Promise.all([sheetsOf(), hashesOf(), neverShown(), pythonHash()]);
+      last = { sheets, hashes, shown, hash };
+      if (shown.some(Boolean)) break;
+      if (hashes.every((h) => h === hash) && sheets[0] === sheets[1] && also(sheets[0], await pythonSheets())) {
+        console.log(`ok   ${name} (${sheets[0]})`);
+        return true;
+      }
+      await new Promise((done) => { setTimeout(done, 500); });
+    }
+    console.log(`FAIL ${name}: tabs ${JSON.stringify(last.sheets)} ${JSON.stringify(last.hashes)}, Python ${last.hash}${
+      last.shown?.some(Boolean) ? ', a tab said the message that must never show' : ''}`);
+    for (const t of bothTabs) console.log(`  a tab showed: ${(await t.evaluate(() => document.body.innerText)).slice(0, 300)}`);
+    failed = true;
+    return false;
+  };
+  await oneHeld('a second tab opens Python\'s page: both tabs hold it, to its keeper\'s hash');
+  // the first tab renames the first sheet while the second adds a sheet: two writes at once, one made again on top of
+  // the other; Python's grouping between them
+  await tabbed.locator('.dc-sheet-tab', { hasText: firstSheet }).dblclick();
+  await tabbed.locator('.dc-sheet-tab input').fill('Two tabs');
+  const typed = tabbed.locator('.dc-sheet-tab input').press('Enter');
+  await secondTab.locator('.dc-sheet-add').click();
+  await typed;
+  await python('py-page-group');
+  await oneHeld('a sheet renamed in one tab, a sheet added in the other and Python\'s grouping between: one page in all three',
+    (sheets, inPython) => sheets.startsWith('Two tabs|') && inPython[0] === 'Two tabs' && inPython.length === sheets.split('|').length);
+  // Undo in the first tab (its menu): its rename undone as the commands between, written -- the second tab and Python
+  // follow by them
+  await tabbed.click('.dc-page-bar .dc-titlebar-menu');
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label', { hasText: /^Undo / }) }).first().click();
+  await oneHeld('Undo in the first tab: the rename undone on the page in all three',
+    (sheets, inPython) => sheets.startsWith(`${firstSheet}|`) && inPython[0] !== 'Two tabs');
+  await secondTab.close();
+
   // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New > Blank Page on the page Python serves puts a page of the
   // tab's own on screen and leaves Python's page as it is -- nothing written to it, and Python's next change to it not
   // followed here

@@ -11,10 +11,12 @@ import type { LiveCommand, Versions } from './services.ts';
 
 /** What following needs of the page on screen. */
 export interface LiveTarget {
-  /** The grids on the board, by their tiles' ids: a grid kept off it for a detached chart is closed, as far as Python is. */
-  readonly grids: readonly string[];
+  /** The grids on the board NOW, by their tiles' ids -- read as each run of commands is applied, so a grid a page command
+   *  of the same move added is on it when its own commands come (the soak's first catch, live-soak.test.ts) -- a grid
+   *  kept off it for a detached chart is closed, as far as Python is. */
+  grids(): readonly string[];
   /** How many cubes the page holds now (a grid added beside others is capped). */
-  readonly cubes: number;
+  cubes(): number;
   /** Page commands applied to the page and the screen put at them (PageApp.follow); refused in their words. */
   follow(commands: readonly PageCommand[], makers: ReadonlyMap<string, GridMaker>): Promise<void>;
   /** A grid's commands applied to it as one change: the refusal, or null. */
@@ -49,7 +51,7 @@ export async function applyLive(commands: readonly LiveCommand[], target: LiveTa
     const run: GridCommand[] = [];
     for (let c = commands[i]; c && 'grid' in c && c.grid === grid; c = commands[++i]) run.push(c.command);
     // a grid closed here -- kept off the board for a detached chart, or gone -- is no grid Python's command is for
-    if (!target.grids.includes(grid)) throw new Error(`grid ${grid} was closed on this page`);
+    if (!target.grids().includes(grid)) throw new Error(`grid ${grid} was closed on this page`);
     const refused = await target.applyGrid(grid, run);
     if (refused !== null) throw new Error(refused);
   }
@@ -69,7 +71,7 @@ async function followPage(run: readonly PageCommand[], target: LiveTarget): Prom
       // the frames it reads, its leaves' (a join's of frames, each), as the page read each before it was opened
       const frames = leavesOf(source).flatMap((l) => (l._type === 'frame' ? [l.name] : []));
       const read = new Map(frames.map((f) => [f, target.frameVersion(f)]));
-      const o = await target.open(command.document, command.id, gridCapped(target.cubes + makers.size + 1));
+      const o = await target.open(command.document, command.id, gridCapped(target.cubes() + makers.size + 1));
       if (!o) throw new Error(`${source.name} was not opened`);
       if (o.discard) discards.push(o.discard);
       makers.set(command.id, o.make);

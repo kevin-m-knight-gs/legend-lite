@@ -25,14 +25,19 @@ const joinCube = (left: string, right: string): CubeDocument => {
   return { ...trades.cubes[0]!.cube, source: { _type: 'join', name: `${left} ⋈ ${right}`, left: input(left), right: input(right), how: { form: 'append' }, columns: [] } } as unknown as CubeDocument;
 };
 
-/** A page that records what it was asked, over `frames` (each frame's read version, which `bump` moves on open). */
+/** A page that records what it was asked, over `frames` (each frame's read version, which `bump` moves on open); a grid
+ *  a page command adds is on its board from then on. */
 function target(o: { grids?: string[]; frames?: Record<string, number>; bump?: string; refuse?: string } = {}) {
   const asked: string[] = [];
   const frames = { ...(o.frames ?? {}) };
+  const grids = [...(o.grids ?? ['grid-1'])];
   const t: LiveTarget = {
-    grids: o.grids ?? ['grid-1'],
-    cubes: 1,
-    follow: async (commands, makers) => { asked.push(`page ${commands.map((c) => c.kind).join(',')} makers ${[...makers.keys()].join(',')}`); },
+    grids: () => grids,
+    cubes: () => grids.length,
+    follow: async (commands, makers) => {
+      asked.push(`page ${commands.map((c) => c.kind).join(',')} makers ${[...makers.keys()].join(',')}`);
+      for (const c of commands) if (c.kind === 'addGrid' && c.id !== undefined) grids.push(c.id);
+    },
     applyGrid: async (grid, commands) => { asked.push(`grid ${grid} ${commands.map((c) => c.kind).join(',')}`); return o.refuse ?? null; },
     open: async (document, grid) => {
       asked.push(`open ${grid}`);
@@ -65,6 +70,16 @@ describe('the commands applied, or refused so the page opens again', () => {
       grid('grid-2', { kind: 'group', rows: [] }), page({ kind: 'removeSheet', sheet: 'sheet-3' }),
     ], t);
     assert.deepEqual(asked, ['page addSheet,renamePage makers ', 'grid grid-1 group,pivot', 'grid grid-2 group', 'page removeSheet makers ']);
+  });
+
+  it('a grid a page command of the move added, then edited in the same move: on the board when its commands come', async () => {
+    // (the soak's first catch, live-soak.test.ts) the board is read as each run is applied, never once for the move
+    const { t, asked } = target({ grids: ['grid-1'] });
+    await applyLive([
+      page({ kind: 'addGrid', id: 'grid-4', document: frameCube('orders'), sheet: 'sheet-1', near: null, title: null, columns: null }),
+      grid('grid-4', { kind: 'group', rows: ['desk'] }),
+    ], t);
+    assert.deepEqual(asked, ['open grid-4', 'page addGrid makers grid-4', 'grid grid-4 group']);
   });
 
   it('a grid closed here -- kept off the board for a detached chart -- or a refused command: refused', async () => {

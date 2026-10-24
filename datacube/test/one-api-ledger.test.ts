@@ -1094,7 +1094,7 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   + 'R1 R2 R3 R4 R5 R6 R7 R8 '
   // 2026-10-24, D19 (D24): the single writer's client side, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7, each closed by
   // the slice that builds it
-  + 'W1 W2 W3 W4 W5 W6 W7 W8 W9 W10 W11 W12 W13 W14 W16 W17 W18 W19 ').split(' ').filter((item) => item !== '');
+  + 'W1 W2 W3 W4 W5 W6 W7 W8 W9 W10 W11 W12 W13 W14 W15 W16 W17 W18 W19 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

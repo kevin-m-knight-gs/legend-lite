@@ -1,0 +1,410 @@
+// THE TWO-EDITOR SOAK (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §6, W15): TWO real pages (PageApp, their grids CubeApps
+// over the fixture's gated engine) open on ONE keeper (test/fake-keeper.ts: a keeper as Python's, applying every write by
+// DataCube's one rule), with Python's stand-in writing between them, interleaved at random -- grid edits, sheets and grids
+// added, tiles taken off, undo and redo on each tab -- each tab's writes held at random so writes combine, get refused,
+// and give out ids afresh. After every quiet point (every write landed, each tab followed to the keeper's version with
+// nothing pending) the three hold ONE page, to the hash (W17), and neither tab ever opened the page again (no reopen
+// cause arises here) nor said the message that must never show. The seeds run here; a failure names its seed and step:
+// LEGEND_LITE_SOAK_SEED=n runs that seed alone, each step and each write's answer logged; LEGEND_LITE_SOAK_SEEDS=n runs
+// more (60 run green, 2026-10-24).
+
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import { JSDOM } from 'jsdom';
+
+import { CubeApp } from '../src/app.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import type { FileSource } from '../src/cube-document.ts';
+import { HASH_MISMATCH, LiveChannel } from '../src/app/live-channel.ts';
+import { convergeOn } from '../src/app/live-converge.ts';
+import { applyLive } from '../src/app/live-follow.ts';
+import type { PageCommand } from '../src/page-commands.ts';
+import { PageApp, type GridMaker } from '../src/page/page-app.ts';
+import type { PageDocument } from '../src/page-document.ts';
+import { pageHash } from '../src/page-hash.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { FakeKeeper } from './fake-keeper.ts';
+import { differing } from './page-same.ts';
+
+const SEEDS = Number(process.env['LEGEND_LITE_SOAK_SEEDS'] ?? '6');
+/** One seed run alone (LEGEND_LITE_SOAK_SEED=4), its steps logged. */
+const ONLY = process.env['LEGEND_LITE_SOAK_SEED'] === undefined ? undefined : Number(process.env['LEGEND_LITE_SOAK_SEED']);
+const STEPS = 14;
+
+/** How two pages differ, for a failure's message: each path that differs, with both sides. */
+function unlike(ours: PageDocument, theirs: PageDocument): string {
+  return differing(JSON.parse(JSON.stringify(ours)), JSON.parse(JSON.stringify(theirs))).join('\n  ');
+}
+
+/** A seeded random number generator (mulberry32): a failure says its seed, run alone again. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let dom: JSDOM;
+let engine: GateEngine;
+const tabs: Tab[] = [];
+
+beforeEach(() => {
+  dom = new JSDOM('<!doctype html><div id="a"></div><div id="b"></div>');
+  const g = globalThis as unknown as Record<string, unknown>;
+  g['window'] = dom.window;
+  g['document'] = dom.window.document;
+  g['requestAnimationFrame'] = (cb: FrameRequestCallback) => { cb(0); return 1; };
+  g['cancelAnimationFrame'] = () => {};
+  const inert: ProxyHandler<object> = {
+    get: (_t, key) => (key === 'canvas' ? dom.window.document.createElement('canvas') : key === 'measureText' ? () => ({ width: 0 }) : () => undefined),
+    set: () => true,
+  };
+  (dom.window.HTMLCanvasElement.prototype as unknown as { getContext: () => unknown }).getContext = () => new Proxy({}, inert);
+  engine = new GateEngine();
+});
+
+afterEach(async () => {
+  for (const tab of tabs.splice(0)) tab.dispose();
+  await settle();
+});
+
+const file = (name: string): FileSource => ({
+  _type: 'file', name, format: 'csv', size: 10, sha256: name.padEnd(64, '0').slice(0, 64),
+  columns: SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type })),
+});
+
+/**
+ * A TAB: a real page on the keeper, wired as DataCube's app wires one (datacube-app.ts): its grids' commands and its own
+ * told to its channel, converging by the one rule (live-converge.ts), following the keeper's moves by their commands
+ * (live-follow.ts applyLive, after a flush, as the app follows), opening the page again only when told to -- which this
+ * soak counts as a failure, since no reopen cause arises in it.
+ */
+class Tab {
+  readonly name: string;
+  readonly keeper: FakeKeeper;
+  readonly page: PageApp;
+  readonly cubes = new Map<string, CubeApp>();
+  readonly channel: LiveChannel;
+  readonly reopened: string[] = [];
+  readonly said: string[] = [];
+  readonly host: HTMLElement;
+
+  constructor(name: string, host: HTMLElement, keeper: FakeKeeper) {
+    this.name = name;
+    this.keeper = keeper;
+    this.host = host;
+    const over = (source: string): GridMaker => (gridHost, spawned, start) => {
+      const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+        engine, planner: new StubPlanner(), compact: true, cubeSource: file(source), sourceLabel: source,
+        configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: source },
+        ...spawned,
+        onCommand: (command) => { if (spawned.id !== undefined) this.channel.edit({ grid: spawned.id, command }); },
+      });
+      if (spawned.id !== undefined) this.cubes.set(spawned.id, made);
+      return made;
+    };
+    this.over = over;
+    this.page = new PageApp({
+      host, title: keeper.page.name, empty: (slot) => { slot.textContent = 'empty'; },
+      onChange: () => this.channel.changed(),
+      onPageCommand: (command) => this.channel.edit({ page: command }),
+    });
+    const now = (): PageDocument | undefined => this.page.document(this.page.title || keeper.page.name, undefined, true);
+    this.channel = new LiveChannel(keeper, {
+      page: now,
+      busy: () => [...this.cubes.values()].some((c) => c.busy),
+      converge: (on) => convergeOn(on, {
+        page: this.page,
+        grid: (id) => this.cubes.get(id),
+        pageNow: now,
+        open: async (document) => ({ make: over(document.source.name) }),
+        frameVersion: () => undefined,
+      }),
+      reapply: async (pending) => {
+        for (const edit of pending) {
+          if ('page' in edit) this.page.reapply([edit.page], 'made again');
+          else await this.cubes.get(edit.grid)?.edit([edit.command], 'made again');
+        }
+      },
+      reopen: async (why) => {
+        if (ONLY !== undefined) console.log(`# ${this.name} reopens at v${keeper.version}: ${why}; here views ${this.shown().views.map((v) => v.id).join(',')} sheets ${this.shown().sheets.map((v) => v.id).join(',')}`);
+        this.reopened.push(`${why}\n  ${unlike(this.shown(), keeper.page)}`);
+        await this.restore();
+      },
+      say: (text) => { this.said.push(text); },
+    }, 0);
+  }
+
+  readonly over: (source: string) => GridMaker;
+
+  /** The page opened as the keeper has it. */
+  open(): Promise<void> {
+    return this.restore();
+  }
+
+  /** The page put at the keeper's, whole: how it is opened, and opened again. */
+  async restore(): Promise<void> {
+    const makers = new Map<string, GridMaker>();
+    for (const c of this.keeper.page.cubes) makers.set(c.id, this.over(c.cube.source.name));
+    await this.channel.following(async () => {
+      this.page.restore(this.keeper.page, makers, this.keeper.held);
+      await this.page.ready();
+      await settle();
+    });
+    this.channel.opened(this.keeper.version, this.keeper.page, this.keeper.held);
+  }
+
+  /** The keeper's moves since the version shown followed, as the app follows them (datacube-app.ts followLive): what
+   *  is pending written first, the screen quiet, then the commands applied as the other editor's. */
+  follow(): Promise<void> {
+    return this.channel.enqueue(async () => {
+      await this.channel.flush(true);
+      const at = this.channel.shown;
+      if (at === undefined || at === this.keeper.version) return;
+      const moved = await this.keeper.changes(at);
+      if (!('commands' in moved)) throw new Error(`${this.name}: the keeper said the page whole: nothing to follow by`);
+      this.channel.shown = undefined;
+      // a command that does not apply here: the app opens the page again (datacube-app.ts followLive) -- a reopen, counted
+      const applied = await this.channel.following(async () => {
+        try {
+          await applyLive(moved.commands, {
+            grids: () => this.page.grids,
+            cubes: () => this.page.cubes.length,
+            follow: (commands, makers) => this.page.follow(commands, makers),
+            applyGrid: async (grid, commands) => this.cubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
+            open: async (document) => ({ make: this.over(document.source.name) }),
+            frameVersion: () => undefined,
+          });
+          await this.page.ready();
+          return true;
+        } catch (e) {
+          this.reopened.push(`follow refused: ${e instanceof Error ? e.message : String(e)}\n  ${unlike(this.shown(), this.keeper.page)}`);
+          return false;
+        }
+      });
+      if (!applied) return this.restore();
+      const now = this.shown();
+      this.channel.opened(moved.version, now, this.keeper.held);
+      if (pageHash(now) !== moved.hash) {
+        this.said.push(HASH_MISMATCH);
+        this.reopened.push(`follow: ${HASH_MISMATCH}\n  ${unlike(now, this.keeper.page)}`);
+      }
+    });
+  }
+
+  /** The page as this tab shows it now. */
+  shown(): PageDocument {
+    return this.page.document(this.page.title || this.keeper.page.name, undefined, true)!;
+  }
+
+  dispose(): void {
+    this.channel.stop();
+    this.page.dispose();
+  }
+}
+
+/** A quiet point: every write let go and landed, every tab followed to the keeper's version with nothing pending --
+ *  passes of draining and following until no tab is behind (a tab's write, landed late, moves the keeper past the
+ *  other's follow). */
+async function quiet(all: readonly Tab[], keeper: FakeKeeper): Promise<void> {
+  keeper.release();
+  for (let pass = 0; pass < 20; pass += 1) {
+    for (let round = 0; round < 3; round += 1) {
+      await settle();
+      await new Promise((r) => setTimeout(r, 5));
+      for (const t of all) await t.channel.idle();
+    }
+    for (const t of all) await t.follow();
+    for (const t of all) await t.channel.idle();
+    await settle();
+    if (all.every((t) => t.channel.shown === keeper.version && t.channel.pending.length === 0)) return;
+  }
+  throw new Error(`never quiet: ${all.map((t) => `${t.name} at v${t.channel.shown ?? '?'} with ${t.channel.pending.length} pending`).join(', ')}, the keeper at v${keeper.version}`);
+}
+
+/** One edit on a tab, as a person makes one: its kind, or undefined when there was none to make. */
+async function gesture(tab: Tab, rand: () => number, n: number): Promise<string | undefined> {
+  const grids = tab.page.grids;
+  const sheets = tab.page.sheets;
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
+  const choice = Math.floor(rand() * 9);
+  switch (choice) {
+    case 0:
+    case 1: {
+      if (grids.length === 0) return undefined;
+      const grid = tab.cubes.get(pick(grids));
+      if (!grid) return undefined;
+      await grid.edit([{ kind: 'group', rows: pick([['desk'], ['region'], ['region', 'desk'], []]) }], 'Group');
+      return 'group';
+    }
+    case 2: {
+      if (grids.length === 0) return undefined;
+      const grid = tab.cubes.get(pick(grids));
+      if (!grid) return undefined;
+      await grid.edit([{ kind: 'sorts', sorts: rand() < 0.5 ? [] : [{ column: pick(['desk', 'region']), direction: pick(['asc', 'desc']) }] }], 'Sort');
+      return 'sorts';
+    }
+    case 3: {
+      tab.page.addGrid(tab.over(`more-${tab.name}-${n}.csv`));
+      await settle();
+      return 'addGrid';
+    }
+    case 4: {
+      (tab.host.querySelector('.dc-sheet-add') as HTMLElement).click();
+      await settle();
+      return 'addSheet';
+    }
+    case 5: {
+      if (grids.length < 2) return undefined;
+      // a tile taken off, as its title bar's Remove takes it
+      const tile = tab.host.querySelector(`[data-tile="${pick(grids)}"] .dc-tile-remove`) as HTMLElement | null;
+      if (!tile) return undefined;
+      tile.click();
+      await settle();
+      return 'removeTile';
+    }
+    case 6: {
+      if (sheets.length < 2) return undefined;
+      // a sheet renamed, as its tab is: double-clicked, a name typed, Enter
+      const tabs = [...tab.host.querySelectorAll<HTMLElement>('.dc-sheet-tab')];
+      const which = tabs[Math.floor(rand() * tabs.length)];
+      if (!which) return undefined;
+      which.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+      const field = tab.host.querySelector<HTMLInputElement>('.dc-sheet-tab input');
+      if (!field) return undefined;
+      field.value = `Sheet ${tab.name} ${n}`;
+      field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+      await settle();
+      return 'renameSheet';
+    }
+    case 7: {
+      if (tab.page.undoLabel === undefined) return undefined;
+      tab.page.undo();
+      await settle();
+      return 'undo';
+    }
+    default: {
+      if (tab.page.redoLabel === undefined) {
+        const grid = grids.length > 0 ? tab.cubes.get(pick(grids)) : undefined;
+        if (grid && grid.canUndo) {
+          await grid.undo();
+          return 'grid undo';
+        }
+        return undefined;
+      }
+      tab.page.redo();
+      await settle();
+      return 'redo';
+    }
+  }
+}
+
+/** Python's stand-in: a page command written at the keeper's version now. */
+function pythonEdit(keeper: FakeKeeper, rand: () => number, n: number): string {
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
+  const grids = keeper.page.views.filter((v) => v.kind === 'grid');
+  const choice = Math.floor(rand() * 4);
+  let command: PageCommand;
+  if (choice === 0) command = { kind: 'addSheet', name: `Python ${n}` };
+  else if (choice === 1) command = { kind: 'renamePage', name: `Named in Python ${n}` };
+  else if (choice === 2 && grids.length > 0) command = { kind: 'renameTile', tile: pick(grids).id, title: `Titled in Python ${n}` };
+  else if (grids.length > 1) command = { kind: 'removeTile', tile: pick(grids).id };
+  else command = { kind: 'addSheet', name: `Python ${n}` };
+  keeper.pythonWrites([command]);
+  return command.kind;
+}
+
+describe('two tabs and Python on one page, interleaved at random, hold one page (W15)', () => {
+  it(`${SEEDS} seeds of ${STEPS} steps: after every quiet point one page to the hash, no reopen, never the message that must never show`, async () => {
+    const made: Record<string, number> = {};
+    let combined = 0;
+    let refused = 0;
+    for (let seed = ONLY ?? 1; seed <= (ONLY ?? SEEDS); seed += 1) {
+      const rand = random(seed);
+      // the page as Python builds it: two grids
+      const a = new Tab('a', dom.window.document.getElementById('a') as unknown as HTMLElement, new FakeKeeper({
+        kind: 'datacube.page', version: 6, name: 'Soak', cubes: [], views: [],
+        sheets: [{ id: 'sheet-1', layout: { kind: 'bands', fit: true, bands: [] } }],
+      } as PageDocument));
+      tabs.push(a);
+      a.page.addGrid(a.over('trades.csv'));
+      a.page.addGrid(a.over('desks.csv'));
+      await settle();
+      const keeper = new FakeKeeper(a.shown());
+      if (ONLY !== undefined) {
+        // the seed run alone: every write and its answer logged
+        const report = keeper.report.bind(keeper);
+        keeper.report = async (at, write) => {
+          const what = write.edits.map((e) => ('page' in e ? `page:${e.page.kind}` : `${e.grid}:${e.command.kind}`)).join(' ');
+          try {
+            const said = await report(at, write);
+            console.log(`# write at v${at} [${what}] -> v${said.version}${said.combined ? ' combined' : ''} renamed ${JSON.stringify(said.renamed)}; keeper views ${keeper.page.views.map((v) => v.id).join(',')} sheets ${keeper.page.sheets.map((v) => v.id).join(',')}; since ${JSON.stringify(said.since?.map((e) => ('page' in e ? `page:${e.page.kind}` : `${e.grid}:${e.command.kind}`)))}`);
+            return said;
+          } catch (e) {
+            console.log(`# write at v${at} [${what}] -> refused: ${e instanceof Error ? e.message : String(e)}`);
+            throw e;
+          }
+        };
+      }
+      // the keeper's page is what both tabs open: a's page is replaced by the keeper's, as a tab opens one
+      const first = new Tab('a', dom.window.document.getElementById('a') as unknown as HTMLElement, keeper);
+      a.dispose();
+      tabs.pop();
+      tabs.push(first);
+      const second = new Tab('b', dom.window.document.getElementById('b') as unknown as HTMLElement, keeper);
+      tabs.push(second);
+      await first.open();
+      await second.open();
+      const all = [first, second];
+      let where = `seed ${seed}`;
+      try {
+      for (let step = 0; step < STEPS; step += 1) {
+        where = `seed ${seed}, step ${step}`;
+        // the keeper slow to answer, at random: writes made meanwhile combine, or are made again on top
+        keeper.hold = rand() < 0.4;
+        const who = Math.floor(rand() * 5);
+        let kind: string | undefined;
+        if (who === 0) kind = `python:${pythonEdit(keeper, rand, step)}`;
+        else {
+          const tab = who % 2 === 1 ? first : second;
+          kind = await gesture(tab, rand, step);
+          if (kind !== undefined) kind = `${tab.name}:${kind}`;
+        }
+        if (kind !== undefined) made[kind] = (made[kind] ?? 0) + 1;
+        if (ONLY !== undefined) console.log(`# ${where}: ${kind ?? '(nothing)'}${keeper.hold ? ', keeper held' : ''}, keeper at v${keeper.version}`);
+        if (rand() < 0.5) {
+          // a quiet point: everything written, followed, and compared
+          await quiet(all, keeper);
+          for (const t of all) {
+            assert.deepEqual(t.said.filter((s) => s === HASH_MISMATCH), [], `${where}: ${t.name} said the message that must never show`);
+            assert.deepEqual(t.reopened, [], `${where}: ${t.name} opened the page again`);
+            assert.equal(pageHash(t.shown()), pageHash(keeper.page), `${where}: ${t.name} holds another page than the keeper (${t.said.join('; ')})\n  ${unlike(t.shown(), keeper.page)}`);
+            assert.deepEqual(t.page.state.page, t.shown(), `${where}: ${t.name}'s state is the page on screen`);
+          }
+        }
+      }
+      await quiet(all, keeper);
+      for (const t of all) {
+        assert.deepEqual(t.reopened, [], `seed ${seed}: ${t.name} opened the page again`);
+        assert.equal(pageHash(t.shown()), pageHash(keeper.page), `seed ${seed}: ${t.name} holds another page than the keeper at the end\n  ${unlike(t.shown(), keeper.page)}`);
+      }
+      } catch (e) {
+        // whatever fails names its seed and step, to run alone (LEGEND_LITE_SOAK_SEED)
+        if (e instanceof assert.AssertionError) throw e;
+        throw new Error(`${where}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+      }
+      combined += keeper.combinedCount;
+      refused += keeper.refusedCount;
+      first.dispose();
+      second.dispose();
+      tabs.splice(0);
+    }
+    assert.ok(combined > 0, 'some write was made again on top of another editor\'s (else this proved nothing about converging)');
+    assert.ok(Object.keys(made).length >= 6, `every kind of edit was tried somewhere: ${JSON.stringify(made)}`);
+    console.log(`# soak: ${SEEDS} seeds, ${combined} writes combined, ${refused} refused, edits ${JSON.stringify(made)}`);
+  });
+});

@@ -598,6 +598,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
     }, empty);
     pageKept = (name) => pageNow(name);
+    // For the browser harness ONLY (test/python-engine/python-engine.mjs, two tabs on one page): the page's hash as its
+    // keeper computes it (page-hash.ts, W17), to compare with Python's. Not product code.
+    Object.defineProperty(window, '__dataPageHash', {
+      configurable: true,
+      get: () => { const now = pageNow(page.title, true); return now === undefined ? undefined : pageHash(now); },
+    });
     const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
       const doc = pageNow(name);
       return doc && { content: pageContent(doc), definition: pageDefinitionText(doc) };
@@ -661,15 +667,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page: () => pageNow(page.title, true),
         busy: () => [...madeCubes.values()].some((cube) => cube.busy),
         converge: (on) => converge(on),
-        reapply: async (pending, touched) => {
+        reapply: async (pending) => {
           for (const edit of pending) {
             if ('page' in edit) {
               if (!page.reapply([edit.page], 'made again')) sayResting({ text: `not kept: ${edit.page.kind} no longer applies to the page as its keeper has it`, warn: true });
-              continue;
-            }
-            // a grid the keeper's steps left alone shows the edit still: told again only
-            if (!touched.has(edit.grid)) {
-              channel?.edit(edit);
               continue;
             }
             const cube = madeCubes.get(edit.grid);
@@ -1510,8 +1511,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const applied = await through.following(async () => {
         try {
           await applyLive(moved.commands, {
-            grids: page.grids,
-            cubes: page.cubes.length,
+            grids: () => page.grids,
+            cubes: () => page.cubes.length,
             follow: (commands, makers) => page.follow(commands, makers),
             applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
             open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid], true),

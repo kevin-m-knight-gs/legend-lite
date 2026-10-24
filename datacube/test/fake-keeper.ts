@@ -39,6 +39,9 @@ export class FakeKeeper implements LivePage {
   readonly steps = new Map<number, readonly LiveCommand[]>();
   reads = 0;
   readonly changesAsked: number[] = [];
+  /** How many writes it made another page of (combined), and how many it refused. */
+  combinedCount = 0;
+  refusedCount = 0;
   /** A write held until the test lets it go (the keeper slow to answer): each pending write's release. */
   hold = false;
   readonly #held: (() => void)[] = [];
@@ -88,19 +91,30 @@ export class FakeKeeper implements LivePage {
   async report(at: number, write: LiveWrite): Promise<LiveSettled> {
     this.written.push(write);
     if (this.hold) await new Promise<void>((r) => { this.#held.push(r); });
-    if (at > this.version || this.version - at > this.keeps) throw new Error('409: the page changed where it is open, further than it keeps, while this change was made: make it again');
-    const before = this.version;
-    const done = await rebaseEdits({ page: this.page, held: this.held }, write.edits, applyGridToCube, this.#heldAt(at)).catch((e: unknown) => {
-      throw new Error(`409: ${at !== this.version ? 'the page changed where it is open while this change was made: ' : ''}${e instanceof Error ? e.message : String(e)}`);
-    });
-    const combined = at !== this.version || Object.keys(done.renamed).length > 0;
-    this.page = done.page;
-    this.held = [...done.held];
-    this.version += 1;
-    this.steps.set(this.version, done.edits);
-    const hash = pageHash(this.page);
-    if (!combined) return { version: this.version, combined, renamed: done.renamed, hash };
-    return { version: this.version, combined, renamed: done.renamed, hash, since: this.#since(at, before), edits: done.edits };
+    // as keeper.py settle: the page as it is now taken, the edits applied to it, and what they make kept only when the
+    // page is still at that version -- another write landed meanwhile (two tabs' writes let go together), made again
+    // on top of what it made
+    for (;;) {
+      if (at > this.version || this.version - at > this.keeps) {
+        this.refusedCount += 1;
+        throw new Error('409: the page changed where it is open, further than it keeps, while this change was made: make it again');
+      }
+      const before = this.version;
+      const done = await rebaseEdits({ page: this.page, held: this.held }, write.edits, applyGridToCube, this.#heldAt(at)).catch((e: unknown) => {
+        this.refusedCount += 1;
+        throw new Error(`409: ${at !== before ? 'the page changed where it is open while this change was made: ' : ''}${e instanceof Error ? e.message : String(e)}`);
+      });
+      if (this.version !== before) continue;
+      const combined = at !== before || Object.keys(done.renamed).length > 0;
+      if (combined) this.combinedCount += 1;
+      this.page = done.page;
+      this.held = [...done.held];
+      this.version += 1;
+      this.steps.set(this.version, done.edits);
+      const hash = pageHash(this.page);
+      if (!combined) return { version: this.version, combined, renamed: done.renamed, hash };
+      return { version: this.version, combined, renamed: done.renamed, hash, since: this.#since(at, before), edits: done.edits };
+    }
   }
 
   /** The steps from `from` (exclusive) to `to` (inclusive), or null when one is not kept. */

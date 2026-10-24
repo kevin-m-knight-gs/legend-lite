@@ -8,8 +8,10 @@ written; an edit is refused only for a real conflict; and the copies held are ex
 The open page here is DataCube's own functions run headless (pageApply, gridApply: what the tab runs), writing as the
 tab writes (page.json, against the version it holds, its edits as commands, which the keeper applies -- refused, it
 opens the page as the keeper has it) and following as it follows (page.json?since=: the
-commands, or the page). The intent each edit carries is kept apart, in a model of its own (``Intent``), never read back
-from the mechanism it checks."""
+commands, or the page); it keeps a history as the tab keeps one and undoes by it, each step's inverse planned by
+DataCube's total diffs (headless pageBetween, gridBetween: docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3, W15). Two of
+them edit the page beside Python (``Converges``). The intent each edit carries is kept apart, in a model of its own
+(``Intent``), never read back from the mechanism it checks."""
 
 import json
 import os
@@ -324,6 +326,8 @@ class Intent:
             self.grids[rest[0]] = {'cube': rest[1], 'rows': list(rest[2]), 'snapped': False}
         elif what == 'chart':
             self.charts[rest[0]] = {'cube': rest[1], 'frozen': rest[2]}
+        elif what == 'removeSheet':
+            self.sheets.pop(rest[0], None)
         elif what == 'remove':
             tile = rest[0]
             gone = {tile}
@@ -350,6 +354,18 @@ class Intent:
             test.assertEqual(views[id].get('title'), title, f'{where}: {id} titled')
 
 
+def tab_functions(headless):
+    """The tab's own functions -- the two total diffs its history is made of and its planned apply (gridBetween,
+    pageBetween, pagePlanned: datacube/test/headless-tab.ts, bundled for this test alone as `legendLiteHeadlessTab`) --
+    loaded into the headless engine the open page has, once. Python's product asks none of them (the one API ledger's
+    L8_UNASKED), so the product's bundle carries none."""
+    if getattr(headless, '_tab_functions', False):
+        return
+    from pathlib import Path
+    headless.execute(Path(os.environ['LEGEND_LITE_TAB_HEADLESS']).read_text(encoding='utf-8'))
+    headless._tab_functions = True
+
+
 class OpenPage:
     """A page open on a Python page, as DataCube's app is to hold one: the page at the version it is at (``base``), what
     is on its screen (``doc``: the base with its own edits not yet written, ``pending``), edited by DataCube's own
@@ -360,6 +376,7 @@ class OpenPage:
         self.page = page
         self.engine = datacube._session.engine()
         self.headless = datacube._session.headless()
+        tab_functions(self.headless)
         said = self.get('')
         self.version, self.base = said['version'], said['page']
         self.doc = self.base
@@ -371,6 +388,19 @@ class OpenPage:
         self.reopened = 0
         # the version its last write made
         self.written = self.version
+        # its history, as the tab keeps one (page-state.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): each step's
+        # commands forward (as applied) and inverse (planned when the step was made, by DataCube's total diffs), `at` of
+        # them done. Undo applies a step's inverse, Redo its forward again, each page command planned with a fresh id
+        # where the page has held the planned one since (headless pagePlanned: B12). A step whose commands no longer
+        # apply -- the other editor took off what they name -- is dead and undoes nothing. Opened again whole, the
+        # history is gone, as the tab's is; an id the keeper renamed is not renamed in it (the tab's is: a step naming
+        # one is dead here, or names what the id is now -- what it says is on the page either way).
+        self.history = []
+        self.at = 0
+
+    def tab(self, function, *args):
+        """One of the tab's own functions (tab_functions), called as the headless engine's are."""
+        return self.headless.evaluate(f'legendLiteHeadlessTab.{function}(...{json.dumps(list(args))})')
 
     def get(self, since):
         answer = self.engine.answer('GET', '/page.json', f'page={self.page._key}{since}', None)
@@ -429,7 +459,110 @@ class OpenPage:
             return [('title', command['tile'], command['title'])]
         if kind == 'removeTile':
             return [('remove', command['tile'])]
+        if kind == 'removeSheet':
+            return [('removeSheet', command['sheet'])]
+        if kind == 'addGrid':
+            # a grid brought back by an undo: a new tile, under a new id, showing a cube of its own id
+            facts = [('grid', command['id'], command['id'], command['document']['query'].get('rows', []))]
+            if command.get('title'):
+                facts.append(('title', command['id'], command['title']))
+            return facts
+        if kind == 'addChart':
+            view = next(v for v in after['views'] if v['id'] == command['id'])
+            facts = [('chart', command['id'], view['cube'], bool(view['spec'].get('frozen')))]
+            if command.get('title'):
+                facts.append(('title', command['id'], command['title']))
+            return facts
         return []
+
+    def stepped(self, before, after, forward):
+        """A step of the history: ``forward``, its commands as applied, and its inverse, planned now as the tab plans one
+        (page-state.ts): a grid's step by its grid's total diff (gridBetween: the grid's own, its charts following), a
+        page's by the page's in the history's scope (pageBetween), a click's (a chart's select and its grid's refilter)
+        by both. No inverse (a diff refused): a step that undoes nothing."""
+        grids = {v['id']: v['cube'] for v in after['views'] if v['kind'] == 'grid'}
+        cubes_before = {c['id']: c['cube'] for c in before['cubes']}
+        cubes_after = {c['id']: c['cube'] for c in after['cubes']}
+        inverse = []
+        try:
+            if any('grid' in entry for entry in forward):
+                for grid, cube in grids.items():
+                    if cube in cubes_before and _json.dumps(cubes_after[cube]) != _json.dumps(cubes_before[cube]):
+                        said = _json.loads(self.tab('gridBetween', _json.dumps(cubes_after[cube]), _json.dumps(cubes_before[cube])))
+                        if 'problems' in said:
+                            raise ValueError('; '.join(said['problems']))
+                        inverse.extend({'grid': grid, 'command': c} for c in said['commands'])
+            if any('page' in entry for entry in forward):
+                said = _json.loads(self.tab('pageBetween', _json.dumps(after), _json.dumps(before), 'history'))
+                if 'problems' in said:
+                    raise ValueError('; '.join(said['problems']))
+                inverse.extend({'page': c} for c in said['commands'])
+        except ValueError:
+            inverse = None
+        del self.history[self.at:]
+        self.history.append({'forward': forward, 'inverse': inverse})
+        self.at += 1
+
+    def toward(self, entries, label):
+        """A step's ``entries`` (its inverse, or its forward again) applied to the screen as Undo and Redo apply one: each
+        grid's command by the grid's function, each run of page commands planned (pagePlanned: an id the page has held
+        since given out afresh, B12), pending, each fact said. ``label``, or None when one no longer applies (a dead step:
+        the screen unchanged)."""
+        if entries is None:
+            return None
+        doc = self.doc
+        made = []
+        try:
+            i = 0
+            while i < len(entries):
+                entry = entries[i]
+                if 'grid' in entry:
+                    doc = self.grid_applied(doc, entry['grid'], entry['command'])
+                    command = entry['command']
+                    made.append((entry, label, [('rows', entry['grid'], command['rows'])] if command['kind'] == 'group' else []))
+                    i += 1
+                    continue
+                run = []
+                while i < len(entries) and 'page' in entries[i]:
+                    run.append(entries[i]['page'])
+                    i += 1
+                held = sorted({v['id'] for v in doc['views']} | {s['id'] for s in doc['sheets']} | {c['id'] for c in doc['cubes']})
+                said = _json.loads(self.tab('pagePlanned', _json.dumps(doc), json.dumps(held), _json.dumps(run)))
+                if 'problems' in said:
+                    raise ValueError('; '.join(said['problems']))
+                after = _json.loads(said['page'])
+                for command in said['commands']:
+                    made.append(({'page': command}, label, self.said(doc, after, command)))
+                doc = after
+        except ValueError:
+            return None
+        self.doc = doc
+        self.pending.extend(made)
+        return label
+
+    def undo(self):
+        """Undo, as the page's menu does it: the last step done, its inverse onto the screen, pending; 'undo', or None
+        (nothing to undo; a dead step, dropped)."""
+        if self.at == 0:
+            return None
+        step = self.history[self.at - 1]
+        if self.toward(step['inverse'], 'undo') is None:
+            del self.history[self.at - 1]
+            self.at -= 1
+            return None
+        self.at -= 1
+        return 'undo'
+
+    def redo(self):
+        """Redo: the last step undone, its commands again, pending; 'redo', or None."""
+        if self.at == len(self.history):
+            return None
+        step = self.history[self.at]
+        if self.toward(step['forward'], 'redo') is None:
+            del self.history[self.at]
+            return None
+        self.at += 1
+        return 'redo'
 
     def follow(self):
         """What moved the page since its version, applied as the app applies it -- the commands, by DataCube's functions,
@@ -457,6 +590,7 @@ class OpenPage:
         or refused)."""
         said = self.get('')
         self.version, self.base, self.doc = said['version'], said['page'], said['page']
+        self.history, self.at = [], 0
 
     def edit(self, rng):
         """One edit as a person makes one on the page, onto its screen, not yet written: its kind, or None when there was
@@ -498,6 +632,7 @@ class OpenPage:
         if not entries:
             return None
         made = []
+        before = self.doc
         try:
             doc = self.doc
             for entry in entries if isinstance(entries, list) else [entries]:
@@ -507,6 +642,7 @@ class OpenPage:
             return None
         self.doc = doc
         self.pending.extend(made)
+        self.stepped(before, doc, [entry for entry, _, _ in made])
         return kind
 
     def click(self, doc, rng):
@@ -542,8 +678,8 @@ class OpenPage:
         said = json.loads(answer.body)
         self.written = said['version']
         renamed = said['renamed']
-        facts = [(f[0], renamed.get(f[1], f[1]), *f[2:]) if len(f) > 1 and isinstance(f[1], str) else f
-                 for _, _, made in self.pending for f in made]
+        # each id a fact names, renamed as the keeper gave it out afresh (a tile brought back, its cube of its own id)
+        facts = [(f[0], *(renamed.get(x, x) if isinstance(x, str) else x for x in f[1:])) for _, _, made in self.pending for f in made]
         self.pending = []
         if said['combined']:
             self.combined += 1
@@ -683,13 +819,14 @@ class Converged(unittest.TestCase):
         self.assertEqual(reads - set(engine._copies), set(), f'{where}: every copy read is held')
         self.assertEqual(set(engine._copies) - reads, set(), f'{where}: no copy held that no page reads')
 
-    def one(self, page, open_page, intent, where):
-        """Python, the open page and the keeper hold one page, which says what every edit written said; the copies held
-        are the ones read."""
+    def one(self, page, open_pages, intent, where):
+        """Python, every open page and the keeper hold one page, which says what every edit written said; the copies
+        held are the ones read."""
         kept = datacube._session.keeper.current(page._key)
-        open_page.follow()
-        self.assertEqual(open_page.version, kept[0], where)
-        self.assertEqual(_json.dumps(open_page.doc), _json.dumps(kept[1]), f'{where}: the open page holds the keeper\'s')
+        for n, open_page in enumerate(open_pages):
+            open_page.follow()
+            self.assertEqual(open_page.version, kept[0], f'{where}: open page {n}')
+            self.assertEqual(_json.dumps(open_page.doc), _json.dumps(kept[1]), f'{where}: open page {n} holds the keeper\'s')
         self.assertEqual(_json.dumps(page.to_dict()), _json.dumps(kept[1]), f'{where}: Python holds the keeper\'s')
         intent.check(self, kept[1], where)
         self.followed(kept[1], where)
@@ -767,20 +904,30 @@ class EmptyPage(Converged):
 
 
 class Converges(Converged):
-    """A page Python edits and an open page edits, interleaved at random: one page, every edit's intent on it."""
+    """A page Python edits and two open pages edit -- each one's edits, and its undo and redo of them -- interleaved at
+    random: one page, every edit's intent on it (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W15, the Python side of the
+    soak; the two tabs' side is datacube/test/live-soak.test.ts)."""
 
-    def test_python_and_an_open_page_edit_one_page_in_any_order_and_never_hold_two(self):
+    def test_python_and_two_open_pages_edit_one_page_in_any_order_and_never_hold_two(self):
         made = {k: 0 for k in PYTHON_KINDS}
         made_there = {}
+
+        def there(kind):
+            if kind:
+                made_there[kind] = made_there.get(kind, 0) + 1
+
         for seed in range(SEEDS):
             rng = random.Random(seed)
             page, frame = self.built(seed)
             tab = ll.show(page, browser=False)
-            open_page = OpenPage(page)
+            open_pages = [OpenPage(page), OpenPage(page)]
+            open_page, other = open_pages
             intent = Intent(page.to_dict())
             for step in range(STEPS):
                 where = f'seed {seed}, step {step}'
-                who = rng.randrange(4)
+                # Python edits in three of five steps, as it did with one open page (its kinds each tried); the open
+                # pages' own branches share the rest
+                who = rng.choice((0, 0, 1, 2, 2, 3, 3, 4, 5, 6))
                 if who == 0:
                     # Python alone
                     kind, said = python_edit(page, rng, frame)
@@ -820,7 +967,7 @@ class Converges(Converged):
                         # refused only for a real conflict: the tile taken off there (an id given out on both sides is
                         # given out afresh, never refused)
                         self.assertEqual(theirs, 'removeTile', f'{where}: {kind} refused for no conflict: {said}')
-                else:
+                elif who == 3:
                     # Python writes while the open page holds an edit not yet written: refused, the open page follows
                     # and makes its edit again on top
                     theirs = open_page.edit(rng)
@@ -839,12 +986,54 @@ class Converges(Converged):
                         made_there[theirs] = made_there.get(theirs, 0) + 1
                     for fact in facts:
                         intent.said(fact)
-                self.one(page, open_page, intent, where)
+                elif who == 4:
+                    # the other open page alone: the first follows it
+                    theirs = other.edit(rng)
+                    facts, refused = other.write()
+                    self.assertEqual(refused, [], f'{where}: nothing moved the page: {theirs} let go')
+                    there(theirs)
+                    for fact in facts:
+                        intent.said(fact)
+                elif who == 5:
+                    # both open pages edit, then write in turn: the second's write is made again on top of the first's,
+                    # refused only where the first took off what the second edited
+                    first, second = (open_page, other) if rng.random() < 0.5 else (other, open_page)
+                    mine, theirs = first.edit(rng), second.edit(rng)
+                    facts, refused = first.write()
+                    self.assertEqual(refused, [], f'{where}: nothing moved the page: {mine} let go')
+                    there(mine)
+                    for fact in facts:
+                        intent.said(fact)
+                    facts, refused = second.write()
+                    if refused:
+                        self.assertEqual(mine, 'removeTile', f'{where}: {theirs} let go for no conflict after {mine}')
+                    else:
+                        there(theirs)
+                    for fact in facts:
+                        intent.said(fact)
+                else:
+                    # Undo on one open page, written as the commands between (its step's inverse) -- and, at times, Redo
+                    # after it, written as the step's commands again
+                    undoing = rng.choice(open_pages)
+                    kind = undoing.undo()
+                    facts, refused = undoing.write()
+                    self.assertEqual(refused, [], f'{where}: nothing moved the page: {kind} let go')
+                    there(kind)
+                    for fact in facts:
+                        intent.said(fact)
+                    if kind and rng.random() < 0.4:
+                        kind = undoing.redo()
+                        facts, refused = undoing.write()
+                        self.assertEqual(refused, [], f'{where}: nothing moved the page: {kind} let go')
+                        there(kind)
+                        for fact in facts:
+                            intent.said(fact)
+                self.one(page, open_pages, intent, where)
             tab.close()
         # every kind of edit went through somewhere, on each side: none of them is never tried
         self.assertEqual([k for k, n in made.items() if n == 0], [], f'Python edits made: {made}')
         there = ('renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'renameTile', 'removeTile', 'group', 'addSort', 'pivot',
-                 'click', 'open', 'collapseAll', 'level')
+                 'click', 'open', 'collapseAll', 'level', 'undo', 'redo')
         self.assertEqual([k for k in there if not made_there.get(k)], [], f'open page edits made: {made_there}')
 
 

@@ -281,6 +281,9 @@ def main() -> None:
             elif command == 'py-page-desks-columns':
                 held = next(c['cube'] for c in pypage.to_dict()['cubes'] if c['cube']['source']['name'] == 'pydesks')
                 command = f"py-page-desks-columns {json.dumps([c['name'] for c in held['source']['columns']])}"
+            elif command == 'py-page-hash':
+                # the keeper's hash of the page (W17): what every tab open on it must hash to
+                command = f'py-page-hash {json.dumps(datacube._session.keeper.hash_of(pypage._key))}'
             elif command == 'py-page-version':
                 command = f'py-page-version {json.dumps(datacube._session.keeper.current(pypage._key)[0])}'
             elif command == 'py-page-read':

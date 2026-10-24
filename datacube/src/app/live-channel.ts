@@ -30,20 +30,21 @@ const QUIET_AT_MOST = 10_000;
 export const HASH_MISMATCH = 'the page here differed from its keeper\'s: opened again as its keeper has it';
 
 /** What the screen converges on (§2): the page as the keeper had it at the version shown, with the ids it held; the
- *  other editors' steps since; the screen's own sent edits as the keeper applied them; each id given out afresh. */
+ *  other editors' steps since; the screen's own sent edits as the keeper applied them; each id given out afresh; and
+ *  the edits made here meanwhile, not yet written (pending): the grids they changed are put back too, so the page on
+ *  screen is the keeper's, to the hash, before they are made again (the soak's second catch, live-soak.test.ts). */
 export interface Converge {
   readonly confirmed: PageDocument;
   readonly held: readonly string[];
   readonly since: readonly LiveCommand[];
   readonly edits: readonly LiveCommand[];
   readonly renamed: Readonly<Record<string, string>>;
+  readonly pending: readonly LiveCommand[];
 }
 
-/** The page converged: the page on screen then (before any pending edit is made again), and the grids whose state the
- *  keeper's steps changed (reverted and moved: their pending edits are made again; the others' are told again only). */
+/** The page converged: the page on screen then, before any pending edit is made again -- the keeper's page. */
 export interface Converged {
   readonly page: PageDocument;
-  readonly touched: ReadonlySet<string>;
 }
 
 /** The screen a channel writes from and converges. */
@@ -56,11 +57,9 @@ export interface LiveScreen {
   /** The screen converged on its keeper's page (§2, steps 1-4), inside `following`: throws when it cannot (a command
    *  refused here), and the page is then opened again. */
   converge(on: Converge): Promise<Converged>;
-  /** Pending edits made again (step 5 of a converge), renamed as the keeper renamed the ids: a page's, and a grid's whose
-   *  state the keeper's steps changed (`touched`), through the ordinary edit path, so each is told again and written next
-   *  (one that no longer applies is dropped and said); one on a grid the steps left alone is told again only (`edit`):
-   *  the grid shows it still. */
-  reapply(pending: readonly LiveCommand[], touched: ReadonlySet<string>): Promise<void>;
+  /** Pending edits made again (step 5 of a converge), renamed as the keeper renamed the ids, through the ordinary edit
+   *  path, so each is told again and written next; one that no longer applies is dropped and said (H-11). */
+  reapply(pending: readonly LiveCommand[]): Promise<void>;
   /** The page as its keeper has it, opened again whole, and why, said: the two causes that remain (a `rebuilt`, a write
    *  from further back than the keeper keeps), a converge that could not be made, or the hash mismatch. */
   reopen(why: string): Promise<void>;
@@ -238,7 +237,7 @@ export class LiveChannel {
 
   /** The screen converged on the keeper's page at `version` (§2): steps 1-4 by the screen, inside following; then its
    *  hash checked against the keeper's (W17); then the pending edits made again, renamed (step 5). */
-  async #converge(version: number, hash: string, on: Omit<Converge, 'confirmed' | 'held'>): Promise<void> {
+  async #converge(version: number, hash: string, on: Omit<Converge, 'confirmed' | 'held' | 'pending'>): Promise<void> {
     const confirmed = this.#confirmed;
     if (confirmed === undefined) {
       await this.#reopen('the page it converges from is not known here');
@@ -249,7 +248,7 @@ export class LiveChannel {
     this.shown = undefined;
     let converged: Converged;
     try {
-      converged = await this.following(() => this.#screen.converge({ confirmed: confirmed.page, held: confirmed.held, ...on }));
+      converged = await this.following(() => this.#screen.converge({ confirmed: confirmed.page, held: confirmed.held, pending, ...on }));
     } catch (e) {
       await this.#reopen(`${e instanceof Error ? e.message : String(e)}${dropped(pending)}`);
       return;
@@ -265,7 +264,7 @@ export class LiveChannel {
     // sent edits gave out (the screen's: told again, so they are written next)
     const map = new Map(Object.entries(on.renamed));
     const again = pending.map((p): LiveCommand => ('page' in p ? { page: renamedCommand(p.page, map) } : { grid: map.get(p.grid) ?? p.grid, command: p.command }));
-    if (again.length > 0) await this.#screen.reapply(again, converged.touched);
+    if (again.length > 0) await this.#screen.reapply(again);
     if (this.#edits.length > 0) this.changed();
   }
 

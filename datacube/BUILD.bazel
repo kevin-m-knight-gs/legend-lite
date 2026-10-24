@@ -289,6 +289,7 @@ _EXTRA_DATA = {
     "page-rebase": ["test/fixtures/pages/make.ts"],
     # the tab's channel to the page's keeper, over a real page's grids (the page app's fixtures)
     "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
+    "live-soak": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts", "test/page-same.ts"],
     "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts"],
     # DataCube's app on a page Python serves, over a stand-in editor (the S4 audit's 1, 4 and 5)
     "datacube-app-live": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
@@ -424,6 +425,28 @@ esbuild_bundle(
         "--target=es2022",
         "--log-level=warning",
         "--outfile=headless/legend-lite-headless.js",
+    ],
+    visibility = ["//python:__pkg__"],
+)
+
+# THE TAB'S OWN FUNCTIONS FOR THE PYTHON TEST (test/headless-tab.ts: the two total diffs and the planned apply a tab's
+# history is made of), one script the test loads into the headless engine it has, as the global `legendLiteHeadlessTab`.
+# Not the product's bundle: Python's product asks none of them (the one API ledger's L8_UNASKED stays empty).
+esbuild_bundle(
+    name = "headless_tab_bundle",
+    testonly = True,
+    srcs = ["test/headless-tab.ts", ":src"],
+    outs = ["headless-tab/legend-lite-headless-tab.js"],
+    args = [
+        "test/headless-tab.ts",
+        "--bundle",
+        "--format=iife",
+        "--global-name=legendLiteHeadlessTab",
+        "--platform=neutral",
+        "--main-fields=module,main",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=headless-tab/legend-lite-headless-tab.js",
     ],
     visibility = ["//python:__pkg__"],
 )

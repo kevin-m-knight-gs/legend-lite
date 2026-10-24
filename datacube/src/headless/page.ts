@@ -390,13 +390,13 @@ export function pageSearch(term: unknown, sort: unknown, limit: unknown): string
  */
 /** A page command as read plainly, the field it carries a cube's document or source in taken from its exact reading
  *  (its numbers as the protocol's, as the page's cubes are read: page-commands.ts EXACT_FIELD). */
-function exactly(plainly: unknown, exact: unknown): unknown {
+export function exactly(plainly: unknown, exact: unknown): unknown {
   const c = plainly as { kind?: unknown } | null;
   const field = typeof c?.kind === 'string' ? EXACT_FIELD[c.kind as keyof typeof EXACT_FIELD] : undefined;
   return field === undefined ? plainly : { ...(plainly as object), [field]: (exact as Record<string, unknown>)[field] };
 }
 
-function heldPage(text: string): PageDocument {
+export function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
   const { kind, version, name, views, sheets, model, filters, copies, record, ...unknown } = rest;
