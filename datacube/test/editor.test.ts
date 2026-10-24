@@ -66,11 +66,9 @@ describe('the aggregate list', () => {
     // text columns instead of dropping them; 15 since the quartiles
     // did (chart batch 4, a box plot's box); 21 since the aggregates
     // of two columns and the distinct count (BI parity P2: corr, the
-    // covariances, max by, min by, distinctCount); 22 since a distinct
-    // count written as text (2026-10-24, the user: a text column's group
-    // rows say how many different values are under them).
-    assert.equal(AGGREGATES.length, 22);
-    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 22);
+    // covariances, max by, min by, distinctCount).
+    assert.equal(AGGREGATES.length, 21);
+    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 21);
   });
 });
 

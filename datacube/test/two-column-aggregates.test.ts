@@ -1,8 +1,7 @@
 // AGGREGATES OF TWO COLUMNS AND THE COUNTS, planned and run (snapshot.ts SECOND_COLUMN): a correlation, the covariances,
 // max by and min by -- Column Properties' Aggregation with its second column -- and a column's counts as a calculated
 // column and its Aggregation make them (the user, 2026-10-24: no shortcut of their own), a text column's distinct count
-// among them, as a number and as the text column's own; each group's figure as DuckDB answers the query the grid sends,
-// its grand total too.
+// among them; each group's figure as DuckDB answers the query the grid sends, its grand total too.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
@@ -112,20 +111,17 @@ describe("a column's counts, as a calculated column and its Aggregation make the
   const has = (blank: boolean) => fn('if', fn('isEmpty', col('x', 'customer')),
     lambda([], lit.integer(blank ? 1 : 0)), lambda([], lit.integer(blank ? 0 : 1)));
 
-  it("each desk's customers: rows with one, different ones (a number, and the text column's own), rows with none", async () => {
+  it("each desk's customers: rows with one, different ones, rows with none -- a text column's, in number columns", async () => {
     const by = await figures([
       measure('withCustomer', has(false)),
       measure('blankCustomer', has(true)),
       // a number column of its own: 1 or 0 on a row, at a group the counted column's different values
       measure('customers', has(false)),
       { kind: 'column', name: 'customers', change: { aggregate: 'distinctCount', weight: 'customer' } },
-      // the text itself on each row, at a group how many different values are under it, as text
-      measure('customerList', col('x', 'customer')),
-      { kind: 'column', name: 'customerList', change: { aggregate: 'distinctCountText' } },
-    ], ['withCustomer', 'customers', 'blankCustomer', 'customerList']);
+    ], ['withCustomer', 'customers', 'blankCustomer']);
     // A: c1, c1, c2 -- three with one, two different; B: c3 and a blank; the whole grid: c1, c2, c3
-    assert.deepEqual(by.get('A'), [3, 2, 0, '2']);
-    assert.deepEqual(by.get('B'), [1, 1, 1, '1']);
-    assert.deepEqual(by.get(''), [4, 3, 1, '3']);
+    assert.deepEqual(by.get('A'), [3, 2, 0]);
+    assert.deepEqual(by.get('B'), [1, 1, 1]);
+    assert.deepEqual(by.get(''), [4, 3, 1]);
   });
 });

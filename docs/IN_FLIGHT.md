@@ -142,8 +142,8 @@ with the compiler's plan/execution split**, in this order:
    Pushed to the branch so far: P1 (the grid's Excel quick wins) and P2's Filter Values window, date ranges relative
    to today, Top/Bottom N, Show As as Excel's Show Values As over a measure at its parent's or the grand total's
    grain (`DerivedColumn.grain`, the database's: a join in the level's query), and aggregates of two columns with
-   distinct counts (`SECOND_COLUMN`; a text column's own as text, `distinctCountText` -- no Count shortcut, the user
-   2026-10-24: a calculated column and its Aggregation make every count); P5's class tree, step 1 -- a class's grid
+   distinct counts (`SECOND_COLUMN` -- no Count shortcut, the user 2026-10-24: a calculated column and its
+   Aggregation make every count); P5's class tree, step 1 -- a class's grid
    reads its related classes (`DerivedColumn.related`: a to-one hop's value, a to-many end aggregated per instance) --
    and step 2, measures declared in the model (`datacube/src/model-measures.ts`: Add Model Measure, Python's
    `grid.model_measure`); P3's conditional formats (`datacube/src/conditional.ts`: data bars, a three-colour scale,

@@ -411,7 +411,7 @@ describe('the editor', () => {
     it('offers only the aggregates that keep the type', () => {
       choose('desk');
       // a text column's own, and the value on the row whose number is greatest or least
-      assert.deepEqual(options('Aggregation:'), ['min', 'max', 'joinStrings', 'unique', 'distinctCountText', 'maxBy', 'minBy']);
+      assert.deepEqual(options('Aggregation:'), ['min', 'max', 'joinStrings', 'unique', 'maxBy', 'minBy']);
       choose('notional');
       assert.ok(options('Aggregation:').includes('sum'));
       assert.ok(!options('Aggregation:').includes('joinStrings'));

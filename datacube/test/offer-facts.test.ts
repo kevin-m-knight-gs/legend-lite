@@ -28,8 +28,8 @@ describe('aggregates offered by the compiler\'s answers', () => {
     for (const type of ['Integer', 'Float', 'Decimal', 'Number']) assert.deepEqual(offered(type), numeric, type);
   });
 
-  it('text: what keeps it text -- no count, whose result is a number, but a distinct count written as text; the value at a number\'s greatest or least', () => {
-    assert.deepEqual(offered('String'), ['min', 'max', 'joinStrings', 'unique', 'distinctCountText', 'maxBy', 'minBy']);
+  it('text: what keeps it text -- no count, whose result is a number; the value at a number\'s greatest or least', () => {
+    assert.deepEqual(offered('String'), ['min', 'max', 'joinStrings', 'unique', 'maxBy', 'minBy']);
   });
 
   it('dates, times, booleans and JSON: the ordered and the single value, and the value at a number\'s greatest or least', () => {
@@ -159,9 +159,6 @@ describe('parity with upstream DataCube\'s aggregate offers', () => {
       ...['Decimal', 'Float', 'Integer', 'Number'].flatMap((t) =>
         ['distinctCount', 'corr', 'covarSample', 'covarPopulation'].map((fn) => `${t} ${fn}: ours only`)),
       ...Object.keys(UPSTREAM_CATEGORY).flatMap((t) => ['maxBy', 'minBy'].map((fn) => `${t} ${fn}: ours only`)),
-      // a text column's distinct count written as text, this DataCube's own (the user, 2026-10-24): its group rows how
-      // many different values are under them, its rows the values -- a String, so text's alone
-      'String distinctCountText: ours only',
     ].sort());
   });
 });

@@ -86,7 +86,6 @@ const AGGREGATE_LABELS: Readonly<Record<AggregateFn, string>> = {
   joinStrings: 'join strings',
   wavg: 'weighted average',
   distinctCount: 'distinct count',
-  distinctCountText: 'distinct count (as text)',
   corr: 'correlation',
   covarSample: 'covariance (sample)',
   covarPopulation: 'covariance (population)',

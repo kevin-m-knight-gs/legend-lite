@@ -401,8 +401,8 @@ export function measurePlan(draft: GridDraft, m: Measure, taken: ReadonlySet<str
   if (column.type !== undefined && !offeredAggregates(column.type).includes(m.fn)) {
     throw new CubeRefusal(`'${m.fn}' is not offered on ${m.column}, a ${column.type} column: `
       + `${offeredAggregates(column.type).join(', ') || 'none'}${m.fn === 'count' ? " (Show leaf count counts a group's rows)"
-        : m.fn === 'distinctCount' ? ` (distinct count (as text) counts ${m.column}'s different values as its own Aggregation;`
-          + ` a number column of its own counts them with distinct count, ${m.column} its counted column)` : ''}`);
+        : m.fn === 'distinctCount' ? ` (a number column of its own counts ${m.column}'s different values: a calculated`
+          + ` column with Aggregation distinct count, ${m.column} its counted column)` : ''}`);
   }
   const isKey = draft.snapshot.rows.includes(m.column) || draft.snapshot.pivotOn.includes(m.column);
   if (m.name === m.column && !isKey && !taken.has(m.column)) return { change };

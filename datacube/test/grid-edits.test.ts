@@ -422,12 +422,12 @@ describe('a measure as the screen\'s model (Python\'s grid.measure, a saved meas
     refused(() => measureAsColumn(draft(), { name: 'desk', column: 'qty', fn: 'sum' }), /'desk' is already a column/);
     // region is grouped: its measure is a column of its own, and a count of text is not offered
     refused(() => measureAsColumn(draft(), { name: 'region', column: 'region', fn: 'count' }),
-      /'count' is not offered on region, a String column: min, max, joinStrings, unique, distinctCountText, maxBy, minBy \(Show leaf count/);
+      /'count' is not offered on region, a String column: min, max, joinStrings, unique, maxBy, minBy \(Show leaf count/);
     refused(() => measureAsColumn(draft(), { name: 'n', column: 'notional', fn: 'sum', weight: 'qty' }),
       /only an aggregate of two columns \(.*\) takes a second column/);
-    // a distinct count of text is a number, never the text column's Aggregation: as text it is, or a number column's of it
+    // a distinct count of text is a number, never the text column's Aggregation: a number column's of it
     refused(() => measureAsColumn(draft(), { name: 'n', column: 'desk', fn: 'distinctCount' }),
-      /'distinctCount' is not offered on desk, a String column: .*distinctCountText.* \(distinct count \(as text\) counts desk's different values as its own Aggregation; a number column of its own counts them with distinct count, desk its counted column\)/);
+      /'distinctCount' is not offered on desk, a String column: .* \(a number column of its own counts desk's different values: a calculated column with Aggregation distinct count, desk its counted column\)/);
   });
 
   it('makes a list in order, a column taken once, and leaves out what it cannot hold, saying why', () => {
