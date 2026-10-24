@@ -491,6 +491,7 @@ _HEADLESS_TESTS = [
     "menu",
     "menu-more",
     "model-join",
+    "model-measures",
     "model-route",
     "offer-facts",
     "page-document",

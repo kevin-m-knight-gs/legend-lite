@@ -638,6 +638,23 @@ class Grid(Tile):
         ``'max'``, ``'average'``...) -- the column editor's Children (DataCube's code, headless: gridColumn)."""
         return self._column({'name': name, 'mode': 'children', 'level': 'group', 'child': {'fn': fn, 'of': of}})
 
+    def model_measure(self, measure: str) -> Grid:
+        """A measure the grid's model declares -- a Pure function of the class's instances stereotyped ``BI.measure``
+        (``meta::legend::bi::BI``, or the project's own profile named ``BI``: its store refuses a ``meta::`` path),
+        ``grossNotional(t: Trade[*]): Float[1] { $t.notional->sum() }`` -- by its name
+        or its path, added as the header menu's Add Model Measure adds it (DataCube's model-measures.ts, headless
+        gridModelMeasure): each aggregate over the instances a calculated column with its Aggregation, the rest -- its
+        arithmetic, the measures it calls -- a group-level column over them; its format from its ``BI.format`` tag. The
+        database aggregates it per group as it does every measure. Refused in DataCube's words, naming the part that does
+        not take apart so."""
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridModelMeasure', self._spec(engine, frames), _json.dumps({'measure': measure})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
+
     def related(self, path: str, aggregate: str | None = None, *, name: str | None = None) -> Grid:
         """A related class's property as a column of a grid over a class (DataCube's class tree: class-tree.ts, headless
         gridRelated) -- ``path`` from the class, dotted (``'customer.region'``), each hop a class-typed property or an

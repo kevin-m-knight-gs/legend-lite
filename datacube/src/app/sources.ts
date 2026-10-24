@@ -1041,7 +1041,7 @@ export function pageSources(d: SourcesOf): PageSources {
     if (!modelHome) throw new Error(`“${name}” is a class of ${at.project}: this page reaches no model home`);
     // fetched the first time a class is opened: a page with no class grid never downloads them
     const [{ classOpened }, home] = await Promise.all([lazily(() => import('../class-source.ts')), modelHome.connect()]);
-    const { model, left, source, tree } = await classOpened(at,
+    const { model, left, source, tree, measures, supertypes } = await classOpened(at,
       await home.client.pure({ project: at.project, workspace: at.workspace, revision: at.revision }),
       async (text) => await services.engine.reading.elements(text) as ClassElement[]);
     const rows = services.engine.rows(model, at.runtime, { mapping: at.mapping });
@@ -1066,7 +1066,8 @@ export function pageSources(d: SourcesOf): PageSources {
         // what it leaves out, said when it is first opened: a saved grid's reopening is no change of it
         notes: [...(left.length > 0 && !saved ? [`${name}: not shown, ${left.join(', ')}`] : []), ...r.notes],
         make: gridMaker(r.snapshot, r.configuration, [], {
-          ...rowsPlace(rows), cubeSource, classTree: { class: at.class, tree }, label: name, ...(r.tree ? { tree: r.tree } : {}),
+          ...rowsPlace(rows), cubeSource, classTree: { class: at.class, tree, measures, supertypes }, label: name,
+          ...(r.tree ? { tree: r.tree } : {}),
           foldPanel: capped,
         }),
         discard: async () => letGo(rows),

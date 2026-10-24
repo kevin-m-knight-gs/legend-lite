@@ -103,6 +103,8 @@ export interface MenuContext {
   readonly related?: readonly RelatedOffer[];
   /** The column under the pointer is a related column: the class tree's, never a formula to edit. */
   readonly relatedColumn?: boolean;
+  /** A grid over a class: the model's measures of it the grid has not yet (model-measures.ts measuresOf). */
+  readonly modelMeasures?: readonly { readonly name: string; readonly path: string; readonly doc?: string }[];
   /** From a header: Properties... opens Column Properties on this. */
   readonly propertiesColumn?: string;
   /** The column pivot's headers are measure-first (a checked entry). */
@@ -288,6 +290,7 @@ export type MenuActionId =
   | 'calc.bins'
   | 'calc.showAs'
   | 'calc.related'
+  | 'calc.modelMeasure'
   | 'calc.edit'
   | 'calc.delete'
   // The chrome, toggled from the title bar's menu. Not a snapshot
@@ -353,6 +356,8 @@ export interface MenuItem {
   readonly showAs?: GridShowAsKind;
   /** A related class's property to add (`calc.related`: class-tree.ts relatedOffers). */
   readonly related?: RelatedPath;
+  /** A model measure to add, by its path (`calc.modelMeasure`: model-measures.ts). */
+  readonly measure?: string;
   /** A date range relative to today (Filter ▸ Date Range ▸, date-ranges.ts). */
   readonly range?: DateRange;
   /** A top N's N, and whether it is the bottom's (Filter ▸ Top 10). */
@@ -509,6 +514,16 @@ function relatedItems(ctx: MenuContext): MenuItem[] {
       label: `${o.property} (${o.many ? `each ${className(o.target)}` : className(o.target)})`,
       submenu: o.columns.map((related) => ({ id: 'calc.related' as const, label: relatedLabel(related), related })),
     })),
+  }];
+}
+
+/** Extended Columns ▸ Add Model Measure ▸ (a grid over a class whose model declares measures of it): each by its name,
+ *  its words its hint (model-measures.ts). */
+function modelMeasureItems(ctx: MenuContext): MenuItem[] {
+  if (!ctx.modelMeasures || ctx.modelMeasures.length === 0) return [];
+  return [{
+    label: 'Add Model Measure',
+    submenu: ctx.modelMeasures.map((m) => ({ id: 'calc.modelMeasure' as const, label: m.name, measure: m.path, ...(m.doc !== undefined ? { hint: m.doc } : {}) })),
   }];
 }
 
@@ -723,6 +738,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           : []),
         ...presetItems(ctx, column, named),
         ...relatedItems(ctx),
+        ...modelMeasureItems(ctx),
         ...(column !== undefined && ctx.calcStage !== undefined
           ? [
             // a related column is the class tree's (Add Related Column), never a formula to edit

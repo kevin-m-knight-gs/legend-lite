@@ -339,6 +339,56 @@ class OnThePage(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "'trades_count' is a related column"):
             by_desk.edit_calculated('trades_count', '1')
 
+    def test_a_class_grid_adds_the_measures_its_model_declares(self):
+        # Pure functions of the trades stereotyped BI.measure (DataCube's model-measures.ts, headless gridModelMeasure),
+        # saved into the page's project beside its classes: offered on a grid over the class by name, added as the steps
+        # a person would make -- each aggregate a column with its Aggregation, the rest a group-level column -- and
+        # aggregated per desk by the database
+        page = _page(self)
+        trades, desks = page.grids
+        trade = trades.create_class('Trade')
+        desk = desks.create_class('Desk', columns={'desk': 'key'})
+        page.create_association({'class': trade, 'on': 'desk', 'name': 'trades', 'unique': False},
+                                {'class': desk, 'on': 'desk', 'name': 'theDesk', 'unique': True}, name='TradeDesk')
+        ref = page.model
+        at = f'/projects/{_enc(ref["project"])}/workspaces/{_enc(ref["workspace"])}'
+        pkg = ref['package']
+        # the project's own BI profile: its store refuses a meta:: path (the platform's, meta::legend::bi::BI, is core's
+        # to ship); each function saved by its compiled name, as the store keys it
+        measure = lambda name, returns, body, tags='': {  # noqa: E731
+            'type': 'CREATE', 'path': f'{pkg}::measures::{name}_Trade_MANY__{returns}_1_',
+            'pureCode': f'function <<{pkg}::BI.measure>> {tags} {pkg}::measures::{name}(t: {trade}[*]): {returns}[1]'
+                        f' {{ {body} }}'}
+        _sdlc('POST', f'{at}/pureChanges', {
+            'message': 'measures', 'revisionId': _sdlc('GET', f'{at}/revisions/CURRENT')['id'],
+            'changes': [
+                {'type': 'CREATE', 'path': f'{pkg}::BI',
+                 'pureCode': f'Profile {pkg}::BI {{ stereotypes: [measure]; tags: [format]; }}'},
+                measure('totalQty', 'Integer', '$t.qty->sum()', f"{{{pkg}::BI.format = '#,##0'}}"),
+                measure('bigQty', 'Integer', '$t->filter(x|$x.qty > 1).qty->sum()'),
+                measure('averageQty', 'Float', f'{pkg}::measures::totalQty($t) / $t->count()'),
+                measure('headed', 'Integer', '$t.theDesk.head->count()'),
+            ]})
+        grid = page.grid(cls=trade, revision=_sdlc('GET', f'{at}/revisions/CURRENT')['id'])
+        for name in ('totalQty', 'bigQty', 'averageQty', 'headed'):
+            grid.model_measure(name)
+        grid.group('desk')
+        view = grid.view()
+        shown = [c['name'] for c in view.columns]
+        at_ = [shown.index(n) for n in ('__tree', 'totalQty', 'bigQty', 'averageQty', 'headed')]
+        groups = sorted(tuple(r[i] for i in at_) for r, t in zip(view.rows, view.tree) if t['level'] == 1)
+        # FX: quantities 1 and 4 (one over 1), Ana's desk; EQ: 2, Ben's
+        self.assertEqual(groups, [('EQ', 2, 2, 2.0, 1), ('FX', 5, 4, 2.5, 2)])
+        # the average's two aggregates its machinery: hidden
+        self.assertTrue({'averageQty__1', 'averageQty__2'}.isdisjoint(shown), shown)
+        # refused in DataCube's words, the grid as it was
+        with self.assertRaisesRegex(ValueError, 'Trade has no measure nope in its model \\(averageQty, bigQty, headed, totalQty\\)'):
+            grid.model_measure('nope')
+        with self.assertRaisesRegex(ValueError, 'the grid has a column named totalQty already'):
+            grid.model_measure('totalQty')
+        with self.assertRaisesRegex(ValueError, 'this grid is over model_trades, no class'):
+            trades.model_measure('totalQty')
+
     def test_a_grid_made_a_class_then_an_association_and_a_data_space(self):
         page = _page(self)
         trades, desks = page.grids

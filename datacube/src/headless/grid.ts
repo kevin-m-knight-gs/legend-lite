@@ -61,7 +61,9 @@ import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { classGiven, className, type ClassElement } from '../class-source.ts';
-import { classTree, relatedName, relatedProblem } from '../class-tree.ts';
+import { classTree, measuresOf, relatedName, relatedProblem, supertypesOf } from '../class-tree.ts';
+import { modelMeasureCommands } from '../model-measure-commands.ts';
+import { modelMeasures } from '../model-measures.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { sharedPart, type SharedQuery } from '../../../query-store/src/share.ts';
 import { joinOpenedOn } from './join.ts';
@@ -595,6 +597,40 @@ export async function gridRelated(spec: GridSpec, given: string): Promise<string
     }
     return applied(spec, o, [{ kind: 'calculate', level: 'row',
       column: { name, related, kind: related.aggregate !== undefined ? 'measure' : 'dimension' } }]);
+  });
+}
+
+/**
+ * A MODEL MEASURE ADDED AS THE HEADER MENU'S ADD MODEL MEASURE ADDS ONE (model-measures.ts; Python's grid.model_measure):
+ * `given` `{measure}`, by its name or its path, of the grid's class or a supertype of it in the grid's model -- added as the
+ * steps a person would make (modelMeasureCommands). JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ */
+export async function gridModelMeasure(spec: GridSpec, given: string): Promise<string> {
+  const asked = JSON.parse(given) as { measure?: unknown };
+  const source = readCube(fromJson(spec.cube)).source;
+  if (source._type !== 'class') {
+    return JSON.stringify({ problems: [`a model measure is of a class's instances, and this grid is over ${source.name}, no class`] });
+  }
+  if (typeof asked.measure !== 'string' || asked.measure === '') {
+    return JSON.stringify({ problems: [`a model measure is named by its name or its path, not ${JSON.stringify(asked.measure)}`] });
+  }
+  return using(spec, async (o) => {
+    const elements = await o.planner.modelElements(spec.model) as ClassElement[];
+    const all = modelMeasures(elements);
+    const mine = measuresOf(all, (c) => supertypesOf(elements, c), source.class);
+    const measure = mine.find((m) => m.path === asked.measure || m.name === asked.measure);
+    if (measure === undefined) {
+      return JSON.stringify({ problems: [`${className(source.class)} has no measure ${asked.measure as string} in its model`
+        + ` (${mine.map((m) => m.name).sort().join(', ') || 'none'})`] });
+    }
+    let commands: GridCommand[];
+    try {
+      commands = modelMeasureCommands(o.state.snapshot, classTree(elements), source.class, all, measure);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+    return applied(spec, o, commands);
   });
 }
 

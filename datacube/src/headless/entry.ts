@@ -9,8 +9,8 @@ import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/le
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
-  gridFilter, gridGesture, gridMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull, gridView, snapRefused,
-  sourceCube,
+  gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
+  gridView, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
@@ -47,8 +47,9 @@ export { gridAddFilter, gridCopied };
 export { gridColumn, gridPreset, gridRelated };
 /** Any gesture a person makes on a grid, by the one function the screen's control calls (gridGesture: Python's
  *  grid.gesture, and toggle_sort, toggle_group_sort, dimension, drill, drill_up, add_group ...: docs/
- *  DATACUBE_ONE_API_PLAN_2026_10_21.md S8), and measures made by a person's own steps (gridMeasure: grid.measure). */
-export { gridGesture, gridMeasure };
+ *  DATACUBE_ONE_API_PLAN_2026_10_21.md S8), measures made by a person's own steps (gridMeasure: grid.measure), and a
+ *  measure the model declares, added as those steps (gridModelMeasure: grid.model_measure). */
+export { gridGesture, gridMeasure, gridModelMeasure };
 
 /** A new grid's cube over a class, a saved query or a warehouse table, as the tab adds one (sourceCube: Python's
  *  `page.grid(cls=...)`, `page.grid(query=...)`, `page.grid(warehouse=...)`; X4). */

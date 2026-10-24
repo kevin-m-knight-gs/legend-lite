@@ -14,6 +14,7 @@ import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts'
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { GridCommand } from '../src/grid-commands.ts';
+import type { ModelMeasure } from '../src/model-measures.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
@@ -249,6 +250,30 @@ describe('the app', () => {
     // chosen once, offered no more
     (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
     assert.ok(!menuItems().some((i) => i.textContent === 'Add Related Column'));
+    own.dispose();
+  });
+
+  it("a grid over a class offers its model's measures, and one chosen is added as the steps a person would make", async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const classes: CubeSnapshot = { ...SNAPSHOT, source: { query: classRelation('m::Trade', ['region', 'desk', 'notional']) } };
+    const of = 'm::Trade';
+    const measures: ModelMeasure[] = [{
+      path: 'm::grossNotional', name: 'grossNotional', of, param: 't', format: '$#,##0', doc: 'Gross notional booked',
+      body: { _type: 'func', function: 'sum', parameters: [{ _type: 'property', property: 'notional', parameters: [{ _type: 'var', name: 't' }] }] } as never,
+    }];
+    const sent: GridCommand[] = [];
+    const own = new CubeApp(host, classes, { engine, planner, classTree: { class: of, tree: classTree([]), measures }, onCommand: (c) => sent.push(c) });
+    await own.open();
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('grossNotional');
+    // the steps that add it are a chunk fetched with the first measure added (model-measure-commands.ts): ticks later
+    for (let i = 0; i < 200 && sent.length === 0; i++) await new Promise((r) => setTimeout(r, 5));
+    assert.deepEqual(sent.map((c) => c.kind), ['calculate', 'column', 'configure']);
+    assert.deepEqual(sent[1], { kind: 'column', name: 'grossNotional', change: { aggregate: 'sum' } });
+    // added once, offered no more
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    assert.ok(!menuItems().some((i) => i.textContent === 'Add Model Measure'));
     own.dispose();
   });
 

@@ -181,7 +181,7 @@ trading::measures::counterparties(t: trading::Trade[*]): Integer[1]
 tests against mapping test data; it is reviewed in a project with lineage; and its meaning does not depend on a hidden
 filter context -- the set it is given *is* the context, so `margin` of a cell, of a whole page and of a KPI's period
 are the same function applied to different sets. A measure in the model reaches every consumer: a grid, a chart, a
-KPI, Python (`grid.measure('grossNotional')`), a hand-written Pure query (`Trade.all()->groupBy(...)` calling it), and
+KPI, Python (`grid.model_measure('grossNotional')`), a hand-written Pure query (`Trade.all()->groupBy(...)` calling it), and
 the REST routes.
 
 **How a grid plans it.** A grid over `Trade` grouped by `region` needs, per group, `grossNotional` of the group's
@@ -196,6 +196,17 @@ trades. The planner takes the measure's body apart -- rule 3, rearranging, never
    DataCube's existing `groupDerived` columns ("Ratio of totals" is exactly `sum(a) / sum(b)`).
 4. A shape that does not decompose (an aggregate of an aggregate, a window inside a measure) is refused in words,
    naming the measure and the part -- never approximated (AGENTS.md invariant 4).
+
+**Built 2026-10-24 in DataCube** (`datacube/src/model-measures.ts`; the header menu's Add Model Measure, Python's
+`grid.model_measure(name)`, headless `gridModelMeasure`), each step as a command a person could make: an aggregate a
+row-level calculated column with its Aggregation, the rest a group-level column over them (hidden machinery named
+`<measure>__1`, `__2`...), a called measure inlined, a path through a to-one hop a related column (§3.3), the format
+from `BI.format`. Two findings the planned SQL showed: **a count is not the grid's count** -- DataCube's count
+aggregation counts rows and reads no value, so `$t.customer.region->count()` and `$t->filter(p)->count()` are each a
+sum of `if(<has a value, and p>, |1, |0)`, a group with none 0 as Pure's count of nothing is; and **a path through a
+to-many end** only sums or counts (each instance's own figure, then summed), as an average of averages is no average.
+Proved on DuckDB (`test/model-join.test.ts`: the compiler's own elements read, five measures planned, rows checked)
+and from Python over a project's saved measures (`python/tests/test_model.py`).
 
 Where the decomposition lives is the first decision (§7, D1): **in DataCube's TypeScript, shared headless with
 Python**, so a grid can use model measures as soon as it can read them -- or **in core**, as a groupBy that accepts a
@@ -374,8 +385,8 @@ Status: **Have**, **Partial**, **Missing**. Where: **DC** (DataCube alone, `data
 | The class tree: to-one hops as columns, through class-typed properties and associations | **Built 2026-10-24**: a related column (`DerivedColumn.related`) projected with the class's own (query.ts relatedSource); the header menu's Add Related Column offers one hop, Python's `grid.related('a.b')` any depth, each path judged against the model's class tree (class-tree.ts) | DC (core supports the queries) | M | P5 |
 | A to-many end offered as aggregates (count, sum, ...) per instance | **Built 2026-10-24**: count, sum, average, min, max -- a LEFT JOIN to the related rows grouped by their key, so a region's total of customers' trade sums is exact; never a row per instance. Distinct count waits for core (C9) | DC (correlated aggregate, supported) | M | P5 |
 | Derived properties offered; qualified properties with arguments | Missing | DC | M | P5 |
-| Labels, formats, descriptions read from tagged values | Missing | DC (model JSON) | M | P5 |
-| Measures declared in the model, offered by name (§3.4) | Missing | DC first, core form after | L | P5 |
+| Labels, formats, descriptions read from tagged values | **Partial 2026-10-24**: a model measure's `BI.format` (an Excel format code a number, currency or percent format, else none -- never guessed) and its `doc.doc` (the menu's hint) | DC (model JSON) | M | P5 |
+| Measures declared in the model, offered by name (§3.4) | **Built 2026-10-24** in DataCube (§3.4's "Built"): the header menu's Add Model Measure, Python's `grid.model_measure`; a project's own profile named `BI` read until the platform ships `meta::legend::bi::BI` (D3, C10); the core form is C1 | DC first, core form after | L | P5 |
 | Dimensions and hierarchies from the model | Missing | DC | M | P5 |
 | Certified badge | Missing | DC | S | P5 |
 | Time intelligence: YTD/QTD/MTD, prior period, same period last year, YoY % | Missing | DC (windows) | M | P5 |
@@ -406,6 +417,7 @@ language over the governed model, summaries, "explain this change". Not this pro
 | C7 | A **data space as a query entry** | A perspective a client names rather than unpacks | Compiler line |
 | C8 | **Unused projected columns pruned**: a `select` or `groupBy` after a `project` keeps the LEFT JOINs (and per-instance aggregate subqueries) of columns it never reads (probed 2026-10-24) | A class's grid could then project its whole class tree and pay only for what each query reads | Compiler line |
 | C9 | **`distinct()->count()` over a to-many navigation** in a projection (refused today: "aggregate count over an expression containing a to-many navigation is not supported yet") | A related column's distinct count | Compiler line |
+| C10 | **The `meta::legend::bi::BI` profile as a platform declaration** (D3): `stereotypes: [measure, dimension, timeDimension, hierarchy, certified, hidden]; tags: [format, goodDirection, ...]` (§3.2) | A project cannot declare a `meta::` element -- its store refuses the path (legend-sdlc's rule; found 2026-10-24, Python's end-to-end test) -- so until then a project declares its own profile named `BI`, which DataCube reads as the platform's | Compiler line |
 
 This line does not message other sessions: these are recorded here and in the line's IN_FLIGHT entry for the compiler
 line to read.
@@ -438,7 +450,7 @@ This session builds from P1 down, committing each piece as it passes.
 |---|---|---|
 | D1 | Where does a model measure's decomposition live: DataCube's TypeScript (shared with Python), or core? | DataCube first, small and testable now; core's form (C1) after, with DataCube's tests as its acceptance tests |
 | D2 | A measure as a **function over instances** (§3.4) or as a new element kind (`Measure trading::grossNotional { ... }`)? | The function: it is Pure already, compiles today, composes, and needs no grammar; the profile carries what an element kind would |
-| D3 | The profile's path: `meta::legend::bi::BI` (a platform declaration) or a user-owned profile per project? | Platform: one meaning across projects, as `doc.doc` is |
+| D3 | The profile's path: `meta::legend::bi::BI` (a platform declaration) or a user-owned profile per project? | Platform: one meaning across projects, as `doc.doc` is. **Found 2026-10-24:** a project cannot declare it -- its store refuses a `meta::` path, legend-sdlc's rule -- so until core ships it (C10) DataCube also reads a project's own profile named `BI` (model-measures.ts) |
 | D4 | A to-many end in the tree: aggregates only by default, the row-per-instance form marked? | Yes (the model design's §5.1 decided it; this keeps it) |
 | D5 | Editing cells (paste, fill, write-back): a held table's edit, or a write-back action (Power BI's translytical flows)? | Later, and as actions, not as a spreadsheet: a grid is a query |
 | D6 | Excel through XMLA/MDX: on the road map? | Yes, after P5: it is the shortest path into every bank's Excel, and Cube and AtScale prove the shape |

@@ -735,3 +735,18 @@ describe("Add Related Column ▸: a grid over a class's related columns one hop 
     assert.ok(ids({ snapshot: CUBE, column: 'notional', calcStage: 'row' }).includes('calc.edit'));
   });
 });
+
+describe("Add Model Measure ▸: the measures the grid's class's model declares (model-measures.ts)", () => {
+  it('each by its name, its words the hint; none on a grid whose model declares none', () => {
+    const modelMeasures = [{ name: 'grossNotional', path: 'm::grossNotional', doc: 'Gross notional booked' }, { name: 'averageNotional', path: 'm::averageNotional' }];
+    const extended = buildMenu({ snapshot: CUBE, column: 'notional', modelMeasures }).flatMap((g) => g.items)
+      .find((i) => i.label === 'Extended Columns');
+    const add = extended?.submenu?.find((i) => i.label === 'Add Model Measure');
+    assert.deepEqual(add?.submenu?.map((i) => [i.id, i.label, i.measure, i.hint]), [
+      ['calc.modelMeasure', 'grossNotional', 'm::grossNotional', 'Gross notional booked'],
+      ['calc.modelMeasure', 'averageNotional', 'm::averageNotional', undefined],
+    ]);
+    assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional' })).some((i) => i.id === 'calc.modelMeasure'));
+    assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional', modelMeasures: [] })).some((i) => i.id === 'calc.modelMeasure'));
+  });
+});

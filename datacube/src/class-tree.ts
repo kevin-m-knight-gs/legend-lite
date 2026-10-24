@@ -5,6 +5,7 @@
 // no DOM, no planner, no project text: the grid's menu asks it as it opens, and Python's grid.related, headless.
 
 import { isNumeric } from '../../engine-client/src/types.ts';
+import type { ModelMeasure } from './model-measures.ts';
 import { PATH_AGGREGATES, type PathAggregate, type RelatedPath } from './snapshot.ts';
 
 /** A property as the compiler gives it: a class's, or an association's end. */
@@ -46,10 +47,36 @@ export interface TreeProperty {
  *  each association's end that reaches it from another class. */
 export type ClassTree = Readonly<Record<string, readonly TreeProperty[]>>;
 
-/** A grid's class and its model's tree: what its related columns may name. */
+/** A grid's class and its model's tree: what its related columns may name -- and the model's measures (model-measures.ts),
+ *  those of the class or of a supertype of it (`supertypes`) offered on its grid. */
 export interface ClassOf {
   readonly class: string;
   readonly tree: ClassTree;
+  readonly measures?: readonly ModelMeasure[];
+  readonly supertypes?: readonly string[];
+}
+
+/** Every supertype of `cls` the model declares, nearest first, each once. */
+export function supertypesOf(elements: readonly ClassElement[], cls: string): string[] {
+  const classes = new Map(elements.filter((e) => e._type === 'class').map((e) => [pathOf(e), e]));
+  const out: string[] = [];
+  const visit = (at: string): void => {
+    for (const s of classes.get(at)?.superTypes ?? []) {
+      const path = typeof s === 'string' ? s : (s.fullPath ?? s.path ?? '');
+      if (path === '' || out.includes(path) || path === cls) continue;
+      out.push(path);
+      visit(path);
+    }
+  };
+  visit(cls);
+  return out;
+}
+
+/** The measures a grid over `cls` may add (model-measures.ts): of the class, or of a supertype it has -- here, beside the
+ *  supertypes' walk, so the grid's menu reads them without the measures' reader. */
+export function measuresOf(measures: readonly ModelMeasure[], supertypes: (cls: string) => readonly string[], cls: string): ModelMeasure[] {
+  const mine = new Set([cls, ...supertypes(cls)]);
+  return measures.filter((m) => mine.has(m.of));
 }
 
 /** The class tree of the model's elements. */

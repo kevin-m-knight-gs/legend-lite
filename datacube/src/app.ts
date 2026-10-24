@@ -103,7 +103,8 @@ import {
   type RelatedPath,
 } from './snapshot.ts';
 import type { HeatmapSpec } from './style.ts';
-import { relatedName, relatedOffers, type ClassOf, type RelatedOffer } from './class-tree.ts';
+import { measuresOf, relatedName, relatedOffers, type ClassOf, type RelatedOffer } from './class-tree.ts';
+import type { ModelMeasure } from './model-measures.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
 
@@ -2068,6 +2069,7 @@ export class CubeApp {
       const join = this.#options.joinMenu?.(column !== TREE_COLUMN ? column : undefined) ?? [];
       this.#cellHost = join;
       const related = this.#relatedOffers();
+      const measures = this.#modelMeasures();
       const groups = buildMenu({
         snapshot: this.#shown,
         ...(join.length > 0 && !this.#adhoc ? { join } : {}),
@@ -2108,6 +2110,7 @@ export class CubeApp {
         ...(column !== undefined ? calcStageOf(this.#shown, column) : {}),
         ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.related !== undefined) ? { relatedColumn: true } : {}),
         ...(related.length > 0 ? { related } : {}),
+        ...(measures.length > 0 ? { modelMeasures: measures.map((m) => ({ name: m.name, path: m.path, ...(m.doc !== undefined ? { doc: m.doc } : {}) })) } : {}),
         ...facts,
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
@@ -2129,6 +2132,33 @@ export class CubeApp {
     return relatedOffers(of.tree, of.class)
       .map((o) => ({ ...o, columns: o.columns.filter((c) => !has.has(relatedName(c))) }))
       .filter((o) => o.columns.length > 0);
+  }
+
+  /** The model's measures of the grid's class (class-tree.ts measuresOf) it has not yet: Add Model Measure ▸. */
+  #modelMeasures(): ModelMeasure[] {
+    const of = this.#options.classTree;
+    if (of?.measures === undefined) return [];
+    const has = new Set([...this.#snapshot.derived, ...(this.#snapshot.groupDerived ?? [])].map((d) => d.name));
+    return measuresOf(of.measures, () => of.supertypes ?? [], of.class).filter((m) => !has.has(m.name));
+  }
+
+  /** A MODEL MEASURE ADDED (Add Model Measure ▸; model-measure-commands.ts, fetched with the first): the steps a person
+   *  would make. */
+  async #addModelMeasure(path: string): Promise<void> {
+    const of = this.#options.classTree;
+    const measure = of?.measures?.find((m) => m.path === path);
+    if (of === undefined || measure === undefined) return;
+    const { modelMeasureCommands } = await lazily(() => import('./model-measure-commands.ts'));
+    let commands: GridCommand[];
+    try {
+      commands = modelMeasureCommands(this.#snapshot, of.tree, of.class, of.measures ?? [], measure);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(`Could not add ${measure.name}: ${e.message}`, 'error');
+      return;
+    }
+    const refused = await this.#apply(commands, `measure ${measure.name}`);
+    if (refused) this.#status(`Could not add ${measure.name}: ${refused}`, 'error');
   }
 
   /**
@@ -2226,6 +2256,9 @@ export class CubeApp {
         return;
       case 'calc.related':
         if (item.related) void this.#addRelated(item.related);
+        return;
+      case 'calc.modelMeasure':
+        if (item.measure) void this.#addModelMeasure(item.measure);
         return;
       case 'calc.showAs':
         if (column && item.showAs) {

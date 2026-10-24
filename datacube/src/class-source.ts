@@ -10,7 +10,8 @@ import {
 import { projectText } from '../../sdlc-client/src/project-text.ts';
 import type { PureFile } from '../../sdlc-client/src/wire.ts';
 import { PAGE_WORKSPACE, type PageModelRef } from './page-model.ts';
-import { classTree, className, pathOf, type ClassElement, type ClassTree } from './class-tree.ts';
+import { classTree, className, pathOf, supertypesOf, type ClassElement, type ClassTree } from './class-tree.ts';
+import { modelMeasures, type ModelMeasure } from './model-measures.ts';
 
 export { className, type ClassElement };
 
@@ -154,17 +155,21 @@ export function classRelation(cls: string, properties: readonly string[], where?
  * A CLASS OPENED AS A GRID'S BASE, the one rule (the tab's sources.ts openedClass; headless host-tables.ts, a page on
  * the host: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1): its project's files at its revision as one model text, read by
  * the host's compiler (`elements`), the properties a grid shows and those it leaves out, each with why, and its rows as
- * a grid reads them (classRelation) -- and the model's class tree, what its related columns may name (class-tree.ts).
+ * a grid reads them (classRelation) -- and the model's class tree, what its related columns may name (class-tree.ts), its
+ * measures (model-measures.ts) and the class's supertypes, whose measures are the class's too.
  */
 export async function classOpened(at: ClassAt, files: readonly Pick<PureFile, 'pureCode'>[],
   elements: (model: string) => Promise<readonly ClassElement[]>): Promise<{
   readonly model: string; readonly shown: readonly string[]; readonly left: readonly string[]; readonly source: ValueSpecification;
-  readonly tree: ClassTree;
+  readonly tree: ClassTree; readonly measures: readonly ModelMeasure[]; readonly supertypes: readonly string[];
 }> {
   const model = projectText(files);
   const read = await elements(model);
   const { shown, left } = classProperties(read, at.class);
-  return { model, shown, left, source: classRelation(at.class, shown), tree: classTree(read) };
+  return {
+    model, shown, left, source: classRelation(at.class, shown), tree: classTree(read), measures: modelMeasures(read),
+    supertypes: supertypesOf(read, at.class),
+  };
 }
 
 /** The class source's query as a lambda of no parameters: what the planner types and plans. */
