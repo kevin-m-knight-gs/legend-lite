@@ -206,6 +206,13 @@ const tile = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"
 const label = (item: Element): string => item.querySelector(':scope > .dc-menu-label')?.textContent ?? '';
 const menuItems = (): HTMLElement[] => [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
 const escape = (): void => { dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' })); };
+/** A text tile's editor, open once its chunk is fetched (page-text.ts). */
+async function editorOf(text: string): Promise<HTMLTextAreaElement> {
+  for (let i = 0; i < 100 && !tile(text).querySelector('textarea'); i++) await new Promise((r) => setTimeout(r, 5));
+  const area = tile(text).querySelector('textarea');
+  assert.ok(area, `${text}'s editor opened`);
+  return area;
+}
 const contextMenu = (el: Element): void => { el.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
 
 async function drawn(): Promise<void> {
@@ -510,6 +517,27 @@ const GESTURES: readonly Gesture[] = [
   { name: 'a grid removed', setUp: twoGrids, make: ({ b }) => removeTile(b!) },
   { name: 'a grid moved to another sheet', setUp: withSheet, make: ({ b }) => gridMenuItem(b!, 'Sheet 2').click() },
   { name: 'a grid copied', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Copy of This Grid').click() },
+  // a text tile (page-text.ts): Create ▸ Text Box, then its words edited in place (its drawing and editor a chunk of their
+  // own, fetched with the first: the editor waited for)
+  { name: 'a text box added', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Text Box').click() },
+  {
+    name: 'a text tile edited in place',
+    setUp: async () => {
+      const g = await twoGrids();
+      gridMenuItem(g.a, 'Text Box').click();
+      await settle();
+      const text = [...host.querySelectorAll<HTMLElement>('[data-tile^="text-"]')].at(-1)!.dataset['tile']!;
+      await editorOf(text);
+      tile(text).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      return { ...g, text };
+    },
+    make: async ({ text }) => {
+      (tile(text!).querySelector('.dc-text-edit') as HTMLElement).click();
+      const area = await editorOf(text!);
+      area.value = '# Q3\n\nBy **desk**';
+      [...tile(text!).querySelectorAll('button')].find((b) => b.textContent === 'OK')!.click();
+    },
+  },
   {
     name: 'a sheet arranged',
     setUp: twoGrids,
@@ -840,8 +868,9 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   rebuilt: { items: [], why: "opening a host's page whose frame changed in place: test/python-engine, python/tests/test_page.py" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
- *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it. */
-const GESTURES_AT_LEAST = 51;
+ *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
+ *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place. */
+const GESTURES_AT_LEAST = 53;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {
