@@ -1085,9 +1085,10 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   every pair of states both ways, both scopes; an undo of a grid removal; what no command makes refused in words),
   page-commands.test.ts. The D19 audit's W2 limit (2026-10-24), closed the same day: a detached chart over a snapped
   kept cube, removed and brought back, came back over the cube live, no command setting a copy on a cube no grid shows;
-  `detach` carries the copy now (`copy?`: set, or none for its live rows; Python's `page_detach(copy=)` generated), the
-  diff plans it wherever it plans a `detach` and where a kept cube's copy changes -- page-between.test.ts (the walk
-  detaches with a copy at times; the case itself), page-commands.test.ts
+  `detach` carries the copy now (`copy?`: given, the copy; null, its live rows; the field absent, the cube's copy as it
+  is, so a detach that says nothing of it un-snaps nothing -- the third round's 4; Python's `page_detach(copy=)`
+  generated, absent or None), the diff says it always wherever it plans a `detach` and where a kept cube's copy changes
+  -- page-between.test.ts (the walk detaches with a copy at times; the case itself), page-commands.test.ts
 - [x] **W3** the grid's undo produced by commands (state-owner.ts `toward`: the history's states are what this kind's own
   commands make), told as the commands between the state before and the one landed (`StateRules.between`:
   `gridBetween`), by `onCommand` as a change is; T3 ends (a change landing with an undo is told with it) -- closed D19
@@ -2098,6 +2099,32 @@ page-app.test.ts, live-channel.test.ts. And the second audit verified what held:
 frame-moved check still applies, the saved-name bookkeeping runs only on a follow that succeeded, writes and follows
 are serialized in the channel's queue, the keeper's hash is read with the write everywhere, and the first round's
 tests fail without their fixes.
+
+**The audit's third round (2026-10-24, on the second round's fixes), and the mutation pass.** The third auditor found
+the hold covering the page only: a GRID gesture during a converge landed on a grid being put back, was told, written,
+and made the page reopen with the never-show message (1, HIGH) -- the converge holds every grid too (`CubeApp.hold`,
+a person's edit refused meanwhile, said: "the page is catching up with its keeper: a moment"; a grid made again by a
+step held as it appears); the put-back's drop of a chart added here refiltered its grid as another editor's and wiped
+the grid's history (2) -- the put-back drops without refiltering, the grid being put back whole by its own commands;
+a grid let go by the put-back and made again by a step is a new grid whose history was empty, its pending edits made
+again as no step (3) -- a remade grid counts as restarted, its pending edits steps of its new history; and a `detach`
+without a copy un-snapped a kept cube another chart read (4) -- the field absent leaves the copy as it is, null is its
+live rows, and the diff says it always. It verified the second round's fixes otherwise: the pure simulation is sound
+(the only page arms that change a grid's cube are `unselected`, `addGrid` and `rebuilt`), the remade grid is the one
+the converge sees, `record: false` leaves the redo branch and the stack sane, a grid's refilter is `busy` from before
+the put-back returns, the keeper's hash is read with the write everywhere. The mutation pass (the note's §6, run by
+hand in a scratch copy: each fix reverted, the channel suite and the thirty-seed chart soak against it) killed every
+mutant but one: the second round's regression test used an own edit that overwrote the very field the keeper's page
+step changed (the whole filter), so it passed without the fix, and the soak's mark clicks were too rare to reach the
+case -- the test groups instead now, and the soak clicks a mark on most charts it makes and has Python take a
+selected chart off first; the mutant is killed by both since. The quiet wait is killed by the soak alone (seed 6), the
+others by the channel suite; the control (pending grids not put back) by both. The table is the proof's: a test that
+has never failed against a known bug is not evidence. The rounds' budgets, each with a dated note for the user's
+sign-off (D9): the notebook module 341,000 -> 341,500 (the second round, measured 341,063) and the engine page
+322,500 -> 323,000 (the third, measured 322,567). Beside the round, main's CI on Windows went red on the second
+round's commit by one pre-existing test of cube-page-shell.test.ts (`the layouts` null): the layouts are fetched on
+the page's first Arrange..., and that first dynamic import outlasted `settle()`'s twenty ticks on the Windows runner;
+every test that opens the layouts now waits for them, bounded (cube-fixture's `shown`).
 
 **The full local gate (`//gates:local`, 2026-10-24, in the cloud session after `tools/cloud-distdir.sh`).** 405 passed,
 11 failed: eight `initdb refuses root` (the seven core Postgres tests and `verify_app_test`: the container runs as root,

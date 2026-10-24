@@ -102,7 +102,7 @@ export type PageCommand =
    *  puts the chart back on the very cube it read (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W19, 2026-10-24: the inverse
    *  of Show Grid on a detached chart, and of a detached chart's removal). The cube it read is let go when no view reads
    *  it any more. */
-  | { readonly kind: 'detach'; readonly chart: string; readonly cube: string; readonly document: CubeDocument; readonly copy?: GridCopy }
+  | { readonly kind: 'detach'; readonly chart: string; readonly cube: string; readonly document: CubeDocument; readonly copy?: GridCopy | null }
   /** A chart's selection, the mark clicked last as its conditions (none: cleared) -- the chart's alone: the conditions
    *  on its grid's filter are that grid's `refilter`, told with it (grid-commands.ts). */
   | { readonly kind: 'select'; readonly chart: string; readonly conditions: readonly FilterNode[] }
@@ -512,10 +512,13 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const cubes = read.some((c) => c.id === command.cube)
         ? read.map((c) => (c.id === command.cube ? { id: c.id, cube: command.document } : c))
         : [...read, { id: command.cube, cube: command.document }];
-      // the copy the cube reads, as given (none: its live rows) -- a detached chart's cube has no grid to snap or go
-      // live for it, so the command carries it (the D19 audit's W2 limit, closed) -- and no copy of a cube let go
-      const copies = Object.fromEntries(Object.entries(unpicked.copies ?? {}).filter(([id]) => id !== command.cube && cubes.some((c) => c.id === id)));
-      if (command.copy !== undefined) copies[command.cube] = command.copy;
+      // the copy the cube reads, as given (null: its live rows; the field absent: as it is, so another chart's cube is
+      // not un-snapped by a detach that says nothing of it) -- a detached chart's cube has no grid to snap or go live
+      // for it, so the command carries it (the D19 audit's W2 limit, closed; its third round's 4) -- and no copy of a
+      // cube let go
+      const copies = Object.fromEntries(Object.entries(unpicked.copies ?? {}).filter(([id]) => cubes.some((c) => c.id === id)));
+      if (command.copy === null) delete copies[command.cube];
+      else if (command.copy !== undefined) copies[command.cube] = command.copy;
       const { copies: _had, ...bare } = unpicked;
       const kept = rewritten({ ...bare, ...(unpicked.model ? { model: keptFor(unpicked.model, cubes) } : {}) },
         { views, cubes, ...(Object.keys(copies).length > 0 ? { copies } : {}) });
@@ -853,15 +856,16 @@ export function readPageCommand(given: unknown): PageCommand {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const document = cubeOf(o['document']);
       if (document === null) throw new CubeRefusal("a detached chart's cube is a document, never null");
-      let copy: GridCopy | undefined;
-      if (o['copy'] !== undefined && o['copy'] !== null) {
+      let copy: GridCopy | null | undefined;
+      if (o['copy'] === null) copy = null;
+      else if (o['copy'] !== undefined) {
         try {
           copy = readGridCopy(o['copy']);
         } catch (e) {
           throw new CubeRefusal(e instanceof Error ? e.message : String(e));
         }
       }
-      return { kind, chart: text(o['chart'], 'a chart'), cube: text(o['cube'], 'a cube'), document, ...(copy ? { copy } : {}) };
+      return { kind, chart: text(o['chart'], 'a chart'), cube: text(o['cube'], 'a cube'), document, ...(copy !== undefined ? { copy } : {}) };
     }
     case 'select':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);

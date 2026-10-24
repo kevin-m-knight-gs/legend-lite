@@ -29,7 +29,7 @@ import type { FilterNode } from '../src/snapshot.ts';
 import { getInstanceByDom } from 'echarts/core';
 
 import * as cube from './cube-fixture.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
 import { differing, sameButIds } from './page-same.ts';
 
 /** jsdom has no canvas: a 2D context that draws nothing, so ECharts can mount (as chart-tiles.test.ts does). */
@@ -724,9 +724,8 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const sideBySide = bands();
     entry('Arrange…').click();
     await settle();
-    const stacked = host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]');
-    assert.ok(stacked, 'the layouts');
-    stacked.click();
+    // the layouts are fetched when first opened: wait for them, not for a count of ticks (Windows' CI, 2026-10-24)
+    (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="stacked"]')).click();
     await settle();
     assert.deepEqual(bands(), [[a], [chart]]);
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
@@ -843,7 +842,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
       await settle();
       pageMenu().find((i) => label(i) === 'Arrange…')!.click();
       await settle();
-      host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+      (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="stacked"]')).click();
     }, 'Layout Change', ids);
     await step('a grid copied', told, async () => {
       const had = new Set(pg().grids);
@@ -1619,7 +1618,7 @@ describe("the S3 audit's findings: a page of its own", () => {
     (host.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
     menuItems().find((i) => label(i) === 'Arrange…')!.click();
     await settle();
-    host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="focus-left"]')!.click();
+    (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="focus-left"]')).click();
     await settle();
     assert.deepEqual(told.map((c) => c.kind), ['arrange']);
     assert.deepEqual(new Set(tilesOf(pg().views().sheets.find((s) => s.id === sheet)!.layout)), new Set([a, chart, b]));

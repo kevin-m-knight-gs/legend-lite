@@ -35,7 +35,7 @@ import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-a
 import { chartPick, readEdits } from '../src/headless/page.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
 import { sameButIds } from './page-same.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 
@@ -519,7 +519,7 @@ const GESTURES: readonly Gesture[] = [
       (host.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
       entry('Arrange…').click();
       await settle();
-      host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+      (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="stacked"]')).click();
     },
   },
   {

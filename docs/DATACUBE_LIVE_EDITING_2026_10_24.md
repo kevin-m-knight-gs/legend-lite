@@ -369,7 +369,14 @@ D19, "the audit's second round"). The converge as it stands: the keeper's page s
 purely, name every grid they change; those, the ones the keeper's grid steps, the refused batch or a rename touch, are
 put back at the confirmed cube before the steps and start again; every other grid an edit of this screen's changed is
 put back at its SENT cube after the steps, its history kept, its pending edits made again as no new step; every grid's
-change in flight is waited for before the page is hashed.
+change in flight is waited for before the page is hashed. A third round (on the second's fixes) added: the grids are
+held through the converge too, a person's edit on one refused meanwhile, said (the hold covered the page alone, and a
+grid gesture landed on a grid being put back and reopened the page); the put-back drops a chart added here without
+refiltering its grid (the grid is put back whole; the refilter wiped its history); a grid made again by a step is a
+new grid, restarted, its pending edits steps of its new history; `detach` leaves a copy it says nothing of as it is.
+And §6's mutation pass was run by hand (each fix reverted against the channel suite and the chart soak): it found the
+second round's regression test blind to its own bug and the soak's mark clicks too rare, both sharpened; every mutant
+is killed since (the plan's As built, D19, "the audit's third round").
 
 ## 7. Items (the register's W)
 

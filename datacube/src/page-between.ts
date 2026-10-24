@@ -121,10 +121,8 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   };
   // the copy a kept cube reads in `to` (a detached chart's: carried by `detach`, which has no grid to snap for it)
   const copyIn = (page: PageDocument, cube: string): GridCopy | undefined => (page.copies ?? {})[cube];
-  const detachOnto = (v: ChartView): PageCommand => {
-    const copy = copyIn(to, v.cube);
-    return { kind: 'detach', chart: v.id, cube: v.cube, document: keptIn(to, v.cube), ...(copy ? { copy } : {}) };
-  };
+  // the copy said always: `to`'s, or null for its live rows (the field absent leaves a copy as it is)
+  const detachOnto = (v: ChartView): PageCommand => ({ kind: 'detach', chart: v.id, cube: v.cube, document: keptIn(to, v.cube), copy: copyIn(to, v.cube) ?? null });
   const detachNeeded = (v: ChartView): boolean => {
     const here = cur().views.find((x) => x.id === n(v.id)) as ChartView | undefined;
     if (here === undefined) return false;

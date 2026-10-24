@@ -210,7 +210,7 @@ describe('the commands between two pages take one to the other', () => {
     const gone = applyPageCommands(draft(detached), [{ kind: 'removeTile', tile: 'chart-2' }]).draft.page;
     const back = pageBetween(gone, detached, 'history');
     assert.deepEqual(back.map((c) => c.kind).slice(0, 2), ['addChart', 'detach']);
-    assert.deepEqual(back[1], { kind: 'detach', chart: 'chart-2', cube: 'grid-2', document: detached.cubes.find((c) => c.id === 'grid-2')!.cube });
+    assert.deepEqual(back[1], { kind: 'detach', chart: 'chart-2', cube: 'grid-2', document: detached.cubes.find((c) => c.id === 'grid-2')!.cube, copy: null });
     const made = applyPlanned(draft(gone), back, true);
     assert.deepEqual(canonical(made.draft.page, 'history'), canonical(renamedPage(detached, made.renamed), 'history'));
     assert.deepEqual(Object.keys(made.renamed), ['chart-2'], 'the chart is a new tile (B12); its cube is the one it read');

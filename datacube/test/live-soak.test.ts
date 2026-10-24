@@ -246,7 +246,13 @@ async function gesture(tab: Tab, rand: () => number, n: number): Promise<string 
       // page step of the other editor's that takes it off changes the grid's cube -- the audit's second round, 1)
       if (grids.length === 0) return undefined;
       const chart = await chartOver(tab, pick(grids));
-      return chart === undefined ? undefined : 'addChart';
+      if (chart === undefined) return undefined;
+      // and, mostly, a mark clicked right away: its selection on the grid's filter
+      if (rand() < 0.7 && clickMark(tab, chart)) {
+        await settle();
+        return 'addChart+mark';
+      }
+      return 'addChart';
     }
     case 10: {
       const charts = chartsOf(tab);
@@ -344,8 +350,9 @@ function pythonEdit(keeper: FakeKeeper, rand: () => number, n: number): string {
   if (choice === 0) command = { kind: 'addSheet', name: `Python ${n}` };
   else if (choice === 1) command = { kind: 'renamePage', name: `Named in Python ${n}` };
   else if (choice === 2 && grids.length > 0) command = { kind: 'renameTile', tile: pick(grids).id, title: `Titled in Python ${n}` };
-  // a chart taken off by the other editor: a page step that changes its grid's cube when a mark was clicked on it
-  else if (choice === 3 && charts.length > 0) command = { kind: 'removeTile', tile: pick(charts).id };
+  // a chart taken off by the other editor: a page step that changes its grid's cube when a mark was clicked on it (a
+  // selected one first)
+  else if (choice === 3 && charts.length > 0) command = { kind: 'removeTile', tile: pick(charts.filter((c) => (c.selection ?? []).length > 0).length > 0 ? charts.filter((c) => (c.selection ?? []).length > 0) : charts).id };
   // a chart made by the other editor, as one of the page's charts is (page.chart in Python)
   else if (choice === 4 && charts.length > 0 && grids.length > 0) command = { kind: 'addChart', near: pick(grids).id, spec: pick(charts).spec, title: null, columns: null };
   else if (grids.length > 1) command = { kind: 'removeTile', tile: pick(grids).id };

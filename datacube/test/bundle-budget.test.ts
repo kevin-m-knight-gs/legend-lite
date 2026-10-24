@@ -363,8 +363,11 @@ const BUDGET = 332_000;
  *  the tile's lines and the headline format the grid's formatter writes -- the notebook widget's note of the same
  *  date). Measured 313,533.
  *  314,000 -> 322,500 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
- *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 321,768. */
-const ENGINE_BUDGET = 322_500;
+ *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 321,768.
+ *  322,500 -> 323,000 (2026-10-24, the D19 audit's third round: the page and its grids held while the converge runs (a
+ *  gesture meanwhile is refused in words), a detach's copy said in the page command, a grid remade by the converge
+ *  restarted; for the user's sign-off, D9). Measured 322,567. */
+const ENGINE_BUDGET = 323_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

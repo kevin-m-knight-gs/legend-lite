@@ -973,7 +973,7 @@ export class PageApp {
    * has them (a grid it makes opens with them), a grid it makes made by its maker -- the one that made it, or `makers`'
    * (another editor's) -- and each grid's lens given it again.
    */
-  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map(), theirs = false): void {
+  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map(), theirs = false, refilter = true): void {
     // its name as the step has it (a renamePage: its editor's, or another's)
     if (to.name !== this.#name) {
       this.#name = to.name;
@@ -987,7 +987,7 @@ export class PageApp {
       this.#page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, (grid, document) => {
         const make = makers.get(grid);
         return this.#remake(grid, document) ?? (make ? this.#maker(make, undefined, false) : undefined);
-      }, (cube) => this.#unopenedWhy(cube), theirs);
+      }, (cube) => this.#unopenedWhy(cube), theirs, refilter);
     } finally {
       this.#syncing = false;
       this.#restoring = undefined;
@@ -1143,8 +1143,10 @@ export class PageApp {
   putBack(page: PageDocument, held: readonly string[]): void {
     if (this.#disposed) return;
     const from = this.#state.draft.page;
-    // the keeper's page: a chart taken off by it is no step of its grid's history (the D19 audit's second round, 6)
-    this.#syncTo(page, from, new Map(), true);
+    // the keeper's page: a chart taken off by it is no step of its grid's history (the D19 audit's second round, 6),
+    // and its selection is not taken off its grid here -- the grid is put back at the keeper's cube by its own commands
+    // (live-converge.ts), and a refilter would start its history again (the third round, 2)
+    this.#syncTo(page, from, new Map(), true, false);
     this.#state.putBack({ page, held });
   }
 

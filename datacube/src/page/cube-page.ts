@@ -556,10 +556,10 @@ export class CubePage {
    * step is said so once it has done.
    */
   sync(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined = () => undefined, theirs = false): void {
+    unopened: (cube: string) => string | undefined = () => undefined, theirs = false, refilter = true): void {
     this.#syncing = true;
     try {
-      this.#synced(to, from, remake, unopened, theirs);
+      this.#synced(to, from, remake, unopened, theirs, refilter);
     } finally {
       this.#syncing = false;
     }
@@ -570,7 +570,7 @@ export class CubePage {
   }
 
   #synced(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined, theirs: boolean): void {
+    unopened: (cube: string) => string | undefined, theirs: boolean, refilter = true): void {
     const wanted = new Map(to.views.map((v) => [v.id, v]));
     const known = new Set(from.views.map((v) => v.id));
     const sheetFor = new Map(to.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
@@ -589,7 +589,7 @@ export class CubePage {
         this.#place(spec);
       }
       // tiles the page held and the step does not: charts first (a grid would take its following ones, or detach them)
-      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs);
+      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs, refilter);
       for (const id of [...this.#grids.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropGrid(id);
       for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
       // what it could not open, back: kept as the step has it, in its place
@@ -1526,12 +1526,12 @@ export class CubePage {
 
   /** A chart off the board: its selection off its grid's filter as the step took it off (`theirs`: another editor's,
    *  followed, not told), a grid kept only for it let go. */
-  #dropChart(id: string, theirs = false): void {
+  #dropChart(id: string, theirs = false, refilter = true): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
     // its selection off its grid as the step that took it off the board took it off the grid's filter (the page's
-    // unselected)
-    if (chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
+    // unselected) -- unless the grid is put back whole by its caller (a converge's put-back: PageApp.putBack)
+    if (refilter && chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
     chart.panel.dispose();
     this.#charts.delete(id);
     this.#take(id);

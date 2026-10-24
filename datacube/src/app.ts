@@ -579,6 +579,8 @@ export class CubeApp {
    * holds that nothing outside cube-state.ts assigns cube state.
    */
   readonly #owner: CubeStateOwner;
+  /** How many converges of its page hold the grid (hold/release). */
+  #held = 0;
   /** What the title bar was last built from (`#paintState`). */
   #chrome = '';
   /** Stops the owner's events reaching this app: see `dispose`. */
@@ -957,6 +959,24 @@ export class CubeApp {
    * told to its host (onCommand). The refusal, in the commands' words or the planner's, or null. What a host or a test
    * edits the grid by: no change reaches its state but by a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, G11).
    */
+  /**
+   * The grid HELD while its page's channel converges on its keeper's page (live-converge.ts, with PageApp.hold): a
+   * person's edit meanwhile is refused, said -- the grid is being put back and replayed -- rather than laid over a state
+   * that is neither the keeper's nor kept and written as the person's (the D19 audit's third round, 1). The converge's
+   * own moves (applyGridCommands) pass. Held and released in pairs.
+   */
+  hold(): void {
+    this.#held += 1;
+  }
+
+  release(): void {
+    this.#held = Math.max(0, this.#held - 1);
+  }
+
+  get held(): boolean {
+    return this.#held > 0;
+  }
+
   edit(commands: readonly GridCommand[], label: string, options: { readonly again?: boolean } = {}): Promise<string | null> {
     // `again`: a pending edit made again after a converge put the grid back (live-converge.ts): told, as any edit, but
     // no new step of the history -- its step is in it already (the D19 audit's second round, 3: recorded twice, an undo
@@ -1010,6 +1030,11 @@ export class CubeApp {
    * nothing. A host is told each command the cube kept (onCommand). The refusal, its words or the planner's, or null.
    */
   async #apply(commands: readonly GridCommand[], label: string, record?: boolean): Promise<string | null> {
+    if (this.#held > 0) {
+      const why = 'the page is catching up with its keeper: a moment';
+      this.#status(why, 'warn');
+      return why;
+    }
     const { refused, outcome } = await this.#applyCommands(commands, label, 'mine', record);
     return refused ?? refusal(outcome);
   }

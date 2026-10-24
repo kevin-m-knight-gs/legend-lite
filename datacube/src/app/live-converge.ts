@@ -32,6 +32,9 @@ import type { Converge, Converged } from './live-channel.ts';
 
 /** A grid on the page, as the converge needs it: its state, and its commands applied as another editor's or its own. */
 export interface ConvergeGrid {
+  /** Held through the converge: a person's edit refused meanwhile (CubeApp.hold). */
+  hold(): void;
+  release(): void;
   /** A change of the grid in flight (its query not answered yet). */
   readonly busy: boolean;
   readonly snapshot: CubeSnapshot;
@@ -53,11 +56,25 @@ export interface ConvergeDeps {
 
 export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Converged> {
   const { page } = deps;
-  // the page held through steps 1-4: a gesture meanwhile does nothing (PageApp.hold; the D19 audit's 5)
+  // the page and its grids held through steps 1-4: a gesture meanwhile does nothing on the page and is refused on a
+  // grid, said (PageApp.hold, CubeApp.hold; the D19 audit's 5 and its third round's 1); a grid made again by a step
+  // is held as it appears
   page.hold();
+  const held = new Set<ConvergeGrid>();
+  const holdGrids = (): void => {
+    for (const id of page.grids) {
+      const grid = deps.grid(id);
+      if (grid !== undefined && !held.has(grid)) {
+        grid.hold();
+        held.add(grid);
+      }
+    }
+  };
+  holdGrids();
   try {
-    return await converging(on, deps);
+    return await converging(on, deps, holdGrids);
   } finally {
+    for (const grid of held) grid.release();
     page.release();
   }
 }
@@ -65,9 +82,12 @@ export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Conv
 /** How long a grid's change in flight is waited for before the page is hashed (the channel's QUIET_AT_MOST). */
 const QUIET_AT_MOST = 10_000;
 
-async function converging(on: Converge, deps: ConvergeDeps): Promise<Converged> {
+async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => void): Promise<Converged> {
   const { page } = deps;
   page.renamedBy(on.renamed);
+  // each grid as it is now: one made again by a step (let go by the put-back, remade by its own maker) is a new grid
+  // whose history starts again, its pending edits then steps of it (the D19 audit's third round, 3)
+  const was = new Map(page.grids.map((id) => [id, deps.grid(id)] as const));
   // the grids whose history starts again (W13), put back at the confirmed cube before the steps: those another editor's
   // steps touch, the refused batch names, a rename touches -- and those whose cube a PAGE step of `since` changes (a
   // chart's removal takes its selection off its grid's filter: page-commands.ts unselected), found by applying the page
@@ -132,6 +152,8 @@ async function converging(on: Converge, deps: ConvergeDeps): Promise<Converged> 
   //    shows them still, so only a restarted grid's are made again)
   await applyLive(on.since, target(false));
   await applyLive(on.edits.filter((e) => !('grid' in e) || whole.has(e.grid)), target(true));
+  holdGrids();
+  const remade = new Set([...own].filter((id) => deps.grid(id) !== undefined && deps.grid(id) !== was.get(id)));
   // 3b. each grid only this screen's edits changed -- on the board still, or made again by step 3 from where it was,
   //     pending edits and all (the D19 audit's second round, 4) -- back at its sent cube, its history kept
   for (const id of own) await putBack(id, true);
@@ -143,7 +165,7 @@ async function converging(on: Converge, deps: ConvergeDeps): Promise<Converged> 
   // 4. the page on screen now
   const now = deps.pageNow();
   if (now === undefined) throw new Error('the page cannot say what it is');
-  return { page: now, restarted: whole };
+  return { page: now, restarted: new Set([...whole, ...remade].filter((id) => touched.has(id))) };
 }
 
 /** A cube document as a grid's draft, over the grid's source (what a run alone adds, the column types, is no part). */

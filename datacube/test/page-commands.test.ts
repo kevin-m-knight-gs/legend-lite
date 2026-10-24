@@ -452,8 +452,11 @@ describe("a cube changed by a page command, its live charts following it (follow
     const document = detached.cubes.find((c) => c.id === 'grid-2')!.cube;
     const snapped = applyPageCommands(draft(detached), [{ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy }]).draft.page;
     assert.deepEqual(snapped.copies?.['grid-2'], copy, 'the kept cube reads the copy');
-    const live = applyPageCommands(draft(snapped), [{ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document }]).draft.page;
-    assert.equal(live.copies?.['grid-2'], undefined, 'without one, its live rows: the copy let go');
+    const same = applyPageCommands(draft(snapped), [{ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document }]).draft.page;
+    assert.deepEqual(same.copies?.['grid-2'], copy, 'the field absent: the copy as it is (a detach saying nothing of it un-snaps nothing)');
+    const live = applyPageCommands(draft(snapped), [{ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: null }]).draft.page;
+    assert.equal(live.copies?.['grid-2'], undefined, 'null: its live rows, the copy let go');
+    assert.deepEqual(readPageCommand({ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: null }), { kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: null });
     assert.throws(() => readPageCommand({ kind: 'detach', chart: 'chart-2', cube: 'grid-2', document, copy: { table: 'x' } }), /copy|takenAt|label|rowCount/);
   });
 
