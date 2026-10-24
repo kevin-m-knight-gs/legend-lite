@@ -219,8 +219,8 @@ Save                         Ctrl+S       Edit ▸   Undo Sort by notional  Ctrl
 Save As…                                  ─────────
 Share…                                    Sort ▸
 Export Page File…                         Filter ▸
-─────────                                 Pivot ▸
-Undo Move tile               Ctrl+Z       Join ▸ (on a page of several grids)
+─────────                                 Join ▸ (always there: greyed, saying why, where nothing joins)
+Undo Move tile               Ctrl+Z       Pivot ▸
 Redo                                      Extended Columns ▸
 ─────────                                 ─────────
 Edit Layout                  ✓            Resize ▸

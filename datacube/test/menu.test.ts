@@ -110,7 +110,7 @@ describe('buildMenu', () => {
     const withSub = top.filter((i) => i.submenu);
     assert.deepEqual(
       withSub.map((i) => i.label),
-      ['Export', 'Email', 'Edit', 'Sort', 'Filter', 'Pivot',
+      ['Export', 'Email', 'Edit', 'Sort', 'Filter', 'Join', 'Pivot',
         'Extended Columns', 'Resize', 'Pin', 'Conditional Formatting', 'Create', 'View'],
     );
     // A submenu parent does nothing itself.
@@ -705,14 +705,18 @@ describe('Create ▸ and Join ▸', () => {
     assert.deepEqual(labels(create?.submenu ?? []), labels(createItems({ source: true, host })), 'the right-click\'s, the same');
   });
 
-  it("Join ▸ is the host's, beside Filter, only when it gives entries", () => {
+  // the user, 2026-10-24: never conditional -- greyed out, or with a way to join inside
+  it("Join ▸ is always beside Filter: the host's entries, or a disabled Join… saying why", () => {
     const join: MenuItem[] = [{ id: 'host.join.with.0', label: 'With customers on desk' }];
-    const top = (ctx: Parameters<typeof buildMenu>[0]) => buildMenu(ctx).flatMap((g) => g.items).map((i) => i.label);
-    const withJoin = top({ snapshot: CUBE, column: 'desk', join });
-    assert.equal(withJoin.indexOf('Join'), withJoin.indexOf('Filter') + 1);
-    assert.equal(buildMenu({ snapshot: CUBE, column: 'desk', join }).flatMap((g) => g.items).find((i) => i.label === 'Join')?.submenu, join);
-    assert.ok(!top({ snapshot: CUBE, column: 'desk' }).includes('Join'));
-    assert.ok(!top({ snapshot: CUBE, column: 'desk', join: [] }).includes('Join'));
+    const joinOf = (ctx: Parameters<typeof buildMenu>[0]) => buildMenu(ctx).flatMap((g) => g.items).find((i) => i.label === 'Join');
+    const top = buildMenu({ snapshot: CUBE, column: 'desk', join }).flatMap((g) => g.items).map((i) => i.label);
+    assert.equal(top.indexOf('Join'), top.indexOf('Filter') + 1);
+    assert.equal(joinOf({ snapshot: CUBE, column: 'desk', join })?.submenu, join);
+    for (const ctx of [{ snapshot: CUBE, column: 'desk' }, { snapshot: CUBE, column: 'desk', join: [] }, { snapshot: CUBE }]) {
+      const off = joinOf(ctx)?.submenu ?? [];
+      assert.deepEqual(off.map((i) => [i.label, i.disabled]), [['Join…', true]], 'nothing to join from here: there, disabled');
+      assert.match(off[0]!.hint ?? '', /on a page/);
+    }
   });
 });
 

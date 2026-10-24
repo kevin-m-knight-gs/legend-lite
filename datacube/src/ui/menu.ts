@@ -151,15 +151,16 @@ export interface MenuContext {
   /** The cube's controls are hidden (the grid alone): the last entry brings them back. */
   readonly controlsHidden?: boolean;
   /**
-   * A grid on a page of sheets: Tile ▸ Move to Sheet's entries (each other sheet, then a new one), or `locked` -- the
+   * A grid on a page of sheets: View ▸ Move to Sheet's entries (each other sheet, then a new one), or `locked` -- the
    * page locked, the entry offered disabled. Absent off such a page.
    */
   readonly sheets?: readonly MenuItem[] | 'locked';
-  /** A grid on a page of its own: Tile ▸ Remove from Page. */
+  /** A grid on a page of its own: View ▸ Remove from Page. */
   readonly canRemove?: boolean;
   /**
    * The host's Join ▸ on the column clicked (the user, 2026-10-23): a quick join to each grid sharing a column, the
-   * other ways, the window. Absent where the grid cannot be joined.
+   * other ways, the window, a data source not on the page yet -- or its Join… disabled, saying why. Absent (a cube
+   * on no page): Join ▸ is still there, its Join… disabled, saying a join is made on a page.
    */
   readonly join?: readonly MenuItem[];
   /** The host's own Create ▸ entries (Class…, Association…, Data Space…), after the grid's. */
@@ -699,8 +700,14 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       ],
     },
     { label: 'Filter', submenu: filterSubmenu(ctx) },
-    // JOIN, beside Filter (the user, 2026-10-23): the host's -- a quick join to each grid sharing a column, the window
-    ctx.join !== undefined && ctx.join.length > 0 ? { label: 'Join', submenu: ctx.join } : null,
+    // JOIN, beside Filter (the user, 2026-10-23): the host's -- a quick join to each grid sharing a column, the window, a
+    // data source -- and always there (the user, 2026-10-24: an entry is disabled, never missing): with nothing to join
+    // from here, Join… disabled, saying why
+    {
+      label: 'Join',
+      submenu: ctx.join !== undefined && ctx.join.length > 0 ? ctx.join
+        : [{ label: 'Join…', disabled: true, hint: 'A join is made on a page: between its grids, or with a data source' }],
+    },
     {
       label: 'Pivot',
       submenu: [
