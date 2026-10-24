@@ -1732,7 +1732,9 @@ export const KPI_TREND_LIMIT = 500;
 /**
  * A KPI's queries: its value -- the measure over every row of the cube's query, its filter applied, no grouping:
  * one row -- and, given a column across, its trend: the measure by that column, its LATEST values first (a long series
- * shows where it is now), one past the most it draws, so a trend cut short is known to be.
+ * shows where it is now), one past the most it draws, so a trend cut short is known to be -- and beside it each
+ * period's change from the one before, the database's (KPI_CHANGE: a lag window along the column across), so the
+ * latest row says how the latest period moved.
  */
 export function kpiQueries(s: CubeSnapshot, spec: ChartSpec): {
   readonly total: ReturnType<typeof chartQuery>;
@@ -1741,10 +1743,22 @@ export function kpiQueries(s: CubeSnapshot, spec: ChartSpec): {
   const { x, split: _split, ...value } = spec;
   const total = chartQuery(s, value);
   if (x === undefined) return { total };
+  const change = kpiChange(spec);
   const trend = chartQuery(s, {
-    ...value, x, mark: 'line', options: { ...spec.options, sort: { by: 'x', direction: 'desc' }, limit: KPI_TREND_LIMIT + 1 },
+    ...value, x, mark: 'line', y: change ? [...value.y, change] : value.y,
+    options: { ...spec.options, sort: { by: 'x', direction: 'desc' }, limit: KPI_TREND_LIMIT + 1 },
   });
   return { total, trend };
+}
+
+/** A KPI's change from the period before: its measure shown as the change along its trend (none for a measure already
+ *  shown as something). */
+export const KPI_CHANGE: ShowAs = { kind: 'percentChange' };
+
+/** The measure a KPI's change is read from, beside its own on its trend (kpiQueries); undefined when it has none. */
+export function kpiChange(spec: ChartSpec): ChartMeasure | undefined {
+  const first = spec.y[0];
+  return first && first.showAs === undefined ? { ...first, showAs: KPI_CHANGE } : undefined;
 }
 
 /** The chart's query and the scope it runs at. */

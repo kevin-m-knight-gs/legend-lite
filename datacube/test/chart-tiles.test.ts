@@ -497,8 +497,8 @@ describe('a KPI tile (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () =
         asked.push([...s.rows]);
         return s.rows.length === 0
           ? { columns: [{ name: 'sum_notional', type: 'Float', values: [1500] }], rowCount: 1, epoch: 1, elapsedMs: 0 }
-          : { columns: [{ name: 'region', type: 'String', values: ['AMER', 'EMEA'] }, { name: 'sum_notional', type: 'Float', values: [600, 900] }],
-            rowCount: 2, epoch: 1, elapsedMs: 0 };
+          : { columns: [{ name: 'region', type: 'String', values: ['AMER', 'EMEA'] }, { name: 'sum_notional', type: 'Float', values: [600, 900] },
+            { name: 'percentChange_sum_notional', type: 'Float', values: [-1 / 3, null] }], rowCount: 2, epoch: 1, elapsedMs: 0 };
       },
       label: (v) => `$${String(v)}`,
       onPick: () => {},
@@ -515,9 +515,22 @@ describe('a KPI tile (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () =
     await import('../src/ui/chart-form.ts');
     await settle();
     assert.equal(host.querySelector('.dc-kpi-value')?.textContent, '$1500');
+    // a stat tile (the user, 2026-10-23: "nicer, more sleek"): its difference coloured and arrowed, then in words; a
+    // meter of how much of the target is reached, the target at its end; its latest period against the one before
     const against = host.querySelector('.dc-kpi-target')!;
-    assert.equal(against.textContent, '▲ 50% above target ($1000)');
-    assert.ok(against.classList.contains('dc-kpi-good'));
+    assert.equal(against.querySelector('.dc-kpi-delta')?.textContent, '▲ 50%');
+    assert.ok(against.querySelector('.dc-kpi-delta')!.classList.contains('dc-kpi-good'));
+    assert.equal(against.querySelector('.dc-kpi-words')?.textContent, 'above target');
+    const meter = host.querySelector('.dc-kpi-meter')!;
+    assert.ok(meter.classList.contains('dc-kpi-good'));
+    assert.equal((meter.querySelector('.dc-kpi-meter-fill') as HTMLElement).style.width, '100%', 'past the target: full');
+    assert.equal(meter.querySelector('.dc-kpi-goal')?.textContent, '$1000');
+    assert.equal(meter.getAttribute('aria-label'), '100% of the target, $1000');
+    // answered latest first: AMER (600) the latest, EMEA (900) before it -- down, where higher is better
+    const change = host.querySelector('.dc-kpi-change')!;
+    assert.equal(change.querySelector('.dc-kpi-delta')?.textContent, '▼ 33%');
+    assert.ok(change.querySelector('.dc-kpi-delta')!.classList.contains('dc-kpi-bad'));
+    assert.equal(change.querySelector('.dc-kpi-words')?.textContent, '$AMER vs $EMEA');
     assert.ok(host.querySelector('.dc-kpi-trend canvas, .dc-kpi-trend div'), 'its trend drawn under it');
     assert.deepEqual(asked, [[], ['region']]);
     assert.match(host.querySelector('.dc-chartpanel-chart')!.getAttribute('aria-label') ?? '', /^KPI: sum of notional is \$1500/);

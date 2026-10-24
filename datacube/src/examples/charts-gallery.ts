@@ -1,7 +1,8 @@
 // THE CHART GALLERY (the user, 2026-10-23: "add all the new chart types to our chart demo ... one gallery is great and
 // turn on fit to page so users don't need to scroll"): one chart of each kind DataCube draws (chart-spec.ts
-// CHART_MARKS), titled by its kind, over the sales sample -- a sheet per family, each fitting its window. Built as the
-// other example pages are (charts-dashboard.ts salesPage); test/examples.test.ts holds it to every kind, each drawable.
+// CHART_MARKS), titled by its kind, over the sales sample -- a sheet per family, each fitting its window -- and a last
+// sheet laid out as a BI dashboard, a strip of KPIs on top (KPI_DASHBOARD). Built as the other example pages are
+// (charts-dashboard.ts salesPage); test/examples.test.ts holds it to every kind, each drawable.
 
 import { boxMeasures, MAP_LIMIT, type ChartMark } from '../chart-spec.ts';
 import type { PageDocument } from '../page-document.ts';
@@ -14,6 +15,48 @@ const TARGET = { column: 'target', fn: 'sum' } as const;
 /** A kind's chart, its id and title naming it: `g-<kind>`, "<Kind>: <what it shows>". */
 const of = (mark: ChartMark, label: string, says: string, spec: Parameters<typeof chart>[2] = {}) =>
   chart(`g-${mark}`, `${label}: ${says}`, { mark, ...spec });
+
+type Spec = Parameters<typeof chart>[2];
+
+/** A KPI of the strip: by month, so it has a trend and its latest month against the one before. */
+const kpi = (id: string, title: string, y: NonNullable<Spec['y']>, options: Spec['options'] = {}) =>
+  chart(id, title, { mark: 'kpi', x: 'sold', grain: 'month', y, options });
+
+/**
+ * THE KPI DASHBOARD (the user, 2026-10-23: "a really nice layout of maybe 5-6-7-8 KPIs on top and then some layout of
+ * other things that people usually have on a BI KPI dashboard"): a strip of eight KPIs -- each against its target where
+ * it has one (a cost and a discount better lower), its latest month against the one before, its trend -- then the
+ * trend against the target with the channel mix and the target's gauge beside it, then the top products, the regions
+ * by channel and the map. The gallery's KPI and gauge are among them.
+ */
+const KPI_DASHBOARD: ExampleSheet = {
+  name: 'KPI dashboard',
+  views: [
+    kpi('g-kpi', 'Revenue', [REVENUE], { target: 40_000_000 }),
+    kpi('k-profit', 'Profit', [PROFIT], { target: 12_000_000 }),
+    kpi('k-margin', 'Margin', [{ column: 'margin', fn: 'value' }], { target: 0.35 }),
+    kpi('k-orders', 'Orders', [{ column: 'order_id', fn: 'count' }]),
+    kpi('k-units', 'Units sold', [UNITS]),
+    kpi('k-order', 'Average order', [{ column: 'revenue', fn: 'average' }]),
+    kpi('k-cost', 'Cost against budget', [COST], { target: 24_000_000, better: 'lower' }),
+    kpi('k-discount', 'Average discount', [{ column: 'discount', fn: 'average' }], { target: 0.08, better: 'lower' }),
+    chart('k-trend', 'Revenue against target, by month', {
+      x: 'sold', grain: 'month', y: [REVENUE, { ...TARGET, mark: 'line' }], options: { ...BY_TIME, legend: 'top' },
+    }),
+    chart('k-channel', 'Revenue by channel', { mark: 'pie', x: 'channel', options: { legend: 'bottom' } }),
+    chart('g-gauge', 'Revenue against target', { mark: 'gauge', options: { target: 40_000_000, ring: true } }),
+    chart('k-products', 'Top products by revenue', {
+      x: 'product', options: { orientation: 'horizontal', sort: { by: 'y', direction: 'desc' }, limit: 10, labels: true },
+    }),
+    chart('k-regions', 'Revenue by region and channel', { x: 'region', split: 'channel', options: { stack: 'stacked', legend: 'top' } }),
+    chart('k-map', 'Revenue by country', { mark: 'map', x: 'country_code', options: { limit: MAP_LIMIT } }),
+  ],
+  bands: [
+    { height: 0.24, tiles: ['g-kpi', 'k-profit', 'k-margin', 'k-orders', 'k-units', 'k-order', 'k-cost', 'k-discount'].map((id) => [id, 1 / 8] as const) },
+    { height: 0.4, tiles: [['k-trend', 0.5], ['k-channel', 0.25], ['g-gauge', 0.25]] },
+    { height: 0.36, tiles: [['k-products', 1 / 3], ['k-regions', 1 / 3], ['k-map', 1 / 3]] },
+  ],
+};
 
 export const GALLERY_SHEETS: readonly ExampleSheet[] = [
   {
@@ -80,14 +123,13 @@ export const GALLERY_SHEETS: readonly ExampleSheet[] = [
     ],
   },
   {
-    name: 'Maps and one value',
+    name: 'Maps',
     views: [
       of('map', 'Map', 'revenue by country', { x: 'country_code', options: { limit: MAP_LIMIT } }),
       of('bubblemap', 'Bubble map', 'revenue by city, at each city', { x: 'city', at: { lat: 'lat', lon: 'lon' }, options: { limit: MAP_LIMIT } }),
-      of('kpi', 'KPI', 'revenue against its target, and its trend by month', { x: 'sold', grain: 'month', options: { target: 40_000_000 } }),
-      of('gauge', 'Gauge', 'revenue against its target', { options: { target: 40_000_000 } }),
     ],
   },
+  KPI_DASHBOARD,
 ];
 
 /** The page: a sheet per family, each of its kinds once, three to a row, every sheet fitting its window. */

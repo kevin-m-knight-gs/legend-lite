@@ -46,15 +46,45 @@ describe('the example pages', () => {
   it('the gallery: every kind DataCube draws once, titled by its kind, first in the Open window, each sheet fitting its window', async () => {
     const page = await chartsGalleryPage();
     const charts = page.views.filter((v) => v.kind === 'chart');
-    assert.deepEqual(charts.map((v) => (v.kind === 'chart' ? v.spec.mark : '')).sort(), CHART_MARKS.map((m) => m.value).sort(),
+    // a kind's own chart is `g-<kind>`: each kind once (the dashboard's KPI and gauge among them)
+    const own = charts.filter((v) => v.id.startsWith('g-'));
+    assert.deepEqual(own.map((v) => (v.kind === 'chart' ? v.spec.mark : '')).sort(), CHART_MARKS.map((m) => m.value).sort(),
       'each kind once');
-    for (const v of charts) {
-      if (v.kind !== 'chart') continue;
+    const dashboard = page.sheets.find((s) => s.name === 'KPI dashboard');
+    assert.ok(dashboard, 'a KPI dashboard sheet');
+    const onDashboard = new Set(tiles(dashboard.layout));
+    for (const v of own) {
+      if (v.kind !== 'chart' || onDashboard.has(v.id)) continue;
       const label = CHART_MARKS.find((m) => m.value === v.spec.mark)!.label;
       assert.ok(v.title.startsWith(`${label}: `), `${v.title}: titled by its kind`);
     }
     assert.equal(EXAMPLE_PAGES[0]!.id, 'charts-gallery');
     assert.deepEqual(page.sheets.map((s) => s.layout.kind === 'bands' && s.layout.fit), page.sheets.map(() => true), 'every sheet fits its window');
+  });
+
+  // the user, 2026-10-23: "a really nice layout of maybe 5-6-7-8 KPIs on top and then some layout of other things that
+  // people usually have on a BI KPI dashboard"
+  it('the gallery\'s KPI dashboard: a strip of eight KPIs across the top, each by month; the trend, the mix and the rest under it', async () => {
+    const page = await chartsGalleryPage();
+    const dashboard = page.sheets.find((s) => s.name === 'KPI dashboard')!;
+    assert.ok(dashboard.layout.kind === 'bands');
+    const [strip, ...rest] = dashboard.layout.bands;
+    const view = (id: string) => page.views.find((v) => v.id === id);
+    const top = tiles({ fit: true, bands: [strip!] });
+    assert.equal(top.length, 8, 'eight KPIs across');
+    for (const id of top) {
+      const v = view(id);
+      assert.ok(v?.kind === 'chart' && v.spec.mark === 'kpi' && v.spec.grain === 'month', `${id}: a KPI by month`);
+    }
+    // some against a target, one of them better lower; the bands under it charts of other kinds
+    const specs = top.map((id) => view(id)).flatMap((v) => (v?.kind === 'chart' ? [v.spec] : []));
+    assert.ok(specs.filter((s) => s.options.target !== undefined).length >= 4);
+    assert.ok(specs.some((s) => s.options.better === 'lower'));
+    const under = tiles({ fit: true, bands: rest });
+    assert.ok(under.length >= 5 && under.every((id) => { const v = view(id); return v?.kind === 'chart' && v.spec.mark !== 'kpi'; }));
+    const heights = dashboard.layout.bands.map((b) => b.height);
+    assert.ok(Math.abs(heights.reduce((a, b) => a + b, 0) - 1) < 1e-9, 'the bands fill the sheet');
+    assert.ok(heights[0]! < heights[1]!, 'the strip the shortest band');
   });
 
   it('the sample\'s columns are the page\'s, in order', () => {

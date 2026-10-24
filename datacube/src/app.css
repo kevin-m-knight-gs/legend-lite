@@ -204,30 +204,58 @@
 .dc-page-bar.dc-collapsed .dc-page-alone { overflow: hidden; }
 .dc-page-bar.dc-collapsed .dc-page-alone .dc-tile-cube > :not(.dc-titlebar-zones) { visibility: hidden; }
 
-/* A KPI (ui/chart-panel.ts): its number, large; against its target, good or not; its trend's line under them */
+/* A KPI (ui/chart-panel.ts) as a stat tile (the user, 2026-10-23: "nicer, more sleek"): its headline, large; against
+   its target, said and metered; its latest period against the one before; its trend's line along the foot. Sized by
+   its own tile (a container): a row of eight is as legible as one alone, and a short tile sheds its lesser lines. */
 .dc-chartpanel-chart.dc-chartpanel-kpi { display: flex; }
 .dc-kpi {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: var(--dc-pad-1);
-  padding: var(--dc-pad-2);
+  gap: 6px;
+  padding: 10px 14px 6px;
   min-width: 0;
+  container-type: size;
+  color: var(--dc-chart-ink);
 }
 .dc-kpi-value {
-  font-size: clamp(20px, 6vmin, 44px);
-  line-height: 1.1;
+  /* a headline: proportional figures, tight, the tile's width deciding its size */
+  font-size: clamp(20px, 16cqi, 46px);
+  line-height: 1.05;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dc-kpi-target { font-size: var(--dc-text-sm-size); }
+.dc-kpi-target,
+.dc-kpi-change {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.dc-kpi-delta { flex: none; font-weight: 600; }
+.dc-kpi-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--dc-chart-ink-secondary); }
 .dc-kpi-good { color: var(--dc-kpi-good); }
 .dc-kpi-bad { color: var(--dc-kpi-bad); }
-.dc-kpi-trend { flex: 1 1 40px; min-height: 40px; max-height: 120px; }
+/* how much of the target is reached: the fill in good or bad, its track a light step of the same, the target at its end */
+.dc-kpi-meter { flex: none; display: flex; align-items: center; gap: 6px; max-width: 360px; }
+.dc-kpi-meter-track {
+  flex: 1 1 auto;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  overflow: hidden;
+}
+.dc-kpi-meter-fill { height: 100%; border-radius: 2px; background: currentColor; }
+.dc-kpi-goal { flex: none; font-size: 11px; color: var(--dc-chart-muted); }
+.dc-kpi-trend { flex: 1 1 32px; min-height: 28px; max-height: 60cqh; margin: auto -8px 0; }
+@container (max-height: 140px) { .dc-kpi-change { display: none; } }
+@container (max-height: 104px) { .dc-kpi-trend, .dc-kpi-meter { display: none; } }
 
 /* -- the title bar ------------------------------------------------- */
 
@@ -2764,6 +2792,13 @@
 }
 
 .dc-tile-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A NARROW TILE'S TITLE FIRST (the user, 2026-10-23: a strip of eight KPIs read "Re...", "Pr..."): under 260px its
+   pill and buttons wait for a hover or the keyboard, and its title has the header. */
+.dc-tile-head { container: dc-tile-head / inline-size; }
+@container dc-tile-head (max-width: 260px) {
+  .dc-tile:not(:hover):not(:focus-within) .dc-tile-actions { display: none; }
+}
 
 .dc-tile-rename {
   flex: 1 1 auto;
