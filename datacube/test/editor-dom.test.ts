@@ -589,4 +589,67 @@ describe('the editor', () => {
       assert.deepEqual(asked, []);
     });
   });
+  // the user, 2026-10-24: Count left the right-click menu for Column Properties, beside the column's Aggregation
+  describe("Column Properties' Count: the draft applied, the editor closed, then the count column", () => {
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    let asked: string[];
+    const withCount = (onApply: () => boolean, snapshot: CubeSnapshot = CUBE): void => {
+      asked = [];
+      root.replaceChildren();
+      editor = new CubeEditor(root, draftFor(snapshot), {
+        onApply: (d) => { applied.push(d); return onApply(); },
+        onClose: () => (closed += 1),
+        onCount: (column, what) => asked.push(`${what} of ${column}`),
+      });
+      go('Column Properties');
+    };
+    const counts = (): string[] =>
+      [...(fieldWithLabel('Count in a new column:')?.querySelectorAll('button') ?? [])].map((b) => b.textContent ?? '');
+    const countButton = (label: string): HTMLButtonElement =>
+      [...fieldWithLabel('Count in a new column:').querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === label)!;
+
+    it("offered with the app's action, on a column of the grid's rows -- a calculated row column's too", () => {
+      go('Column Properties');
+      chooseColumn(root, 'desk');
+      assert.deepEqual(counts(), [], 'no action, no Count');
+      withCount(() => true);
+      chooseColumn(root, 'desk');
+      assert.deepEqual(counts(), ['Values', 'Distinct values', 'Blanks']);
+      assert.match(countButton('Distinct values').title, /different values/);
+      chooseColumn(root, 'margin');
+      assert.equal(counts().length, 3);
+    });
+
+    it('not on a group-level column: it exists only after grouping', () => {
+      withCount(() => true, {
+        ...CUBE,
+        groupDerived: [{ name: 'share', lambda: stand('$x.notional / 2'), type: 'Float', kind: 'measure' }],
+      });
+      chooseColumn(root, 'share');
+      assert.deepEqual(counts(), []);
+    });
+
+    it('each: the draft applied (a change made in it too), closed, then that count of the column', async () => {
+      withCount(() => true);
+      chooseColumn(root, 'desk');
+      const name = fieldWithLabel('Display Name:').querySelector('input') as HTMLInputElement;
+      name.value = 'Desk';
+      name.dispatchEvent(new dom.window.Event('input'));
+      name.dispatchEvent(new dom.window.Event('change'));
+      countButton('Distinct values').click();
+      await tick();
+      assert.equal(columnConfig(applied.at(-1)!.config, 'desk').displayName, 'Desk', 'the draft applied first');
+      assert.equal(closed, 1);
+      assert.deepEqual(asked, ['distinct of desk']);
+    });
+
+    it('a draft the cube refuses counts nothing, and stays open', async () => {
+      withCount(() => false);
+      chooseColumn(root, 'desk');
+      countButton('Blanks').click();
+      await tick();
+      assert.equal(closed, 0);
+      assert.deepEqual(asked, []);
+    });
+  });
 });

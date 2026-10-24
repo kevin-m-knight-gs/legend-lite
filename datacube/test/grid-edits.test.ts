@@ -425,9 +425,9 @@ describe('a measure as the screen\'s model (Python\'s grid.measure, a saved meas
       /'count' is not offered on region, a String column: min, max, joinStrings, unique, maxBy, minBy \(Show leaf count/);
     refused(() => measureAsColumn(draft(), { name: 'n', column: 'notional', fn: 'sum', weight: 'qty' }),
       /only an aggregate of two columns \(.*\) takes a second column/);
-    // a distinct count of text is a number: a column of its own (Count ▸), never the text column's Aggregation
+    // a distinct count of text is a number: a column of its own (Column Properties' Count), never the text column's Aggregation
     refused(() => measureAsColumn(draft(), { name: 'n', column: 'desk', fn: 'distinctCount' }),
-      /'distinctCount' is not offered on desk, a String column: .* \(Count ▸ Distinct Values counts desk's values in a number column of its own\)/);
+      /'distinctCount' is not offered on desk, a String column: .* \(Column Properties' Count ▸ Distinct values counts desk's values in a number column of its own\)/);
   });
 
   it('makes a list in order, a column taken once, and leaves out what it cannot hold, saying why', () => {

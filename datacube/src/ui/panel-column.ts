@@ -38,6 +38,7 @@ import {
   type ColumnKind,
 } from '../snapshot.ts';
 import { allColumns, columnKind, offeredAggregates, setColumn } from '../grid-edits.ts';
+import type { CountWhat } from '../grid-gestures.ts';
 import { defaultKind, isNumeric } from '../../../engine-client/src/types.ts';
 import type { CellAppearance, ColourSet } from '../style.ts';
 import {
@@ -322,6 +323,10 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
         },
       ),
     ),
+    // COUNT, in a number column of its own (grid-gestures.ts column.count; the user, 2026-10-24: off the right-click
+    // menu, beside the Aggregation): per group, Excel's COUNTA, a distinct count and COUNTBLANK of this column -- the
+    // draft applied first; a column of the grid's rows only (a group-level one exists only after grouping)
+    ...(ctx.count !== undefined && rowColumns(draft.snapshot).some((x) => x.name === name) ? [countField(doc, ctx.count, name)] : []),
     field(
       doc,
       '',
@@ -852,6 +857,25 @@ function fieldColour(
   input.addEventListener('change', () => onChange(input.value));
   wrap.append(l, input);
   return wrap;
+}
+
+/** Count's three, each with what it counts: a text or date column's distinct count is a number only this way (its own
+ *  Aggregation keeps its family). */
+const COUNTS: readonly (readonly [CountWhat, string, string])[] = [
+  ['values', 'Values', 'rows with a value in this column'],
+  ['distinct', 'Distinct values', 'different values of this column (customers per region, say)'],
+  ['blanks', 'Blanks', 'rows with no value in this column'],
+];
+
+/** Count's buttons on column `name`: each applies the draft, closes, and adds the number column. */
+function countField(doc: Document, count: (column: string, what: CountWhat) => void, name: string): HTMLElement {
+  return field(
+    doc,
+    'Count in a new column:',
+    ...COUNTS.map(([what, label, counts]) => button(doc, label, () => count(name, what), {
+      title: `Apply, close, and add a number column counting, per group, the ${counts}`,
+    })),
+  );
 }
 
 function note(doc: Document, text: string): HTMLElement {

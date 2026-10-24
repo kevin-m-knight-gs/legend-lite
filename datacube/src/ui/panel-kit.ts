@@ -6,6 +6,7 @@
 // in one module makes the import graph depend on evaluation order.
 
 import type { Dimension } from '../dimensions.ts';
+import type { CountWhat } from '../grid-gestures.ts';
 import type { CubeConfiguration } from '../config.ts';
 import { SORT_DIRECTIONS, type CubeSnapshot, type SortDirection } from '../snapshot.ts';
 import { ColumnsSelector, type SelectorColumn } from './columns-selector.ts';
@@ -46,6 +47,8 @@ export interface PanelContext {
   /** The Dimensions tab's actions, the draft applied first (EditorOptions.onUseDimension, onAdHoc); absent, not offered. */
   readonly useDimension?: (name: string) => void;
   readonly adHoc?: () => void;
+  /** Column Properties' Count, the draft applied first (EditorOptions.onCount); absent, not offered. */
+  readonly count?: (column: string, what: CountWhat) => void;
 }
 
 export type PanelBuilder = (ctx: PanelContext) => HTMLElement;

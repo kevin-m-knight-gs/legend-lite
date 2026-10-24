@@ -401,7 +401,7 @@ export function measurePlan(draft: GridDraft, m: Measure, taken: ReadonlySet<str
   if (column.type !== undefined && !offeredAggregates(column.type).includes(m.fn)) {
     throw new CubeRefusal(`'${m.fn}' is not offered on ${m.column}, a ${column.type} column: `
       + `${offeredAggregates(column.type).join(', ') || 'none'}${m.fn === 'count' ? " (Show leaf count counts a group's rows)"
-        : m.fn === 'distinctCount' ? ` (Count ▸ Distinct Values counts ${m.column}'s values in a number column of its own)` : ''}`);
+        : m.fn === 'distinctCount' ? ` (Column Properties' Count ▸ Distinct values counts ${m.column}'s values in a number column of its own)` : ''}`);
   }
   const isKey = draft.snapshot.rows.includes(m.column) || draft.snapshot.pivotOn.includes(m.column);
   if (m.name === m.column && !isKey && !taken.has(m.column)) return { change };

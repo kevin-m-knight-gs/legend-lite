@@ -99,7 +99,7 @@ export type GridGestureArgs = {
   readonly 'column.count': Column & { readonly what: CountWhat; readonly name?: string };
 };
 
-/** What Count ▸ counts of a column: the rows with a value, the different values, the rows with none. */
+/** What Column Properties' Count counts of a column: the rows with a value, the different values, the rows with none. */
 export type CountWhat = 'values' | 'distinct' | 'blanks';
 const COUNT_WHAT: Readonly<Record<CountWhat, string>> = { values: 'count', distinct: 'distinct', blanks: 'blanks' };
 
@@ -466,7 +466,8 @@ const GESTURES = {
     }],
   },
   'calc.delete': { args: ['column'], make: (_g, a) => [{ kind: 'removeCalculated', name: columnOf(a) }] },
-  // Count ▸ (Excel's Count, Distinct Count and COUNTBLANK; Power BI's Count (Distinct)): a number column of its own
+  // Column Properties' Count (Excel's COUNTA, Distinct Count and COUNTBLANK; Power BI's Count (Distinct)): a number
+  // column of its own
   'column.count': { args: ['column', 'what', 'name?'], make: countColumn },
 } satisfies { readonly [N in keyof GridGestureArgs]: Gesture };
 

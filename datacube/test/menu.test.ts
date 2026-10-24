@@ -786,11 +786,10 @@ describe('Group Values: a column of its values gathered by hand into groups (sna
     assert.ok(!groups.some((i) => i.id === 'calc.groupValues' || i.id === 'calc.edit'));
   });
 
-  it("Count ▸ on a column of the grid's rows: its values, its distinct values, its blanks, each the count gesture", () => {
-    const count = extended({ snapshot: CUBE, column: 'desk', groupable: true }).find((i) => i.label === 'Count desk');
-    assert.deepEqual(count?.submenu?.map((i) => [i.label, i.id, i.what]),
-      [['Values', 'column.count', 'values'], ['Distinct Values', 'column.count', 'distinct'], ['Blanks', 'column.count', 'blanks']]);
-    assert.deepEqual(menuGesture(count!.submenu![1]!), { name: 'column.count', args: { column: 'desk', what: 'distinct' } });
-    assert.ok(!extended({ snapshot: CUBE, column: 'desk' }).some((i) => i.label === 'Count desk'), 'no row column, no count');
+  it("Count is Column Properties', not the menu's (the user, 2026-10-24: the menu was too long)", () => {
+    const all = (items: readonly MenuItem[]): MenuItem[] => items.flatMap((i) => [i, ...all(i.submenu ?? [])]);
+    const items = all(menuItems(buildMenu({ snapshot: CUBE, column: 'desk', groupable: true, calcStage: 'row' })));
+    assert.ok(items.length > 0);
+    assert.ok(!items.some((i) => /^Count\b/.test(i.label)), items.map((i) => i.label).join(', '));
   });
 });

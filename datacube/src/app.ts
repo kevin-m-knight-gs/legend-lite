@@ -3543,6 +3543,8 @@ export class CubeApp {
           // the Dimensions tab's own: once the draft is applied, the rows grouped by a dimension, or Ad Hoc Analysis
           onUseDimension: (name) => this.#useDimension(name),
           onAdHoc: () => void this.enterAdHoc(),
+          // Column Properties' Count: once the draft is applied, a number column counting the column
+          onCount: (name, what) => void this.#gesture('column.count', { column: name, what }, `count ${name}`),
           ...(column !== undefined ? { initialColumn: column } : {}),
         },
       );

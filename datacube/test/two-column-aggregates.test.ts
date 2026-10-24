@@ -1,6 +1,6 @@
 // AGGREGATES OF TWO COLUMNS AND THE COUNTS, planned and run (snapshot.ts SECOND_COLUMN; grid-gestures.ts column.count):
 // a correlation, the covariances, max by and min by -- Column Properties' Aggregation with its second column -- and
-// Count ▸'s columns, a distinct count of a text column among them, each group's figure as DuckDB answers the query
+// Count's columns (Column Properties'), a distinct count of a text column among them, each group's figure as DuckDB answers the query
 // the grid sends, its grand total too.
 
 import assert from 'node:assert/strict';
@@ -104,7 +104,7 @@ describe('aggregates of two columns, planned and run', () => {
   });
 });
 
-describe("Count ▸'s columns: a column's values, its different values and its blanks counted, planned and run", () => {
+describe("Count's columns: a column's values, its different values and its blanks counted, planned and run", () => {
   it("each desk's customers: rows with one, different ones, rows with none -- a text column's, in number columns", async () => {
     const grid = { snapshot: START, config: DEFAULT_CONFIGURATION, dimensions: [], view: null };
     const commands = (['values', 'distinct', 'blanks'] as const).flatMap((what) => gridGesture('column.count', grid, { column: 'customer', what }));

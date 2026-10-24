@@ -270,7 +270,7 @@ export interface SecondColumn {
  * THE AGGREGATES OF TWO COLUMNS, one entry each: the second column each reads, and how. A weighted average (DAX's
  * SUMX/SUM, inexpressible in a spreadsheet pivot), a correlation or covariance, the value at a maximum or minimum
  * (DAX's TOPN(1, ...), Excel's XLOOKUP(MAX(...))), and a distinct count of another column (its own when it names none:
- * the header menu's Count Distinct Values counts a text column's values in a number column of its own). Every one is
+ * Column Properties' Count Distinct values counts a text column's values in a number column of its own). Every one is
  * legend-lite's own native (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md: a two-column measure is a DataCube UI gap,
  * not a compiler gap).
  */

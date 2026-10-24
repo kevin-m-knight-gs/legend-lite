@@ -302,8 +302,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  labels -- the Properties' second column named by its role, and Count's gesture and menu). Measured 344,036.
  *  344,500 -> 346,000 (2026-10-24, P4's text tiles: a text view read, written and merged (page-document, page-commands,
  *  page-rebase), the board's tile placed, synced and exported, Create ▸ Text Box, its styles -- the words' reader, drawing
- *  and editor a chunk of their own, fetched with the first text tile drawn (page-text.ts)). Measured 345,834. */
-const BUDGET = 346_000;
+ *  and editor a chunk of their own, fetched with the first text tile drawn (page-text.ts)). Measured 345,834.
+ *  346,000 -> 347,000 (2026-10-24, the user on an iPad: a long press's menu opened its first submenu by itself, and
+ *  columns could not be dragged or resized -- a long press's menu says so to the stylesheet until the next touch, waits
+ *  on what the browser drags for the finger to lift, and is never a resize grip's (ui/long-press.ts); Count moved from the
+ *  right-click menu to Column Properties' buttons). Measured 346,360. */
+const BUDGET = 347_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -403,8 +407,10 @@ const BUDGET = 346_000;
  *  333,000 -> 334,500 (2026-10-24, P3's groups of values -- the grid's note of the same date). Measured 333,810.
  *  334,500 -> 335,500 (2026-10-24, P2's aggregates of two columns and Count -- the grid's note of the same date).
  *  Measured 334,962.
- *  335,500 -> 337,000 (2026-10-24, P4's text tiles -- the grid's note of the same date). Measured 336,754. */
-const ENGINE_BUDGET = 337_000;
+ *  335,500 -> 337,000 (2026-10-24, P4's text tiles -- the grid's note of the same date). Measured 336,754.
+ *  337,000 -> 338,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
+ *  date). Measured 337,265. */
+const ENGINE_BUDGET = 338_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -555,8 +561,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  352,000 -> 353,500 (2026-10-24, P3's groups of values -- the grid's note of the same date). Measured 352,770.
  *  353,500 -> 354,500 (2026-10-24, P2's aggregates of two columns and Count -- the grid's note of the same date).
  *  Measured 353,929.
- *  354,500 -> 356,000 (2026-10-24, P4's text tiles -- the grid's note of the same date). Measured 355,922. */
-const WIDGET_BUDGET = 356_000;
+ *  354,500 -> 356,000 (2026-10-24, P4's text tiles -- the grid's note of the same date). Measured 355,922.
+ *  356,000 -> 357,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
+ *  date). Measured 356,493. */
+const WIDGET_BUDGET = 357_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -287,7 +287,7 @@ describe("an Excel number format code on a column (format-code.ts)", () => {
   });
 });
 
-describe("Count ▸: a number column counting a column's values (grid-gestures.ts column.count)", () => {
+describe("Count: a number column counting a column's values (grid-gestures.ts column.count)", () => {
   const isEmpty = (blank: 0 | 1) => ({
     _type: 'lambda', parameters: [{ _type: 'var', name: 'x' }],
     body: [{ _type: 'func', function: 'if', parameters: [
