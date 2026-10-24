@@ -343,18 +343,38 @@ export interface ChildAggregate {
   readonly of: string;
 }
 
+/** Where a figure at a grain is taken (Grain): its parent group's level, or the grand total's. */
+export type GrainAt = 'parent' | 'all';
+
+/** Every grain, as a command read from JSON may name it. */
+export const GRAIN_ATS = ['parent', 'all'] as const satisfies readonly GrainAt[];
+
+/**
+ * A MEASURE AT A COARSER GRAIN (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md §3: grain in place of DAX's CALCULATE): on
+ * each group row, the measure `of` as its parent group has it (`parent`; a top group's parent is the grand total) or
+ * as the grand total has it (`all`) -- the same aggregate over the coarser group's rows, so an average's is the
+ * parent's average, never an average of averages, and a share of it is exact at every depth. The database computes it,
+ * in the level's own query (query.ts levelRelation); a grouped grid's, not a pivot's.
+ */
+export interface Grain {
+  readonly of: string;
+  readonly at: GrainAt;
+}
+
 export interface DerivedColumn {
   readonly name: string;
   /**
    * The column as a function of the row, `x|$x.a * 2`, as protocol: the
    * compiler's parse of what the person typed (upstream's `mapFn`). Absent
-   * for a window or child-aggregate column.
+   * for a window, child-aggregate or grain column.
    */
   readonly lambda?: Lambda;
   /** A window column instead of an expression: see `WindowSpec`. */
   readonly window?: WindowSpec;
   /** An aggregate of the child groups instead: see `ChildAggregate`. */
   readonly childAggregate?: ChildAggregate;
+  /** A measure at its parent's or the grand total's grain instead: see `Grain`. */
+  readonly grain?: Grain;
   /**
    * EXPLODE: `lambda` yields a collection, and each row is repeated once per element, the
    * element being this column (`lateral(x|<collection>->flatten(~name))`, upstream Pure's
@@ -848,6 +868,7 @@ export function totalOrderSorts(
  */
 function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedColumn {
   if (d.childAggregate) return { ...d, childAggregate: { ...d.childAggregate, of: one(d.childAggregate.of) } };
+  if (d.grain) return { ...d, grain: { ...d.grain, of: one(d.grain.of) } };
   const w = d.window;
   if (!w) return d;
   return {

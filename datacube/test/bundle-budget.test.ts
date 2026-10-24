@@ -274,8 +274,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  are). Measured 325,228.
  *  325,500 -> 329,000 (2026-10-24, the program's P2: the Filter Values window -- a column's values with their counts, a
  *  search, (Select All) -- the date ranges relative to today, Top and Bottom N, and the menu entries that offer them).
- *  Measured 328,453. */
-const BUDGET = 329_000;
+ *  Measured 328,453.
+ *  329,000 -> 330,000 (2026-10-24, P2's Show As as Excel's Show Values As: a measure at its parent's or the grand
+ *  total's grain, the column editor's Parent or Grand Total, % of parent row, % running total, rank from the smallest).
+ *  Measured 329,704. */
+const BUDGET = 330_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -366,8 +369,9 @@ const BUDGET = 329_000;
  *  date). Measured 313,533.
  *  314,000 -> 315,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
  *  315,361.
- *  315,500 -> 319,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 318,756. */
-const ENGINE_BUDGET = 319_000;
+ *  315,500 -> 319,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 318,756.
+ *  319,000 -> 320,500 (2026-10-24, P2's Show As -- the grid's note of the same date). Measured 320,130. */
+const ENGINE_BUDGET = 320_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -509,8 +513,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  Measured 332,006.
  *  332,500 -> 334,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
  *  334,149.
- *  334,500 -> 338,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 337,670. */
-const WIDGET_BUDGET = 338_000;
+ *  334,500 -> 338,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 337,670.
+ *  338,000 -> 339,500 (2026-10-24, P2's Show As -- the grid's note of the same date). Measured 339,031. */
+const WIDGET_BUDGET = 339_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

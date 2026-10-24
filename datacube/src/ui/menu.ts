@@ -39,8 +39,8 @@ import type {
   SortDirection,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
-import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
-import { SHOW_AS_KINDS, TIME_GRAINS, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
+import { GRAIN_LABELS, GRID_SHOW_AS_KINDS, GRID_SHOW_AS_LABELS, type GridShowAsKind } from '../calc-presets.ts';
+import { TIME_GRAINS, type TimeGrain } from '../chart-spec.ts';
 import { DATE_RANGES, DATE_RANGE_LABELS, type DateRange } from '../date-ranges.ts';
 import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
 import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, relativeDateWords, rowColumns } from '../snapshot.ts';
@@ -343,7 +343,7 @@ export interface MenuItem {
   /** A preset's choice: the period a date is taken to (`calc.grain`). */
   readonly grain?: TimeGrain;
   /** A preset's choice: what a measure is shown as (`calc.showAs`). */
-  readonly showAs?: ShowAsKind;
+  readonly showAs?: GridShowAsKind;
   /** A date range relative to today (Filter ▸ Date Range ▸, date-ranges.ts). */
   readonly range?: DateRange;
   /** A top N's N, and whether it is the bottom's (Filter ▸ Top 10). */
@@ -483,8 +483,8 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
   }
   if (ctx.extendable && isNumeric(type)) out.push({ id: 'calc.bins', label: `Bins of ${named}...`, column });
   if (ctx.isMeasure && ctx.pivotBase === undefined && s.rows.length > 0 && s.pivotOn.length === 0) {
-    out.push({ label: `Show ${named} As`, submenu: SHOW_AS_KINDS.map((k) => ({
-      id: 'calc.showAs' as const, label: SHOW_AS_LABELS[k], column, showAs: k,
+    out.push({ label: `Show ${named} As`, submenu: GRID_SHOW_AS_KINDS.map((k) => ({
+      id: 'calc.showAs' as const, label: GRID_SHOW_AS_LABELS[k], column, showAs: k,
     })) });
   }
   return out;

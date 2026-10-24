@@ -139,6 +139,9 @@ with the compiler's plan/execution split**, in this order:
    steps 5 and 7 above brought forward). `datacube/` only; the core asks (its §5: a user aggregate over class
    instances in groupBy, units, a date range relation, tagged values in the metamodel tables, constraints in
    projections, `orElse`, a data space as a query entry) are recorded there for the compiler line, not edited here.
+   Pushed to the branch so far: P1 (the grid's Excel quick wins) and P2's Filter Values window, date ranges relative
+   to today, Top/Bottom N, and Show As as Excel's Show Values As over a measure at its parent's or the grand total's
+   grain (`DerivedColumn.grain`, the database's: a join in the level's query) -- the doc's §4 rows say which.
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,

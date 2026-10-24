@@ -321,7 +321,7 @@ function typeOf(s: CubeSnapshot, name: string): string | undefined {
  */
 export function copiedColumn(d: DerivedColumn): string | undefined {
   const l = d.lambda;
-  if (!l || d.window || d.childAggregate || d.unnest || l.parameters.length !== 1 || l.body.length !== 1) return undefined;
+  if (!l || d.window || d.childAggregate || d.grain || d.unnest || l.parameters.length !== 1 || l.body.length !== 1) return undefined;
   const body = l.body[0] as { readonly _type?: string; readonly property?: unknown; readonly parameters?: readonly unknown[] };
   const owner = body.parameters?.[0] as { readonly _type?: string; readonly name?: unknown } | undefined;
   return body._type === 'property' && typeof body.property === 'string' && body.parameters?.length === 1

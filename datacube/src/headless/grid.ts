@@ -52,7 +52,7 @@ import { formatOf } from '../upload.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
-  type AggregateFn, type ChildAggregate, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterNode, type FilterValue,
+  type AggregateFn, type ChildAggregate, type Grain, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterNode, type FilterValue,
   type SortDirection, type WindowSpec,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
@@ -468,7 +468,7 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
 export async function gridColumn(spec: GridSpec, given: string): Promise<string> {
   const asked = JSON.parse(given) as {
     name?: unknown; replacing?: unknown; level?: unknown; kind?: ColumnKind | null; mode?: unknown;
-    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown;
+    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown; grain?: unknown;
   };
   const kind = asked.kind ?? null;
   if (kind !== null && !COLUMN_KINDS.includes(kind)) {
@@ -482,10 +482,13 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   }
   const mode = asked.mode ?? 'expression';
   if (!isDraftMode(mode)) {
-    return JSON.stringify({ problems: [`a calculated column is an expression, a window or a child aggregate, not ${JSON.stringify(mode)}`] });
+    return JSON.stringify({ problems: [`a calculated column is an expression, a window, a child aggregate or a grain, not ${JSON.stringify(mode)}`] });
   }
   if (mode === 'children' && asked.level !== 'group') {
     return JSON.stringify({ problems: ["a child aggregate is a group-level column: its level is 'group'"] });
+  }
+  if (mode === 'grain' && asked.level !== 'group') {
+    return JSON.stringify({ problems: ["a measure at a grain is a group-level column: its level is 'group'"] });
   }
   if (asked.explode === true && (mode !== 'expression' || asked.level === 'group')) {
     return JSON.stringify({ problems: ['explode repeats each row once per element of an expression: a row-level expression only'] });
@@ -493,10 +496,11 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   if (typeof asked.name !== 'string') return JSON.stringify({ problems: [`a calculated column's name is text, not ${JSON.stringify(asked.name)}`] });
   const name = asked.name;
   if (mode !== 'expression') {
-    // a window's or a child aggregate's fields read as a calculate command's are, refused in its words
+    // a window's, a child aggregate's or a grain's fields read as a calculate command's are, refused in its words
     try {
       readGridCommand({ kind: 'calculate', level: asked.level === 'group' ? 'group' : 'row',
-        column: { name, ...(mode === 'window' ? { window: asked.window } : { childAggregate: asked.child }) } });
+        column: { name, ...(mode === 'window' ? { window: asked.window } : mode === 'grain' ? { grain: asked.grain }
+          : { childAggregate: asked.child }) } });
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
@@ -523,6 +527,7 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
       ...(asked.explode !== undefined ? { unnest: asked.explode === true } : {}),
       ...(mode === 'window' ? { window: asked.window as WindowSpec } : {}),
       ...(mode === 'children' ? { child: asked.child as ChildAggregate } : {}),
+      ...(mode === 'grain' ? { grain: asked.grain as Grain } : {}),
     };
     const problem = nameProblem(state.snapshot, draftStage(draft), draft.name, replacing ?? undefined);
     if (problem !== null) return JSON.stringify({ problems: [problem] });
@@ -545,7 +550,7 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   });
 }
 
-const isDraftMode = (m: unknown): m is ColumnDraft['mode'] => m === 'expression' || m === 'window' || m === 'children';
+const isDraftMode = (m: unknown): m is ColumnDraft['mode'] => m === 'expression' || m === 'window' || m === 'children' || m === 'grain';
 
 /**
  * A PRESET ADDED AS THE HEADER MENU ADDS ONE (grid-presets.ts presetCommands: a date to its period, a measure shown as,

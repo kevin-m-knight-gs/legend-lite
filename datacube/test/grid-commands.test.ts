@@ -438,10 +438,16 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand(calc({ name: 'x', lambda: 42 })), /lambda is the protocol's/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, kind: 'bogus' })), /a column's kind is/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, window: {} })),
-      /a calculated column is one of a lambda, a window or a child aggregate, not lambda and window/);
-    refused(() => readGridCommand(calc({ name: 'x' })), /a calculated column is one of a lambda, a window or a child aggregate, not none/);
+      /a calculated column is one of a lambda, a window, a child aggregate or a grain, not lambda and window/);
+    refused(() => readGridCommand(calc({ name: 'x' })), /a calculated column is one of a lambda, a window, a child aggregate or a grain, not none/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, colour: 'red' })),
-      /a calculated column from JSON takes name, lambda, window, childAggregate, unnest, kind, type, not colour/);
+      /a calculated column from JSON takes name, lambda, window, childAggregate, grain, unnest, kind, type, not colour/);
+    // a measure at a grain: its measure, and its parent's or the grand total's
+    const grain = (g: unknown): unknown => ({ kind: 'calculate', level: 'group', column: { name: 'g', grain: g } });
+    assert.deepEqual(readGridCommand(grain({ of: 'notional', at: 'all' })),
+      { kind: 'calculate', level: 'group', column: { name: 'g', grain: { of: 'notional', at: 'all' } } });
+    refused(() => readGridCommand(grain({ of: 'notional', at: 'grandparent' })), /its parent's \('parent'\) or the grand total's \('all'\), not "grandparent"/);
+    refused(() => readGridCommand(grain({ of: 'notional', at: 'all', by: 'region' })), /a measure at a grain takes of, at, not by/);
     // a window, field by field
     const win = (w: Record<string, unknown>): unknown => calc({ name: 'w', window: { partition: [], order: [], ...w } });
     refused(() => readGridCommand(win({ fn: 'median' })), /a window's function is one of sum, average/);

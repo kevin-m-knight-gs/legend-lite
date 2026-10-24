@@ -638,6 +638,13 @@ class Grid(Tile):
         ``'max'``, ``'average'``...) -- the column editor's Children (DataCube's code, headless: gridColumn)."""
         return self._column({'name': name, 'mode': 'children', 'level': 'group', 'child': {'fn': fn, 'of': of}})
 
+    def measure_at(self, name: str, of: str, at: str = 'parent') -> Grid:
+        """A group-level column: the measure ``of`` as each group's parent has it (``at='parent'``; a top group's parent
+        is the grand total) or as the grand total has it (``at='all'``) -- the same aggregate over the coarser group's
+        rows, so an average's is the parent's average -- the column editor's Parent or Grand Total (DataCube's code,
+        headless: gridColumn). A measure divided by it is an exact share, as ``show_as`` builds one."""
+        return self._column({'name': name, 'mode': 'grain', 'level': 'group', 'grain': {'of': of, 'at': at}})
+
     def grain(self, column: str, grain: str) -> Grid:
         """The date ``column`` taken to its period (``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``), a new
         dimension, as the header menu's By Month adds one (DataCube's code: grid-presets.ts presetCommands) -- named
@@ -645,9 +652,12 @@ class Grid(Tile):
         return self._preset({'kind': 'grain', 'column': column, 'grain': grain})
 
     def show_as(self, column: str, kind: str) -> Grid:
-        """The measure ``column`` shown as ``kind`` (``'runningTotal'``, ``'percentOfTotal'``, ``'difference'``,
-        ``'percentChange'``, ``'movingAverage'``, ``'rank'``) along the grid's row groups, as group-level columns, as the
-        header menu's Show As adds them (grid-presets.ts presetCommands) -- named ``<column>_<kind>``."""
+        """The measure ``column`` shown as ``kind`` along the grid's row groups, as the header menu's Show As adds it
+        (Excel's Show Values As; grid-presets.ts presetCommands): ``'percentOfTotal'`` (of the grand total, at every
+        depth), ``'percentOfParent'`` (of the parent row), ``'runningTotal'``, ``'percentRunningTotal'``,
+        ``'difference'``, ``'percentChange'``, ``'movingAverage'``, ``'rank'`` (largest first) or ``'rankAscending'`` --
+        group-level columns named ``<column>_<kind>``, the ones it reads hidden, a share or a change shown as a
+        percentage. A share divides by the measure at that grain: the same aggregate over the coarser group's rows."""
         return self._preset({'kind': 'showAs', 'column': column, 'showAs': kind})
 
     def bins(self, column: str, *, width: float | None = None, count: int | None = None) -> Grid:

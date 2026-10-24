@@ -675,7 +675,10 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
   it('a measure of grouped rows shown as something computed from it; not on a pivot', () => {
     const shown = items({ snapshot: DATED, column: 'notional', isMeasure: true });
     assert.deepEqual(shown.filter((i) => i.id === 'calc.showAs').map((i) => i.showAs),
-      ['runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank']);
+      ['percentOfTotal', 'percentOfParent', 'runningTotal', 'percentRunningTotal', 'difference', 'percentChange',
+        'movingAverage', 'rank', 'rankAscending']);
+    assert.deepEqual(shown.filter((i) => i.id === 'calc.showAs').slice(0, 2).map((i) => i.label),
+      ['% of grand total', '% of parent row total']);
     assert.ok(!items({ snapshot: CUBE, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
     assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
   });

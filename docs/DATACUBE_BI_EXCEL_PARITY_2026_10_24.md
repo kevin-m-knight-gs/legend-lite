@@ -249,8 +249,8 @@ BI's "swap the measure or dimension in a visual") are a parameter whose values a
 
 | The ask | DAX | This design |
 |---|---|---|
-| % of grand total | `DIVIDE([m], CALCULATE([m], ALL(t)))` | The measure over the whole set: a window over no partition (show-as "% of total", exists) |
-| % of parent row / column | `CALCULATE([m], ALLSELECTED(...))` per level | The measure at the parent's grain: a window partitioned by the parent's keys (§4.2's new show-as kinds) |
+| % of grand total | `DIVIDE([m], CALCULATE([m], ALL(t)))` | The measure at the grand total's grain: the same aggregate over every row the grid's filter keeps, one row joined to each group row (`DerivedColumn.grain`, `at: 'all'`; **built 2026-10-24**) |
+| % of parent row / column | `CALCULATE([m], ALLSELECTED(...))` per level | The measure at the parent's grain: the same aggregate over the parent's rows (`at: 'parent'`; **built 2026-10-24** for rows). Not a window over the level's figures: a sum of the groups' averages is no average, and the grid's level queries are each parent's, so a window there was the parent's whole at every depth below the first -- the shipped "% of total" was % of parent there |
 | Ignore one filter | `CALCULATE([m], REMOVEFILTERS(region))` | Evaluate on the set before that filter: the page filter is a lens, so the lens without that condition |
 | A fixed grain (Tableau FIXED) | -- | A measure grouped by named keys and joined back (a window partitioned by those keys) |
 | Running total, rank, moving average | visual calculations, `WINDOW` | Show-as transforms (exist; extended in §4.2) |
@@ -299,13 +299,13 @@ Status: **Have**, **Partial**, **Missing**. Where: **DC** (DataCube alone, `data
 | Menu copies as tab-separated text (paste fills columns) | Excel | **Built 2026-10-24** (were CSV with a byte-order mark) | DC | S | P1 |
 | Copies headed by labels; the tree column by what it groups by | Excel | **Built 2026-10-24** (`__tree`, internal names) | DC | S | P1 |
 | Pinned columns stacked at their edge | Excel freeze panes, ag-grid | **Built 2026-10-24** (overlapped at `left: 0`) | DC | S | P1 |
-| Ctrl+Arrow to the data edge, Ctrl+A select all | Excel | Missing | DC | S | P1 |
-| Double-click a cell to see the rows behind it | Excel pivot, Power BI "show records" | Partial: Enter/Space only, the result a CSV overlay | DC | M | P1 |
-| The rows behind a cell as a grid (sortable, exportable, a tile) | Excel drill-down sheet | Missing | DC | M | P1 |
-| Expand all / collapse all, expand to a level | Excel pivot | Partial: Collapse All only | DC | S | P1 |
-| Keyboard shortcut help | Excel, Sheets | Missing | DC | S | P1 |
+| Ctrl+Arrow to the data edge, Ctrl+A select all | Excel | **Built 2026-10-24** | DC | S | P1 |
+| Double-click a cell to see the rows behind it | Excel pivot, Power BI "show records" | **Built 2026-10-24** (was Enter/Space only, a CSV overlay) | DC | M | P1 |
+| The rows behind a cell as a grid (sortable, exportable, a tile) | Excel drill-down sheet | **Partial 2026-10-24**: a grid with its caption and Copy; as a tile of its own, P4's drill-through sheet | DC | M | P1 |
+| Expand all / collapse all, expand to a level | Excel pivot | **Built 2026-10-24**: Expand All beside Collapse All | DC | S | P1 |
+| Keyboard shortcut help | Excel, Sheets | **Built 2026-10-24** (Edit > Keyboard Shortcuts, `?`) | DC | S | P1 |
 | Find in the grid (Ctrl+F): a quick filter across text columns | Excel find, Sheets | Missing | DC (a `contains` filter, the database's) | M | P1 |
-| Drag to select with the mouse | Excel | Missing | DC | M | P1 |
+| Drag to select with the mouse | Excel | **Built 2026-10-24** | DC | M | P1 |
 | Multi-range selection (Ctrl+click) | Excel | Missing | DC | M | later |
 | Subtotals at the bottom of each group; grand total at the bottom | Excel pivot layout | Partial: top only | DC | M | P2 |
 | Freeze rows | Excel | Missing (header sticky) | DC | M | later |
@@ -317,19 +317,19 @@ Status: **Have**, **Partial**, **Missing**. Where: **DC** (DataCube alone, `data
 
 | Feature | Reference | Status | Where | Size | Phase |
 |---|---|---|---|---|---|
-| Show as: % of row total, % of column total | Excel Show Values As, PIVOTBY `relative_to` | Missing | DC | M | P2 |
-| Show as: % of parent row, % of parent column | Excel, Power BI `COLLAPSE` | Missing | DC | M | P2 |
+| Show as: % of grand total at every depth; % of row total, % of column total | Excel Show Values As, PIVOTBY `relative_to` | **Built 2026-10-24** for the grand total (the measure at the grand total's grain, any aggregate); row and column totals wait for show-as under a pivot | DC | M | P2 |
+| Show as: % of parent row, % of parent column | Excel, Power BI `COLLAPSE` | **Built 2026-10-24** for the parent row (the measure at the parent's grain: an average's share is of the parent's average); parent column waits for a pivot | DC | M | P2 |
 | Show as under a horizontal pivot | Excel | Missing (offered only unpivoted) | DC | M | P2 |
 | Show as: difference from / % difference from a chosen item | Excel | Missing | DC | M | P2 |
-| Show as: index, % running total | Excel | Missing | DC | S | P2 |
-| Top / Bottom N filter by a measure, within each group | Excel Top 10, Tableau Top N | Missing (a row limit only) | DC (a rank window, filtered) | M | P2 |
+| Show as: index, % running total | Excel | **Built 2026-10-24**: % running total, and rank from the smallest; index waits for a pivot (it reads a column total) | DC | S | P2 |
+| Top / Bottom N filter by a measure, within each group | Excel Top 10, Tableau Top N | **Built 2026-10-24** (each parent's groups ranked by the database, ties kept) | DC (a rank window, filtered) | M | P2 |
 | "Other" bucket for what a Top N cuts | Power BI, Tableau | Missing | DC | M | P2 |
-| Value checklist filter (distinct values, counts, search) | Excel autofilter | Missing | DC (values the database's) | M | P2 |
-| Relative dates: last N days/weeks/months, this/last month/quarter/year, YTD/QTD/MTD | Excel date filters, Power BI relative date slicer | Partial: today() and now() only | DC | M | P2 |
+| Value checklist filter (distinct values, counts, search) | Excel autofilter | **Built 2026-10-24** (Filter Values of X...) | DC (values the database's) | M | P2 |
+| Relative dates: last N days/weeks/months, this/last month/quarter/year, YTD/QTD/MTD | Excel date filters, Power BI relative date slicer | **Built 2026-10-24** (Filter > Date Range, eighteen ranges; their ends the database's) | DC | M | P2 |
 | A measure over two columns: corr, covariance, weighted average, max by, min by | DAX, Excel | Missing in the UI (core supports them) | DC | M | P2 |
 | Distinct count, count of blanks | Excel | Check | DC | S | P2 |
 | Groups (bucket members by hand) and sets | Tableau groups and sets, Power BI groups | Missing | DC (a `case` calculated column, Pure) | M | P3 |
-| Fixed-grain aggregates (Tableau FIXED/INCLUDE/EXCLUDE) | Tableau LOD | Missing | DC (windows) | L | P5 |
+| Fixed-grain aggregates (Tableau FIXED/INCLUDE/EXCLUDE) | Tableau LOD | **Partial 2026-10-24**: a measure at its parent's or the grand total's grain (`DerivedColumn.grain`, joined in the level's query); grain by any chosen keys is P5 | DC (a join to the measure at the coarser grain) | L | P5 |
 
 ### 4.3 Conditional formatting and number formats
 

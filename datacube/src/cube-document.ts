@@ -776,6 +776,7 @@ export function derivedReads(d: DerivedColumn): Set<string> {
     d.window.order.forEach((s) => out.add(s.column));
   }
   if (d.childAggregate) out.add(d.childAggregate.of);
+  if (d.grain) out.add(d.grain.of);
   return out;
 }
 

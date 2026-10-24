@@ -858,6 +858,7 @@ export function columnsRead(d: DerivedColumn): string[] {
     ];
   }
   if (d.childAggregate) return [d.childAggregate.of];
+  if (d.grain) return [d.grain.of];
   const out = new Set<string>();
   const walk = (n: unknown): void => {
     if (Array.isArray(n)) { n.forEach(walk); return; }

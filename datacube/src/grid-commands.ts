@@ -17,9 +17,9 @@ import {
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { operandKind } from './filter-operators.ts';
 import {
-  AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
+  AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, GRAIN_ATS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
   isPivotTotalColumn, isRelativeDate, pivotTotalColumn, readTopN, withCalculated, withoutConditions,
-  type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator,
+  type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type Grain, type FilterNode, type FilterOperator,
   type FilterValue, type Measure, type SortDirection, type SortSpec, type TopN, type WindowFrame, type WindowFunction,
   type WindowSpec,
 } from './snapshot.ts';
@@ -537,21 +537,32 @@ function childAggregateFrom(v: unknown): ChildAggregate {
   return { fn: fn as ChildAggregate['fn'], of: textFrom(v['of'], "a child aggregate's column") };
 }
 
+/** A measure at a grain -- the measure, its parent's level or the grand total's -- or why not. */
+function grainFrom(v: unknown): Grain {
+  if (!isObject(v)) throw new CubeRefusal(`a measure at a grain is {of, at}, not ${JSON.stringify(v)}`);
+  fields(v, 'grain', ['of', 'at'], 'a measure at a grain');
+  const at = v['at'];
+  if (typeof at !== 'string' || !(GRAIN_ATS as readonly string[]).includes(at)) {
+    throw new CubeRefusal(`a measure's grain is its parent's ('parent') or the grand total's ('all'), not ${JSON.stringify(at)}`);
+  }
+  return { of: textFrom(v['of'], "a grain's measure"), at: at as Grain['at'] };
+}
+
 /**
  * A calculated column read from JSON, as the screen's column editor and its presets make one: a formula (its lambda the
  * protocol's, its body the planner's to judge; exploded, each row repeated per element), a window column (Show As: a
- * running total, a rank) or an aggregate of the child groups -- exactly one of them -- with its name (trimmed, as the
- * editor takes one), its kind and its type; or why not.
+ * running total, a rank), an aggregate of the child groups or a measure at its parent's or the grand total's grain --
+ * exactly one of them -- with its name (trimmed, as the editor takes one), its kind and its type; or why not.
  */
 function calculatedFrom(v: unknown): DerivedColumn {
-  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate, ...}, not ${JSON.stringify(v)}`);
-  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
-  const shapes = (['lambda', 'window', 'childAggregate'] as const).filter((k) => v[k] !== undefined);
+  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate | grain, ...}, not ${JSON.stringify(v)}`);
+  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'grain', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
+  const shapes = (['lambda', 'window', 'childAggregate', 'grain'] as const).filter((k) => v[k] !== undefined);
   if (shapes.length !== 1) {
-    throw new CubeRefusal(`a calculated column is one of a lambda, a window or a child aggregate, not ${shapes.join(' and ') || 'none'}`);
+    throw new CubeRefusal(`a calculated column is one of a lambda, a window, a child aggregate or a grain, not ${shapes.join(' and ') || 'none'}`);
   }
   if (v['unnest'] !== undefined && typeof v['unnest'] !== 'boolean') throw new CubeRefusal(`unnest is true or false, not ${JSON.stringify(v['unnest'])}`);
-  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window or a child aggregate is not exploded");
+  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window, a child aggregate or a grain is not exploded");
   const lambda = v['lambda'];
   if (lambda !== undefined && (!isObject(lambda) || lambda['_type'] !== 'lambda' || !Array.isArray(lambda['body']))) {
     throw new CubeRefusal(`a calculated column's lambda is the protocol's {_type: 'lambda', body, parameters}, not ${JSON.stringify(lambda)}`);
@@ -561,6 +572,7 @@ function calculatedFrom(v: unknown): DerivedColumn {
     ...(lambda !== undefined ? { lambda: lambda as unknown as Lambda } : {}),
     ...(v['window'] !== undefined ? { window: windowFrom(v['window']) } : {}),
     ...(v['childAggregate'] !== undefined ? { childAggregate: childAggregateFrom(v['childAggregate']) } : {}),
+    ...(v['grain'] !== undefined ? { grain: grainFrom(v['grain']) } : {}),
     ...(v['unnest'] !== undefined ? { unnest: v['unnest'] as boolean } : {}),
     ...(v['kind'] !== undefined ? { kind: kindFrom(v['kind']) } : {}),
     ...(v['type'] !== undefined ? { type: textFrom(v['type'], "a calculated column's type") } : {}),

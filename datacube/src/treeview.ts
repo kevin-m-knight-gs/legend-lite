@@ -187,7 +187,7 @@ export async function fetchTree(
       const detail = request.level > depth;
       const target = detail ? detailSnapshot(snapshot, request.parent) : snapshot;
       const scoped = detail
-        ? { level: target.rows.length, parent: [], limit: maxRows + 1 }
+        ? { level: target.rows.length, parent: [], limit: maxRows + 1, grandFilter: snapshot.filter ?? null }
         : { ...request, limit: maxRows + 1 };
       const query = levelLambda(target, scoped, deps.pivot);
       const { rows: full, sql } = await deps.runner.run(

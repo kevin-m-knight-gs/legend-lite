@@ -1468,6 +1468,24 @@ class Abilities(Paged):
         with self.assertRaisesRegex(ValueError, 'a row-level expression only'):
             flat._column({'name': 'late', 'expression': 'x|[1, 2]', 'level': 'group', 'explode': True})
 
+    def test_a_measure_at_its_parent_or_the_grand_total(self):
+        # grid.measure_at and grid.show_as's shares: the measure as the parent group or the grand total has it, the
+        # database's (snapshot.ts Grain) -- the column editor's Parent or Grand Total and the header menu's Show As
+        page = ll.Page('Grains')
+        grid = page.grid(trades(), name='grain_trades', rows=['region'], measures={'notional': 'sum'})
+        grid.measure_at('whole', 'notional', at='all')
+        whole = next(d for d in grid._query['groupDerived'] if d['name'] == 'whole')
+        self.assertEqual(whole['grain'], {'of': 'notional', 'at': 'all'})
+        self.assertEqual(groups_of(grid.view(), 'whole'), {'EMEA': 425.5, 'AMER': 425.5})
+        grid.show_as('notional', 'percentOfTotal')
+        shares = groups_of(grid.view(), 'notional_percentOfTotal')
+        self.assertAlmostEqual(shares['EMEA'], 175.5 / 425.5)
+        self.assertAlmostEqual(shares['AMER'], 250.0 / 425.5)
+        with self.assertRaisesRegex(ValueError, 'a measure at a grain is a group-level column'):
+            grid._column({'name': 'rowwise', 'mode': 'grain', 'grain': {'of': 'notional', 'at': 'all'}})
+        with self.assertRaisesRegex(ValueError, r"its parent's \('parent'\) or the grand total's \('all'\)"):
+            grid.measure_at('odd', 'notional', at='everything')
+
     def test_presets_as_the_header_menu_adds_them(self):
         # (K4) grid.grain, grid.show_as, grid.bins: the header menu's By Month and Show As, by the one rule the menu
         # now asks too (grid-presets.ts presetCommands; its names, a taken one moved on to _2)

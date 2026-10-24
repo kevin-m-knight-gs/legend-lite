@@ -117,7 +117,7 @@ import {
 } from './settings.ts';
 import { SETTINGS_WINDOW, buildSettingsPanel } from './ui/settings-panel.ts';
 import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
-import { binColumns, SHOW_AS_LABELS } from './calc-presets.ts';
+import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
 import { presetCommands, type GridPreset } from './grid-presets.ts';
 import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
@@ -2195,7 +2195,7 @@ export class CubeApp {
       case 'calc.showAs':
         if (column && item.showAs) {
           void this.#addPreset({ kind: 'showAs', column, showAs: item.showAs },
-            `${column} as ${SHOW_AS_LABELS[item.showAs].toLowerCase()}`);
+            `${column} as ${GRID_SHOW_AS_LABELS[item.showAs].toLowerCase()}`);
         }
         return;
       case 'calc.edit':
@@ -4477,5 +4477,6 @@ function readsOf(d: DerivedColumn): string[] {
     d.window.order.forEach((o) => add(o.column));
   }
   if (d.childAggregate) add(d.childAggregate.of);
+  if (d.grain) add(d.grain.of);
   return out;
 }

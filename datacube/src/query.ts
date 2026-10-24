@@ -33,6 +33,7 @@ import {
   type DerivedColumn,
   type FilterNode,
   type FilterValue,
+  type GrainAt,
   type Measure,
   type QuerySnapshot,
   type RelativeDate,
@@ -229,6 +230,9 @@ interface LevelWindow {
 
 /** A calculated column appended to `rel`: an expression over the row, or a window. */
 function extendDerived(rel: Relation, d: DerivedColumn, level?: LevelWindow): Relation {
+  if (d.grain) {
+    throw new CubeRefusal(`'${d.name}' is a measure at its parent's or the grand total's grain: a group-level column, after the grouping`);
+  }
   if (!d.window) {
     if (!d.lambda) throw new CubeRefusal(`the calculated column '${d.name}' has no expression`);
     if (d.unnest) {
@@ -646,8 +650,19 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
     present: rooted ? [ROOT_COLUMN] : groupCols,
     order: shown.length > 0 ? shown : keys,
   };
+  // MEASURES AT A COARSER GRAIN (snapshot.ts Grain): the database's, beside each group row before the group-level
+  // columns that read them
+  const grains = (snapshot.groupDerived ?? []).filter((d) => d.grain !== undefined);
+  if (grains.length > 0) {
+    const named = grains[0]!.name;
+    if (pivoting) throw new CubeRefusal(`'${named}' is a measure at its parent's or the grand total's grain: a grouped grid's, not a pivot's -- take the pivot off first`);
+    for (const at of ['parent', 'all'] as const) {
+      const wanted = grains.filter((d) => d.grain!.at === at);
+      if (wanted.length > 0) rel = joinedGrain(rel, snapshot, wanted, at, scope);
+    }
+  }
   for (const d of snapshot.groupDerived ?? []) {
-    if (!d.childAggregate) rel = extendDerived(rel, d, levelWindow);
+    if (!d.childAggregate && !d.grain) rel = extendDerived(rel, d, levelWindow);
   }
   // TOP OR BOTTOM N (snapshot.ts TopN): ranked by the database after the grouping and the group-level columns -- each
   // parent's groups, as a level's rows are its parent's; a flat grid's rows -- ties kept, the rest left out. Never the
@@ -672,6 +687,41 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
     }
   }
   return rel;
+}
+
+/**
+ * A LEVEL'S ROWS WITH MEASURES AT A COARSER GRAIN (snapshot.ts Grain): each measure aggregated -- by its own aggregate,
+ * the one its column groups by -- over the rows of the level's parent (the level's own rows: a level's query is its
+ * parent's, query.ts LevelScope), or over every row the grid's filter keeps (`all`), one row joined to each of the
+ * level's: a group row stays one row. A detail query has its group's keys folded into its filter (detailSnapshot), so
+ * the grand total's filter comes with its scope (`grandFilter`).
+ */
+function joinedGrain(rel: Relation, snapshot: QuerySnapshot, wanted: readonly DerivedColumn[], at: GrainAt, scope?: LevelScope): Relation {
+  const measures = groupedMeasures(snapshot, []);
+  const aggs = wanted.map((d) => {
+    const m = measures.find((x) => x.name === d.grain!.of);
+    if (m === undefined) {
+      throw new CubeRefusal(`'${d.name}' is '${d.grain!.of}' at a coarser grain, and the grid has no measure '${d.grain!.of}' `
+        + `(${measures.map((x) => x.name).join(', ')})`);
+    }
+    return aggregateSpec({ ...m, name: d.name });
+  });
+  let whole = from(snapshot.source.query);
+  for (const d of snapshot.derived) whole = extendDerived(whole, d);
+  const own = at === 'all' && scope?.grandFilter !== undefined ? scope.grandFilter ?? undefined : snapshot.filter;
+  const conditions: FilterNode[] = [
+    ...(own ? [own] : []),
+    ...(at === 'parent' && scope ? parentConditions(snapshot, scope.parent) : []),
+  ];
+  const typeOf: TypeOf = (c) => columnType(snapshot, c);
+  if (conditions.length > 0) {
+    whole = whole.filter(lambda(['x'], filterNode(conditions.length === 1 ? conditions[0]! : { kind: 'and', children: conditions }, 'x', typeOf)));
+  }
+  // one row -- grouped by a constant, then the measures alone -- beside every row of the level's: no column of the
+  // join's own reaches the level's rows (a class of the grid's rows, Create a Class, takes each as a property)
+  const key = `${WINDOW_ALL_PREFIX}grain_${at}`;
+  whole = whole.extend([derive(key, lambda(['x'], lit.integer(1)))]).groupBy([key], aggs).select(wanted.map((d) => d.name));
+  return rel.join(whole, 'INNER', lambda(['a', 'b'], lit.boolean(true)));
 }
 
 /** A level's child-group aggregates: each group row's aggregate of its child groups' figures. */
@@ -779,6 +829,12 @@ export interface LevelScope {
    * second counting query.
    */
   readonly limit?: number;
+  /**
+   * A DETAIL query's (detailSnapshot's, its group's keys folded into its filter): the grid's own filter, null for none --
+   * what a measure at the grand total's grain is computed under (snapshot.ts Grain). Absent on a level's query, whose
+   * filter is the grid's.
+   */
+  readonly grandFilter?: FilterNode | null;
 }
 
 /**
