@@ -133,6 +133,12 @@ with the compiler's plan/execution split**, in this order:
    dashboards are built on them), its steps in order: 1 compile once everywhere; 2 Make a class; 3 dashboards on
    classes (the charts' batch 1 page filters land here); 4 combining in prep (every join form); 5 the model view; 6
    projects and publishing; 7 measures in the model.
+   **Now (2026-10-24, the user): BI and Excel parity** (`docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md`, branch
+   `claude/datacube-bi-parity`): the grid against Excel, the pivot's analysis, formats, a page as a dashboard, then
+   Pure as the semantic layer (the class tree, measures declared in the model as functions over a class's instances --
+   steps 5 and 7 above brought forward). `datacube/` only; the core asks (its §5: a user aggregate over class
+   instances in groupBy, units, a date range relation, tagged values in the metamodel tables, constraints in
+   projections, `orElse`, a data space as a query entry) are recorded there for the compiler line, not edited here.
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,
