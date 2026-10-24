@@ -612,7 +612,7 @@ describe('Open in Grid: a chart\'s values as the grid\'s Column Properties (char
     const made = chartValuesAsColumns({ snapshot: CUBE, config: DEFAULT_CONFIGURATION }, [SUM_NOTIONAL, counted]);
     assert.equal(made.carriedBy(counted), undefined);
     assert.deepEqual(made.notes, ['left out measure count: \'count\' is not offered on region, a String column: '
-      + 'min, max, joinStrings, unique, maxBy, minBy (Show leaf count counts a group\'s rows)']);
+      + 'min, max, joinStrings, unique, distinctCountText, maxBy, minBy (Show leaf count counts a group\'s rows)']);
     const following = of('bar', { y: [SUM_NOTIONAL, counted] });
     assert.deepEqual(followCube(following, CUBE, made.carriedBy).y[1], counted);
   });

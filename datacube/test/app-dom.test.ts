@@ -12,7 +12,7 @@ import { classTree } from '../src/class-tree.ts';
 import type { Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { DEFAULT_CONFIGURATION, columnConfig } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { GridCommand } from '../src/grid-commands.ts';
 import type { ModelMeasure } from '../src/model-measures.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -605,27 +605,6 @@ describe('the app', () => {
     for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
     assert.deepEqual(own.snapshot.rows, ['region'], 'the rows as they were');
     assert.ok(said.some((t) => /Ghost' names nope, which the grid does not have/.test(t)), `said: ${said.join(' | ')}`);
-    own.dispose();
-  });
-
-  // the user, 2026-10-24: Count left the right-click menu for Column Properties, beside the column's Aggregation
-  it("counts a column from Properties ▸ Column Properties, the draft applied first", async () => {
-    const host = dom.window.document.createElement('div');
-    dom.window.document.body.append(host);
-    const own = new CubeApp(host, SNAPSHOT, { engine, planner });
-    await own.open();
-    (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
-    pick('Properties...');
-    const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
-    [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Column Properties')!
-      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-    tab.querySelector<HTMLButtonElement>('.dc-pe-col[data-column="desk"]')!.click();
-    buttonIn(tab, 'Distinct values').click();
-    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
-    assert.deepEqual(own.snapshot.derived.map((d) => [d.name, d.kind]), [['desk_distinct', 'measure']]);
-    const counted = columnConfig(own.configuration, 'desk_distinct');
-    assert.deepEqual([counted.aggregateFn, counted.aggregationParameters], ['distinctCount', ['desk']]);
-    assert.equal(host.querySelector('.dc-editor'), null, 'Properties closed');
     own.dispose();
   });
 

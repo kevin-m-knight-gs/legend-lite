@@ -23,7 +23,6 @@
 // Stated rather than silently conflated.
 
 import type { Dimension } from '../dimensions.ts';
-import type { CountWhat } from '../grid-gestures.ts';
 import {
   DEFAULT_CONFIGURATION,
   applyToSnapshot,
@@ -104,12 +103,6 @@ export interface EditorOptions {
    */
   readonly onUseDimension?: (name: string) => void;
   readonly onAdHoc?: () => void;
-  /**
-   * Column Properties' Count (the user, 2026-10-24: off the right-click menu, beside the column's Aggregation), once the
-   * draft is applied and the editor closed: a number column counting `column`'s values, different values or blanks
-   * (grid-gestures.ts column.count). Absent, the panel does not offer it.
-   */
-  readonly onCount?: (column: string, what: CountWhat) => void;
   readonly initialTab?: EditorTab;
   /** Open Column Properties on this column (from its header's menu). */
   readonly initialColumn?: string;
@@ -249,12 +242,10 @@ export class CubeEditor {
       refresh: () => this.refresh(),
       ...(this.#options.onUseDimension ? { useDimension: (name: string) => this.#appliedThen(() => this.#options.onUseDimension?.(name)) } : {}),
       ...(this.#options.onAdHoc ? { adHoc: () => this.#appliedThen(() => this.#options.onAdHoc?.()) } : {}),
-      ...(this.#options.onCount ? { count: (column: string, what: CountWhat) => this.#appliedThen(() => this.#options.onCount?.(column, what)) } : {}),
     };
   }
 
-  /** The draft applied and the editor closed, then `then`: what the Dimensions tab or Count starts acts on the cube as
-   *  applied. */
+  /** The draft applied and the editor closed, then `then`: what the Dimensions tab starts acts on the cube as applied. */
   #appliedThen(then: () => void): void {
     void this.apply({ close: true }).then((took) => {
       if (took) then();

@@ -697,13 +697,6 @@ class Grid(Tile):
             raise ValueError('; '.join(said['problems']))
         return self._kept(said, 3)
 
-    def count(self, column: str, what: str = 'values', *, name: str | None = None) -> Grid:
-        """A number column counting ``column``'s values (``'values'``: the rows with one), its different values
-        (``'distinct'``) or its blanks (``'blanks'``) -- Excel's COUNTA, Distinct Count and COUNTBLANK, Column Properties'
-        Count; on a row 1 or 0, at a group its rows' count. Named ``<column>_count``, ``_distinct`` or ``_blanks``
-        unless ``name`` says. Any column's, text too: a count is a number, so a column of its own."""
-        return self._gesture('column.count', {'column': column, 'what': what, **({'name': name} if name is not None else {})})
-
     def group_values(self, column: str, groups: dict, other: str | None = None, *, name: str | None = None) -> Grid:
         """A column gathering ``column``'s values by hand into named groups -- ``{'Macro': ['FX', 'Rates'], 'Equity':
         ['EQ']}``, ``None`` among a group's values the blanks -- the rest named ``other`` or, on a text column, left as

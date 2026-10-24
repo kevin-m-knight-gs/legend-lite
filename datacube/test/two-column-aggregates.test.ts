@@ -1,19 +1,19 @@
-// AGGREGATES OF TWO COLUMNS AND THE COUNTS, planned and run (snapshot.ts SECOND_COLUMN; grid-gestures.ts column.count):
-// a correlation, the covariances, max by and min by -- Column Properties' Aggregation with its second column -- and
-// Count's columns (Column Properties'), a distinct count of a text column among them, each group's figure as DuckDB answers the query
-// the grid sends, its grand total too.
+// AGGREGATES OF TWO COLUMNS AND THE COUNTS, planned and run (snapshot.ts SECOND_COLUMN): a correlation, the covariances,
+// max by and min by -- Column Properties' Aggregation with its second column -- and a column's counts as a calculated
+// column and its Aggregation make them (the user, 2026-10-24: no shortcut of their own), a text column's distinct count
+// among them, as a number and as the text column's own; each group's figure as DuckDB answers the query the grid sends,
+// its grand total too.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { accessor } from '../../pure-protocol/src/index.ts';
+import { accessor, col, fn, lambda, lit } from '../../pure-protocol/src/index.ts';
 import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
-import { gridGesture } from '../src/grid-gestures.ts';
 import { levelLambda, sourceWithDerived } from '../src/query.ts';
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import type { CubeSnapshot, DerivedColumn } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
 
 const MODEL = `
@@ -104,14 +104,28 @@ describe('aggregates of two columns, planned and run', () => {
   });
 });
 
-describe("Count's columns: a column's values, its different values and its blanks counted, planned and run", () => {
-  it("each desk's customers: rows with one, different ones, rows with none -- a text column's, in number columns", async () => {
-    const grid = { snapshot: START, config: DEFAULT_CONFIGURATION, dimensions: [], view: null };
-    const commands = (['values', 'distinct', 'blanks'] as const).flatMap((what) => gridGesture('column.count', grid, { column: 'customer', what }));
-    const by = await figures(commands, ['customer_count', 'customer_distinct', 'customer_blanks']);
+describe("a column's counts, as a calculated column and its Aggregation make them, planned and run", () => {
+  /** A Leaf Level Measure: `x|<body>`, summed when the grid groups (a number's default) unless its Aggregation says. */
+  const measure = (name: string, body: Parameters<typeof lambda>[1]): GridCommand =>
+    ({ kind: 'calculate', level: 'row', column: { name, kind: 'measure', lambda: lambda(['x'], body) } satisfies DerivedColumn });
+  /** 1 on a row with a customer and 0 on one without -- or the other way, counting blanks: COUNTIF. */
+  const has = (blank: boolean) => fn('if', fn('isEmpty', col('x', 'customer')),
+    lambda([], lit.integer(blank ? 1 : 0)), lambda([], lit.integer(blank ? 0 : 1)));
+
+  it("each desk's customers: rows with one, different ones (a number, and the text column's own), rows with none", async () => {
+    const by = await figures([
+      measure('withCustomer', has(false)),
+      measure('blankCustomer', has(true)),
+      // a number column of its own: 1 or 0 on a row, at a group the counted column's different values
+      measure('customers', has(false)),
+      { kind: 'column', name: 'customers', change: { aggregate: 'distinctCount', weight: 'customer' } },
+      // the text itself on each row, at a group how many different values are under it, as text
+      measure('customerList', col('x', 'customer')),
+      { kind: 'column', name: 'customerList', change: { aggregate: 'distinctCountText' } },
+    ], ['withCustomer', 'customers', 'blankCustomer', 'customerList']);
     // A: c1, c1, c2 -- three with one, two different; B: c3 and a blank; the whole grid: c1, c2, c3
-    assert.deepEqual(by.get('A'), [3, 2, 0]);
-    assert.deepEqual(by.get('B'), [1, 1, 1]);
-    assert.deepEqual(by.get(''), [4, 3, 1]);
+    assert.deepEqual(by.get('A'), [3, 2, 0, '2']);
+    assert.deepEqual(by.get('B'), [1, 1, 1, '1']);
+    assert.deepEqual(by.get(''), [4, 3, 1, '3']);
   });
 });

@@ -214,6 +214,9 @@ function aggregateSpec(m: Measure, when?: ValueSpecification): ColSpec {
     // the different values of the column -- or of the second column it names -- each once: COUNT(DISTINCT ...)
     case 'distinctCount':
       return agg(m.name, lambda(['x'], only(ref('x', m.weight ?? m.column))), lambda(['y'], fn('count', fn('distinct', y))));
+    // the different values' number as text: a text column's own Aggregation (snapshot.ts distinctCountText)
+    case 'distinctCountText':
+      return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('toString', fn('count', fn('distinct', y)))));
     case 'joinStrings':
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('joinStrings', y, lit.string(', '))));
     case 'unique':

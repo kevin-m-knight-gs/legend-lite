@@ -225,6 +225,13 @@ export type AggregateFn =
   | 'wavg'
   /** The number of different values: `$y->distinct()->count()` (COUNT(DISTINCT)) -- of its second column, if named. */
   | 'distinctCount'
+  /**
+   * The number of different values, written as text: `$y->distinct()->count()->toString()`. A text column's own
+   * Aggregation -- a count is a number, which a text column's Aggregation is not (offers.ts: an aggregate keeps the
+   * column's family) -- so its group rows say how many different values are under them, its rows the values (the user,
+   * 2026-10-24). Text: it sorts and exports as text, and takes no number format.
+   */
+  | 'distinctCountText'
   /** Two columns' correlation and covariance: `rowMapper($x.a, $x.b)` reduced by `corr()`, `covarSample()`, ... */
   | 'corr'
   | 'covarSample'
@@ -247,7 +254,7 @@ export type AggregateFn =
 const EVERY_AGGREGATE: Readonly<Record<AggregateFn, true>> = {
   sum: true, average: true, count: true, min: true, max: true, median: true, percentile25: true, percentile75: true,
   stdDevPopulation: true, stdDevSample: true, variancePopulation: true, varianceSample: true,
-  joinStrings: true, wavg: true, unique: true, distinctCount: true, corr: true, covarSample: true, covarPopulation: true,
+  joinStrings: true, wavg: true, unique: true, distinctCount: true, distinctCountText: true, corr: true, covarSample: true, covarPopulation: true,
   maxBy: true, minBy: true,
 };
 export const AGGREGATE_FNS: readonly AggregateFn[] = Object.keys(EVERY_AGGREGATE) as AggregateFn[];
@@ -270,7 +277,7 @@ export interface SecondColumn {
  * THE AGGREGATES OF TWO COLUMNS, one entry each: the second column each reads, and how. A weighted average (DAX's
  * SUMX/SUM, inexpressible in a spreadsheet pivot), a correlation or covariance, the value at a maximum or minimum
  * (DAX's TOPN(1, ...), Excel's XLOOKUP(MAX(...))), and a distinct count of another column (its own when it names none:
- * Column Properties' Count Distinct values counts a text column's values in a number column of its own). Every one is
+ * a number column -- a calculated one, 1 or 0 on a row -- counts a text column's different values so). Every one is
  * legend-lite's own native (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md: a two-column measure is a DataCube UI gap,
  * not a compiler gap).
  */

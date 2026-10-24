@@ -26,8 +26,6 @@ import { readFormatCode } from './format-code.ts';
 import { dateRangeConditions, type DateRange } from './date-ranges.ts';
 import { keptCondition, ownConditions } from './value-filter.ts';
 import { TREE_COLUMN } from './treeview.ts';
-import { nameProblem } from './calc.ts';
-import { col, fn, lambda, lit } from '../../pure-protocol/src/index.ts';
 
 /** What a gesture reads of the grid: its state, and the dimensions it offers (its own, or its host's). */
 export interface GestureGrid {
@@ -96,12 +94,7 @@ export type GridGestureArgs = {
   readonly 'column.calculate': { readonly level: Level; readonly column: DerivedColumn };
   readonly 'column.editCalculated': { readonly name: string; readonly level: Level; readonly column: DerivedColumn };
   readonly 'calc.delete': Column;
-  readonly 'column.count': Column & { readonly what: CountWhat; readonly name?: string };
 };
-
-/** What Column Properties' Count counts of a column: the rows with a value, the different values, the rows with none. */
-export type CountWhat = 'values' | 'distinct' | 'blanks';
-const COUNT_WHAT: Readonly<Record<CountWhat, string>> = { values: 'count', distinct: 'distinct', blanks: 'blanks' };
 
 /** Room for a cell's own padding and its border (Auto-size). */
 const AUTO_SIZE_PAD = 8;
@@ -466,39 +459,7 @@ const GESTURES = {
     }],
   },
   'calc.delete': { args: ['column'], make: (_g, a) => [{ kind: 'removeCalculated', name: columnOf(a) }] },
-  // Column Properties' Count (Excel's COUNTA, Distinct Count and COUNTBLANK; Power BI's Count (Distinct)): a number
-  // column of its own
-  'column.count': { args: ['column', 'what', 'name?'], make: countColumn },
 } satisfies { readonly [N in keyof GridGestureArgs]: Gesture };
-
-/**
- * COUNT ▸'S COLUMN: a measure of its own counting `of`'s values -- on a row 1 or 0, as the row has a value or none (a
- * blank: 1 or 0 the other way); at a group, its rows' sum, or, counting distinct values, the number of different values
- * of `of` among them (Aggregation `distinctCount`, `of` its second column: snapshot.ts SECOND_COLUMN). A count of text is
- * a number, so a column of its own, never `of`'s Aggregation (which keeps its column's family: offers.ts). Named
- * `<of>_count`, `<of>_distinct` or `<of>_blanks`, the first one free, unless the gesture names it.
- */
-function countColumn(g: GestureGrid, a: GestureArgs): GridCommand[] {
-  const of = columnOf(a);
-  const what = a['what'];
-  const given = a['name'] === undefined ? undefined : text(a, 'name', "the count's name");
-  if (what !== 'values' && what !== 'distinct' && what !== 'blanks') {
-    throw new CubeRefusal(`a count counts a column's values, distinct values or blanks, not ${JSON.stringify(what) ?? 'nothing'}`);
-  }
-  const rows = rowColumns(g.snapshot).map((c) => c.name);
-  if (!rows.includes(of)) throw new CubeRefusal(`'${of}' is not a column the rows have (${rows.join(', ')})`);
-  let name = given ?? `${of}_${COUNT_WHAT[what]}`;
-  for (let i = 2; given === undefined && nameProblem(g.snapshot, 'row', name) !== null; i += 1) name = `${of}_${COUNT_WHAT[what]}_${i}`;
-  const blank = what === 'blanks';
-  const counted: DerivedColumn = {
-    name, kind: 'measure',
-    lambda: lambda(['x'], fn('if', fn('isEmpty', col('x', of)), lambda([], lit.integer(blank ? 1 : 0)), lambda([], lit.integer(blank ? 0 : 1)))),
-  };
-  return [
-    { kind: 'calculate', level: 'row', column: counted },
-    ...(what === 'distinct' ? [{ kind: 'column' as const, name, change: { aggregate: 'distinctCount' as const, weight: of } }] : []),
-  ];
-}
 
 /** Minimize's widths: each column not fixed, to its own minimum or MINIMIZED_WIDTH; none when every one is fixed. */
 function minimized(g: GestureGrid, columns: readonly string[]): GridCommand[] {

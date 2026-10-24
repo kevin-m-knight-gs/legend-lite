@@ -286,34 +286,3 @@ describe("an Excel number format code on a column (format-code.ts)", () => {
     refused(() => gridGesture('format.code', grid(), { column: 'notional', code: '[>100]0' }), /\[>100\] \(a condition or an elapsed time\)/);
   });
 });
-
-describe("Count: a number column counting a column's values (grid-gestures.ts column.count)", () => {
-  const isEmpty = (blank: 0 | 1) => ({
-    _type: 'lambda', parameters: [{ _type: 'var', name: 'x' }],
-    body: [{ _type: 'func', function: 'if', parameters: [
-      { _type: 'func', function: 'isEmpty', parameters: [{ _type: 'property', property: 'desk', parameters: [{ _type: 'var', name: 'x' }] }] },
-      { _type: 'lambda', parameters: [], body: [{ _type: 'integer', value: blank }] },
-      { _type: 'lambda', parameters: [], body: [{ _type: 'integer', value: 1 - blank }] },
-    ] }],
-  });
-  it('a row 1 or 0, as it has a value; a distinct count the column\'s Aggregation of its different values', () => {
-    const [values] = gridGesture('column.count', grid(), { column: 'desk', what: 'values' });
-    assert.deepEqual(JSON.parse(JSON.stringify(values)), { kind: 'calculate', level: 'row', column: { name: 'desk_count', kind: 'measure', lambda: isEmpty(0) } });
-    const distinct = gridGesture('column.count', grid(), { column: 'desk', what: 'distinct' });
-    assert.deepEqual(distinct.at(-1), { kind: 'column', name: 'desk_distinct', change: { aggregate: 'distinctCount', weight: 'desk' } });
-    const [blanks] = gridGesture('column.count', grid(), { column: 'desk', what: 'blanks', name: 'missing' });
-    assert.deepEqual(JSON.parse(JSON.stringify(blanks)), { kind: 'calculate', level: 'row', column: { name: 'missing', kind: 'measure', lambda: isEmpty(1) } });
-    // the commands apply: a measure of its own, its distinct count's second column the counted one
-    const draft = applyGridCommands({ snapshot: CUBE, config: DEFAULT_CONFIGURATION }, distinct);
-    assert.deepEqual(draft.config.columns?.['desk_distinct'], { aggregateFn: 'distinctCount', aggregationParameters: ['desk'] });
-  });
-
-  it('named the first name free; refused what it does not count, and a column the rows have not', () => {
-    const taken = applyGridCommands({ snapshot: CUBE, config: DEFAULT_CONFIGURATION }, gridGesture('column.count', grid(), { column: 'desk', what: 'values' }));
-    const [again] = gridGesture('column.count', { ...grid(), snapshot: taken.snapshot }, { column: 'desk', what: 'values' });
-    assert.equal(again?.kind === 'calculate' ? again.column.name : '', 'desk_count_2');
-    refused(() => gridGestureGiven('column.count', grid(), { column: 'desk', what: 'sum' }),
-      /a count counts a column's values, distinct values or blanks, not "sum"/);
-    refused(() => gridGestureGiven('column.count', grid(), { column: 'nope', what: 'values' }), /'nope' is not a column the rows have/);
-  });
-});
