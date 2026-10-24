@@ -24,6 +24,7 @@ import {
   relativeDateWords,
   referencedColumns,
   rowColumns,
+  SECOND_COLUMN,
   totalOrderSorts,
   WINDOW_FUNCTIONS,
   type AggregateFn,
@@ -199,11 +200,20 @@ function aggregateSpec(m: Measure, when?: ValueSpecification): ColSpec {
   switch (m.fn) {
     case 'count':
       return agg(m.name, lambda(['x'], only(lit.integer(1))), lambda(['y'], fn('count', y)));
-    case 'wavg': {
-      if (!m.weight) throw new CubeRefusal(`measure '${m.name}' uses wavg but has no weight column`);
-      return agg(m.name, lambda(['x'], fn('wavgRowMapper', only(ref('x', m.column)), only(ref('x', m.weight)))),
-        lambda(['y'], fn('wavg', y)));
+    // two columns, the second Measure.weight (SECOND_COLUMN), mapped as one row each: legend-lite's natives
+    case 'wavg':
+    case 'corr':
+    case 'covarSample':
+    case 'covarPopulation':
+    case 'maxBy':
+    case 'minBy': {
+      if (!m.weight) throw new CubeRefusal(`measure '${m.name}' uses ${m.fn} but has no ${SECOND_COLUMN[m.fn]?.role} column`);
+      return agg(m.name, lambda(['x'], fn(m.fn === 'wavg' ? 'wavgRowMapper' : 'rowMapper', only(ref('x', m.column)), only(ref('x', m.weight)))),
+        lambda(['y'], fn(m.fn, y)));
     }
+    // the different values of the column -- or of the second column it names -- each once: COUNT(DISTINCT ...)
+    case 'distinctCount':
+      return agg(m.name, lambda(['x'], only(ref('x', m.weight ?? m.column))), lambda(['y'], fn('count', fn('distinct', y))));
     case 'joinStrings':
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('joinStrings', y, lit.string(', '))));
     case 'unique':
@@ -1075,7 +1085,7 @@ export function pivotColumns(s: QuerySnapshot, facts: PivotFacts): PivotColumn[]
     for (const measure of spread) {
       const fn = total.functions?.[measure.column] ?? measure.fn;
       const { weight: _w, ...rest } = measure;
-      const retargeted: Measure = fn === 'wavg' && measure.weight !== undefined
+      const retargeted: Measure = SECOND_COLUMN[fn] !== undefined && measure.weight !== undefined
         ? { ...rest, fn, weight: measure.weight }
         : { ...rest, fn };
       out.push({ name: pivotTotalColumn(measure.name), measure: retargeted, tuple: null });

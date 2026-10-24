@@ -26,7 +26,7 @@ import type {
   PivotTotal,
   SortDirection,
 } from './snapshot.ts';
-import { rowColumns } from './snapshot.ts';
+import { rowColumns, SECOND_COLUMN } from './snapshot.ts';
 import type { DataBarSpec, FormatRule, IconSetSpec } from './conditional.ts';
 import type { CellAppearance, GridAppearance, HeatmapSpec } from './style.ts';
 import { isFractional, isNumeric } from '../../engine-client/src/types.ts';
@@ -825,9 +825,9 @@ function pivotTotalOf(config: CubeConfiguration): { pivotTotal?: PivotTotal } {
 /**
  * Column Properties > Aggregation, as the query reads it.
  *
- * The weight rides only with `wavg`, the one aggregate that takes a
- * parameter; kept on any other it would be a setting the query
- * silently ignores.
+ * The second column rides only with an aggregate of two (snapshot.ts
+ * SECOND_COLUMN: `wavg`'s weight, `corr`'s pair, ...); kept on any other
+ * it would be a setting the query silently ignores.
  */
 function aggregateOf(
   c: ColumnConfiguration,
@@ -836,7 +836,7 @@ function aggregateOf(
   const weight = c.aggregationParameters?.[0];
   return {
     aggregate: c.aggregateFn,
-    ...(c.aggregateFn === 'wavg' && weight !== undefined
+    ...(SECOND_COLUMN[c.aggregateFn] !== undefined && weight !== undefined
       ? { aggregateWeight: weight }
       : {}),
   };

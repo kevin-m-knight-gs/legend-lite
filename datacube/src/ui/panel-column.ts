@@ -33,11 +33,12 @@ import {
   AGGREGATE_FNS,
   CubeRefusal,
   rowColumns,
+  SECOND_COLUMN,
   type AggregateFn,
   type ColumnKind,
 } from '../snapshot.ts';
 import { allColumns, columnKind, offeredAggregates, setColumn } from '../grid-edits.ts';
-import { defaultKind } from '../../../engine-client/src/types.ts';
+import { defaultKind, isNumeric } from '../../../engine-client/src/types.ts';
 import type { CellAppearance, ColourSet } from '../style.ts';
 import {
   DATA_BAR, ICON_SET_LABELS, ICON_SET_NAMES, RULE_STYLES, readRule, ruleLabel, type FormatRule, type IconSetName, type RuleOp,
@@ -84,6 +85,12 @@ const AGGREGATE_LABELS: Readonly<Record<AggregateFn, string>> = {
   varianceSample: 'variance (sample)',
   joinStrings: 'join strings',
   wavg: 'weighted average',
+  distinctCount: 'distinct count',
+  corr: 'correlation',
+  covarSample: 'covariance (sample)',
+  covarPopulation: 'covariance (population)',
+  maxBy: 'max by',
+  minBy: 'min by',
   // DataCube's default for every non-numeric column: the value when
   // the group has exactly one, otherwise blank.
   unique: 'unique value',
@@ -272,6 +279,8 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
     ),
   );
 
+  // the second column the Aggregation reads, if it is an aggregate of two
+  const second = c.aggregateFn === undefined ? undefined : SECOND_COLUMN[c.aggregateFn];
   const aggregation = section(
     doc,
     'Aggregation',
@@ -294,19 +303,22 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
     ),
     field(
       doc,
-      'Weight column:',
+      // the aggregate of two's second column, named by what it is to the aggregate (snapshot.ts SECOND_COLUMN)
+      second === undefined ? 'Second column:' : `${second.role[0]!.toUpperCase()}${second.role.slice(1)} column:`,
       dropdown(
         doc,
         c.aggregationParameters?.[0],
-        // a column the rows have (setColumn's rule): a group-level column exists only after grouping
-        rowColumns(draft.snapshot).map((x) => ({ value: x.name, label: x.name })),
+        // a column the rows have (setColumn's rule): a group-level column exists only after grouping; a number where
+        // the aggregate reads one
+        rowColumns(draft.snapshot).filter((x) => !second?.numeric || x.type === undefined || isNumeric(x.type))
+          .map((x) => ({ value: x.name, label: x.name })),
         (weight) => ctx.setConfig(setColumn(ctx.draft(), name, { weight: weight ?? null }).config),
         {
           allowNone: true,
           width: 200,
-          // Only the weighted average takes one, and offering it
+          // Only an aggregate of two takes one, and offering it
           // elsewhere invites a parameter the engine will ignore.
-          disabled: c.aggregateFn !== 'wavg',
+          disabled: second === undefined,
         },
       ),
     ),
@@ -330,7 +342,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.pivotStatisticColumnFunction,
-        withCurrent(aggregatesFor(type).filter((a) => a.value !== 'wavg'),
+        withCurrent(aggregatesFor(type).filter((a) => SECOND_COLUMN[a.value]?.required !== true),
           c.pivotStatisticColumnFunction),
         (pivotStatisticColumnFunction) =>
           patch({ pivotStatisticColumnFunction }),

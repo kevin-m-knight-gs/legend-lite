@@ -48,7 +48,7 @@ import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/t
 import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, relativeDateWords, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
-import { gestureTakes, isGridGesture, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
+import { gestureTakes, isGridGesture, type CountWhat, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
 import { COLOR_SCALES, ICON_SET_LABELS, ICON_SET_NAMES, RULE_PRESETS, type FormatRule, type IconSetName } from '../conditional.ts';
 import type { HeatmapSpec } from '../style.ts';
 
@@ -304,6 +304,7 @@ export type MenuActionId =
   | 'calc.showAs'
   | 'calc.related'
   | 'calc.groupValues'
+  | 'column.count'
   | 'calc.editGroups'
   | 'calc.modelMeasure'
   | 'calc.edit'
@@ -383,6 +384,8 @@ export interface MenuItem {
   readonly scale?: HeatmapSpec;
   readonly set?: IconSetName | null;
   readonly rule?: FormatRule;
+  /** Count ▸'s entry: what it counts of the column (grid-gestures.ts column.count). */
+  readonly what?: CountWhat;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
   /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
@@ -806,6 +809,15 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         ...(column !== undefined && ctx.groupsColumn
           ? [{ id: 'calc.editGroups' as const, label: `Edit Groups of ${named}...`, column }]
           : column !== undefined && ctx.groupable ? [{ id: 'calc.groupValues' as const, label: `Group Values of ${named}...`, column }] : []),
+        // Count ▸: a number column counting the column's values, its different values or its blanks
+        ...(column !== undefined && ctx.groupable ? [{
+          label: `Count ${named}`,
+          submenu: [
+            { id: 'column.count' as const, label: 'Values', column, what: 'values' as const },
+            { id: 'column.count' as const, label: 'Distinct Values', column, what: 'distinct' as const },
+            { id: 'column.count' as const, label: 'Blanks', column, what: 'blanks' as const },
+          ],
+        }] : []),
         ...modelMeasureItems(ctx),
         ...(column !== undefined && ctx.calcStage !== undefined
           ? [
@@ -1032,7 +1044,7 @@ export function menuGesture(item: MenuItem): { readonly name: GridGestureName; r
   if (!isGridGesture(item.id)) return null;
   const carried: Record<string, unknown> = {
     column: item.column, operator: item.operator, value: item.value, range: item.range, n: item.n, bottom: item.bottom,
-    on: item.on, scale: item.scale, set: item.set, rule: item.rule,
+    on: item.on, scale: item.scale, set: item.set, rule: item.rule, what: item.what,
   };
   return {
     name: item.id,

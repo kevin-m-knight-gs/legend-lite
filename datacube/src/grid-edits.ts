@@ -13,7 +13,8 @@ import { applyToSnapshot, columnConfig, withColumn, type ColumnPatch, type CubeC
 import { spreadMeasures } from './query.ts';
 import { takesAggregate } from './offers.ts';
 import {
-  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, rowColumns, totalOrderSorts, type AggregateFn,
+  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SECOND_COLUMN, SORT_DIRECTIONS, TWO_COLUMN_AGGREGATES, rowColumns,
+  totalOrderSorts, type AggregateFn,
   type ColumnKind, type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
 import type { TreeState } from './tree.ts';
@@ -293,13 +294,21 @@ export function setColumn<D extends GridDraft>(draft: D, name: string, change: C
   }
   const aggregate = change.aggregate === undefined ? c.aggregateFn : change.aggregate ?? undefined;
   if (change.weight !== undefined && change.weight !== null) {
-    if (aggregate !== 'wavg') {
-      throw new CubeRefusal(`only a weighted average (wavg) takes a weight: ${name}'s Aggregation is `
-        + `${aggregate ?? 'its default'}`);
+    const second = aggregate === undefined ? undefined : SECOND_COLUMN[aggregate];
+    if (second === undefined) {
+      throw new CubeRefusal(`only an aggregate of two columns (${TWO_COLUMN_AGGREGATES.join(', ')}) takes a second column: `
+        + `${name}'s Aggregation is ${aggregate ?? 'its default'}`);
     }
-    const rows = rowColumns(s).map((x) => x.name);
-    if (!rows.includes(change.weight)) {
-      throw new CubeRefusal(`${name}'s weight names '${change.weight}', not a column the rows have (${listed(rows)})`);
+    const rows = rowColumns(s);
+    const named = rows.find((x) => x.name === change.weight);
+    if (named === undefined) {
+      throw new CubeRefusal(`${name}'s ${second.role} column names '${change.weight}', not a column the rows have `
+        + `(${listed(rows.map((x) => x.name))})`);
+    }
+    // the compiler's rule for the function (wavgRowMapper's and rowMapper's second argument a Number), said first
+    if (second.numeric && named.type !== undefined && !isNumeric(named.type)) {
+      throw new CubeRefusal(`${name}'s ${second.role} column '${change.weight}' is a ${named.type} column: a ${second.words} `
+        + 'reads a number');
     }
   }
   const value: ColumnPatch = {
@@ -391,7 +400,8 @@ export function measurePlan(draft: GridDraft, m: Measure, taken: ReadonlySet<str
   // Aggregation's offer, judged by the column it reads (the calculated column a measure may become is of its type)
   if (column.type !== undefined && !offeredAggregates(column.type).includes(m.fn)) {
     throw new CubeRefusal(`'${m.fn}' is not offered on ${m.column}, a ${column.type} column: `
-      + `${offeredAggregates(column.type).join(', ') || 'none'}${m.fn === 'count' ? " (Show leaf count counts a group's rows)" : ''}`);
+      + `${offeredAggregates(column.type).join(', ') || 'none'}${m.fn === 'count' ? " (Show leaf count counts a group's rows)"
+        : m.fn === 'distinctCount' ? ` (Count ▸ Distinct Values counts ${m.column}'s values in a number column of its own)` : ''}`);
   }
   const isKey = draft.snapshot.rows.includes(m.column) || draft.snapshot.pivotOn.includes(m.column);
   if (m.name === m.column && !isKey && !taken.has(m.column)) return { change };

@@ -111,7 +111,8 @@ export interface ColumnSpec {
    * (a measure sums, a dimension takes its unique value), as before.
    */
   readonly aggregate?: AggregateFn;
-  /** The weight column, for `wavg` only. */
+  /** The second column an aggregate of two reads (SECOND_COLUMN): a weighted average's weight, a correlation's other
+   *  column, max by's ordering, the column a distinct count counts. */
   readonly aggregateWeight?: string;
 }
 
@@ -222,6 +223,15 @@ export type AggregateFn =
   | 'variancePopulation'
   | 'joinStrings'
   | 'wavg'
+  /** The number of different values: `$y->distinct()->count()` (COUNT(DISTINCT)) -- of its second column, if named. */
+  | 'distinctCount'
+  /** Two columns' correlation and covariance: `rowMapper($x.a, $x.b)` reduced by `corr()`, `covarSample()`, ... */
+  | 'corr'
+  | 'covarSample'
+  | 'covarPopulation'
+  /** The column's value on the row whose second column is greatest (least): `rowMapper` reduced by `maxBy()` (ARG_MAX). */
+  | 'maxBy'
+  | 'minBy'
   /**
    * The value when a group has exactly one, otherwise null.
    *
@@ -237,9 +247,45 @@ export type AggregateFn =
 const EVERY_AGGREGATE: Readonly<Record<AggregateFn, true>> = {
   sum: true, average: true, count: true, min: true, max: true, median: true, percentile25: true, percentile75: true,
   stdDevPopulation: true, stdDevSample: true, variancePopulation: true, varianceSample: true,
-  joinStrings: true, wavg: true, unique: true,
+  joinStrings: true, wavg: true, unique: true, distinctCount: true, corr: true, covarSample: true, covarPopulation: true,
+  maxBy: true, minBy: true,
 };
 export const AGGREGATE_FNS: readonly AggregateFn[] = Object.keys(EVERY_AGGREGATE) as AggregateFn[];
+
+/** An aggregate of two columns' second column (Measure.weight; the configuration's aggregationParameters[0]). */
+export interface SecondColumn {
+  /** The aggregate in words, as a note or a refusal says it. */
+  readonly words: string;
+  /** What the second column is, as Column Properties labels it and a refusal names it ("its weight column"). */
+  readonly role: string;
+  /** How the aggregate reads it, as a note says it ("weighted by qty"). */
+  readonly reads: string;
+  /** Without one the aggregate cannot be written; else it reads its own column. */
+  readonly required: boolean;
+  /** It must be a number (the compiler's rule for the function: `rowMapper`'s second argument, a weight). */
+  readonly numeric: boolean;
+}
+
+/**
+ * THE AGGREGATES OF TWO COLUMNS, one entry each: the second column each reads, and how. A weighted average (DAX's
+ * SUMX/SUM, inexpressible in a spreadsheet pivot), a correlation or covariance, the value at a maximum or minimum
+ * (DAX's TOPN(1, ...), Excel's XLOOKUP(MAX(...))), and a distinct count of another column (its own when it names none:
+ * the header menu's Count Distinct Values counts a text column's values in a number column of its own). Every one is
+ * legend-lite's own native (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md: a two-column measure is a DataCube UI gap,
+ * not a compiler gap).
+ */
+export const SECOND_COLUMN: Readonly<Partial<Record<AggregateFn, SecondColumn>>> = {
+  wavg: { words: 'weighted average', role: 'weight', reads: 'is weighted by', required: true, numeric: true },
+  corr: { words: 'correlation', role: 'paired', reads: 'is paired with', required: true, numeric: true },
+  covarSample: { words: 'sample covariance', role: 'paired', reads: 'is paired with', required: true, numeric: true },
+  covarPopulation: { words: 'population covariance', role: 'paired', reads: 'is paired with', required: true, numeric: true },
+  maxBy: { words: 'max by', role: 'ordering', reads: 'is ordered by', required: true, numeric: true },
+  minBy: { words: 'min by', role: 'ordering', reads: 'is ordered by', required: true, numeric: true },
+  distinctCount: { words: 'distinct count', role: 'counted', reads: 'counts', required: false, numeric: false },
+};
+
+/** The aggregates that read a second column, by name (SECOND_COLUMN's keys, in order). */
+export const TWO_COLUMN_AGGREGATES: readonly AggregateFn[] = AGGREGATE_FNS.filter((fn) => SECOND_COLUMN[fn] !== undefined);
 
 /** One value column in the cube: an aggregate over a source column. */
 export interface Measure {
@@ -248,7 +294,8 @@ export interface Measure {
   /** Source column being aggregated. Ignored by `count`. */
   readonly column: string;
   readonly fn: AggregateFn;
-  /** Weight column, required by and only used for `wavg`. */
+  /** The second column an aggregate of two reads (SECOND_COLUMN), named by no other: `wavg`'s weight, `corr`'s other
+   *  column, `maxBy`'s ordering, the column `distinctCount` counts. */
   readonly weight?: string;
 }
 
@@ -454,7 +501,7 @@ export interface DerivedColumn {
    * saved before this field existed still behaves as it did.
    */
   readonly kind?: ColumnKind;
-  /** As on `ColumnSpec`: Column Properties > Aggregation. */
+  /** As on `ColumnSpec`: Column Properties > Aggregation, and an aggregate of two's second column. */
   readonly aggregate?: AggregateFn;
   readonly aggregateWeight?: string;
 }

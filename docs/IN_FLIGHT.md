@@ -140,8 +140,9 @@ with the compiler's plan/execution split**, in this order:
    instances in groupBy, units, a date range relation, tagged values in the metamodel tables, constraints in
    projections, `orElse`, a data space as a query entry) are recorded there for the compiler line, not edited here.
    Pushed to the branch so far: P1 (the grid's Excel quick wins) and P2's Filter Values window, date ranges relative
-   to today, Top/Bottom N, and Show As as Excel's Show Values As over a measure at its parent's or the grand total's
-   grain (`DerivedColumn.grain`, the database's: a join in the level's query); P5's class tree, step 1 -- a class's grid
+   to today, Top/Bottom N, Show As as Excel's Show Values As over a measure at its parent's or the grand total's
+   grain (`DerivedColumn.grain`, the database's: a join in the level's query), and aggregates of two columns with
+   Count's distinct counts (`SECOND_COLUMN`, `column.count`); P5's class tree, step 1 -- a class's grid
    reads its related classes (`DerivedColumn.related`: a to-one hop's value, a to-many end aggregated per instance) --
    and step 2, measures declared in the model (`datacube/src/model-measures.ts`: Add Model Measure, Python's
    `grid.model_measure`); P3's conditional formats (`datacube/src/conditional.ts`: data bars, a three-colour scale,

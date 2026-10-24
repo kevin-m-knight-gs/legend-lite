@@ -237,6 +237,8 @@ _DUCKDB_USERS = [
     # the screen's grid over a real DuckDB, its document held to Python's (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11)
     "parity-screen",
     "model-join",
+    # aggregates of two columns and Count's columns, planned and run (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P2)
+    "two-column-aggregates",
     # a class as a grid's source, its rows planned over the project's files (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
     "class-source",
     # a join opened over one model of its tables, its rows from DuckDB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
@@ -345,6 +347,8 @@ _WASM_TESTS = [
     "value-filter",
     # a page's model: classes over relation functions, related by a ModelJoin (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11)
     "model-join",
+    # aggregates of two columns and Count's columns, planned by the compiler (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P2)
+    "two-column-aggregates",
     # the model's routes, asked of the tab's module (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a)
     "model-route",
     # a class as a grid's source, read back from a class the writer made (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
@@ -516,6 +520,7 @@ _HEADLESS_TESTS = [
     "style",
     "tree",
     "treeview",
+    "two-column-aggregates",
     "type-columns",
     "value-filter",
     "value-groups",

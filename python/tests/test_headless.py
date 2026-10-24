@@ -158,6 +158,25 @@ class Grids(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'are in A and B: a value is in one group'):
             grid.group_values('desk', {'A': ['FX'], 'B': ['FX']}, name='twice')
 
+    def test_aggregates_of_two_columns_and_the_counts(self):
+        # a correlation and max by -- Column Properties' Aggregation with its second column (DataCube's snapshot.ts
+        # SECOND_COLUMN) -- and Count's columns, a text column's distinct values counted in a number column of its own
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['A', 'A', 'A', 'B', 'B'], 'customer': ['c1', 'c1', 'c2', 'c3', None],
+                              'qty': [1.0, 2.0, 3.0, 5.0, 6.0], 'px': [2.0, 4.0, 7.0, 1.0, 3.0]})
+        grid = self.page.grid(frame, name='trades_two', rows=['desk'])
+        grid.column('qty', aggregate='maxBy', weight='px').count('customer', 'distinct').count('customer', 'blanks')
+        self.assertEqual(groups(grid.view(), 'qty'), {'A': 3, 'B': 6})
+        self.assertEqual(groups(grid.view(), 'customer_distinct'), {'A': 2, 'B': 1})
+        self.assertEqual(groups(grid.view(), 'customer_blanks'), {'A': 0, 'B': 1})
+        grid.column('px', aggregate='corr', weight='qty')
+        self.assertAlmostEqual(groups(grid.view(), 'px')['B'], 1.0)
+        # refused in DataCube's words: a correlation of text, a count of nothing it counts
+        with self.assertRaisesRegex(ValueError, "px's paired column 'customer' is a String column: a correlation reads a number"):
+            grid.column('px', aggregate='corr', weight='customer')
+        with self.assertRaisesRegex(ValueError, "a count counts a column's values, distinct values or blanks, not \"all\""):
+            grid.count('customer', 'all')
+
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap

@@ -779,7 +779,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "'sum' is not offered on desk, a String column: min, max, joinStrings"):
             grid.measure('desk', 'sum', name='desks')
         # only a weighted average takes a weight, refused rather than dropped; and it takes one (the query's own words)
-        with self.assertRaisesRegex(ValueError, r'only a weighted average \(wavg\) takes a weight'):
+        with self.assertRaisesRegex(ValueError, r'only an aggregate of two columns \(wavg, .*\) takes a second column'):
             grid.measure('pnl', 'sum', name='p', weight='notional')
         with self.assertRaisesRegex(ValueError, 'uses wavg but has no weight column'):
             grid.measure('pnl', 'wavg', name='w')

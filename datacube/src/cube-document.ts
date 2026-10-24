@@ -39,6 +39,7 @@ import {
 } from './config.ts';
 import {
   CubeRefusal,
+  SECOND_COLUMN,
   type AggregateFn,
   type ColumnSpec,
   type CubeSnapshot,
@@ -626,21 +627,24 @@ function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<Opene
   const kept = keepDerived(q.derived);
   const keptGroup = q.groupDerived === undefined ? undefined : keepDerived(q.groupDerived);
 
-  // A weighted average weighted by a gone column: its Aggregation left out (the column takes its kind's own) and
-  // named -- in the configuration and on the query both, as fromSnapshot reads the query's back.
-  const weightGone = new Map<string, string>();
+  // An aggregate of two whose second column is gone (a weighted average's weight, a correlation's pair): its
+  // Aggregation left out (the column takes its kind's own) and named -- in the configuration and on the query both, as
+  // fromSnapshot reads the query's back.
+  const weightGone = new Map<string, { readonly weight: string; readonly fn: AggregateFn }>();
   for (const [name, c] of Object.entries(configuration.columns)) {
     const weight = c.aggregationParameters?.[0];
-    if (c.aggregateFn === 'wavg' && weight !== undefined && gone.has(weight) && !gone.has(name)) weightGone.set(name, weight);
+    if (c.aggregateFn !== undefined && SECOND_COLUMN[c.aggregateFn] !== undefined && weight !== undefined && gone.has(weight)
+      && !gone.has(name)) weightGone.set(name, { weight, fn: c.aggregateFn });
   }
   for (const c of [...q.columns, ...kept, ...(keptGroup ?? [])]) {
     const weight = c.aggregateWeight;
-    if (c.aggregate === 'wavg' && weight !== undefined && gone.has(weight) && !gone.has(c.name)) weightGone.set(c.name, weight);
+    if (c.aggregate !== undefined && SECOND_COLUMN[c.aggregate] !== undefined && weight !== undefined && gone.has(weight)
+      && !gone.has(c.name)) weightGone.set(c.name, { weight, fn: c.aggregate });
   }
   if (weightGone.size > 0) {
     const cols = { ...configuration.columns };
-    for (const [name, weight] of weightGone) {
-      notes.push(`left out ${name}'s weighted average (it is weighted by ${weight})`);
+    for (const [name, { weight, fn }] of weightGone) {
+      notes.push(`left out ${name}'s ${SECOND_COLUMN[fn]?.words} (it ${SECOND_COLUMN[fn]?.reads} ${weight})`);
       const { aggregateFn: _fn, aggregationParameters: _weight, ...rest } = cols[name] ?? {};
       cols[name] = rest;
     }

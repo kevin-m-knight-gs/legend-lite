@@ -497,8 +497,10 @@ class Grid(Tile):
     def column(self, name: str, *, kind: str | None = None, aggregate: Any = _KEEP, weight: Any = _KEEP) -> Grid:
         """``name``'s Column Properties, as the panel sets them: its ``kind`` (``'dimension'``, which can be grouped and
         pivoted on, or ``'measure'``; a calculated column's is its editor's), its Aggregation (``aggregate``: one the
-        panel offers for its type; a measure's only) and a weighted average's ``weight`` column -- None clears either,
-        as the panel's "none" does. What is not given is left as it is."""
+        panel offers for its type; a measure's only) and an aggregate of two's second column, ``weight`` (a weighted
+        average's weight; ``corr``'s and ``covarSample``'s other number; the number ``maxBy`` and ``minBy`` order by; the
+        column ``distinctCount`` counts) -- None clears either, as the panel's "none" does. What is not given is left as
+        it is."""
         change = {**({'kind': kind} if kind is not None else {}),
                   **({'aggregate': aggregate} if aggregate is not _KEEP else {}),
                   **({'weight': weight} if weight is not _KEEP else {})}
@@ -506,8 +508,9 @@ class Grid(Tile):
 
     def measure(self, column: str, fn: str, name: str | None = None, *, weight: str | None = None) -> Grid:
         """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type, and none is assumed:
-        ``column(name, kind='measure')`` makes a measure at the one DataCube gives its type; ``wavg`` takes a ``weight``
-        column, and only it does): ``column``'s own Aggregation, as Column Properties sets it -- replacing the one it
+        ``column(name, kind='measure')`` makes a measure at the one DataCube gives its type; an aggregate of two --
+        ``wavg``, ``corr``, ``covarSample``, ``covarPopulation``, ``maxBy``, ``minBy`` -- takes its second column as
+        ``weight``, and only they and ``distinctCount`` do): ``column``'s own Aggregation, as Column Properties sets it -- replacing the one it
         had; a measure's, as the panel refuses a dimension's (``column(name, kind='measure')`` makes one) -- unless
         ``name`` names another column: then a calculated column of that name reading ``column``, with that Aggregation,
         as the screen would add one. A grouped ``column`` takes no Aggregation of its own: give the measure a ``name``."""
@@ -693,6 +696,13 @@ class Grid(Tile):
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
         return self._kept(said, 3)
+
+    def count(self, column: str, what: str = 'values', *, name: str | None = None) -> Grid:
+        """A number column counting ``column``'s values (``'values'``: the rows with one), its different values
+        (``'distinct'``) or its blanks (``'blanks'``) -- Excel's Count, Distinct Count and COUNTBLANK, the header menu's
+        Count; on a row 1 or 0, at a group its rows' count. Named ``<column>_count``, ``_distinct`` or ``_blanks``
+        unless ``name`` says. Any column's, text too: a count is a number, so a column of its own."""
+        return self._gesture('column.count', {'column': column, 'what': what, **({'name': name} if name is not None else {})})
 
     def group_values(self, column: str, groups: dict, other: str | None = None, *, name: str | None = None) -> Grid:
         """A column gathering ``column``'s values by hand into named groups -- ``{'Macro': ['FX', 'Rates'], 'Equity':

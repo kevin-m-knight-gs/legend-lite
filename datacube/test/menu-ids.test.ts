@@ -87,7 +87,7 @@ const GESTURES = read('src/grid-gestures.ts');
 // a filter) is no menu entry's (the S8 audit's 9) -- and, since 2026-10-24 (the BI and Excel parity program's P2), a
 // date range (Filter > Date Range) and a top N's N and side (Filter > Top 10, Bottom 10): ui/menu.ts menuGesture
 // ...and Conditional Formatting's choices: data bars on or off, a colour scale, an icon set, a rule (conditional.ts)
-const CARRIED = new Set(['column', 'operator', 'value', 'range', 'n', 'bottom', 'on', 'scale', 'set', 'rule']);
+const CARRIED = new Set(['column', 'operator', 'value', 'range', 'n', 'bottom', 'on', 'scale', 'set', 'rule', 'what']);
 const gestures = [...GESTURES.slice(GESTURES.indexOf('const GESTURES = {'), GESTURES.indexOf('} satisfies {'))
   .matchAll(/^  '([a-zA-Z][\w.]*)': \{\s*args: \[([^\]]*)\]/gm)]
   .filter((m) => [...(m[2] as string).matchAll(/'(\w+)'/g)].every((a) => CARRIED.has(a[1] as string)))
