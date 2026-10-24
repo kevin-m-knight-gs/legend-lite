@@ -23,6 +23,10 @@ const QUIET_AFTER = 25;
 /** How long a flush waits for the screen to be quiet at most (ms): a query that never answers does not hold a follow
  *  for ever. */
 const QUIET_AT_MOST = 10_000;
+/** How many writes in a row may go unanswered, each asked of the keeper and its edits made again, before the page is
+ *  opened again, said: a keeper that never answers a write (and answers its reads) is never written to for ever,
+ *  unsaid (the middle version's audit's 3). */
+const UNANSWERED_AT_MOST = 3;
 
 /** The message that must never show (W17): the two editors held two pages. */
 export const HASH_MISMATCH = 'the page here differed from its keeper\'s: opened again as its keeper has it';
@@ -97,6 +101,8 @@ export class LiveChannel {
   /** This channel's writer id, and the number of its last write (each write's id: the keeper applies it once). */
   readonly #writer = writerId();
   #seq = 0;
+  /** The writes in a row whose answer never came (UNANSWERED_AT_MOST). */
+  #unanswered = 0;
   readonly #editor: LivePage;
   readonly #screen: LiveScreen;
   readonly #after: number;
@@ -211,10 +217,15 @@ export class LiveChannel {
       const why = e instanceof Error ? e.message : String(e);
       // refused, in the keeper's words: nothing of it kept, said, and the screen put at the keeper's page; any other
       // failure is no refusal -- the answer never came, and the keeper is asked whether it took the write
-      if (e instanceof LiveRefused) await this.#refused(why, write.edits);
-      else await this.#unanswered(why, write, sentPage);
+      if (e instanceof LiveRefused) {
+        this.#unanswered = 0;
+        await this.#refused(why, write.edits);
+      } else {
+        await this.#unansweredWrite(why, write, sentPage);
+      }
       return;
     }
+    this.#unanswered = 0;
     if (this.shown !== at || this.#stopped) return;
     if (said.page === undefined) {
       // at its version: the page as it was sent is the keeper's
@@ -257,30 +268,41 @@ export class LiveChannel {
   }
 
   /** A write whose answer never came (the keeper out of reach, the answer lost on the way): the keeper asked whether it
-   *  took it. Taken: the screen put at the keeper's page, which holds it. Not: its edits pending again, in front of the
-   *  ones made since, so they are made again on the keeper's page and written next -- nothing said, nothing lost. The
-   *  keeper still out of reach: the page opened again, said. */
-  async #unanswered(why: string, write: LiveWrite, sentPage: PageDocument | undefined): Promise<void> {
+   *  took it, the ask a fence -- from it on the keeper takes the write no more, so one still on its way there (a slow
+   *  combine, a proxy that gave up first) is never applied after the answer said it was not (the audit's 4). Taken:
+   *  the screen put at the keeper's page, which holds it. Not: its edits pending again, in front of the ones made since,
+   *  so they are made again on the keeper's page and written next, under a new number -- nothing said, nothing lost. The
+   *  keeper still out of reach, or writes going unanswered UNANSWERED_AT_MOST times in a row: the page opened again,
+   *  said. */
+  async #unansweredWrite(why: string, write: LiveWrite, sentPage: PageDocument | undefined): Promise<void> {
     let now: LiveRead;
     try {
-      now = await this.#editor.read(this.#writer);
+      now = await this.#editor.read(this.#writer, write.seq);
     } catch (e) {
-      this.#edits = [...write.edits, ...this.#edits];
-      await this.#reopen(`its keeper did not answer: ${why}; ${e instanceof Error ? e.message : String(e)}`);
+      // neither the answer nor the keeper's word on it came: whether the write was kept is not known, so it is not said
+      // dropped -- the page opened as its keeper has it holds it if it was (the audit's 7)
+      await this.#reopen(`its keeper did not answer: ${why}; ${e instanceof Error ? e.message : String(e)}; whether the last change sent was kept is not known`);
       return;
     }
     if (this.#stopped) return;
     if (now.taken === undefined) {
       // asked by this writer, the keeper says which of its writes it took: an answer that does not is no keeper's
-      this.#edits = [...write.edits, ...this.#edits];
       await this.#reopen(`its keeper did not answer: ${why}; it said not whether it took the write`);
       return;
     }
     if (now.taken >= write.seq) {
+      this.#unanswered = 0;
       await this.#converge(now.version, now.hash, { target: now.page, held: now.held, refused: [] }, sentPage);
       return;
     }
+    // not taken -- and, fenced, never to be
     this.#edits = [...write.edits, ...this.#edits];
+    this.#unanswered += 1;
+    if (this.#unanswered >= UNANSWERED_AT_MOST) {
+      this.#unanswered = 0;
+      await this.#reopen(`its keeper took none of ${UNANSWERED_AT_MOST} writes in a row: ${why}`);
+      return;
+    }
     await this.#converge(now.version, now.hash, { target: now.page, held: now.held, refused: [] });
   }
 

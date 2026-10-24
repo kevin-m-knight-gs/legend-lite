@@ -20,7 +20,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { HASH_MISMATCH, LiveChannel, type Converge, type LiveScreen } from '../src/app/live-channel.ts';
 import { convergeOn } from '../src/app/live-converge.ts';
-import type { LiveCommand } from '../src/app/services.ts';
+import type { LiveCommand, LivePage, LiveSettled, LiveWrite } from '../src/app/services.ts';
 import { idsOf } from '../src/page-commands.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import type { PageDocument } from '../src/page-document.ts';
@@ -496,7 +496,10 @@ const file = (name: string): FileSource => ({
 
 /** A real page on a keeper: its grids CubeApps told to the channel, the page's commands too, converging by the one
  *  rule (live-converge.ts) as DataCube's app does. */
-function realPage(hooks: { readonly grid?: (id: string) => void } = {}): { cubes: Map<string, CubeApp>; over: (name: string) => GridMaker; channelOf: (keeper: FakeKeeper) => { channel: LiveChannel; reopened: string[]; said: string[]; atReopen: () => PageDocument | undefined } } {
+/** A test's own doing inside the converge: as it asks for a grid, and as it opens another editor's. */
+interface Hooks { readonly grid?: (id: string) => void; opened?: ((grid: string, several: boolean) => void) | undefined }
+
+function realPage(hooks: Hooks = {}): { cubes: Map<string, CubeApp>; over: (name: string) => GridMaker; channelOf: (keeper: FakeKeeper) => { channel: LiveChannel; reopened: string[]; said: string[]; atReopen: () => PageDocument | undefined } } {
   const cubes = new Map<string, CubeApp>();
   let channel: LiveChannel | undefined;
   const over = (name: string): GridMaker => (gridHost, spawned, start) => {
@@ -539,7 +542,10 @@ function realPage(hooks: { readonly grid?: (id: string) => void } = {}): { cubes
         pageNow: now,
         // a grid the other editor added: made as a saved page's are, over the source its document says, at the cube it
         // says
-        open: async (document) => ({ make: overDocument(document) }),
+        open: async (document, grid, several) => {
+          hooks.opened?.(grid, several);
+          return { make: overDocument(document) };
+        },
       }),
       reapply: async (pending, restarted) => {
         for (const edit of pending) {
@@ -1308,7 +1314,8 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
   });
 
   it("7: a grid added here while a write is on its way, the other editor's added meanwhile: theirs opened as theirs, this one kept under its own id (the middle version)", async () => {
-    const { cubes, over, channelOf } = realPage();
+    const hooks: Hooks = {};
+    const { cubes, over, channelOf } = realPage(hooks);
     const a = page!.addGrid(over('trades.csv'));
     await settle();
     page!.idTag = 'tab0';
@@ -1324,6 +1331,8 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
     keeper.pythonWrites([{ kind: 'addGrid', document: doc as never, sheet: keeper.page.sheets[0]!.id, near: null, title: 'Python grid', columns: null }]);
     const theirs = gridsOf(keeper.page).find((id) => id !== a)!;
     assert.notEqual(theirs, mine);
+    const opened: [string, boolean][] = [];
+    hooks.opened = (grid, several) => { opened.push([grid, several]); };
     keeper.release();
     await written(channel);
     await settle();
@@ -1331,7 +1340,10 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
     await settle();
     await written(channel);
     await settle();
+    hooks.opened = undefined;
     assert.deepEqual(reopened, []);
+    // opened capped, as a grid sharing its page is (the middle version's audit's 8)
+    assert.deepEqual(opened, [[theirs, true]]);
     assert.deepEqual(gridsOf(keeper.page).sort(), [a, theirs, mine].sort(), "a, the other editor's and this one");
     assert.deepEqual(cubes.get(theirs)!.snapshot.rows, ['desk'], "the other editor's grid shows their cube");
     assert.equal((cubes.get(theirs)!.snapshot.source as { readonly name?: string }).name, 'trades.csv', 'over their source');
@@ -1411,5 +1423,79 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
     assert.equal(await channel.follow(await keeper.read()), true);
     assert.deepEqual(s.converged, []);
     assert.equal(channel.shown, keeper.version);
+  });
+});
+
+describe("a write's answer lost, or never coming: the middle version's audit", () => {
+  const condition = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as FilterNode;
+  const filterOf = (keeper: FakeKeeper): unknown =>
+    keeper.page.cubes.find((c) => c.id === keeper.page.views.find((v) => v.id === 'grid')?.cube)?.cube.query.filter;
+
+  it("4: a write whose answer is lost while the keeper still works on it (a proxy's 504): the ask fences it, so it is kept once", async () => {
+    const keeper = new FakeKeeper(trades);
+    let finish: (() => void) | undefined;
+    let original: Promise<unknown> | undefined;
+    let first = true;
+    const wire: LivePage = {
+      read: async (writer?: string, fence?: number) => {
+        const read = await keeper.read(writer, fence);
+        // the keeper finishes the original just after it answered the ask
+        if (finish) { finish(); await original; }
+        return read;
+      },
+      report: async (at: number, write: LiveWrite): Promise<LiveSettled> => {
+        if (first) {
+          first = false;
+          // the write reaches the keeper, which is slow; the proxy answers the tab first
+          const gate = new Promise<void>((r) => { finish = r; });
+          original = gate.then(() => keeper.report(at, write)).catch(() => undefined);
+          throw new Error('the engine answered 504: gateway timeout');
+        }
+        return keeper.report(at, write);
+      },
+    };
+    const s = screen(keeper.page);
+    const channel = new LiveChannel(wire, s, 0);
+    s.channel = channel;
+    channel.opened(keeper.version, keeper.page, keeper.held);
+    await made(s, channel, { grid: 'grid', command: { kind: 'addFilter', condition } } as LiveCommand);
+    await written(channel);
+    await written(channel);
+    const steps = [...keeper.steps.values()].flatMap((e) => kinds(e)).filter((k) => k === 'grid:addFilter');
+    assert.equal(steps.length, 1, `kept once: ${JSON.stringify(steps)}`);
+    assert.equal(JSON.stringify(filterOf(keeper)).split('EMEA').length - 1, 1, 'the grid filtered by EMEA once');
+    assert.deepEqual(s.reopened, []);
+    channel.stop();
+  });
+
+  it('3: a write the keeper never answers, its reads answered: tried UNANSWERED_AT_MOST times, then the page opened again, said', async () => {
+    const keeper = new FakeKeeper(trades);
+    let reports = 0;
+    const wire: LivePage = {
+      read: (writer?: string, fence?: number) => keeper.read(writer, fence),
+      report: async (): Promise<LiveSettled> => { reports += 1; throw new TypeError('fetch failed'); },
+    };
+    const s = screen(keeper.page);
+    const channel = new LiveChannel(wire, s, 0);
+    s.channel = channel;
+    channel.opened(keeper.version, keeper.page, keeper.held);
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Here' } });
+    for (let i = 0; i < 10; i += 1) await written(channel);
+    assert.equal(reports, 3, 'three tries');
+    assert.equal(s.reopened.length, 1);
+    assert.match(s.reopened[0]!, /took none of 3 writes in a row: fetch failed; 1 change made here meanwhile was not kept/);
+    channel.stop();
+  });
+
+  it("7: the keeper out of reach for the write and the ask: the page opened again, the last change never said lost (it may be kept)", async () => {
+    const keeper = new FakeKeeper(trades);
+    const { channel, s } = opened(keeper);
+    keeper.unreachable = 1;
+    keeper.readsFail = 1;
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Here' } });
+    await written(channel);
+    assert.equal(s.reopened.length, 1);
+    assert.match(s.reopened[0]!, /whether the last change sent was kept is not known$/);
+    channel.stop();
   });
 });

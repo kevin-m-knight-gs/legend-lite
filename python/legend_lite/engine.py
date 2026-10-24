@@ -1634,7 +1634,8 @@ class Engine:
         [<every id it has held>], "hash": <its hash>}``, or 404 -- what a page open on it follows by, read whole
         (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version). Asked by a writer (``writer``, the id its
         writes carry), ``taken`` too: the last of its writes the keeper took (0: none), read with the page, so a write
-        whose answer was lost is in the page read when it is taken."""
+        whose answer was lost is in the page read when it is taken; and with ``fence`` (that write's number), the
+        writer's writes up to it are taken no more (keeper.py ``snapshot``)."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         if not self.keeper.served(name):
@@ -1646,9 +1647,12 @@ class Engine:
         if 'writer' in asked and not _FOLLOWER.fullmatch(writer):
             return _said(400, 'a page asks which of its writes were taken by the id they carry (writer=<letters, digits and '
                               '-, at most 64>)')
+        fence = asked.get('fence', [''])[0]
+        if 'fence' in asked and (not writer or not fence.isdigit() or int(fence) < 1):
+            return _said(400, 'a page fences off its writes by their writer and a number (writer=<its id>&fence=n)')
         # read under one lock of the keeper's (snapshot): its hash is the page's at the version it names, never a later
         # one's (the D19 audit's 3), and a write taken is in the page read with it
-        whole = self.keeper.snapshot(name, writer or None)
+        whole = self.keeper.snapshot(name, writer or None, int(fence) if fence else None)
         if whole is None:
             return _said(404, f'this engine serves no page named {name!r}')
         version, doc, held, page_hash_now, taken = whole

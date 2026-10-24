@@ -323,15 +323,17 @@ export interface LiveSettled {
 }
 
 /** A write the page's keeper refused, in its words: an edit that does not apply where the page now is, the host refusing
- *  what it makes, a write from further back than it keeps. Nothing of it was kept. Any other failure of a write is no
- *  refusal: its answer never came, and the keeper is asked whether it took it. */
+ *  what it makes -- or the keeper answering a failure of its own (a status that is no proxy's giving up: the write was
+ *  answered, not lost). Nothing of it was kept. A write whose answer never came (the network, a proxy's 502, 503 or
+ *  504) is no refusal: the keeper is asked whether it took it. */
 export class LiveRefused extends Error {}
 
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {
   /** The page as the editor says it is now, and -- asked by `writer` -- the last of its writes the keeper took; refused
-   *  with the editor's reason. */
-  read(writer?: string): Promise<LiveRead>;
+   *  with the editor's reason. `fence`: a write of `writer`'s the keeper takes no more from now on, whether it took it
+   *  or not (a write whose answer was lost, still on its way there, is never applied after this says it was not). */
+  read(writer?: string, fence?: number): Promise<LiveRead>;
   /**
    * A write against the version on screen, settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its
    * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept (LiveSettled).

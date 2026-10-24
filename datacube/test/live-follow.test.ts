@@ -57,11 +57,19 @@ describe("the keeper's page read as the page reads it", () => {
     assert.deepEqual(combined.held, ['grid']);
   });
 
-  it('a refusal is the keeper\'s 409, in its words; any other failure is no refusal', async () => {
+  it("a refusal is the keeper's 409, in its words, or any failure the engine answers; only a proxy giving up (502, 503, 504) is a lost answer (the middle version's audit's 3)", async () => {
     const write = { edits: [], writer: 'w1', seq: 1 };
     await assert.rejects(livePage(link('grid-2 is no longer on the page', 409), 'q3').report(2, write),
       (e: unknown) => e instanceof LiveRefused && /grid-2 is no longer on the page/.test(e.message));
-    await assert.rejects(livePage(link('down', 503), 'q3').report(2, write), (e: unknown) => !(e instanceof LiveRefused) && /503/.test(String(e)));
+    // the engine's own failure, a page it no longer serves: answered, so refused, said -- never written again for ever
+    for (const status of [500, 404, 400]) {
+      await assert.rejects(livePage(link('KeyError: x', status), 'q3').report(2, write),
+        (e: unknown) => e instanceof LiveRefused && new RegExp(`the engine answered ${status}: KeyError`).test(e.message), `${status}`);
+    }
+    for (const status of [502, 503, 504]) {
+      await assert.rejects(livePage(link('down', status), 'q3').report(2, write),
+        (e: unknown) => !(e instanceof LiveRefused) && new RegExp(`${status}`).test(String(e)), `${status}`);
+    }
   });
 });
 
@@ -93,11 +101,13 @@ describe('a page open on Python\'s says who it is and the version it shows (docs
     await askedVersions(link, { page: 'q 3' }, follower);
     const page = livePage(link, 'q 3', 'f00d');
     await page.read('w1');
+    await page.read('w1', 2);
     await page.report(3, { edits: [], writer: 'w1', seq: 2 });
     assert.deepEqual(urls, [
       'version.json?page=q%203&follower=f00d&at=3',
       'version.json?page=q%203&follower=f00d',
       'page.json?page=q%203&follower=f00d&writer=w1',
+      'page.json?page=q%203&follower=f00d&writer=w1&fence=2',
       'page.json?page=q%203&version=3&follower=f00d',
     ]);
     assert.deepEqual(bodies, ['{"edits":[],"writer":"w1","seq":2}']);

@@ -274,15 +274,20 @@ class PageKeeper:
         except Stale:
             raise Refused('the page changed where it is open while this was loaded: it is shown as it is now') from None
 
-    def snapshot(self, key: str, writer: str | None = None) -> tuple[int, dict[str, Any], list[str], str, int] | None:
+    def snapshot(self, key: str, writer: str | None = None, fence: int | None = None) -> tuple[int, dict[str, Any], list[str], str, int] | None:
         """The page whole, as a page open on it reads it: its version, its document (the keeper's own: read it, never
         change it), every id it has held, its hash, and the last write taken from ``writer`` (0: none, or no writer) --
-        the five under one lock, so a write taken is in the page read with it -- or None."""
+        the five under one lock, so a write taken is in the page read with it -- or None. ``fence``: ``writer``'s writes
+        up to it are taken no more from now on, kept or not -- a write whose answer was lost, still on its way here (a
+        slow combine), is never kept after this said it was not (the middle version's audit's 4)."""
         with self._lock:
             kept = self._pages.get(key)
             if kept is None:
                 return None
-            return kept.version, kept.doc, list(kept.held), kept.hash, 0 if writer is None else kept.taken.get(writer, 0)
+            taken = 0 if writer is None else kept.taken.get(writer, 0)
+            if writer is not None and fence is not None and taken < fence:
+                kept.taken[writer] = fence
+            return kept.version, kept.doc, list(kept.held), kept.hash, taken
 
     def serve(self, key: str, served: bool) -> None:
         """The page shown somewhere, or shown nowhere any more (no page is open on it then)."""

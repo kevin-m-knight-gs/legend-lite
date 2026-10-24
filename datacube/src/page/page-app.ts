@@ -1256,7 +1256,9 @@ export class PageApp {
     const command = make();
     if (command === undefined) return [];
     this.#state.keep(this.#seen());
-    const applied = applyToState(this.#state, [command], label);
+    // a filter it makes named under this page's tag, as every command made here is (#named): an untagged one would set
+    // another editor's filter of that id in its place (the middle version's audit's 2)
+    const applied = applyToState(this.#state, this.#named([command]), label);
     this.#filters = this.#state.draft.page.filters ?? [];
     this.#applyLenses();
     this.#paintFilters();

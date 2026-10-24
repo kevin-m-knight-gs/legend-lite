@@ -15,6 +15,10 @@ export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'sh
   return tag === undefined ? `${kind}-${n}` : `${kind}-${tag}-${n}`;
 }
 
+/** The shape of every id of `kind` a page holds: `kind-N`, or `kind-<tag>-N` under an editor's tag (idTag) -- what a
+ *  command may make (page-commands.ts freshId) and what a page is read with (page-filters.ts FILTER_ID). */
+export const idShape = (kind: 'grid' | 'chart' | 'sheet' | 'filter'): RegExp => new RegExp(`^${kind}-(?:[a-z][a-z0-9]*-)?\\d+$`);
+
 /** An editor's tag for the ids it makes: a letter and five letters or digits, at random. */
 export function idTag(): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';

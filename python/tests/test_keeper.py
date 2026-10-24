@@ -249,6 +249,20 @@ class Settle(unittest.TestCase):
                          'sent again: no new version, answered with the page as it is, which holds it')
         self.assertEqual(len(asked), 1, 'applied once')
 
+    def test_a_writers_ask_fences_its_write_off(self):
+        # (the middle version's audit's 4) a tab whose answer was lost asks, fencing that write: answered 0, the write --
+        # still on its way here, a slow combine -- is never kept after; the tab sends its edits again under a new number
+        made = {'page': {'n': 1}, 'held': [], 'edits': [{'page': 'x'}], 'reads': NOTHING}
+        combine, asked = self.combining([made, made])
+        keeper = PageKeeper(combine=combine)
+        keeper.keep('p', {'n': 0}, NOTHING, [])
+        self.assertEqual(keeper.snapshot('p', 'w1', 1)[4], 0, 'not taken when asked')
+        late = keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=1)
+        self.assertEqual((late.version, late.combined, late.page), (1, True, {'n': 0}), 'fenced: not kept, the page as it is')
+        self.assertEqual(asked, [], 'never combined')
+        self.assertEqual(keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=2).version, 2, 'sent again: kept')
+        self.assertEqual(keeper.snapshot('p', 'w1', 1)[4], 2, 'a fence behind what was taken moves nothing')
+
     def test_a_write_sent_twice_at_once_is_kept_once(self):
         # the two sends both made again before either is kept (the combine is asked outside the lock): the second to be
         # kept finds the first taken, and answers the page as it is

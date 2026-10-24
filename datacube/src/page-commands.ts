@@ -19,7 +19,7 @@ import {
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
 import type { PageModelRef } from './page-model.ts';
-import { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
+import { chartTitle, gridTitle, idShape, nextPageId } from './page-ids.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
@@ -246,7 +246,7 @@ function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'ch
   const taken = takenIds(draft);
   if (given === undefined) return nextPageId(taken, kind);
   if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
-  if (!new RegExp(`^${kind}-(?:[a-z][a-z0-9]*-)?\\d+$`).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N or ${kind}-<tag>-N, not '${given}'`);
+  if (!idShape(kind).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N or ${kind}-<tag>-N, not '${given}'`);
   return given;
 }
 

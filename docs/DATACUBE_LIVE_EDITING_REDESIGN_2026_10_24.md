@@ -380,6 +380,33 @@ grids', so another editor's snap left the grid here live and the page opened aga
 it, held by page-app.test.ts's snap test through the converge. The guards moved by the change, each with a dated note:
 `L1_ROUTES` 6 -> 5; the state guardrail's `renamedBy` and `follow` pins removed.
 
+**The independent audit (2026-10-24, of `4c52fe34..32545e47`, read-only, by an agent that wrote none of it).** Eight
+findings, each fixed with a test that fails without its fix:
+
+1. HIGH: a page holding a tab's page filter (`filter-<tag>-N`) could not be read again, because the page reader still
+   took `filter-N` alone. One id shape now serves the commands and the reader (`page-ids.ts idShape`).
+2. HIGH: the filter bar's Add made an untagged `filter-N`, which, made again on top, would be set in place of another
+   editor's `filter-N`, unsaid. It is named under the tag now (`PageApp.#applyFilterCommand`).
+3. HIGH: every non-409 failure was taken for a lost answer, so a write the engine always failed on (its 500, a 404)
+   was written again for ever, unsaid. Only a proxy's 502/503/504 or the network is a lost answer now; the engine's
+   own failures are refusals, said. Writes going unanswered three times in a row open the page again, said.
+4. MEDIUM: a lost answer while the keeper still worked on the write (a slow combine, a proxy that gave up first) let
+   the retry apply its edits a second time. The tab's ask now fences that write off (`fence`, `keeper.snapshot`): the
+   keeper takes it no more once it has said it was not taken.
+5. MEDIUM: a snap or go-live still pending when a converge began was undone on its grid by the copy step and never
+   redone, so the page reopened on a hash mismatch. A grid a pending snap or live names keeps its copy now.
+6. LOW-MEDIUM: another editor's `rebuilt` (a frame's columns moved) is no state a grid's commands reach; it ended in a
+   hash mismatch. The converge refuses it in words, and the page opens again, as before.
+7. LOW: when neither the answer nor the ask came, the reopen said the last change was not kept, though it may have
+   been. It says it is not known now.
+8. LOW: another editor's grid opened by a converge was never capped as a grid sharing its page is. It is now
+   (`gridCapped`).
+
+Checked and found sound by the audit: tag coverage elsewhere (the board's own ids, a chart click's filter, undo and
+redo, pending edits made again), the keeper's `_write` and `snapshot` under one lock, the version check, the engine's
+validation, writer and seq numbering across converges and reopens, and no remaining caller of a removed API (the one
+that slipped, the browser harness's fixture, was CI's catch, fixed in 32545e47).
+
 **The one API ledger's five routes (`L1_ROUTES`), each a place outside a grid that changes it through its public
 methods, every one accounted for (no open item):** a chart's click refilters its grid (`cube-page.ts #select`, a command
 told to the keeper); a saved page opened reads its snapped grids' copies (`datacube-app.ts openSaved`, an open, not an

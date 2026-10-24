@@ -1033,6 +1033,11 @@ class Page(Cube):
         taken = lambda writer: json.loads(self.get(f'/page.json?page=q3&writer={writer}', auth)[2])['taken']
         self.assertEqual([taken('w1'), taken('w2')], [3, 0], 'its own last write; none of another\'s')
         self.assertEqual(self.get('/page.json?page=q3&writer=a%20b', auth)[0], 400, 'a writer said right or refused')
+        # a fence (the middle version's audit's 4): answered as the writes were, its writes up to it taken no more
+        self.assertEqual(json.loads(self.get('/page.json?page=q3&writer=w2&fence=4', auth)[2])['taken'], 0)
+        self.assertEqual(taken('w2'), 4, 'fenced')
+        for bad in ('writer=w2&fence=0', 'writer=w2&fence=x', 'fence=4'):
+            self.assertEqual(self.get(f'/page.json?page=q3&{bad}', auth)[0], 400, bad)
         self.server.engine.keeper.serve('q3', False)
         self.assertEqual(self.get('/page.json?page=q3', auth)[0], 404, 'closed: served no more')
 

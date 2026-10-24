@@ -21,7 +21,7 @@
 // Throws when the screen cannot be set: the page is then opened again, said. No DOM of its own: the app hands it the page
 // and its grids, so the rule is tested with real pages alone (test/live-channel.test.ts).
 
-import { configurationOf, treeOf, type CubeDocument } from '../cube-document.ts';
+import { configurationOf, gridCapped, treeOf, type CubeDocument } from '../cube-document.ts';
 import { gridBetween } from '../grid-between.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import type { PageCommand } from '../page-commands.ts';
@@ -95,6 +95,16 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
     if (view.kind === 'grid' && !sameCube(cubeIn(on.base, view.id), cubeIn(on.target, view.id))) theirs.add(view.id);
   }
   for (const e of on.refused) if ('grid' in e) theirs.add(e.grid);
+  // a grid another editor opened again over its source as it is now (`rebuilt`: a frame's columns moved) is no state a
+  // grid's commands reach -- the page is opened again, said, as before the middle version (the audit's 6)
+  for (const view of on.target.views) {
+    if (view.kind !== 'grid') continue;
+    const was = cubeIn(on.base, view.id);
+    const now = cubeIn(on.target, view.id);
+    if (was !== undefined && now !== undefined && !sameValue(was.source, now.source)) {
+      throw new Error(`${view.id} was opened again over its source as it is now`);
+    }
+  }
   // each grid at its cube there, by its own commands
   const gridsAtTarget = async (): Promise<void> => {
     for (const id of page.grids) {
@@ -115,7 +125,8 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
     if (view.kind !== 'grid' || page.grids.includes(view.id) || page.knows(view.id)) continue;
     const cube = cubeIn(on.target, view.id);
     if (cube === undefined) continue;
-    const opened = await deps.open(cube, view.id, false);
+    // capped as a grid sharing its page is (the page it joins: the keeper's)
+    const opened = await deps.open(cube, view.id, gridCapped(on.target.views.filter((v) => v.kind === 'grid').length));
     if (opened === undefined) throw new Error(`${cube.source.name} was not opened`);
     makers.set(view.id, opened.make);
   }
@@ -123,8 +134,12 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   page.putBack(on.target, on.held, makers, refusedSteps);
   holdGrids();
   await gridsAtTarget();
-  // each grid's rows where the keeper's page says: its copy, or its live rows
+  // each grid's rows where the keeper's page says: its copy, or its live rows -- but a grid a pending edit snaps or makes
+  // live, which keeps where the person put it: the edit is made again on the keeper's page after, and written (the
+  // audit's 5)
+  const ownCopy = new Set(on.pending.flatMap((e) => ('page' in e && (e.page.kind === 'snap' || e.page.kind === 'live') ? [e.page.grid] : [])));
   for (const id of page.grids) {
+    if (ownCopy.has(id)) continue;
     const grid = deps.grid(id);
     const view = on.target.views.find((v) => v.id === id);
     if (grid === undefined || view === undefined) continue;

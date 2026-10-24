@@ -58,15 +58,18 @@ export class FakeKeeper implements LivePage {
     this.held = [...held];
   }
 
-  async read(writer?: string): Promise<LiveRead> {
+  async read(writer?: string, fence?: number): Promise<LiveRead> {
     if (this.readsFail > 0) {
       this.readsFail -= 1;
       throw new TypeError('fetch failed');
     }
     this.reads += 1;
+    const taken = writer === undefined ? undefined : this.#taken.get(writer) ?? 0;
+    // as keeper.py snapshot: a fence takes the writer's writes up to it no more, kept or not
+    if (writer !== undefined && fence !== undefined && taken! < fence) this.#taken.set(writer, fence);
     return {
       version: this.version, page: this.page, held: this.held, hash: pageHash(this.page),
-      ...(writer === undefined ? {} : { taken: this.#taken.get(writer) ?? 0 }),
+      ...(taken === undefined ? {} : { taken }),
     };
   }
 
@@ -115,6 +118,8 @@ export class FakeKeeper implements LivePage {
         throw new LiveRefused(`409: ${at !== before ? 'the page changed where it is open while this change was made: ' : ''}${e instanceof Error ? e.message : String(e)}`);
       });
       if (this.version !== before) continue;
+      // taken meanwhile (sent again, or fenced by its writer's ask): applied once, as keeper.py _write checks it
+      if ((this.#taken.get(write.writer) ?? 0) >= write.seq) return { version: this.version, hash: pageHash(this.page), page: this.page, held: this.held };
       const combined = at !== before;
       if (combined) this.combinedCount += 1;
       this.page = done.page;

@@ -649,6 +649,9 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
  * The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays.
  * `follower`: the id the page open here asks by, each follow and write saying the version it shows (Z17).
  */
+/** The statuses of an answer lost on its way (a proxy that gave up on the engine), not the engine's own. */
+const LOST = new Set([502, 503, 504]);
+
 export function livePage(link: PythonLink, key: string, follower?: string): LivePage {
   const at = `page.json?page=${encodeURIComponent(key)}`;
   const as = follower === undefined ? '' : `&follower=${follower}`;
@@ -668,8 +671,9 @@ export function livePage(link: PythonLink, key: string, follower?: string): Live
     return { version, page: readPage(said.page, { empty: true }), held, hash: hashOf(plain) };
   };
   return {
-    read: async (writer?: string) => {
-      const text = await asked(link, `${at}${as}${writer === undefined ? '' : `&writer=${encodeURIComponent(writer)}`}`);
+    read: async (writer?: string, fence?: number) => {
+      const asking = writer === undefined ? '' : `&writer=${encodeURIComponent(writer)}${fence === undefined ? '' : `&fence=${fence}`}`;
+      const text = await asked(link, `${at}${as}${asking}`);
       const page = read(text);
       if (writer === undefined) return page;
       // asked by a writer: the last of its writes the keeper took (0: none), never left unsaid
@@ -684,9 +688,13 @@ export function livePage(link: PythonLink, key: string, follower?: string): Live
         // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), and its id
         body: `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}],"writer":${JSON.stringify(write.writer)},"seq":${write.seq}}`,
       });
-      // refused, in the keeper's words: nothing kept (any other failure is no refusal: the keeper is asked)
+      // refused, in the keeper's words: nothing kept
       if (answer.status === 409) throw new LiveRefused(await answer.text());
-      if (!answer.ok) throw new Error(`the engine answered ${answer.status}: ${await answer.text()}`);
+      // the answer lost on the way (a proxy that gave up on the engine): the keeper is asked whether it took the write
+      if (LOST.has(answer.status)) throw new Error(`the engine answered ${answer.status}: ${await answer.text()}`);
+      // any other failure is the engine's answer (its 500, a page it no longer serves): the write not kept, said as a
+      // refusal -- never taken for a lost answer, which would write it again for ever (the middle version's audit's 3)
+      if (!answer.ok) throw new LiveRefused(`the engine answered ${answer.status}: ${await answer.text()}`);
       const text = await answer.text();
       const said = JSON.parse(text) as { version?: unknown; hash?: unknown; page?: unknown };
       if (typeof said.version !== 'number' || !Number.isSafeInteger(said.version)) throw new Error('the engine said no version of the page');

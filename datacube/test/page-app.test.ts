@@ -24,6 +24,7 @@ import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../s
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { theirs } from './theirs.ts';
+import { convergeOn, type ConvergeGrid } from '../src/app/live-converge.ts';
 import { classRelation } from '../src/class-source.ts';
 import * as echarts from 'echarts/core';
 // the page fetches its filter bar when it first needs one (a dynamic import): loaded here, so that import finds it
@@ -869,6 +870,32 @@ describe('a page of its own', () => {
     assert.equal(page.sheets.length, 2, "the sheet added after is the page's");
   });
 
+  it("a snap pending here when the page converges keeps its copy: the keeper's page, which has none yet, never takes it live (the middle version's audit's 5)", async () => {
+    newPage();
+    const a = page.addGrid(hostedGrid({ file: 'trades.csv' }));
+    await settle();
+    const keepers = page.state;
+    // the person snaps the grid; the write carrying it is still to be answered when the converge comes
+    const copy = gridCopyOf({ table: 'snap_7', rowCount: 3, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
+    await page.grid(a)!.followSnap!(copy);
+    await settle();
+    assert.deepEqual(page.grid(a)?.copy, copy);
+    await convergeOn({ target: keepers.page, held: keepers.held, base: keepers.page, refused: [], pending: [{ page: { kind: 'snap', grid: a, copy } }] }, {
+      page, grid: (id) => page.grid(id) as unknown as ConvergeGrid | undefined, pageNow: () => page.document(page.title, undefined, true),
+      open: async () => undefined,
+    });
+    assert.deepEqual(page.grid(a)?.copy, copy, 'still reads the copy the pending snap made');
+  });
+
+  it("another editor's grid opened again over its source as it is now (rebuilt): no state a grid's commands reach, the converge refuses it in words (the audit's 6)", async () => {
+    newPage();
+    const a = page.addGrid(hostedGrid({ file: 'trades.csv' }));
+    await settle();
+    const source = page.state.page.cubes.find((c) => c.id === a)!.cube.source as FileSource & { readonly columns: readonly { readonly name: string; readonly type: string }[] };
+    const now = { ...source, columns: [...source.columns, { name: 'extra', type: 'String' }] };
+    await assert.rejects(theirs(page, [{ kind: 'rebuilt', cube: a, source: now }]), /was opened again over its source as it is now/);
+  });
+
   it("F13: a grid whose cube the page cannot hold snaps and goes live with no command of the page's, nothing refused", async () => {
     const refused: string[] = [];
     const told: PageCommand[] = [];
@@ -1230,6 +1257,19 @@ describe('a dashboard\'s page filters (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md 
     });
   const filtered = (plans: readonly string[]): boolean => plans.some((p) => p.includes('"function":"filter"') && p.includes('"function":"getAll"'));
   const chips = (): string[] => [...host.querySelectorAll('.dc-page-filter')].map((c) => `${c.querySelector('.dc-page-filter-words')?.textContent} / ${c.querySelector('.dc-page-filter-reach')?.textContent}`);
+
+  it("on a page open on its keeper, a filter set from its bar is made under the page's tag, and the page reads back (the middle version's audit's 1, 2)", async () => {
+    // an untagged filter-N made here would, made again on top of another editor's filter-N, be set in that one's place --
+    // and a page holding a tagged filter must be read again as the keeper serves it
+    newPage();
+    page.idTag = 'tabcde';
+    page.addGrid(overClass(new Recording()));
+    await settle();
+    const id = await page.setFilter({ class: TRADE, condition: EMEA });
+    assert.equal(id, 'filter-tabcde-1');
+    const doc = page.document('Q3')!;
+    assert.deepEqual(readPage(JSON.parse(pageToJson(doc))).filters?.map((f) => f.id), ['filter-tabcde-1'], 'read back as written');
+  });
 
   it('set from the page: every grid over the class runs filtered, a grid over a file does not; undone, none is', async () => {
     newPage();
