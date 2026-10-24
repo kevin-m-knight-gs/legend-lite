@@ -157,11 +157,30 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   while (page.grids.some((id) => deps.grid(id)?.busy === true) && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
   const now = deps.pageNow();
   if (now === undefined) throw new Error('the page cannot say what it is');
+  // a grid a pending snap or live names kept its own rows (above), its copy the pending edit's: the page is checked
+  // against the keeper's as it is before the pending edits are made again, so that grid's copy is said as the keeper's
+  // there -- the edit, made again and written next, then makes the keeper's page this one (the confirmation audit's 1)
+  const checked = ownCopy.size === 0 ? now : withKeepersCopies(now, on.target, ownCopy);
   // a grid made as the screen was set (opened, or made again) starts its history here; one a pending edit makes is made
   // again with it, from the cube that edit gave it
   const remade = page.grids.filter((id) => deps.grid(id) !== was.get(id));
   const made = on.pending.flatMap((e) => ('page' in e && e.page.kind === 'addGrid' && e.page.id !== undefined ? [e.page.id] : []));
-  return { page: now, restarted: new Set([...theirs, ...remade, ...made]) };
+  return { page: checked, restarted: new Set([...theirs, ...remade, ...made]) };
+}
+
+/** `page` with the copy of each of `grids`' cubes as `target` (the keeper's page) has it -- none where it has none. */
+function withKeepersCopies(page: PageDocument, target: PageDocument, grids: ReadonlySet<string>): PageDocument {
+  const copies = { ...(page.copies ?? {}) };
+  for (const id of grids) {
+    const cube = page.views.find((v) => v.id === id)?.cube;
+    if (cube === undefined) continue;
+    const theirs = (target.copies ?? {})[cube];
+    if (theirs === undefined) delete copies[cube];
+    else copies[cube] = theirs;
+  }
+  const { copies: _all, ...rest } = page;
+  // as the page writes it (page-document.ts writePageOf): no field when it has none
+  return Object.keys(copies).length > 0 ? { ...rest, copies } : rest;
 }
 
 /** The cube a grid tile of `page` shows, or undefined. */

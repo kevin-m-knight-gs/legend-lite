@@ -37,6 +37,7 @@ import copy
 import hashlib
 import threading
 import time
+import traceback
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -216,7 +217,13 @@ class PageKeeper:
                 del kept.holds[old]
             wrote = kept.version, kept.hash, kept.doc, list(kept.held)
         if self.on_write is not None:
-            self.on_write(key, wrote[0])
+            # told outside the lock; a failure of where the page is shown (a notebook view) is said, never the write's: it
+            # is kept, and answered as kept -- a 500 here would have the writer take a kept write for refused (the
+            # confirmation audit's 2)
+            try:
+                self.on_write(key, wrote[0])
+            except Exception:  # noqa: BLE001 -- the write is kept whatever its watchers do
+                traceback.print_exc()
         return wrote
 
     def settle(self, key: str, base: int, edits: list[Any], admit: Admit | None = None, writer: str | None = None,

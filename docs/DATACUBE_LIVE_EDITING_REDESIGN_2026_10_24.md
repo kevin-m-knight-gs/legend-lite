@@ -407,6 +407,28 @@ redo, pending edits made again), the keeper's `_write` and `snapshot` under one 
 validation, writer and seq numbering across converges and reopens, and no remaining caller of a removed API (the one
 that slipped, the browser harness's fixture, was CI's catch, fixed in 32545e47).
 
+**The confirmation audit (2026-10-24, of 137e9ff3 alone, read-only, by another agent that wrote none of it).** It
+found one HIGH and three lower. Each is fixed with a test that fails without its fix:
+
+1. HIGH: fix 5 above did not close its case. The channel checks the page against the keeper's hash before it makes
+   the pending edits again, and the grid that kept its pending snap's copy made the page differ there, so the page
+   reopened on the mismatch and the snap was dropped. The converge now reports that grid's copy as the keeper's has it
+   (`live-converge.ts withKeepersCopies`). The check compares the page as it is before the pending edits; the snap,
+   made again and written, then makes the keeper's page the screen's. This is tested through the channel, for an
+   answer combined, a follow, and a write lost and fenced off. The earlier test called the converge alone and missed
+   it.
+2. LOW-MEDIUM: a watcher of the keeper's writes failing after a write was kept (a notebook view told from the HTTP
+   thread) turned the answer into a 500, which the tab now takes for a refusal. The keeper says that failure and
+   answers the write as kept.
+3. LOW: the run of unanswered writes was not reset when the page opened afresh, so one failure after a reopen could
+   count as the third in a row.
+4. LOW: the engine read `fence`, `version` and `at` with `str.isdigit`, which takes `'²'`; it takes ASCII digits
+   alone now.
+
+It found sound the fence's atomicity, the seq numbering after a fence, the engine's validation, the status
+classification apart from 2, fixes 1, 2, 6, 7 and 8, and the tag rule. The one board that makes untagged ids, a cube
+alone's (`app.ts`), is never on a live channel.
+
 **The one API ledger's five routes (`L1_ROUTES`), each a place outside a grid that changes it through its public
 methods, every one accounted for (no open item):** a chart's click refilters its grid (`cube-page.ts #select`, a command
 told to the keeper); a saved page opened reads its snapped grids' copies (`datacube-app.ts openSaved`, an open, not an

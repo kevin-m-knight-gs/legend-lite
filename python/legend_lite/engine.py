@@ -87,6 +87,13 @@ _WAREHOUSE = '/warehouse.json'
 _SNAP = '/snap.json'
 # the id a page open on another asks by (follower=): a tab's or a notebook widget's, made by DataCube's code
 _FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
+
+
+def _whole(text: str) -> bool:
+    """Whether ``text`` is a whole number written in ASCII digits (``str.isdigit`` takes ``'²'``, which ``int`` refuses)."""
+    return text.isascii() and text.isdigit()
+
+
 # a saved query's rows are its project's own Data rows (C5): one whose project has none is refused in these words
 _NO_PROJECT_ROWS = 'a saved query\'s rows are its project\'s own Data rows: this model has none'
 # a saved grid of a page Python serves, opened by Python over its frames as they are now (§18.3): a join of frames, which
@@ -1648,7 +1655,7 @@ class Engine:
             return _said(400, 'a page asks which of its writes were taken by the id they carry (writer=<letters, digits and '
                               '-, at most 64>)')
         fence = asked.get('fence', [''])[0]
-        if 'fence' in asked and (not writer or not fence.isdigit() or int(fence) < 1):
+        if 'fence' in asked and (not writer or not _whole(fence) or int(fence) < 1):
             return _said(400, 'a page fences off its writes by their writer and a number (writer=<its id>&fence=n)')
         # read under one lock of the keeper's (snapshot): its hash is the page's at the version it names, never a later
         # one's (the D19 audit's 3), and a write taken is in the page read with it
@@ -1678,7 +1685,7 @@ class Engine:
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         version = asked.get('version', [''])[0]
-        if not version.isdigit():
+        if not _whole(version):
             return _said(400, 'a page says what it is with the version it opened (version=n)')
         if not self.keeper.served(name):
             return _said(404, f'this engine serves no page named {name!r}')
@@ -1721,7 +1728,7 @@ class Engine:
         follower = asked.get('follower', [''])[0]
         if not follower:
             return None if 'at' not in asked else _said(400, 'a page says the version it shows with who it is (follower=<its id>)')
-        if not _FOLLOWER.fullmatch(follower) or (at and not at.isdigit()):
+        if not _FOLLOWER.fullmatch(follower) or (at and not _whole(at)):
             return _said(400, 'a page open on another says who it is (follower=<letters, digits and -, at most 64>) and '
                               'the version it shows (a whole number)')
         if self.keeper.follow(name, follower, int(at) if at else None):

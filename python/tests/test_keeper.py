@@ -263,6 +263,22 @@ class Settle(unittest.TestCase):
         self.assertEqual(keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=2).version, 2, 'sent again: kept')
         self.assertEqual(keeper.snapshot('p', 'w1', 1)[4], 2, 'a fence behind what was taken moves nothing')
 
+    def test_a_write_kept_is_answered_kept_though_a_watcher_fails(self):
+        # (the confirmation audit's 2) told of the write after it is kept, where the page is shown fails: the write stays
+        # kept and is answered so -- never a failure the writer would take for a refusal
+        made = {'page': {'n': 1}, 'held': [], 'edits': [{'page': 'x'}], 'reads': NOTHING}
+        keeper = PageKeeper(combine=self.combining([made])[0])
+
+        def failing(_key, _version):
+            raise RuntimeError('a notebook view could not be told')
+        keeper.on_write = failing
+        keeper.keep('p', {'n': 0}, NOTHING, [])
+        with mock.patch('traceback.print_exc') as said:
+            settled = keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=1)
+        self.assertEqual((settled.version, keeper.current('p')), (2, (2, {'n': 1})))
+        self.assertEqual(keeper.snapshot('p', 'w1')[4], 1, 'taken')
+        said.assert_called_once()
+
     def test_a_write_sent_twice_at_once_is_kept_once(self):
         # the two sends both made again before either is kept (the combine is asked outside the lock): the second to be
         # kept finds the first taken, and answers the page as it is

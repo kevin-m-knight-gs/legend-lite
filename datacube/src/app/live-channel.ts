@@ -143,6 +143,8 @@ export class LiveChannel {
   opened(version: number, page?: PageDocument, held: readonly string[] = []): void {
     this.shown = version;
     this.#edits = [];
+    // a page opened afresh: the writes before it that went unanswered count no more (the confirmation audit's 3)
+    this.#unanswered = 0;
     const confirmed = page ?? this.#screen.page();
     this.#confirmed = confirmed === undefined ? undefined : { page: confirmed, held };
   }

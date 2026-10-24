@@ -24,6 +24,7 @@ import type { LiveCommand, LivePage, LiveSettled, LiveWrite } from '../src/app/s
 import { idsOf } from '../src/page-commands.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import type { PageDocument } from '../src/page-document.ts';
+import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { pageHash } from '../src/page-hash.ts';
 import { rebaseEdits } from '../src/page-rebase.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
@@ -1384,6 +1385,60 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
     assert.equal(pageHash(page!.document('Q3', undefined, true)!), pageHash(keeper.page), 'one page still');
   });
 
+  for (const variant of ['combined', 'follow', 'lost'] as const) {
+    it(`11 (${variant}): a snap made here, pending when the page converges, keeps its copy, hashes as the keeper's and is written (the confirmation audit's 1)`, async () => {
+      // the write it rides answered combined, a follow first, or its write lost and fenced off: in each the page
+      // converges with the snap pending, its grid kept at the person's copy
+      const { cubes, channelOf } = realPage();
+      const runner = new PlanThenRun(new StubPlanner(), engine) as unknown as QueryRunner;
+      const hosted: GridMaker = (gridHost, spawned) => {
+        const made = new CubeApp(gridHost, SNAPSHOT, {
+          runner, cubeSource: file('trades.csv'), sourceLabel: 'trades.csv', compact: true, ...(page ? { windowHost: page.root } : {}),
+          hostSnap: {
+            store: 'Python',
+            snap: async () => ({ rowCount: 3, table: 'snap_2', source: SNAPSHOT.source.query, runner }),
+            release: async () => {},
+            held: async (table) => ({ table, source: SNAPSHOT.source.query, runner }),
+          },
+          ...spawned,
+        });
+        if (spawned.id !== undefined) cubes.set(spawned.id, made);
+        return made;
+      };
+      const a = page!.addGrid(hosted);
+      await settle();
+      page!.idTag = 'tab0';
+      const keeper = new FakeKeeper(page!.document('Q3', undefined, true)!);
+      const { channel, reopened } = channelOf(keeper);
+      if (variant === 'lost') keeper.unreachable = 1;
+      if (variant === 'combined') {
+        keeper.hold = true;
+        channel.edit({ page: { kind: 'renamePage', name: 'Here' } });
+        channel.changed();
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      // the person's Snap
+      (host.querySelector('.dc-titlebar-toggle') as HTMLButtonElement).click();
+      await settle();
+      await settle();
+      assert.equal(cubes.get(a)!.copy?.table, 'snap_2', 'snapped here');
+      if (variant !== 'lost') keeper.pythonWrites([{ kind: 'addSheet', name: 'From Python' }]);
+      if (variant === 'combined') keeper.release();
+      if (variant === 'follow') {
+        const moved = await keeper.read();
+        await channel.enqueue(async () => { await channel.follow(moved); });
+      }
+      await written(channel);
+      await settle();
+      await written(channel);
+      await settle();
+      assert.deepEqual(reopened, [], 'no reopen, no mismatch');
+      assert.equal(cubes.get(a)!.copy?.table, 'snap_2', 'still snapped');
+      assert.equal(keeper.page.copies?.[a]?.table, 'snap_2', 'the snap written to the keeper');
+      assert.equal(pageHash(page!.document(page!.title || 'Q3', undefined, true)!), pageHash(keeper.page), 'one page');
+    });
+  }
+
   it("10: another editor's mark on a chart and the grid's undo of its refilter, followed in one move: the selection the keeper took off is off here too (the long soak, seed 3)", async () => {
     const { cubes, over, channelOf } = realPage();
     const a = page!.addGrid(over('trades.csv'));
@@ -1484,6 +1539,45 @@ describe("a write's answer lost, or never coming: the middle version's audit", (
     assert.equal(reports, 3, 'three tries');
     assert.equal(s.reopened.length, 1);
     assert.match(s.reopened[0]!, /took none of 3 writes in a row: fetch failed; 1 change made here meanwhile was not kept/);
+    channel.stop();
+  });
+
+  it("3: a page opened afresh counts no unanswered write from before it (the confirmation audit's 3)", async () => {
+    // two writes lost and not taken; the third lost and its ask too: the page opened again, not known -- then, on the
+    // page opened afresh, one write lost is one, never the third in a row
+    const keeper = new FakeKeeper(trades);
+    let failing = 3;
+    let reads = 0;
+    const wire: LivePage = {
+      read: async (writer?: string, fence?: number) => {
+        reads += 1;
+        if (reads === 3) throw new TypeError('fetch failed');
+        return keeper.read(writer, fence);
+      },
+      report: async (at: number, write: LiveWrite): Promise<LiveSettled> => {
+        if (failing > 0) {
+          failing -= 1;
+          throw new TypeError('fetch failed');
+        }
+        return keeper.report(at, write);
+      },
+    };
+    const s = screen(keeper.page);
+    const channel = new LiveChannel(wire, s, 0);
+    s.channel = channel;
+    channel.opened(keeper.version, keeper.page, keeper.held);
+    await made(s, channel, { page: { kind: 'renamePage', name: 'Here' } });
+    for (let i = 0; i < 4; i += 1) await written(channel);
+    assert.equal(s.reopened.length, 1);
+    assert.match(s.reopened[0]!, /whether the last change sent was kept is not known$/);
+    // the app's reopen: the page as its keeper has it, opened afresh
+    channel.opened(keeper.version, keeper.page, keeper.held);
+    s.now = keeper.page;
+    failing = 1;
+    await made(s, channel, { page: { kind: 'renamePage', name: 'There' } });
+    for (let i = 0; i < 4; i += 1) await written(channel);
+    assert.equal(s.reopened.length, 1, `one unanswered write on the page opened afresh: ${JSON.stringify(s.reopened)}`);
+    assert.equal(keeper.page.name, 'There', 'made again and written');
     channel.stop();
   });
 
