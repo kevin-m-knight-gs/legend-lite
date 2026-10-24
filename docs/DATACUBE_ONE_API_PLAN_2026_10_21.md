@@ -87,6 +87,15 @@ item below has its `file:line` there.
   whole-page restore, N2; the tab keeps and re-applies the edits not yet confirmed).
 - **D22** (the user, 2026-10-22) A query over a table dropped since its read began is refused, in words: that is the
   rule, not a limit (F31). A call never reads rows the session no longer serves.
+- **D24** (the user, 2026-10-24: finish D19 "right", to the standard that live shared editing of a page would work, as
+  the proof it was done correctly) D19 is built in its full form, not D23's smaller one:
+  docs/DATACUBE_LIVE_EDITING_2026_10_24.md. Undo and redo are inverse commands produced by two total diffs
+  (`gridBetween`, `pageBetween`); the restore write goes and N2 retires when its item (W5) lands; the tab converges on
+  a combined or refused write by replaying the keeper's steps over its confirmed page, never by a reopen; a follow
+  writes pending edits first and waits for a gesture in flight; a gesture's commands are told on one schedule; every
+  write's answer carries the keeper's page hash, checked by the tab; the proof is a two-editor soak (two real tabs and
+  Python, undo in the mix) as a gate. Items W1-W18 (its §7), closed here as each lands. Out of scope, said there:
+  presence, CRDTs, a keeper outside Python, Python undo.
 
 ## 0. Why the nine attempts before this one did not finish
 
@@ -1213,7 +1222,7 @@ largest; S3 the riskiest.
 
 - **The proper live-editing model** (each view holding confirmed and pending edits, re-applying its own with
   `rebaseEdits`, no reopen on a collision; undo as inverse commands). This plan is its foundation; it is a separate
-  decision after S7.
+  decision after S7. **Decided 2026-10-24 (D24): built as D19, docs/DATACUBE_LIVE_EDITING_2026_10_24.md.**
 - **Graph mode, chart batches, the backlog PR** (task 79), **§18 steps 5-7** (blocked on the user's A4 decision).
 
 ## 9. Tracking
