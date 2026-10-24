@@ -2001,7 +2001,46 @@ test, or a proof whose test is gone: each fails the build.
 
 **Gates.** The full local set, 205 of 205.
 
-**Next.** The PR (S8 and D23), then D19 in its smaller form (D23): the tab keeps the edits not yet confirmed and
-re-applies them, no reopen on a collision; Save on a served page saves the keeper's page (H-5); H-11, H-13, F90's race
-and F97; undo stays a whole-page restore (N2), said when another editor has moved the page since.
+**Next (as written 2026-10-23).** The PR (S8 and D23), then D19 in its smaller form (D23) -- superseded by D24: D19
+was built in its full form, below.
+
+## As built (D19, 2026-10-24)
+
+D19 in its full form (D24; the design `docs/DATACUBE_LIVE_EDITING_2026_10_24.md`, written from file:line homework
+before any code), built in four slices on `claude/datacube-d19` (c3c784d9 the note; b94d5cb9 slices 1 and 2; 1f58955b
+slice 3; 696d9867 slice 4), each green on the datacube and Python sets before the next. The register's rows W1-W19
+above say what each item is and which tests hold it; this is the whole.
+
+- **Undo and redo are commands (W1-W5, W18, W19).** Two total diffs, `grid-between.ts gridBetween` (over the saved
+  form: the query, the configuration, the tree; `tree` a command, `before` on `calculate` / `editCalculated`) and
+  `page-between.ts pageBetween` (the page's structure in two scopes, total over detached charts by the new `detach`
+  command); a step of either history is `{forward, inverse}` commands, planned when the step is made; an undo is told
+  as the commands between, which the keeper judges by every rule a write is; a tile brought back is a new tile (B12).
+  The restore write is gone end to end (`L9_KEEPER` 6 -> 5; N2 retired), so no editor ever writes the page whole.
+- **The tab converges (W6-W14, W16, W17).** A write's answer carries `since`, `edits`, `renamed`, `hash`; a combined or
+  refused write is converged on by one function (`live-converge.ts convergeOn`: the board put back at the confirmed
+  page, the keeper's renames followed, each touched grid put back by its own commands, the other editors' steps then
+  this screen's applied, the hash checked, the pending edits made again) -- no read, no reopen. The two reopen causes
+  that remain (a `rebuilt`, a write from further back than the keeper keeps) and the hash mismatch are each said, and
+  no edit is dropped unsaid. A follow and a Save write first; a write waits for the gesture in flight.
+- **The proof (W15).** Three soaks as gates: two real tabs on a keeper as Python's (`live-soak.test.ts`), Python with
+  two open pages undoing and redoing (test_keeper.py `Converges`), and two browser tabs on one `ll.Page`
+  (python-engine.mjs). The TypeScript soak caught two bugs in its first sixty seeds, both fixed with unit tests before
+  it landed (W15's row): the follow's board read once per move, and the converge's hash checked over a screen still
+  carrying pending edits.
+
+**Ledgers, before and after.** `L9_KEEPER` 6 -> 5 (shrink: the restore write). `L1_ROUTES` 5 -> 7 (two live-converge
+entries, dated: the converge's own path puts the board and the grids back, told nothing -- the keeper's page is what
+it makes). `L8_KINDS` 0 -> 1 (`detach`: Python makes none; no gesture but an undo tells it). `L1_GRID`'s `#undo` /
+`#redo` reasons rewritten (the owner's moves are told). `SCREEN_OWN_MAKERS` gains `gridBetween`. `ITEM` gains `W`;
+`ALL` gains W1-W19, every one closed. `L8_UNASKED` stays empty: the three tab functions the Python soak undoes by are
+bundled for that test alone (`//datacube:headless_tab_bundle`), not exported by the product's headless. The gestures
+ledger's `restores` arm is gone (the five restore gestures are told gestures). `PAGE_STATE` (state-guardrail) gains
+`step | putBack | rename` with the sites that call them. No budget moved.
+
+**Out of scope, as the note says (§9):** presence, CRDTs, a keeper outside Python, Python's own undo (Python has no
+history; its undo would be `pageBetween` over two documents it holds, a program's to write), the mutation harness as a
+gate, the two-thread test with two open pages.
+
+**Next.** The PR; its independent audit's findings (below, when it has run); the GATES entry at landing.
 
