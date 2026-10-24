@@ -41,7 +41,9 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
+import { columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
+import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
@@ -1985,6 +1987,7 @@ export class CubeApp {
       // region, and the desk beneath it filters desk. Their menu
       // resolves it the same way, from the node's level.
       let value: FilterValue | null | undefined;
+      let raw: unknown;
       let columnType: string | undefined;
       const cell = el.closest<HTMLElement>('.dc-cell');
       const row = cell?.closest<HTMLElement>('.dc-row');
@@ -2003,19 +2006,21 @@ export class CubeApp {
           // total's path is empty and offers no value filter.
           const path = meta?.path ?? [];
           column = this.#shown.rows[path.length - 1];
-          value = path.length > 0 ? (path[path.length - 1] ?? null) : undefined;
+          raw = path.length > 0 ? (path[path.length - 1] ?? null) : undefined;
         } else if (column !== undefined) {
           const leaf = this.#view.columns.leaves.find(
             (l) => l.name === column,
           );
-          const raw =
-            leaf === undefined
-              ? null
-              : (this.#view.rows.columns[leaf.index]?.values[abs] ?? null);
-          // a big integer as its digits: a filter value is saved as JSON, which has no
-          // bigint; `literal` spells the digits by the column's type
-          value = (typeof raw === 'bigint' ? raw.toString() : raw) as FilterValue | null;
+          raw = leaf === undefined ? null : (this.#view.rows.columns[leaf.index]?.values[abs] ?? null);
         }
+        if (column !== undefined) {
+          columnType = rowColumns(this.#shown).find(
+            (c) => c.name === column,
+          )?.type;
+        }
+        // the cell's or the key's value as a filter takes it, by the value list's one rule (value-filter.ts
+        // cellFilterValue): a big integer as its digits, a JSON cell's text as a document (`fromJson`)
+        if (raw !== undefined) value = cellFilterValue(raw, columnType);
         // A PIVOT'S OWN COLUMN -- a cell or a Total -- exists only after
         // the pivot, and every filter runs before it: a value filter on
         // one could only be refused (P2-134). Its row keys and its pivot
@@ -2024,14 +2029,6 @@ export class CubeApp {
           && (isPivotTotalColumn(column) || this.#pivotMeasureOf(column) !== undefined)) {
           value = undefined;
         }
-        if (column !== undefined) {
-          columnType = rowColumns(this.#shown).find(
-            (c) => c.name === column,
-          )?.type;
-        }
-        // a JSON cell or key is its JSON text; as a filter value it is a document
-        // (`fromJson`), as query.ts reads a JSON group key
-        if (isVariant(columnType) && typeof value === 'string') value = { json: value };
         // A group-stage calculated column exists only AFTER the
         // groupBy, and every filter runs before it -- so a value
         // filter on one could only ever be refused.
@@ -2269,6 +2266,9 @@ export class CubeApp {
         return;
       case 'filter.column':
         this.openFilters();
+        return;
+      case 'filter.valueList':
+        if (column) void this.openValueList(column);
         return;
       default:
         return;
@@ -2510,6 +2510,56 @@ export class CubeApp {
     if (text === '') return;
     void this.#options.writeClipboard?.(text);
     this.#status('copied', 'ok');
+  }
+
+  /**
+   * THE VALUE LIST of `column` (Filter ▸ Filter Values..., Excel's autofilter): its values with how many rows each has,
+   * under the grid's other filters -- the database's answer (query.ts columnValuesLambda) -- each ticked when the
+   * filter keeps it now (the same question, the column's own conditions kept). OK keeps the ticked ones in place of
+   * the column's own conditions: the 'filter.values' gesture, Python's grid.filter_values.
+   */
+  async openValueList(column: string): Promise<void> {
+    const view = this.#view;
+    if (!view) return;
+    const s = view.snapshot;
+    const type = rowColumns(s).find((c) => c.name === column)?.type;
+    let offered: ResultTable;
+    let kept: ResultTable;
+    try {
+      [{ rows: offered }, { rows: kept }] = await Promise.all([
+        this.#controller.runQuery(columnValuesLambda(s, column), s),
+        this.#controller.runQuery(columnValuesLambda(s, column, true), s),
+      ]);
+    } catch (error: unknown) {
+      if (!this.#disposed) this.#reportFailure(error);
+      return;
+    }
+    if (this.#disposed) return;
+    const valuesOf = (t: ResultTable): (FilterValue | null)[] =>
+      (t.columns.find((c) => c.name === column)?.values ?? []).slice(0, MAX_FILTER_VALUES)
+        .map((v) => cellFilterValue(v, type));
+    const counts = offered.columns.find((c) => c.name === VALUE_COUNT_COLUMN)?.values ?? [];
+    const keyOf = (v: FilterValue | null): string => JSON.stringify(v);
+    const ticked = new Set(valuesOf(kept).map(keyOf));
+    const format = this.#formats[column];
+    const values = valuesOf(offered).map((value, i) => ({
+      value,
+      label: value === null ? '(Blank)' : this.#formatters.format(offered.columns.find((c) => c.name === column)?.values[i] ?? null, format, type),
+      rows: Number(counts[i] ?? 0).toLocaleString(UI_LOCALE),
+    }));
+    const named = labelFor(this.#config, column);
+    this.#showOverlay('Filter Values', (host, close) => {
+      host.replaceChildren(valueList(this.#doc, {
+        values,
+        ticked: (v) => ticked.has(keyOf(v)),
+        cut: offered.rowCount > MAX_FILTER_VALUES,
+        onOk: (keep) => {
+          close();
+          void this.#gestureGiven('filter.values', { column, values: keep }, `filter ${named}`);
+        },
+        onCancel: close,
+      }));
+    }, { replace: true });
   }
 
   /** The keyboard shortcuts, in a window of their own (Edit ▸ Keyboard Shortcuts..., the ? key). */

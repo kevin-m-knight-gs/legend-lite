@@ -502,6 +502,20 @@ class Grid(Tile):
         # the cube with it, set by the filter command the filter editor's Apply builds
         return self._kept(said, 3)
 
+    def filter_values(self, column: str, values: Any) -> Grid:
+        """The values of ``column`` kept, as the Filter Values window keeps the ticked ones (Excel's autofilter; DataCube's
+        one rule, value-filter.ts): ``values`` a list of them, ``None`` among them the blanks, in place of the
+        column's own conditions in the filter -- the other columns' kept as they are; ``None`` for every value, the
+        column's own conditions taken off. Each value as JSON carries it, tagged where it has no form (a date)."""
+        return self._gesture('filter.values', {'column': column, 'values': None if values is None else _tagged(list(values))})
+
+    def filter_date_range(self, column: str, range: str) -> Grid:
+        """``column``'s dates in ``range``, relative to when the query runs (the menu's Filter ▸ Date Range; DataCube's
+        date-ranges.ts): ``'today'``, ``'lastMonth'``, ``'yearToDate'``, ``'last30Days'``... -- from its start to its end,
+        in place of the column's own conditions. The dates are the database's to compute: a page saved with "last
+        month" shows last month whenever it is opened."""
+        return self._gesture('filter.dateRange', {'column': column, 'range': range})
+
     def sort(self, column: str, direction: str = 'asc') -> Grid:
         """A sort, after those it has, as the header menu's Add Ascending and Add Descending add one (grid-edits.ts
         addSort: a sort it had of ``column`` taken first; one it has already changes nothing): ``column`` (one of the

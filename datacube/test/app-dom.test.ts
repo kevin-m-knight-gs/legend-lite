@@ -876,6 +876,53 @@ describe('the app', () => {
     assert.deepEqual(commands, [{ kind: 'open', path: ['EMEA'], open: true }]);
   });
 
+  it("Filter Values: a column's values with their rows, the database's, ticked as the filter keeps them; OK keeps the ticked", async () => {
+    // the values query answers each value once with its rows (query.ts columnValuesLambda); the grid's queries as before
+    const values = new (class extends FakeEngine {
+      readonly name = 'values';
+      async answer(sql: string, epoch: number): Promise<ResultTable> {
+        if (sql.includes('__rows__')) {
+          return { columns: [
+            { name: 'region', type: 'String', values: ['AMER', 'EMEA', null] },
+            { name: '__rows__', type: 'Integer', values: [2, 1200, 1] },
+          ], rowCount: 3, epoch, elapsedMs: 0 };
+        }
+        return result(epoch);
+      }
+    })();
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const told: GridCommand[] = [];
+    // the EchoPlanner's "SQL" is the query's JSON, so the values query is told apart by its count column
+    const own = new CubeApp(host, SNAPSHOT, { engine: values, planner: new EchoPlanner(), onCommand: (c) => told.push(c) });
+    await own.open();
+    const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('Filter Values of region...');
+    for (let i = 0; i < 50 && !host.querySelector('[data-window="Filter Values"]'); i++) await new Promise((r) => setTimeout(r, 0));
+    const win = host.querySelector('[data-window="Filter Values"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    const items = (): HTMLElement[] => [...win.querySelectorAll<HTMLElement>('.dc-value-item:not(.dc-value-all)')];
+    assert.deepEqual(items().map((i) => [i.querySelector('.dc-value-label')?.textContent, i.querySelector('.dc-value-count')?.textContent,
+      (i.querySelector('input') as HTMLInputElement).checked]),
+      [['AMER', '2', true], ['EMEA', '1,200', true], ['(Blank)', '1', true]], 'every value kept: nothing filters it yet');
+    // a search shows the matching ones; (Select All) ticks those shown
+    const search = win.querySelector('.dc-value-search') as HTMLInputElement;
+    search.value = 'me';
+    search.dispatchEvent(new dom.window.Event('input'));
+    assert.deepEqual(items().filter((i) => !i.hidden).map((i) => i.querySelector('.dc-value-label')?.textContent), ['AMER', 'EMEA']);
+    search.value = '';
+    search.dispatchEvent(new dom.window.Event('input'));
+    // the blanks left out: OK keeps AMER and EMEA, in place of the column's own conditions (none yet)
+    (items()[2]!.querySelector('input') as HTMLInputElement).click();
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 50 && told.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(told, [{ kind: 'refilter', remove: [], add: [
+      { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] },
+    ] }]);
+    assert.deepEqual(own.snapshot.filter, { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] });
+  });
+
   it('? shows the keyboard shortcuts, as Edit ▸ Keyboard Shortcuts... does; not while typing', () => {
     const grid = root.querySelector('.dc-grid') as HTMLElement;
     grid.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));

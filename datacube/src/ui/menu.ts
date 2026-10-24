@@ -41,8 +41,9 @@ import type {
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { SHOW_AS_KINDS, TIME_GRAINS, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
-import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
-import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
+import { DATE_RANGES, DATE_RANGE_LABELS, type DateRange } from '../date-ranges.ts';
+import { isNumeric, isTemporal, isTimeOfDay } from '../../../engine-client/src/types.ts';
+import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, relativeDateWords, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
 import { gestureTakes, isGridGesture, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
@@ -258,6 +259,8 @@ export type MenuActionId =
   | 'page.editLayout'
   | 'view.properties'
   | 'view.shortcuts'
+  | 'filter.valueList'
+  | 'filter.dateRange'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)
   | 'view.controls'
   // Upstream's Copy > Selected Rows, Resize > Minimize and Size to Fit,
@@ -339,6 +342,8 @@ export interface MenuItem {
   readonly grain?: TimeGrain;
   /** A preset's choice: what a measure is shown as (`calc.showAs`). */
   readonly showAs?: ShowAsKind;
+  /** A date range relative to today (Filter ▸ Date Range ▸, date-ranges.ts). */
+  readonly range?: DateRange;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
   /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
@@ -397,7 +402,10 @@ export function filterOperatorsFor(type: string): FilterOperator[] {
  * the same shape as the Pure literal the filter sends.
  */
 export function valueLabel(value: FilterValue): string {
-  if (isRelativeDate(value)) return value.relative === 'today' ? 'TODAY' : 'NOW';
+  if (isRelativeDate(value)) {
+    return value.startOf === undefined && value.offset === undefined ? (value.relative === 'today' ? 'TODAY' : 'NOW')
+      : relativeDateWords(value);
+  }
   if (isJsonValue(value)) return value.json;
   // Text QUOTED, as upstream's: "region = 'EMEA'", so a value that
   // looks like a number or is blank still reads as the text it is.
@@ -853,6 +861,18 @@ function filterSubmenu(ctx: MenuContext): MenuItem[] {
     }
   }
 
+  // a row's column the compiler has typed (the app's columnType: a source column or a row-stage calculated one) --
+  // what a filter can run on, its values' literals written by its type -- offers its values to tick, and a date (not a
+  // time of day) its ranges relative to today; a pivot's cell offers neither
+  const type = column === undefined || ctx.pivotBase !== undefined ? undefined : ctx.columnType;
+  if (column !== undefined && type !== undefined) {
+    items.push({ id: 'filter.valueList', label: `Filter Values of ${columnLabel(column, ctx.totalLabel)}...`, column });
+    if (isTemporal(type) && !isTimeOfDay(type)) {
+      items.push({ label: 'Date Range', submenu: DATE_RANGES.map((range) => ({
+        id: 'filter.dateRange' as const, label: DATE_RANGE_LABELS[range], column, range,
+      })) });
+    }
+  }
   items.push(
     { id: 'filter.column', label: 'Filters...' },
     {
@@ -882,7 +902,7 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
  */
 export function menuGesture(item: MenuItem): { readonly name: GridGestureName; readonly args: GestureArgs } | null {
   if (!isGridGesture(item.id)) return null;
-  const carried: Record<string, unknown> = { column: item.column, operator: item.operator, value: item.value };
+  const carried: Record<string, unknown> = { column: item.column, operator: item.operator, value: item.value, range: item.range };
   return {
     name: item.id,
     args: Object.fromEntries(gestureTakes(item.id).flatMap((k) => (carried[k] !== undefined ? [[k, carried[k]]] : []))),

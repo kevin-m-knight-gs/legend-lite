@@ -1343,6 +1343,40 @@ class Abilities(Paged):
             grid.add_filter(('nope', 'equal', 'x'))
         self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5])
 
+    def test_a_value_list_keeps_the_values_ticked_in_place_of_the_columns_own_conditions(self):
+        # grid.filter_values: the Filter Values window's OK (DataCube's value-filter.ts, the 'filter.values' gesture)
+        page = ll.Page('Values')
+        grid = page.grid(trades(), name='valued_trades')
+        grid.filter([('desk', 'equal', 'Rates'), ('region', 'equal', 'AMER')])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [250.0])
+        grid.filter_values('region', ['EMEA', 'AMER'])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 250.0], "region's own condition replaced, desk's kept")
+        self.assertEqual(page._commands[-1]['kind'], 'refilter')
+        grid.filter_values('region', ['EMEA', None])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5], 'the blanks kept too: there are none')
+        grid.filter_values('region', None)
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 250.0], "every value: region's own conditions off")
+        with self.assertRaisesRegex(ValueError, "keep at least one value of 'region'"):
+            grid.filter_values('region', [])
+
+    def test_a_date_range_relative_to_today_is_two_conditions_the_database_computes(self):
+        # grid.filter_date_range: the menu's Filter > Date Range (DataCube's date-ranges.ts)
+        page = ll.Page('Dated')
+        today = datetime.date.today()
+        frame = pd.DataFrame({'day': [today, today - datetime.timedelta(days=400)], 'notional': [1.0, 2.0]})
+        grid = page.grid(frame, name='dated')
+        grid.filter_date_range('day', 'last30Days')
+        self.assertEqual(list(grid.to_pandas()['notional']), [1.0])
+        condition = page._commands[-1]['add'][0]
+        self.assertEqual(condition['value'], {'relative': 'today', 'offset': -29, 'unit': 'DAYS'})
+        # a range from a period's start (firstDayOfYear, adjust): this year's day kept, the one 400 days back not
+        grid.filter_date_range('day', 'thisYear')
+        self.assertEqual(list(grid.to_pandas()['notional']), [1.0], 'the range replaced the last one')
+        grid.filter_date_range('day', 'lastYear')
+        self.assertEqual(list(grid.to_pandas()['notional']), [2.0] if (today - datetime.timedelta(days=400)).year == today.year - 1 else [])
+        with self.assertRaisesRegex(ValueError, 'a date range is today'):
+            grid.filter_date_range('day', 'someday')
+
     def test_copy_of_grid_is_a_grid_of_its_own_beside_it_starting_as_it_is(self):
         # (K10) grid.copy: Copy of Grid -- the copy's cube by DataCube's one rule (cube-document.ts cubeCopied), the one
         # the screen's copy writes (one-api-gestures.test.ts holds the two the same)

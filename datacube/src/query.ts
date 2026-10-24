@@ -10,7 +10,7 @@
 // meaning, made and proven there.
 
 import {
-  agg, and, asc, collection, derive, desc, flatten, fn, from, lambda, lit, not, or, property, variable,
+  agg, and, asc, collection, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import {
@@ -21,6 +21,7 @@ import {
   pivotTotalColumn,
   isJsonValue,
   isRelativeDate,
+  relativeDateWords,
   referencedColumns,
   rowColumns,
   totalOrderSorts,
@@ -34,9 +35,12 @@ import {
   type FilterValue,
   type Measure,
   type QuerySnapshot,
+  type RelativeDate,
+  type RelativeStart,
   type SortSpec,
   type WindowSpec,
 } from './snapshot.ts';
+import { filterWithout, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
@@ -53,13 +57,28 @@ import { columnRef, measureNameProblem } from './calc.ts';
  * typed is refused: the text's look (a `.`, a `-`) or JavaScript's type of it is a guess.
  */
 export function literalNode(v: FilterValue, type?: string): ValueSpecification {
-  if (isRelativeDate(v)) return fn(v.relative === 'today' ? 'today' : 'now');
+  if (isRelativeDate(v)) return relativeDateNode(v);
   if (isJsonValue(v)) return fn('fromJson', lit.string(v.json));
   if (type === undefined) {
     throw new CubeRefusal(`the compiler has not typed the column this value ${JSON.stringify(v)} is compared with`);
   }
   if (isBoolean(type)) return lit.boolean(v === true || v === 'true');
   return lit.of(plainType(type), typeof v === 'boolean' ? String(v) : v);
+}
+
+/** The compiler's function taking a date to its period's first day. */
+const START_FUNCTION: Readonly<Record<RelativeStart, string>> = {
+  week: 'firstDayOfWeek', month: 'firstDayOfMonth', quarter: 'firstDayOfQuarter', year: 'firstDayOfYear',
+};
+
+/** `today()`, taken to its period's start, then moved: `adjust(firstDayOfMonth(today()), -1, DurationUnit.MONTHS)`. */
+function relativeDateNode(v: RelativeDate): ValueSpecification {
+  let node: ValueSpecification = fn(v.relative === 'today' ? 'today' : 'now');
+  if (v.startOf !== undefined) node = fn(START_FUNCTION[v.startOf], node);
+  if (v.offset !== undefined && v.unit !== undefined && v.offset !== 0) {
+    node = fn('adjust', node, lit.integer(v.offset), enumValue('meta::pure::functions::date::DurationUnit', v.unit));
+  }
+  return node;
 }
 
 // ---- filters ----
@@ -338,6 +357,24 @@ export function countLambda(s: QuerySnapshot): Lambda {
 export function rowCountLambda(rel: Relation): Lambda {
   return rel.extend([derive(ROOT_COLUMN, lambda(['x'], lit.string(ROOT_VALUE)))])
     .groupBy([ROOT_COLUMN], [agg(TOTAL_ROWS_COLUMN, lambda(['x'], lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
+    .lambda();
+}
+
+/**
+ * A VALUE LIST's question (value-filter.ts, Excel's autofilter): `column`'s values -- each once, with how many rows have
+ * it -- in order, one past the cap. Read under the grid's filter with the column's own conditions left off (`own`
+ * false), so a value they filter out is offered to put back; with them (`own` true), the values the filter keeps now,
+ * which the list shows ticked.
+ */
+export function columnValuesLambda(s: QuerySnapshot, column: string, own = false): Lambda {
+  let rel = sourceWithDerived(s);
+  const filter = own ? s.filter : filterWithout(s.filter, column);
+  if (filter) rel = rel.filter(lambda(['x'], filterNode(filter, 'x', (c) => columnType(s, c))));
+  return rel
+    .select([column])
+    .groupBy([column], [agg(VALUE_COUNT_COLUMN, lambda(['x'], lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
+    .sort([asc(column)])
+    .limit(MAX_FILTER_VALUES + 1)
     .lambda();
 }
 
@@ -954,7 +991,7 @@ export function pinnedPivotFacts(s: QuerySnapshot): PivotFacts | null {
   if (s.pivotValues === undefined || s.pivotValues.length === 0) return null;
   // A key as a tree key is: the value's exact text (a JSON value its document's text)
   const key = (v: FilterValue): GroupKey => (isJsonValue(v) ? v.json
-    : isRelativeDate(v) ? v.relative : String(v));
+    : isRelativeDate(v) ? relativeDateWords(v) : String(v));
   return { tuples: s.pivotValues.map((v) => [key(v)]) };
 }
 

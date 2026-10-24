@@ -154,6 +154,42 @@ describe('sorts, the tree and a dimension', () => {
   });
 });
 
+describe('the value list and date ranges: a column\'s own conditions replaced', () => {
+  const emea = { kind: 'condition' as const, column: 'region', operator: 'equal' as const, value: 'EMEA' };
+  const big = { kind: 'condition' as const, column: 'notional', operator: 'greaterThan' as const, value: 100 };
+
+  it('the values kept in place of the column\'s own conditions; every value takes them off; nothing kept refused', () => {
+    const filtered = grid({ filter: { kind: 'and', children: [emea, big] } });
+    assert.deepEqual(gridGesture('filter.values', filtered, { column: 'region', values: ['EMEA', 'AMER', null] }), [{
+      kind: 'refilter', remove: [emea],
+      add: [{ kind: 'or', children: [
+        { kind: 'condition', column: 'region', operator: 'in', value: ['EMEA', 'AMER'] },
+        { kind: 'condition', column: 'region', operator: 'isEmpty' },
+      ] }],
+    }]);
+    // applied: the other column's condition stays as it was
+    const [command] = gridGesture('filter.values', filtered, { column: 'region', values: ['AMER'] });
+    const after = applyGridCommands({ snapshot: filtered.snapshot, config: DEFAULT_CONFIGURATION }, [command!]);
+    assert.deepEqual(after.snapshot.filter,
+      { kind: 'and', children: [big, { kind: 'condition', column: 'region', operator: 'equal', value: 'AMER' }] });
+    assert.deepEqual(gridGesture('filter.values', filtered, { column: 'region', values: null }),
+      [{ kind: 'refilter', remove: [emea], add: [] }], 'every value: its own conditions off');
+    assert.deepEqual(gridGesture('filter.values', grid(), { column: 'region', values: null }), [], 'none to take off');
+    refused(() => gridGesture('filter.values', grid(), { column: 'region', values: [] }), /keep at least one value of 'region'/);
+    refused(() => gridGesture('filter.values', grid(), { column: 'region', values: 'EMEA' as never }), /the values kept are a list/);
+  });
+
+  it('a date range from its start to its end, in place of the column\'s own conditions', () => {
+    const [command] = gridGesture('filter.dateRange', grid(), { column: 'year', range: 'thisYear' });
+    assert.deepEqual(command, { kind: 'refilter', remove: [], add: [
+      { kind: 'condition', column: 'year', operator: 'greaterThanEqual', value: { relative: 'today', startOf: 'year' } },
+      { kind: 'condition', column: 'year', operator: 'lessThan',
+        value: { relative: 'today', startOf: 'year', offset: 1, unit: 'YEARS' } },
+    ] });
+    refused(() => gridGesture('filter.dateRange', grid(), { column: 'year', range: 'soon' as never }), /a date range is today/);
+  });
+});
+
 describe('what a gesture is given', () => {
   it('named by text (a menu entry, Python), an argument it does not take, or one it needs and is not given, is refused in words', () => {
     refused(() => gridGestureGiven('column.pinLeft', grid(), { column: 'desk', side: 'left' }), /'column.pinLeft' takes column, not side/);

@@ -1209,6 +1209,71 @@
   color: var(--dc-muted);
 }
 
+/* The value list (Filter Values...): a search, the values with their rows on the right, OK and Cancel below. */
+.dc-value-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  width: min(80vw, 340px);
+  font-size: var(--dc-text-base-size);
+}
+
+.dc-value-items {
+  max-height: min(50vh, 320px);
+  overflow: auto;
+  border: 1px solid var(--dc-border);
+  border-radius: 4px;
+  padding: 4px 0;
+}
+
+.dc-value-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.dc-value-item:hover {
+  background: var(--dc-hover);
+}
+
+.dc-value-item[hidden] {
+  display: none;
+}
+
+.dc-value-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-value-count {
+  color: var(--dc-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-value-all {
+  font-weight: 600;
+  border-bottom: 1px solid var(--dc-border);
+  margin-bottom: 2px;
+}
+
+.dc-value-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-value-cut {
+  flex: 1;
+  color: var(--dc-muted);
+}
+
 /* The keyboard shortcuts: a heading per group, the keys in a column of their own. */
 .dc-shortcuts {
   border-collapse: collapse;

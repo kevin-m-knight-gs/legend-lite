@@ -485,10 +485,31 @@ export interface FilterCondition {
  * A date relative to when the query RUNS: upstream's TODAY and NOW
  * advanced values (DataCubeOperationAdvancedValueType). Rendered as
  * `today()` / `now()`, so a saved view filtered to "before today" means
- * today whenever it is opened, not the day it was saved.
+ * today whenever it is opened, not the day it was saved. A date range's
+ * ends (date-ranges.ts) are taken to their period's start and moved, by
+ * the compiler's functions -- the database's date arithmetic, never the tab's.
  */
 export interface RelativeDate {
   readonly relative: 'today' | 'now';
+  /** First taken to its period's first day: `firstDayOfMonth(today())`. */
+  readonly startOf?: RelativeStart;
+  /** Then moved by this many units, back when negative: `adjust(<it>, -1, DurationUnit.MONTHS)`. Both or neither. */
+  readonly offset?: number;
+  readonly unit?: RelativeUnit;
+}
+
+export const RELATIVE_STARTS = ['week', 'month', 'quarter', 'year'] as const;
+export type RelativeStart = (typeof RELATIVE_STARTS)[number];
+export const RELATIVE_UNITS = ['DAYS', 'WEEKS', 'MONTHS', 'YEARS'] as const;
+export type RelativeUnit = (typeof RELATIVE_UNITS)[number];
+
+/** A relative date in words: `today`, `the start of this month - 1 month`. */
+export function relativeDateWords(v: RelativeDate): string {
+  const base = v.startOf !== undefined ? `the start of this ${v.startOf}` : v.relative;
+  if (v.offset === undefined || v.unit === undefined || v.offset === 0) return base;
+  const n = Math.abs(v.offset);
+  const unit = v.unit.toLowerCase().replace(/s$/, '');
+  return `${base} ${v.offset < 0 ? '-' : '+'} ${n} ${unit}${n === 1 ? '' : 's'}`;
 }
 
 /**
@@ -515,9 +536,13 @@ export function isJsonValue(v: unknown): v is JsonValue {
 export type FilterValue = string | number | boolean | RelativeDate | JsonValue;
 
 export function isRelativeDate(v: unknown): v is RelativeDate {
-  return typeof v === 'object' && v !== null
-    && ((v as { relative?: unknown }).relative === 'today'
-      || (v as { relative?: unknown }).relative === 'now');
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  if (o['relative'] !== 'today' && o['relative'] !== 'now') return false;
+  if (Object.keys(o).some((k) => !['relative', 'startOf', 'offset', 'unit'].includes(k))) return false;
+  if (o['startOf'] !== undefined && !(RELATIVE_STARTS as readonly unknown[]).includes(o['startOf'])) return false;
+  const moved = o['offset'] !== undefined || o['unit'] !== undefined;
+  return !moved || (Number.isInteger(o['offset']) && (RELATIVE_UNITS as readonly unknown[]).includes(o['unit']));
 }
 
 export interface FilterGroup {

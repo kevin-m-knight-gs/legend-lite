@@ -203,8 +203,14 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // a time of day is compared for equality only
     const time = submenu({ snapshot: DATED, column: 'cutoff', columnType: 'StrictTime', value: '17:30:00' }, 'Filter');
     assert.deepEqual(labels(time), [
-      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff...', 'Filters...', 'Clear All Filters [off]',
-    ]);
+      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff...', 'Filter Values of cutoff...', 'Filters...',
+      'Clear All Filters [off]',
+    ], 'its values to tick; no date range for a time of day');
+    // a date offers its ranges relative to today, each the dateRange gesture with its range
+    const ranges = today.find((i) => i.label === 'Date Range')?.submenu ?? [];
+    assert.deepEqual(ranges.slice(0, 3).map((i) => [i.label, i.id, i.range]),
+      [['Today', 'filter.dateRange', 'today'], ['Yesterday', 'filter.dateRange', 'yesterday'], ['This Week', 'filter.dateRange', 'thisWeek']]);
+    assert.deepEqual(menuGesture(ranges[0]!), { name: 'filter.dateRange', args: { column: 'trade_date', range: 'today' } });
   });
 });
 

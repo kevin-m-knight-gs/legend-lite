@@ -20,6 +20,8 @@ import {
   CubeRefusal, isPivotTotalColumn, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
+import { dateRangeConditions, type DateRange } from './date-ranges.ts';
+import { keptCondition, ownConditions } from './value-filter.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
 /** What a gesture reads of the grid: its state, and the dimensions it offers (its own, or its host's). */
@@ -55,6 +57,8 @@ export type GridGestureArgs = {
   readonly 'filter.add': { readonly column: string; readonly operator: FilterOperator; readonly value?: FilterValue };
   readonly 'filter.clearAll': Nothing;
   readonly 'filter.set': { readonly filter: FilterNode | null };
+  readonly 'filter.values': { readonly column: string; readonly values: readonly (FilterValue | null)[] | null };
+  readonly 'filter.dateRange': { readonly column: string; readonly range: DateRange };
   readonly 'chart.refilter': { readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] };
   readonly 'pivot.vertical': Column; readonly 'pivot.addVertical': Column; readonly 'pivot.removeVertical': Column;
   readonly 'pivot.clearVertical': Nothing;
@@ -162,6 +166,13 @@ export function columnOrderOf(s: CubeSnapshot, config: CubeConfiguration): strin
 }
 
 /** The row groups, or the pivot, with `name` added last -- none when it is there already -- or taken out. */
+/** `column`'s own conditions in the filter (value-filter.ts ownConditions) replaced by `add`: one refilter, or nothing
+ *  when nothing changes. */
+const replaced = (s: CubeSnapshot, column: string, add: readonly FilterNode[]): GridCommand[] => {
+  const remove = ownConditions(s.filter, column);
+  return remove.length === 0 && add.length === 0 ? [] : [{ kind: 'refilter', remove, add }];
+};
+
 const zone = (kind: 'group' | 'pivot', s: CubeSnapshot, change: (has: readonly string[]) => string[] | null): GridCommand[] => {
   const has = kind === 'group' ? s.rows : s.pivotOn;
   const next = change(has);
@@ -217,6 +228,28 @@ const GESTURES = {
   'filter.clearAll': { args: [], make: () => [{ kind: 'filter', filter: null }] },
   // the filter editor's filter, whole; null takes it off
   'filter.set': { args: ['filter'], make: (_g, a) => [{ kind: 'filter', filter: a['filter'] as FilterNode | null }] },
+  // THE VALUE LIST (value-filter.ts, Excel's autofilter): the values of the column kept -- null among them the blanks --
+  // in place of the column's own conditions; null for every value (its own conditions taken off)
+  'filter.values': {
+    args: ['column', 'values'],
+    make: (g, a) => {
+      const column = columnOf(a);
+      const values = a['values'];
+      if (values !== null && !Array.isArray(values)) {
+        throw new CubeRefusal(`the values kept are a list (null among them the blanks), or null for every one, not ${JSON.stringify(values)}`);
+      }
+      return replaced(g.snapshot, column, values === null ? [] : [keptCondition(column, values as (FilterValue | null)[])]);
+    },
+  },
+  // A DATE RANGE relative to when the query runs (date-ranges.ts): from its start to its end, in place of the column's
+  // own conditions
+  'filter.dateRange': {
+    args: ['column', 'range'],
+    make: (g, a) => {
+      const column = columnOf(a);
+      return replaced(g.snapshot, column, dateRangeConditions(column, text(a, 'range', 'the date range') as DateRange));
+    },
+  },
   // a chart's mark on the grid's filter -- the selection it had taken off, the one it has now on -- or a selection off
   'chart.refilter': {
     args: ['remove', 'add'],

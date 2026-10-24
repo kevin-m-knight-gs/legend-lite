@@ -18,6 +18,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-model.ts",
@@ -51,6 +52,7 @@ TEST_IMPORTS = {
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
         "src/ui/window.ts",
+        "src/value-filter.ts",
     ],
     "adhoc-query": [
         "src/adhoc/query.ts",
@@ -71,6 +73,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "adhoc-session": [
         "src/adhoc/outline.ts",
@@ -92,6 +95,7 @@ TEST_IMPORTS = {
         "src/state-owner.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "adhoc-state": [
         "src/adhoc/state.ts",
@@ -112,6 +116,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-model.ts",
@@ -145,6 +150,7 @@ TEST_IMPORTS = {
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
         "src/ui/window.ts",
+        "src/value-filter.ts",
     ],
     "adhoc-transactions": [
         "src/adhoc/outline.ts",
@@ -166,6 +172,7 @@ TEST_IMPORTS = {
         "src/state-owner.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "app-dom": [
         "src/adhoc/member-selection.ts",
@@ -192,6 +199,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -269,8 +277,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "app": [
         "src/adhoc/member-selection.ts",
@@ -297,6 +307,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -372,8 +383,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "apply-refusal": [
         "src/adhoc/member-selection.ts",
@@ -400,6 +413,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -475,8 +489,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "association-dialog": [
         "src/calc.ts",
@@ -497,6 +513,7 @@ TEST_IMPORTS = {
         "src/ui/association-dialog.ts",
         "src/ui/class-dialog.ts",
         "src/ui/data-space-dialog.ts",
+        "src/value-filter.ts",
     ],
     "band-board": [
         "src/layout/band-board.ts",
@@ -525,6 +542,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "calc": [
         "src/calc.ts",
@@ -540,6 +558,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "cancel-http": [
         "src/calc.ts",
@@ -556,6 +575,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "cancel": [
         "src/calc.ts",
@@ -572,6 +592,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "chart-echarts": [
         "src/calc-presets.ts",
@@ -600,6 +621,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "chart-kinds": [
         "src/calc-presets.ts",
@@ -640,6 +662,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "chart-maps": [
         "src/calc-presets.ts",
@@ -682,6 +705,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "chart-queries": [
         "src/calc-presets.ts",
@@ -730,6 +754,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "chart-rules-more": [
         "src/calc-presets.ts",
@@ -756,6 +781,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "chart-rules": [
         "src/calc-presets.ts",
@@ -782,6 +808,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "chart-tiles": [
         "src/adhoc/member-selection.ts",
@@ -808,6 +835,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -883,8 +911,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "child-groups": [
         "src/calc.ts",
@@ -903,6 +933,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "class-dialog": [
         "src/calc.ts",
@@ -921,6 +952,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/class-dialog.ts",
+        "src/value-filter.ts",
     ],
     "class-source": [
         "src/calc-presets.ts",
@@ -964,6 +996,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "column-editor": [
         "src/calc-fix.ts",
@@ -987,6 +1020,7 @@ TEST_IMPORTS = {
         "src/ui/column-editor.ts",
         "src/ui/docs.ts",
         "src/ui/json-fields.ts",
+        "src/value-filter.ts",
     ],
     "column-kind": [
         "src/calc.ts",
@@ -1005,6 +1039,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "columns-panel": [
         "src/ui/columns-panel.ts",
@@ -1036,6 +1071,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "config-readers": [],
     "config": [
@@ -1058,6 +1094,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "create-class": [
         "src/calc-presets.ts",
@@ -1108,6 +1145,7 @@ TEST_IMPORTS = {
         "src/ui/class-dialog.ts",
         "src/ui/data-space-dialog.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-adhoc-shell": [
         "src/adhoc/member-selection.ts",
@@ -1134,6 +1172,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -1209,8 +1248,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-document": [
         "src/calc.ts",
@@ -1234,6 +1275,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-editors-app": [
         "src/adhoc/member-selection.ts",
@@ -1260,6 +1302,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -1335,8 +1378,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-library": [
         "src/adhoc/member-selection.ts",
@@ -1366,6 +1411,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -1461,8 +1507,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-lifecycle": [
         "src/adhoc/member-selection.ts",
@@ -1489,6 +1537,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -1564,8 +1613,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-page-shell": [
         "src/adhoc/member-selection.ts",
@@ -1599,6 +1650,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -1687,8 +1739,10 @@ TEST_IMPORTS = {
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
         "src/ui/source-picker.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-round-trip": [
         "src/calc-presets.ts",
@@ -1722,6 +1776,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cube-state": [
         "src/calc.ts",
@@ -1742,6 +1797,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "cube-transactions": [
         "src/adhoc/member-selection.ts",
@@ -1768,6 +1824,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -1843,8 +1900,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "cypher-spike": [
         "src/calc.ts",
@@ -1863,6 +1922,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "datacube-app-live": [
         "src/adhoc/member-selection.ts",
@@ -1901,6 +1961,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/examples/catalog.ts",
@@ -2017,8 +2078,10 @@ TEST_IMPORTS = {
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
         "src/ui/source-picker.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "dimensions": [
         "src/dimensions.ts",
@@ -2041,6 +2104,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "duckdb-cancel": [
         "src/epoch.ts",
@@ -2080,6 +2144,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "editor": [
         "src/calc.ts",
@@ -2113,6 +2178,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "editors-live": [
         "src/calc.ts",
@@ -2146,6 +2212,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "engine-remote-http": [
         "src/snapshot.ts",
@@ -2173,6 +2240,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "examples": [
         "src/calc-presets.ts",
@@ -2223,6 +2291,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "export-doc": [
         "src/calc.ts",
@@ -2242,6 +2311,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "export-model": [
         "src/calc.ts",
@@ -2266,6 +2336,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "export-rich-dom": [
         "src/calc.ts",
@@ -2285,6 +2356,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "export-rich": [
         "src/calc.ts",
@@ -2305,6 +2377,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "export": [
         "src/calc.ts",
@@ -2324,6 +2397,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "filter-editor-dom": [
         "src/filter-operators.ts",
@@ -2352,6 +2426,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/filter-editor.ts",
+        "src/value-filter.ts",
     ],
     "form": [
         "src/ui/form.ts",
@@ -2381,6 +2456,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "grid-basics": [
         "src/calc.ts",
@@ -2408,6 +2484,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "grid-commands": [
         "src/calc.ts",
@@ -2434,6 +2511,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "grid-dom": [
         "src/calc.ts",
@@ -2461,6 +2539,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "grid-edits": [
         "src/calc.ts",
@@ -2482,6 +2561,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "grid-gestures": [
         "src/calc.ts",
@@ -2489,6 +2569,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/filter-operators.ts",
@@ -2509,6 +2590,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "grid-presets": [
         "src/calc-presets.ts",
@@ -2536,6 +2618,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "grid-resize": [
         "src/calc.ts",
@@ -2563,6 +2646,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "grid": [
         "src/calc.ts",
@@ -2579,6 +2663,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "group-derived": [
         "src/calc.ts",
@@ -2597,6 +2682,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "guardrails": [],
     "headless-assert": [],
@@ -2638,6 +2724,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/examples/charts-dashboard.ts",
@@ -2730,8 +2817,10 @@ TEST_IMPORTS = {
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
         "src/ui/source-picker.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "host": [
         "src/host.ts",
@@ -2755,6 +2844,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "join-dialog": [
         "src/calc.ts",
@@ -2774,6 +2864,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/join-dialog.ts",
+        "src/value-filter.ts",
     ],
     "join-inputs": [
         "src/calc.ts",
@@ -2800,6 +2891,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "join-menu": [
         "src/adhoc/member-selection.ts",
@@ -2834,6 +2926,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -2922,8 +3015,10 @@ TEST_IMPORTS = {
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
         "src/ui/source-picker.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "join-open": [
         "src/calc.ts",
@@ -2952,6 +3047,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "join": [
         "src/calc.ts",
@@ -2969,6 +3065,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "json-shape": [
         "src/calc.ts",
@@ -2988,6 +3085,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/json-fields.ts",
+        "src/value-filter.ts",
     ],
     "layout-picker": [
         "src/focus.ts",
@@ -3014,6 +3112,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "lite-planner": [
         "src/calc.ts",
@@ -3032,6 +3131,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "live-channel": [
         "src/adhoc/member-selection.ts",
@@ -3061,6 +3161,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/examples/charts-dashboard.ts",
@@ -3149,8 +3250,10 @@ TEST_IMPORTS = {
         "src/ui/settings-panel.ts",
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "live-follow": [
         "src/adhoc/member-selection.ts",
@@ -3180,6 +3283,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/examples/charts-dashboard.ts",
@@ -3270,8 +3374,10 @@ TEST_IMPORTS = {
         "src/ui/settings-panel.ts",
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "long-press": [
         "src/ui/long-press.ts",
@@ -3286,6 +3392,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/filter-operators.ts",
@@ -3307,6 +3414,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/menu.ts",
+        "src/value-filter.ts",
     ],
     "menu-view": [
         "src/adhoc/state.ts",
@@ -3317,6 +3425,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/filter-operators.ts",
@@ -3340,6 +3449,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/menu-view.ts",
         "src/ui/menu.ts",
+        "src/value-filter.ts",
     ],
     "menu": [
         "src/adhoc/state.ts",
@@ -3350,6 +3460,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/filter-operators.ts",
@@ -3371,6 +3482,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/ui/menu.ts",
+        "src/value-filter.ts",
     ],
     "model-join": [
         "src/calc.ts",
@@ -3389,6 +3501,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "model-route": [
         "src/calc.ts",
@@ -3407,6 +3520,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "multi-cube": [
         "src/adhoc/member-selection.ts",
@@ -3433,6 +3547,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -3508,8 +3623,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "offer-facts": [
         "src/adhoc/state.ts",
@@ -3520,6 +3637,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/filter-operators.ts",
@@ -3552,6 +3670,7 @@ TEST_IMPORTS = {
         "src/ui/panel-general.ts",
         "src/ui/panel-kit.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "one-api-gestures": [
         "src/adhoc/member-selection.ts",
@@ -3582,6 +3701,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -3679,8 +3799,10 @@ TEST_IMPORTS = {
         "src/ui/settings-panel.ts",
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "one-api-ledger": [
         "src/calc.ts",
@@ -3704,6 +3826,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-app": [
         "src/adhoc/member-selection.ts",
@@ -3731,6 +3854,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -3809,8 +3933,10 @@ TEST_IMPORTS = {
         "src/ui/settings-panel.ts",
         "src/ui/sheet-tabs.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-commands": [
         "src/adhoc/member-selection.ts",
@@ -3840,6 +3966,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/examples/charts-dashboard.ts",
@@ -3940,8 +4067,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-corpus": [
         "src/calc-presets.ts",
@@ -3990,6 +4119,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-document": [
         "src/adhoc/member-selection.ts",
@@ -4019,6 +4149,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -4113,8 +4244,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-filters": [
         "src/adhoc/member-selection.ts",
@@ -4144,6 +4277,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/examples/charts-dashboard.ts",
@@ -4244,8 +4378,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-gestures": [
         "src/calc-presets.ts",
@@ -4287,6 +4423,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-rebase": [
         "src/adhoc/member-selection.ts",
@@ -4316,6 +4453,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/examples/charts-dashboard.ts",
@@ -4416,8 +4554,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "page-state": [
         "src/calc-presets.ts",
@@ -4466,6 +4606,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "parity-screen": [
         "src/adhoc/member-selection.ts",
@@ -4492,6 +4633,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -4570,8 +4712,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "pivot-panel-dom": [
         "src/ui/pivot-panel.ts",
@@ -4601,6 +4745,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "pivot-values": [
         "src/calc.ts",
@@ -4616,6 +4761,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "plane": [
         "src/calc.ts",
@@ -4634,6 +4780,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "planner-http": [
         "src/calc.ts",
@@ -4650,6 +4797,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "planner": [
         "src/calc.ts",
@@ -4666,6 +4814,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "portability": [],
     "python-runner": [
@@ -4695,6 +4844,7 @@ TEST_IMPORTS = {
         "src/cube-state.ts",
         "src/cube-store.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -4776,8 +4926,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "query": [
         "src/calc.ts",
@@ -4796,6 +4948,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "relation-type": [],
     "remote": [
@@ -4816,6 +4969,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "runner": [
         "src/calc.ts",
@@ -4831,6 +4985,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "sample-trades": [
         "src/calc.ts",
@@ -4853,6 +5008,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "sample": [
         "src/sample-trades.ts",
@@ -4901,6 +5057,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "saved-queries": [
         "src/calc.ts",
@@ -4921,6 +5078,7 @@ TEST_IMPORTS = {
         "src/source-columns.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "scale": [
         "src/calc.ts",
@@ -4948,6 +5106,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/pivot-panel.ts",
         "src/ui/scope.ts",
+        "src/value-filter.ts",
     ],
     "screen-colours": [
         "src/calc.ts",
@@ -4967,6 +5126,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "selection": [
         "src/calc.ts",
@@ -4987,6 +5147,7 @@ TEST_IMPORTS = {
         "src/style.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "share-link-node": [
         "src/share/link-p1.ts",
@@ -5032,6 +5193,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "sheet-tabs": [
         "src/adhoc/state.ts",
@@ -5042,6 +5204,7 @@ TEST_IMPORTS = {
         "src/command-fields.ts",
         "src/config.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/filter-operators.ts",
@@ -5066,6 +5229,7 @@ TEST_IMPORTS = {
         "src/ui/menu-view.ts",
         "src/ui/menu.ts",
         "src/ui/sheet-tabs.ts",
+        "src/value-filter.ts",
     ],
     "shell": [
         "src/adhoc/member-selection.ts",
@@ -5092,6 +5256,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -5167,8 +5332,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "sorting": [
         "src/calc.ts",
@@ -5187,6 +5354,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "source-picker": [
         "src/focus.ts",
@@ -5218,6 +5386,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "type-columns": [
         "src/calc.ts",
@@ -5236,6 +5405,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "undo-coverage": [
         "src/adhoc/member-selection.ts",
@@ -5262,6 +5432,7 @@ TEST_IMPORTS = {
         "src/cube-document.ts",
         "src/cube-state.ts",
         "src/cube.ts",
+        "src/date-ranges.ts",
         "src/dimensions.ts",
         "src/epoch.ts",
         "src/export-doc.ts",
@@ -5337,8 +5508,10 @@ TEST_IMPORTS = {
         "src/ui/scope.ts",
         "src/ui/settings-panel.ts",
         "src/ui/shortcuts.ts",
+        "src/ui/value-list.ts",
         "src/ui/window.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "upload": [
         "src/calc.ts",
@@ -5361,6 +5534,7 @@ TEST_IMPORTS = {
         "src/tree.ts",
         "src/treeview.ts",
         "src/upload.ts",
+        "src/value-filter.ts",
     ],
     "upstream-plans": [
         "src/calc.ts",
@@ -5377,6 +5551,27 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
+    ],
+    "value-filter": [
+        "src/calc.ts",
+        "src/cube.ts",
+        "src/date-ranges.ts",
+        "src/epoch.ts",
+        "src/generated/offer-facts.ts",
+        "src/grid/columns.ts",
+        "src/infer.ts",
+        "src/json-shape.ts",
+        "src/lite-planner.ts",
+        "src/model-writer.ts",
+        "src/plan.ts",
+        "src/planner.ts",
+        "src/query.ts",
+        "src/runner.ts",
+        "src/snapshot.ts",
+        "src/tree.ts",
+        "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "values": [],
     "warehouse-session-http": [],
@@ -5399,6 +5594,7 @@ TEST_IMPORTS = {
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",
+        "src/value-filter.ts",
     ],
     "window-dom": [
         "src/ui/window.ts",
