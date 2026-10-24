@@ -112,6 +112,21 @@ class CypherWritePlansTest {
         }
     }
 
+    /** A native store whose {@code nodes} does not declare {@code id} its primary key: a CREATE is refused by name,
+     *  before anything runs, since two writers at once could mint one id (PR #67's second review, 2026-10-24). */
+    @Test
+    void aStoreWhoseIdsAreNoKeyRefusesACreate() throws Exception {
+        CypherGraph.Inferred inferred = CypherGraph.infer(GRAPH, CypherGraph.Realization.NATIVE);
+        String keyed = CypherGraph.model(inferred, PLATFORM.connectionBody());
+        String model = keyed.replace("Table nodes (id BIGINT PRIMARY KEY,", "Table nodes (id BIGINT,");
+        assertTrue(!model.equals(keyed), "the store's nodes declared no key to take away");
+        try (Connection session = PLATFORM.open()) {
+            Exception e = assertThrows(Exception.class, () -> executed(session, model, "CREATE (:N {name: 'c'})"));
+            assertTrue(String.valueOf(e.getMessage()).contains("does not declare id its primary key"),
+                    String.valueOf(e.getMessage()));
+        }
+    }
+
     /** A statement's rows, each row's cells as text, and the graph after it (its dump's rows). */
     private record Answer(List<String> rows, List<String> graph) {
     }
